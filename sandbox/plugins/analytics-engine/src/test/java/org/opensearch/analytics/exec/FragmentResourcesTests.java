@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec;
 
+import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -16,6 +18,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
@@ -73,5 +76,31 @@ public class FragmentResourcesTests extends OpenSearchTestCase {
         new FragmentResources(store, ctx, null, null, null, false).close();
         assertTrue("Reader closed once the terminal fetch frees it", closed.get());
         assertEquals(0, store.activeCount());
+    }
+
+    public void testNonQtfQueryErrorClosesReader() throws Exception {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool);
+        ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
+
+        // Non-QTF query (fetchFollows=false) whose stream throws while draining: try-with-resources
+        // still runs close(), which must free the reader rather than leak it to the reaper.
+        try (FragmentResources resources = new FragmentResources(store, ctx, null, null, null, false)) {
+            throw new RuntimeException("simulated query-phase failure");
+        } catch (RuntimeException expected) {
+            // expected
+        }
+
+        assertTrue("Reader must be closed after a non-QTF query error", closed.get());
+        assertEquals("Context must be removed from the store", 0, store.activeCount());
+    }
+
+    public void testRequestsRowIdsDetectsQtfVsNormal() {
+        assertTrue("QTF scan requests row ids", AnalyticsSearchService.requestsRowIds(List.of(new ShardScanInstructionNode(true))));
+        assertFalse(
+            "Normal scan does not request row ids",
+            AnalyticsSearchService.requestsRowIds(List.of(new ShardScanInstructionNode(false)))
+        );
+        assertFalse("No scan node means no row ids", AnalyticsSearchService.requestsRowIds(List.<InstructionNode>of()));
     }
 }

@@ -487,7 +487,7 @@ public class AnalyticsSearchService implements AutoCloseable {
      * fetch phase will reuse this reader. Derived from the {@link ShardScanInstructionNode} the
      * coordinator put in the plan (the same flag that makes the backend emit row ids).
      */
-    private static boolean requestsRowIds(List<InstructionNode> instructions) {
+    static boolean requestsRowIds(List<InstructionNode> instructions) {
         for (InstructionNode node : instructions) {
             if (node instanceof ShardScanInstructionNode scan) {
                 return scan.requestsRowIds();
