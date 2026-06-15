@@ -55,23 +55,23 @@ public class FragmentResourcesTests extends OpenSearchTestCase {
         ReaderContextStore store = new ReaderContextStore(threadPool);
         ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
 
-        new FragmentResources(store, ctx, null, null, null, false).close(); // fetchFollows=false
+        new FragmentResources(store, ctx, null, null, null, false).close(); // requiresTopDocs=false
 
         assertTrue("Reader with no following fetch must be closed on close()", closed.get());
         assertEquals("Context must be removed from the store", 0, store.activeCount());
     }
 
-    public void testFetchFollowsKeepsReaderForFetch() throws Exception {
+    public void testRequiresTopDocsKeepsReaderForFetch() throws Exception {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
         ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
 
-        new FragmentResources(store, ctx, null, null, null, true).close(); // fetchFollows=true
+        new FragmentResources(store, ctx, null, null, null, true).close(); // requiresTopDocs=true
 
         assertFalse("Reader must stay open for the following fetch phase", closed.get());
         assertEquals("Context must remain in the store", 1, store.activeCount());
 
-        // Fetch reuses then frees it (terminal phase, fetchFollows=false).
+        // Fetch reuses then frees it (terminal phase, requiresTopDocs=false).
         assertNotNull(store.acquireContext("q1", SHARD_0));
         new FragmentResources(store, ctx, null, null, null, false).close();
         assertTrue("Reader closed once the terminal fetch frees it", closed.get());
@@ -83,7 +83,7 @@ public class FragmentResourcesTests extends OpenSearchTestCase {
         ReaderContextStore store = new ReaderContextStore(threadPool);
         ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
 
-        // Non-QTF query (fetchFollows=false) whose stream throws while draining: try-with-resources
+        // Non-QTF query (requiresTopDocs=false) whose stream throws while draining: try-with-resources
         // still runs close(), which must free the reader rather than leak it to the reaper.
         try (FragmentResources resources = new FragmentResources(store, ctx, null, null, null, false)) {
             throw new RuntimeException("simulated query-phase failure");

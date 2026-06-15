@@ -39,8 +39,11 @@ public final class FragmentResources implements AutoCloseable {
      * pull memory out from under the FFM call.
      */
     private final BigIntVector rowIdVector;
-    /** True when a fetch phase will reuse this reader (QTF query phase); close then keeps it for the fetch. */
-    private final boolean fetchFollows;
+    /**
+     * True when this query requested top-N docs (row-ids), so a fetch phase will reuse this reader
+     * (QTF query phase); close then keeps the reader in the store for that fetch.
+     */
+    private final boolean requiresTopDocs;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
@@ -48,9 +51,9 @@ public final class FragmentResources implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
         Runnable onClose,
-        boolean fetchFollows
+        boolean requiresTopDocs
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, null, fetchFollows);
+        this(readerContextStore, readerContext, engine, stream, onClose, null, requiresTopDocs);
     }
 
     public FragmentResources(
@@ -60,7 +63,7 @@ public final class FragmentResources implements AutoCloseable {
         EngineResultStream stream,
         Runnable onClose,
         BigIntVector rowIdVector,
-        boolean fetchFollows
+        boolean requiresTopDocs
     ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
@@ -69,7 +72,7 @@ public final class FragmentResources implements AutoCloseable {
         this.stream = stream;
         this.onClose = onClose;
         this.rowIdVector = rowIdVector;
-        this.fetchFollows = fetchFollows;
+        this.requiresTopDocs = requiresTopDocs;
     }
 
     private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
@@ -117,13 +120,13 @@ public final class FragmentResources implements AutoCloseable {
                 else first.addSuppressed(e);
             }
         }
-        // If a fetch phase will reuse this reader (QTF query phase), only release this phase's
-        // use-reference so it stays alive for the fetch and the reaper closes after keepAlive.
-        // Otherwise release and free it now so the reader is closed immediately instead of being
-        // pinned until the reaper sweeps it.
+        // If this query requested top-N docs, a fetch phase will reuse this reader, so only release
+        // this phase's use-reference; it stays alive for the fetch and the reaper closes after
+        // keepAlive. Otherwise release and free it now so the reader is closed immediately instead
+        // of being pinned until the reaper sweeps it.
         if (readerContext != null) {
             try {
-                if (fetchFollows) {
+                if (requiresTopDocs) {
                     readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
                 } else {
                     readerContextStore.releaseAndFree(readerContext.getQueryId(), readerContext.getShardId());

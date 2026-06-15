@@ -384,12 +384,12 @@ public class AnalyticsSearchService implements AutoCloseable {
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
-        // A fetch phase follows only for QTF, detected from the ShardScan instruction's
-        // requestsRowIds flag. When it does, close() keeps the reader in the store for the fetch;
-        // otherwise close() frees it immediately instead of waiting for the reaper.
+        // A query that requested top-N docs (row-ids) will be followed by a fetch phase that reuses
+        // this reader. When it does, close() keeps the reader in the store for the fetch; otherwise
+        // close() frees it immediately instead of waiting for the reaper.
         // TODO: the coordinator (which knows the query shape) should tell us whether a fetch
         // follows, rather than us inferring it from the row-id signal here.
-        boolean fetchFollows = requestsRowIds(resolved.plan.getInstructions());
+        boolean requiresTopDocs = requestsRowIds(resolved.plan.getInstructions());
         ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
@@ -447,7 +447,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, fetchFollows);
+            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, requiresTopDocs);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -459,7 +459,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                 e
             );
             try {
-                // Query phase failed: no fetch will follow, so free the reader eagerly (fetchFollows=false).
+                // Query phase failed: no fetch will follow, so free the reader eagerly (requiresTopDocs=false).
                 new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, false).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
