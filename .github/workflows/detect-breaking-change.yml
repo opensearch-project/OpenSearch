@@ -14,9 +14,9 @@ jobs:
     - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
       with:
         cache-disabled: true
-        arguments: japicmp
         gradle-version: 9.4.1
-        build-root-directory: server
+    - run: ./gradlew japicmp
+      working-directory: server
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
     - if: failure()
