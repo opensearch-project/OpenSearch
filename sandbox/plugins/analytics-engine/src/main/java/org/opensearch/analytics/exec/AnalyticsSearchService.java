@@ -30,6 +30,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -226,6 +227,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                         stats
                     );
                 } catch (Exception e) {
+                    // Query phase failed: no fetch will follow, so free the reader eagerly (no-op if already freed).
+                    readerContextStore.freeContext(request.getQueryId(), shard.shardId());
                     responseHandler.onFailure(e);
                 }
             });
@@ -307,7 +310,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         assert assertFetchInvariants(readerContext, request.getQueryId());
         AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
         if (backend == null) {
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(
                 new IllegalStateException(
                     "No backend registered for backendId="
@@ -335,15 +339,18 @@ public class AnalyticsSearchService implements AutoCloseable {
             EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
-            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
+            // Fetch is the terminal phase: no fetch follows, so close() frees the reader eagerly.
+            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector, false);
         } catch (OpenSearchException e) {
             if (rowIdVector != null) rowIdVector.close();
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(e);
             return;
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
             return;
         }
@@ -377,9 +384,12 @@ public class AnalyticsSearchService implements AutoCloseable {
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
-        // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
-        // FragmentResources holds a reference to the ReaderContext; close() releases it back
-        // to the store, the reaper closes after keepAlive.
+        // A query that requested top-N docs (row-ids) will be followed by a fetch phase that reuses
+        // this reader. When it does, close() keeps the reader in the store for the fetch; otherwise
+        // close() frees it immediately instead of waiting for the reaper.
+        // TODO: the coordinator (which knows the query shape) should tell us whether a fetch
+        // follows, rather than us inferring it from the row-id signal here.
+        boolean requiresTopDocs = requestsRowIds(resolved.plan.getInstructions());
         ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
@@ -437,7 +447,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup);
+            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, requiresTopDocs);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -449,7 +459,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                 e
             );
             try {
-                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup).close();
+                // Query phase failed: no fetch will follow, so free the reader eagerly (requiresTopDocs=false).
+                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, false).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -472,6 +483,20 @@ public class AnalyticsSearchService implements AutoCloseable {
      * {@link BackendExecutionContext} and returns the next one. Returns {@code null} when the
      * instruction list is empty.
      */
+    /**
+     * Whether the query phase emits shard-global {@code __row_id__} values — i.e. a QTF query whose
+     * fetch phase will reuse this reader. Derived from the {@link ShardScanInstructionNode} the
+     * coordinator put in the plan (the same flag that makes the backend emit row ids).
+     */
+    static boolean requestsRowIds(List<InstructionNode> instructions) {
+        for (InstructionNode node : instructions) {
+            if (node instanceof ShardScanInstructionNode scan) {
+                return scan.requestsRowIds();
+            }
+        }
+        return false;
+    }
+
     private static BackendExecutionContext applyInstructionHandlers(
         AnalyticsSearchBackendPlugin backend,
         List<InstructionNode> instructions,

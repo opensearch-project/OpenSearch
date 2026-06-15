@@ -69,14 +69,15 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         assertNull(store.acquireContext("no-such-query", SHARD_0));
     }
 
-    public void testAcquireWhileInUseReturnsNull() {
+    public void testAcquireWhileInUseSucceeds() {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("q1", SHARD_0, mockGatedReader(closed));
-        // Context is already in-use from createContext
-
-        assertNull("Should not acquire while in-use", store.acquireContext("q1", SHARD_0));
+        ReaderContext created = store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        // Already in use by the query phase; the fetch phase must still be able to acquire it.
+        ReaderContext acquired = store.acquireContext("q1", SHARD_0);
+        assertNotNull("Should acquire even while query phase still in-use", acquired);
+        assertSame(created.getReader(), acquired.getReader());
     }
 
     public void testFreeContextClosesReader() {
@@ -88,6 +89,19 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         store.freeContext("q1", SHARD_0);
 
         assertTrue("Reader should be closed after freeContext", closed.get());
+        assertEquals(0, store.activeCount());
+    }
+
+    public void testReleaseAndFreeClosesReaderInUse() {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool);
+
+        // createContext leaves the context in-use (refcount = base + this phase). releaseAndFree
+        // must drop both refs and close the reader in one call.
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseAndFree("q1", SHARD_0);
+
+        assertTrue("Reader should be closed after releaseAndFree", closed.get());
         assertEquals(0, store.activeCount());
     }
 
@@ -130,6 +144,90 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         // Cleanup
         store.releaseContext("q1", SHARD_0);
         store.freeContext("q1", SHARD_0);
+    }
+
+    /**
+     * Query and fetch hold the context at the same time; the reaper must wait for both to finish
+     * before closing the reader, even with a tiny keepAlive.
+     */
+    public void testReaperWaitsForOverlappingQueryAndFetch() throws Exception {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool, 1); // 1ms keepAlive
+
+        // Query in use; fetch acquires while query is still in use.
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        assertNotNull("Fetch must acquire while query still in-use", store.acquireContext("q1", SHARD_0));
+
+        // Query finishes, fetch still running: reader must stay open past keepAlive.
+        store.releaseContext("q1", SHARD_0);
+        Thread.sleep(50);
+        assertFalse("Reader must stay open while fetch still in-use", closed.get());
+        assertEquals(1, store.activeCount());
+
+        // Fetch finishes: now reapable.
+        store.releaseContext("q1", SHARD_0);
+        assertBusy(() -> {
+            assertTrue("Reader closed once both phases released", closed.get());
+            assertEquals(0, store.activeCount());
+        });
+    }
+
+    /**
+     * Freeing a context while a phase is still using it must not close the reader immediately;
+     * the close is deferred until that phase finishes.
+     */
+    public void testFreeContextDefersCloseUntilLastPhaseDone() {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool);
+
+        ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        assertNotNull(store.acquireContext("q1", SHARD_0));
+        store.releaseContext("q1", SHARD_0);
+
+        store.freeContext("q1", SHARD_0);
+        assertFalse("Reader must stay open while a phase is still using the context", closed.get());
+        assertEquals("Context removed from store on free", 0, store.activeCount());
+
+        ctx.markDone();
+        assertTrue("Reader closed once the last phase finishes", closed.get());
+    }
+
+    /**
+     * A query-phase failure releases the query's use-reference but leaves the context registered;
+     * the refcount returns to the base ref, so the reaper closes it once keepAlive elapses.
+     */
+    public void testReaperClosesContextAfterQueryPhaseFailure() throws Exception {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool, 50); // 50ms keepAlive
+
+        // Query phase started (createContext marks in-use), then failed -> release without fetch.
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("q1", SHARD_0);
+
+        assertBusy(() -> {
+            assertTrue("Reaper must close the reader after a query-phase failure", closed.get());
+            assertEquals(0, store.activeCount());
+        });
+    }
+
+    /**
+     * A fetch-phase failure that releases both the fetch and the base reference (eager free) closes
+     * the reader immediately rather than leaking it to the reaper.
+     */
+    public void testFetchPhaseFailureFreesReaderImmediately() {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool);
+
+        store.createContext("q1", SHARD_0, mockGatedReader(closed)); // query phase
+        store.releaseContext("q1", SHARD_0);                         // query done
+        assertNotNull(store.acquireContext("q1", SHARD_0));          // fetch acquires
+
+        // Fetch fails: release this acquire, then free the base ref (mirrors drainFetchByRowIds error paths).
+        store.releaseContext("q1", SHARD_0);
+        store.freeContext("q1", SHARD_0);
+
+        assertTrue("Reader must be closed immediately on fetch-phase failure", closed.get());
+        assertEquals(0, store.activeCount());
     }
 
     public void testMultipleContexts() {
