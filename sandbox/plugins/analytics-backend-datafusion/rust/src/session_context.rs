@@ -32,6 +32,7 @@ use object_store::ObjectMeta;
 use crate::api::{DataFusionRuntime, ShardView};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::query_tracker::QueryTrackingContext;
+use crate::spawn_io_store::SpawnIoStore;
 
 /// Opaque handle holding a configured SessionContext between FFM calls.
 pub struct SessionContextHandle {
@@ -55,7 +56,7 @@ pub struct SessionContextHandle {
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
     /// IO runtime handle for bloom filter reads and other async I/O dispatched
-    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    /// from CPU executor threads.
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
@@ -189,9 +190,11 @@ pub async unsafe fn create_session_context(
     // Register shard-specific object store on file:// scheme for this query.
     // This is the instruction-based execution path (ShardScanInstructionHandler).
     // Without this, queries use default LocalFileSystem and fail on warm.
+    // Wrap in SpawnIoStore so every object-store read this query issues is
+    // dispatched onto the dedicated IO runtime (no-op if no IO runtime is set).
     runtime_env.register_object_store(
         &url::Url::parse("file://").unwrap(),
-        Arc::clone(&shard_view.store),
+        SpawnIoStore::wrap(Arc::clone(&shard_view.store)),
     );
 
     // Acquire memory budget from cached parquet metadata (zero I/O).

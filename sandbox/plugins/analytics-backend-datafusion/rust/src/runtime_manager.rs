@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 use crate::executor::{ConcurrencyGate, DedicatedExecutor};
-use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
@@ -37,23 +36,25 @@ impl RuntimeManager {
                 .expect("Failed to create IO runtime"),
         );
 
-        register_io_runtime(Some(io_runtime.handle().clone()));
+        // Install the process-global IO handle so SpawnIoStore can dispatch reads
+        // onto the IO runtime from any thread (including bare Java/FFM threads).
+        crate::io::set_global_io_handle(io_runtime.handle().clone());
 
         let io_monitor = RuntimeMonitor::new(&io_runtime.handle());
 
-        let io_handle = io_runtime.handle().clone();
         let mut cpu_runtime_builder = Builder::new_multi_thread();
         cpu_runtime_builder
             .worker_threads(cpu_threads)
             .thread_name("datafusion-cpu")
-            .enable_all()
-            .on_thread_start(move || {
-                register_io_runtime(Some(io_handle.clone()));
-            });
+            .enable_all();
 
         // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
         let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
-        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
+        let cpu_executor = DedicatedExecutor::new(
+            "datafusion-cpu",
+            cpu_runtime_builder,
+            datanode_max_concurrent,
+        );
 
         let cpu_monitor = cpu_executor
             .handle()
@@ -84,6 +85,11 @@ impl RuntimeManager {
 
     pub fn shutdown(&self) {
         info!("Shutting down RuntimeManager");
+        // Drop the process-global IO handle first so SpawnIoStore stops
+        // dispatching onto the runtime we are about to tear down. Otherwise a
+        // late read spawns onto a dead runtime and joins as cancelled, failing
+        // the query with "object-store read was cancelled".
+        crate::io::clear_global_io_handle();
         self.cpu_executor.join_blocking();
     }
 }
@@ -124,19 +130,6 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(io_id, cpu_id);
-        mgr.cpu_executor.shutdown();
-        std::mem::forget(mgr);
-    }
-
-    #[tokio::test]
-    async fn test_io_runtime_registered_on_cpu_threads() {
-        let mgr = test_mgr();
-        let has_io = mgr
-            .cpu_executor()
-            .spawn(async { crate::io::IO_RUNTIME.with_borrow(|h| h.is_some()) })
-            .await
-            .unwrap();
-        assert!(has_io);
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);
     }
