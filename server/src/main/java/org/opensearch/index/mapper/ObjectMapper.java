@@ -40,9 +40,12 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.CopyOnWriteHashMap;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -1095,10 +1098,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        builder.startObject(simpleName());
+        XContentBuilder tempBuilder = XContentFactory.jsonBuilder();
+        tempBuilder.startObject();
         for (final Mapper mapper : this.mappers.values()) {
-            mapper.deriveSource(builder, leafReader, docId);
+            mapper.deriveSource(tempBuilder, leafReader, docId);
         }
-        builder.endObject();
+        tempBuilder.endObject();
+        byte[] bytes = BytesReference.toBytes(BytesReference.bytes(tempBuilder));
+        // only write the object if it has content besides the outer braces {}
+        if (bytes.length > 2) {
+            builder.rawField(simpleName(), new BytesArray(bytes).streamInput(), tempBuilder.contentType());
+        }
     }
 }

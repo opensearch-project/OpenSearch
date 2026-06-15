@@ -32,14 +32,20 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -1019,6 +1025,54 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
         assertThat(e2.getMessage(), containsString("Cannot add nested object field [level1.level2.level3_object]"));
         assertThat(e2.getMessage(), containsString("when disable_objects is enabled for [level2]"));
+    }
+
+    public void testDeriveSourceSkipsEmptyNestedObjects() throws IOException {
+        try (Directory directory = newDirectory()) {
+            // Build a DocumentMapper with a nested object "metadata" containing "user_id"
+            MapperService mapperService = createIndex(
+                "test_derive_empty_object",
+                Settings.builder().put("index.derived_source.enabled", true).build()
+            ).mapperService();
+
+            String mapping = """
+                {
+                    "properties": {
+                        "metadata": {
+                            "type": "object",
+                            "properties": {
+                                "user_id": {
+                                    "type": "keyword"
+                                }
+                            }
+                        },
+                        "title": {
+                            "type": "keyword"
+                        }
+                    }
+                }""";
+
+            DocumentMapper mapper = mapperService.documentMapperParser().parse("_doc", new CompressedXContent(mapping));
+
+            // Index a document with NO value for "metadata"
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapper.parse(
+                    new SourceToParse("test_derive_empty_object", "1",
+                        new BytesArray("{\"title\": \"hello\"}"), XContentType.JSON)
+                );
+                iw.addDocument(doc.rootDoc());
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                ObjectMapper metadataMapper = mapper.objectMappers().get("metadata");
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                metadataMapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String result = builder.toString();
+                // Should be just "{}" with no "metadata" key
+                assertFalse("Empty object should not be written", result.contains("metadata"));
+            }
+        }
     }
 
     @Override
