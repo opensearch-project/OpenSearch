@@ -33,7 +33,6 @@ use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
 use crate::api::{DataFusionRuntime, ShardFileInfo};
 use crate::session_context::SessionContextHandle;
-use crate::spawn_io_store::SpawnIoStore;
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
 /// File access goes through DataFusion's registered object store.
@@ -78,11 +77,9 @@ pub async fn execute_query(
 
     // Register shard-specific object store on file:// scheme for this query.
     // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
-    // Wrap in SpawnIoStore so every object-store read this query issues is
-    // dispatched onto the dedicated IO runtime (no-op if no IO runtime is set).
     runtime_env.register_object_store(
         &url::Url::parse("file://").unwrap(),
-        SpawnIoStore::wrap(shard_store),
+        shard_store,
     );
 
     // Build a fresh session state per query. TODO : Tune this during planning per query

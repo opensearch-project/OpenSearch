@@ -32,7 +32,6 @@ pub mod executor;
 pub mod ffm;
 pub mod indexed_executor;
 pub mod indexed_table;
-pub mod io;
 pub mod local_executor;
 pub mod memory;
 pub mod memory_guard;
@@ -50,9 +49,6 @@ pub mod shard_table_provider;
 pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
-pub mod spawn_io_store;
-#[cfg(test)]
-mod spawn_io_store_tests;
 pub mod statistics_cache;
 pub mod udaf;
 pub mod udf;

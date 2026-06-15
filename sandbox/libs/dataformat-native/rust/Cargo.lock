@@ -2692,6 +2692,7 @@ dependencies = [
  "native-bridge-macros",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
+ "tokio",
 ]
 
 [[package]]
@@ -2951,6 +2952,7 @@ dependencies = [
  "object_store",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
