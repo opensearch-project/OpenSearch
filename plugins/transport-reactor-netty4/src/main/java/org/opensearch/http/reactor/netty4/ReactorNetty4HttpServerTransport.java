@@ -383,6 +383,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         .http3Settings(
                             spec -> spec.tokenHandler(new SecureQuicTokenHandler(Randomness.createSecure()))
                                 .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
+                                .maxFieldSectionSize(maxHeaderSize.bytesAsInt())
                                 .maxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())
