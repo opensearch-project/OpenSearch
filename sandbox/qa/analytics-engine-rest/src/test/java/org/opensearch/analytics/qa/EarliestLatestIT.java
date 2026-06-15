@@ -69,7 +69,18 @@ public class EarliestLatestIT extends AnalyticsRestTestCase {
             List<Object> got = actualRows.get(i);
             assertEquals("Column count mismatch at row " + i + " for query: " + ppl, want.size(), got.size());
             for (int j = 0; j < want.size(); j++) {
-                assertEquals("Cell mismatch at row " + i + ", col " + j + " for query: " + ppl, want.get(j), got.get(j));
+                Object w = want.get(j);
+                Object g = got.get(j);
+                // Numeric cells deserialize as Integer when they fit in 32 bits; compare by longValue.
+                if (w instanceof Number && g instanceof Number) {
+                    assertEquals(
+                        "Cell mismatch at row " + i + ", col " + j + " for query: " + ppl,
+                        ((Number) w).longValue(),
+                        ((Number) g).longValue()
+                    );
+                } else {
+                    assertEquals("Cell mismatch at row " + i + ", col " + j + " for query: " + ppl, w, g);
+                }
             }
         }
     }
