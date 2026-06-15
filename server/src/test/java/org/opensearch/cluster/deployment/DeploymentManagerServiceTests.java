@@ -15,6 +15,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
+import static org.opensearch.cluster.deployment.DeploymentState.DRAIN;
+import static org.opensearch.cluster.deployment.DeploymentState.FINISH;
+
 public class DeploymentManagerServiceTests extends OpenSearchTestCase {
 
     private ClusterState emptyState() {
@@ -23,7 +26,7 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
 
     public void testStartDeployment() {
         ClusterState state = emptyState();
-        ClusterState newState = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "zone-1"), state);
+        ClusterState newState = DeploymentManagerService.innerTransitionDeployment("dep-1", Map.of("zone", "zone-1"), state, DRAIN);
 
         DeploymentMetadata metadata = newState.metadata().custom(DeploymentMetadata.TYPE);
         assertNotNull(metadata);
@@ -31,14 +34,14 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
         assertTrue(metadata.getDeployments().containsKey("dep-1"));
 
         Deployment deployment = metadata.getDeployments().get("dep-1");
-        assertEquals(DeploymentState.DRAIN, deployment.getState());
+        assertEquals(DRAIN, deployment.getState());
         assertEquals(Map.of("zone", "zone-1"), deployment.getNodeAttributes());
     }
 
     public void testStartMultipleDeployments() {
         ClusterState state = emptyState();
-        state = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "zone-1"), state);
-        state = DeploymentManagerService.innerStartDeployment("dep-2", Map.of("zone", "zone-2"), state);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", Map.of("zone", "zone-1"), state, DRAIN);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-2", Map.of("zone", "zone-2"), state, DRAIN);
 
         DeploymentMetadata metadata = state.metadata().custom(DeploymentMetadata.TYPE);
         assertNotNull(metadata);
@@ -49,33 +52,33 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
 
     public void testStartDeploymentRejectsOverlappingAttributes() {
         ClusterState state = emptyState();
-        state = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "zone-1"), state);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", Map.of("zone", "zone-1"), state, DRAIN);
 
         ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeploymentManagerService.innerStartDeployment("dep-2", Map.of("zone", "zone-1"), finalState)
+            () -> DeploymentManagerService.innerTransitionDeployment("dep-2", Map.of("zone", "zone-1"), finalState, DRAIN)
         );
         assertTrue(e.getMessage().contains("already targets attribute zone=zone-1"));
     }
 
     public void testStartDeploymentRejectsInconsistentKeys() {
         ClusterState state = emptyState();
-        state = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "zone-1"), state);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", Map.of("zone", "zone-1"), state, DRAIN);
 
         ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeploymentManagerService.innerStartDeployment("dep-2", Map.of("rack", "rack-1"), finalState)
+            () -> DeploymentManagerService.innerTransitionDeployment("dep-2", Map.of("rack", "rack-1"), finalState, DRAIN)
         );
         assertTrue(e.getMessage().contains("must match existing deployment keys"));
     }
 
     public void testFinishDeployment() {
         ClusterState state = emptyState();
-        state = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "zone-1"), state);
-        state = DeploymentManagerService.innerStartDeployment("dep-2", Map.of("zone", "zone-2"), state);
-        state = DeploymentManagerService.innerFinishDeployment("dep-1", state);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", Map.of("zone", "zone-1"), state, DRAIN);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-2", Map.of("zone", "zone-2"), state, DRAIN);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", state, FINISH);
 
         DeploymentMetadata metadata = state.metadata().custom(DeploymentMetadata.TYPE);
         assertNotNull(metadata);
@@ -86,8 +89,8 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
 
     public void testFinishDeploymentRemovesCustomWhenEmpty() {
         ClusterState state = emptyState();
-        state = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "zone-1"), state);
-        state = DeploymentManagerService.innerFinishDeployment("dep-1", state);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", Map.of("zone", "zone-1"), state, DRAIN);
+        state = DeploymentManagerService.innerTransitionDeployment("dep-1", state, FINISH);
 
         DeploymentMetadata metadata = state.metadata().custom(DeploymentMetadata.TYPE);
         assertNull(metadata);
@@ -95,7 +98,7 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
 
     public void testFinishNonexistentDeployment() {
         ClusterState state = emptyState();
-        ClusterState newState = DeploymentManagerService.innerFinishDeployment("nonexistent", state);
+        ClusterState newState = DeploymentManagerService.innerTransitionDeployment("nonexistent", state, FINISH);
         assertSame(state, newState);
     }
 }

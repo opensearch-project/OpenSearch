@@ -20,9 +20,13 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static org.opensearch.cluster.deployment.DeploymentState.DRAIN;
+import static org.opensearch.cluster.deployment.DeploymentState.FINISH;
 
 /**
  * Service that manages deployment lifecycle by writing DeploymentMetadata to cluster state.
@@ -34,16 +38,21 @@ public class DeploymentManagerService {
 
     private final ClusterService clusterService;
     private final RerouteService rerouteService;
-    private final ClusterManagerTaskThrottler.ThrottlingKey startDeploymentTaskKey;
-    private final ClusterManagerTaskThrottler.ThrottlingKey finishDeploymentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey transitionDeploymentTaskKey;
 
     public DeploymentManagerService(ClusterService clusterService, RerouteService rerouteService) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
-        this.startDeploymentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTask.START_DEPLOYMENT, true);
-        this.finishDeploymentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTask.FINISH_DEPLOYMENT, true);
+        this.transitionDeploymentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTask.TRANSITION_DEPLOYMENT, true);
     }
 
+    /**
+     * @param deploymentId unique identifier for the given deployment
+     * @param nodeAttributes the set of attributes used to identify the nodes to be drained. All attributes must match
+     *                       for a node to be considered part of the deployment.
+     * @param request the original request sent to the cluster.
+     * @param listener listener for the cluster state update.
+     */
     public void startDeployment(
         String deploymentId,
         Map<String, String> nodeAttributes,
@@ -61,12 +70,12 @@ public class DeploymentManagerService {
         clusterService.submitStateUpdateTask("start-deployment-" + deploymentId, new AckedClusterStateUpdateTask<>(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return innerStartDeployment(deploymentId, nodeAttributes, currentState);
+                return innerTransitionDeployment(deploymentId, nodeAttributes, currentState, DRAIN);
             }
 
             @Override
             public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                return startDeploymentTaskKey;
+                return transitionDeploymentTaskKey;
             }
 
             @Override
@@ -86,12 +95,12 @@ public class DeploymentManagerService {
         clusterService.submitStateUpdateTask("finish-deployment-" + deploymentId, new AckedClusterStateUpdateTask<>(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return innerFinishDeployment(deploymentId, currentState);
+                return innerTransitionDeployment(deploymentId, currentState, FINISH);
             }
 
             @Override
             public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                return finishDeploymentTaskKey;
+                return transitionDeploymentTaskKey;
             }
 
             @Override
@@ -106,44 +115,38 @@ public class DeploymentManagerService {
         });
     }
 
-    public static ClusterState innerStartDeployment(String deploymentId, Map<String, String> nodeAttributes, ClusterState currentState) {
-        DeploymentMetadata currentMetadata = currentState.metadata().custom(DeploymentMetadata.TYPE);
-        Map<String, Deployment> deployments;
-        if (currentMetadata != null) {
-            deployments = new HashMap<>(currentMetadata.getDeployments());
-            validateConsistentKeys(deployments, nodeAttributes);
-            validateNoOverlappingValues(deployments, deploymentId, nodeAttributes);
-        } else {
-            deployments = new HashMap<>();
-        }
+    static ClusterState innerTransitionDeployment(String deploymentId, ClusterState currentState, DeploymentState targetState) {
+        return innerTransitionDeployment(deploymentId, Collections.emptyMap(), currentState, targetState);
+    }
 
-        deployments.put(deploymentId, new Deployment(DeploymentState.DRAIN, nodeAttributes));
+    static ClusterState innerTransitionDeployment(
+        String deploymentId,
+        Map<String, String> nodeAttributes,
+        ClusterState currentState,
+        DeploymentState targetState
+    ) {
+        DeploymentMetadata currentMetadata = currentState.metadata().custom(DeploymentMetadata.TYPE);
+        Map<String, Deployment> deployments = currentMetadata == null ? new HashMap<>() : new HashMap<>(currentMetadata.getDeployments());
+
+        switch (targetState) {
+            case DRAIN:
+                validateConsistentKeys(deployments, nodeAttributes);
+                validateNoOverlappingValues(deployments, deploymentId, nodeAttributes);
+                deployments.put(deploymentId, new Deployment(DeploymentState.DRAIN, nodeAttributes));
+                break;
+            case FINISH:
+                if (deployments.containsKey(deploymentId)) {
+                    deployments.remove(deploymentId);
+                } else {
+                    return currentState;
+                }
+        }
 
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.getMetadata()).putCustom(DeploymentMetadata.TYPE, new DeploymentMetadata(deployments)).build()
             )
             .build();
-    }
-
-    public static ClusterState innerFinishDeployment(String deploymentId, ClusterState currentState) {
-        DeploymentMetadata currentMetadata = currentState.metadata().custom(DeploymentMetadata.TYPE);
-        if (currentMetadata == null || !currentMetadata.getDeployments().containsKey(deploymentId)) {
-            // Stopping a non-existent deployment should be a no-op
-            return currentState;
-        }
-
-        Map<String, Deployment> deployments = new HashMap<>(currentMetadata.getDeployments());
-        deployments.remove(deploymentId);
-
-        Metadata.Builder metadataBuilder = Metadata.builder(currentState.getMetadata());
-        if (deployments.isEmpty()) {
-            metadataBuilder.removeCustom(DeploymentMetadata.TYPE);
-        } else {
-            metadataBuilder.putCustom(DeploymentMetadata.TYPE, new DeploymentMetadata(deployments));
-        }
-
-        return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
     }
 
     private static void validateDeploymentId(String deploymentId) {
@@ -202,7 +205,12 @@ public class DeploymentManagerService {
                 }
                 if (existingDeploymentWithSameId.getNodeAttributes().equals(newAttributes) == false) {
                     throw new IllegalArgumentException(
-                        "deployment [" + entry.getKey() + "] already targets attributes " + existingDeploymentWithSameId.getNodeAttributes()
+                        "deployment ["
+                            + entry.getKey()
+                            + "] is not allowed to update targeting attributes to "
+                            + newAttributes
+                            + ", already targeted "
+                            + existingDeploymentWithSameId.getNodeAttributes()
                     );
                 }
             } else {

@@ -34,7 +34,9 @@ package org.opensearch.cluster.routing;
 import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.deployment.DeploymentManagerService;
+import org.opensearch.cluster.deployment.Deployment;
+import org.opensearch.cluster.deployment.DeploymentMetadata;
+import org.opensearch.cluster.deployment.DeploymentState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -1526,7 +1528,11 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         assertTrue(nodeIds.contains(nodeB0.getId()));
 
         // Drain zone-a
-        state = DeploymentManagerService.innerStartDeployment("dep-1", Map.of("zone", "a"), state);
+        Map<String, Deployment> deployments = new HashMap<>();
+        deployments.put("dep-1", new Deployment(DeploymentState.DRAIN, Map.of("zone", "a")));
+        state = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.getMetadata()).putCustom(DeploymentMetadata.TYPE, new DeploymentMetadata(deployments)).build())
+            .build();
 
         GroupShardsIterator<ShardIterator> drainedIterator = opRouting.searchShards(state, new String[] { index }, null, null);
         for (ShardIterator it : drainedIterator) {
