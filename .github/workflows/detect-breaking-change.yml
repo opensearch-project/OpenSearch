@@ -15,8 +15,7 @@ jobs:
       with:
         cache-disabled: true
         gradle-version: 9.4.1
-    - run: ./gradlew japicmp
-      working-directory: server
+    - run: ./gradlew :server:japicmp
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
     - if: failure()
