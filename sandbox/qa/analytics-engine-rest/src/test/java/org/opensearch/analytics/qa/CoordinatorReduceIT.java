@@ -856,4 +856,103 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + indexName + "/_flush?force=true"));
     }
 
+    // ── SUM overflow and precision tests ───────────────────────────────────────
+
+    private static final String OVERFLOW_INDEX = "coord_reduce_overflow";
+
+    /**
+     * Verifies SUM does not wrap on values that would overflow signed Int64.
+     * Each doc has value = 5×10^17. With 20 docs across 2 shards,
+     * the true sum = 20 × 5×10^17 = 10^19 — exceeds Int64 max (9.22×10^18).
+     * Float64 handles this correctly; Int64 would wrap negative.
+     */
+    public void testSumDoesNotOverflowInt64() throws Exception {
+        long perDoc = 500_000_000_000_000_000L; // 5 × 10^17
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD; // 20
+        double expectedSum = (double) perDoc * totalDocs; // 10^19
+
+        createLongBackedIndex(OVERFLOW_INDEX);
+        indexConstantLongDocs(OVERFLOW_INDEX, perDoc);
+
+        Map<String, Object> result = executePpl("source = " + OVERFLOW_INDEX + " | stats sum(value) as total");
+        List<List<Object>> rows = scalarRows(result, "total");
+
+        double actual = ((Number) rows.get(0).get(0)).doubleValue();
+        // Must be positive and close to expected (Int64 wrap would give a negative number)
+        assertTrue("SUM must not wrap negative (Int64 overflow). Got: " + actual, actual > 0);
+        assertEquals("SUM of values exceeding Int64 range", expectedSum, actual, expectedSum * 1e-10);
+    }
+
+    /**
+     * Verifies cross-shard SUM maintains precision via Neumaier compensation.
+     * Uses a pattern where naive floating-point addition loses precision:
+     * one large value (10^15) plus many small values (1.0 each). Without
+     * compensation, the small values would vanish below the large value's
+     * precision threshold.
+     */
+    public void testSumMaintainsCrossShardPrecision() throws Exception {
+        String precisionIndex = "coord_reduce_precision";
+        createLongBackedIndex(precisionIndex);
+
+        // 1 doc with large value, 19 docs with value=1
+        long largeValue = 1_000_000_000_000_000L; // 10^15
+        int smallDocs = NUM_SHARDS * DOCS_PER_SHARD - 1; // 19
+        double expectedSum = (double) largeValue + smallDocs; // 10^15 + 19 exactly
+
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\": {\"_id\": \"large\"}}\n");
+        bulk.append("{\"value\": ").append(largeValue).append("}\n");
+        for (int i = 0; i < smallDocs; i++) {
+            bulk.append("{\"index\": {\"_id\": \"small-").append(i).append("\"}}\n");
+            bulk.append("{\"value\": 1}\n");
+        }
+        bulkAndRefresh(precisionIndex, bulk.toString());
+
+        Map<String, Object> result = executePpl("source = " + precisionIndex + " | stats sum(value) as total");
+        List<List<Object>> rows = scalarRows(result, "total");
+
+        double actual = ((Number) rows.get(0).get(0)).doubleValue();
+        assertEquals("Neumaier compensation must preserve small values alongside large", expectedSum, actual, 0.0);
+    }
+
+    private void createLongBackedIndex(String indexName) throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + indexName));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": " + NUM_SHARDS + ","
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"value\": { \"type\": \"long\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIndex = new Request("PUT", "/" + indexName);
+        createIndex.setJsonEntity(body);
+        assertOkAndParse(client().performRequest(createIndex), "Create index " + indexName);
+
+        Request health = new Request("GET", "/_cluster/health/" + indexName);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+    }
+
+    private void indexConstantLongDocs(String indexName, long value) throws Exception {
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
+            bulk.append("{\"value\": ").append(value).append("}\n");
+        }
+        bulkAndRefresh(indexName, bulk.toString());
+    }
 }

@@ -109,7 +109,7 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
     public void testAggregationQuery() throws Exception {
         List<Object[]> rows = executeQuery("SELECT SUM(message) as total, COUNT(*) as cnt FROM test_table");
         assertEquals(1, rows.size());
-        assertEquals(5L, rows.get(0)[0]); // 2 + 3
+        assertEquals(5.0, rows.get(0)[0]); // 2 + 3
         assertEquals(2L, rows.get(0)[1]);
     }
 

@@ -124,7 +124,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
-                assertEquals(5L, rows.get(0)[0]); // 2 + 3
+                assertEquals(5.0, rows.get(0)[0]); // 2 + 3
             }
         }
     }

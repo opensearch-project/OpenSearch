@@ -180,9 +180,12 @@ impl LocalSession {
         &self,
         bytes: &[u8],
     ) -> Result<SendableRecordBatchStream, DataFusionError> {
-        let plan = Plan::decode(bytes).map_err(|e| {
+        let mut plan = Plan::decode(bytes).map_err(|e| {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
+        // Patch input table schemas in the substrait to match actual registered table
+        // schemas (which reflect the custom SUM UDAF's Float64 output).
+        patch_input_read_schemas(&mut plan, &self.ctx);
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
@@ -213,12 +216,13 @@ impl LocalSession {
         &mut self,
         substrait_bytes: &[u8],
     ) -> Result<(), DataFusionError> {
-        let plan = Plan::decode(substrait_bytes).map_err(|e| {
+        let mut plan = Plan::decode(substrait_bytes).map_err(|e| {
             DataFusionError::Execution(format!(
                 "prepare_final_plan: failed to decode Substrait: {}",
                 e
             ))
         })?;
+        patch_input_read_schemas(&mut plan, &self.ctx);
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
@@ -250,11 +254,115 @@ impl LocalSession {
     }
 }
 
+/// Rewrites the `base_schema` of ReadRels referencing coordinator-reduce input tables
+/// (named "input-N") to match the schema of the table registered in the session.
+/// This prevents the substrait consumer from rejecting the plan due to type mismatches
+/// between Calcite's declared types (e.g. Int64 for SUM) and the actual physical output
+/// types (Float64 from the custom SUM UDAF).
+fn patch_input_read_schemas(plan: &mut Plan, ctx: &SessionContext) {
+    use substrait::proto::plan_rel::RelType as PlanRelType;
+    use substrait::proto::read_rel::ReadType;
+    use substrait::proto::rel::RelType;
+
+    fn patch_rel(rel: &mut substrait::proto::Rel, ctx: &SessionContext) {
+        match rel.rel_type.as_mut() {
+            Some(RelType::Read(r)) => {
+                if let Some(ReadType::NamedTable(nt)) = r.read_type.as_ref() {
+                    let table_name = nt.names.last().cloned().unwrap_or_default();
+                    if table_name.starts_with("input-") {
+                        if let Some(ns) = arrow_schema_to_named_struct(ctx, &table_name) {
+                            r.base_schema = Some(ns);
+                        }
+                    }
+                }
+            }
+            Some(RelType::Filter(f)) => { if let Some(i) = f.input.as_mut() { patch_rel(i, ctx); } }
+            Some(RelType::Project(p)) => { if let Some(i) = p.input.as_mut() { patch_rel(i, ctx); } }
+            Some(RelType::Aggregate(a)) => { if let Some(i) = a.input.as_mut() { patch_rel(i, ctx); } }
+            Some(RelType::Sort(s)) => { if let Some(i) = s.input.as_mut() { patch_rel(i, ctx); } }
+            Some(RelType::Fetch(f)) => { if let Some(i) = f.input.as_mut() { patch_rel(i, ctx); } }
+            Some(RelType::Join(j)) => {
+                if let Some(l) = j.left.as_mut() { patch_rel(l, ctx); }
+                if let Some(r) = j.right.as_mut() { patch_rel(r, ctx); }
+            }
+            Some(RelType::Set(s)) => {
+                for input in s.inputs.iter_mut() { patch_rel(input, ctx); }
+            }
+            _ => {}
+        }
+    }
+
+    for plan_rel in plan.relations.iter_mut() {
+        match plan_rel.rel_type.as_mut() {
+            Some(PlanRelType::Rel(r)) => patch_rel(r, ctx),
+            Some(PlanRelType::Root(rr)) => {
+                if let Some(r) = rr.input.as_mut() { patch_rel(r, ctx); }
+            }
+            None => {}
+        }
+    }
+}
+
+/// Converts the registered table's Arrow schema to a substrait NamedStruct.
+/// Returns None if the table is not found.
+fn arrow_schema_to_named_struct(ctx: &SessionContext, table_name: &str) -> Option<substrait::proto::NamedStruct> {
+    use substrait::proto::r#type;
+    use substrait::proto::NamedStruct;
+
+    let table_ref = datafusion::common::TableReference::bare(table_name);
+    let provider = futures::executor::block_on(ctx.table_provider(table_ref)).ok()?;
+    let schema = provider.schema();
+
+    let mut names = Vec::with_capacity(schema.fields().len());
+    let mut types = Vec::with_capacity(schema.fields().len());
+
+    for field in schema.fields() {
+        names.push(field.name().clone());
+        let nullability = if field.is_nullable() {
+            r#type::Nullability::Nullable as i32
+        } else {
+            r#type::Nullability::Required as i32
+        };
+        let substrait_type = match field.data_type() {
+            arrow::datatypes::DataType::Int64 => r#type::Kind::I64(r#type::I64 { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Int32 => r#type::Kind::I32(r#type::I32 { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Int16 => r#type::Kind::I16(r#type::I16 { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Int8 => r#type::Kind::I8(r#type::I8 { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Float64 => r#type::Kind::Fp64(r#type::Fp64 { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Float32 => r#type::Kind::Fp32(r#type::Fp32 { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Boolean => r#type::Kind::Bool(r#type::Boolean { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Utf8 | arrow::datatypes::DataType::Utf8View => {
+                r#type::Kind::String(r#type::String { type_variation_reference: 0, nullability })
+            }
+            arrow::datatypes::DataType::LargeUtf8 => r#type::Kind::String(r#type::String { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Binary | arrow::datatypes::DataType::BinaryView => {
+                r#type::Kind::Binary(r#type::Binary { type_variation_reference: 0, nullability })
+            }
+            arrow::datatypes::DataType::LargeBinary => r#type::Kind::Binary(r#type::Binary { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Date32 => r#type::Kind::Date(r#type::Date { type_variation_reference: 0, nullability }),
+            arrow::datatypes::DataType::Timestamp(_, _) => {
+                r#type::Kind::Timestamp(r#type::Timestamp { type_variation_reference: 0, nullability })
+            }
+            _ => return None, // Unsupported type — fall back to original base_schema
+        };
+        types.push(substrait::proto::Type { kind: Some(substrait_type) });
+    }
+
+    Some(NamedStruct {
+        names,
+        r#struct: Some(r#type::Struct {
+            types,
+            type_variation_reference: 0,
+            nullability: r#type::Nullability::Required as i32,
+        }),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use arrow_array::{Int64Array, RecordBatch};
+    use arrow_array::{Float64Array, Int64Array, RecordBatch};
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::execution::runtime_env::RuntimeEnvBuilder;
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
@@ -347,20 +455,20 @@ mod tests {
             .await
             .expect("execute");
 
-        let mut total: i64 = 0;
+        let mut total: f64 = 0.0;
         while let Some(batch) = stream.next().await {
             let batch = batch.expect("batch ok");
             let col = batch
                 .column(0)
                 .as_any()
-                .downcast_ref::<Int64Array>()
-                .expect("i64 col");
+                .downcast_ref::<Float64Array>()
+                .expect("f64 col");
             for i in 0..col.len() {
                 total += col.value(i);
             }
         }
         producer.join().expect("producer thread");
-        assert_eq!(total, 45);
+        assert_eq!(total, 45.0);
     }
 
     #[tokio::test]
@@ -404,19 +512,19 @@ mod tests {
             .await
             .expect("execute");
 
-        let mut total: i64 = 0;
+        let mut total: f64 = 0.0;
         while let Some(batch) = stream.next().await {
             let batch = batch.expect("batch ok");
             let col = batch
                 .column(0)
                 .as_any()
-                .downcast_ref::<Int64Array>()
-                .expect("i64 col");
+                .downcast_ref::<Float64Array>()
+                .expect("f64 col");
             for i in 0..col.len() {
                 total += col.value(i);
             }
         }
-        assert_eq!(total, 45);
+        assert_eq!(total, 45.0);
     }
 
     #[tokio::test]

@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -144,7 +145,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
 
             assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
             assertTrue("downstream should receive at least one row, got " + downstream.totalRows, downstream.totalRows >= 1);
-            assertEquals("SUM(1..9) should be 45", 45L, downstream.total);
+            assertEquals("SUM(1..9) should be 45", 45.0, downstream.total, 0.0);
         } finally {
             runtimeHandle.close();
         }
@@ -248,7 +249,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
 
             assertEquals("all " + totalBatches + " feeds should have completed", totalBatches, sink.feedCount());
             assertTrue("downstream should receive at least one row, got " + downstream.totalRows, downstream.totalRows >= 1);
-            assertEquals("SUM(0..11) should be 66", 66L, downstream.total);
+            assertEquals("SUM(0..11) should be 66", 66.0, downstream.total, 0.0);
         } finally {
             runtimeHandle.close();
         }
@@ -714,19 +715,20 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     private static final class CapturingSink implements ExchangeSink {
-        long total;
+        double total;
         int totalRows;
         boolean closed;
 
         @Override
         public synchronized void feed(VectorSchemaRoot batch) {
             try {
-                BigIntVector col = (BigIntVector) batch.getVector(0);
+                FieldVector col = batch.getVector(0);
                 int rows = batch.getRowCount();
                 totalRows += rows;
-                // DataFusion may omit the validity buffer when there are no nulls; read raw.
                 for (int i = 0; i < rows; i++) {
-                    total += col.getDataBuffer().getLong((long) i * BigIntVector.TYPE_WIDTH);
+                    if (col.isNull(i) == false) {
+                        total += ((Number) col.getObject(i)).doubleValue();
+                    }
                 }
             } finally {
                 batch.close();
