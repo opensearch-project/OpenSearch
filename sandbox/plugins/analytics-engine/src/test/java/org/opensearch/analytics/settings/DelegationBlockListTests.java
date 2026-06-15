@@ -186,6 +186,7 @@ public class DelegationBlockListTests extends OpenSearchTestCase {
         assertFalse("defaults should be seeded", blockList.isEmpty());
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.IS_NULL));
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.IS_NOT_NULL));
+        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.NOT_EQUALS));
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.GREATER_THAN));
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.GREATER_THAN_OR_EQUAL));
@@ -193,7 +194,6 @@ public class DelegationBlockListTests extends OpenSearchTestCase {
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LESS_THAN_OR_EQUAL));
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.SARG_PREDICATE));
         assertFalse(blockList.isBlocked(LUCENE, ScalarFunction.EQUALS));
-        assertFalse(blockList.isBlocked(LUCENE, ScalarFunction.NOT_EQUALS));
     }
 
     /** The cluster-settings layer wraps the validator's IllegalArgumentException; search the chain. */
