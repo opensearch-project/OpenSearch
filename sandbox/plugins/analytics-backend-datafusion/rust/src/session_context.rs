@@ -237,6 +237,22 @@ pub async unsafe fn create_session_context(
             );
     }
 
+    // Scoped page-index loading for the vanilla (ListingTable) scan path — applies
+    // to every QueryStrategy that reaches this session (None / ListingTable). The
+    // rule replaces DataFusion's default CachedParquetFileReaderFactory with one
+    // that loads a page index scoped to the query's predicate columns (real
+    // ColumnIndex for predicate cols + real OffsetIndex for all cols), sharing the
+    // process-wide scoped cache with the indexed path. Registered as a session
+    // physical-optimizer rule so it runs as part of `create_physical_plan` (after
+    // filter pushdown has populated `ParquetSource::predicate`). Must run AFTER
+    // ProjectRowIdOptimizer (which rebuilds the scan but preserves the factory).
+    state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
+        crate::scoped_page_index_optimizer::ScopedPageIndexOptimizer::new(
+            Arc::clone(&shard_view.store),
+            runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+        ),
+    ));
+
     let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);

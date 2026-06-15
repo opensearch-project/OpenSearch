@@ -96,12 +96,29 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
             let row_base_partition_idx = file_schema.fields().len();
             new_proj_indices.push(row_base_partition_idx);
 
-            // Rebuild the DataSourceExec with new projections
+            // Rebuild the DataSourceExec with new projections, preserving the
+            // pushed-down predicate (and any reader factory) from the original
+            // ParquetSource. Dropping the predicate here would disable page
+            // pruning for row-id queries and would also strip the scoped
+            // page-index reader factory installed downstream.
             let new_table_schema = TableSchema::new(
                 file_schema.clone(),
                 partition_cols.clone(),
             );
-            let new_source = Arc::new(ParquetSource::new(new_table_schema));
+            let mut new_source = ParquetSource::new(new_table_schema);
+            if let Some(old_parquet) = (file_scan_config.file_source().as_ref()
+                as &dyn std::any::Any)
+                .downcast_ref::<ParquetSource>()
+            {
+                if let Some(pred) = old_parquet.predicate() {
+                    new_source = new_source.with_predicate(Arc::clone(pred));
+                }
+                if let Some(factory) = old_parquet.parquet_file_reader_factory() {
+                    new_source =
+                        new_source.with_parquet_file_reader_factory(Arc::clone(factory));
+                }
+            }
+            let new_source = Arc::new(new_source);
 
             let new_config = FileScanConfigBuilder::from(file_scan_config.clone())
                 .with_source(new_source)

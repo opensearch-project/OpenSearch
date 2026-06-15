@@ -17,30 +17,49 @@
 //! production profiles) while only a handful of predicate columns are ever
 //! pruned on.
 //!
-//! This module restores page-level pruning **scoped to the predicate columns
-//! only**. Given a footer-only `ParquetMetaData` and the parquet column indices
-//! the query's predicate references, it:
+//! This module restores page-level pruning while keeping the heavy
+//! `ColumnIndex` **scoped to the predicate columns only**. Given a footer-only
+//! `ParquetMetaData` and the parquet column indices the query's predicate
+//! references, it:
 //!
-//!   1. Range-reads just those columns' `ColumnIndex` / `OffsetIndex` bytes
-//!      (per row group) over the object store, on the IO runtime.
+//!   1. Range-reads (per row group) the predicate columns' `ColumnIndex` bytes
+//!      plus *every* column's `OffsetIndex` bytes over the object store, on the
+//!      IO runtime.
 //!   2. Decodes them with arrow-rs's public per-column readers
 //!      ([`read_columns_indexes`] / [`read_offset_indexes`], which take a
 //!      `&[ColumnChunkMetaData]` slice).
-//!   3. Scatters the decoded entries into full-width per-RG vectors — real
-//!      entries at predicate-column positions, cheap placeholders elsewhere
-//!      ([`ColumnIndexMetaData::NONE`] / an empty `OffsetIndexMetaData`) — so
-//!      that `StatisticsConverter`'s absolute `index[rg][parquet_col]` indexing
-//!      stays valid.
-//!   4. Rebuilds a `ParquetMetaData` carrying that sparse page index.
+//!   3. Builds full-width per-RG vectors:
+//!      - `ColumnIndex`: real entries at predicate-column positions,
+//!        [`ColumnIndexMetaData::NONE`] placeholders elsewhere. The page pruner's
+//!        `StatisticsConverter` only dereferences predicate positions, so the
+//!        placeholders keep absolute `index[rg][parquet_col]` indexing valid and
+//!        cost almost nothing.
+//!      - `OffsetIndex`: real entries for *all* columns (no placeholders).
+//!   4. Rebuilds a `ParquetMetaData` carrying that page index.
+//!
+//! ## Why the OffsetIndex is kept for all columns (not just predicate columns)
+//!
+//! The `ColumnIndex` is read only at *prune* time, and only for predicate
+//! columns — so scoping it is safe and is where the heap savings come from. The
+//! `OffsetIndex` is different: it is also read at *scan* time. When the pruner
+//! produces a `RowSelection`, arrow-rs's `InMemoryRowGroup::fetch_ranges`
+//! dereferences `offset_index[col].page_locations` for every **projected**
+//! column (by absolute index) to compute which page byte ranges to fetch. If a
+//! projected column had only an empty placeholder there, the reader would fetch
+//! zero page ranges for it and fail with "failed to skip rows, expected N, got
+//! 0". This loader runs before the projection is known, so it keeps a real
+//! `OffsetIndex` for every column. That is cheap relative to the `ColumnIndex`:
+//! fixed-width page offsets/sizes with no per-page string min/max stats.
 //!
 //! The result is cached by `(file path, predicate-column-set)` so repeated
 //! queries over the same columns skip the re-decode.
 //!
 //! # Memory
 //!
-//! The augmented metadata retains page index for the predicate columns only —
-//! a few columns instead of all ~hundreds. Resident footprint stays close to
-//! the footer-only baseline; the scoped cache is bounded (see
+//! The augmented metadata retains the (heavy) `ColumnIndex` for the predicate
+//! columns only — a few columns instead of all ~hundreds — plus the (light)
+//! `OffsetIndex` for all columns. Resident footprint stays close to the
+//! footer-only baseline; the scoped cache is bounded (see
 //! [`MAX_SCOPED_ENTRIES`]).
 //!
 //! # Correctness / fallback
@@ -65,7 +84,6 @@ use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
 use datafusion::parquet::file::page_index::index_reader::{
     read_columns_indexes, read_offset_indexes,
 };
-use datafusion::parquet::file::page_index::offset_index::OffsetIndexMetaData;
 use datafusion::parquet::file::reader::{ChunkReader, Length};
 use object_store::ObjectStore;
 use prost::bytes::{Buf, Bytes};
@@ -445,11 +463,30 @@ async fn build_augmented_metadata(
         return None;
     }
 
-    // Phase 1: per RG, gather the predicate columns' chunks and compute the
-    // union byte ranges for the column index and offset index. Bail to
-    // footer-only if any predicate column in any RG lacks a page index.
+    // Phase 1: per RG, gather two things and compute their union byte ranges for
+    // a single vectored fetch. Bail to footer-only if any required index range is
+    // missing.
+    //
+    //  - ColumnIndex for the PREDICATE columns only. This is the heavy, string
+    //    min/max-laden structure the page pruner reads, and the pruner only ever
+    //    dereferences predicate positions (placeholders fill the rest), so
+    //    scoping it to predicate columns is exactly what bounds the heap.
+    //
+    //  - OffsetIndex for ALL columns. Unlike the ColumnIndex, the OffsetIndex is
+    //    consumed at READ time, not just at prune time: when a RowSelection is
+    //    active, arrow-rs's `InMemoryRowGroup::fetch_ranges` dereferences
+    //    `offset_index[col].page_locations` for every *projected* column by
+    //    absolute index to locate the pages to fetch. A missing/empty entry for a
+    //    projected column yields zero fetched page ranges and the read fails
+    //    ("failed to skip rows, expected N, got 0"). Since this loader runs before
+    //    we know the query's projection, we keep a real OffsetIndex for every
+    //    column. It is cheap relative to the ColumnIndex — fixed-width page
+    //    offsets/sizes, no per-page string stats (~a third of the page index, and
+    //    a small fraction of the predicate-column ColumnIndex on wide string
+    //    schemas).
     struct RgPlan {
         pred_chunks: Vec<ColumnChunkMetaData>,
+        all_chunks: Vec<ColumnChunkMetaData>,
         col_range: Range<u64>,
         off_range: Range<u64>,
     }
@@ -460,12 +497,18 @@ async fn build_augmented_metadata(
         let rg = footer_meta.row_group(rg_idx);
         let pred_chunks: Vec<ColumnChunkMetaData> =
             parquet_cols.iter().map(|&i| rg.column(i).clone()).collect();
+        let all_chunks: Vec<ColumnChunkMetaData> =
+            (0..num_cols).map(|i| rg.column(i).clone()).collect();
         let col_range = column_index_union(&pred_chunks)?;
-        let off_range = offset_index_union(&pred_chunks)?;
+        // OffsetIndex range spans every column (see note above). If any column
+        // lacks an offset index we bail to footer-only: the reader would
+        // otherwise take the offset-index branch and fail on the missing column.
+        let off_range = offset_index_union(&all_chunks)?;
         fetch_ranges.push(col_range.clone());
         fetch_ranges.push(off_range.clone());
         plans.push(RgPlan {
             pred_chunks,
+            all_chunks,
             col_range,
             off_range,
         });
@@ -499,33 +542,31 @@ async fn build_augmented_metadata(
         // `read_columns_indexes` / `read_offset_indexes` are deprecated in
         // arrow-rs (slated for removal) but are the only PUBLIC API that decodes
         // a *column subset*; the per-column primitives are `pub(crate)`. They
-        // return a Vec aligned to the `pred_chunks` slice we pass.
+        // return a Vec aligned to the chunk slice we pass.
+        //
+        // ColumnIndex: predicate columns only (the part we scope to bound the heap).
+        // OffsetIndex: every column (needed by the reader for projected columns —
+        // see the Phase 1 note), so decode against the full chunk list.
         #[allow(deprecated)]
         let decoded_cols = read_columns_indexes(&col_reader, &plan.pred_chunks).ok()??;
         #[allow(deprecated)]
-        let decoded_offs = read_offset_indexes(&off_reader, &plan.pred_chunks).ok()??;
-        if decoded_cols.len() != parquet_cols.len() || decoded_offs.len() != parquet_cols.len() {
+        let decoded_offs = read_offset_indexes(&off_reader, &plan.all_chunks).ok()??;
+        if decoded_cols.len() != parquet_cols.len() || decoded_offs.len() != num_cols {
             return None;
         }
 
-        // Full-width rows: NONE / empty placeholders everywhere, real entries at
-        // predicate positions. `StatisticsConverter` only ever dereferences the
-        // predicate positions; placeholders keep absolute indexing valid and are
-        // zero-allocation.
+        // ColumnIndex row: NONE placeholders everywhere, real entries at predicate
+        // positions. `StatisticsConverter` only ever dereferences the predicate
+        // positions, so placeholders keep absolute indexing valid and are cheap.
         let mut col_row: Vec<ColumnIndexMetaData> =
             (0..num_cols).map(|_| ColumnIndexMetaData::NONE).collect();
-        let mut off_row: Vec<OffsetIndexMetaData> = (0..num_cols)
-            .map(|_| OffsetIndexMetaData {
-                page_locations: Vec::new(),
-                unencoded_byte_array_data_bytes: None,
-            })
-            .collect();
         for (k, &parquet_col) in parquet_cols.iter().enumerate() {
             col_row[parquet_col] = decoded_cols[k].clone();
-            off_row[parquet_col] = decoded_offs[k].clone();
         }
         column_index.push(col_row);
-        offset_index.push(off_row);
+        // OffsetIndex row: real entries for every column, already aligned to
+        // absolute column order by `all_chunks`.
+        offset_index.push(decoded_offs);
     }
 
     // Phase 4: rebuild metadata with the sparse page index grafted on.
@@ -678,6 +719,111 @@ mod tests {
         // Sanity: `price >= 20` keeps the last two 8-row pages (rows 16..32).
         assert_eq!(kept(&full_sel), 16);
         assert_eq!(kept(&scoped_sel), 16);
+    }
+
+    /// Read the rows kept by a `RowSelection` for a single projected leaf column,
+    /// using the given metadata. Returns the decoded i32 values (in order) or the
+    /// reader error. This drives arrow-rs's `InMemoryRowGroup::fetch_ranges` down
+    /// the offset-index branch (selection present), which dereferences
+    /// `offset_index[projected_col].page_locations` by absolute index — exactly
+    /// the path that breaks when a projected column carries only an empty
+    /// placeholder offset index.
+    fn read_selected_column(
+        bytes: &Bytes,
+        meta: &Arc<ParquetMetaData>,
+        leaf_col: usize,
+        selection: RowSelection,
+    ) -> std::result::Result<Vec<i32>, String> {
+        use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+        use datafusion::parquet::arrow::ProjectionMask;
+
+        let arm = ArrowReaderMetadata::try_new(Arc::clone(meta), ArrowReaderOptions::new())
+            .map_err(|e| format!("try_new metadata: {e}"))?;
+        let builder =
+            ParquetRecordBatchReaderBuilder::new_with_metadata(bytes.clone(), arm);
+        let proj = ProjectionMask::leaves(builder.parquet_schema(), [leaf_col]);
+        let mut reader = builder
+            .with_row_groups(vec![0])
+            .with_projection(proj)
+            .with_row_selection(selection)
+            .build()
+            .map_err(|e| format!("build reader: {e}"))?;
+
+        let mut out = Vec::new();
+        while let Some(next) = reader.next() {
+            let batch = next.map_err(|e| format!("read batch: {e}"))?;
+            let a = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or("projected column was not Int32")?;
+            for i in 0..a.len() {
+                out.push(a.value(i));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Regression: the augmented metadata is fed not only to the page pruner but
+    /// to the actual parquet data reader (see `parquet_bridge::bridge_config` →
+    /// `CachedMetadataReader`). When the pruner yields a `RowSelection` and the
+    /// query projects a column that is NOT a predicate column, arrow-rs locates
+    /// the pages to fetch via that column's `OffsetIndex`. If we had scoped the
+    /// OffsetIndex to predicate columns only (empty placeholder elsewhere), the
+    /// reader would fetch zero page ranges for the projected column and fail
+    /// ("failed to skip rows, expected N, got 0"). Keeping a real OffsetIndex for
+    /// every column makes this read succeed and match the full-index read.
+    ///
+    /// Predicate is on `price` (col 0); projection is `qty` (col 1) — the
+    /// non-predicate column. The selection keeps rows 16..32.
+    #[tokio::test]
+    async fn scoped_index_reads_non_predicate_projected_column() {
+        clear_scoped_cache_for_test();
+        let (bytes, schema) = two_col_parquet();
+        let (store, loc) = stage(bytes.clone()).await;
+        let fo = footer_only(&bytes);
+
+        // Scope to the predicate column `price` (col 0) only — `qty` (col 1) is
+        // NOT in the predicate set, so its ColumnIndex is a placeholder. Its
+        // OffsetIndex, however, must be real for the read below to work.
+        let parquet_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        assert_eq!(parquet_cols, vec![0]);
+
+        let augmented = load_scoped_page_index(&store, &loc, &fo, &parquet_cols)
+            .await
+            .expect("augmentation must succeed");
+
+        // The augmented OffsetIndex must carry real page locations for the
+        // non-predicate column too, not an empty placeholder.
+        let oi = augmented.offset_index().expect("augmented has offset index");
+        assert!(
+            !oi[0][1].page_locations.is_empty(),
+            "non-predicate column (qty) must keep a real offset index, not an empty placeholder"
+        );
+
+        // `price >= 20` keeps the last two 8-row pages → rows 16..32.
+        let selection = RowSelection::from(vec![
+            datafusion::parquet::arrow::arrow_reader::RowSelector::skip(16),
+            datafusion::parquet::arrow::arrow_reader::RowSelector::select(16),
+        ]);
+
+        // Read `qty` (col 1) through the scoped/augmented metadata.
+        let scoped_vals = read_selected_column(&bytes, &augmented, 1, selection.clone())
+            .expect("reading a non-predicate projected column must succeed with scoped metadata");
+
+        // Ground truth: the same read through the full page index.
+        let full = full_index(&bytes);
+        let full_vals = read_selected_column(&bytes, &full, 1, selection)
+            .expect("full-index read must succeed");
+
+        // qty values are 100..132, so rows 16..32 are 116..132.
+        let expected: Vec<i32> = (116..132).collect();
+        assert_eq!(scoped_vals, expected, "scoped read returned wrong qty values");
+        assert_eq!(
+            scoped_vals, full_vals,
+            "scoped read must match the full-index read exactly"
+        );
     }
 
     #[tokio::test]
@@ -1328,5 +1474,391 @@ mod real_parquet {
         }
         assert!(checked > 0, "no file had >=3 prunable numeric columns for boolean tests");
         eprintln!("verified complex-boolean scoped==full on {}/{} files", checked, files.len());
+    }
+}
+
+/// Truth-table tests: quantify page-index bytes scanned and scoped-cache bytes
+/// filled, **with** scoping (this change) vs **without** (the full-page-index
+/// baseline DataFusion/the listing path would read). These are the reliable,
+/// deterministic measurements behind the design.
+///
+/// Method:
+///  - A `CountingStore` wraps `InMemory` and sums the bytes of every range read
+///    (`get_opts`/`get_ranges` both funnel through `get_opts` in object_store
+///    0.13). This is the exact "parquet bytes scanned for the page index".
+///  - WITHOUT change (full page index): the bytes are the union of every
+///    column's `ColumnIndex` + `OffsetIndex` ranges across all row groups —
+///    computed directly from footer metadata offsets/lengths (what a
+///    `PageIndexPolicy::Optional` decode reads). Cache fill = full
+///    `ParquetMetaData::memory_size()`.
+///  - WITH change (scoped): drive `load_scoped_page_index` through the
+///    CountingStore and read the actual bytes scanned; cache fill =
+///    `scoped_cache_bytes_for_test()`.
+#[cfg(test)]
+mod truth_table {
+    use super::*;
+    use arrow::array::{Int32Array, RecordBatch, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+    use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
+    use object_store::memory::InMemory;
+    use object_store::path::Path as ObjPath;
+    use object_store::{
+        GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
+        ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload, PutResult,
+    };
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Mutex as StdMutex;
+
+    /// ObjectStore wrapper that counts page-index range-read bytes two ways:
+    ///  - `requested`: the raw bytes the caller asks for (sum of the ranges
+    ///    passed to `get_ranges`). This is the loader's *intent* — what page
+    ///    index it scopes to — independent of transport coalescing.
+    ///  - `fetched`: the bytes actually pulled from storage after object_store's
+    ///    `get_ranges` coalesces adjacent ranges (`get_opts` bounded reads). On
+    ///    small/contiguous files this can exceed `requested` because coalescing
+    ///    merges the predicate-CI and all-OI ranges (plus any gap) into one read.
+    #[derive(Debug)]
+    struct CountingStore {
+        inner: Arc<InMemory>,
+        requested: Arc<AtomicU64>,
+        fetched: Arc<AtomicU64>,
+        reads: Arc<AtomicU64>,
+    }
+
+    impl std::fmt::Display for CountingStore {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "CountingStore({})", self.inner)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ObjectStore for CountingStore {
+        async fn put_opts(
+            &self,
+            location: &ObjPath,
+            payload: PutPayload,
+            opts: PutOptions,
+        ) -> object_store::Result<PutResult> {
+            self.inner.put_opts(location, payload, opts).await
+        }
+        async fn put_multipart_opts(
+            &self,
+            location: &ObjPath,
+            opts: PutMultipartOptions,
+        ) -> object_store::Result<Box<dyn MultipartUpload>> {
+            self.inner.put_multipart_opts(location, opts).await
+        }
+        async fn get_opts(
+            &self,
+            location: &ObjPath,
+            options: GetOptions,
+        ) -> object_store::Result<GetResult> {
+            // `fetched`: bytes actually pulled from storage (post-coalescing).
+            if let Some(range) = options.range.as_ref() {
+                if let object_store::GetRange::Bounded(r) = range {
+                    self.fetched.fetch_add(r.end - r.start, Ordering::Relaxed);
+                    self.reads.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            self.inner.get_opts(location, options).await
+        }
+
+        async fn get_ranges(
+            &self,
+            location: &ObjPath,
+            ranges: &[std::ops::Range<u64>],
+        ) -> object_store::Result<Vec<Bytes>> {
+            // `requested`: the loader's true intent (sum of the exact ranges it
+            // asks for), before object_store coalesces adjacent ranges.
+            let req: u64 = ranges.iter().map(|r| r.end - r.start).sum();
+            self.requested.fetch_add(req, Ordering::Relaxed);
+            self.inner.get_ranges(location, ranges).await
+        }
+        fn list(
+            &self,
+            prefix: Option<&ObjPath>,
+        ) -> futures::stream::BoxStream<'static, object_store::Result<ObjectMeta>> {
+            self.inner.list(prefix)
+        }
+        fn delete_stream(
+            &self,
+            locations: futures::stream::BoxStream<'static, object_store::Result<ObjPath>>,
+        ) -> futures::stream::BoxStream<'static, object_store::Result<ObjPath>> {
+            self.inner.delete_stream(locations)
+        }
+        async fn list_with_delimiter(
+            &self,
+            prefix: Option<&ObjPath>,
+        ) -> object_store::Result<ListResult> {
+            self.inner.list_with_delimiter(prefix).await
+        }
+        async fn copy_opts(
+            &self,
+            from: &ObjPath,
+            to: &ObjPath,
+            options: object_store::CopyOptions,
+        ) -> object_store::Result<()> {
+            self.inner.copy_opts(from, to, options).await
+        }
+    }
+
+    /// 10 columns: 4 numeric (`n0..n3`, candidate filter columns) + 6 wide string
+    /// columns (`s0..s5`, the ColumnIndex hogs). One row group, multiple pages.
+    fn wide_parquet() -> (Bytes, SchemaRef) {
+        let mut fields: Vec<Field> = Vec::new();
+        for i in 0..4 {
+            fields.push(Field::new(format!("n{i}"), DataType::Int32, false));
+        }
+        for i in 0..6 {
+            fields.push(Field::new(format!("s{i}"), DataType::Utf8, false));
+        }
+        let schema = Arc::new(Schema::new(fields));
+
+        const ROWS: usize = 4096;
+        let mut cols: Vec<arrow::array::ArrayRef> = Vec::new();
+        for c in 0..4 {
+            let v: Vec<i32> = (0..ROWS as i32).map(|r| r + c * 1000).collect();
+            cols.push(Arc::new(Int32Array::from(v)));
+        }
+        for c in 0..6 {
+            // Long-ish, distinct strings → fat per-page min/max in the ColumnIndex.
+            let v: Vec<String> = (0..ROWS)
+                .map(|r| format!("col{c}_row{r:06}_padding_padding_padding"))
+                .collect();
+            cols.push(Arc::new(StringArray::from(v)));
+        }
+        let batch = RecordBatch::try_new(schema.clone(), cols).unwrap();
+
+        let props = WriterProperties::builder()
+            .set_max_row_group_size(ROWS)
+            .set_data_page_row_count_limit(256) // many pages → real page index
+            .set_write_batch_size(256)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .build();
+        let mut buf: Vec<u8> = Vec::new();
+        let mut w = ArrowWriter::try_new(&mut buf, schema.clone(), Some(props)).unwrap();
+        w.write(&batch).unwrap();
+        w.close().unwrap();
+        (Bytes::from(buf), schema)
+    }
+
+    struct Counters {
+        requested: Arc<AtomicU64>,
+        #[allow(dead_code)]
+        fetched: Arc<AtomicU64>,
+        #[allow(dead_code)]
+        reads: Arc<AtomicU64>,
+    }
+    impl Counters {
+        fn reset(&self) {
+            self.requested.store(0, Ordering::Relaxed);
+            self.fetched.store(0, Ordering::Relaxed);
+            self.reads.store(0, Ordering::Relaxed);
+        }
+        fn requested(&self) -> u64 { self.requested.load(Ordering::Relaxed) }
+    }
+
+    async fn stage_counting(bytes: Bytes) -> (Arc<dyn ObjectStore>, Counters, ObjPath) {
+        let inner = Arc::new(InMemory::new());
+        let loc = ObjPath::from("data.parquet");
+        inner.put(&loc, PutPayload::from_bytes(bytes)).await.unwrap();
+        let requested = Arc::new(AtomicU64::new(0));
+        let fetched = Arc::new(AtomicU64::new(0));
+        let reads = Arc::new(AtomicU64::new(0));
+        let store: Arc<dyn ObjectStore> = Arc::new(CountingStore {
+            inner,
+            requested: Arc::clone(&requested),
+            fetched: Arc::clone(&fetched),
+            reads: Arc::clone(&reads),
+        });
+        (store, Counters { requested, fetched, reads }, loc)
+    }
+
+    fn footer_only(bytes: &Bytes) -> Arc<ParquetMetaData> {
+        ArrowReaderMetadata::load(&bytes.clone(), ArrowReaderOptions::new().with_page_index(false))
+            .unwrap()
+            .metadata()
+            .clone()
+    }
+
+    fn full_index(bytes: &Bytes) -> Arc<ParquetMetaData> {
+        ArrowReaderMetadata::load(&bytes.clone(), ArrowReaderOptions::new().with_page_index(true))
+            .unwrap()
+            .metadata()
+            .clone()
+    }
+
+    /// Bytes the WITHOUT-change (full page index) path reads off disk: the sum of
+    /// every column's ColumnIndex + OffsetIndex lengths across all row groups.
+    fn full_page_index_disk_bytes(meta: &ParquetMetaData) -> u64 {
+        let mut total = 0u64;
+        for rg in meta.row_groups() {
+            for c in rg.columns() {
+                total += c.column_index_length().unwrap_or(0).max(0) as u64;
+                total += c.offset_index_length().unwrap_or(0).max(0) as u64;
+            }
+        }
+        total
+    }
+
+    /// Bytes the scoped path *should* read off disk: ColumnIndex for predicate
+    /// columns + OffsetIndex for all columns, across all row groups.
+    fn scoped_page_index_disk_bytes(meta: &ParquetMetaData, predicate_cols: &[usize]) -> u64 {
+        let mut total = 0u64;
+        for rg in meta.row_groups() {
+            for &pc in predicate_cols {
+                total += rg.column(pc).column_index_length().unwrap_or(0).max(0) as u64;
+            }
+            for c in rg.columns() {
+                total += c.offset_index_length().unwrap_or(0).max(0) as u64;
+            }
+        }
+        total
+    }
+
+    // Serialize against the process-global scoped cache.
+    static GUARD: StdMutex<()> = StdMutex::new(());
+
+    /// The headline truth table. Prints a table and asserts the invariants:
+    ///  - scoped page-index bytes scanned < full page-index bytes (CI scoped)
+    ///  - scoped cache fill < full metadata size
+    ///  - scoped cache holds exactly one entry after one file/predicate load
+    ///  - a second identical load is a pure cache hit (zero additional bytes)
+    #[tokio::test]
+    async fn truth_table_bytes_and_cache() {
+        let _g = GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let (bytes, schema) = wide_parquet();
+        let full = full_index(&bytes);
+        let total_cols = full.row_group(0).columns().len();
+
+        // Predicate touches a single numeric column n1 (parquet col 1).
+        let (store, ctr, loc) = stage_counting(bytes.clone()).await;
+        let fo = footer_only(&bytes);
+        let predicate_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
+        assert_eq!(predicate_cols, vec![1]);
+
+        // --- Expected page-index bytes, computed from metadata (independent of
+        //     the loader): "WITHOUT" = full all-column CI+OI; "WITH" = scoped. ---
+        let full_bytes = full_page_index_disk_bytes(&full);
+        let scoped_bytes_expected = scoped_page_index_disk_bytes(&full, &predicate_cols);
+        let full_mem = full.memory_size();
+
+        // --- WITH change: drive the scoped loader through the counting store ---
+        ctr.reset();
+        let augmented = load_scoped_page_index(&store, &loc, &fo, &predicate_cols)
+            .await
+            .expect("scoped load");
+        let scoped_requested = ctr.requested(); // loader intent: exact scoped ranges
+        let scoped_cache_fill = scoped_cache_bytes_for_test();
+        let entries_after_first = scoped_cache_len_for_test();
+
+        // --- Second identical load = pure cache hit, zero extra bytes ---
+        ctr.reset();
+        let _hit = load_scoped_page_index(&store, &loc, &fo, &predicate_cols)
+            .await
+            .expect("scoped load (hit)");
+        let requested_on_hit = ctr.requested();
+        let stats = scoped_cache_stats();
+
+        eprintln!("\n=== PAGE-INDEX TRUTH TABLE ({total_cols} cols, 1 RG, predicate=[n1]) ===");
+        eprintln!("{:<46} {:>12} {:>12}", "metric", "WITHOUT", "WITH");
+        eprintln!("{:<46} {:>12} {:>12}", "page-index bytes (expected, disk)", full_bytes, scoped_bytes_expected);
+        eprintln!("{:<46} {:>12} {:>12}", "page-index bytes REQUESTED by loader", full_bytes, scoped_requested);
+        eprintln!("{:<46} {:>12} {:>12}", "cache fill (bytes)", full_mem, scoped_cache_fill);
+        eprintln!("{:<46} {:>12} {:>12}", "cache entries", "n/a", entries_after_first);
+        eprintln!("{:<46} {:>12} {:>12}", "bytes requested on 2nd (cache hit)", "n/a", requested_on_hit);
+        eprintln!("cache stats after 2 loads: {stats:?}");
+        eprintln!(
+            "scoped REQUESTED {:.1}% of full page-index bytes; cache fill {:.1}% of full metadata\n",
+            100.0 * scoped_requested as f64 / full_bytes as f64,
+            100.0 * scoped_cache_fill as f64 / full_mem as f64,
+        );
+
+        // Invariants (robust across coalescing — assert on REQUESTED intent and
+        // cache memory, not on post-coalesce fetched bytes which depend on file
+        // layout):
+        //
+        // 1. The loader REQUESTS materially fewer page-index bytes than the full
+        //    decode: predicate-column ColumnIndex (1 of 10 cols) + all-column
+        //    OffsetIndex, vs every column's CI+OI. The 6 fat string ColumnIndexes
+        //    are excluded.
+        assert!(
+            scoped_requested < full_bytes,
+            "scoped REQUESTED page-index bytes ({scoped_requested}) must be < full ({full_bytes})"
+        );
+        // 2. Requested bytes equal what metadata says the scoped set is (the
+        //    loader reads exactly the predicate-CI + all-OI ranges).
+        assert_eq!(
+            scoped_requested, scoped_bytes_expected,
+            "loader must request exactly the scoped page-index ranges"
+        );
+        // 3. Cache fill is smaller than retaining full metadata.
+        assert!(
+            scoped_cache_fill < full_mem,
+            "scoped cache fill ({scoped_cache_fill}) must be < full metadata size ({full_mem})"
+        );
+        // 4. One entry after one (file,predicate) load.
+        assert_eq!(entries_after_first, 1, "exactly one scoped cache entry");
+        // 5. Second identical load is a pure cache hit: zero page-index bytes.
+        assert_eq!(requested_on_hit, 0, "cache hit must request zero page-index bytes");
+        assert_eq!(stats.hits, 1, "second load must register one cache hit");
+        assert_eq!(stats.misses, 1, "first load must register one cache miss");
+
+        // The augmented metadata must carry a real OffsetIndex for ALL columns
+        // (read-path correctness) and a real ColumnIndex only for the predicate
+        // column.
+        let ci = augmented.column_index().unwrap();
+        let oi = augmented.offset_index().unwrap();
+        for c in 0..total_cols {
+            assert!(!oi[0][c].page_locations.is_empty(), "col {c} must keep real OffsetIndex");
+        }
+        assert!(!matches!(ci[0][1], ColumnIndexMetaData::NONE), "predicate col has real ColumnIndex");
+        assert!(matches!(ci[0][0], ColumnIndexMetaData::NONE), "non-predicate col ColumnIndex is NONE");
+
+        clear_scoped_cache_for_test();
+    }
+
+    /// Distinct predicate-column sets over the same file are independent cache
+    /// entries; widening the predicate scans more ColumnIndex bytes.
+    #[tokio::test]
+    async fn truth_table_wider_predicate_scans_more() {
+        let _g = GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let (bytes, schema) = wide_parquet();
+        let full = full_index(&bytes);
+        let (store, ctr, loc) = stage_counting(bytes.clone()).await;
+        let fo = footer_only(&bytes);
+
+        // 1-column predicate.
+        let one = resolve_predicate_parquet_columns(&schema, &fo, &["n0".to_string()]);
+        ctr.reset();
+        let _ = load_scoped_page_index(&store, &loc, &fo, &one).await.unwrap();
+        let req_one = ctr.requested();
+
+        // 3-column predicate (distinct key → separate entry, fresh decode).
+        let three =
+            resolve_predicate_parquet_columns(&schema, &fo, &["n0".into(), "n1".into(), "n2".into()]);
+        ctr.reset();
+        let _ = load_scoped_page_index(&store, &loc, &fo, &three).await.unwrap();
+        let req_three = ctr.requested();
+
+        let full_bytes = full_page_index_disk_bytes(&full);
+        eprintln!(
+            "\nwider-predicate REQUESTED bytes: 1-col {req_one}, 3-col {req_three}, full {full_bytes}"
+        );
+        // More predicate columns → more ColumnIndex bytes requested (the OffsetIndex
+        // part is the same all-column set in both).
+        assert!(req_three > req_one, "3-col predicate must request more CI bytes than 1-col");
+        // Both still less than the full all-column ColumnIndex+OffsetIndex.
+        assert!(req_three < full_bytes, "even 3-col scoped < full page index");
+        // Two distinct (file, predicate-cols) keys → two cache entries.
+        assert_eq!(scoped_cache_len_for_test(), 2, "distinct predicate sets are distinct entries");
+
+        clear_scoped_cache_for_test();
     }
 }

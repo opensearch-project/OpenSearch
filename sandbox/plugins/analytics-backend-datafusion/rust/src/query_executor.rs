@@ -162,7 +162,7 @@ pub async fn execute_query(
                 .await
                 .map_err(|e| { error!("Failed to infer schema: {}", e); e })?;
             let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
-            let table_config = ListingTableConfig::new(table_path)
+            let table_config = ListingTableConfig::new(table_path.clone())
                 .with_listing_options(listing_options)
                 .with_schema(resolved_schema);
             let provider = Arc::new(ListingTable::try_new(table_config)
@@ -192,14 +192,32 @@ pub async fn execute_query(
     // Apply row ID optimizer when ShardTableProvider injected `row_base`.
     // For other strategies the vanilla scan output is already what the plan expects.
     use datafusion::physical_optimizer::PhysicalOptimizerRule;
+    let opt_config = datafusion::common::config::ConfigOptions::default();
     let physical_plan = match query_config.query_strategy {
         QueryStrategy::ListingTable => {
-            // Rewrites ___row_id to ___row_id + row_base.
+            // Rewrites ___row_id to ___row_id + row_base. Preserves the
+            // ParquetSource predicate + reader factory when it rebuilds the scan.
             let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
-            let config = datafusion::common::config::ConfigOptions::default();
-            optimizer.optimize(physical_plan, &config)?
+            optimizer.optimize(physical_plan, &opt_config)?
         }
         _ => physical_plan,
+    };
+
+    // Install the scoped page-index reader factory on EVERY parquet scan in the
+    // plan, regardless of QueryStrategy/provider. Runs last so it sees the final
+    // ParquetSource (with predicate pushed by DataFusion's optimizers, and after
+    // the row-id rebuild). This is what gives `QueryStrategy::None` plain scans
+    // (stock ListingTable) the same scoped page-index loading + shared cache the
+    // indexed path already has. See `crate::scoped_page_index_optimizer`.
+    let physical_plan = {
+        let store = ctx.state().runtime_env().object_store(&table_path)?;
+        let metadata_cache =
+            ctx.state().runtime_env().cache_manager.get_file_metadata_cache();
+        let scoped = crate::scoped_page_index_optimizer::ScopedPageIndexOptimizer::new(
+            store,
+            metadata_cache,
+        );
+        scoped.optimize(physical_plan, &opt_config)?
     };
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
