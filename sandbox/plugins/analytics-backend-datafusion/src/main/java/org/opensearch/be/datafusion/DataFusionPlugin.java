@@ -433,7 +433,6 @@ public class DataFusionPlugin extends Plugin
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
             .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
-            .coordinatorMultiplier(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
@@ -460,11 +459,6 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
             int newMax = Math.max(1, (int) (cpuThreads * multiplier));
             NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
-        });
-
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
-            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
-            NativeBridge.updateConcurrencyGate("reduce", newMax);
         });
 
         // Apply initial values
