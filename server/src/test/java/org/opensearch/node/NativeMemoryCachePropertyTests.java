@@ -44,7 +44,7 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
             // Generate random initial stats
             long allocatedBytes = randomLongBetween(0, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(0, Long.MAX_VALUE);
-            AnalyticsBackendNativeMemoryStats initialStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats initialStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes, 0);
 
             AtomicInteger refreshCount = new AtomicInteger(0);
 
@@ -57,7 +57,8 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
                     refreshCount.incrementAndGet();
                     return new AnalyticsBackendNativeMemoryStats(
                         randomLongBetween(0, Long.MAX_VALUE),
-                        randomLongBetween(0, Long.MAX_VALUE)
+                        randomLongBetween(0, Long.MAX_VALUE),
+                        0
                     );
                 }
             };
@@ -98,7 +99,7 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
         for (int iteration = 0; iteration < 100; iteration++) {
             long allocatedBytes = randomLongBetween(0, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(0, Long.MAX_VALUE);
-            AnalyticsBackendNativeMemoryStats initialStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats initialStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes, 0);
 
             AtomicInteger refreshCount = new AtomicInteger(0);
 
@@ -112,7 +113,8 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
                     refreshCount.incrementAndGet();
                     return new AnalyticsBackendNativeMemoryStats(
                         randomLongBetween(0, Long.MAX_VALUE),
-                        randomLongBetween(0, Long.MAX_VALUE)
+                        randomLongBetween(0, Long.MAX_VALUE),
+                        0
                     );
                 }
             };
@@ -146,7 +148,7 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
         for (int iteration = 0; iteration < 100; iteration++) {
             long allocatedBytes = randomLongBetween(-1, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(-1, Long.MAX_VALUE);
-            AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes, 0);
 
             SingleObjectCache<AnalyticsBackendNativeMemoryStats> cache = new SingleObjectCache<AnalyticsBackendNativeMemoryStats>(
                 TimeValue.timeValueSeconds(60),
