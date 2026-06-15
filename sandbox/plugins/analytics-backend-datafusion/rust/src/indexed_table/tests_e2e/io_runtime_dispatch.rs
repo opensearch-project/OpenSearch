@@ -30,7 +30,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
+use datafusion::prelude::SessionContext;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::local::LocalFileSystem;
@@ -42,6 +42,7 @@ use object_store::{
 
 use crate::cross_rt_stream::CrossRtStream;
 use crate::runtime_manager::RuntimeManager;
+use crate::spawn_io_store::SpawnIoStore;
 use crate::stats::pack_runtime_metrics;
 
 use super::super::table_provider::SegmentFileInfo;
@@ -150,7 +151,7 @@ fn data_reads_execute_on_io_runtime_not_cpu_runtime() {
     // handle set by the first RuntimeManager; with multiple managers in one test
     // binary that global may point at a sibling test's runtime, so we pass the
     // handle directly to keep dispatch and the sampled metric on the same runtime.)
-    let store: Arc<dyn ObjectStore> = Arc::new(crate::spawn_io_store::SpawnIoStore::new(
+    let store: Arc<dyn ObjectStore> = Arc::new(SpawnIoStore::new(
         recording,
         mgr.io_runtime.handle().clone(),
     ));
@@ -171,7 +172,7 @@ fn data_reads_execute_on_io_runtime_not_cpu_runtime() {
     let row_count_c = Arc::clone(&row_count);
 
     mgr.io_runtime.block_on(async move {
-        let ctx = datafusion::execution::context::SessionContext::new();
+        let ctx = SessionContext::new();
         ctx.register_table("t", provider).unwrap();
         let df = ctx
             .sql("SELECT brand, price, status, category FROM t")

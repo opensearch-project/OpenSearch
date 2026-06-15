@@ -68,6 +68,7 @@ use crate::partition_stream::PartitionStreamSender;
 use crate::query_tracker::{self, QueryTrackingContext};
 use crate::runtime_manager::RuntimeManager;
 use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
+use crate::spawn_io_store::SpawnIoStore;
 
 /// Bundles a stream with its query tracking context so that dropping the
 /// handle automatically marks the query completed in the registry.
@@ -939,7 +940,7 @@ pub async unsafe fn fetch_by_row_ids(
     // dispatched onto the dedicated IO runtime (no-op if no IO runtime is set).
     runtime_env.register_object_store(
         &url::Url::parse("file://").unwrap(),
-        crate::spawn_io_store::SpawnIoStore::wrap(Arc::clone(&shard_view.store)),
+        SpawnIoStore::wrap(Arc::clone(&shard_view.store)),
     );
 
     let mut config = SessionConfig::new();

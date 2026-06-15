@@ -319,6 +319,7 @@ mod io_runtime_tests {
         PutOptions, PutPayload, PutResult,
     };
     use std::sync::Mutex;
+    use crate::spawn_io_store::SpawnIoStore;
 
     /// ObjectStore wrapper that records the name of the thread each `get_opts`
     /// (and therefore `get_range`/`get_ranges`, which funnel through it) runs
@@ -443,7 +444,7 @@ mod io_runtime_tests {
         // Wrap exactly as production does at register_object_store, binding to
         // THIS manager's IO handle explicitly (the process-global handle may point
         // at a sibling test's runtime when several managers exist in one binary).
-        let store: Arc<dyn ObjectStore> = Arc::new(crate::spawn_io_store::SpawnIoStore::new(
+        let store: Arc<dyn ObjectStore> = Arc::new(SpawnIoStore::new(
             recording,
             mgr.io_runtime.handle().clone(),
         ));

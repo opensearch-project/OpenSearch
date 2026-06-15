@@ -76,7 +76,7 @@ use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
-
+use crate::spawn_io_store::SpawnIoStore;
 
 /// Execute an indexed query.
 ///
@@ -135,7 +135,7 @@ pub async fn execute_indexed_query(
     // dispatched onto the dedicated IO runtime (no-op if no IO runtime is set).
     runtime_env.register_object_store(
         &url::Url::parse("file://").unwrap(),
-        crate::spawn_io_store::SpawnIoStore::wrap(Arc::clone(&shard_view.store)),
+        SpawnIoStore::wrap(Arc::clone(&shard_view.store)),
     );
 
     let mut config = SessionConfig::new();
