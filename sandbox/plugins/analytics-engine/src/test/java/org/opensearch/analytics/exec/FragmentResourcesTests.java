@@ -47,30 +47,30 @@ public class FragmentResourcesTests extends OpenSearchTestCase {
         return new GatedCloseable<>(reader, () -> closedFlag.set(true));
     }
 
-    public void testSingleSessionClosesReaderEagerly() throws Exception {
+    public void testNoFetchClosesReaderEagerly() throws Exception {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
         ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
 
-        new FragmentResources(store, ctx, null, null, null, true).close();
+        new FragmentResources(store, ctx, null, null, null, false).close(); // fetchFollows=false
 
-        assertTrue("Single-session reader must be closed on close()", closed.get());
+        assertTrue("Reader with no following fetch must be closed on close()", closed.get());
         assertEquals("Context must be removed from the store", 0, store.activeCount());
     }
 
-    public void testMultiSessionKeepsReaderForFetch() throws Exception {
+    public void testFetchFollowsKeepsReaderForFetch() throws Exception {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
         ReaderContext ctx = store.createContext("q1", SHARD_0, mockGatedReader(closed));
 
-        new FragmentResources(store, ctx, null, null, null, false).close();
+        new FragmentResources(store, ctx, null, null, null, true).close(); // fetchFollows=true
 
-        assertFalse("Multi-session reader must stay open for the fetch phase", closed.get());
+        assertFalse("Reader must stay open for the following fetch phase", closed.get());
         assertEquals("Context must remain in the store", 1, store.activeCount());
 
-        // Fetch reuses then frees it.
+        // Fetch reuses then frees it (terminal phase, fetchFollows=false).
         assertNotNull(store.acquireContext("q1", SHARD_0));
-        new FragmentResources(store, ctx, null, null, null, true).close();
+        new FragmentResources(store, ctx, null, null, null, false).close();
         assertTrue("Reader closed once the terminal fetch frees it", closed.get());
         assertEquals(0, store.activeCount());
     }

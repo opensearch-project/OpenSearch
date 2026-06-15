@@ -40,8 +40,16 @@ public final class FragmentResources implements AutoCloseable {
      * pull memory out from under the FFM call.
      */
     private final BigIntVector rowIdVector;
-    /** True when this reader serves a single phase; close frees it eagerly instead of keeping it for a fetch. */
-    private final boolean singleSession;
+    /** True when a fetch phase will reuse this reader (QTF query phase); close then keeps it for the fetch. */
+    private final boolean fetchFollows;
+
+    /**
+     * Whether this reader serves a single request rather than living across many (scroll/PIT style).
+     * Always true today — analytics-engine has no scroll/PIT-equivalent that outlives one request.
+     * TODO: the coordinator (which knows the query shape) should set this per request rather than it
+     *  being hardcoded; a future multi-session reader would not be freed on close here.
+     */
+    private static final boolean SINGLE_SESSION = true;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
@@ -49,9 +57,9 @@ public final class FragmentResources implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
         Runnable onClose,
-        boolean singleSession
+        boolean fetchFollows
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, null, singleSession);
+        this(readerContextStore, readerContext, engine, stream, onClose, null, fetchFollows);
     }
 
     public FragmentResources(
@@ -61,7 +69,7 @@ public final class FragmentResources implements AutoCloseable {
         EngineResultStream stream,
         Runnable onClose,
         BigIntVector rowIdVector,
-        boolean singleSession
+        boolean fetchFollows
     ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
@@ -70,7 +78,7 @@ public final class FragmentResources implements AutoCloseable {
         this.stream = stream;
         this.onClose = onClose;
         this.rowIdVector = rowIdVector;
-        this.singleSession = singleSession;
+        this.fetchFollows = fetchFollows;
     }
 
     private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
@@ -118,15 +126,15 @@ public final class FragmentResources implements AutoCloseable {
                 else first.addSuppressed(e);
             }
         }
-        // Drop this phase's use-reference. For a multi-session reader (QTF query phase), only
-        // release so the reader stays alive for the fetch and the reaper closes after keepAlive.
-        // For a single-session reader, free immediately: release this phase's reference, then free
-        // the store's base reference so the reader is closed now instead of being pinned until the
-        // reaper sweeps it.
+        // Drop this phase's use-reference. If a fetch phase will reuse this reader (QTF query
+        // phase), only release it so it stays alive for the fetch and the reaper closes after
+        // keepAlive. Otherwise free it now: release this phase's reference, then free the store's
+        // base reference so a single-session reader is closed immediately instead of being pinned
+        // until the reaper sweeps it.
         if (readerContext != null) {
             try {
                 readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
-                if (singleSession) {
+                if (SINGLE_SESSION && !fetchFollows) {
                     readerContextStore.freeContext(readerContext.getQueryId(), readerContext.getShardId());
                 }
             } catch (Exception e) {

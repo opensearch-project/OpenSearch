@@ -340,8 +340,8 @@ public class AnalyticsSearchService implements AutoCloseable {
             EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
-            // Fetch is the terminal phase: single-session here, so close() frees the reader eagerly.
-            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector, true);
+            // Fetch is the terminal phase: no fetch follows, so close() frees the reader eagerly.
+            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector, false);
         } catch (OpenSearchException e) {
             if (rowIdVector != null) rowIdVector.close();
             readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
@@ -386,16 +386,15 @@ public class AnalyticsSearchService implements AutoCloseable {
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
         // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
-        // FragmentResources holds a reference to the ReaderContext; for a multi-session (QTF) query
-        // phase close() releases it back to the store (the reaper closes after keepAlive); for a
-        // single-session query close() frees it immediately so the reader is not pinned until the
-        // reaper sweeps it. A query is multi-session only for QTF, which we detect from the
-        // ShardScan instruction's requestsRowIds flag (the same signal that tells the backend to
-        // emit __row_id__).
+        // FragmentResources holds a reference to the ReaderContext; when a fetch phase will follow
+        // (QTF query phase) close() releases it back to the store so it stays alive for the fetch
+        // (the reaper closes after keepAlive); otherwise close() frees it immediately so the reader
+        // is not pinned until the reaper sweeps it. A fetch follows only for QTF, which we detect
+        // from the ShardScan instruction's requestsRowIds flag (the same signal that tells the
+        // backend to emit __row_id__).
         // TODO: ideally the coordinator (which knows the query shape) should tell us explicitly
-        // whether this is a single-session query or a QTF query, rather than us inferring it from
-        // the row-id signal here.
-        boolean singleSession = !requestsRowIds(resolved.plan.getInstructions());
+        // whether a fetch phase will follow, rather than us inferring it from the row-id signal here.
+        boolean fetchFollows = requestsRowIds(resolved.plan.getInstructions());
         ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
@@ -453,7 +452,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, singleSession);
+            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, fetchFollows);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -465,8 +464,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                 e
             );
             try {
-                // Query phase failed: no fetch will follow, so free the reader eagerly (singleSession=true).
-                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, true).close();
+                // Query phase failed: no fetch will follow, so free the reader eagerly (fetchFollows=false).
+                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, false).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
