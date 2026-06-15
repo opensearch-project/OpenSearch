@@ -343,7 +343,8 @@ public class AnalyticsSearchService implements AutoCloseable {
             resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector, false);
         } catch (OpenSearchException e) {
             if (rowIdVector != null) rowIdVector.close();
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(e);
             return;
         } catch (Exception e) {

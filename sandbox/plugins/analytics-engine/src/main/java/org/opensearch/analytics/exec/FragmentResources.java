@@ -17,12 +17,11 @@ import org.opensearch.analytics.backend.ShardScanExecutionContext;
  * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
  * the duration of a streaming fragment execution, and releases them in reverse order on close.
  *
- * <p>The reader is owned by {@link ReaderContextStore}, not by this class. For a multi-session
- * reader (QTF query phase, whose fetch phase reuses the reader), close only releases the context
- * so the reader stays alive across the query→fetch boundary, and the store's reaper closes it
- * after keepAlive. For a single-session reader (non-QTF query, or the terminal fetch phase
- * itself), close frees the context immediately so the reader is not pinned in the store until the
- * reaper sweeps it.
+ * <p>The reader is owned by {@link ReaderContextStore}, not by this class. When a fetch phase will
+ * reuse the reader (QTF query phase), close only releases the context so it stays alive across the
+ * query→fetch boundary, and the store's reaper closes it after keepAlive. Otherwise (non-QTF query,
+ * or the terminal fetch phase itself) close frees the context immediately so the reader is not
+ * pinned in the store until the reaper sweeps it.
  *
  * @opensearch.internal
  */
@@ -42,14 +41,6 @@ public final class FragmentResources implements AutoCloseable {
     private final BigIntVector rowIdVector;
     /** True when a fetch phase will reuse this reader (QTF query phase); close then keeps it for the fetch. */
     private final boolean fetchFollows;
-
-    /**
-     * Whether this reader serves a single request rather than living across many (scroll/PIT style).
-     * Always true today — analytics-engine has no scroll/PIT-equivalent that outlives one request.
-     * TODO: the coordinator (which knows the query shape) should set this per request rather than it
-     *  defaulting to true; a future multi-session reader would not be freed on close here.
-     */
-    private final boolean singleSession = true;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
@@ -128,14 +119,14 @@ public final class FragmentResources implements AutoCloseable {
         }
         // If a fetch phase will reuse this reader (QTF query phase), only release this phase's
         // use-reference so it stays alive for the fetch and the reaper closes after keepAlive.
-        // Otherwise release and free it now so a single-session reader is closed immediately
-        // instead of being pinned until the reaper sweeps it.
+        // Otherwise release and free it now so the reader is closed immediately instead of being
+        // pinned until the reaper sweeps it.
         if (readerContext != null) {
             try {
-                if (singleSession && !fetchFollows) {
-                    readerContextStore.releaseAndFree(readerContext.getQueryId(), readerContext.getShardId());
-                } else {
+                if (fetchFollows) {
                     readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
+                } else {
+                    readerContextStore.releaseAndFree(readerContext.getQueryId(), readerContext.getShardId());
                 }
             } catch (Exception e) {
                 if (first == null) first = e;
