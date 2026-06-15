@@ -18,7 +18,6 @@ use tokio::{
     task::{AbortHandle, JoinSet},
 };
 
-use crate::io::register_io_runtime;
 // DedicatedExecutor — runs CPU-bound DataFusion work on its own tokio runtime.
 // Based on InfluxDB's executor pattern.
 // https://github.com/apache/datafusion/blob/main/datafusion-examples/examples/query_planning/thread_pools.rs
@@ -239,39 +238,17 @@ impl std::fmt::Debug for DedicatedExecutor {
 
 impl DedicatedExecutor {
     pub fn new(name: &str, runtime_builder: tokio::runtime::Builder, max_concurrent_queries: usize) -> Self {
-        Self::new_with_io_handle(name, runtime_builder, max_concurrent_queries, None)
-    }
-
-    /// Like [`new`](Self::new), but registers `io_handle` (rather than the
-    /// ambient `Handle::try_current()`) as the IO runtime on every CPU worker
-    /// thread, so [`crate::io::spawn_io`] dispatches object-store reads onto it.
-    ///
-    /// This is required when the executor is constructed off any tokio runtime
-    /// (e.g. the FFM entrypoint runs on a bare Java thread, where
-    /// `Handle::try_current()` is `None`); without an explicit handle every CPU
-    /// worker would register `IO_RUNTIME = None` and `spawn_io` would panic.
-    pub fn new_with_io_handle(
-        name: &str,
-        runtime_builder: tokio::runtime::Builder,
-        max_concurrent_queries: usize,
-        io_handle: Option<Handle>,
-    ) -> Self {
         let name = name.to_owned();
         let notify_shutdown = Arc::new(Notify::new());
         let notify_shutdown_captured = Arc::clone(&notify_shutdown);
         let (tx_shutdown, rx_shutdown) = tokio::sync::oneshot::channel();
         let (tx_handle, rx_handle) = std::sync::mpsc::channel();
-        // Prefer the explicitly supplied IO runtime handle; fall back to the
-        // ambient runtime only when none is provided.
-        let io_handle = io_handle.or_else(|| tokio::runtime::Handle::try_current().ok());
 
         let thread = std::thread::Builder::new()
             .name(format!("{name} driver"))
             .spawn(move || {
-                register_io_runtime(io_handle.clone());
                 let mut runtime_builder = runtime_builder;
                 let runtime = runtime_builder
-                    .on_thread_start(move || register_io_runtime(io_handle.clone()))
                     .build()
                     .expect("Creating tokio runtime");
 

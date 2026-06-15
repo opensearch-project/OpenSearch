@@ -28,13 +28,13 @@
 //!
 //! # How
 //!
-//! The wrapper captures the IO runtime [`Handle`] by value (not via the
-//! thread-local `IO_RUNTIME`, which is only set on runtime worker threads, not
-//! on the bare Java/FFM threads that register stores). Every read method spawns
-//! its work onto that handle via the local `spawn_read` helper and awaits the
-//! join handle — so the CPU thread only parks on a cheap handle while the actual
-//! fetch runs on an IO worker. A cancelled read (a normal part of DataFusion
-//! execution) is mapped to an `object_store::Error`, never a panic.
+//! The wrapper captures the IO runtime [`Handle`] by value, so it works even on
+//! the bare Java/FFM threads that register stores (which are not tokio runtime
+//! workers). Every read method spawns its work onto that handle via the local
+//! `spawn_read` helper and awaits the join handle — so the CPU thread only parks
+//! on a cheap handle while the actual fetch runs on an IO worker. A cancelled
+//! read (a normal part of DataFusion execution) is mapped to an
+//! `object_store::Error`, never a panic.
 //!
 //! `get_opts` is special: its [`GetResult`] payload may be a lazy `Stream`, so
 //! the bytes are collected *inside* the spawned task and returned as an
@@ -63,8 +63,8 @@ use tokio::runtime::Handle;
 /// Spawn a fallible object-store read `fut` onto `handle` (the IO runtime) and
 /// await its result, aborting the spawned task if this future is dropped.
 ///
-/// Unlike [`crate::io::spawn_io`], a cancelled spawned task is mapped to an
-/// `object_store::Error` rather than a panic. This matters because the store is
+/// A cancelled spawned task is mapped to an `object_store::Error` rather than a
+/// panic. This matters because the store is
 /// driven by the full DataFusion operator tree, which cancels in-flight reads as
 /// a normal part of execution (early completion, LIMIT, a join side finishing);
 /// turning those routine cancellations into panics would crash the query.
