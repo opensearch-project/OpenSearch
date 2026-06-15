@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
@@ -138,6 +139,9 @@ public class AnalyticsSearchService implements AutoCloseable {
             FragmentResources resources = startFragment(request, resolved, shard, task);
             return new ResolvedExecution(resources, resolved);
         } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw e;
+        } catch (OpenSearchException e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw e;
         } catch (Exception e) {
@@ -332,6 +336,11 @@ public class AnalyticsSearchService implements AutoCloseable {
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
             resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
+        } catch (OpenSearchException e) {
+            if (rowIdVector != null) rowIdVector.close();
+            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            responseHandler.onFailure(e);
+            return;
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
             readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
