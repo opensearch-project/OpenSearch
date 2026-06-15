@@ -92,6 +92,19 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         assertEquals(0, store.activeCount());
     }
 
+    public void testReleaseAndFreeClosesReaderInUse() {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool);
+
+        // createContext leaves the context in-use (refcount = base + this phase). releaseAndFree
+        // must drop both refs and close the reader in one call.
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseAndFree("q1", SHARD_0);
+
+        assertTrue("Reader should be closed after releaseAndFree", closed.get());
+        assertEquals(0, store.activeCount());
+    }
+
     public void testFreeContextRemovesFromStore() {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);

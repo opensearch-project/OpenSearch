@@ -126,16 +126,16 @@ public final class FragmentResources implements AutoCloseable {
                 else first.addSuppressed(e);
             }
         }
-        // Drop this phase's use-reference. If a fetch phase will reuse this reader (QTF query
-        // phase), only release it so it stays alive for the fetch and the reaper closes after
-        // keepAlive. Otherwise free it now: release this phase's reference, then free the store's
-        // base reference so a single-session reader is closed immediately instead of being pinned
-        // until the reaper sweeps it.
+        // If a fetch phase will reuse this reader (QTF query phase), only release this phase's
+        // use-reference so it stays alive for the fetch and the reaper closes after keepAlive.
+        // Otherwise release and free it now so a single-session reader is closed immediately
+        // instead of being pinned until the reaper sweeps it.
         if (readerContext != null) {
             try {
-                readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
                 if (singleSession && !fetchFollows) {
-                    readerContextStore.freeContext(readerContext.getQueryId(), readerContext.getShardId());
+                    readerContextStore.releaseAndFree(readerContext.getQueryId(), readerContext.getShardId());
+                } else {
+                    readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
                 }
             } catch (Exception e) {
                 if (first == null) first = e;
