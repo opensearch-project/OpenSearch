@@ -131,7 +131,9 @@ async fn run_two_segment_query(
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-        });
+                    sort_min: None,
+            sort_max: None,
+});
     }
 
     let schema = schema_opt.unwrap();
@@ -185,7 +187,10 @@ async fn run_two_segment_query(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -334,7 +339,9 @@ async fn run_two_segment_query_witness(
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-        });
+                    sort_min: None,
+            sort_max: None,
+});
     }
 
     let schema = schema_opt.unwrap();
@@ -392,7 +399,10 @@ async fn run_two_segment_query_witness(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -547,7 +557,9 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-        });
+                    sort_min: None,
+            sort_max: None,
+});
     }
 
     let schema = schema_opt.unwrap();
@@ -597,7 +609,10 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -1038,7 +1053,9 @@ async fn run_wide_segments(
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-        });
+                    sort_min: None,
+            sort_max: None,
+});
     }
 
     let schema = schema_opt.unwrap();
@@ -1101,7 +1118,10 @@ async fn run_wide_segments(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

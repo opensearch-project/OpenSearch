@@ -14,9 +14,11 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,6 +75,22 @@ public final class DelegationBlockList {
         Map<String, EnumSet<ScalarFunction>> map = new ConcurrentHashMap<>();
         DelegationBlockList blockList = new DelegationBlockList(map);
         Map<String, List<ScalarFunction>> initial = AnalyticsQuerySettings.DELEGATION_BLOCKED_PREDICATES.getAsMap(initialSettings);
+        // Seed missing namespaces with setting defaults (getAsMap skips unset keys).
+        for (String acceptor : registry.delegationAcceptors(DelegationType.FILTER)) {
+            if (!initial.containsKey(acceptor)) {
+                Setting<List<ScalarFunction>> concrete = AnalyticsQuerySettings.DELEGATION_BLOCKED_PREDICATES
+                    .getConcreteSettingForNamespace(acceptor);
+                List<ScalarFunction> defaults = concrete.get(initialSettings);
+                if (!defaults.isEmpty()) {
+                    Set<ScalarFunction> delegatable = registry.getBackend(acceptor).delegatedPredicateSerializers().keySet();
+                    List<ScalarFunction> applicable = defaults.stream().filter(delegatable::contains).toList();
+                    if (!applicable.isEmpty()) {
+                        initial = new HashMap<>(initial);
+                        initial.put(acceptor, applicable);
+                    }
+                }
+            }
+        }
         for (Map.Entry<String, List<ScalarFunction>> e : initial.entrySet()) {
             validate(registry, e.getKey(), e.getValue());
             if (!e.getValue().isEmpty()) {

@@ -13,7 +13,7 @@ jobs:
       pull-requests: write
     steps:
       - name: copy-issue-labels
-        uses: michalvankodev/copy-issue-labels@f54e957e58fc976eba5ffa36e1a1030572dbb78d # v1.3.0
+        uses: michalvankodev/copy-issue-labels@c4df96ee53d2cdf639ba169a26c43b04d5085cb3 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           labels-to-exclude: |

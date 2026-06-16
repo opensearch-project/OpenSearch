@@ -407,7 +407,9 @@ async fn run_large(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = Arc::new(tree);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
@@ -454,7 +456,10 @@ async fn run_large(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -860,7 +865,9 @@ async fn run_large_partitioned(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = Arc::new(tree);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
@@ -906,7 +913,10 @@ async fn run_large_partitioned(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

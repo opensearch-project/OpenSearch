@@ -97,7 +97,9 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = Arc::new(tree_bool);
     let factory: super::super::table_provider::EvaluatorFactory = {
@@ -137,7 +139,10 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -405,7 +410,9 @@ async fn query_with_mismatched_schema(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
     let tree = Arc::new(tree_bool);
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
@@ -445,7 +452,10 @@ async fn query_with_mismatched_schema(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

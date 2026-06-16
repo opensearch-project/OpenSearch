@@ -23,6 +23,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -47,6 +48,7 @@ public class MergeScheduler {
     private final ThreadPool threadPool;
     private final AtomicInteger activeMerges = new AtomicInteger(0);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
+    private final Semaphore forceMergeLock = new Semaphore(1);
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
     private final MergeSchedulerConfig mergeSchedulerConfig;
@@ -132,37 +134,24 @@ public class MergeScheduler {
 
     /**
      * Forces a merge down to at most {@code maxNumSegment} segments.
-     * Runs synchronously on the calling thread.
+     * Runs synchronously on the calling thread, which must be a
+     * {@link ThreadPool.Names#FORCE_MERGE} thread. Only one force merge
+     * may execute per shard at a time — concurrent callers block until
+     * the ongoing force merge completes.
      *
      * @param maxNumSegment the maximum number of segments after the force merge
      */
     public void forceMerge(int maxNumSegment) throws IOException {
-        if (activeMerges.get() > 0) {
-            logger.warn("Cannot force merge while background merges are active");
-            throw new IllegalStateException("Cannot force merge while background merges are active");
-        }
-        Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
-
-        for (OneMerge oneMerge : oneMerges) {
-            threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(() -> {
-                long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
-                long totalNumDocs = oneMerge.getTotalNumDocs();
-                long timeNS = System.nanoTime();
-                long tookMS = 0;
-                try {
-                    mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
-                    MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-                    applyMergeChanges.accept(mergeResult, oneMerge);
-                    mergeHandler.onMergeFinished(oneMerge);
-                    tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
-                } catch (Exception e) {
-                    logger.error(new ParameterizedMessage("Force merge failed for: {}", oneMerge), e);
-                    mergeHandler.onMergeFailure(oneMerge);
-                    onMergeFailureCleanup.run();
-                } finally {
-                    mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
-                }
-            });
+        assert Thread.currentThread().getName().contains(ThreadPool.Names.FORCE_MERGE)
+            : "forceMerge must be called on FORCE_MERGE thread but was: " + Thread.currentThread().getName();
+        forceMergeLock.acquireUninterruptibly();
+        try {
+            Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
+            for (OneMerge oneMerge : oneMerges) {
+                runMerge(oneMerge);
+            }
+        } finally {
+            forceMergeLock.release();
         }
     }
 
@@ -224,43 +213,61 @@ public class MergeScheduler {
     }
 
     /**
-     * Submits a merge task to the thread pool's force merge executor.
+     * Submits a merge task to the thread pool's merge executor.
      *
      * @param oneMerge the merge to execute
      */
     private void submitMergeTask(OneMerge oneMerge) {
         activeMerges.incrementAndGet();
         threadPool.executor(ThreadPool.Names.MERGE).execute(() -> {
-            long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
-            long totalNumDocs = oneMerge.getTotalNumDocs();
-            long timeNS = System.nanoTime();
-            long tookMS = 0;
             try {
                 if (isShutdown.get()) {
                     logger.debug("MergeScheduler is shutdown, skipping merge");
                     return;
                 }
-
-                mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
-
-                MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-                applyMergeChanges.accept(mergeResult, oneMerge);
-                mergeHandler.onMergeFinished(oneMerge);
-
-                tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
-                logger.info("Merge {} completed in {}ms, result: {}", oneMerge, tookMS, mergeResult.getMergedWriterFileSet());
-
+                runMerge(oneMerge);
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("Unexpected error during merge for: {}", oneMerge), e);
-                mergeHandler.onMergeFailure(oneMerge);
-                onMergeFailureCleanup.run();
+                // runMerge already invoked onMergeFailureCleanup; swallow to prevent
+                // uncaught exception on the merge thread pool.
             } finally {
-                mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
-
                 activeMerges.decrementAndGet();
                 // A completed merge may free up capacity for new merges, so check again.
                 executeMerge();
             }
         });
+    }
+
+    /**
+     * Executes a single merge and applies or cleans up the result.
+     * <p>
+     * This is the single point that owns the merge lifecycle:
+     * <ol>
+     *   <li>{@code doMerge} — may acquire {@code refreshLock} via the pre-merge-commit hook</li>
+     *   <li>On success: {@code applyMergeChanges} — releases {@code refreshLock}</li>
+     *   <li>On failure: {@code onMergeFailureCleanup} — releases {@code refreshLock} if still held</li>
+     * </ol>
+     * By funnelling both background and force merges through this method, the lock
+     * release guarantee is maintained in exactly one code path.
+     */
+    private void runMerge(OneMerge oneMerge) throws IOException {
+        long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
+        long totalNumDocs = oneMerge.getTotalNumDocs();
+        long timeNS = System.nanoTime();
+        long tookMS = 0;
+        try {
+            mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
+            MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+            applyMergeChanges.accept(mergeResult, oneMerge);
+            mergeHandler.onMergeFinished(oneMerge);
+            tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
+            logger.info("Merge {} completed in {}ms, result: {}", oneMerge, tookMS, mergeResult.getMergedWriterFileSet());
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("Merge failed for: {}", oneMerge), e);
+            mergeHandler.onMergeFailure(oneMerge);
+            onMergeFailureCleanup.run();
+            throw e instanceof IOException ? (IOException) e : new IOException(e);
+        } finally {
+            mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
+        }
     }
 }

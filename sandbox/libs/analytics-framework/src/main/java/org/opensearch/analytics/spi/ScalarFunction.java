@@ -87,6 +87,11 @@ public enum ScalarFunction {
      * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
+    /**
+     * Variadic {@code CONCAT(a, b, …)} — {@code SqlLibraryOperators.CONCAT_FUNCTION}, distinct from binary {@code ||}.
+     * Substrait CONSISTENT consistency requires the per-op adapter to unify operand types before emission.
+     */
+    CONCAT_FUNCTION(Category.STRING, SqlKind.OTHER_FUNCTION, org.apache.calcite.sql.fun.SqlLibraryOperators.CONCAT_FUNCTION),
     CONCAT_WS(Category.STRING, SqlKind.OTHER_FUNCTION),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
     REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
@@ -342,14 +347,32 @@ public enum ScalarFunction {
     YEARWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
+    /** PPL {@code JSON(s)} — validate / round-trip a JSON string; NULL on malformed input. */
+    JSON(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code JSON_ARRAY(v1, v2, …)} — JSON-array constructor over heterogeneous scalars. */
+    JSON_ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT_ALL(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code JSON_OBJECT(k1, v1, k2, v2, …)} — JSON-object constructor over (string, scalar) pairs. */
+    JSON_OBJECT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code json_valid(str)} — resolves through the SQL plugin's
+     * {@code PPLFuncImpTable} to {@link SqlStdOperatorTable#IS_JSON_VALUE}, which is
+     * a {@link org.apache.calcite.sql.SqlPostfixOperator} named {@code "IS JSON VALUE"}
+     * with {@link SqlKind#OTHER}. Neither name-based {@link #valueOf(String)} nor
+     * {@link SqlKind}-based resolution matches. The {@link SqlKind#OTHER_FUNCTION}
+     * declaration opts out of the {@link #fromSqlKind(SqlKind)} scan (which would
+     * otherwise break {@code testFromSqlKindReturnsNullForOtherKind} by claiming
+     * {@code SqlKind.OTHER}); resolution happens via the {@code referenceOperator}
+     * singleton-identity match — same pattern as {@link #CONCAT}.
+     */
+    JSON_VALID(Category.SCALAR, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.IS_JSON_VALUE),
 
     PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 

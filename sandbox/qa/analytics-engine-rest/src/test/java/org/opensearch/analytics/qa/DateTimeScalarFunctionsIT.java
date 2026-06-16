@@ -647,6 +647,30 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowLong(oneRow("key00") + "| eval y = yearweek(datetime0) | fields y", 200_427L);
     }
 
+    /** Year-rollover boundary: late-Dec 1899 reports as 1899's last week under both modes. */
+    public void testYearweekDec1899Boundary() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval y = yearweek('1899-12-30') | fields y", 189_952L);
+        assertFirstRowLong(oneRow("key00") + "| eval y = yearweek('1899-12-30', 4) | fields y", 189_952L);
+    }
+
+    /** STR_TO_DATE accepts %h="00" zero-hour 12-hour-clock input. */
+    public void testStrToDateZeroHour12h() throws IOException {
+        assertFirstRowString(
+            oneRow("key00")
+                + "| eval v = date_format(str_to_date('2017-10-23 00:00:00', '%Y-%m-%d %h:%i:%s'), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2017-10-23 00:00:00"
+        );
+    }
+
+    /** STR_TO_DATE on a date-only input with date+time format defaults time to 00:00:00. */
+    public void testStrToDateDateOnlyWithTimeFormat() throws IOException {
+        assertFirstRowString(
+            oneRow("key00")
+                + "| eval v = date_format(str_to_date('2017-10-23', '%Y-%m-%d %h:%i:%s'), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2017-10-23 00:00:00"
+        );
+    }
+
     /**
      * {@code time_format(time_column, fmt)} against a TIME column — distinct from the
      * {@code time_format(maketime(...), fmt)} path covered by {@link #testAddTimeOnTimeReturnsTime}.
