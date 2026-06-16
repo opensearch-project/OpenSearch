@@ -398,6 +398,24 @@ scalar_functions:
           - { value: "map<string, string>", name: "map" }
           - { value: string, name: "key" }
         return: string
+  - name: regexp_like
+    description: >-
+      Regex containment match (boolean). datafusion-substrait resolves the
+      extension name "regexp_like" to DataFusion's native `regexp_like` UDF
+      (datafusion-functions/src/regex/regexplike.rs).
+    impls:
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: "boolean?"
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "boolean?"
   - name: regexp_replace
     description: >-
       Regex string replacement — replace every match of `pattern` in `input`
