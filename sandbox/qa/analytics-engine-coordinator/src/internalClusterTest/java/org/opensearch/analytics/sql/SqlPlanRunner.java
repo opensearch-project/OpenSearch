@@ -94,12 +94,17 @@ public final class SqlPlanRunner {
     private FrameworkConfig frameworkConfig() {
         SchemaPlus rootSchema = OpenSearchSchemaBuilder.buildSchema(clusterService.state());
         Properties properties = new Properties();
-        properties.setProperty(CalciteConnectionProperty.CASE_SENSITIVE.camelName(), "false");
+        // Match the parserConfig below: keep case-sensitive validator (so it does direct
+        // getTable() lookup rather than enumerate getTableNames(), which is empty under the
+        // lazy schema) and preserve the original case of unquoted identifiers.
         properties.setProperty(CalciteConnectionProperty.UNQUOTED_CASING.camelName(), "UNCHANGED");
         CalciteConnectionConfig connectionConfig = new CalciteConnectionConfigImpl(properties);
         Context plannerContext = Contexts.of(connectionConfig);
         return Frameworks.newConfigBuilder()
-            .parserConfig(SqlParser.config().withCaseSensitive(false))
+            // Preserve original case end-to-end so the validator's direct getTable() lookup
+            // routes through OpenSearchSchemaBuilder's lower-case-on-get path. caseSensitive=false
+            // would force getTableNames() enumeration (empty in lazy mode → table not found).
+            .parserConfig(SqlParser.config().withUnquotedCasing(org.apache.calcite.avatica.util.Casing.UNCHANGED))
             .defaultSchema(rootSchema)
             .operatorTable(SqlStdOperatorTable.instance())
             .context(plannerContext)

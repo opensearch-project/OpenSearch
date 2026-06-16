@@ -28,7 +28,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -36,6 +35,7 @@ import org.opensearch.ppl.action.PPLRequest;
 import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
@@ -62,11 +62,11 @@ import java.util.concurrent.TimeoutException;
  * <p>Also verifies that after cancellation completes, no native resources leak (memory
  * pool returns to baseline, NativeHandle live count doesn't grow).
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "Flaky: Arrow allocator reports 138-byte residual on cancellation path (~1.5% rate)")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope(com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope.TEST)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering(linger = 5000)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters(filters = org.opensearch.analytics.resilience.FlightTransportThreadLeakFilter.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21776")
 public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(SearchCancellationIT.class);
@@ -95,7 +95,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }

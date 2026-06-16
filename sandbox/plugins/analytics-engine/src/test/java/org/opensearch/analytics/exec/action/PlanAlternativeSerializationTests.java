@@ -114,4 +114,28 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
         StreamInput in = out.bytes().streamInput();
         return new FragmentExecutionRequest.PlanAlternative(in);
     }
+
+    /**
+     * Whole-request round-trip. The registration table name is no longer carried on the request —
+     * the data node derives it from the Substrait fragment's NamedTable — so the wire form is just
+     * {queryId, stageId, shardId, planAlternatives}.
+     */
+    public void testRequestRoundTrip() throws IOException {
+        org.opensearch.core.index.shard.ShardId shardId = new org.opensearch.core.index.shard.ShardId("bank_a", "uuid", 0);
+        FragmentExecutionRequest original = new FragmentExecutionRequest(
+            "q-1",
+            7,
+            shardId,
+            List.of(new FragmentExecutionRequest.PlanAlternative("datafusion", new byte[] { 1 }, List.of(new ShardScanInstructionNode())))
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+        FragmentExecutionRequest deserialized = new FragmentExecutionRequest(out.bytes().streamInput());
+
+        assertEquals("q-1", deserialized.getQueryId());
+        assertEquals(7, deserialized.getStageId());
+        assertEquals("bank_a", deserialized.getShardId().getIndexName());
+        assertEquals(1, deserialized.getPlanAlternatives().size());
+    }
 }

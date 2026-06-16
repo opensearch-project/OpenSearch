@@ -19,6 +19,7 @@ public final class LookupJoinQueriesTestHelper {
 
     public static final Dataset DATASET = new Dataset(
         "lookup_join_queries",
-        "sales_data"
+        "sales_data",
+        "user_lookup"
     );
 }

@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.RatioValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -96,9 +97,12 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         return List.of(
             FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
+            FoyerBlockCacheSettings.BUFFER_POOL_SIZE_SETTING,
+            FoyerBlockCacheSettings.SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING,
-            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING
+            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING,
+            FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING
         );
     }
 
@@ -129,6 +133,9 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
      */
     @Override
     public long requestedCapacityBytes(Settings settings, long totalBudgetBytes) {
+        if (!FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)) {
+            return 0L;
+        }
         String cacheSizeRaw = FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(settings);
         RatioValue ratio = RatioValue.parseRatioValue(cacheSizeRaw);
         return Math.round(totalBudgetBytes * ratio.getAsRatio());
@@ -155,10 +162,17 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         }
 
         final Settings settings = clusterService.getSettings();
+        if (!FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)) {
+            logger.info("BlockCacheFoyerPlugin: pluggable.dataformat disabled, Foyer block cache not initialised");
+            return List.of();
+        }
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
+        final long bufferPoolSizeBytes = FoyerBlockCacheSettings.BUFFER_POOL_SIZE_SETTING.get(settings).getBytes();
+        final long submitQueueSizeThresholdBytes = FoyerBlockCacheSettings.SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING.get(settings).getBytes();
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
         final double sweepThresholdRatio = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(settings);
+        final long persistIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING.get(settings);
         // Use the exact capacity reserved by NodeCacheService during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
@@ -189,18 +203,44 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         }
 
         try {
-            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs, sweepThresholdRatio);
+            cache = new FoyerBlockCache(
+                diskCapacityBytes,
+                diskDir,
+                blockSizeBytes,
+                bufferPoolSizeBytes,
+                submitQueueSizeThresholdBytes,
+                ioEngine,
+                sweepIntervalSecs,
+                sweepThresholdRatio,
+                persistIntervalSecs
+            );
         } catch (final Throwable t) {
             throw new IllegalStateException("Failed to initialise Foyer block cache (diskDir=" + diskDir + ")", t);
         }
+
+        // Live-update consumers for Dynamic settings.
+        final FoyerBlockCache finalCache = cache;
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING, finalCache::updateSweepThreshold);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING,
+                newInterval -> finalCache.updateSweepInterval(newInterval)
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING,
+                newInterval -> finalCache.updatePersistInterval(newInterval)
+            );
         logger.info(
             "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={}, "
-                + "sweepIntervalSecs={}, sweepThresholdRatio={})",
+                + "sweepIntervalSecs={}, sweepThresholdRatio={}, persistIntervalSecs={})",
             diskDir,
             blockSizeBytes,
             ioEngine,
             sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
-            sweepThresholdRatio == 0.0 ? "disabled" : sweepThresholdRatio
+            sweepThresholdRatio == 0.0 ? "always-sweep (no threshold)" : sweepThresholdRatio,
+            persistIntervalSecs == 0 ? "disabled" : persistIntervalSecs + "s"
         );
         return List.of(cache);
     }

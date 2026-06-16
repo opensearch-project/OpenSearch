@@ -193,7 +193,7 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, PrepareTieringRequest request, String[] concreteIndices) {
         // Do not check index-level blocks here. This action is called internally after we intentionally
-        // add a read_only_allow_delete block on the index. That block includes METADATA_WRITE level,
+        // add a write block on the index. That block includes METADATA_WRITE level,
         // which would reject this action. Since this is an internal operation that runs after the block
         // is deliberately set, we skip the index-level block check.
         return null;

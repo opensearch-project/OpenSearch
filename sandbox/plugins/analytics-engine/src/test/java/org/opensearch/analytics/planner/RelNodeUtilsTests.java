@@ -109,6 +109,29 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         assertArrayEquals(new String[] { "index_a", "index_b" }, RelNodeUtils.extractIndices(plan));
     }
 
+    public void testFindTableNameOnJoinReturnsFirstTable() {
+        RelBuilder b = builder();
+        RelNode plan = b.scan("customers").scan("orders").join(JoinRelType.INNER, b.literal(true)).build();
+        assertEquals("customers", RelNodeUtils.findTableName(plan));
+    }
+
+    public void testFindTableNameOnUnionReturnsFirstTable() {
+        RelBuilder b = builder();
+        RelNode plan = b.scan("logs_2023")
+            .project(b.field("id"), b.field("name"))
+            .scan("logs_2024")
+            .project(b.field("id"), b.field("name"))
+            .union(true)
+            .build();
+        assertEquals("logs_2023", RelNodeUtils.findTableName(plan));
+    }
+
+    public void testFindTableNameOnSingleScan() {
+        RelBuilder b = builder();
+        RelNode plan = b.scan("my_index").filter(b.literal(true)).build();
+        assertEquals("my_index", RelNodeUtils.findTableName(plan));
+    }
+
     public void testDepthGuardThrowsOnExcessiveDepth() {
         RelBuilder b = builder();
         RelNode node = b.scan("deep_index").build();
@@ -124,7 +147,7 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         }
         // The plan exceeds MAX_EXTRACT_INDICES_DEPTH — should throw rather than silently skip
         RelNode deepPlan = node;
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> RelNodeUtils.extractIndices(deepPlan));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RelNodeUtils.extractIndices(deepPlan));
         assertTrue(e.getMessage().contains("maximum depth"));
     }
 

@@ -174,7 +174,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                             }
                         };
                     }
-                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles())));
+                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles(), engineConfig.getIndexSettings())));
             }
             readerManagersRef = Map.copyOf(aggregated);
 
@@ -459,8 +459,15 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         return translogManager.getLastSyncedGlobalCheckpoint();
     }
 
+    /** Replication engine does not have local indexing buffers. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /** Replication engine does not have local indexing buffers. */
+    @Override
+    public long getNativeBytesUsed() {
         return 0;
     }
 

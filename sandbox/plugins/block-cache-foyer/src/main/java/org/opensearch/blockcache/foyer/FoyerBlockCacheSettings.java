@@ -44,17 +44,17 @@ public final class FoyerBlockCacheSettings {
      * byte allocation scales automatically with the instance's SSD capacity.
      *
      * <p>Example: 1&nbsp;TB SSD, {@code node.search.cache.size=80%} (800&nbsp;GB budget),
-     * {@code block_cache.foyer.size=25%} → Foyer gets 200&nbsp;GB, FileCache gets 600&nbsp;GB.
+      * {@code block_cache.foyer.size=50%} → Foyer gets 400&nbsp;GB, FileCache gets 400&nbsp;GB.
      *
-     * <p>Default: {@code 25%}. Set to {@code 0%} to disable the block cache.
-     * Accepts a percentage (e.g. {@code 25%}) or a ratio (e.g. {@code 0.25}).
+     * <p>Default: {@code 50%}. Set to {@code 0%} to disable the block cache.
+     * Accepts a percentage (e.g. {@code 50%}) or a ratio (e.g. {@code 0.50}).
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.size: 25%
+     * block_cache.foyer.size: 50%
      * }</pre>
      */
-    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "25%", value -> {
+    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "50%", value -> {
         try {
             RatioValue ratio = RatioValue.parseRatioValue(value);
             if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
@@ -72,23 +72,51 @@ public final class FoyerBlockCacheSettings {
     /**
      * Block size for the Foyer disk tier.
      *
-     * <p>Must be &ge; the largest entry ever put into the cache. DataFusion reads
-     * Parquet row groups of up to 64&nbsp;MB; Lucene blocks are also up to 64&nbsp;MB.
-     * A block size smaller than an entry causes a silent drop — the put succeeds but
-     * the entry is not stored, resulting in a cache miss on the next read.
+     * <p>Must be &ge; the largest entry ever put into the cache. Parquet row groups
+     * can be up to 128&nbsp;MB. A block size smaller than an entry causes a silent
+     * drop — the put succeeds but the entry is not stored, resulting in a cache miss.
      *
-     * <p>Default: 64&nbsp;MB. Range: [1&nbsp;MB, 256&nbsp;MB].
-     *
-     * <p>Configure in {@code opensearch.yml}:
-     * <pre>{@code
-     * block_cache.foyer.block_size: 64mb
-     * }</pre>
+     * <p>Default: 128&nbsp;MB. Range: [1&nbsp;MB, 512&nbsp;MB].
      */
     public static final Setting<ByteSizeValue> BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
         "block_cache.foyer.block_size",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
+        new ByteSizeValue(128, ByteSizeUnit.MB),
         new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Total buffer pool size for the Foyer flusher.
+     *
+     * <p>The flusher stages entries in this buffer before writing to disk. Must be
+     * &ge; {@code block_size} so the flusher can accumulate a full block. Entries
+     * larger than this buffer are silently dropped.
+     *
+     * <p>Default: 128&nbsp;MB. Range: [16&nbsp;MB, 512&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> BUFFER_POOL_SIZE_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.buffer_pool_size",
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        new ByteSizeValue(16, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Submit queue size threshold for the Foyer block engine.
+     *
+     * <p>Maximum total bytes allowed to be pending in the flusher queue. When
+     * exceeded, new entries are silently dropped instead of being written to disk.
+     * Should be &ge; 2&times; {@code buffer_pool_size} to absorb write bursts.
+     *
+     * <p>Default: 256&nbsp;MB. Range: [16&nbsp;MB, 1024&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.submit_queue_size_threshold",
         new ByteSizeValue(256, ByteSizeUnit.MB),
+        new ByteSizeValue(16, ByteSizeUnit.MB),
+        new ByteSizeValue(1024, ByteSizeUnit.MB),
         Setting.Property.NodeScope
     );
 
@@ -127,7 +155,8 @@ public final class FoyerBlockCacheSettings {
         0L,    // 0 = disabled (no sweep task spawned)
         0L,    // min: 0
         3600L, // max: 1 hour
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -154,7 +183,39 @@ public final class FoyerBlockCacheSettings {
         0.70, // default: skip sweep when cache < 70% full
         0.0,  // min: 0.0 (explicit 0 = always sweep)
         1.0,  // max: 1.0
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How often (seconds) the independent persist task flushes the key_index to disk.
+     *
+     * <p>The persist task is decoupled from the sweep task so that persist frequency
+     * (a cheap file write, default 60 s) and sweep frequency (an expensive DashMap scan)
+     * can be tuned independently.
+     *
+     * <p>The task uses {@code used_bytes} as a change signal: if {@code used_bytes} has
+     * not changed since the last successful write, the tick is skipped (no disk I/O).
+     * This means idle caches produce zero I/O even if the interval is short.
+     *
+     * <p>{@code 0} = disabled — the key_index is only persisted on graceful shutdown
+     * via the {@code Drop} impl (i.e. when the JVM shuts down cleanly). In this mode
+     * the maximum durability window after a crash equals the node uptime since startup.
+     *
+     * <p>Default: {@code 60} seconds. Range: [0, 3600].
+     *
+     * <p>Configure in {@code opensearch.yml}:
+     * <pre>{@code
+     * block_cache.foyer.key_index_persist_interval_seconds: 60
+     * }</pre>
+     */
+    public static final Setting<Long> KEY_INDEX_PERSIST_INTERVAL_SETTING = Setting.longSetting(
+        "block_cache.foyer.key_index_persist_interval_seconds",
+        60L,   // default: 60 seconds
+        0L,    // min: 0 (0 = disabled, persist only on graceful shutdown)
+        3600L, // max: 1 hour
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private FoyerBlockCacheSettings() {}

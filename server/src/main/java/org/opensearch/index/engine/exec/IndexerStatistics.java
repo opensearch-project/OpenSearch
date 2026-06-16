@@ -101,9 +101,7 @@ public interface IndexerStatistics {
      *
      * @return native memory usage in bytes
      */
-    default long getNativeBytesUsed() {
-        return 0;
-    }
+    long getNativeBytesUsed();
 
     /**
      * Returns per-segment metadata for this indexer.
@@ -112,7 +110,12 @@ public interface IndexerStatistics {
      * @param verbose if true, includes additional detail (ignored for non-Lucene engines)
      * @return list of segments, sorted by generation
      */
-    default List<Segment> segments(boolean verbose) {
-        return List.of();
-    }
+    List<Segment> segments(boolean verbose);
+
+    /**
+     * Returns JVM heap bytes used by indexing buffers that would be freed by a refresh.
+     *
+     * @return heap usage in bytes
+     */
+    long getHeapBytesUsed();
 }

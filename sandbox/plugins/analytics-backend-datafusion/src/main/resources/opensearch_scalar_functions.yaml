@@ -33,11 +33,18 @@ scalar_functions:
       sig's `str_…` form. An `options:` declaration would serialize under a
       `req`/`opt` key and never match.
 
-      The value slot is declared with the concrete timestamp family
+      The value slot is declared with the concrete date/time families
       (`precision_timestamp<P>` / `date`) rather than `any1`: Calcite's `date`
       field type emits `precision_timestamp<0>?` at the Rex level, and
       matchKeys encodes the nullable-precision metadata into the probe key;
       `any1` cannot bind through the composite 2-arg key in this context.
+
+      TIME is deferred. Calcite emits `precision_time<P>?` for TIME operands,
+      but declaring `value: precision_time<P>` in this yaml is rejected at
+      plugin boot with "Only type literals and parameterized types can be used
+      in functions." and plain `value: time` binds only literal `time` (no
+      precision parameter) which Calcite never emits. A TIME path requires an
+      adapter that casts TIME to TIMESTAMP or a parser-level change.
     impls:
       - args:
           - { value: string, name: "part" }
@@ -64,6 +71,26 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "date", name: "value" }
         return: date
+  - name: "date_bin"
+    description: >-
+      Bucket a timestamp into fixed-width windows of size `stride` (a string-form
+      interval like `"40 milliseconds"`) starting from the Unix epoch. Lowering
+      target for PPL's sub-second multi-unit time span — `span(field, N us)` and
+      `span(field, N ms)` with `N > 1` — rewritten by `SpanAdapter`. Larger
+      fixed-length units (`s`, `m`, `h`, `d`, `w`) take the cheaper integer-seconds
+      arithmetic path in the same adapter and don't reach this signature. The
+      arg shape mirrors `date_trunc`: string stride then precision_timestamp,
+      so isthmus matchKeys binds it the same way.
+    impls:
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+        return: precision_timestamp<P>
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+          - { value: string, name: "origin" }
+        return: precision_timestamp<P>
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
@@ -336,6 +363,27 @@ scalar_functions:
           - { value: string, name: "pattern" }
           - { value: string, name: "method" }
         return: "map<string, string>"
+  - name: "grok"
+    description: >-
+      PPL `grok <field> '<grok-pattern>'` — the grok-syntax sibling of `parse`.
+      Extracts named groups into a `map<varchar, varchar>` whose keys are the
+      grok field names (`%{HOSTNAME:host}` → key `host`) in pattern definition
+      order. Unlike `parse`, the pattern is grok syntax, not a raw regex: the
+      Rust UDF carries the 108-line default grok dictionary and recursively
+      resolves `%{NAME:field}` references before matching (the SQL plugin's grok
+      library is not on OpenSearch core's classpath). The resolved regex relies
+      on lookbehind / atomic groups (e.g. `BASE10NUM`), so matching uses
+      `fancy-regex` and is unanchored — mirroring Java grok's `Matcher.find()`
+      (substring match), in contrast to `parse`'s anchored `^…$`. Method literal
+      must be `grok`; pattern + method operands are validated as non-null string
+      literals at plan time by `GrokAdapter`. Pairs with `ITEM` downstream
+      (PPL `grok` chains `ITEM(grok(...), 'field')` per named group).
+    impls:
+      - args:
+          - { value: string, name: "input" }
+          - { value: string, name: "pattern" }
+          - { value: string, name: "method" }
+        return: "map<string, string>"
   - name: "item"
     description: >-
       Map element accessor — extracts a value by key from a `map<string, string>`.
@@ -350,6 +398,24 @@ scalar_functions:
           - { value: "map<string, string>", name: "map" }
           - { value: string, name: "key" }
         return: string
+  - name: regexp_like
+    description: >-
+      Regex containment match (boolean). datafusion-substrait resolves the
+      extension name "regexp_like" to DataFusion's native `regexp_like` UDF
+      (datafusion-functions/src/regex/regexplike.rs).
+    impls:
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: "boolean?"
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "boolean?"
   - name: regexp_replace
     description: >-
       Regex string replacement — replace every match of `pattern` in `input`
@@ -595,13 +661,9 @@ scalar_functions:
         return: string
 
   # to_char(value, format) — render a timestamp using a strftime-style format string.
-  # Bound here so that DatetimeOutputCastRewriter can rewrite the engine-output cast
-  # `CAST(<TIMESTAMP> AS VARCHAR)` to `to_char(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S')` and
-  # have the call serialize through this extension instead of Calcite's stdlib URN.
-  # DataFusion exposes a native `to_char` scalar that consumes strftime tokens. See
-  # issue #5420 (engine-output format divergence between Calcite and DataFusion).
+  # DataFusion exposes a native `to_char` scalar that consumes strftime tokens.
   - name: "to_char"
-    description: "Render a timestamp using a strftime-style format string (engine-output cast target)."
+    description: "Render a timestamp using a strftime-style format string."
     impls:
       - args:
           - { name: value, value: "precision_timestamp<P>" }
@@ -696,6 +758,71 @@ scalar_functions:
       - args: [{ value: string, name: "value" }]
         return: any1
 
+  - name: "pattern_parser"
+    description: >-
+      Extract substrings from `field` using `pattern` as a wildcard template
+      (e.g. `"<*>@<*>.<*>"`) and return a struct with two members: `pattern`
+      (the numbered-token rewrite, e.g. `"<token1>@<token2>.<token3>"`) and
+      `tokens` (a Map<string, List<string>> of label → list of extracted
+      values). PPL's `patterns ... mode=label show_numbered_token=true` and
+      `mode=aggregation show_numbered_token=true` flatten paths both lower
+      to this UDF via `CalciteRelNodeVisitor.visitPatterns` →
+      `BuiltinFunctionName.INTERNAL_PATTERN_PARSER`.
+
+      Two operand shapes are supported via the same registered signature:
+      `pattern_parser(pattern: string, field: string)` (evalField — single
+      row) and `pattern_parser(pattern: string, sample_logs: List<string>)`
+      (evalSamples — aggregate sample list). The Rust UDF dispatches at
+      runtime on the second operand's Arrow type. The 3-arg evalAgg shape
+      used by BRAIN label mode is a separate signature with its own
+      AggCandidate list operand and is added when the INTERNAL_PATTERN
+      aggregate / window UDF lands (next milestone).
+
+      Return type is declared as `any1` for the same reason as
+      `json_extract_all`: substrait's extension parser doesn't have a
+      struct-with-fields grammar at this layer, but isthmus emits the
+      concrete Calcite RelDataType (a MAP<VARCHAR, ANY>) and the DataFusion-
+      side UDF binds it to the concrete Arrow struct.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: any1
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: any2
+  - name: "pattern_parser_get_pattern"
+    description: >-
+      Single-field accessor for {@code pattern_parser}. Returns just the
+      numbered-token pattern string (e.g. `"<token1>@<token2>.<token3>"`),
+      bypassing DataFusion's substrait consumer's "Direct reference StructField
+      with child is not supported" limitation on nested struct field access.
+      The Rust UDF re-runs the same parse internally and returns only the
+      pattern column.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: string?
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: string?
+  - name: "pattern_parser_get_tokens"
+    description: >-
+      Single-field accessor for {@code pattern_parser}. Returns just the
+      tokens Map<string, list<string>> of extracted variables. See
+      {@code pattern_parser_get_pattern}.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: any1
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: any2
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:
@@ -724,15 +851,45 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
-  - name: "extract"
+  - name: "json_valid"
+    description: "TRUE if the input parses as JSON, FALSE on malformed input, NULL on NULL input (parity with legacy JsonUtils.isValidJson / Jackson readTree — empty/whitespace input is valid)."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: boolean
+
+  - name: "json"
+    description: "Round-trip parse a JSON string; NULL on malformed input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: string?
+
+  - name: "json_object"
     description: >-
-      Pull a MySQL-style calendar component (simple or composite) out of a
-      timestamp. The unit slot is a VARCHAR literal injected by the adapter
-      (matchKey token `str`); the timestamp slot is PPL's canonical
-      `precision_timestamp<P>` / `date`. Returns BIGINT regardless of unit —
-      composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
-      semantics (see rust/src/udf/extract.rs). Routes to the Rust `extract`
-      UDF, not Calcite's EXTRACT operator.
+      Build a JSON object from interleaved (key, type-tag, value) triples.
+      The Java `JsonObjectAdapter` casts every operand to VARCHAR and inserts
+      a per-value type-tag literal (`"n"`/`"b"`/`"j"`/`"s"`) so the Rust UDF
+      can recover the original Calcite type when emitting JSON.
+    impls:
+      - args: [{ value: string, name: "key" }]
+        variadic: { min: 1 }
+        return: string?
+
+  - name: "json_array"
+    description: >-
+      Build a JSON array from interleaved (type-tag, value) pairs. Same tag
+      vocabulary as `json_object`; see `JsonArrayAdapter` for the rewrite shape.
+    impls:
+      - args: [{ value: string, name: "tag" }]
+        variadic: { min: 0 }
+        return: string?
+
+  - name: "opensearch_extract"
+    description: >-
+      Pull a MySQL-style calendar component out of a timestamp. Returns BIGINT.
+      Renamed from `extract` to avoid a name collision with substrait core's
+      enum-argument `extract` (substrait-java 0.89.1 crashes on the core variant).
+      Composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
+      semantics — see rust/src/udf/extract.rs.
     impls:
       - args:
           - { value: string, name: "unit" }
@@ -746,6 +903,8 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "time", name: "value" }
         return: i64
+      # No `precision_time<P>` overload: substrait-java 0.89.1 can't stringify it.
+      # ExtractAdapter pre-CASTs TIME(p) operands to VARCHAR to bind below.
       - args:
           - { value: string, name: "unit" }
           - { value: "string", name: "value" }
@@ -801,8 +960,16 @@ scalar_functions:
           - { value: string, name: "format" }
         return: string
       - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: "varchar<L>", name: "format" }
+        return: string
+      - args:
           - { value: "date", name: "value" }
           - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "date", name: "value" }
+          - { value: "varchar<L>", name: "format" }
         return: string
       - args:
           - { value: "string", name: "value" }
@@ -854,6 +1021,64 @@ scalar_functions:
           - { value: "varchar<L1>", name: "input" }
           - { value: "varchar<L2>", name: "format" }
         return: precision_timestamp<6>
+
+  - name: "os_week"
+    description: >-
+      Compute MySQL's WEEK(date [, mode]) — modes 0/1/2/3 select Sunday/Monday
+      first-day combined with simple counting / 4-day fold semantics. PPL's
+      WEEK(date) and WEEK_OF_YEAR(date) both default to mode 0 (Sunday-first).
+      Routes to the Rust `os_week` UDF (rust/src/udf/os_week.rs).
+    impls:
+      - args:
+          - { value: "date", name: "value" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+        return: i32
+      - args:
+          - { value: "date", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+
+  - name: "os_yearweek"
+    description: >-
+      Compute MySQL's YEARWEEK(date [, mode]) — returns year * 100 + week with
+      MySQL's mode and year-boundary semantics (an early-January date can roll
+      into the prior year's last week). Routes to the Rust `os_yearweek` UDF
+      (rust/src/udf/os_week.rs).
+    impls:
+      - args:
+          - { value: "date", name: "value" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+        return: i32
+      - args:
+          - { value: "date", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
 
   - name: "md5"
     description: "Return the 128-bit MD5 digest of the input string as a lowercase hex string."
@@ -913,6 +1138,20 @@ scalar_functions:
           - { name: input, value: "string" }
         nullability: DECLARED_OUTPUT
         return: i64
+
+  # conv(n, fromBase, toBase) — base conversion. Java side at ConvAdapter; Rust UDF at
+  # rust/src/udf/conv.rs. Semantics: Long.toString(Long.parseLong(n, fromBase), toBase).
+  # The first slot uses `any1` to accept both string and integer sources PPL emits; the
+  # Rust UDF's coerce_types canonicalizes it to Utf8.
+  - name: "conv"
+    description: "Convert n from fromBase to toBase, returning the result as a string."
+    impls:
+      - args:
+          - { value: "any1", name: "n" }
+          - { value: "i32", name: "fromBase" }
+          - { value: "i32", name: "toBase" }
+        nullability: DECLARED_OUTPUT
+        return: "any1"
 
   # span_bucket(value, span) — PPL fixed-width bucket label. Rust UDF at
   # rust/src/udf/span_bucket.rs. Takes two numerics, returns a VARCHAR label
@@ -1100,3 +1339,12 @@ scalar_functions:
           - { name: format, value: "varchar<L2>" }
         nullability: DECLARED_OUTPUT
         return: fp64
+  - name: "reduce_eval"
+    description: "Evaluates opaque aggregate partial state to a sortable scalar for TopK."
+    impls:
+      - args:
+          - name: agg_name
+            value: string
+          - name: state
+            value: any1
+        return: i64

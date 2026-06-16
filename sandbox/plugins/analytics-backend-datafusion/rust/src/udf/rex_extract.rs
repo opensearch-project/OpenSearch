@@ -38,7 +38,6 @@
 //!   * the requested group doesn't exist in the pattern
 //!   * the pattern matches but the requested group didn't participate
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -78,9 +77,6 @@ impl Default for RexExtractUdf {
 }
 
 impl ScalarUDFImpl for RexExtractUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "rex_extract"
     }

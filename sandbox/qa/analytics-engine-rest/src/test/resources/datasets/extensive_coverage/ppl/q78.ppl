@@ -1,1 +1,1 @@
-source=test_data | join left=d right=l on d.category = l.category lookup | fields d.category, d.value, l.category_name | head 3
+source=test_data | join left=d right=l on d.category = l.category lookup | sort d.category, d.value | fields d.category, d.value, l.category_name | head 3

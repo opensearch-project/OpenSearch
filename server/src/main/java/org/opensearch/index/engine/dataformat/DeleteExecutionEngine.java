@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.LongFunction;
 
 /**
  * Engine for executing delete operations for a specific data format.
@@ -60,9 +61,24 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
      * Deletes a document by looking up the deleter for the generation specified
      * in the input and delegating the delete operation.
      *
-     * @param deleteInput the input containing field name, value, and generation
+     * @param deleteInput the input containing field name, term, and generation
      * @return the result of the delete operation
      * @throws IOException if an I/O error occurs during deletion
      */
-    DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException;
+    DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException;
+
+    void recordWrite(String id, long generation);
+
+    /**
+     * Called by the writer pool when a writer is permanently removed from the pool.
+     * Atomically:
+     *   - drops idToGen entries pointing at this generation,
+     *   - removes the deleter from the active map,
+     *   - deactivates the deleter (under its write lock; waits for in-flight deleteDoc to drain),
+     *   - applies the drained buffered deletes to the parent writer.
+     *
+     * After this returns, no future deleteDocument call can record buffered deletes on or
+     * apply deleteDoc to this generation.
+     */
+    boolean onWriterCheckedOut(long generation) throws IOException;
 }

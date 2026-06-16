@@ -12,7 +12,6 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +28,8 @@ import java.util.List;
  *
  * <p>A configurable row count limit ({@link #maxRows}) acts as a guardrail
  * against unbounded result accumulation. When exceeded, {@link #feed}
- * throws {@link OpenSearchRejectedExecutionException} which propagates to the stage
- * execution and transitions it to FAILED.
+ * throws an exception which propagates to the stage
+ * the result set at the configured limit.
  *
  * <p><b>Thread safety:</b> {@link #feed} may be called concurrently from
  * multiple shard response handlers on the SEARCH thread pool. All mutating
@@ -49,7 +48,7 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
      *
      * <p>TODO: make configurable via cluster setting.
      */
-    static final long DEFAULT_MAX_ROWS = 1_000_000L;
+    static final long DEFAULT_MAX_ROWS = 10_000L;
 
     private final List<VectorSchemaRoot> batches = new ArrayList<>();
     private final List<String> fieldNames = new ArrayList<>();
@@ -77,17 +76,11 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
                 fieldNames.add(f.getName());
             }
         }
-        long incoming = batch.getRowCount();
-        if (totalRows + incoming > maxRows) {
+        if (totalRows >= maxRows) {
             batch.close();
-            throw new OpenSearchRejectedExecutionException(
-                "Analytics query result exceeded maximum row limit of "
-                    + maxRows
-                    + " rows. "
-                    + "Consider adding filters or aggregations to reduce the result set."
-            );
+            return;
         }
-        totalRows += incoming;
+        totalRows += batch.getRowCount();
         batches.add(batch);
     }
 

@@ -138,6 +138,15 @@ public class OpenSearchAggregateRule extends RelOptRule {
 
         List<String> callViable = null;
         for (int fieldIndex : aggCall.getArgList()) {
+            // Skip metadata-only literal arg columns whose FieldType is null (e.g. SYMBOL —
+            // PPL's percentile_approx / median type-flag). Only data-field args need a
+            // backend viability check.
+            if (fieldIndex < childFieldStorageInfos.size()) {
+                FieldStorageInfo peek = childFieldStorageInfos.get(fieldIndex);
+                if (peek.isDerived() && peek.getFieldType() == null) {
+                    continue;
+                }
+            }
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(childFieldStorageInfos, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
 

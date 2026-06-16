@@ -104,7 +104,10 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
-        });
+            global_base: 0,
+                    sort_min: None,
+            sort_max: None,
+});
         global_first_row += seg_rows as i64;
     }
     LoadedSegment {
@@ -233,7 +236,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                 })
                 .collect(),
         );
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -263,6 +266,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                     crate::indexed_table::eval::CollectorCallStrategy::FullRange,
                     crate::indexed_table::eval::CollectorCallStrategy::PageRangeSplit,
                 ][seed as usize % 3],
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -289,6 +293,10 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -382,7 +390,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         let schema = schema.clone();
         let residual_pp = residual_pp.clone();
         let residual_physical = residual_physical.clone();
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&collector)),
@@ -399,6 +407,9 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 std::sync::Arc::new(std::collections::HashMap::new()),
                 segment.writer_generation,
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
+                None,
+                    None,
             ));
             let _ = segment;
             Ok(eval)
@@ -436,7 +447,6 @@ async fn run_single_collector_query(
         if let Some(ref pp) = pushdown_predicate {
             let _ = pp.apply(|node| {
                 if let Some(col) = node
-                    .as_any()
                     .downcast_ref::<datafusion::physical_expr::expressions::Column>()
                 {
                     indices.insert(col.index());
@@ -468,6 +478,10 @@ async fn run_single_collector_query(
         pushdown_predicate,
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -542,7 +556,7 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
     fn lift_phys_to_logical(
         expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
     ) -> Option<Expr> {
-        let any = expr.as_any();
+        let any = expr.as_ref();
         if let Some(bin) = any.downcast_ref::<PhysBinaryExpr>() {
             let l = lift_phys_to_logical(bin.left())?;
             let r = lift_phys_to_logical(bin.right())?;
@@ -675,7 +689,11 @@ async fn run_with_factory_plan(
         evaluator_factory: factory,
         pushdown_predicate,
         query_config: Arc::new(qc),
-        predicate_columns: vec![], // run_with_factory_plan is low-level; caller controls projection
+        predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -733,7 +751,6 @@ fn collect_predicate_column_indices(tree: &BoolNode) -> Vec<usize> {
     for expr in &exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node
-                .as_any()
                 .downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
@@ -1330,7 +1347,7 @@ mod tests {
             }
         }
         walk(plan, &mut set);
-        set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+        set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::Dev)
             .map(|v| v.as_usize())
             .unwrap_or(0)
     }

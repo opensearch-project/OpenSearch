@@ -14,70 +14,50 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.parquet.ParquetSettings;
 
 import java.io.Closeable;
-import java.util.function.IntSupplier;
 
 /**
  * Arrow memory allocator pool for Parquet ingest operations.
  *
  * <p>Uses the "ingest" pool from the unified {@link ArrowNativeAllocator}.
  * Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
- * each limited to 1/10th of the pool's configured limit.
+ * each allowed to use the full pool limit. Memory isolation is provided by the
+ * pool-level cap in {@link ArrowNativeAllocator}, and Arrow's own accounting will
+ * fail allocations that exceed the pool's remaining capacity.
  */
 public class ArrowBufferPool implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ArrowBufferPool.class);
 
     private final BufferAllocator poolAllocator;
-    private final IntSupplier divisorSupplier;
 
     /**
      * Creates a new ArrowBufferPool backed by the unified native allocator's ingest pool.
      *
-     * @param settings        node settings (used by the {@link #ArrowBufferPool(Settings, ArrowNativeAllocator)}
-     *                        convenience ctor to derive a static divisor supplier; ignored
-     *                        here)
-     * @param divisorSupplier supplies the current value of
-     *                        {@link ParquetSettings#MAX_PER_VSR_ALLOCATION_DIVISOR}; read on
-     *                        every {@link #createChildAllocator(String)} call so dynamic
-     *                        cluster-settings updates take effect for new child allocators
+     * @param settings        node settings (reserved for future use)
      * @param nativeAllocator the framework's unified native allocator, injected by
      *                        {@code ParquetDataFormatPlugin#createComponents}
      */
-    public ArrowBufferPool(Settings settings, IntSupplier divisorSupplier, ArrowNativeAllocator nativeAllocator) {
-        this.poolAllocator = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
-        this.divisorSupplier = divisorSupplier;
+    public ArrowBufferPool(Settings settings, ArrowNativeAllocator nativeAllocator) {
+        BufferAllocator ingestPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
+        // Create a child allocator so that getTotalAllocatedBytes() reports only this instance's
+        // usage rather than the pool-wide total. Long.MAX_VALUE means this child imposes no limit
+        // of its own; the parent pool's dynamic limit is the only enforced constraint.
+        this.poolAllocator = ingestPool.newChildAllocator("ArrowBufferPool", 0, Long.MAX_VALUE);
         logger.debug("ArrowBufferPool: poolLimit={}", poolAllocator.getLimit());
     }
 
     /**
-     * Test-only convenience constructor that derives the divisor statically from
-     * {@code settings}. Production callers go through
-     * {@link #ArrowBufferPool(Settings, IntSupplier, ArrowNativeAllocator)} so the divisor
-     * follows dynamic cluster-settings updates.
-     *
-     * @param settings node settings
-     * @param nativeAllocator the framework's unified native allocator (typically a fixture)
-     */
-    public ArrowBufferPool(Settings settings, ArrowNativeAllocator nativeAllocator) {
-        this(settings, () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings), nativeAllocator);
-    }
-
-    /**
-     * Creates a child allocator with the given name. The cap is computed lazily from the
-     * pool's current limit and the latest divisor, so cluster-settings updates to
-     * {@code parquet.max_per_vsr_allocation_divisor} are picked up here.
+     * Creates a child allocator with the given name. The child is allowed to use the
+     * full pool limit. Concurrent child allocators naturally share the pool — Arrow's
+     * accounting will fail allocations that exceed the pool's remaining capacity.
      *
      * @param name the allocator name
      * @return a new child buffer allocator
      */
     public BufferAllocator createChildAllocator(String name) {
-        long limit = poolAllocator.getLimit();
-        int divisor = divisorSupplier.getAsInt();
-        long maxChildAllocation = limit == Long.MAX_VALUE ? Long.MAX_VALUE : limit / divisor;
-        return poolAllocator.newChildAllocator(name, 0, maxChildAllocation);
+        return poolAllocator.newChildAllocator(name, 0, poolAllocator.getLimit());
     }
 
     /** Returns the total bytes currently allocated by the ingest pool. */
@@ -87,8 +67,6 @@ public class ArrowBufferPool implements Closeable {
 
     @Override
     public void close() {
-        // The framework owns the ingest pool's BufferAllocator; nothing to free here.
-        // Child allocators created via createChildAllocator are owned by their callers
-        // (VSRPool / ManagedVSR) and closed when those resources release.
+        poolAllocator.close();
     }
 }

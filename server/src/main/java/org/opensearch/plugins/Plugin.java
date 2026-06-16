@@ -39,7 +39,6 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
@@ -64,6 +63,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -252,19 +252,17 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Returns plugin-contributed node statistics that surface under {@code _nodes/stats}.
-     * Each entry renders at top-level under {@code nodes.<id>.<getWriteableName()>}.
+     * Additional filesystem paths this plugin requires for normal operation, to be probed by
+     * {@link org.opensearch.monitor.fs.FsHealthService} alongside {@link org.opensearch.env.NodeEnvironment#nodeDataPaths()}.
+     * Failure of any returned path will mark the node {@code UNHEALTHY} and is eligible to trigger
+     * cluster fault detection.
      *
-     * <p>Plugins that override this method must also register the concrete
-     * {@link PluginNodeStats} subclass via {@link #getNamedWriteables()} so the
-     * coordinator can deserialize per-node payloads received over transport.
+     * <p>Called once during {@code Node} construction, before {@code FsHealthService} is started.
      *
-     * <p>Default: empty.
-     *
-     * @opensearch.experimental
+     * @param settings the node settings
+     * @return paths to probe; empty by default
      */
-    @ExperimentalApi
-    public List<PluginNodeStats> nodeStats() {
+    public List<Path> getAdditionalHealthPaths(Settings settings) {
         return Collections.emptyList();
     }
 

@@ -47,6 +47,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -216,6 +217,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
@@ -931,6 +935,40 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
+     * Verifies that engine close (closeNoLock) drains the flushQueue and closes any
+     * writers still sitting in it. Without this, a writer checked out of the pool and
+     * placed in the flushQueue (but not yet flushed) would be orphaned on engine close,
+     * leaking its LuceneWriter's NativeFSLock in LOCK_HELD.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testCloseNoLockDrainsFlushQueue() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            // Inject a writer directly into the flushQueue (simulates a writer that was
+            // checked out of the pool for refresh but not yet flushed when engine closes).
+            java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+            queueField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>> queue =
+                (java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>>) queueField.get(engine);
+
+            FailingFlushWriter orphanWriter = new FailingFlushWriter(777L, mockDataFormat);
+            queue.add(orphanWriter);
+            assertThat("writer injected into flushQueue", flushQueueSize(engine), equalTo(1));
+
+            // Close the engine — closeNoLock must drain flushQueue and close the writer.
+            engine.close();
+
+            assertThat("flushQueue must be empty after close", flushQueueSize(engine), equalTo(0));
+            assertThat("orphan writer must be closed", orphanWriter.state(), equalTo(WriterState.CLOSED));
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
      * Covers the preIndex cooperative-flush path when a writer's {@code flush()} throws.
      *
      * <p>When a write thread picks a writer from the flushQueue during preIndex and the
@@ -1059,6 +1097,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DataFormatRegistry registry = createMockRegistry();
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         EngineConfig config = new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
@@ -2013,9 +2054,17 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat("each refresh must invoke beforeRefresh once", beforeAfterSeed, equalTo(2));
             assertThat("each refresh must invoke afterRefresh once", afterAfterSeed, equalTo(2));
 
-            // forceMerge submits the merge to the FORCE_MERGE executor and returns without
-            // waiting. Poll the catalog until the merged snapshot is visible (or fail fast).
-            engine.forceMerge(false, 1, false, false, false, "test-force-merge");
+            // forceMerge runs synchronously on a FORCE_MERGE thread. Dispatch to a
+            // thread with the expected name to satisfy the MergeScheduler assertion.
+            Thread fmThread = new Thread(() -> {
+                try {
+                    engine.forceMerge(false, 1, false, false, false, "test-force-merge");
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, "force_merge-test");
+            fmThread.start();
+            fmThread.join(30_000);
 
             assertBusy(() -> {
                 try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
@@ -2097,6 +2146,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DataFormatRegistry registry = createMockRegistry();
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -2148,6 +2200,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         PluginsService pluginsService = mock(PluginsService.class);
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
@@ -2621,6 +2676,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
         EngineConfig config = new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -3016,9 +3074,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void sync() {}
-
-        @Override
         public long generation() {
             return writerGeneration;
         }
@@ -3070,9 +3125,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         public org.opensearch.index.engine.dataformat.FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput) {
             return org.opensearch.index.engine.dataformat.FileInfos.empty();
         }
-
-        @Override
-        public void sync() {}
 
         @Override
         public long generation() {

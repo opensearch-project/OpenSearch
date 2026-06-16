@@ -8,6 +8,11 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -107,12 +112,20 @@ public interface AnalyticsSearchBackendPlugin {
      * Called by Core after obtaining the handle from the accepting backend.
      *
      * <p>The driving backend registers the handle so that FFM upcalls from Rust
-     * (createProvider, createCollector, collectDocs) route to it.
+     * (createProvider, createCollector, collectDocs) route to the correct per-query binding.
      *
-     * @param handle the delegation handle from the accepting backend
+     * @param contextId      the per-query identifier (task ID), threaded through every FFM upcall
+     * @param handle         the delegation handle from the accepting backend
+     * @param tracker        the thread tracker for resource attribution, or {@code null}
      * @param backendContext the driving backend's execution context (from instruction handlers)
+     * @return a cleanup action that must be called (in a finally block) after query execution
      */
-    default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
+    default Runnable configureFilterDelegation(
+        long contextId,
+        FilterDelegationHandle handle,
+        DelegationThreadTracker tracker,
+        BackendExecutionContext backendContext
+    ) {
         throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
 
@@ -135,10 +148,24 @@ public interface AnalyticsSearchBackendPlugin {
     }
 
     /**
-     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
-     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
+     * QTF fetch phase: reads specific rows by global row ID.
+     * Row IDs are passed as a BigIntVector for zero-copy transfer to native.
+     *
+     * @param reader the index reader for the target shard
+     * @param rowIdVector Arrow BigIntVector containing global row IDs
+     * @param columns column names to read
+     * @param allocator Arrow buffer allocator for result import
+     * @return a result stream containing the requested rows
      */
-    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
+    default EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId
+    ) {
+        throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
+    }
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.
@@ -154,5 +181,23 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default Exception convertException(Exception original) {
         return original;
+    }
+
+    /**
+     * Returns the backend's subtree convertor for combining multiple delegated predicates
+     * into a single serialized expression, or {@code null} if the backend cannot combine.
+     * When {@code null}, the framework falls back to one {@link DelegatedExpression} per leaf.
+     */
+    default DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return null;
+    }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
     }
 }

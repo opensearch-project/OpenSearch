@@ -200,6 +200,11 @@ public class RootObjectMapper extends ObjectMapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
 
             RootObjectMapper.Builder builder = new Builder(name);
+            // Parse disable_objects first so it's available when parseProperties is called.
+            Object disableObjectsNode = node.remove("disable_objects");
+            if (disableObjectsNode != null) {
+                parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
+            }
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             Object compositeField = null;
             Object contextAwareGoupingField = null;

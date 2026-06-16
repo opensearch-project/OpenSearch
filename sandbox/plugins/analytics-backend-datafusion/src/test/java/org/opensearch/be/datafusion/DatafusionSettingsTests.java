@@ -69,14 +69,19 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
     }
 
     public void testAllSettingsContainsAllExpectedSettings() {
-        assertEquals(23, DatafusionSettings.ALL_SETTINGS.size());
+        assertEquals(28, DatafusionSettings.ALL_SETTINGS.size());
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_BATCH_SIZE));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_BLOOM_FILTER_ON_READ));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_QUERY_STRATEGY));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_DYNAMIC_FILTER_PUSHDOWN));
     }
 
     public void testDefaultSnapshotValuesMatchDefaults() {
@@ -85,12 +90,14 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
 
         assertEquals(8192, snapshot.batchSize());
         assertEquals(false, snapshot.parquetPushdownFilters());
+        assertEquals(true, snapshot.bloomFilterOnRead());
         assertEquals(1024, snapshot.minSkipRunDefault());
         assertEquals(0.03, snapshot.minSkipRunSelectivityThreshold(), 1e-15);
         assertEquals(2, snapshot.singleCollectorStrategy()); // page_range_split
         assertEquals(1, snapshot.treeCollectorStrategy()); // tighten_outer_bounds
         assertEquals(1, snapshot.maxCollectorParallelism());
         assertEquals(DEFAULT_PARALLELISM, snapshot.targetPartitions());
+        assertEquals(2, snapshot.queryStrategy()); // indexed
     }
 
     public void testTargetPartitionsPassthroughWhenNonZero() {
@@ -133,6 +140,25 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
         assertEquals(1, DatafusionSettings.strategyToWireValue("tighten_outer_bounds"));
         assertEquals(2, DatafusionSettings.strategyToWireValue("page_range_split"));
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.strategyToWireValue("invalid"));
+    }
+
+    public void testQueryStrategySettingDefinition() {
+        assertEquals("datafusion.indexed.query_strategy", DatafusionSettings.INDEXED_QUERY_STRATEGY.getKey());
+        assertEquals("indexed", DatafusionSettings.INDEXED_QUERY_STRATEGY.get(Settings.EMPTY));
+        assertTrue(DatafusionSettings.INDEXED_QUERY_STRATEGY.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_QUERY_STRATEGY.hasNodeScope());
+    }
+
+    public void testQueryStrategyToWireValueMapping() {
+        assertEquals(0, DatafusionSettings.queryStrategyToWireValue("none"));
+        assertEquals(1, DatafusionSettings.queryStrategyToWireValue("listing_table"));
+        assertEquals(2, DatafusionSettings.queryStrategyToWireValue("indexed"));
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.queryStrategyToWireValue("invalid"));
+    }
+
+    public void testInvalidQueryStrategyIsRejected() {
+        Settings settings = Settings.builder().put("datafusion.indexed.query_strategy", "bogus").build();
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.INDEXED_QUERY_STRATEGY.get(settings));
     }
 
     public void testBatchSizeZeroIsRejected() {

@@ -40,6 +40,7 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.stub.FileBackedFailableIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.FileBackedFailableWriter;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -223,6 +224,9 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
         TranslogConfig tc = new TranslogConfig(shardId, translogPath, engineSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false);
         org.opensearch.index.mapper.MapperService mapperService = mock(org.opensearch.index.mapper.MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(engineSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
         EngineConfig config = new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(engineSettings)

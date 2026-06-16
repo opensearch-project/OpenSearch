@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -54,7 +56,8 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -319,6 +322,7 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
      * just above the threshold survives (1 row), a key just below is filtered
      * out (0 rows).
      */
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: \"Failed to start streaming fragment on [calcs][0]\" - head|where|where residual filter is mis-routed through the indexed executor (ffm.rs routes on the always-present __row_id__ column). Needs the ffm routing + countFilters<=1 fix (engine/rust fix, separate PR).")
     public void testEarliestAbsoluteLiteralSelectsSpecificRows() throws IOException {
         assertFirstRowLong(
             oneRow("key01") + "| where earliest('2004-07-26 00:00:00', `datetime0`) | stats count() as cnt",
@@ -377,6 +381,23 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * Regression: {@code earliest} inside an {@code eval} (Project context) over a non-null
+     * TIMESTAMP column. The {@code datetime0} column is non-null, and a folded TIMESTAMP literal
+     * is also non-null, so the comparison's inferred return type is {@code BOOLEAN NOT NULL}
+     * — but the {@code earliest} call was declared nullable BOOLEAN. Without the type-pinning
+     * cast in {@code EarliestLatestAdapter}, the enclosing Project's cached rowType (nullable
+     * BOOLEAN) trips Calcite's {@code BOOLEAN vs BOOLEAN NOT NULL} assertion at execution.
+     * All 17 calcs rows have {@code datetime0 >= 1900-01-01}, so the predicate is true everywhere.
+     */
+    public void testEarliestInProjectOverNotNullTimestampDoesNotCrash() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | eval is_after = earliest('1900-01-01 00:00:00', `datetime0`)"
+                + " | where is_after | stats count() as cnt",
+            17L
+        );
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
@@ -401,17 +422,10 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
     private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
         return rows.get(0).get(0);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

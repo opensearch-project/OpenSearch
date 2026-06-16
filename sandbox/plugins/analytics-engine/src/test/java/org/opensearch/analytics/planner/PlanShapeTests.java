@@ -42,28 +42,31 @@ public class PlanShapeTests extends PlanShapeTestBase {
      * PPL: {@code | stats count() as cnt by k | sort cnt | head 2 | fields k, cnt}
      *
      * <p>The PPL frontend emits a redundant outer Sort (no fetch, same collation as the inner)
-     * plus an inner Sort with fetch above a column-swap Project above the Aggregate. With both
-     * Sorts present, DataFusion's logical-plan optimizer eliminates the inner Sort as redundant
-     * but keeps the Limit, then physical planning pushes the Limit BELOW the SortExec into a
-     * {@code CoalescePartitionsExec(fetch=N)} on the FINAL Aggregate output. Result: fetch is
-     * applied to the unsorted Aggregate output, and Sort runs on the wrong N rows.
-     *
-     * <p>{@link org.opensearch.analytics.planner.rules.OpenSearchSortRule} drops the redundant
-     * outer Sort during HEP marking. After-CBO must contain at most one Sort over the FINAL
-     * Aggregate, with that Sort carrying the fetch.
+     * plus an inner Sort with fetch above a column-swap Project above the Aggregate. Both Sorts
+     * are preserved through to the physical plan — {@link
+     * org.opensearch.analytics.planner.rules.OpenSearchSortRule} converts each one-for-one and no
+     * longer drops the redundant outer Sort. The extra (collation-only) outer Sort over the FINAL
+     * Aggregate is harmless: the inner Sort carries the fetch, so top-K is exact, and the duplicate
+     * sort runs over the already-tiny grouped output (verified end-to-end by {@code
+     * HeadAfterStatsLimitIT} / {@code TwoShardAggregationIT#span_topn}). Collapsing it would require
+     * an active {@code RelCollationTraitDef} ({@code CoreRules.SORT_REMOVE}), which this planner
+     * does not register.
      */
-    public void testSortHeadAfterStats_dropsRedundantOuterSort() {
+    public void testSortHeadAfterStats_outerSortPreserved() {
         RelNode input = topKAfterStats(/* withRedundantOuterSort */ true);
         RelNode result = runPlanner(input, multiShardContext());
+        // No SPT to lift the inner Project above the Sort, so the swap-Projects never become
+        // adjacent for PROJECT_MERGE to collapse — both survive around the inner Sort.
         assertPlanShape(
             """
-                OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
-                  OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                    OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
-                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                          OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                            OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                OpenSearchSort(sort0=[$1], dir0=[ASC], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
+                    OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                            OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -76,12 +79,14 @@ public class PlanShapeTests extends PlanShapeTestBase {
     public void testSortHeadAfterStats_singleSortFetchPreserved() {
         RelNode input = topKAfterStats(/* withRedundantOuterSort */ false);
         RelNode result = runPlanner(input, multiShardContext());
+        // No SPT to lift the inner Project above the Sort, so the swap-Projects never become
+        // adjacent for PROJECT_MERGE to collapse — both survive around the inner Sort.
         assertPlanShape(
             """
                 OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
                   OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
                     OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                           OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                             OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -99,13 +104,15 @@ public class PlanShapeTests extends PlanShapeTestBase {
         // Inner sort by cnt ($0 below swap), outer sort by k ($0 above swap which maps to k).
         RelNode input = topKAfterStats(/* withRedundantOuterSort */ true, /* outerSortField */ 0);
         RelNode result = runPlanner(input, multiShardContext());
+        // No SPT to lift the inner Project above the Sort, so the swap-Projects never become
+        // adjacent for PROJECT_MERGE to collapse — both survive around the inner Sort.
         assertPlanShape(
             """
                 OpenSearchSort(sort0=[$0], dir0=[ASC], viableBackends=[[mock-parquet]])
                   OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
                     OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
                       OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                        OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                           OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                             OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                               OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -155,11 +162,11 @@ public class PlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -291,6 +298,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
         );
 
         RelNode result = runPlanner(limit, buildContext("parquet", 3, fields));
+        // No SPT: the outer pure-LIMIT Sort stays above the identity Project (not lifted below it).
         assertPlanShape(
             """
                 OpenSearchSort(fetch=[3], viableBackends=[[mock-parquet]])
@@ -322,7 +330,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -365,11 +373,11 @@ public class PlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])

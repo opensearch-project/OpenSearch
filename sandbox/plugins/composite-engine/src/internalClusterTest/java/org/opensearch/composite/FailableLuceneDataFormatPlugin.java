@@ -21,12 +21,14 @@ import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneWriter;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.commit.Committer;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -110,9 +112,21 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             Path baseDirectory,
             Analyzer analyzer,
             Codec codec,
-            Sort indexSort
+            Sort indexSort,
+            Set<LuceneWriter> registry,
+            LuceneShardStatsTracker stats
         ) throws IOException {
-            return new FaultInjectingLuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
+            return new FaultInjectingLuceneWriter(
+                writerGeneration,
+                mappingVersion,
+                dataFormat,
+                baseDirectory,
+                analyzer,
+                codec,
+                indexSort,
+                registry,
+                stats
+            );
         }
     }
 
@@ -130,9 +144,11 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             Path baseDirectory,
             Analyzer analyzer,
             Codec codec,
-            Sort indexSort
+            Sort indexSort,
+            Set<LuceneWriter> registry,
+            LuceneShardStatsTracker stats
         ) throws IOException {
-            super(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
+            super(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry, stats);
         }
 
         @Override

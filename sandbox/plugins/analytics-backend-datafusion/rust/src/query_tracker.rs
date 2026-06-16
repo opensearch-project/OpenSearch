@@ -17,9 +17,9 @@
 //! in the global [`QueryRegistry`] on creation, and removes the entry
 //! on [`Drop`].
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use log::debug;
@@ -27,8 +27,44 @@ use once_cell::sync::Lazy;
 use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
 
+/// Process-wide epoch for cancelled_at timestamps. Using nanos since this
+/// instant avoids storing full Instant values (which aren't atomically sized).
+static PROCESS_START: Lazy<Instant> = Lazy::new(Instant::now);
+
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
+
+// ---------------------------------------------------------------------------
+// Query type discriminator
+// ---------------------------------------------------------------------------
+
+/// Distinguishes shard-level queries from coordinator-level queries for stats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryType {
+    /// Data-node shard fragment execution (AnalyticsShardTask on the Java side).
+    Shard,
+    /// Coordinator-side local reduce execution (AnalyticsQueryTask on the Java side).
+    Coordinator,
+}
+
+/// Default threshold for "long-running post-cancel" — matches the Java-side
+/// `task_cancellation.duration_millis` default of 10 000 ms.
+pub const DEFAULT_CANCEL_THRESHOLD: Duration = Duration::from_secs(10);
+
+/// Runtime-configurable threshold. Initialized to DEFAULT_CANCEL_THRESHOLD (10_000 ms).
+/// Set via `set_cancel_stats_threshold`.
+static CANCEL_STATS_THRESHOLD_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(10_000);
+
+/// Returns the currently configured cancellation stats threshold.
+pub fn cancel_stats_threshold() -> Duration {
+    Duration::from_millis(CANCEL_STATS_THRESHOLD_MS.load(Ordering::Relaxed))
+}
+
+/// Sets the cancellation stats threshold (in milliseconds).
+pub fn set_cancel_stats_threshold(millis: u64) {
+    CANCEL_STATS_THRESHOLD_MS.store(millis, Ordering::Relaxed);
+}
 
 // ---------------------------------------------------------------------------
 // Per-query memory pool
@@ -71,7 +107,23 @@ impl QueryMemoryPool {
     }
 }
 
+impl std::fmt::Display for QueryMemoryPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "QueryMemoryPool(inner={}, current={}, peak={})",
+            self.inner.name(),
+            self.current_bytes.load(Ordering::Relaxed),
+            self.peak_bytes.load(Ordering::Relaxed)
+        )
+    }
+}
+
 impl MemoryPool for QueryMemoryPool {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
     fn register(&self, consumer: &MemoryConsumer) {
         self.inner.register(consumer);
     }
@@ -115,10 +167,14 @@ impl MemoryPool for QueryMemoryPool {
 pub struct QueryTracker {
     pub start_time: Instant,
     pub context_id: i64,
+    pub query_type: QueryType,
     pub memory_pool: Arc<QueryMemoryPool>,
     pub cancellation_token: CancellationToken,
     /// CPU task abort handle, set after the stream is created.
     pub abort_handle: OnceLock<AbortHandle>,
+    /// Nanos since PROCESS_START when cancellation was signalled, or 0 if not cancelled.
+    /// Set atomically via CAS in cancel_query — no lock needed.
+    pub cancelled_at_nanos: AtomicU64,
     completed: AtomicBool,
     wall_nanos: std::sync::atomic::AtomicU64,
 }
@@ -303,6 +359,8 @@ pub fn cancel_query(context_id: i64) {
         if let Some(handle) = tracker.abort_handle.get() {
             handle.abort();
         }
+        let nanos = PROCESS_START.elapsed().as_nanos() as u64;
+        tracker.cancelled_at_nanos.compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed).ok();
     }
 }
 
@@ -316,6 +374,28 @@ pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.abort_handle.set(handle).ok();
     }
+}
+
+/// Counts queries currently running past the cancellation threshold, by type.
+/// Returns (shard_current, coordinator_current).
+///
+/// Lock-free: reads each entry's `cancelled_at_nanos` atomically.
+pub fn count_cancelled_running(threshold: Duration) -> (i64, i64) {
+    let mut shard_count: i64 = 0;
+    let mut coordinator_count: i64 = 0;
+    let threshold_nanos = threshold.as_nanos() as u64;
+    let now_nanos = PROCESS_START.elapsed().as_nanos() as u64;
+    for entry in QUERY_REGISTRY.iter() {
+        let tracker = entry.value();
+        let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
+        if cancelled_nanos > 0 && (now_nanos - cancelled_nanos) >= threshold_nanos {
+            match tracker.query_type {
+                QueryType::Shard => shard_count += 1,
+                QueryType::Coordinator => coordinator_count += 1,
+            }
+        }
+    }
+    (shard_count, coordinator_count)
 }
 
 // ---------------------------------------------------------------------------
@@ -338,7 +418,7 @@ pub struct QueryTrackingContext {
 impl QueryTrackingContext {
     /// Create a new query context. If `context_id` is 0, tracking is
     /// disabled and `memory_pool()` returns `None`.
-    pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>) -> Self {
+    pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>, query_type: QueryType) -> Self {
         if context_id == 0 {
             return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
         }
@@ -346,9 +426,11 @@ impl QueryTrackingContext {
         let tracker = Arc::new(QueryTracker {
             start_time: Instant::now(),
             context_id,
+            query_type,
             memory_pool: query_pool,
             cancellation_token: CancellationToken::new(),
             abort_handle: OnceLock::new(),
+            cancelled_at_nanos: AtomicU64::new(0),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
@@ -421,7 +503,28 @@ impl Drop for QueryTrackingContext {
                 tracker.memory_pool.current_bytes(),
                 tracker.memory_pool.peak_bytes(),
             );
+
+            // Remove from registry BEFORE incrementing total. This ensures a
+            // query is never simultaneously visible in both the registry scan
+            // (current) and the total counter — preventing double-counting in
+            // snapshot_cancellation_stats.
             QUERY_REGISTRY.remove(&tracker.context_id);
+
+            // If this query was cancelled and ran past the threshold, bump the total counter.
+            let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
+            if cancelled_nanos > 0 {
+                let elapsed_since_cancel = PROCESS_START.elapsed().as_nanos() as u64 - cancelled_nanos;
+                if elapsed_since_cancel >= cancel_stats_threshold().as_nanos() as u64 {
+                    match tracker.query_type {
+                        QueryType::Shard => {
+                            crate::native_node_stats::inc_native_search_shard_task_total();
+                        }
+                        QueryType::Coordinator => {
+                            crate::native_node_stats::inc_native_search_task_total();
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -504,7 +607,7 @@ mod tests {
     #[test]
     fn test_context_returns_none_pool_for_zero_id() {
         let global = make_global_pool(10_000);
-        let ctx = QueryTrackingContext::new(0, global);
+        let ctx = QueryTrackingContext::new(0, global, QueryType::Shard);
         assert!(ctx.memory_pool().is_none());
     }
 
@@ -512,7 +615,7 @@ mod tests {
     fn test_context_registers_and_removes_on_drop() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_000;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         assert!(ctx.memory_pool().is_some());
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
 
@@ -525,7 +628,7 @@ mod tests {
     fn test_drop_removes_from_registry() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_001;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         thread::sleep(Duration::from_millis(50));
@@ -539,7 +642,7 @@ mod tests {
     fn test_wall_secs_ticks_while_running() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_002;
-        let _ctx = QueryTrackingContext::new(ctx_id, global);
+        let _ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         let t1 = QUERY_REGISTRY.get(&ctx_id).unwrap().wall_secs();
         thread::sleep(Duration::from_millis(50));
@@ -554,7 +657,7 @@ mod tests {
     fn test_memory_tracking_through_full_lifecycle() {
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_004;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
         let mut reservation = make_reservation(&pool, "lifecycle_test");
@@ -588,8 +691,8 @@ mod tests {
         let ctx_a_id = 50_005;
         let ctx_b_id = 50_006;
 
-        let ctx_a = QueryTrackingContext::new(ctx_a_id, Arc::clone(&global));
-        let ctx_b = QueryTrackingContext::new(ctx_b_id, Arc::clone(&global));
+        let ctx_a = QueryTrackingContext::new(ctx_a_id, Arc::clone(&global), QueryType::Shard);
+        let ctx_b = QueryTrackingContext::new(ctx_b_id, Arc::clone(&global), QueryType::Shard);
 
         let pool_a = ctx_a.memory_pool().unwrap();
         let pool_b = ctx_b.memory_pool().unwrap();
@@ -625,7 +728,7 @@ mod tests {
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_010;
 
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
         let mut reservation = make_reservation(&pool, "stream_data");
@@ -654,13 +757,107 @@ mod tests {
         let ctx_id = 50_011;
 
         {
-            let ctx = QueryTrackingContext::new(ctx_id, global);
+            let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
             let _pool = ctx.memory_pool();
             assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         } // ctx dropped here — removes from registry
 
         assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
     }
+
+    // -----------------------------------------------------------------------
+    // Cancellation stats tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_query_sets_cancelled_at() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_001;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Not cancelled yet
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) == 0);
+
+        // Cancel
+        cancel_query(ctx_id);
+
+        // cancelled_at should be set
+        assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        drop(tracker);
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_cancel_query_idempotent() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_002;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        cancel_query(ctx_id);
+        let first = QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at_nanos.load(Ordering::Relaxed);
+
+        thread::sleep(Duration::from_millis(10));
+        cancel_query(ctx_id);
+        let second = QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at_nanos.load(Ordering::Relaxed);
+
+        // Second cancel should not overwrite the first timestamp
+        assert_eq!(first, second);
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_count_cancelled_running_with_zero_threshold() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_003;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Not cancelled — cancelled_at_nanos should be 0
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert_eq!(tracker.cancelled_at_nanos.load(Ordering::Relaxed), 0);
+        drop(tracker);
+
+        // Cancel it
+        cancel_query(ctx_id);
+
+        // Now cancelled_at_nanos should be > 0
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        drop(tracker);
+
+        drop(ctx);
+
+        // After drop, not in registry
+        assert!(QUERY_REGISTRY.get(&ctx_id).is_none());
+    }
+
+    #[test]
+    fn test_count_cancelled_running_distinguishes_query_types() {
+        let global = make_global_pool(10_000);
+        let shard_id = 60_005;
+        let coord_id = 60_006;
+
+        let shard_ctx = QueryTrackingContext::new(shard_id, Arc::clone(&global), QueryType::Shard);
+        let coord_ctx = QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
+
+        cancel_query(shard_id);
+        cancel_query(coord_id);
+
+        // Verify each query is registered, cancelled, and has correct type
+        let shard_tracker = QUERY_REGISTRY.get(&shard_id).unwrap();
+        assert!(shard_tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        assert_eq!(shard_tracker.query_type, QueryType::Shard);
+        drop(shard_tracker);
+
+        let coord_tracker = QUERY_REGISTRY.get(&coord_id).unwrap();
+        assert!(coord_tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        assert_eq!(coord_tracker.query_type, QueryType::Coordinator);
+        drop(coord_tracker);
+
+        drop(shard_ctx);
+        drop(coord_ctx);
+    }
+
 
     // -----------------------------------------------------------------------
     // Top-N snapshot tests
@@ -693,9 +890,9 @@ mod tests {
         let id_md = 70_001;
         let id_hi = 70_002;
 
-        let ctx_lo = QueryTrackingContext::new(id_lo, Arc::clone(&global));
-        let ctx_md = QueryTrackingContext::new(id_md, Arc::clone(&global));
-        let ctx_hi = QueryTrackingContext::new(id_hi, Arc::clone(&global));
+        let ctx_lo = QueryTrackingContext::new(id_lo, Arc::clone(&global), QueryType::Shard);
+        let ctx_md = QueryTrackingContext::new(id_md, Arc::clone(&global), QueryType::Shard);
+        let ctx_hi = QueryTrackingContext::new(id_hi, Arc::clone(&global), QueryType::Shard);
 
         let pool_lo: Arc<dyn MemoryPool> = ctx_lo.memory_pool().unwrap();
         let pool_md: Arc<dyn MemoryPool> = ctx_md.memory_pool().unwrap();
@@ -743,17 +940,17 @@ mod tests {
         let zero_id = 70_101;
         let done_id = 70_102;
 
-        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global));
+        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global), QueryType::Shard);
         let live_pool: Arc<dyn MemoryPool> = live_ctx.memory_pool().unwrap();
         let mut r_live = make_reservation(&live_pool, "live");
         r_live.try_grow(4_096).unwrap();
 
         // Registered but never reserved — current_bytes stays 0.
-        let _zero_ctx = QueryTrackingContext::new(zero_id, Arc::clone(&global));
+        let _zero_ctx = QueryTrackingContext::new(zero_id, Arc::clone(&global), QueryType::Shard);
 
         // Completed before snapshot. Drop reservation first so QueryMemoryPool
         // is settled, then drop the context to flip the completed flag.
-        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global));
+        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global), QueryType::Shard);
         let done_pool: Arc<dyn MemoryPool> = done_ctx.memory_pool().unwrap();
         let mut r_done = make_reservation(&done_pool, "done");
         r_done.try_grow(8_192).unwrap();
@@ -782,7 +979,7 @@ mod tests {
     fn test_top_n_with_buffer_larger_than_live_set() {
         let global = make_global_pool(1_000_000);
         let id = 70_200;
-        let ctx = QueryTrackingContext::new(id, global);
+        let ctx = QueryTrackingContext::new(id, global, QueryType::Shard);
         let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
         let mut r = make_reservation(&pool, "only");
         r.try_grow(2_048).unwrap();
@@ -813,7 +1010,7 @@ mod tests {
         let mut contexts = Vec::with_capacity(ids.len());
         let mut reservations = Vec::with_capacity(ids.len());
         for (i, id) in ids.iter().enumerate() {
-            let ctx = QueryTrackingContext::new(*id, Arc::clone(&global));
+            let ctx = QueryTrackingContext::new(*id, Arc::clone(&global), QueryType::Shard);
             let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
             let mut r = make_reservation(&pool, "cap");
             r.try_grow((i as usize + 1) * 1_000).unwrap();

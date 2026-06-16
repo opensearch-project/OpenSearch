@@ -153,6 +153,16 @@ public class FileBackedFailableIndexingExecutionEngine implements IndexingExecut
     }
 
     @Override
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
+    }
+
+    @Override
     public void close() {}
 
     public static List<String> readFlushedFile(Path filePath) throws IOException {

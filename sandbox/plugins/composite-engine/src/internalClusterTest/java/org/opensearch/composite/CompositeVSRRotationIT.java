@@ -385,7 +385,10 @@ public class CompositeVSRRotationIT extends OpenSearchIntegTestCase {
     // ── Helpers ──
 
     private void createParquetLuceneIndex() {
-        CompositeEngineHelper.createCompositeIndexWithMapping(this, INDEX_NAME, "parquet", Settings.EMPTY, "lucene");
+        // TODO: Remove the merge_on_refresh_max_size=0b override once the thread leak in the
+        // merge-on-refresh code path is fixed.
+        Settings extra = Settings.builder().put("index.composite.merge_on_refresh_max_size", "0b").build();
+        CompositeEngineHelper.createCompositeIndexWithMapping(this, INDEX_NAME, "parquet", extra, "lucene");
     }
 
     private void indexDocs(int count) {

@@ -88,6 +88,9 @@ public class CompositeEngineLuceneOversizedTermIT extends RemoteStoreBaseIntegTe
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
             .putList("index.composite.secondary_data_formats", List.of("lucene"))
+            // TODO: Remove the merge_on_refresh_max_size=0b override once the thread leak in the
+            // merge-on-refresh code path is fixed.
+            .put("index.composite.merge_on_refresh_max_size", "0b")
             // Tighten the periodic GCP sync so the post-failover assertion doesn't race a
             // 30s default timer waiting for the replica to catch up.
             .put("index.global_checkpoint_sync.interval", "1s");

@@ -18,6 +18,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,6 +34,9 @@ import java.util.function.Function;
 public final class ParquetSettings {
 
     private ParquetSettings() {}
+
+    public static final String POOL_WRITE = "write";
+    public static final String POOL_MERGE = "merge";
 
     public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 65536;
@@ -114,25 +118,6 @@ public final class ParquetSettings {
         Setting.Property.NodeScope
     );
 
-    /**
-     * Per-VSR allocation as a divisor of the ingest pool's limit. Each child allocator
-     * created by {@link org.opensearch.parquet.memory.ArrowBufferPool#createChildAllocator(String)}
-     * is capped at {@code poolLimit / divisor}. Default 10 preserves the historical
-     * sizing. Dynamic — updates take effect on the next child-allocator creation.
-     *
-     * <p>The setting is named {@code *_divisor} (not {@code *_ratio}) because larger
-     * values yield smaller per-VSR caps. A divisor of 10 means "each VSR may use up
-     * to 1/10 of the pool"; a divisor of 2 means "each VSR may use up to 1/2".
-     */
-    public static final Setting<Integer> MAX_PER_VSR_ALLOCATION_DIVISOR = Setting.intSetting(
-        "parquet.max_per_vsr_allocation_divisor",
-        10,
-        1,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /** File size threshold for in-memory sort vs streaming merge sort (default 32MB). */
     public static final Setting<ByteSizeValue> SORT_IN_MEMORY_THRESHOLD = Setting.byteSizeSetting(
         "index.parquet.sort_in_memory_threshold",
@@ -171,21 +156,108 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/8, min 1). */
+    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/2, min 1). */
     public static final Setting<Integer> MERGE_RAYON_THREADS = Setting.intSetting(
         "parquet.merge_rayon_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
         1,
         Setting.Property.NodeScope
     );
 
-    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/8, min 1). */
+    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/2, min 1). */
     public static final Setting<Integer> MERGE_IO_THREADS = Setting.intSetting(
         "parquet.merge_io_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
         1,
         Setting.Property.NodeScope
     );
+
+    /** Minimum guaranteed bytes for the native write pool. Default is half of write max (2% of budget). */
+    public static final Setting<Long> WRITE_POOL_MIN = new Setting<>(
+        "parquet.native.pool.write.min",
+        s -> derivePoolMinDefault(s, 2),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [parquet.native.pool.write.min] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Maximum bytes the native write pool can burst to. Default is 5% of node.native_memory.limit. */
+    public static final Setting<Long> WRITE_POOL_MAX = new Setting<>(
+        "parquet.native.pool.write.max",
+        s -> derivePoolMaxDefault(s, 5),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [parquet.native.pool.write.max] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Minimum guaranteed bytes for the native merge pool. Default is half of merge max (1% of budget). */
+    public static final Setting<Long> MERGE_POOL_MIN = new Setting<>(
+        "parquet.native.pool.merge.min",
+        s -> derivePoolMinDefault(s, 1),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [parquet.native.pool.merge.min] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Maximum bytes the native merge pool can burst to. Default is 3% of node.native_memory.limit. */
+    public static final Setting<Long> MERGE_POOL_MAX = new Setting<>(
+        "parquet.native.pool.merge.max",
+        s -> derivePoolMaxDefault(s, 3),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [parquet.native.pool.merge.max] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Computes the default for a pool max as a percentage of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}.
+     * Falls back to {@link Long#MAX_VALUE} when AC is unconfigured.
+     */
+    static String derivePoolMaxDefault(Settings settings, int percent) {
+        ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        if (nativeLimit.getBytes() <= 0) {
+            return Long.toString(Long.MAX_VALUE);
+        }
+        long pool = Math.max(0L, nativeLimit.getBytes() * percent / 100);
+        return Long.toString(pool);
+    }
+
+    /**
+     * Computes the default for a pool min as a percentage of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}.
+     * Returns 0 when AC is unconfigured (unlike max which returns Long.MAX_VALUE).
+     */
+    static String derivePoolMinDefault(Settings settings, int percent) {
+        ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        if (nativeLimit.getBytes() <= 0) {
+            return "0";
+        }
+        return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
+    }
 
     public static final Set<String> VALID_ENCODINGS = Set.of(
         "PLAIN",
@@ -227,9 +299,9 @@ public final class ParquetSettings {
         "RLE",
         Set.of(ArrowType.Bool.class),
         "DELTA_BINARY_PACKED",
-        Set.of(ArrowType.Int.class),
+        Set.of(ArrowType.Int.class, ArrowType.Timestamp.class, ArrowType.Date.class, ArrowType.Time.class, ArrowType.Duration.class),
         "DELTA",
-        Set.of(ArrowType.Int.class),
+        Set.of(ArrowType.Int.class, ArrowType.Timestamp.class, ArrowType.Date.class, ArrowType.Time.class, ArrowType.Duration.class),
         "DELTA_LENGTH_BYTE_ARRAY",
         Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
         "DELTA_BYTE_ARRAY",
@@ -678,7 +750,6 @@ public final class ParquetSettings {
             BLOOM_FILTER_NDV,
             MAX_NATIVE_ALLOCATION,
             MAX_ROWS_PER_VSR,
-            MAX_PER_VSR_ALLOCATION_DIVISOR,
             SORT_IN_MEMORY_THRESHOLD,
             SORT_BATCH_SIZE,
             ROW_GROUP_MAX_ROWS,
@@ -686,6 +757,10 @@ public final class ParquetSettings {
             MERGE_BATCH_SIZE,
             MERGE_RAYON_THREADS,
             MERGE_IO_THREADS,
+            WRITE_POOL_MIN,
+            WRITE_POOL_MAX,
+            MERGE_POOL_MIN,
+            MERGE_POOL_MAX,
             ENCODING_FIELD_SETTING,
             ENCODING_VALUE_SETTING,
             COMPRESSION_FIELD_SETTING,

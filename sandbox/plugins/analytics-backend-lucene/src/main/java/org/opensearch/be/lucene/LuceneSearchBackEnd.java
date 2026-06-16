@@ -70,7 +70,10 @@ final class LuceneSearchBackEnd {
             directoryReader = StandardDirectoryReader.open(provider.getStore(settings.format()).store().directory());
             readerRefresher = LuceneSearchBackEnd::buildReader;
         }
-        return new LuceneReaderManager(settings.format(), directoryReader, readers, readerRefresher);
+        if (settings.shardPath() == null) {
+            throw new IllegalStateException("ShardPath is required to create LuceneReaderManager");
+        }
+        return new LuceneReaderManager(settings.format(), directoryReader, readers, readerRefresher, settings.shardPath().getShardId());
     }
 
     private static DirectoryReader buildReader(DirectoryReader oldReader, SegmentInfos newSis) throws IOException {

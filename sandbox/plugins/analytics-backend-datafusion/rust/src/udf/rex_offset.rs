@@ -30,7 +30,6 @@
 //! declaration order. After computing positions, we sort the result
 //! alphabetically (matching `Collections.sort(offsetPairs)` in the Java code).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -72,9 +71,6 @@ impl Default for RexOffsetUdf {
 }
 
 impl ScalarUDFImpl for RexOffsetUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "rex_offset"
     }

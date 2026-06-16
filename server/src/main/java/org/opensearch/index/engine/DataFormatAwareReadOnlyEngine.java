@@ -12,9 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
@@ -36,7 +34,6 @@ import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -119,6 +116,9 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     private final GatedCloseable<CatalogSnapshot> permanentSnapshotRef;
     private final DataFormatAwareEngine.DataFormatAwareReader reader;
 
+    // Stats cache — populated once at construction (snapshot is permanent for this engine).
+    private final CatalogSnapshotStatsCache statsCache;
+
     public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig) {
         this.logger = Loggers.getLogger(DataFormatAwareReadOnlyEngine.class, engineConfig.getShardId());
         assert engineConfig.isReadOnlyReplica() == false : "DataFormatAwareReadOnlyEngine must only be created for primary shards; shard "
@@ -158,7 +158,8 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                             format,
                             registry,
                             store.shardPath(),
-                            store.getDataformatAwareStoreHandles()
+                            store.getDataformatAwareStoreHandles(),
+                            engineConfig.getIndexSettings()
                         )
                     )
                 );
@@ -215,6 +216,18 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                 }
             }
             this.reader = new DataFormatAwareEngine.DataFormatAwareReader(permanentSnapshotRef, readers);
+
+            // Build stats cache — snapshot is permanent for this engine, so populate once at construction.
+            this.statsCache = new CatalogSnapshotStatsCache(catalogSnapshotManagerRef, store, engineConfig, () -> {
+                try {
+                    return committer.getLastCommittedData();
+                } catch (IOException e) {
+                    logger.warn("Failed to get last committed data for stats cache", e);
+                    return Collections.emptyMap();
+                }
+            }, logger);
+            this.statsCache.forceRefresh();
+
             success = true;
             logger.info("Created DataFormatAwareReadOnlyEngine");
         } catch (IOException e) {
@@ -482,8 +495,15 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         return 0;
     }
 
+    /** Read-only engine does not have indexing buffers. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /** Read-only engine does not have indexing buffers. */
+    @Override
+    public long getNativeBytesUsed() {
         return 0;
     }
 
@@ -500,35 +520,22 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public CommitStats commitStats() {
         ensureOpen();
-        try {
-            return new CommitStats(store.readLastCommittedSegmentsInfo());
-        } catch (Exception e) {
-            logger.debug("Unable to read last committed SegmentInfos; returning empty CommitStats", e);
-            return new CommitStats(new SegmentInfos(org.apache.lucene.util.Version.LATEST.major));
-        }
+        return committer.getCommitStats();
     }
 
     @Override
     public DocsStats docStats() {
-        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
-            long count = snapshot.get().getNumDocs();
-            long totalSize = snapshot.get()
-                .getSegments()
-                .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-                .mapToLong(WriterFileSet::getTotalSize)
-                .sum();
-            assert count >= 0 : "doc count must be non-negative but was: " + count;
-            assert totalSize >= 0 : "total size must be non-negative but was: " + totalSize;
-            return new DocsStats.Builder().deleted(0L).count(count).totalSizeInBytes(totalSize).build();
-        } catch (IOException ex) {
-            throw new OpenSearchException(ex);
-        }
+        return statsCache.getDocsStats();
+    }
+
+    @Override
+    public List<Segment> segments(boolean verbose) {
+        return statsCache.getSegments();
     }
 
     @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        return new SegmentsStats();
+        return statsCache.getSegmentsStats();
     }
 
     @Override

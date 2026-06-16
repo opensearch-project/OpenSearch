@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -58,7 +57,6 @@ import java.util.Random;
  * {@code OpenSearchTestCase}, so the seed is printed on failure. Re-run with
  * {@code ./gradlew :...:integTest -Dtests.seed=HEX} to reproduce.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class MatchLikeParityIT extends AnalyticsRestTestCase {
 
     private static final String INDEX_NAME = "match_like_parity";
@@ -263,11 +261,11 @@ public class MatchLikeParityIT extends AnalyticsRestTestCase {
      * Run a PPL query expected to produce a single scalar count (one row, one column).
      */
     private long queryScalarCount(String ppl) throws IOException {
-        Request req = new Request("POST", "/_analytics/ppl");
+        Request req = new Request("POST", "/_plugins/_ppl");
         req.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         Map<String, Object> parsed = assertOkAndParse(client().performRequest(req), "PPL: " + ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) parsed.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) parsed.get("datarows");
         assertNotNull("PPL response missing `rows` for: " + ppl, rows);
         assertEquals("PPL scalar count should return exactly 1 row for: " + ppl, 1, rows.size());
         assertEquals("PPL scalar count should return exactly 1 column for: " + ppl, 1, rows.get(0).size());

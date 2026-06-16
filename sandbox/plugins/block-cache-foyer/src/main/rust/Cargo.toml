@@ -18,6 +18,8 @@ tokio                = { workspace = true }
 tokio-util           = { workspace = true }
 log                  = { workspace = true }
 native-bridge-common = { workspace = true }
+serde                = { workspace = true, features = ["derive"] }
+serde_json           = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

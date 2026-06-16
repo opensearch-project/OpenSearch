@@ -5,7 +5,7 @@ use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
-use object_store::ObjectStore;
+use object_store::{ObjectStore, ObjectStoreExt};
 use opensearch_datafusion::api::DataFusionRuntime;
 use opensearch_datafusion::query_executor;
 use opensearch_datafusion::runtime_manager::RuntimeManager;
@@ -104,7 +104,16 @@ fn bench_execute_query(c: &mut Criterion) {
                     let exec = mgr.cpu_executor();
                     async {
                         let ptr = query_executor::execute_query(
-                            url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(),
+                            url,
+                            metas,
+                            "t".into(),
+                            plan,
+                            &df_runtime,
+                            exec,
+                            None,
+                            &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(),
+                            0,
+                            Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                         ).await.unwrap();
                         // Consume and free the stream
                         let mut stream = unsafe {
@@ -151,6 +160,8 @@ fn bench_stream_next(c: &mut Criterion) {
                     None,
                     &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
                     ),
+                    0,
+                    Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                 )
                 .await
                 .unwrap();
@@ -199,6 +210,8 @@ fn bench_aggregation(c: &mut Criterion) {
                     None,
                     &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
                     ),
+                    0,
+                    Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                 )
                 .await
                 .unwrap();

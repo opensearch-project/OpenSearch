@@ -137,7 +137,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> SERVER_SIDE_ENCRYPTION_TYPE_SETTING = Setting.simpleString(
         "server_side_encryption_type",
-        BUCKET_DEFAULT_ENCRYPTION_TYPE,
+        ServerSideEncryption.AES256.toString(),
         value -> {
             if (!(value.equals(ServerSideEncryption.AES256.toString())
                 || value.equals(ServerSideEncryption.AWS_KMS.toString())
@@ -596,8 +596,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         s3AsyncService.releaseCachedClients();
 
         // Reload configs for S3BlobStore
-        BlobStore blobStore = getBlobStore();
-        blobStore.reload(metadata);
+        if (blobStoreProvider.get() != null) {
+            blobStoreProvider.get().reloadBlobStore(newRepositoryMetadata);
+        }
     }
 
     /**

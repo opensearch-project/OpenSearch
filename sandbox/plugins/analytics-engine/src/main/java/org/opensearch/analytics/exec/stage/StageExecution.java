@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +60,23 @@ public interface StageExecution {
     /** Default {@link TaskRunner#NONE} — stages with runnable tasks override. */
     default TaskRunner<?> taskRunner() {
         return TaskRunner.NONE;
+    }
+
+    /**
+     * Dispatch the stage's tasks. Default implementation iterates {@link #tasks()} eagerly
+     * — one {@code runner.run} call per task up front. Stages may override to dispatch with a
+     * different cadence.
+     *
+     * <p>{@code handleForFactory} is the scheduler's per-task listener builder (the same one
+     * that carries retry / terminal logic); the scheduler owns the listener it hands them.
+     */
+    default void dispatchTasks(java.util.function.BiFunction<StageExecution, StageTask, ActionListener<Void>> handleForFactory) {
+        @SuppressWarnings("unchecked")
+        TaskRunner<StageTask> runner = (TaskRunner<StageTask>) taskRunner();
+        for (StageTask task : tasks()) {
+            task.transitionTo(StageTaskState.RUNNING);
+            runner.run(task, handleForFactory.apply(this, task));
+        }
     }
 
     /** Per-task terminal callback. Captures failure / drives the stage's terminal transition. */
@@ -163,6 +181,7 @@ public interface StageExecution {
                         }
                     }
                     case FAILED -> {
+                        closeChildInput(childId);
                         Exception cause = child.getFailure();
                         failWithCause(
                             cause != null

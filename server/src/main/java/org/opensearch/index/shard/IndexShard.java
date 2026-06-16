@@ -134,6 +134,7 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineBackedIndexer;
@@ -827,7 +828,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        postActivatePrimaryMode();
+                        // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload
+                        // needed) but still ensure peer recovery retention leases exist for replicas.
+                        // Reset hasAllPeerRecoveryRetentionLeases to false first to prevent assertion
+                        // failures in renewPeerRecoveryRetentionLeases() during the async window.
+                        if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+                            postActivatePrimaryMode();
+                        } else {
+                            replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+                            ensurePeerRecoveryRetentionLeasesExist();
+                        }
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -900,14 +910,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // Force update the checkpoint post engine reset.
                                 updateReplicationCheckpoint();
                             }
-
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
-                            postActivatePrimaryMode();
+                            // DFA warm primaries: activate primary mode (needed for initiateTracking
+                            // during replica recovery) but skip postActivatePrimaryMode (no remote
+                            // translog upload). Reset hasAllPeerRecoveryRetentionLeases and ensure
+                            // retention leases exist for replicas.
+                            if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+                                postActivatePrimaryMode();
+                            } else {
+                                replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+                                ensurePeerRecoveryRetentionLeasesExist();
+                            }
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -3350,7 +3368,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return 0;
         }
         try {
-            return engine.getIndexBufferRAMBytesUsed();
+            return engine.getHeapBytesUsed();
+        } catch (AlreadyClosedException ex) {
+            return 0;
+        }
+    }
+
+    /** Returns native (off-heap) bytes used by indexing buffers for this shard, or 0 if closed. */
+    public long getNativeBytesUsed() {
+        Indexer engine = getIndexerOrNull();
+        if (engine == null) {
+            return 0;
+        }
+        try {
+            return engine.getNativeBytesUsed();
         } catch (AlreadyClosedException ex) {
             return 0;
         }
@@ -4126,16 +4157,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // So, we can use a stricter check where local checkpoint of new primary is checked against that of old primary.
             allocationId = primaryContext.getRoutingTable().primaryShard().allocationId().getId();
         }
+
+        // DFA warm primaries: relax checkpoint assertion. During hot-to-warm relocation after cancel+bulk+retry,
+        // the old primary's checkpoint may be ahead of the warm target which recovered from an earlier remote
+        // store state. The warm primary is read-only and will serve all data from remote store regardless of
+        // local checkpoint value.
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(allocationId).getLocalCheckpoint()
-            || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
+            || indexSettings().getTranslogDurability() == Durability.ASYNC
+            || (getIndexer() instanceof DataFormatAwareReadOnlyEngine) : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
                 + primaryContext
                 + "]";
+
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
-        postActivatePrimaryMode();
+        // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload needed).
+        // Reset hasAllPeerRecoveryRetentionLeases and ensure retention leases exist for replicas.
+        if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+            postActivatePrimaryMode();
+        } else {
+            replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+            ensurePeerRecoveryRetentionLeasesExist();
+        }
     }
 
     private void postActivatePrimaryMode() {

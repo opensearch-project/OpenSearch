@@ -124,4 +124,14 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
         return Map.of(getDataFormat(), new MockReaderManager(getDataFormat().name()));
     }
+
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
+    }
 }

@@ -27,6 +27,7 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -125,6 +126,9 @@ public class LuceneDataFormatAwareEngineTests extends AbstractDataFormatAwareEng
         when(mapperService.fieldType(VersionFieldMapper.NAME)).thenReturn(versionFieldType);
         when(mapperService.fieldType(SeqNoFieldMapper.NAME)).thenReturn(seqNoFieldType);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)

@@ -49,8 +49,11 @@ public final class FoyerBlockCache implements BlockCache {
      * @param sweepThresholdRatio    minimum {@code used_bytes / disk_bytes} ratio to run the sweep;
      *                               {@code 0.0} = disabled (always sweep).
      *                               Maps to {@code block_cache.foyer.key_index_sweep_threshold}.
+     * @param persistIntervalSecs    how often (seconds) the independent persist task flushes the
+     *                               key_index to disk; {@code 0} = disabled (only {@code Drop} persists).
+     *                               Maps to {@code block_cache.foyer.key_index_persist_interval_seconds}.
      * @throws IllegalArgumentException if {@code diskBytes <= 0}, {@code blockSizeBytes <= 0},
-     *                                  {@code sweepIntervalSecs < 0},
+     *                                  {@code sweepIntervalSecs < 0}, {@code persistIntervalSecs < 0},
      *                                  {@code sweepThresholdRatio} outside {@code [0.0, 1.0]},
      *                                  or {@code diskDir} is blank
      * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
@@ -60,9 +63,12 @@ public final class FoyerBlockCache implements BlockCache {
         long diskBytes,
         String diskDir,
         long blockSizeBytes,
+        long bufferPoolSizeBytes,
+        long submitQueueSizeThresholdBytes,
         String ioEngine,
         long sweepIntervalSecs,
-        double sweepThresholdRatio
+        double sweepThresholdRatio,
+        long persistIntervalSecs
     ) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
@@ -74,6 +80,12 @@ public final class FoyerBlockCache implements BlockCache {
         if (blockSizeBytes <= 0) {
             throw new IllegalArgumentException("blockSizeBytes must be > 0, got: " + blockSizeBytes);
         }
+        if (bufferPoolSizeBytes <= 0) {
+            throw new IllegalArgumentException("bufferPoolSizeBytes must be > 0, got: " + bufferPoolSizeBytes);
+        }
+        if (submitQueueSizeThresholdBytes <= 0) {
+            throw new IllegalArgumentException("submitQueueSizeThresholdBytes must be > 0, got: " + submitQueueSizeThresholdBytes);
+        }
         Objects.requireNonNull(ioEngine, "ioEngine must not be null");
         if (sweepIntervalSecs < 0) {
             throw new IllegalArgumentException("sweepIntervalSecs must be >= 0, got: " + sweepIntervalSecs);
@@ -81,8 +93,21 @@ public final class FoyerBlockCache implements BlockCache {
         if (sweepThresholdRatio < 0.0 || sweepThresholdRatio > 1.0) {
             throw new IllegalArgumentException("sweepThresholdRatio must be in [0.0, 1.0], got: " + sweepThresholdRatio);
         }
+        if (persistIntervalSecs < 0) {
+            throw new IllegalArgumentException("persistIntervalSecs must be >= 0, got: " + persistIntervalSecs);
+        }
         this.diskBytes = diskBytes;
-        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs, sweepThresholdRatio);
+        this.cachePtr = FoyerBridge.createCache(
+            diskBytes,
+            diskDir,
+            blockSizeBytes,
+            bufferPoolSizeBytes,
+            submitQueueSizeThresholdBytes,
+            ioEngine,
+            sweepIntervalSecs,
+            sweepThresholdRatio,
+            persistIntervalSecs
+        );
     }
 
     @Override
@@ -158,6 +183,24 @@ public final class FoyerBlockCache implements BlockCache {
             return FoyerBridge.clearCache(cachePtr);
         }
         return false;
+    }
+
+    public void updateSweepThreshold(double newRatio) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepThreshold(cachePtr, newRatio);
+        }
+    }
+
+    public void updateSweepInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepInterval(cachePtr, newSecs);
+        }
+    }
+
+    public void updatePersistInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updatePersistInterval(cachePtr, newSecs);
+        }
     }
 
     @Override

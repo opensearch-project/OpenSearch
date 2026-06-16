@@ -9,6 +9,7 @@
 package org.opensearch.composite;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -27,6 +28,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * ITs for DFA peer recovery scenarios: fresh replica allocation under load and
  * catalog preservation through file-based peer recovery.
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DataFormatAwarePeerRecoveryIT extends DataFormatAwareReplicationBaseIT {
 

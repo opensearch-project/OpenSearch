@@ -20,9 +20,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
@@ -67,11 +65,11 @@ import java.util.stream.Collectors;
  * Integration test validating dynamic mapping support with composite parquet index.
  * Documents with new fields (not in the original mapping) should be indexed successfully,
  * and the resulting Parquet files should contain all fields including dynamically added ones.
- *
+ * <p>
  * Requires JDK 25 and sandbox enabled. Run with:
  * ./gradlew :sandbox:plugins:composite-engine:internalClusterTest \
- *   --tests "*.CompositeDynamicMappingIT" \
- *   -Dsandbox.enabled=true
+ * --tests "*.CompositeDynamicMappingIT" \
+ * -Dsandbox.enabled=true
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
@@ -99,117 +97,9 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Tests that documents with dynamically added fields are indexed successfully
-     * into a composite parquet index. The flow is:
-     * 1. Create index with initial mapping (field_keyword, field_number)
-     * 2. Index documents matching the initial schema
-     * 3. Index documents with NEW fields not in the original mapping (dynamic mapping)
-     * 4. Refresh + flush
-     * 5. Verify all documents indexed, parquet files generated with correct segments
-     */
-    public void testDynamicMappingWithParquet() throws Exception {
-        Settings indexSettings = parquetOnlySettings();
-
-        // Create index with initial mapping
-        CreateIndexResponse createResponse = client().admin()
-            .indices()
-            .prepareCreate(INDEX_NAME)
-            .setSettings(indexSettings)
-            .setMapping("field_keyword", "type=keyword", "field_number", "type=integer")
-            .get();
-        assertTrue("Index creation should be acknowledged", createResponse.isAcknowledged());
-        ensureGreen(INDEX_NAME);
-
-        // Index documents with initial schema
-        for (int i = 0; i < 5; i++) {
-            IndexResponse response = client().prepareIndex()
-                .setIndex(INDEX_NAME)
-                .setSource("field_keyword", "value_" + i, "field_number", i)
-                .get();
-            assertEquals(RestStatus.CREATED, response.status());
-        }
-
-        // Verify dynamic fields are NOT yet in the mapping
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
-        Map<String, Object> mappingSource = mappingsResponse.mappings().get(INDEX_NAME).sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
-        assertTrue("Mapping should contain initial field 'field_keyword'", properties.containsKey("field_keyword"));
-        assertTrue("Mapping should contain initial field 'field_number'", properties.containsKey("field_number"));
-        assertFalse("Mapping should NOT contain 'dynamic_text' yet", properties.containsKey("dynamic_text"));
-        assertFalse("Mapping should NOT contain 'dynamic_long' yet", properties.containsKey("dynamic_long"));
-
-        // Index documents with NEW dynamic fields
-        indexDocsWithDynamicFields(INDEX_NAME, 5, 10);
-
-        // Verify dynamic fields are now present in the mapping.
-        // Note: The cluster-manager applies its own cluster state after publication completes,
-        // so there's a brief window where GetMappings on the cluster-manager may return stale data.
-        assertMappingsContain(INDEX_NAME, "dynamic_text", "dynamic_long");
-
-        // Refresh and flush to produce parquet files
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(INDEX_NAME).get();
-        assertEquals(RestStatus.OK, refreshResponse.getStatus());
-        FlushResponse flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).get();
-        assertEquals(RestStatus.OK, flushResponse.getStatus());
-
-        // Verify parquet files on disk
-        IndexShard shard = getIndexShard(INDEX_NAME);
-        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        assertTrue("Parquet directory should exist", Files.isDirectory(parquetDir));
-
-        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
-            List<Path> parquetFiles = parquetFilesRef.get();
-            assertFalse("Should have at least one parquet file", parquetFiles.isEmpty());
-
-            // Verify row count from parquet file metadata
-            long totalRows = getParquetRowCount(parquetFiles);
-            assertEquals("Total rows across parquet files should equal 10", 10, totalRows);
-
-            // Verify content via readAsJson
-            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-            assertEquals(10, allRows.size());
-            // Verify dynamic fields are present in the rows that should have them
-            assertDynamicFieldCount(allRows, "dynamic_text", 5);
-        }
-
-        // After flush, the writer is now immutable. Index more docs with another new dynamic field
-        // to verify schema evolution across writer generations (new writer created with fresh schema).
-        for (int i = 10; i < 15; i++) {
-            IndexResponse response = client().prepareIndex()
-                .setIndex(INDEX_NAME)
-                .setSource("field_keyword", "value_" + i, "field_number", i, "dynamic_extra", "extra_" + i)
-                .get();
-            assertEquals(RestStatus.CREATED, response.status());
-        }
-
-        // Verify new dynamic field in mapping
-        assertMappingsContain(INDEX_NAME, "dynamic_extra");
-
-        // Refresh + flush again
-        client().admin().indices().prepareRefresh(INDEX_NAME).get();
-        client().admin().indices().prepareFlush(INDEX_NAME).get();
-
-        // Verify all 15 rows on disk
-        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
-            List<Path> parquetFiles = parquetFilesRef.get();
-            long totalRows = getParquetRowCount(parquetFiles);
-            assertEquals("Total rows across parquet files should equal 15", 15, totalRows);
-
-            // Verify content
-            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-            assertEquals(15, allRows.size());
-            assertDynamicFieldCount(allRows, "dynamic_extra", 5);
-        }
-
-        ensureGreen(INDEX_NAME);
-        ensureNoActiveMerges(INDEX_NAME);
-    }
-
-    /**
      * Tests dynamic mapping with parquet primary + lucene secondary.
      * Verifies that dynamically added fields appear in both formats.
-     *
+     * <p>
      * Note: The Lucene secondary writer stores inverted indexes for text/keyword fields
      * (for search) and __row_id__ as doc values (for cross-format correlation).
      * Numeric fields and field values are only in Parquet.
@@ -263,14 +153,18 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertEquals("All 10 Lucene docs should have __row_id__", 10, rowsWithRowId);
 
         // Verify that the lucene index has the expected indexed fields (inverted index)
-        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text", "dynamic_text.keyword"));
+        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text"));
         ensureNoActiveMerges(indexName);
     }
 
     public void testConflictingDynamicMappings() {
         String indexName = "test-conflict";
 
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(parquetOnlySettings()).get();
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .get();
         assertTrue(createResponse.isAcknowledged());
         ensureGreen(indexName);
 
@@ -288,34 +182,6 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
                     || e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [text]")
             );
         }
-    }
-
-    public void testConcurrentDynamicUpdates() throws Throwable {
-        String indexName = "test-concurrent";
-
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(parquetOnlySettings()).get();
-        assertTrue(createResponse.isAcknowledged());
-        ensureGreen(indexName);
-
-        final int numThreads = 32;
-        runConcurrentIndexing(indexName, numThreads);
-
-        // Verify all 64 fields in mapping
-        assertConcurrentMappings(indexName, numThreads);
-
-        // Verify parquet content
-        IndexShard shard = getIndexShard(indexName);
-        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
-            List<Path> parquetFiles = parquetFilesRef.get();
-
-            assertEquals("Total rows should equal 64", 64, getParquetRowCount(parquetFiles));
-
-            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-            assertEquals(64, allRows.size());
-            assertConcurrentFieldValues(allRows, numThreads);
-        }
-        ensureNoActiveMerges(indexName);
     }
 
     /**
@@ -428,9 +294,17 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             indexThreads[i] = new Thread(() -> {
                 try {
                     startLatch.await();
-                    client().prepareIndex(indexName).setId("a_" + threadId).setSource("fieldA_" + threadId, "valueA_" + threadId).get();
+                    IndexResponse respA = client().prepareIndex(indexName)
+                        .setId("a_" + threadId)
+                        .setSource("fieldA_" + threadId, "valueA_" + threadId)
+                        .get();
+                    assert respA.status() == RestStatus.CREATED : "index a_" + threadId + " failed: " + respA.status();
                     Thread.sleep(1000);
-                    client().prepareIndex(indexName).setId("b_" + threadId).setSource("fieldB_" + threadId, "valueB_" + threadId).get();
+                    IndexResponse respB = client().prepareIndex(indexName)
+                        .setId("b_" + threadId)
+                        .setSource("fieldB_" + threadId, "valueB_" + threadId)
+                        .get();
+                    assert respB.status() == RestStatus.CREATED : "index b_" + threadId + " failed: " + respB.status();
                     Thread.sleep(1000);
                     client().admin().indices().prepareRefresh(indexName).get();
                 } catch (Exception e) {

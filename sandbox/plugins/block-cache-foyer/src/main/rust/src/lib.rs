@@ -9,6 +9,7 @@
 pub mod range_cache;
 pub mod stats;
 pub mod traits;
+pub mod key_index_store;
 pub mod foyer;
 
 #[cfg(test)]
