@@ -92,6 +92,21 @@ public final class DatafusionSettings {
     );
 
     /**
+     * Kill-switch for the per-segment Lucene bitmap cache. {@code true} (default):
+     * each segment's delegated bitmap is built once and shared across partitions.
+     * {@code false}: fall back to the legacy per-row-group path (eager correctness
+     * collector; performance peers skip precompute and DataFusion's FilterExec
+     * evaluates them). Dynamic, so the cache can be disabled in production without a
+     * redeploy if it ever misbehaves.
+     */
+    public static final Setting<Boolean> INDEXED_BITMAP_CACHE_ENABLED = Setting.boolSetting(
+        "datafusion.indexed.bitmap_cache_enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Default minimum run length (in rows) below which the indexed stream skips
      * row-selection optimizations and falls back to sequential decode. Shorter runs
      * have higher per-row overhead from selection vector maintenance.
@@ -312,7 +327,8 @@ public final class DatafusionSettings {
         INDEXED_TREE_COLLECTOR_STRATEGY,
         INDEXED_MAX_COLLECTOR_PARALLELISM,
         INDEXED_QUERY_STRATEGY,
-        INDEXED_DYNAMIC_FILTER_PUSHDOWN
+        INDEXED_DYNAMIC_FILTER_PUSHDOWN,
+        INDEXED_BITMAP_CACHE_ENABLED
     );
 
     // ── Snapshot management ──
@@ -356,6 +372,7 @@ public final class DatafusionSettings {
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
             .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
+            .bitmapCacheEnabled(INDEXED_BITMAP_CACHE_ENABLED.get(settings))
             .build();
 
         registerListeners(clusterSettings);
@@ -381,6 +398,7 @@ public final class DatafusionSettings {
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
             .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
+            .bitmapCacheEnabled(INDEXED_BITMAP_CACHE_ENABLED.get(settings))
             .build();
     }
 
@@ -423,6 +441,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_DYNAMIC_FILTER_PUSHDOWN, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).indexedDynamicFilterPushdown(newValue).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_BITMAP_CACHE_ENABLED, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).bitmapCacheEnabled(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {
