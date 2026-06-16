@@ -75,7 +75,15 @@ public class BinTimestampSpanIT extends AnalyticsRestTestCase {
             List<Object> got = actualRows.get(i);
             assertEquals("Column count mismatch at row " + i + " for query: " + ppl, want.size(), got.size());
             for (int j = 0; j < want.size(); j++) {
-                assertEquals("Cell mismatch at row " + i + ", col " + j + " for query: " + ppl, want.get(j), got.get(j));
+                Object w = want.get(j);
+                Object g = got.get(j);
+                String label = "Cell mismatch at row " + i + ", col " + j + " for query: " + ppl;
+                // count() comes back as Integer when the value fits, Long otherwise; compare by magnitude.
+                if (w instanceof Number && g instanceof Number) {
+                    assertEquals(label, ((Number) w).longValue(), ((Number) g).longValue());
+                } else {
+                    assertEquals(label, w, g);
+                }
             }
         }
     }
