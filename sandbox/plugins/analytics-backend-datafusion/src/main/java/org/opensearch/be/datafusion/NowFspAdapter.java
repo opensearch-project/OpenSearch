@@ -18,9 +18,11 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import java.util.List;
 
 /**
- * Adapter for PPL {@code NOW([fsp])} (and its {@code CURRENT_TIMESTAMP} / {@code LOCALTIMESTAMP}
- * synonyms). Maps to DataFusion's niladic {@code now()} via {@link DateTimeAdapters#LOCAL_NOW_OP},
- * dropping the optional fractional-seconds-precision argument.
+ * Adapter for PPL/MySQL-style {@code NOW([fsp])} (and its {@code CURRENT_TIMESTAMP} /
+ * {@code LOCALTIMESTAMP} synonyms), where {@code fsp} is the MySQL "fractional seconds precision":
+ * an integer 0..6 selecting how many sub-second digits the timestamp carries (e.g. {@code now(3)}
+ * = millisecond precision). Maps to DataFusion's niladic {@code now()} via
+ * {@link DateTimeAdapters#LOCAL_NOW_OP}, dropping the optional {@code fsp} argument.
  *
  * <p><b>Why drop the {@code fsp} arg.</b> DataFusion's {@code now()} takes no arguments, so a
  * {@code now(i32)} call has no Substrait mapping and fails fragment conversion with

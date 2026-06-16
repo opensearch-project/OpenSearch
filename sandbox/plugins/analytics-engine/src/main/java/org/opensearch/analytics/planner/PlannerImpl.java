@@ -88,13 +88,18 @@ public class PlannerImpl {
     /**
      * Like {@link CoreRules#FILTER_PROJECT_TRANSPOSE} but refuses to push a Filter below a Project
      * that computes any non-deterministic expression (e.g. {@code eval r = rand() | where r > 0}).
-     * The stock rule only guards against window functions ({@code !containsOver()}); pushing past a
-     * {@code rand()} project inlines {@code RAND()} into the predicate, turning a delegatable
-     * {@code ($ref > literal)} comparison into {@code RAND() > literal} on the scan. Lucene
-     * performance-delegation then rejects it (ComparisonSerializer requires (RexInputRef,
-     * RexLiteral)), and semantically a non-deterministic predicate must stay on the single
-     * in-memory engine rather than be re-evaluated per delegation target. Keeping the Filter above
-     * the Project preserves the clean {@code ($ref > literal)} shape.
+     *
+     * <p>This is a <b>semantic-correctness</b> guard, not a delegation/performance one. The stock
+     * rule only guards against window functions ({@code !containsOver()}); pushing a Filter past a
+     * {@code rand()} Project inlines {@code RAND()} into the predicate, so a reference to one
+     * already-computed random value ({@code $ref > literal}) becomes a fresh {@code RAND() > literal}
+     * evaluated again at scan time. That re-evaluates / duplicates the non-deterministic expression
+     * and changes results, so the Filter must stay above the Project regardless of backend.
+     *
+     * <p>(Aside: such an inlined {@code RAND() > literal} predicate is also what gets incorrectly
+     * marked Lucene-delegation-viable today — a separate filter-viability gap where a field-less
+     * predicate inherits its child's viable backends instead of validating its scalar calls. That is
+     * tracked/fixed separately; it is not the reason for this rule.)
      */
     private static final FilterProjectTransposeRule FILTER_PROJECT_TRANSPOSE_DETERMINISTIC = FilterProjectTransposeRule.Config.DEFAULT
         .withOperandFor(

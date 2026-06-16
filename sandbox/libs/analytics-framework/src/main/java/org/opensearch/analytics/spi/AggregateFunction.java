@@ -137,13 +137,10 @@ public enum AggregateFunction {
         return null;
     }
 
-    /**
-     * Case-insensitive name lookup against the enum constants; throws if not recognized.
-     */
+    /** Case-insensitive name lookup; throws if not recognized. */
     public static AggregateFunction fromNameOrError(String name) {
-        String upper = name.toUpperCase(java.util.Locale.ROOT);
         try {
-            return valueOf(upper);
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }

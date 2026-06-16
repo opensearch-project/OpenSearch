@@ -517,6 +517,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * ({@link #convertStandalone}) must run the identical set of rewriters so a shape handled on
      * one path is not missed on the other. Centralizing here keeps the two paths in lockstep as
      * rewriters are added.
+     *
+     * <p>TODO: assess whether each of these rewriters genuinely needs to run at the Substrait
+     * visitor layer, or whether the ones that only manipulate Calcite {@link RelNode}s (and don't
+     * depend on DataFusion/Substrait-specific classes) can be lifted up into the analytics-engine
+     * planner layer. Moving them up would let other backends reuse them and keep backend fragment
+     * conversion mostly a shape-to-Substrait translation.
      */
     private static RelNode preprocessForSubstrait(RelNode rel) {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);

@@ -23,7 +23,6 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.ArrayList;
@@ -155,29 +154,6 @@ final class PplAggregateCallRewriter {
                     nullableArg0,
                     call.getName()
                 );
-            }
-            // LATE, DEFENSIVE FALLBACK. The PPL `dc`/`distinct_count`/`distinct_count_approx` marker
-            // is normally remapped to the stock APPROX_COUNT_DISTINCT earlier, by the engine planner's
-            // OpenSearchDistinctCountRule (analytics-engine). This case stays as a Substrait-emission-time
-            // safety net for any path that reaches here still carrying the custom marker instance.
-            // The marker's runtime name is "APPROX_COUNT_DISTINCT" (sql#5525); it is a distinct operator
-            // *instance* (DistinctCountApproxLogicalAggFunction), and isthmus matches sigs by operator
-            // identity, not name, so the custom op has no substrait binding. Remap it to Calcite's stock
-            // SqlStdOperatorTable.APPROX_COUNT_DISTINCT, which ADDITIONAL_AGGREGATE_SIGS binds to
-            // DataFusion's native `approx_distinct` (same single-arg expr → bigint shape).
-            // Guard: skip the stock operator itself (already bound) so we only rewrite the PPL marker.
-            case "APPROX_COUNT_DISTINCT" -> {
-                if (aggregation == SqlStdOperatorTable.APPROX_COUNT_DISTINCT) {
-                    return call;
-                }
-                targetOp = SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
-                // Type handling differs from the early OpenSearchDistinctCountRule (which preserves the
-                // marker's nullable type), by design — this runs at the LATE Substrait-emission phase,
-                // where Calcite validates the rewritten stock operator against ITS OWN inferred return
-                // type. APPROX_COUNT_DISTINCT is a count → inferred BIGINT NOT NULL; reusing the PPL
-                // call's nullable BIGINT would trip the validity assertion ("aggCall type BIGINT vs
-                // inferred BIGINT NOT NULL") on the grouped two-phase path. So PIN it to NOT NULL here.
-                explicitReturnType = agg.getCluster().getTypeFactory().createTypeWithNullability(call.getType(), false);
             }
             case "LIST", "VALUES" -> {
                 // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
