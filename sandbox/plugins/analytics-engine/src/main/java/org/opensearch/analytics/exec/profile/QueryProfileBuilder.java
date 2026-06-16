@@ -20,9 +20,14 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Snapshots an {@link ExecutionGraph} into a {@link QueryProfile}. Pure read — no
@@ -99,9 +104,36 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed));
+            DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
+            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
         }
         return out;
+    }
+
+    private record DataNodePayload(Map<String, Long> metrics, String physicalPlan) {
+        static final DataNodePayload EMPTY = new DataNodePayload(null, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static DataNodePayload parseDataNodePayload(byte[] json) {
+        if (json == null || json.length == 0) return DataNodePayload.EMPTY;
+        try {
+            var parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, json);
+            Map<String, Object> raw = parser.map();
+            String physicalPlan = null;
+            Map<String, Long> metrics = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : raw.entrySet()) {
+                if ("physical_plan".equals(entry.getKey()) && entry.getValue() instanceof String s) {
+                    physicalPlan = s;
+                } else if (entry.getValue() instanceof Number n) {
+                    metrics.put(entry.getKey(), n.longValue());
+                }
+            }
+            return new DataNodePayload(metrics.isEmpty() ? null : metrics, physicalPlan);
+        } catch (Exception e) {
+            return DataNodePayload.EMPTY;
+        }
     }
 
     private static String describeTarget(StageTask task) {

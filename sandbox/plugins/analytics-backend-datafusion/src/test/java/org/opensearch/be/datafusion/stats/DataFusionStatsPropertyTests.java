@@ -47,8 +47,13 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
         "spawned_tasks_count",
         "total_local_queue_depth" };
 
-    /** JSON field names for TaskMonitorStats in documented order (3 fields). */
-    private static final String[] TASK_FIELD_NAMES = { "total_poll_duration_ms", "total_scheduled_duration_ms", "total_idle_duration_ms" };
+    /** JSON field names for TaskMonitorStats in documented order (5 fields). */
+    private static final String[] TASK_FIELD_NAMES = {
+        "total_poll_duration_ms",
+        "total_scheduled_duration_ms",
+        "total_idle_duration_ms",
+        "instrumented_count",
+        "dropped_count" };
 
     // ---- Object generators ----
 
@@ -86,7 +91,7 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
     }
 
     private TaskMonitorStats randomTaskMonitorStats() {
-        return new TaskMonitorStats(nonNegLong(), nonNegLong(), nonNegLong());
+        return new TaskMonitorStats(nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong());
     }
 
     private Map<String, TaskMonitorStats> randomTaskMonitors() {
@@ -98,26 +103,60 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
         return monitors;
     }
 
+    private CacheGroupStats randomCacheGroupStats() {
+        return new CacheGroupStats(nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong());
+    }
+
+    private CacheStats randomCacheStats() {
+        return new CacheStats(randomCacheGroupStats(), randomCacheGroupStats());
+    }
+
+    private SearchStats randomSearchStats() {
+        return new SearchStats(
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong()
+        );
+    }
+
     private DataFusionStats randomDataFusionStatsCpuPresent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), randomRuntimeMetricsWithPositiveWorkers(), randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
-            null
+            new PartitionGateStats("fragment_executor_gate", 12, 0, 0, 0, 0, 12, 0, 0),
+            null,
+            null,
+            randomCacheStats(),
+            randomSearchStats()
         );
     }
 
     private DataFusionStats randomDataFusionStatsCpuAbsent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), null, randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
-            null
+            new PartitionGateStats("fragment_executor_gate", 12, 0, 0, 0, 0, 12, 0, 0),
+            null,
+            null,
+            randomCacheStats(),
+            randomSearchStats()
         );
     }
 
     private DataFusionStats dataFusionStatsNullExecutors() {
-        return new DataFusionStats(null, null, null, null);
+        return new DataFusionStats(null, null, null, null, null, null);
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----
@@ -168,13 +207,35 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
             assertEquals("cpu_runtime must have exactly 9 fields", 9, cpuRuntime.size());
             verifyRuntimeFields(nes.getCpuRuntime(), cpuRuntime);
 
-            // Task monitors: 4 ops x 3 fields (at top level, no task_monitors wrapper)
+            // Task monitors: 4 ops x 5 fields (at top level, no task_monitors wrapper)
             for (OperationType opType : OperationType.values()) {
                 Map<String, Object> monitor = asMap(root.get(opType.key()));
                 assertNotNull(opType.key() + " must be present", monitor);
-                assertEquals(3, monitor.size());
+                assertEquals(5, monitor.size());
                 verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
             }
+
+            // Cache stats
+            CacheStats cs = stats.getCacheStats();
+            assertNotNull(cs);
+            Map<String, Object> cacheNode = asMap(root.get("cache_stats"));
+            assertNotNull("cache_stats must be present", cacheNode);
+            Map<String, Object> metaNode = asMap(cacheNode.get("metadata_cache"));
+            assertNotNull(metaNode);
+            assertEquals(cs.getMetadataCache().hitCount, ((Number) metaNode.get("hit_count")).longValue());
+            assertEquals(cs.getMetadataCache().missCount, ((Number) metaNode.get("miss_count")).longValue());
+            Map<String, Object> statsNode = asMap(cacheNode.get("statistics_cache"));
+            assertNotNull(statsNode);
+            assertEquals(cs.getStatisticsCache().hitCount, ((Number) statsNode.get("hit_count")).longValue());
+
+            // Search stats
+            SearchStats ss = stats.getSearchStats();
+            assertNotNull(ss);
+            Map<String, Object> searchNode = asMap(root.get("search_stats"));
+            assertNotNull("search_stats must be present", searchNode);
+            assertEquals(ss.delegationCalls, ((Number) searchNode.get("delegation_calls")).longValue());
+            assertEquals(ss.rgProcessed, ((Number) searchNode.get("rg_processed")).longValue());
+            assertEquals(ss.bitmapTreeScan, ((Number) searchNode.get("bitmap_tree_scan")).longValue());
         }
     }
 
@@ -199,7 +260,7 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
             for (OperationType opType : OperationType.values()) {
                 Map<String, Object> monitor = asMap(root.get(opType.key()));
                 assertNotNull(opType.key() + " must be present", monitor);
-                assertEquals(3, monitor.size());
+                assertEquals(5, monitor.size());
                 verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
             }
         }
@@ -288,7 +349,12 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
     }
 
     private void verifyTaskMonitorFields(TaskMonitorStats tm, Map<String, Object> monitorNode, String opType) {
-        long[] expected = { tm.totalPollDurationMs, tm.totalScheduledDurationMs, tm.totalIdleDurationMs };
+        long[] expected = {
+            tm.totalPollDurationMs,
+            tm.totalScheduledDurationMs,
+            tm.totalIdleDurationMs,
+            tm.instrumentedCount,
+            tm.droppedCount };
         for (int i = 0; i < TASK_FIELD_NAMES.length; i++) {
             String fieldName = TASK_FIELD_NAMES[i];
             assertTrue(opType + " field '" + fieldName + "' must be present", monitorNode.containsKey(fieldName));

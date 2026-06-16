@@ -105,7 +105,9 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-        });
+                    sort_min: None,
+            sort_max: None,
+});
         global_first_row += seg_rows as i64;
     }
     LoadedSegment {
@@ -234,7 +236,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                 })
                 .collect(),
         );
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -264,6 +266,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                     crate::indexed_table::eval::CollectorCallStrategy::FullRange,
                     crate::indexed_table::eval::CollectorCallStrategy::PageRangeSplit,
                 ][seed as usize % 3],
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -291,6 +294,9 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -384,7 +390,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         let schema = schema.clone();
         let residual_pp = residual_pp.clone();
         let residual_physical = residual_physical.clone();
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&collector)),
@@ -403,6 +409,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                 0,
                 None,
+                    None,
             ));
             let _ = segment;
             Ok(eval)
@@ -472,6 +479,9 @@ async fn run_single_collector_query(
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -681,6 +691,9 @@ async fn run_with_factory_plan(
         query_config: Arc::new(qc),
         predicate_columns: vec![],
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

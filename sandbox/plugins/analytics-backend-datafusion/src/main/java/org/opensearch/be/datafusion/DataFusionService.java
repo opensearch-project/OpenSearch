@@ -224,13 +224,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
         if (runtimeHandle == null) {
             throw new IllegalStateException("DataFusionService has not been started");
         }
-        DataFusionStats nativeStats = NativeBridge.stats();
+        DataFusionStats nativeStats = NativeBridge.stats(runtimeHandle.get());
         SpillStats spill = buildSpillStats();
         return new DataFusionStats(
             nativeStats.getNativeExecutorsStats(),
-            nativeStats.getDatanodeGateStats(),
-            nativeStats.getCoordinatorGateStats(),
-            spill
+            nativeStats.getFragmentExecutorGateStats(),
+            nativeStats.getAdaptiveBudgetStats(),
+            spill,
+            nativeStats.getCacheStats(),
+            nativeStats.getSearchStats()
         );
     }
 

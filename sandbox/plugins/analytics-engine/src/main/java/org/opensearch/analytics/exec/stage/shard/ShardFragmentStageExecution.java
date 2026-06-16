@@ -123,7 +123,8 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      * offload: reordering would let isLast race ahead and drop earlier batches via the
      * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
      */
-    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(int sourceOrdinal, ActionListener<Void> listener) {
+    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ShardStageTask task, ActionListener<Void> listener) {
+        final int sourceOrdinal = ((ShardExecutionTarget) task.target()).ordinal();
         return new StreamingResponseListener<>() {
             @Override
             public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
@@ -160,6 +161,13 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                 }
                 if (isLast) listener.onResponse(null);
                 return true;
+            }
+
+            @Override
+            public void onStreamComplete(byte[] trailingMetadata) {
+                if (trailingMetadata != null) {
+                    task.setDataNodeMetrics(trailingMetadata);
+                }
             }
 
             @Override

@@ -64,8 +64,7 @@ public class WriteableRoundTripPropertyTests {
         "query_execution",
         "stream_next",
         "plan_setup",
-        "datanode_gate",
-        "coordinator_gate"
+        "fragment_executor_gate"
     );
 
     // ═══════════════════════════════════════════════════════════════════
@@ -89,7 +88,7 @@ public class WriteableRoundTripPropertyTests {
 
     @Provide
     Arbitrary<PartitionGateStats> partitionGateStats() {
-        Arbitrary<String> names = Arbitraries.of("datanode_gate", "coordinator_gate");
+        Arbitrary<String> names = Arbitraries.of("fragment_executor_gate");
         Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
         return Combinators.combine(names, nonNeg, nonNeg, nonNeg, nonNeg).as(PartitionGateStats::new);
     }
@@ -105,7 +104,8 @@ public class WriteableRoundTripPropertyTests {
     Arbitrary<SpillStats> spillStats() {
         Arbitrary<String> directory = Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20).map(s -> "/spill/" + s);
         Arbitrary<Long> nonNeg = Arbitraries.longs().between(0L, Long.MAX_VALUE / 2);
-        return Combinators.combine(directory, nonNeg, nonNeg, nonNeg, nonNeg).as(SpillStats::new);
+        Arbitrary<Long> staleCount = Arbitraries.longs().between(0L, 10_000L);
+        return Combinators.combine(directory, nonNeg, nonNeg, nonNeg, nonNeg, staleCount).as(SpillStats::new);
     }
 
     @Provide
@@ -138,9 +138,9 @@ public class WriteableRoundTripPropertyTests {
             monitors.put("plan_setup", ps);
             return new DataFusionStats(
                 new NativeExecutorsStats(io, cpu, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50, 0, 12),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75, 0, 8),
-                sp
+                new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 50, 0, 12, 0, 0),
+                null,
+                null
             );
         });
     }
@@ -156,9 +156,9 @@ public class WriteableRoundTripPropertyTests {
                 monitors.put("plan_setup", ps);
                 return new DataFusionStats(
                     new NativeExecutorsStats(io, null, monitors),
-                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50, 0, 12),
-                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75, 0, 8),
-                    sp
+                    new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 50, 0, 12, 0, 0),
+                    null,
+                    null
                 );
             });
     }
@@ -166,7 +166,7 @@ public class WriteableRoundTripPropertyTests {
     /** Generates a set of stat section names (possibly empty). */
     @Provide
     Arbitrary<Set<String>> statsToRetrieve() {
-        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(0).ofMaxSize(8);
+        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(0).ofMaxSize(7);
     }
 
     /** Generates an array of node IDs (possibly empty). */

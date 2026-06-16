@@ -197,7 +197,7 @@ pub async fn execute_query(
     })?;
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, _task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
     if let Some(h) = abort_handle {
@@ -292,7 +292,7 @@ pub async fn execute_with_context(
                 error!("execute_with_context: failed to execute prepared plan: {}", e);
                 e
             })?;
-            let (cross_rt_stream, abort_handle) =
+            let (cross_rt_stream, abort_handle, _task_done) =
                 CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
@@ -331,7 +331,7 @@ pub async fn execute_with_context(
                 e
             })?;
 
-            let (cross_rt_stream, abort_handle) =
+            let (cross_rt_stream, abort_handle, _task_done) =
                 CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
@@ -350,13 +350,14 @@ pub async fn execute_with_context(
 
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+        log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
         let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
             error!("execute_with_context: failed to create stream: {}", e);
             e
         })?;
 
-        let (cross_rt_stream, abort_handle) =
+        let (cross_rt_stream, abort_handle, _task_done) =
             CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
         if let Some(h) = abort_handle {

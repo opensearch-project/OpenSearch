@@ -42,6 +42,13 @@ pub struct SessionContextHandle {
     /// Java-side catalog snapshot via `create_reader`. Authoritative for stamping
     /// `SegmentFileInfo.writer_generation`; footer-kv reads are debug-only assertions.
     pub writer_generations: Arc<Vec<i64>>,
+    /// `index.sort.field` plumbed from the Java side (`ShardView.sort_fields`).
+    /// Empty when the index has no `index.sort.field`. Consumed by the vanilla path
+    /// (`IndexedTableProvider` `output_ordering`) and by the indexed path's
+    /// segment-reversal optimization.
+    pub sort_fields: Vec<String>,
+    /// Parallel to `sort_fields`. Each entry is `"asc"` or `"desc"` (lowercase).
+    pub sort_orders: Vec<String>,
     pub query_context: QueryTrackingContext,
     pub table_name: String,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
@@ -348,6 +355,8 @@ pub async unsafe fn create_session_context(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
+        sort_fields: shard_view.sort_fields.clone(),
+        sort_orders: shard_view.sort_orders.clone(),
         query_context,
         table_name: table_name.to_string(),
         indexed_config: None,
@@ -646,6 +655,8 @@ mod tests {
             table_path,
             object_metas: Arc::new(vec![]),
             writer_generations: Arc::new(vec![]),
+            sort_fields: vec![],
+            sort_orders: vec![],
             query_context,
             table_name: "t".to_string(),
             indexed_config: None,

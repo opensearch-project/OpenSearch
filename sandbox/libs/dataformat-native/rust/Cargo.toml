@@ -54,6 +54,7 @@ log = "=0.4.29"
 # The feature switches to global-dynamic TLS model, compatible with runtime loading.
 tikv-jemallocator = { version = "=0.6.1", features = ["disable_initial_exec_tls", "profiling"] }
 tikv-jemalloc-ctl = { version = "=0.6.1", features = ["stats"] }
+tikv-jemalloc-sys = { version = "=0.6.1", features = ["stats"] }
 
 # Misc
 dashmap = { version = "=5.5.3", features = ["raw-api", "serde"] }

@@ -18,8 +18,6 @@ import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttle;
-import org.apache.calcite.rel.core.Aggregate;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
@@ -36,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
+import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -54,8 +53,9 @@ import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
-import org.opensearch.analytics.spi.AggregateFunction;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -102,9 +102,9 @@ public class PlannerImpl {
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
-        context.setHasEngineNativeMergeAggregate(containsEngineNativeMergeAggregate(modifiedRelNode));
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -253,6 +253,20 @@ public class PlannerImpl {
     }
 
     /**
+     * Phase 1c': duplicate an aggregate's literal-config-arg Project (e.g. percentile's {@code 50})
+     * into a pinned upper copy (literal stays with the aggregate) over an unpinned physical-only
+     * lower copy (pushes below the ExchangeReducer). Runs AFTER marking — operates on
+     * {@code OpenSearch*} nodes and emits a pinned {@code OpenSearchProject} whose
+     * {@code computeSelfCost} forces the CBO-inserted ER below it, keeping the literal in the
+     * coordinator fragment for the DataFusion substrait converter. Placed after marking so the
+     * pre-marking {@code PROJECT_MERGE} cannot re-fuse the two copies. See
+     * {@link OpenSearchAggLiteralArgProjectSplitRule}.
+     */
+    private static RelNode splitAggLiteralArgProject(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("agg-literal-arg-split").addRuleInstance(new OpenSearchAggLiteralArgProjectSplitRule()).run(input, listener);
+    }
+
+    /**
      * Phase 1a: constant-expression reduction on Filter and Project predicates. Kept in
      * its own phase so {@code ProjectReduceExpressionsRule} cannot use a downstream
      * Filter's predicates (introduced by the pushdown phase in Phase 1b) to rewrite
@@ -281,15 +295,16 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("pushdown-rules")
             .bottomUp()
-            // Transposes (filter-into-* and sort-into-project) cascade together within
-            // one fixpoint, alongside PROJECT_MERGE which collapses the intermediate
-            // adjacent Projects that SORT_PROJECT_TRANSPOSE produces. FILTER_MERGE
-            // runs as its own instruction so it only fires after the transposes have
-            // settled — that way any auto-injected NOT NULL collapses with the user's
-            // WHERE on the post-pushdown filter, not on a half-pushed intermediate.
-            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
-            // rewriter by lifting Project above Sort so it sees a single Project layer
-            // above the anchor.
+            // Transposes (filter-into-*) cascade together within one fixpoint, alongside
+            // PROJECT_MERGE which collapses adjacent Projects. FILTER_MERGE runs as its own
+            // instruction so it only fires after the transposes have settled — that way any
+            // auto-injected NOT NULL collapses with the user's WHERE on the post-pushdown filter,
+            // not on a half-pushed intermediate.
+            //
+            // SORT_PROJECT_TRANSPOSE is intentionally omitted: lifting Project above Sort puts it
+            // above the Exchange, defeating projection pushdown. Keeping it below lets DataFusion
+            // prune the scan. QTF relocates the below-Sort Project above its wrapper itself.
+            //
             // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably bounded to
             // within the limit (e.g. a collation-less `head N` or a sort over a scalar
             // aggregate, getMaxRowCount <= 1): a no-op that the marking rule must not have to
@@ -301,7 +316,6 @@ public class PlannerImpl {
                     CoreRules.FILTER_PROJECT_TRANSPOSE,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
-                    CoreRules.SORT_PROJECT_TRANSPOSE,
                     CoreRules.PROJECT_MERGE,
                     CoreRules.LIMIT_MERGE,
                     CoreRules.SORT_REMOVE_REDUNDANT
@@ -341,25 +355,6 @@ public class PlannerImpl {
      * <p>TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
      * optimization.
      */
-    /**
-     * True if the plan contains an aggregate with engine-native-merge semantics (intermediate
-     * wire type differs from output type, e.g. APPROX_COUNT_DISTINCT emits Binary HLL state).
-     * When present, filter delegation must be suppressed to avoid plan-shape divergence between
-     * derive_schema_from_partial_plan and the data-node execution.
-     */
-    private static boolean containsEngineNativeMergeAggregate(RelNode node) {
-        if (node instanceof Aggregate agg) {
-            for (AggregateCall call : agg.getAggCallList()) {
-                if (AggregateFunction.isEngineNativeMerge(call)) {
-                    return true;
-                }
-            }
-        }
-        for (RelNode child : node.getInputs()) {
-            if (containsEngineNativeMergeAggregate(child)) return true;
-        }
-        return false;
-    }
 
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
         return HepPhase.named("marking")
@@ -413,7 +408,13 @@ public class PlannerImpl {
             if (!copied.getTraitSet().equals(desiredTraits)) {
                 volcanoPlanner.setRoot(volcanoPlanner.changeTraits(copied, desiredTraits));
             }
-            return volcanoPlanner.findBestExp();
+            RelNode best = volcanoPlanner.findBestExp();
+            if (LOGGER.isDebugEnabled()) {
+                StringWriter sw = new StringWriter();
+                volcanoPlanner.dump(new PrintWriter(sw));
+                LOGGER.debug("Volcano memo:\n{}", sw);
+            }
+            return best;
         } finally {
             if (listener != null) listener.endPhase("cbo");
         }

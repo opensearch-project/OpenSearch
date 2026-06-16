@@ -18,7 +18,9 @@
 //! design and it was reworked here so the indexed path respects the same store
 //! the vanilla path uses (file://, s3://, etc.).
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::Result;
@@ -72,6 +74,19 @@ pub async fn load_parquet_metadata(
     Ok((Arc::new(schema), size, pq_meta))
 }
 
+/// Shared accumulator for object-store read wall-time.
+#[derive(Debug, Default)]
+pub struct ReadIoStats {
+    pub total_ns: AtomicU64,
+    pub count: AtomicU64,
+}
+
+fn record_io(stats: &ReadIoStats, dur: Duration) {
+    let ns = dur.as_nanos() as u64;
+    stats.total_ns.fetch_add(ns, Ordering::Relaxed);
+    stats.count.fetch_add(1, Ordering::Relaxed);
+}
+
 /// Configuration for creating a per-row-group parquet stream.
 pub struct RowGroupStreamConfig {
     /// Object-store-relative path to the parquet file.
@@ -85,6 +100,7 @@ pub struct RowGroupStreamConfig {
     pub metadata: Arc<ParquetMetaData>,
     pub projection: Option<Vec<usize>>,
     pub predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+    pub io_stats: Arc<ReadIoStats>,
 }
 
 /// Create a stream that reads a single row group using `RowSelection`.
@@ -146,6 +162,7 @@ fn create_stream_with_access_plan(
     let reader_factory = Arc::new(CachedMetadataReaderFactory::new(
         Arc::clone(&config.store),
         Arc::clone(&config.metadata),
+        Arc::clone(&config.io_stats),
     )) as Arc<dyn ParquetFileReaderFactory>;
 
     let mut parquet_source = ParquetSource::new(config.full_schema.clone())
@@ -187,11 +204,16 @@ fn create_stream_with_access_plan(
 pub struct CachedMetadataReaderFactory {
     store: Arc<dyn ObjectStore>,
     metadata: Arc<ParquetMetaData>,
+    io_stats: Arc<ReadIoStats>,
 }
 
 impl CachedMetadataReaderFactory {
-    pub fn new(store: Arc<dyn ObjectStore>, metadata: Arc<ParquetMetaData>) -> Self {
-        Self { store, metadata }
+    pub fn new(
+        store: Arc<dyn ObjectStore>,
+        metadata: Arc<ParquetMetaData>,
+        io_stats: Arc<ReadIoStats>,
+    ) -> Self {
+        Self { store, metadata, io_stats }
     }
 }
 
@@ -210,6 +232,7 @@ impl ParquetFileReaderFactory for CachedMetadataReaderFactory {
             location: file.object_meta.location.clone(),
             metadata: Arc::clone(&self.metadata),
             metrics: file_metrics,
+            io_stats: Arc::clone(&self.io_stats),
         }))
     }
 }
@@ -219,6 +242,7 @@ struct CachedMetadataReader {
     location: object_store::path::Path,
     metadata: Arc<ParquetMetaData>,
     metrics: ParquetFileMetrics,
+    io_stats: Arc<ReadIoStats>,
 }
 
 impl AsyncFileReader for CachedMetadataReader {
@@ -231,11 +255,15 @@ impl AsyncFileReader for CachedMetadataReader {
             .add((range.end - range.start) as usize);
         let store = Arc::clone(&self.store);
         let location = self.location.clone();
+        let io_stats = Arc::clone(&self.io_stats);
         async move {
-            store
+            let t0 = Instant::now();
+            let r = store
                 .get_range(&location, range)
                 .await
-                .map_err(|e| datafusion::parquet::errors::ParquetError::External(Box::new(e)))
+                .map_err(|e| datafusion::parquet::errors::ParquetError::External(Box::new(e)));
+            record_io(&io_stats, t0.elapsed());
+            r
         }
         .boxed()
     }
@@ -248,11 +276,15 @@ impl AsyncFileReader for CachedMetadataReader {
         self.metrics.bytes_scanned.add(total as usize);
         let store = Arc::clone(&self.store);
         let location = self.location.clone();
+        let io_stats = Arc::clone(&self.io_stats);
         async move {
-            store
+            let t0 = Instant::now();
+            let r = store
                 .get_ranges(&location, &ranges)
                 .await
-                .map_err(|e| datafusion::parquet::errors::ParquetError::External(Box::new(e)))
+                .map_err(|e| datafusion::parquet::errors::ParquetError::External(Box::new(e)));
+            record_io(&io_stats, t0.elapsed());
+            r
         }
         .boxed()
     }

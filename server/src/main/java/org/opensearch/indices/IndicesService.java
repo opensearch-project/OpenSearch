@@ -2155,6 +2155,14 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Updates the native memory budget used by the IndexingMemoryController for flush/throttle decisions.
+     * Called when the indexing pool group's effective limit changes.
+     */
+    public void setNativeIndexBufferBytes(long bytes) {
+        indexingMemoryController.setNativeBufferBytes(bytes);
+    }
+
+    /**
      * Cache something calculated at the shard level.
      * @param shard the shard this item is part of
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.

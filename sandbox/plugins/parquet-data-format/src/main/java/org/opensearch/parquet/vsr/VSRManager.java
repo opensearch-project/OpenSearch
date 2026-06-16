@@ -18,6 +18,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
@@ -33,6 +34,9 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -183,8 +187,15 @@ public class VSRManager implements AutoCloseable {
      * Adds a document to the active VSR, rotating if necessary.
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
+     * <p>
+     * Enforces single-value semantics: if the same {@link MappedFieldType} instance
+     * appears more than once in the document's field list, a {@link MapperParsingException}
+     * is thrown. Identity equality (reference {@code ==}) is used because the mapper
+     * service reuses field type instances — the same instance appearing twice indicates
+     * a multi-value field, which columnar formats do not support.
      *
      * @param doc the document input containing field-value pairs
+     * @throws MapperParsingException if a field appears more than once in the document
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
         if (pendingWrite != null && pendingWrite.isDone()) {
@@ -204,8 +215,14 @@ public class VSRManager implements AutoCloseable {
             );
         }
         ManagedVSR activeVSR = managedVSR.get();
+        Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
         for (FieldValuePair pair : doc.getFinalInput()) {
             MappedFieldType fieldType = pair.getFieldType();
+            if (dedup.add(fieldType) == false) {
+                throw new MapperParsingException(
+                    "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
+                );
+            }
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
             if (parquetField == null) {
                 // Defense-in-depth: schema reconciliation is supposed to happen in

@@ -18,6 +18,8 @@ use datafusion::physical_plan::metrics::{
     Count, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet, Time,
 };
 
+use crate::indexed_table::parquet_bridge::ReadIoStats;
+
 /// Lightweight metric handles passed from `IndexedExec` to the streaming loop.
 ///
 /// All fields are `Option` because standalone uses of `IndexedExec` (i.e. not
@@ -100,6 +102,14 @@ pub struct StreamMetrics {
     /// Time spent polling the inner parquet stream (pull decoded
     /// batch), isolating decode from our own processing.
     pub parquet_poll_time: Option<Time>,
+    /// Cumulative wall-clock spent parked between consecutive `poll_next` calls.
+    /// The task returned `Poll::Pending` or was not re-polled immediately;
+    /// accumulated into this metric at the start of each poll.
+    pub inter_poll_gap: Option<Time>,
+    /// Cumulative count of `poll_next` invocations across all chunk streams.
+    pub poll_count: Option<Count>,
+    /// Time spent in the initial `init_prefetch()` call (first poll only).
+    pub init_prefetch_time: Option<Time>,
     /// Count of row groups skipped by the runtime dynamic-filter pruner at the
     /// PREFETCH phase — before the Lucene/FFM eval ran. This saves both the
     /// index eval and the parquet decode. Zero when no dynamic filter was pushed.
@@ -109,7 +119,11 @@ pub struct StreamMetrics {
     /// RGs that became prunable only after the filter tightened further between
     /// prefetch (which runs ~1 RG ahead) and processing.
     pub dynamic_filter_rg_pruned_at_poll: Option<Count>,
-    /// Accumulated inner `DataSourceExec` parquet metrics (shared across partitions).
+    /// Object-store read wall-time accumulator, shared across all RG readers
+    /// within this partition.
+    pub io_stats: Option<Arc<ReadIoStats>>,
+    /// Inner `DataSourceExec` parquet metrics for this partition: one
+    /// `MetricsSet` per chunk (row-group set) the partition scans.
     pub inner_parquet_metrics: Option<Arc<std::sync::Mutex<Vec<MetricsSet>>>>,
 }
 
@@ -148,8 +162,12 @@ impl StreamMetrics {
             mask_slice_time: None,
             projection_fixup_time: None,
             parquet_poll_time: None,
+            inter_poll_gap: None,
+            poll_count: None,
+            init_prefetch_time: None,
             dynamic_filter_rg_pruned_at_prefetch: None,
             dynamic_filter_rg_pruned_at_poll: None,
+            io_stats: None,
             inner_parquet_metrics: None,
         }
     }
@@ -188,6 +206,9 @@ pub struct PartitionMetrics {
     pub mask_slice_time: Time,
     pub projection_fixup_time: Time,
     pub parquet_poll_time: Time,
+    pub inter_poll_gap: Time,
+    pub poll_count: Count,
+    pub init_prefetch_time: Time,
     pub dynamic_filter_rg_pruned_at_prefetch: Count,
     pub dynamic_filter_rg_pruned_at_poll: Count,
 }
@@ -232,6 +253,11 @@ impl PartitionMetrics {
                 .subset_time("projection_fixup_time", partition),
             parquet_poll_time: MetricBuilder::new(metrics)
                 .subset_time("parquet_poll_time", partition),
+            inter_poll_gap: MetricBuilder::new(metrics)
+                .subset_time("inter_poll_gap", partition),
+            poll_count: counter("poll_count"),
+            init_prefetch_time: MetricBuilder::new(metrics)
+                .subset_time("init_prefetch_time", partition),
             dynamic_filter_rg_pruned_at_prefetch: counter("dynamic_filter_rg_pruned_at_prefetch"),
             dynamic_filter_rg_pruned_at_poll: counter("dynamic_filter_rg_pruned_at_poll"),
         }
@@ -274,8 +300,12 @@ impl PartitionMetrics {
             mask_slice_time: Some(self.mask_slice_time),
             projection_fixup_time: Some(self.projection_fixup_time),
             parquet_poll_time: Some(self.parquet_poll_time),
+            inter_poll_gap: Some(self.inter_poll_gap),
+            poll_count: Some(self.poll_count),
+            init_prefetch_time: Some(self.init_prefetch_time),
             dynamic_filter_rg_pruned_at_prefetch: Some(self.dynamic_filter_rg_pruned_at_prefetch),
             dynamic_filter_rg_pruned_at_poll: Some(self.dynamic_filter_rg_pruned_at_poll),
+            io_stats: Some(Arc::new(ReadIoStats::default())),
             inner_parquet_metrics,
         }
     }

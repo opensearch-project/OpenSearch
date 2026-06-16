@@ -11,6 +11,9 @@ package org.opensearch.parquet.benchmark;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -83,7 +86,7 @@ public class VSRRotationBenchmark {
     private static final DataFormat PARQUET_FORMAT = new ParquetDataFormat();
     private ThreadPool threadPool;
     private ArrowBufferPool bufferPool;
-    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
+    private ArrowNativeAllocator nativeAllocator;
     private Schema schema;
     private List<MappedFieldType> fieldTypes;
     private VSRManager vsrManager;
@@ -135,8 +138,8 @@ public class VSRRotationBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() throws IOException {
-        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, PoolGroup.INDEXING);
         bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         filePath = Path.of(System.getProperty("java.io.tmpdir"), "benchmark_vsr_" + System.nanoTime() + ".parquet").toString();
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();

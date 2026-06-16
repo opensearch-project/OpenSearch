@@ -45,11 +45,11 @@ dependencies {
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 
     // job-scheduler pulled from OpenSearch Snapshots (no local build).
-    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.7.0.0-SNAPSHOT@zip"
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
     // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
     // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
     // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
-    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.7.0.0-SNAPSHOT@zip"
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
@@ -127,6 +127,7 @@ integTest {
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
     exclude '**/SpillStatsEnabledIT.class'
+    exclude '**/SpillCleanupOnBootIT.class'
     exclude '**/YmlOversamplingIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
@@ -220,6 +221,60 @@ testClusters.integTestSpillEnabled {
     // SpillStatsCollector.collect(...). The directory is created in the task's doFirst
     // block above so DataFusionPlugin's boot writability probe succeeds.
     setting 'datafusion.spill_directory', spillItDir
+    setting 'datafusion.spill_memory_limit_bytes', '1073741824'
+}
+
+// ── Spill-cleanup-on-boot variant: pre-seed leaked entries, verify boot wipe ─
+// Separate from integTestSpillEnabled so the stats IT isn't perturbed by seeded
+// entries it doesn't expect.
+//
+// Scope: this variant verifies the end-to-end boot wipe + fresh datafusion-XXXXXX/
+// provisioning. It does NOT reproduce the EACCES boot failure that motivated the
+// fix — the seeded directory lives under build/, whose parent the JVM owns. The
+// EACCES regression is owned by the Rust unit test
+// create_global_runtime_succeeds_when_jvm_does_not_own_spill_parent.
+ext.spillCleanupItDir = layout.buildDirectory.dir('spill-cleanup-it').get().asFile.absolutePath
+
+task integTestSpillCleanup(type: RestIntegTestTask) {
+    description = 'Verifies boot-time spill cleanup wipes leaked entries and preserves the spill root (content wipe only; EACCES is covered by the Rust unit test).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.SpillCleanupOnBootIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestSpillCleanup)
+
+// Seed the spill directory before cluster boot. Cluster start fires at execution
+// time (TestClustersPlugin's TaskActionListener.beforeActions, which runs before
+// any task's doFirst), so seeding inside doFirst would race the cluster boot. We
+// gate on the task graph so ./gradlew tasks / assemble / etc. don't pay the I/O.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(integTestSpillCleanup)) {
+        java.nio.file.Path spillCleanupRoot = java.nio.file.Paths.get(spillCleanupItDir)
+        java.nio.file.Files.createDirectories(spillCleanupRoot)
+        File[] spillCleanupExisting = spillCleanupRoot.toFile().listFiles()
+        if (spillCleanupExisting != null) {
+            for (File child : spillCleanupExisting) {
+                if (child.isDirectory()) {
+                    child.deleteDir()
+                } else {
+                    child.delete()
+                }
+            }
+        }
+        java.nio.file.Path leakedSubdir = spillCleanupRoot.resolve('datafusion-aB3kF7')
+        java.nio.file.Files.createDirectories(leakedSubdir)
+        java.nio.file.Files.writeString(leakedSubdir.resolve('tmp_spill_001.arrow'), 'stale spill data')
+        java.nio.file.Files.writeString(spillCleanupRoot.resolve('stray.txt'), 'loose top-level leak')
+    }
+}
+
+testClusters.integTestSpillCleanup {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'datafusion.spill_directory', spillCleanupItDir
     setting 'datafusion.spill_memory_limit_bytes', '1073741824'
 }
 
