@@ -53,9 +53,11 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -477,7 +479,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         assertEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
     }
 
-    public void testBulkAdaptiveSelectShardWithSingleSearchOnlyShard() {
+    public void testBulkAdaptiveSelectShardWithSingleShard() {
         ResponseCollectorService nodeMetricsCollector = new ResponseCollectorService(clusterService);
         Map<String, Long> clientConnections = new HashMap<>();
 
@@ -488,9 +490,14 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         );
 
         assertNull(shardId);
+
+        shardId = TransportBulkAction.bulkAdaptiveSelectShard(createIndexRoutingTable(2, 1), nodeMetricsCollector, clientConnections);
+
+        assertNotNull(shardId);
+        assertEquals(0, shardId.id());
     }
 
-    public void testBulkAdaptiveSelectShardWithMultipleSearchOnlyShards() {
+    public void testBulkAdaptiveSelectShardWithMultipleShardsWithoutActivePrimary() {
         ResponseCollectorService nodeMetricsCollector = new ResponseCollectorService(clusterService);
         Map<String, Long> clientConnections = new HashMap<>();
 
@@ -501,6 +508,26 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         );
 
         assertNull(shardId);
+
+        org.opensearch.core.index.Index index = new org.opensearch.core.index.Index("test", "1");
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        ShardId primaryShardId = new ShardId(index, 0);
+        indexRoutingTable.addShard(TestShardRouting.newShardRouting(primaryShardId, "node-0", true, ShardRoutingState.STARTED));
+        indexRoutingTable.addShard(
+            TestShardRouting.newShardRouting(new ShardId(index, 1), "search-node", false, true, ShardRoutingState.STARTED, null)
+        );
+        indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), "node-2", true, ShardRoutingState.INITIALIZING));
+
+        Tuple<List<ShardRouting>, Map<String, List<ShardRouting>>> shardInfos = TransportBulkAction.getIndexPrimaryShards(
+            indexRoutingTable.build()
+        );
+
+        assertEquals(1, shardInfos.v1().size());
+        assertEquals(primaryShardId, shardInfos.v1().get(0).shardId());
+        assertEquals(1, shardInfos.v2().size());
+        assertTrue(shardInfos.v2().containsKey("node-0"));
+        assertEquals(1, shardInfos.v2().get("node-0").size());
+        assertEquals(primaryShardId, shardInfos.v2().get("node-0").get(0).shardId());
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {
