@@ -184,6 +184,46 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         assertSame("original stage failure must reach the listener even when terminal sink close throws", rootCause, onFailure.get());
     }
 
+    /**
+     * A query self-cancels its remaining stages once a stage fails (e.g. a reduce sink throwing
+     * {@code ReduceSizeExceededException}). The parent task ends up cancelled, but the captured
+     * stage failure is the TRUE cause — {@code terminalCause} must surface it rather than masking
+     * it behind {@code TaskCancelledException}, so the user sees the actionable reason.
+     *
+     * <p>Reproduces the masking ordering: the parent task is cancelled BEFORE the query reaches
+     * its terminal (the real scheduler cancels the task as part of the self-cancel cascade), and
+     * the failing stage has captured a real cause. Without the fix, {@code terminalCause} would
+     * see {@code task.isCancelled()} and return {@code TaskCancelledException}, hiding the cause.
+     */
+    public void testCapturedStageFailureWinsOverSelfCancelMask() {
+        Stage rootStage = stageWithId(0);
+        // A stage that holds a captured failure but lands on CANCELLED (cascade), exactly as a
+        // child stage does when the query self-cancels after a sibling/downstream failure.
+        RuntimeException rootCause = new RuntimeException("Stage 0 sink feed failed", new IllegalStateException("buffer budget exceeded"));
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryContext ctx = queryCtx(rootStage);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, StageExecution::start);
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        QueryExecution qe = new QueryExecution(
+            ctx,
+            graph,
+            StageExecution::start,
+            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
+        );
+        qe.start();
+
+        // Self-cancel cascade: parent task cancelled first, then the stage settles to a terminal
+        // while carrying the captured cause. Capture the failure without firing FAILED (record it,
+        // then drive the CANCELLED terminal) to mirror the cascade ordering.
+        ctx.parentTask().cancel("self-cancel after stage failure");
+        root.recordFailureOnly(rootCause);
+        qe.cancelAll("self-cancel after stage failure");
+
+        assertSame("captured stage failure must win over the self-cancel TaskCancelledException mask", rootCause, onFailure.get());
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────
 
     private QueryExecution newQueryExecution(Stage rootStage, ActionListener<Iterable<VectorSchemaRoot>> listener) {
@@ -301,6 +341,12 @@ public class QueryExecutionTests extends OpenSearchTestCase {
 
         void failWith(Exception cause) {
             failWithCause(cause);
+        }
+
+        /** Records a captured failure WITHOUT transitioning state — mirrors a stage that captured a
+         *  cause but then settled to CANCELLED via the self-cancel cascade rather than FAILED. */
+        void recordFailureOnly(Exception cause) {
+            failure.compareAndSet(null, cause);
         }
 
         void succeed() {

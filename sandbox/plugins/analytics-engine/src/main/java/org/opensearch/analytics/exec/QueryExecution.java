@@ -171,17 +171,45 @@ public class QueryExecution {
     }
 
     /**
-     * Live parent-task cancellation wins — keeps the user-facing message accurate over the
-     * downstream FAILED cause. Otherwise propagate the captured stage failure (synthetic
-     * fallback for CANCELLED with no upstream cause).
+     * Resolves the exception handed to the completion listener on a non-success terminal.
+     *
+     * <p>A captured stage failure is the <em>true</em> cause and wins, even when the parent
+     * task is also cancelled: a query self-cancels its remaining stages as a consequence of
+     * the first stage failure (e.g. a {@code ReduceSizeExceededException} or an Arrow OOM),
+     * so reporting only {@code TaskCancelledException} would mask the actionable reason —
+     * the user sees "query cancelled" instead of "raise the buffer limit / narrow the query".
+     * The root stage's failure is preferred; otherwise the first captured failure across the
+     * graph (the failing stage is often a child reduce/shard stage that cascaded up).
+     *
+     * <p>Only when NO stage captured a failure is the terminal a genuine external cancel
+     * (client disconnect, admin task cancel) — then {@code TaskCancelledException} is the
+     * honest answer. The final synthetic fallback covers a CANCELLED/FAILED terminal with no
+     * recorded cause at all.
      */
     private Exception terminalCause(State terminal) {
+        Exception failure = firstStageFailure();
+        if (failure != null) {
+            return failure;
+        }
         if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
             return new TaskCancelledException("query cancelled");
         }
-        StageExecution rootExec = graph.rootExecution();
-        Exception failure = rootExec.getFailure();
-        return failure != null ? failure : new RuntimeException("Stage " + rootExec.getStageId() + " " + terminal);
+        return new RuntimeException("Stage " + graph.rootExecution().getStageId() + " " + terminal);
+    }
+
+    /** Root stage's captured failure if present, else the first captured failure across the graph. */
+    private Exception firstStageFailure() {
+        Exception rootFailure = graph.rootExecution().getFailure();
+        if (rootFailure != null) {
+            return rootFailure;
+        }
+        for (StageExecution exec : graph.allExecutions()) {
+            Exception failure = exec.getFailure();
+            if (failure != null) {
+                return failure;
+            }
+        }
+        return null;
     }
 
     /** Releases buffered terminal-sink batches. Arrow leak/double-release surfaces via {@link #runQuietly}. */

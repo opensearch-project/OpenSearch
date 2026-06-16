@@ -53,6 +53,124 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         assertEquals("Single-input reduce uses the synthetic id 'input-0'", "input-0", DatafusionMemtableReduceSink.INPUT_ID);
     }
 
+    /**
+     * The buffered reduce holds every input batch off-heap until {@code reduce()}. When the
+     * accumulated buffer size would exceed the per-query Arrow budget (the allocator's limit,
+     * set by {@code analytics.coordinator.buffer_limit}), the sink must FAIL FAST with
+     * {@link ReduceSizeExceededException} <em>before</em> attempting the allocation — never let
+     * a raw Arrow {@code OutOfMemoryException} fire (which leaks the in-flight buffers and gets
+     * masked as a TaskCancelledException). Uses a deliberately tiny-limit allocator so the
+     * second batch trips the guard, and asserts the allocator is fully released afterward.
+     */
+    public void testFeedFailsFastWhenBufferBudgetExceeded() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        assertTrue("runtime ptr non-zero", runtimePtr != 0);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator root = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID);
+
+            // 1 MiB budget: an early batch fits and is retained; a later batch that would push the
+            // allocator's live usage past the budget (accounting for the FFI export margin) is
+            // refused. Exercises the real headroom check (getAllocatedMemory vs getLimit), not just
+            // the per-batch margin.
+            try (BufferAllocator budgeted = root.newChildAllocator("query-budget", 0, 1024 * 1024)) {
+                CapturingSink downstream = new CapturingSink();
+                ExchangeSinkContext ctx = new ExchangeSinkContext(
+                    "q-budget",
+                    0,
+                    0L,
+                    substrait,
+                    budgeted,
+                    List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID))),
+                    downstream
+                );
+
+                DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
+                try {
+                    // Batches arrive from the UNBOUNDED root (the network), not the budgeted query
+                    // allocator. The first ~64 KiB batch is retained; feeding ~256 KiB batches must
+                    // eventually trip the guard BEFORE the budgeted allocator hits its hard limit.
+                    long[] small = new long[8 * 1024]; // ~64 KiB of int64 data
+                    for (int i = 0; i < small.length; i++) {
+                        small[i] = i;
+                    }
+                    sink.feed(makeBatch(root, inputSchema, small)); // fits
+                    assertTrue("first batch retained", budgeted.getAllocatedMemory() > 0);
+
+                    long[] big = new long[64 * 1024]; // ~512 KiB each
+                    for (int i = 0; i < big.length; i++) {
+                        big[i] = i;
+                    }
+                    ReduceSizeExceededException ex = expectThrows(ReduceSizeExceededException.class, () -> {
+                        // Feed until the accumulated retained buffers exhaust the 1 MiB budget. The
+                        // guard must trip (clean exception) rather than the allocator's hard limit (OOM).
+                        for (int n = 0; n < 16; n++) {
+                            sink.feed(makeBatch(root, inputSchema, big));
+                        }
+                    });
+                    // expectThrows already proves a ReduceSizeExceededException (the proactive guard)
+                    // was thrown rather than a raw Arrow OutOfMemoryException. Just check the message.
+                    assertTrue(
+                        "message must be actionable, got: " + ex.getMessage(),
+                        ex.getMessage().contains("analytics.coordinator.buffer_limit")
+                    );
+                } finally {
+                    sink.close();
+                }
+                assertEquals("retained buffers released on close", 0, budgeted.getAllocatedMemory());
+            }
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
+     * With an unbounded query allocator ({@code Long.MAX_VALUE} limit — the operator opted out
+     * of {@code analytics.coordinator.buffer_limit}), the size guard is inert: feeding still
+     * works and the reduce produces the correct result. Guards against the guard mis-firing on
+     * the disabled-limit path.
+     */
+    public void testUnboundedAllocatorDisablesGuard() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        assertTrue("runtime ptr non-zero", runtimePtr != 0);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID);
+
+            CapturingSink downstream = new CapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-unbounded",
+                0,
+                0L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
+            try {
+                sink.feed(makeBatch(alloc, inputSchema, new long[] { 10L, 20L, 30L }));
+                PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+                sink.reduce(reduceDone);
+                reduceDone.actionGet(10, TimeUnit.SECONDS);
+            } finally {
+                sink.close();
+            }
+            assertEquals("SUM(10,20,30) = 60", 60L, downstream.total);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
     public void testFeedDrainsSumToDownstream() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
