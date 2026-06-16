@@ -292,15 +292,22 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (mode == AggregateMode.SINGLE) {
-            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-                RelTrait trait = getInput().getTraitSet().getTrait(index);
-                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
+        for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+            RelTrait trait = getInput().getTraitSet().getTrait(index);
+            if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
+                || distribution.getType() == RelDistribution.Type.ANY;
+
+            // SINGLE must sit over gathered input (partitioned input → shards aggregate in
+            // isolation, partials never merge). PARTIAL must sit over partitioned input
+            // (over gathered input it is a no-op that beats the correct shard-PARTIAL+ER on a
+            // cost tie). Reject the wrong placement for each.
+            if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
+            // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
             }
         }
         return planner.getCostFactory().makeTinyCost();

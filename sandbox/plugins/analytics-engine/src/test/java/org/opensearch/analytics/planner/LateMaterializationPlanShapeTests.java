@@ -31,6 +31,7 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -434,6 +435,8 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
 
     // ── Tests that decline QTF ─────────────────────────────────────────
 
+    // FIXME [RemoveBeforeMerge]: temporary diagnostic logging to probe pure-LIMIT sort placement.
+    @TestLogging(value = "org.opensearch.analytics.planner:DEBUG", reason = "probe pure-LIMIT sort placement (shard topN vs gather)")
     public void testQtfDeclined_pureLimit() {
         // SELECT URL FROM hits LIMIT 10
         // No ORDER BY → no anchor → no rewrite.
@@ -459,6 +462,8 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         assertQtfDeclined("SELECT CounterID, COUNT(*) AS c FROM hits GROUP BY CounterID ORDER BY CounterID LIMIT 10", 2);
     }
 
+    // FIXME [RemoveBeforeMerge]: temporary diagnostic logging for agg-over-LIMIT-sort diagnosis.
+    @TestLogging(value = "org.opensearch.analytics.planner:DEBUG", reason = "capture pre/post-CBO plan for agg-over-LIMIT-sort diagnosis")
     public void testQtfDeclined_aggregateAboveAnchor() {
         // Aggregate above the anchor — explicitly excluded from ABOVE_ALLOWED in v2.
         // (Above-Aggregate group/aggCall remap under a moving wrapper rowType is a follow-up.)
