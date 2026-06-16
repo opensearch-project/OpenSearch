@@ -50,8 +50,9 @@ public class BinTimestampSpanIT extends AnalyticsRestTestCase {
 
     public void testBinTimestampSpan1Day() throws IOException {
         // 1-day bins. 14 distinct days (some collapse — e.g. 2004-07-28 has 3 rows).
+        // Tie-break on datetime0 so cnt=1 buckets order deterministically.
         assertRowsEqual(
-            "source=" + DATASET.indexName + " | bin datetime0 span=1day | stats count() as cnt by datetime0 | sort - cnt | head 3",
+            "source=" + DATASET.indexName + " | bin datetime0 span=1day | stats count() as cnt by datetime0 | sort - cnt, datetime0 | head 3",
             row(3L, "2004-07-28 00:00:00"),
             row(2L, "2004-07-14 00:00:00"),
             row(1L, "2004-07-04 00:00:00")
