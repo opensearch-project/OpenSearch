@@ -798,7 +798,7 @@ public class DataFusionPlugin extends Plugin
             try {
                 return NativeMemoryFetcher.fetch();
             } catch (Exception e) {
-                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             }
         };
     }
