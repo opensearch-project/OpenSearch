@@ -32,17 +32,93 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.Version;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotInfo> {
+
+    /**
+     * A snapshot whose {@code version_id} refers to an unsupported version (for example, an index
+     * originally created on a legacy Elasticsearch version) must still be readable so that listing
+     * snapshots and retrieving snapshot status do not fail for the whole repository. The version is
+     * reported as {@code null} in that case rather than throwing.
+     */
+    public void testFromXContentInternalToleratesUnsupportedVersionId() throws IOException {
+        // 7100299 is the legacy Elasticsearch 7.10.2 version id; it lacks the OpenSearch mask bit
+        // and is therefore not supported by OpenSearch 3.x.
+        final String json = "{\"snapshot\":{"
+            + "\"name\":\"snap-legacy\","
+            + "\"uuid\":\"abc123\","
+            + "\"version_id\":7100299,"
+            + "\"state\":\"SUCCESS\","
+            + "\"indices\":[\"idx-1\"],"
+            + "\"total_shards\":1,"
+            + "\"successful_shards\":1"
+            + "}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            SnapshotInfo snapshotInfo = SnapshotInfo.fromXContentInternal(parser);
+            assertEquals("snap-legacy", snapshotInfo.snapshotId().getName());
+            assertNull("unsupported version id must resolve to null instead of throwing", snapshotInfo.version());
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        }
+    }
+
+    /**
+     * A supported {@code version_id} must continue to resolve to the corresponding {@link Version}.
+     */
+    public void testFromXContentInternalResolvesSupportedVersionId() throws IOException {
+        final String json = "{\"snapshot\":{"
+            + "\"name\":\"snap-ok\","
+            + "\"uuid\":\"def456\","
+            + "\"version_id\":"
+            + Version.CURRENT.id
+            + ","
+            + "\"state\":\"SUCCESS\","
+            + "\"indices\":[\"idx-1\"],"
+            + "\"total_shards\":1,"
+            + "\"successful_shards\":1"
+            + "}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            SnapshotInfo snapshotInfo = SnapshotInfo.fromXContentInternal(parser);
+            assertEquals(Version.CURRENT, snapshotInfo.version());
+        }
+    }
+
+    /**
+     * A {@link SnapshotInfo} with an unknown (null) version, as produced for a snapshot created on an
+     * unsupported version, must survive a transport-layer serialization round trip. This guards the
+     * coordinating-node to client path used by snapshot listing and status APIs.
+     */
+    public void testWireRoundTripWithUnknownVersion() throws IOException {
+        final String json = "{\"snapshot\":{"
+            + "\"name\":\"snap-legacy\","
+            + "\"uuid\":\"abc123\","
+            + "\"version_id\":7100299,"
+            + "\"state\":\"SUCCESS\","
+            + "\"indices\":[\"idx-1\"],"
+            + "\"total_shards\":1,"
+            + "\"successful_shards\":1"
+            + "}}";
+        final SnapshotInfo original;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            original = SnapshotInfo.fromXContentInternal(parser);
+        }
+        assertNull(original.version());
+        SnapshotInfo roundTripped = copyInstance(original);
+        assertNull("null version must be preserved across the wire", roundTripped.version());
+        assertEquals(original, roundTripped);
+    }
 
     @Override
     protected SnapshotInfo createTestInstance() {

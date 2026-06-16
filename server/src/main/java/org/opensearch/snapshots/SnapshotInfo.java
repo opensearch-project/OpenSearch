@@ -201,7 +201,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             }
 
             SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
-            Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
+            final Version version;
+            if (this.version == -1) {
+                version = Version.CURRENT;
+            } else {
+                version = resolveSnapshotVersion(this.version);
+            }
 
             int totalShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getTotalShards();
             int successfulShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getSuccessfulShards();
@@ -795,6 +800,30 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
+     * Resolves the OpenSearch {@link Version} that a snapshot was created with from its stored
+     * {@code version_id}.
+     * <p>
+     * Snapshots created on unsupported versions (for example, indices originally created on legacy
+     * Elasticsearch versions) cannot be restored into this OpenSearch version. However, their
+     * metadata must still be readable so that read-only operations such as listing snapshots
+     * ({@code _snapshot/_all}) and retrieving snapshot status ({@code _snapshot/.../_status}) do not
+     * fail for an entire repository because of a single incompatible snapshot. In that case the
+     * version is reported as unknown ({@code null}); the nullable {@code version} field is already
+     * handled gracefully throughout {@link SnapshotInfo} (see {@link #toXContent}).
+     *
+     * @param versionId the stored {@code version_id}
+     * @return the resolved {@link Version}, or {@code null} if the version is not supported
+     */
+    @Nullable
+    private static Version resolveSnapshotVersion(int versionId) {
+        try {
+            return Version.fromId(versionId);
+        } catch (Version.UnsupportedVersionException e) {
+            return null;
+        }
+    }
+
+    /**
      * This method creates a SnapshotInfo from internal x-content.  It does not
      * handle x-content written with the external version as external x-content
      * is only for display purposes and does not need to be parsed.
@@ -848,7 +877,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                         } else if (SUCCESSFUL_SHARDS.equals(currentFieldName)) {
                             successfulShards = parser.intValue();
                         } else if (VERSION_ID.equals(currentFieldName)) {
-                            version = Version.fromId(parser.intValue());
+                            version = resolveSnapshotVersion(parser.intValue());
                         } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
                             includeGlobalState = parser.booleanValue();
                         } else if (REMOTE_STORE_INDEX_SHALLOW_COPY.equals(currentFieldName)) {
