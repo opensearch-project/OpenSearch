@@ -745,11 +745,16 @@ async unsafe fn execute_indexed_with_context_inner(
         use datafusion::physical_plan::empty::EmptyExec;
         use datafusion::physical_plan::ExecutionPlan;
         let context_id_early = handle.query_context.context_id();
-        let plan = Plan::decode(substrait_bytes.as_slice())
-            .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
-        let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
-        let plan_schema: arrow::datatypes::SchemaRef =
-            Arc::new(logical_plan.schema().as_arrow().clone());
+        // engine-native-merge: borrow the partial-state schema from the prepared plan so the
+        // empty stream matches the populated shards' wire shape (e.g. Binary HLL for dc()).
+        let plan_schema: arrow::datatypes::SchemaRef = if let Some(prepared) = handle.prepared_plan.as_ref() {
+            Arc::new(prepared.schema().as_ref().clone())
+        } else {
+            let plan = Plan::decode(substrait_bytes.as_slice())
+                .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+            let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+            Arc::new(logical_plan.schema().as_arrow().clone())
+        };
         let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
