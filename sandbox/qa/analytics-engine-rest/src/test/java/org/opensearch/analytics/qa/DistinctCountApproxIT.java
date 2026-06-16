@@ -80,7 +80,15 @@ public class DistinctCountApproxIT extends AnalyticsRestTestCase {
             List<Object> got = actualRows.get(i);
             assertEquals("Column count mismatch at row " + i + " for query: " + ppl, want.size(), got.size());
             for (int j = 0; j < want.size(); j++) {
-                assertEquals("Cell mismatch at row " + i + ", col " + j + " for query: " + ppl, want.get(j), got.get(j));
+                Object wantCell = want.get(j);
+                Object gotCell = got.get(j);
+                String label = "Cell mismatch at row " + i + ", col " + j + " for query: " + ppl;
+                if (wantCell instanceof Number && gotCell instanceof Number) {
+                    // Jackson boxes counts as Integer when they fit in 32 bits; compare numerically.
+                    assertEquals(label, ((Number) wantCell).longValue(), ((Number) gotCell).longValue());
+                } else {
+                    assertEquals(label, wantCell, gotCell);
+                }
             }
         }
     }
