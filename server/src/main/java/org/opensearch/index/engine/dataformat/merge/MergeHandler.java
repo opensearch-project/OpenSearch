@@ -169,6 +169,15 @@ public class MergeHandler {
     }
 
     /**
+     * Returns the number of pending (queued but not yet started) merges.
+     *
+     * @return the pending merge count
+     */
+    public synchronized int getPendingMergeCount() {
+        return pendingMerges.size();
+    }
+
+    /**
      * Retrieves and removes the next pending merge from the queue.
      *
      * @return the next merge to execute, or {@code null} if the queue is empty
@@ -193,8 +202,11 @@ public class MergeHandler {
      * @see MergeScheduler — the production caller that enforces this ordering via
      *      {@code applyMergeChanges.accept(mergeResult, oneMerge)} before this call
      */
-    public synchronized void onMergeFinished(OneMerge oneMerge) {
+    public synchronized void onMergeFinished(OneMerge oneMerge, boolean isFrozen) {
         removeMergingSegments(oneMerge);
+        if (isFrozen) {
+            return;
+        }
         findAndRegisterMerges();
     }
 

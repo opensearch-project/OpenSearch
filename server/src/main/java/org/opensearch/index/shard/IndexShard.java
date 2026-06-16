@@ -1638,6 +1638,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mergeStats;
     }
 
+    /**
+     * Explicitly freezes the engine for tiering. Closes the race window where the
+     * cluster state with HOT_TO_WARM hasn't propagated to this data node yet.
+     * After this call, no new merges can start and in-flight merges are drained.
+     * Only effective when the engine is a {@link DataFormatAwareEngine}; otherwise a no-op.
+     */
+    public void freezeForTiering() {
+        final Indexer engine = getIndexerOrNull();
+        if (engine instanceof DataFormatAwareEngine dfa) {
+            dfa.freezeForTiering();
+        }
+    }
+
+    /**
+     * Registers a listener that fires when all in-flight merge operations have completed.
+     * If merges are already drained (none active, none pending), fires the listener
+     * immediately inline. Otherwise, the listener will be invoked on the merge thread
+     * when the last merge finishes.
+     * <p>
+     * Only effective when the engine is a {@link DataFormatAwareEngine}; for other engine
+     * types, fires the listener immediately since they don't use this merge scheduler.
+     *
+     * @param listener the callback to fire when merges are drained
+     */
+    public void onMergesDrained(Runnable listener) {
+        assert routingEntry().primary() : "onMergesDrained should only be called on primary shards";
+        final Indexer engine = getIndexerOrNull();
+        if (engine instanceof DataFormatAwareEngine dfa) {
+            dfa.onMergesDrained(listener);
+        } else {
+            // Non-DFA engines: Lucene merges are managed by IndexWriter's internal merge scheduler,
+            // not by our MergeScheduler. Fire listener immediately — tiering only targets DFA indices.
+            listener.run();
+        }
+    }
+
+    /**
+     * Returns the number of currently active (in-flight) merge tasks.
+     * Returns 0 for non-DFA engines.
+     *
+     * @return the active merge count
+     */
+    public int getActiveMergeCount() {
+        final Indexer engine = getIndexerOrNull();
+        if (engine instanceof DataFormatAwareEngine dfa) {
+            return dfa.getActiveMergeCount();
+        }
+        return 0;
+    }
+
+    /**
+     * Returns the number of pending (queued but not yet started) merge tasks.
+     * Returns 0 for non-DFA engines.
+     *
+     * @return the pending merge count
+     */
+    public int getPendingMergeCount() {
+        final Indexer engine = getIndexerOrNull();
+        if (engine instanceof DataFormatAwareEngine dfa) {
+            return dfa.getPendingMergeCount();
+        }
+        return 0;
+    }
+
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getIndexer().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());

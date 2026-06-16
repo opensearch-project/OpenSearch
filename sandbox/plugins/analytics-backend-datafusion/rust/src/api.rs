@@ -1346,7 +1346,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
+    use datafusion::execution::cache::cache_manager::CachedFileList;
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -1366,21 +1366,7 @@ pub unsafe fn sql_to_substrait(
             },
             CachedFileList::new(object_metas.as_ref().clone()),
         );
-        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-            .with_cache_manager(
-                CacheManagerConfig::default()
-                    .with_list_files_cache(Some(list_file_cache))
-                    .with_file_metadata_cache(Some(
-                        runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                    ))
-                    .with_metadata_cache_limit(
-                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                    )
-                    .with_file_statistics_cache(
-                        runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                    ),
-            )
-            .build()?;
+        let runtime_env = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
 
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())

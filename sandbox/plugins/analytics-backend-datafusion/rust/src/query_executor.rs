@@ -387,6 +387,31 @@ pub async fn execute_with_context(
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
+/// The shared per-query `RuntimeEnv` builder chain: inherits the global runtime's
+/// caches (file-metadata, file-statistics + limit) and uses a fresh object-store
+/// registry plus the provided per-query `list_file_cache`. Callers overlay any
+/// per-query memory pool, then `.build()`.
+pub fn query_runtime_env_builder(
+    runtime: &DataFusionRuntime,
+    list_file_cache: Arc<DefaultListFilesCache>,
+) -> RuntimeEnvBuilder {
+    RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
+        .with_object_store_registry(Arc::new(datafusion::execution::object_store::DefaultObjectStoreRegistry::new()))
+        .with_cache_manager(
+            CacheManagerConfig::default()
+                .with_list_files_cache(Some(list_file_cache))
+                .with_file_metadata_cache(Some(
+                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+                ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
+                .with_file_statistics_cache(
+                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
+                ),
+        )
+}
+
 /// Build a per-query RuntimeEnv sharing global caches, with a fresh list-files
 /// cache pre-populated for the given table path and object metas.
 pub fn build_query_runtime_env(
@@ -401,18 +426,7 @@ pub fn build_query_runtime_env(
     };
     list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.to_vec()));
 
-    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_file_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        )
-        .build()?;
+    let runtime_env = query_runtime_env_builder(runtime, list_file_cache).build()?;
     Ok(Arc::from(runtime_env))
 }
 

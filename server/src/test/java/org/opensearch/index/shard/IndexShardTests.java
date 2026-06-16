@@ -5546,4 +5546,40 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
     }
+
+    /**
+     * Verifies the tiering merge-drain wrappers behave correctly on a standard (non-DFA) engine.
+     * A non-DFA engine has no merge scheduler, so it is always considered "drained": merge counts
+     * are 0, {@code onMergesDrained} fires the listener immediately (already drained), and
+     * {@code freezeForTiering} is a no-op rather than throwing.
+     */
+    public void testTieringMergeWrappers_NonDfaEngine_AlreadyDrained() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            assertEquals("non-DFA engine reports 0 active merges", 0, shard.getActiveMergeCount());
+            assertEquals("non-DFA engine reports 0 pending merges", 0, shard.getPendingMergeCount());
+
+            AtomicBoolean listenerFired = new AtomicBoolean(false);
+            shard.onMergesDrained(() -> listenerFired.set(true));
+
+            assertTrue("listener fires immediately when already drained on non-DFA engine", listenerFired.get());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code freezeForTiering} is a safe no-op on a non-DFA engine (must not throw).
+     */
+    public void testFreezeForTiering_NonDfaEngine_IsNoOp() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            shard.freezeForTiering(); // no-op for non-DFA engines — must not throw
+            // Still drained afterwards.
+            assertEquals(0, shard.getActiveMergeCount());
+            assertEquals(0, shard.getPendingMergeCount());
+        } finally {
+            closeShards(shard);
+        }
+    }
 }
