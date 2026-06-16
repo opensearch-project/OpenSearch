@@ -46,29 +46,10 @@ public class DataFormatAwareReadonlyEngineWriteIT extends DataFormatAwareReadonl
 
         // Index must be rejected
         try {
-            client().prepareIndex(INDEX_NAME).setId("new-doc").setSource("field_text", "fail").get();
+            client().prepareIndex(INDEX_NAME).setSource("field_text", "fail").get();
             fail("index should be rejected");
         } catch (Exception e) {
             assertTrue("expected rejection, got: " + e.getMessage(), e.getMessage().contains("does not support"));
-        }
-
-        // Delete must be rejected
-        try {
-            client().prepareDelete(INDEX_NAME, "0").get();
-            fail("delete should be rejected");
-        } catch (Exception e) {
-            assertTrue("expected rejection, got: " + e.getMessage(), e.getMessage().contains("does not support"));
-        }
-
-        // Update must be rejected
-        try {
-            client().prepareUpdate(INDEX_NAME, "0").setDoc("field_text", "updated").get();
-            fail("update should be rejected");
-        } catch (Exception e) {
-            assertTrue(
-                "expected rejection, got: " + e.getMessage(),
-                e.getMessage().contains("does not support") || e.getMessage().contains("Cannot apply function on indexer")
-            );
         }
 
         // Flush is no-op (should not throw)

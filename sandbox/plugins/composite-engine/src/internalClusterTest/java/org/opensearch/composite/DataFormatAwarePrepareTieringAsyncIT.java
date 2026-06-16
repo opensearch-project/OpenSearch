@@ -73,10 +73,7 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
             int id = 0;
             for (int batch = 0; batch < INDEX_BATCHES; batch++) {
                 for (int i = 0; i < DOCS_PER_BATCH; i++) {
-                    client().prepareIndex(ASYNC_INDEX)
-                        .setId(String.valueOf(id))
-                        .setSource("field_text", "value_" + id, "field_number", (long) id)
-                        .get();
+                    client().prepareIndex(ASYNC_INDEX).setSource("field_text", "value_" + id, "field_number", (long) id).get();
                     id++;
                 }
                 client().admin().indices().prepareRefresh(ASYNC_INDEX).get();
@@ -135,10 +132,7 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
             int id = 0;
             for (int batch = 0; batch < INDEX_BATCHES; batch++) {
                 for (int i = 0; i < DOCS_PER_BATCH; i++) {
-                    client().prepareIndex(ASYNC_INDEX)
-                        .setId(String.valueOf(id))
-                        .setSource("field_text", "value_" + id, "field_number", (long) id)
-                        .get();
+                    client().prepareIndex(ASYNC_INDEX).setSource("field_text", "value_" + id, "field_number", (long) id).get();
                     id++;
                 }
                 client().admin().indices().prepareRefresh(ASYNC_INDEX).get();
