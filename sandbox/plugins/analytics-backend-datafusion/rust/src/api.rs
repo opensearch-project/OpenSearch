@@ -122,6 +122,24 @@ impl QueryStreamHandle {
         self
     }
 
+    pub fn new_with_plan(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        plan: Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+    ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: None,
+            has_views,
+            _concurrency_permit: permit,
+            physical_plan: Some(plan),
+            task_done: None,
+        }
+    }
+
     pub fn with_session_context(
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
@@ -165,18 +183,17 @@ impl QueryStreamHandle {
         let plan = self.physical_plan.as_ref()?;
         let mut map = serde_json::Map::new();
         Self::collect_metrics(plan.as_ref(), &mut map);
-        if map.is_empty() {
-            return None;
-        }
+        // Include the physical plan display text
+        let plan_text = datafusion::physical_plan::displayable(plan.as_ref()).indent(true).to_string();
+        map.insert("physical_plan".to_string(), serde_json::Value::String(plan_text));
         serde_json::to_vec(&map).ok()
     }
 
     fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
         if let Some(metrics) = plan.metrics() {
-            for m in metrics.iter() {
+            for m in metrics.aggregate_by_name().iter() {
                 let name = m.value().name().to_string();
                 let value = m.value().as_usize() as i64;
-                // Later operators override earlier ones if same name — leaf (scan) metrics take priority
                 map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
             }
         }
@@ -1765,7 +1782,7 @@ pub async unsafe fn execute_local_plan(
     // a `cancel_query(context_id)` call from Java interrupts even before the
     // first batch is produced (planning, from_substrait_plan, repartition
     // setup, etc. can all take non-trivial time on a wide reduce).
-    let df_stream = cancellation::cancellable(
+    let (df_stream, physical_plan) = cancellation::cancellable(
         token.as_ref(),
         context_id,
         session.execute_substrait(substrait_bytes),
@@ -1785,7 +1802,7 @@ pub async unsafe fn execute_local_plan(
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     // Attach the teardown signal so stream_close releases borrowed input batches before allocator close.
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit).with_task_done(task_done);
+    let handle = QueryStreamHandle::new_with_plan(wrapped, query_context, permit, physical_plan).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

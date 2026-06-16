@@ -839,6 +839,32 @@ scalar_functions:
       - args: [{ value: string, name: "value" }]
         return: boolean
 
+  - name: "json"
+    description: "Round-trip parse a JSON string; NULL on malformed input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: string?
+
+  - name: "json_object"
+    description: >-
+      Build a JSON object from interleaved (key, type-tag, value) triples.
+      The Java `JsonObjectAdapter` casts every operand to VARCHAR and inserts
+      a per-value type-tag literal (`"n"`/`"b"`/`"j"`/`"s"`) so the Rust UDF
+      can recover the original Calcite type when emitting JSON.
+    impls:
+      - args: [{ value: string, name: "key" }]
+        variadic: { min: 1 }
+        return: string?
+
+  - name: "json_array"
+    description: >-
+      Build a JSON array from interleaved (type-tag, value) pairs. Same tag
+      vocabulary as `json_object`; see `JsonArrayAdapter` for the rewrite shape.
+    impls:
+      - args: [{ value: string, name: "tag" }]
+        variadic: { min: 0 }
+        return: string?
+
   - name: "opensearch_extract"
     description: >-
       Pull a MySQL-style calendar component out of a timestamp. Returns BIGINT.

@@ -28,6 +28,14 @@ public interface ReducingExchangeSink extends ExchangeSink {
     void reduce(ActionListener<Void> listener);
 
     /**
+     * Returns execution metrics JSON captured after reduce completes, or null if not available.
+     * Backends that support profiling populate this after {@link #reduce} drains.
+     */
+    default byte[] getExecutionMetrics() {
+        return null;
+    }
+
+    /**
      * {@code true} (default) — {@link #reduce} can run concurrently with producer
      * {@link #feed} calls. Buffered sinks that need the complete input set first
      * (e.g. memtable-backed) must override to {@code false}.

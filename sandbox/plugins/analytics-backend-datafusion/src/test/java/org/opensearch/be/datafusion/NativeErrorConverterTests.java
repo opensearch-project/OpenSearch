@@ -98,7 +98,8 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof IllegalArgumentException);
         assertTrue(result.getMessage().contains("too deeply nested"));
-        assertSame(original, result.getCause());
+        // Cause intentionally omitted to prevent leaking native error details in REST responses.
+        assertNull(result.getCause());
     }
 
     public void testControlledRecursionMessageConvertsOnCoordinator() {

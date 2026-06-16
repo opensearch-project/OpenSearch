@@ -148,12 +148,10 @@ public final class NativeErrorConverter {
     }
 
     private static Exception convertRecursionLimit(MatchedError match) {
-        IllegalArgumentException iae = new IllegalArgumentException(
+        return new IllegalArgumentException(
             "Query too deeply nested: the expression exceeds the maximum nesting depth supported by the execution engine. "
                 + "Simplify the query by reducing nested function calls."
         );
-        iae.initCause(match.original());
-        return iae;
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────
