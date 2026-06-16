@@ -97,7 +97,10 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
         scheduler.unfreeze();
         assertFalse("scheduler must report unfrozen after unfreeze()", scheduler.isFrozen());
         scheduler.triggerMerges();
-        verify(mergeHandler, times(1)).findAndRegisterMerges();
+        // unfreeze() itself fires triggerMerges() on a real frozen→unfrozen transition (resumes merges
+        // without needing a follow-up call), and the explicit triggerMerges() above adds a second
+        // invocation. Hence findAndRegisterMerges is invoked twice.
+        verify(mergeHandler, times(2)).findAndRegisterMerges();
     }
 
     public void testIsFrozenReflectsHotToWarmTieringState() {
