@@ -472,6 +472,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

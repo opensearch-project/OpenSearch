@@ -116,6 +116,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
