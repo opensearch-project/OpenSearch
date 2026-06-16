@@ -47,6 +47,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -66,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_SEARCH_PIPELINE;
 import static org.opensearch.cluster.service.ClusterManagerTask.PUT_SEARCH_PIPELINE;
+import static org.opensearch.plugins.SearchPipelinePlugin.SystemGeneratedSearchPipelineConfigKeys.PARENT_ACTION;
 import static org.opensearch.plugins.SearchPipelinePlugin.SystemGeneratedSearchPipelineConfigKeys.SEARCH_REQUEST;
 
 /**
@@ -458,8 +460,11 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public PipelinedRequest resolvePipeline(SearchRequest searchRequest, IndexNameExpressionResolver indexNameExpressionResolver)
-        throws Exception {
+    public PipelinedRequest resolvePipeline(
+        SearchRequest searchRequest,
+        Task parentTask,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) throws Exception {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             // Pipeline defined in search request (ad hoc pipeline).
@@ -520,7 +525,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             }
         }
         // Resolve system generated search pipeline
-        final Map<String, Object> config = Map.of(SEARCH_REQUEST, searchRequest);
+        final String parentAction = parentTask != null ? parentTask.getAction() : null;
+        final Map<String, Object> config = new HashMap<>();
+        config.put(SEARCH_REQUEST, searchRequest);
+        config.put(PARENT_ACTION, parentAction);
         final SystemGeneratedPipelineHolder systemGeneratedPipelineHolder = SystemGeneratedPipelineWithMetrics.create(
             config,
             systemGeneratedRequestProcessorFactories,
