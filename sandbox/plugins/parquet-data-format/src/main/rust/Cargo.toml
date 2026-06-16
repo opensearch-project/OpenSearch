@@ -23,8 +23,14 @@ native-bridge-common = { workspace = true }
 rayon = { workspace = true }
 tokio = { workspace = true }
 crc32fast = { workspace = true }
+lz4_flex = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }
+criterion = { workspace = true }
+
+[[bench]]
+name = "sorted_write_bench"
+harness = false
 

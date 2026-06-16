@@ -10,19 +10,21 @@ use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use arrow::compute::{concat_batches, take};
 use arrow::row::{RowConverter, SortField};
-use arrow_ipc::writer::FileWriter as IpcFileWriter;
-use arrow_ipc::reader::FileReader as IpcFileReader;
+use arrow_ipc::writer::{FileWriter as IpcFileWriter, StreamWriter as IpcStreamWriter};
+use arrow_ipc::reader::{FileReader as IpcFileReader, StreamReader as IpcStreamReader};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
+use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::{log_error, log_debug, log_info};
 use crate::crc_writer::CrcWriter;
-use crate::merge::{merge_sorted, schema::ROW_ID_COLUMN_NAME};
+use crate::merge::{merge_sorted, merge_sorted_from_ipc, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 
@@ -89,12 +91,18 @@ struct SortingChunkedWriter {
     completed_chunks: Vec<String>,
     /// Row IDs captured from each sorted chunk (for permutation building).
     chunk_row_ids: Vec<Vec<i64>>,
+    /// Row count per completed chunk (tracked independently of chunk_row_ids
+    /// so that merge has correct counts even when __row_id__ column is absent).
+    chunk_row_counts: Vec<usize>,
     /// CRC32 values for each completed sorted Parquet chunk file.
     chunk_crcs: Vec<u32>,
     /// Total rows written across all chunks.
     total_rows: usize,
     /// Writer generation propagated into Parquet file metadata for each chunk.
     writer_generation: i64,
+    /// When true, sorted chunks are staged as Arrow IPC files instead of Parquet.
+    /// The final Parquet encoding is deferred to the finalize step.
+    ipc_sorted_chunks: bool,
 }
 
 impl SortingChunkedWriter {
@@ -108,6 +116,10 @@ impl SortingChunkedWriter {
         nulls_first: Vec<bool>,
         writer_generation: i64,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let ipc_sorted_chunks = SETTINGS_STORE
+            .get(&index_name)
+            .map(|s| s.ipc_sorted_chunks.unwrap_or(false))
+            .unwrap_or(false);
         let mut writer = Self {
             base_path,
             schema,
@@ -122,9 +134,11 @@ impl SortingChunkedWriter {
             chunk_idx: 0,
             completed_chunks: Vec::new(),
             chunk_row_ids: Vec::new(),
+            chunk_row_counts: Vec::new(),
             chunk_crcs: Vec::new(),
             total_rows: 0,
             writer_generation,
+            ipc_sorted_chunks,
         };
         writer.open_new_ipc()?;
         Ok(writer)
@@ -135,7 +149,11 @@ impl SortingChunkedWriter {
     }
 
     fn sorted_chunk_path(&self, idx: usize) -> String {
-        format!("{}.sorted_chunk_{}.parquet", self.base_path, idx)
+        if self.ipc_sorted_chunks {
+            format!("{}.sorted_chunk_{}.arrow_ipc", self.base_path, idx)
+        } else {
+            format!("{}.sorted_chunk_{}.parquet", self.base_path, idx)
+        }
     }
 
     fn open_new_ipc(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -278,13 +296,40 @@ impl SortingChunkedWriter {
             sorted_batch
         };
 
-        // Write sorted chunk as Parquet
+        // Write sorted chunk
         let chunk_path = self.sorted_chunk_path(self.chunk_idx);
-        let crc32 = NativeParquetWriter::write_final_file(
-            &chunk_path, &self.index_name, &final_batch, self.schema.clone(), Some(self.writer_generation),
-        )?;
+        let crc32 = if self.ipc_sorted_chunks {
+            // IPC + LZ4: fast write with ~3-4x compression. Parquet encoding deferred to finalize.
+            // Write in batch_size slices so the cursor yields small batches at merge time.
+            // CRC32 is computed over the compressed bytes on disk for integrity verification.
+            let config = SETTINGS_STORE
+                .get(&self.index_name)
+                .map(|r| r.clone())
+                .unwrap_or_default();
+            let batch_size = config.get_merge_batch_size();
+            let chunk_file = File::create(&chunk_path)?;
+            let (crc_file, crc_handle) = CrcWriter::new(chunk_file);
+            let lz4_encoder = FrameEncoder::new(crc_file);
+            let mut ipc_out = IpcStreamWriter::try_new(lz4_encoder, &self.schema)?;
+            let num_rows = final_batch.num_rows();
+            let mut offset = 0;
+            while offset < num_rows {
+                let len = (num_rows - offset).min(batch_size);
+                ipc_out.write(&final_batch.slice(offset, len))?;
+                offset += len;
+            }
+            let lz4_encoder = ipc_out.into_inner()?;
+            lz4_encoder.finish().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            crc_handle.crc32()
+        } else {
+            // Parquet: original behavior
+            NativeParquetWriter::write_final_file(
+                &chunk_path, &self.index_name, &final_batch, self.schema.clone(), Some(self.writer_generation),
+            )?
+        };
 
         self.completed_chunks.push(chunk_path);
+        self.chunk_row_counts.push(final_batch.num_rows());
         self.chunk_crcs.push(crc32);
         self.chunk_idx += 1;
 
@@ -294,8 +339,8 @@ impl SortingChunkedWriter {
         Ok(())
     }
 
-    /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + CRCs.
-    fn finish(mut self) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
+    /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + row counts + CRCs.
+    fn finish(mut self) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<usize>, Vec<u32>), Box<dyn std::error::Error>> {
         if self.current_rows > 0 {
             self.flush_and_sort_chunk()?;
         }
@@ -304,7 +349,7 @@ impl SortingChunkedWriter {
             writer.finish()?;
         }
         let _ = std::fs::remove_file(&self.ipc_staging_path());
-        Ok((self.completed_chunks, self.chunk_row_ids, self.chunk_crcs))
+        Ok((self.completed_chunks, self.chunk_row_ids, self.chunk_row_counts, self.chunk_crcs))
     }
 
     fn total_rows(&self) -> usize {
@@ -502,14 +547,15 @@ impl NativeParquetWriter {
                             let chunked_writer = mutex.into_inner().unwrap();
                             let total_rows = chunked_writer.total_rows();
                             let schema = chunked_writer.schema.clone();
-                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish()?;
+                            let (chunk_paths, chunk_row_ids, chunk_row_counts, chunk_crcs) = chunked_writer.finish()?;
                             log_info!(
                                 "Successfully closed sorting chunked writer for: {}, total_rows={}, chunks={}",
                                 temp_filename, total_rows, chunk_paths.len()
                             );
 
                             let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
-                                &chunk_paths, &chunk_row_ids, &chunk_crcs, &filename, index_name,
+                                &chunk_paths, &chunk_row_ids, &chunk_row_counts, &chunk_crcs,
+                                &filename, index_name,
                                 &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first,
                                 writer_generation, schema.clone(),
                             )?;
@@ -573,12 +619,63 @@ impl NativeParquetWriter {
         }
     }
 
+    /// Build a flat permutation mapping: result[original_row_id] = new_row_id.
+    /// Used for single-chunk (direct row IDs) and multi-chunk (merge mapping composed
+    /// with per-chunk row IDs).
+    fn build_single_chunk_permutation(chunk_row_ids: &[i64]) -> Option<Vec<i64>> {
+        if chunk_row_ids.is_empty() {
+            return None;
+        }
+        let total = chunk_row_ids.len();
+        let mut mapping = vec![0i64; total];
+        for (new_pos, &old_row_id) in chunk_row_ids.iter().enumerate() {
+            let orig_idx = old_row_id as usize;
+            if orig_idx < total {
+                mapping[orig_idx] = new_pos as i64;
+            }
+        }
+        Some(mapping)
+    }
+
+    /// Build permutation for multi-chunk merge: compose per-chunk original row IDs
+    /// with the merge output mapping.
+    fn build_multi_chunk_permutation(
+        chunk_row_ids: &[Vec<i64>],
+        merge_mapping: &[i64],
+    ) -> Option<Vec<i64>> {
+        if merge_mapping.is_empty() || chunk_row_ids.is_empty() {
+            return None;
+        }
+        let total = merge_mapping.len();
+        let mut flat_mapping = vec![0i64; total];
+        for i in 0..total {
+            flat_mapping[i] = i as i64;
+        }
+        let mut pos = 0usize;
+        for chunk_ids in chunk_row_ids {
+            for &original_row_id in chunk_ids {
+                let orig_idx = original_row_id as usize;
+                if orig_idx < total && pos < total {
+                    flat_mapping[orig_idx] = merge_mapping[pos];
+                }
+                pos += 1;
+            }
+        }
+        Some(flat_mapping)
+    }
+
     /// Finalize pre-sorted Parquet chunks: k-way merge them into the final file.
     /// Chunks are already sorted (done eagerly during write), so no sort needed here.
     /// For single chunk, just rename. For empty, write empty Parquet.
+    ///
+    /// When chunks are IPC files (ipc_sorted_chunks=true), the Parquet encoding is
+    /// performed here: single-chunk streams through ArrowWriter; multi-chunk reads all
+    /// IPC batches, concatenates, globally re-sorts (fast on nearly-sorted data), and
+    /// writes the final Parquet.
     fn finalize_sorted_chunks(
         chunk_paths: &[String],
         chunk_row_ids: &[Vec<i64>],
+        chunk_row_counts: &[usize],
         chunk_crcs: &[u32],
         output_filename: &str,
         index_name: &str,
@@ -602,26 +699,44 @@ impl NativeParquetWriter {
             return Ok((0, None));
         }
 
-        if chunk_paths.len() == 1 {
-            // Single chunk: just rename to final output (already sorted Parquet)
-            log_info!("finalize_sorted_chunks: single chunk, renaming to final output");
-            std::fs::rename(&chunk_paths[0], output_filename)?;
+        let is_ipc = chunk_paths[0].ends_with(".arrow_ipc");
 
-            // Use the CRC computed when the chunk was written
-            let crc32 = chunk_crcs.first().copied().unwrap_or(0);
+        if chunk_paths.len() == 1 && is_ipc {
+            // Verify IPC chunk integrity
+            let actual_crc = Self::compute_file_crc32(&chunk_paths[0])?;
+            let expected_crc = chunk_crcs[0];
+            if actual_crc != expected_crc {
+                return Err(format!(
+                    "IPC chunk integrity check failed for '{}': expected CRC {:#010x}, got {:#010x}",
+                    chunk_paths[0], expected_crc, actual_crc
+                ).into());
+            }
 
-            // Build permutation from the single chunk's row IDs
-            let row_id_mapping = if !chunk_row_ids.is_empty() && !chunk_row_ids[0].is_empty() {
-                let ids = &chunk_row_ids[0];
-                let total = ids.len();
-                let mut mapping = vec![0i64; total];
-                for (new_pos, &old_row_id) in ids.iter().enumerate() {
-                    let orig_idx = old_row_id as usize;
-                    if orig_idx < total {
-                        mapping[orig_idx] = new_pos as i64;
-                    }
-                }
-                Some(mapping)
+            // Single IPC chunk: stream through ArrowWriter to produce final Parquet
+            log_info!("finalize_sorted_chunks: single IPC chunk -> streaming Parquet");
+            let config = SETTINGS_STORE
+                .get(index_name)
+                .map(|r| r.clone())
+                .unwrap_or_default();
+            let props = WriterPropertiesBuilder::build_with_generation(&config, Some(writer_generation), &schema)
+                .map_err(|e| -> Box<dyn std::error::Error> { format!("props: {}", e).into() })?;
+
+            let out_file = File::create(output_filename)?;
+            let (crc_writer, crc_handle) = CrcWriter::new(out_file);
+            let mut parquet_writer = ArrowWriter::try_new(crc_writer, schema.clone(), Some(props))?;
+
+            let ipc_file = File::open(&chunk_paths[0])?;
+            let lz4_reader = FrameDecoder::new(BufReader::new(ipc_file));
+            let reader = IpcStreamReader::try_new(lz4_reader, None)?;
+            for batch_result in reader {
+                parquet_writer.write(&batch_result?)?;
+            }
+            parquet_writer.close()?;
+            let crc32 = crc_handle.crc32();
+            let _ = std::fs::remove_file(&chunk_paths[0]);
+
+            let row_id_mapping = if !chunk_row_ids.is_empty() {
+                Self::build_single_chunk_permutation(&chunk_row_ids[0])
             } else {
                 None
             };
@@ -629,7 +744,75 @@ impl NativeParquetWriter {
             return Ok((crc32, row_id_mapping));
         }
 
-        // Multiple chunks: k-way merge
+        if chunk_paths.len() == 1 {
+            // Single Parquet chunk: just rename to final output (already sorted Parquet)
+            log_info!("finalize_sorted_chunks: single chunk, renaming to final output");
+            std::fs::rename(&chunk_paths[0], output_filename)?;
+
+            // Use the CRC computed when the chunk was written
+            let crc32 = chunk_crcs.first().copied().unwrap_or(0);
+
+            let row_id_mapping = if !chunk_row_ids.is_empty() {
+                Self::build_single_chunk_permutation(&chunk_row_ids[0])
+            } else {
+                None
+            };
+
+            return Ok((crc32, row_id_mapping));
+        }
+
+        if is_ipc {
+            // Verify IPC chunk integrity before merge
+            for (i, path) in chunk_paths.iter().enumerate() {
+                let actual_crc = Self::compute_file_crc32(path)?;
+                let expected_crc = chunk_crcs[i];
+                if actual_crc != expected_crc {
+                    return Err(format!(
+                        "IPC chunk integrity check failed for '{}': expected CRC {:#010x}, got {:#010x}",
+                        path, expected_crc, actual_crc
+                    ).into());
+                }
+            }
+
+            // Multiple IPC chunks: k-way merge using the streaming merge infrastructure.
+            // This gives us O(N) merge, Rayon parallel encoding, rate limiting, and
+            // bounded memory — same battle-tested path as the multi-Parquet merge.
+            let overall_start = std::time::Instant::now();
+            log_info!(
+                "finalize_sorted_chunks: merging {} IPC chunks (streaming k-way merge) for {}",
+                chunk_paths.len(), output_filename
+            );
+
+            let merge_output = merge_sorted_from_ipc(
+                chunk_paths,
+                output_filename,
+                index_name,
+                sort_columns,
+                reverse_sorts,
+                nulls_first,
+                writer_generation,
+                schema.clone(),
+                chunk_row_counts,
+            )
+            .map_err(|e| -> Box<dyn std::error::Error> {
+                format!("Streaming IPC merge failed: {}", e).into()
+            })?;
+
+            let merge_duration = overall_start.elapsed();
+            log_info!(
+                "finalize_sorted_chunks: IPC k-way merge complete: {} chunks merged, duration={:?}, crc32={:#010x}",
+                chunk_paths.len(), merge_duration, merge_output.crc32
+            );
+
+            let row_id_mapping = Self::build_multi_chunk_permutation(chunk_row_ids, &merge_output.mapping);
+            if let Some(ref m) = row_id_mapping {
+                log_info!("finalize_sorted_chunks: produced {} permutation entries for {}", m.len(), output_filename);
+            }
+
+            return Ok((merge_output.crc32, row_id_mapping));
+        }
+
+        // Multiple Parquet chunks: k-way merge (original path)
         let overall_start = std::time::Instant::now();
         log_info!(
             "finalize_sorted_chunks: merging {} pre-sorted chunks for {}",
@@ -654,28 +837,10 @@ impl NativeParquetWriter {
             chunk_paths.len(), merge_duration
         );
 
-        // Build the flat permutation: result[original_row_id] = new_row_id
-        let row_id_mapping = if !merge_output.mapping.is_empty() && !chunk_row_ids.is_empty() {
-            let total = merge_output.mapping.len();
-            let mut flat_mapping = vec![0i64; total];
-            for i in 0..total {
-                flat_mapping[i] = i as i64;
-            }
-            let mut pos = 0usize;
-            for chunk_ids in chunk_row_ids {
-                for &original_row_id in chunk_ids {
-                    let orig_idx = original_row_id as usize;
-                    if orig_idx < total && pos < total {
-                        flat_mapping[orig_idx] = merge_output.mapping[pos];
-                    }
-                    pos += 1;
-                }
-            }
-            log_info!("finalize_sorted_chunks: produced {} permutation entries for {}", flat_mapping.len(), output_filename);
-            Some(flat_mapping)
-        } else {
-            None
-        };
+        let row_id_mapping = Self::build_multi_chunk_permutation(chunk_row_ids, &merge_output.mapping);
+        if let Some(ref m) = row_id_mapping {
+            log_info!("finalize_sorted_chunks: produced {} permutation entries for {}", m.len(), output_filename);
+        }
 
         log_info!(
             "finalize_sorted_chunks: DONE file={}, chunks={}, merge_duration={:?}",
@@ -730,6 +895,21 @@ impl NativeParquetWriter {
             .collect();
 
         Ok(RecordBatch::try_new(batch.schema(), sorted_columns?)?)
+    }
+
+    fn compute_file_crc32(path: &str) -> Result<u32, Box<dyn std::error::Error>> {
+        use std::io::Read;
+        let mut file = File::open(path)?;
+        let mut hasher = crc32fast::Hasher::new();
+        let mut buf = [0u8; 64 * 1024];
+        loop {
+            let n = file.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+        }
+        Ok(hasher.finalize())
     }
 
     fn write_final_file(
