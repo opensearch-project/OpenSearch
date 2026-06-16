@@ -1,8 +1,8 @@
 ---
 "Derived source with nested objects":
   - skip:
-      version: " - 3.6.99"
-      reason: "derived source nested object reconstruction is available in 3.7 and later"
+      version: " - 3.7.99"
+      reason: "derived source nested object reconstruction is available in 3.8 and later"
 
   - do:
       indices.create:
