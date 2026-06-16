@@ -341,6 +341,79 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         assertContains(error, "score");
     }
 
+    // ── Empty-sibling multi-index dc(): regression for engine-native-merge empty-shard schema ──
+
+    private static final String EMPTY_DC_DATA = "multi_empty_dc_data";
+    private static final String EMPTY_DC_EMPTY = "multi_empty_dc_empty";
+    private static final String EMPTY_DC_ALIAS = "multi_empty_dc_alias";
+    private static final String EMPTY_DC_FIELDS =
+        "{\"properties\":{\"user_id\":{\"type\":\"long\"},\"phrase\":{\"type\":\"keyword\"}}}";
+    private static boolean emptyDcProvisioned = false;
+
+    private void ensureEmptyDcProvisioned() throws IOException {
+        if (emptyDcProvisioned) return;
+        createIndexWithSettings(EMPTY_DC_DATA, EMPTY_DC_FIELDS, true, 2);
+        createIndexWithSettings(EMPTY_DC_EMPTY, EMPTY_DC_FIELDS, true, 2);
+        bulk(EMPTY_DC_DATA,
+            "{\"user_id\":1,\"phrase\":\"alpha\"}\n"
+            + "{\"user_id\":2,\"phrase\":\"alpha\"}\n"
+            + "{\"user_id\":3,\"phrase\":\"beta\"}\n"
+            + "{\"user_id\":4,\"phrase\":\"gamma\"}\n");
+        // EMPTY_DC_EMPTY is intentionally never bulk-loaded.
+        putAlias(EMPTY_DC_ALIAS, List.of(EMPTY_DC_DATA, EMPTY_DC_EMPTY));
+        emptyDcProvisioned = true;
+    }
+
+    /** dc() with no WHERE → populated shards take the non-indexed path. */
+    public void testEmptySiblingDcScalar() throws IOException {
+        ensureEmptyDcProvisioned();
+        assertScalarDc("source=" + EMPTY_DC_ALIAS + " | stats dc(user_id)", 4L);
+    }
+
+    /** dc() with a lucene-delegated WHERE → populated shards take the indexed path (the regression case). */
+    public void testEmptySiblingDcWithDelegatedFilter() throws IOException {
+        ensureEmptyDcProvisioned();
+        assertScalarDc("source=" + EMPTY_DC_ALIAS + " | where phrase != '' | stats dc(user_id)", 4L);
+    }
+
+    /** dc() with a non-delegable WHERE (arithmetic) → populated shards stay on the non-indexed path. */
+    public void testEmptySiblingDcWithNonDelegatedFilter() throws IOException {
+        ensureEmptyDcProvisioned();
+        assertScalarDc("source=" + EMPTY_DC_ALIAS + " | where user_id + 1 > 2 | stats dc(user_id)", 3L);
+    }
+
+    /** Grouped dc() with a delegated WHERE → exercises FinalPartitioned/Partial on data shards + EmptyExec on empties. */
+    public void testEmptySiblingDcGroupedWithDelegatedFilter() throws IOException {
+        ensureEmptyDcProvisioned();
+        Map<String, Object> body = executePpl(
+            "source=" + EMPTY_DC_ALIAS + " | where phrase != '' | stats dc(user_id) as u by phrase"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
+        assertEquals(3, rows.size());
+        long total = 0;
+        for (List<Object> row : rows) total += ((Number) row.get(0)).longValue();
+        assertEquals(4L, total);
+    }
+
+    /** All-empty union: every shard hits the empty-guard. */
+    public void testAllEmptyDc() throws IOException {
+        ensureEmptyDcProvisioned();
+        String secondEmpty = "multi_empty_dc_empty_second";
+        createIndexWithSettings(secondEmpty, EMPTY_DC_FIELDS, true, 2);
+        assertScalarDc(
+            "source=" + EMPTY_DC_EMPTY + "," + secondEmpty + " | where phrase != '' | stats dc(user_id)",
+            0L);
+    }
+
+    private void assertScalarDc(String ppl, long expected) throws IOException {
+        Map<String, Object> body = executePpl(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
+        assertEquals(1, rows.size());
+        assertEquals(expected, ((Number) rows.get(0).get(0)).longValue());
+    }
+
     private String executePplExpectingFailure(String ppl) throws IOException {
         Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
