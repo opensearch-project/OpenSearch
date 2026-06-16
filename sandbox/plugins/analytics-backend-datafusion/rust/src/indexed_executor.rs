@@ -804,10 +804,19 @@ async unsafe fn execute_indexed_with_context_inner(
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
     let context_id = query_context.context_id();
 
+    // The substrait scan binds to the plan's NamedTable name (the alias/pattern like "tb-1,tb-2"
+    // for multi-index queries, the concrete name otherwise), not the per-shard table_name.
+    // create_session_context registered the provider under that name, so re-register under the
+    // same name. Using table_name for a multi-index query leaves the scan unbound, so DataFusion
+    // never consults supports_filters_pushdown and keeps the delegated_predicate FilterExec —
+    // which then executes the marker UDF and errors.
+    let register_name = crate::api::first_named_table_name(substrait_bytes.as_slice())
+        .unwrap_or_else(|| table_name.clone());
+
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
     // Deregister the default ListingTable (registered by create_session_context) — will be replaced
     // with IndexedTableProvider after plan decoding.
-    ctx.deregister_table(&table_name)?;
+    ctx.deregister_table(&register_name)?;
 
     let store = ctx
         .state()
@@ -829,12 +838,12 @@ async unsafe fn execute_indexed_with_context_inner(
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
     // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
-    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &table_name, &schema);
+    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &register_name, &schema);
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),
     });
-    ctx.register_table(&table_name, placeholder)?;
+    ctx.register_table(&register_name, placeholder)?;
 
     let plan = Plan::decode(substrait_bytes.as_slice())
         .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
@@ -1180,7 +1189,7 @@ async unsafe fn execute_indexed_with_context_inner(
         }
     };
 
-    ctx.deregister_table(&table_name)?;
+    ctx.deregister_table(&register_name)?;
     // Extract the scheme+authority portion of the table URL for
     // DataFusion's FileScanConfig. The full URL includes the path
     // (e.g. "file:///Users/.../parquet/"); ObjectStoreUrl wants only
@@ -1204,7 +1213,7 @@ async unsafe fn execute_indexed_with_context_inner(
         sort_fields: sort_fields.clone(),
         sort_orders: sort_orders.clone(),
     }));
-    ctx.register_table(&table_name, provider)?;
+    ctx.register_table(&register_name, provider)?;
 
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
     log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
