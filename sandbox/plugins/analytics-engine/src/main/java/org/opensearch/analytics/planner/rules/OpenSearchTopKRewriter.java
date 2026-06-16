@@ -88,6 +88,9 @@ public final class OpenSearchTopKRewriter {
         // PPL emits measures-first output via a column-swapping Project (e.g. Project(c=$1, key=$0)).
         // The outer Sort's indices reference the Project's output; the shard Sort must reference
         // the PARTIAL Aggregate's output (group-keys first, measures second).
+        // If the Project contains computed expressions (literals, casts, arithmetic) rather than
+        // simple column references, we bail — the sort key has no direct mapping to the aggregate
+        // output and TopK cannot be safely applied.
         RelCollation adjustedCollation = sort.getCollation();
         if (match.intermediateProject != null) {
             List<RelFieldCollation> remapped = new ArrayList<>();
@@ -211,6 +214,17 @@ public final class OpenSearchTopKRewriter {
         return findFinalAgg(node, null);
     }
 
+    /**
+     * Walks toward the FINAL aggregate, capturing at most one intermediate Project.
+     * The {@code seenProject == null} guard assumes CoreRules.PROJECT_MERGE has collapsed
+     * adjacent Projects during RBO — if that rule is ever removed, multiple Projects may
+     * appear and this method will skip the second one (returning null for the project field),
+     * which safely disables the collation remapping (TopK still fires with the raw collation,
+     * correct when no reordering exists between the two).
+     *
+     * <p>Multi-input nodes (joins, unions) terminate the walk — TopK only applies to
+     * single-path Sort → Aggregate chains.
+     */
     private static PathToFinal findFinalAgg(RelNode node, OpenSearchProject seenProject) {
         if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
             return new PathToFinal(seenProject, agg);

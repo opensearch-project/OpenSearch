@@ -364,6 +364,8 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
     /**
      * q13: {@code stats count() as c by SearchPhrase | sort - c | head 10}.
      * Single group-by, single COUNT, sort on measure. Shard sort must use $1.
+     * Two coordinator Sorts (fetch=10000 + fetch=10) survive because this planner does not
+     * register SORT_REMOVE_REDUNDANT. DF collapses them in the physical plan.
      */
     public void testRewrite_pplShape_q13_sortKeyRemappedThroughProject() {
         RelNode result = runPlanner(buildPplSwapPlan(ImmutableBitSet.of(0), List.of(countStarCall()), 10), contextWithOversampling(2.0));
@@ -499,6 +501,70 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(sort, contextWithOversampling(2.0));
         String plan = RelOptUtil.toString(result);
         assertEquals("AVG decomposition prevents TopK — no shard Sort", 0, countShardSortsBelowER(plan));
+    }
+
+    /**
+     * Multiple adjacent Projects between Sort and Aggregate: if PROJECT_MERGE is ever removed,
+     * the rewriter should still work (captures only the first Project, skips remapping for the
+     * second). This test verifies TopK still fires — sort key passes through un-remapped since
+     * the second Project is not captured.
+     */
+    public void testDetection_multipleProjects_topKStillFires() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+
+        // First Project: identity (no swap)
+        RelNode proj1 = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(agg, 0), rexBuilder.makeInputRef(agg, 1)),
+            List.of("status", "cnt")
+        );
+        // Second Project: also identity
+        RelNode proj2 = LogicalProject.create(
+            proj1,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(proj1, 0), rexBuilder.makeInputRef(proj1, 1)),
+            List.of("status", "cnt")
+        );
+
+        RelNode sort = LogicalSort.create(
+            proj2,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertTrue("TopK should still fire with multiple projects (PROJECT_MERGE collapses them)", sortCount >= 2);
+    }
+
+    /** Computed expression (literal) in Project between Sort and Aggregate — rewriter bails. */
+    public void testDetection_computedProjectExpression_topKBails() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+
+        // Project with a literal expression (not a column reference)
+        RelNode proj = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeLiteral(42, typeFactory.createSqlType(SqlTypeName.INTEGER), true), rexBuilder.makeInputRef(agg, 0)),
+            List.of("const", "status")
+        );
+
+        // Sort on $0 which is the literal — cannot be remapped
+        RelNode sort = LogicalSort.create(
+            proj,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertEquals("Computed expression in Project — TopK must bail", 0, countShardSortsBelowER(plan));
     }
 
     // ── Rewrite: PPL swap Project shapes ────────────────────────────────────────
