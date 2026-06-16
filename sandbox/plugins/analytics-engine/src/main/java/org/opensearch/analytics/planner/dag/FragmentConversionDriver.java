@@ -239,7 +239,7 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
-            if (containsEngineNativeAggregate(resolvedFragment, AggregateMode.PARTIAL)) {
+            if (containsPartialAggregate(resolvedFragment)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
         } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
@@ -249,6 +249,16 @@ public class FragmentConversionDriver {
     }
 
     /** Tree-walks for an engine-native-merge aggregate in the given mode. */
+    private static boolean containsPartialAggregate(RelNode root) {
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
+            return true;
+        }
+        for (RelNode child : root.getInputs()) {
+            if (containsPartialAggregate(child)) return true;
+        }
+        return false;
+    }
+
     private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
         if (root instanceof OpenSearchAggregate agg
             && agg.getMode() == mode

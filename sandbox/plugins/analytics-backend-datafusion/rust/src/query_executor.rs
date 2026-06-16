@@ -288,7 +288,8 @@ pub async fn execute_with_context(
         // and fall through to the standard decode + execute below.
         if let Some(prepared) = handle.prepared_plan.as_ref() {
             let physical_plan = std::sync::Arc::clone(prepared);
-            let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+            log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
+            let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
                 error!("execute_with_context: failed to execute prepared plan: {}", e);
                 e
             })?;
@@ -301,10 +302,8 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            // Prepared (engine-native PARTIAL) path carries no physical_plan handle — match the
-            // tuple shape of the other exits so the closure's return type stays consistent.
             return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>(
-                (Box::into_raw(Box::new(wrapped)) as i64, None),
+                (Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)),
             );
         }
 
