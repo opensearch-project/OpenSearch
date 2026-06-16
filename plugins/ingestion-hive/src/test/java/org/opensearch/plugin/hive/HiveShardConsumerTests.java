@@ -31,13 +31,11 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         return new HiveShardConsumer("test", 0, config);
     }
 
-
     public void testBuildPartitionFilterSingleKey() {
         HiveShardConsumer consumer = createConsumer();
         String filter = consumer.buildPartitionFilter("dt=2024-01-15", false);
         assertEquals("(dt > \"2024-01-15\")", filter);
     }
-
 
     public void testBuildPartitionFilterCompositeKey() {
         HiveShardConsumer consumer = createConsumer();
@@ -48,13 +46,11 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         );
     }
 
-
     public void testBuildPartitionFilterTwoKeys() {
         HiveShardConsumer consumer = createConsumer();
         String filter = consumer.buildPartitionFilter("region=us/dt=2024-03-01", false);
         assertEquals("(region > \"us\") OR (region = \"us\" AND dt > \"2024-03-01\")", filter);
     }
-
 
     public void testBuildPartitionFilterNoEquals() {
         HiveShardConsumer consumer = createConsumer();
@@ -62,13 +58,11 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals("", filter);
     }
 
-
     public void testBuildPartitionFilterInclusiveSingleKey() {
         HiveShardConsumer consumer = createConsumer();
         String filter = consumer.buildPartitionFilter("dt=2024-01-15", true);
         assertEquals("(dt >= \"2024-01-15\")", filter);
     }
-
 
     public void testBuildPartitionFilterInclusiveCompositeKey() {
         HiveShardConsumer consumer = createConsumer();
@@ -99,7 +93,6 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals(PrimitiveType.PrimitiveTypeName.BINARY, schema.getType("name").asPrimitiveType().getPrimitiveTypeName());
     }
 
-
     public void testHiveSchemaToParquetIntVariants() {
         List<MetastoreCatalog.ColumnInfo> columns = new ArrayList<>();
         columns.add(new MetastoreCatalog.ColumnInfo("a", "tinyint"));
@@ -110,7 +103,6 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals(PrimitiveType.PrimitiveTypeName.INT32, schema.getType("a").asPrimitiveType().getPrimitiveTypeName());
         assertEquals(PrimitiveType.PrimitiveTypeName.INT32, schema.getType("b").asPrimitiveType().getPrimitiveTypeName());
     }
-
 
     public void testHiveSchemaToParquetUnknownTypeFallsBackToString() {
         List<MetastoreCatalog.ColumnInfo> columns = new ArrayList<>();
@@ -137,7 +129,6 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertTrue(result.contains("\"_source\":{\"name\":\"alice\",\"age\":30,\"score\":9.5,\"active\":true}"));
     }
 
-
     public void testRowToJsonNullValue() throws Exception {
         HiveShardConsumer consumer = createConsumer();
         Map<String, Object> row = new LinkedHashMap<>();
@@ -150,7 +141,6 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
 
         assertTrue(result.contains("\"_source\":{\"name\":\"bob\",\"email\":null}"));
     }
-
 
     public void testRowToJsonSpecialCharacters() throws Exception {
         HiveShardConsumer consumer = createConsumer();
@@ -184,14 +174,12 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals("2024-01-15 03:00:00", result);
     }
 
-
     public void testExtractPartitionTimeNullPattern() {
         HiveShardConsumer consumer = createConsumer();
         MetastoreCatalog.PartitionInfo partition = new MetastoreCatalog.PartitionInfo(List.of("2024", "01", "15"), "/data", 0);
         String result = consumer.extractPartitionTime(partition);
         assertEquals("2024/01/15", result);
     }
-
 
     public void testDiscoverByPartitionTimeFiltersCorrectly() {
         // Verify that PARTITION_TIME mode uses extracted time comparison, not lexicographic.
@@ -227,7 +215,6 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         MetastoreCatalog.PartitionInfo partition = new MetastoreCatalog.PartitionInfo(List.of("2024-01-15"), "/data", 0);
         assertEquals("dt=2024-01-15", consumer.partitionToName(partition));
     }
-
 
     public void testPartitionToNameCompositeKeys() {
         HiveShardConsumer consumer = createConsumer();
@@ -270,9 +257,7 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
     public void testOpenNextFileDoesNotSkipOnFailure() {
         HiveShardConsumer consumer = createConsumer();
         consumer.partitionKeys = List.of("dt");
-        consumer.pendingWork.add(
-            new HiveShardConsumer.PartitionWork("dt=2024-01-01", "", List.of("/nonexistent/file.parquet"), 100)
-        );
+        consumer.pendingWork.add(new HiveShardConsumer.PartitionWork("dt=2024-01-01", "", List.of("/nonexistent/file.parquet"), 100));
         consumer.currentWorkIndex = 0;
 
         expectThrows(IOException.class, consumer::openNextFile);
