@@ -585,4 +585,20 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
         assertEquals(2, visitedQueries.size());
     }
+
+    public void testVisitRecursivelyVisitsNestedChildren() {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new MatchAllQueryBuilder()).filter(new TermQueryBuilder("field", "value"));
+        NestedQueryBuilder builder = new NestedQueryBuilder("path", boolQuery, ScoreMode.None);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        // Should visit: NestedQueryBuilder, BoolQueryBuilder, MatchAllQueryBuilder, TermQueryBuilder
+        assertEquals(4, visitedQueries.size());
+        assertThat(visitedQueries.get(0), instanceOf(NestedQueryBuilder.class));
+        assertThat(visitedQueries.get(1), instanceOf(BoolQueryBuilder.class));
+        assertThat(visitedQueries.get(2), instanceOf(MatchAllQueryBuilder.class));
+        assertThat(visitedQueries.get(3), instanceOf(TermQueryBuilder.class));
+    }
+
 }
