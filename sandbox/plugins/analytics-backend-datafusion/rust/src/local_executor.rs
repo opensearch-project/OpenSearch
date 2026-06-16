@@ -179,7 +179,7 @@ impl LocalSession {
     pub async fn execute_substrait(
         &self,
         bytes: &[u8],
-    ) -> Result<SendableRecordBatchStream, DataFusionError> {
+    ) -> Result<(SendableRecordBatchStream, Arc<dyn datafusion::physical_plan::ExecutionPlan>), DataFusionError> {
         let plan = Plan::decode(bytes).map_err(|e| {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
@@ -190,9 +190,10 @@ impl LocalSession {
 
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
-        datafusion::physical_plan::execute_stream(physical_plan, self.ctx.task_ctx())
-            .map_err(|e| DataFusionError::Execution(format!("execute_substrait: {}", e)))
+        log_debug!("DataFusion coordinator reduce physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
+        let stream = datafusion::physical_plan::execute_stream(physical_plan.clone(), self.ctx.task_ctx())
+            .map_err(|e| DataFusionError::Execution(format!("execute_substrait: {}", e)))?;
+        Ok((stream, physical_plan))
     }
 
     /// Returns the memory pool the session's `RuntimeEnv` was built with.
@@ -342,7 +343,7 @@ mod tests {
             drop(sender); // EOF
         });
 
-        let mut stream = session
+        let (mut stream, _plan) = session
             .execute_substrait(&substrait_bytes)
             .await
             .expect("execute");
@@ -399,7 +400,7 @@ mod tests {
             buf
         };
 
-        let mut stream = session
+        let (mut stream, _plan) = session
             .execute_substrait(&substrait_bytes)
             .await
             .expect("execute");
