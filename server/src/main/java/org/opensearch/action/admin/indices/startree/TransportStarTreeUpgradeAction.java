@@ -40,10 +40,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
@@ -72,7 +70,7 @@ import static org.opensearch.core.xcontent.MediaTypeRegistry.JSON;
  *   <li>Phase 1: Submit a mapping update to add the star tree field configuration to the index mapping,
  *       bypassing the {@code index.composite_index} setting check via {@link MergeReason#STAR_TREE_UPGRADE}.</li>
  *   <li>Phase 2: Per-shard star tree building and SegmentInfos rewrite via the broadcast mechanism, which calls
- *       {@link IndexShard#upgradeToStarTree(StarTreeField)} on each shard.</li>
+ *       {@link IndexShard#upgradeToStarTree()} on each shard.</li>
  * </ol>
  *
  * @opensearch.experimental
@@ -173,7 +171,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         }
 
         try {
-            indexShard.upgradeToStarTree(request.getStarTreeField());
+            indexShard.upgradeToStarTree();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("star tree upgrade interrupted on shard [" + shardRouting.shardId() + "]", e);
@@ -315,6 +313,9 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
      * {@code StarTreeMapper.Builder} validates dimension/metric fields by looking them up
      * in the {@code ObjectMapper.Builder}'s mapper builders list, which only contains
      * fields from the current mapping source being parsed.
+     *
+     * Uses raw config bytes directly — all parsing is delegated to StarTreeMapper during
+     * mapperService.merge(), ensuring full feature parity with index-time star tree creation.
      */
     static CompressedXContent buildCompleteMappingSource(StarTreeUpgradeRequest request, IndexMetadata indexMetadata) throws IOException {
         // Get existing mapping source
@@ -330,22 +331,14 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
             }
         }
 
-        // Build the composite section with the star tree field
-        Map<String, Object> compositeSection = new HashMap<>();
-        Map<String, Object> starTreeFieldMap = new HashMap<>();
-        starTreeFieldMap.put("type", "star_tree");
+        // Build the composite section using the raw config map from the request
+        Map<String, Object> configMap = request.getStarTreeConfigAsMap();
 
-        // Serialize StarTreeField config — use jsonBuilder directly since toXContent() already
-        // writes startObject/endObject.
-        BytesReference configBytes;
-        try (XContentBuilder configBuilder = org.opensearch.common.xcontent.XContentFactory.jsonBuilder()) {
-            request.getStarTreeField().toXContent(configBuilder, ToXContent.EMPTY_PARAMS);
-            configBytes = BytesReference.bytes(configBuilder);
-        }
-        Map<String, Object> configMap = XContentHelper.convertToMap(configBytes, false, JSON).v2();
-
-        // Remove fields from configMap that StarTreeMapper.Builder doesn't expect in the config.
+        // Remove "name" from config — it's used as the key, not a config field
         configMap.remove("name");
+
+        // Remove "type" from ordered_dimensions — StarTreeMapper.Builder resolves types via
+        // ObjectMapper.Builder lookup and rejects unknown remaining fields.
         Object orderedDims = configMap.get("ordered_dimensions");
         if (orderedDims instanceof List) {
             for (Object dim : (List<?>) orderedDims) {
@@ -355,9 +348,12 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
             }
         }
 
+        Map<String, Object> compositeSection = new HashMap<>();
+        Map<String, Object> starTreeFieldMap = new HashMap<>();
+        starTreeFieldMap.put("type", "star_tree");
         starTreeFieldMap.put("config", configMap);
 
-        compositeSection.put(request.getStarTreeField().getName(), starTreeFieldMap);
+        compositeSection.put(request.getStarTreeFieldName(), starTreeFieldMap);
         existingSourceMap.put("composite", compositeSection);
 
         // Wrap in _doc type
@@ -372,28 +368,28 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
 
     /**
      * Builds the mapping source JSON that includes the star tree field under the "composite" section.
-     * The resulting mapping looks like:
-     * <pre>
-     * {
-     *   "_doc": {
-     *     "composite": {
-     *       "my_star_tree": {
-     *         "type": "star_tree",
-     *         "config": { ... star tree config ... }
-     *       }
-     *     }
-     *   }
-     * }
-     * </pre>
+     * Uses raw config bytes from the request — StarTreeMapper handles all parsing.
      */
     static CompressedXContent buildStarTreeMappingSource(StarTreeUpgradeRequest request) throws IOException {
+        Map<String, Object> configMap = request.getStarTreeConfigAsMap();
+        configMap.remove("name");
+        // Remove "type" from ordered_dimensions for mapper compatibility
+        Object orderedDims = configMap.get("ordered_dimensions");
+        if (orderedDims instanceof List) {
+            for (Object dim : (List<?>) orderedDims) {
+                if (dim instanceof Map) {
+                    ((Map<?, ?>) dim).remove("type");
+                }
+            }
+        }
+
         XContentBuilder builder = XContentBuilder.builder(JSON.xContent());
         builder.startObject();
         builder.startObject(MapperService.SINGLE_MAPPING_NAME);
         builder.startObject("composite");
-        builder.startObject(request.getStarTreeField().getName());
+        builder.startObject(request.getStarTreeFieldName());
         builder.field("type", "star_tree");
-        builder.field("config", request.getStarTreeField());
+        builder.field("config", configMap);
         builder.endObject();
         builder.endObject();
         builder.endObject();

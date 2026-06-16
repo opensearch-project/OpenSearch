@@ -599,6 +599,13 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             return starTreeConfig;
         }
 
+        /**
+         * Reconstructs the full StarTreeField from this field type.
+         */
+        public StarTreeField getStarTreeField() {
+            return new StarTreeField(name(), getDimensions(), getMetrics(), starTreeConfig);
+        }
+
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             // TODO : evaluate later

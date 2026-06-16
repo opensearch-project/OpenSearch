@@ -2530,10 +2530,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Reads and writes are unavailable during the upgrade. The upgrade builds star tree data
      * by reading doc values from each segment and writing .cid/.cim/.cidvd/.cidvm files directly.
      *
-     * @param starTreeField the star tree configuration (dimensions, metrics, build parameters)
      * @return the number of segments that were upgraded
      */
-    public int upgradeToStarTree(StarTreeField starTreeField) throws IOException, InterruptedException, TimeoutException {
+    public int upgradeToStarTree() throws IOException, InterruptedException, TimeoutException {
         verifyActive();
         if (starTreeUpgradeInProgress.compareAndSet(false, true) == false) {
             throw new IllegalStateException("star tree upgrade already in progress on shard [" + shardId + "]");
@@ -2573,6 +2572,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Set<String> allCandidateSegments = StarTreeUpgradeService.getCandidateSegmentNames(store().directory());
                 Set<String> upgradedSegments = Collections.emptySet();
                 try {
+                    // Get the StarTreeField from MapperService — parsed by StarTreeMapper during mapping merge.
+                    StarTreeField starTreeField =
+                        ((org.opensearch.index.mapper.StarTreeMapper.StarTreeFieldType) mapperService.getCompositeFieldTypes()
+                            .iterator()
+                            .next()).getStarTreeField();
+
                     // Phase 1: build star tree files
                     upgradedSegments = StarTreeUpgradeService.buildStarTreeDataForSegments(
                         store().directory(),

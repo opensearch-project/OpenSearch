@@ -10,7 +10,6 @@ package org.opensearch.action.admin.indices.startree;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.Strings;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -24,7 +23,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 /**
  * REST handler for the star tree upgrade action.
  * Registers the {@code POST /{index}/_star_tree/upgrade} route,
- * parses the star tree configuration from the request body,
+ * extracts the star tree configuration as raw bytes from the request body,
  * and delegates to {@link TransportStarTreeUpgradeAction} via
  * {@link StarTreeUpgradeAction}.
  *
@@ -46,8 +45,11 @@ public class RestStarTreeUpgradeAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        StarTreeField starTreeField = StarTreeUpgradeRequest.parseStarTreeConfig(request.requiredContent(), request.getMediaType());
-        StarTreeUpgradeRequest upgradeRequest = new StarTreeUpgradeRequest(indices, starTreeField);
+        StarTreeUpgradeRequest upgradeRequest = StarTreeUpgradeRequest.fromRequestBody(
+            indices,
+            request.requiredContent(),
+            request.getMediaType()
+        );
         return channel -> client.execute(StarTreeUpgradeAction.INSTANCE, upgradeRequest, new RestToXContentListener<>(channel));
     }
 }
