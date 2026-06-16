@@ -298,10 +298,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
                 || distribution.getType() == RelDistribution.Type.ANY;
 
-            // SINGLE must sit over gathered input (partitioned input → shards aggregate in
-            // isolation, partials never merge). PARTIAL must sit over partitioned input
-            // (over gathered input it is a no-op that beats the correct shard-PARTIAL+ER on a
-            // cost tie). Reject the wrong placement for each.
+            // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
             if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
