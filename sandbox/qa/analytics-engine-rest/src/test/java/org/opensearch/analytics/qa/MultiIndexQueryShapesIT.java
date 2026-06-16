@@ -35,6 +35,12 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
     private static final String PQLUC_B = "multi_pqluc_b";
     private static final String PQLUC_ALIAS = "multi_pqluc_alias";
 
+    // ── Full-text delegation indices: composite, multi-shard, with a text body + keyword
+    //    service/trace so match() delegates to Lucene across multiple indices. ──
+    private static final String FT_A = "multi_ft_a";
+    private static final String FT_B = "multi_ft_b";
+    private static final String FT_ALIAS = "multi_ft_alias";
+
     private static boolean provisioned = false;
 
     private void ensureProvisioned() throws IOException {
@@ -53,6 +59,16 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         bulk(PQLUC_A, "{\"status\":200,\"message\":\"ok\"}\n{\"status\":500,\"message\":\"error\"}\n{\"status\":200,\"message\":\"hello\"}\n");
         bulk(PQLUC_B, "{\"status\":200,\"message\":\"world\",\"source\":\"app1\"}\n{\"status\":404,\"message\":\"not found\",\"source\":\"app2\"}\n");
         putAlias(PQLUC_ALIAS, List.of(PQLUC_A, PQLUC_B));
+
+        String ftMapping = "{\"properties\":{\"service\":{\"type\":\"keyword\"},\"trace\":{\"type\":\"keyword\"},\"body\":{\"type\":\"text\"}}}";
+        createIndexWithSettings(FT_A, ftMapping, true, 2);
+        createIndexWithSettings(FT_B, ftMapping, true, 2);
+        bulk(FT_A, "{\"service\":\"checkout\",\"trace\":\"a1\",\"body\":\"exception timeout failed\"}\n"
+            + "{\"service\":\"checkout\",\"trace\":\"a2\",\"body\":\"timeout while reading\"}\n"
+            + "{\"service\":\"frontend\",\"trace\":\"a3\",\"body\":\"all good\"}\n");
+        bulk(FT_B, "{\"service\":\"checkout\",\"trace\":\"b1\",\"body\":\"timeout exception\"}\n"
+            + "{\"service\":\"frontend\",\"trace\":\"b2\",\"body\":\"connection reset\"}\n");
+        putAlias(FT_ALIAS, List.of(FT_A, FT_B));
 
         provisioned = true;
     }
@@ -155,6 +171,90 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         assertEquals("index A rows have null source", 3, nullCount);
     }
 
+    // ── Full-text delegation across multiple indices ──
+    // Regression for the bug where a delegated match() on a multi-index source kept the
+    // delegated_predicate FilterExec (the IndexedTableProvider was registered under the
+    // per-shard name, not the plan's multi-index NamedTable, so the scan never bound to it
+    // and DataFusion executed the marker UDF). Single-index match() always worked; these
+    // exercise the comma-list and alias multi-index shapes with every row-materializing op.
+
+    public void testMatchDelegationCommaListCount() throws IOException {
+        ensureProvisioned();
+        long count = singleCount("source=" + FT_A + "," + FT_B + " | where match(body, 'timeout') | stats count() as c");
+        assertEquals("timeout matches: 2 in A + 1 in B", 3L, count);
+    }
+
+    public void testMatchDelegationCommaListGroupBy() throws IOException {
+        ensureProvisioned();
+        Map<String, Object> body = executePpl(
+            "source=" + FT_A + "," + FT_B + " | where match(body, 'timeout') | stats count() as c by service | sort -c");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
+        assertEquals(1, rows.size());
+        assertEquals(3L, ((Number) rows.get(0).get(0)).longValue());
+        assertEquals("checkout", rows.get(0).get(1));
+    }
+
+    public void testMatchDelegationDistinctCount() throws IOException {
+        ensureProvisioned();
+        long dc = singleCount("source=" + FT_A + "," + FT_B + " | where match(body, 'timeout') | stats dc(trace) as ut");
+        assertEquals("3 distinct traces match timeout across both indices", 3L, dc);
+    }
+
+    public void testMatchDelegationCountAndDistinctCountGroupBy() throws IOException {
+        ensureProvisioned();
+        Map<String, Object> body = executePpl(
+            "source=" + FT_A + "," + FT_B
+                + " | where match(body, 'timeout') | stats count() as c, dc(trace) as ut by service | sort -c");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
+        assertEquals(1, rows.size());
+        assertEquals("count", 3L, ((Number) rows.get(0).get(0)).longValue());
+        assertEquals("distinct traces", 3L, ((Number) rows.get(0).get(1)).longValue());
+        assertEquals("checkout", rows.get(0).get(2));
+    }
+
+    public void testMatchDelegationFieldsMaterialization() throws IOException {
+        ensureProvisioned();
+        Map<String, Object> body = executePpl(
+            "source=" + FT_A + "," + FT_B + " | where match(body, 'timeout') | fields trace, service | head 20");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
+        assertEquals("3 rows match timeout", 3, rows.size());
+    }
+
+    public void testMatchDelegationAcrossAlias() throws IOException {
+        ensureProvisioned();
+        long count = singleCount("source=" + FT_ALIAS + " | where match(body, 'exception') | stats count() as c");
+        assertEquals("exception matches: 1 in A + 1 in B", 2L, count);
+    }
+
+    public void testMatchDelegationWildcardDistinctCount() throws IOException {
+        ensureProvisioned();
+        Map<String, Object> body = executePpl(
+            "source=multi_ft_* | where match(body, 'timeout') | stats dc(trace) as ut by service | sort -ut");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
+        assertEquals(1, rows.size());
+        assertEquals("checkout has 3 distinct timeout traces", 3L, ((Number) rows.get(0).get(0)).longValue());
+        assertEquals("checkout", rows.get(0).get(1));
+    }
+
+    // A delegated match() that trims one populated index to zero rows: 'reset' is only in B,
+    // so A's shards run the filter and emit nothing while B returns data. Exercises the
+    // runtime-empty path on a populated shard (distinct from the zero-doc EmptyExec guard).
+
+    public void testMatchDelegationOneIndexTrimmedToZeroCount() throws IOException {
+        ensureProvisioned();
+        long count = singleCount("source=" + FT_A + "," + FT_B + " | where match(body, 'reset') | stats count() as c");
+        assertEquals("reset matches: 0 in A + 1 in B", 1L, count);
+    }
+
+    public void testMatchDelegationOneIndexTrimmedToZeroDistinctCount() throws IOException {
+        ensureProvisioned();
+        long dc = singleCount("source=" + FT_A + "," + FT_B + " | where match(body, 'reset') | stats dc(trace) as ut");
+        assertEquals("1 distinct trace matches reset (B only, A trimmed to zero)", 1L, dc);
+    }
 
     // ── Multi-shard: verifies reduce handles null-filled batches from different shards ──
 
