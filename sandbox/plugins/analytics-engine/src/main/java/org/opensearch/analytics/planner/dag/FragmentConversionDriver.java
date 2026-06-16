@@ -248,11 +248,9 @@ public class FragmentConversionDriver {
         return instructions;
     }
 
-    /** Tree-walks for an engine-native-merge aggregate in the given mode. */
+    // TODO: consolidate with isAggregatePath / findBuriedPartialAggregate into a shared utility
     private static boolean containsPartialAggregate(RelNode root) {
-        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-            return true;
-        }
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) return true;
         for (RelNode child : root.getInputs()) {
             if (containsPartialAggregate(child)) return true;
         }

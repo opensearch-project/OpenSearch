@@ -288,7 +288,6 @@ pub async fn execute_with_context(
         // and fall through to the standard decode + execute below.
         if let Some(prepared) = handle.prepared_plan.as_ref() {
             let physical_plan = std::sync::Arc::clone(prepared);
-            log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
             let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
                 error!("execute_with_context: failed to execute prepared plan: {}", e);
                 e
