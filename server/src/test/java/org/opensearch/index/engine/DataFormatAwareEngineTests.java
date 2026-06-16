@@ -935,6 +935,40 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
+     * Verifies that engine close (closeNoLock) drains the flushQueue and closes any
+     * writers still sitting in it. Without this, a writer checked out of the pool and
+     * placed in the flushQueue (but not yet flushed) would be orphaned on engine close,
+     * leaking its LuceneWriter's NativeFSLock in LOCK_HELD.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testCloseNoLockDrainsFlushQueue() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            // Inject a writer directly into the flushQueue (simulates a writer that was
+            // checked out of the pool for refresh but not yet flushed when engine closes).
+            java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+            queueField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>> queue =
+                (java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>>) queueField.get(engine);
+
+            FailingFlushWriter orphanWriter = new FailingFlushWriter(777L, mockDataFormat);
+            queue.add(orphanWriter);
+            assertThat("writer injected into flushQueue", flushQueueSize(engine), equalTo(1));
+
+            // Close the engine — closeNoLock must drain flushQueue and close the writer.
+            engine.close();
+
+            assertThat("flushQueue must be empty after close", flushQueueSize(engine), equalTo(0));
+            assertThat("orphan writer must be closed", orphanWriter.state(), equalTo(WriterState.CLOSED));
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
      * Covers the preIndex cooperative-flush path when a writer's {@code flush()} throws.
      *
      * <p>When a write thread picks a writer from the flushQueue during preIndex and the

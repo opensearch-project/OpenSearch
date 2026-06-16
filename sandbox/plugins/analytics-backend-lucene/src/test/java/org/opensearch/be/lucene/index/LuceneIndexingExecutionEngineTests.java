@@ -16,6 +16,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -473,5 +474,19 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
 
         writer2.close();
         assertEquals("All writers closed, heap should be 0", 0L, engine.getHeapBytesUsed());
+    }
+
+    /**
+     * Asserts that reflection access to NativeFSLockFactory.LOCK_HELD works with the
+     * current Lucene version. If Lucene changes this field (renamed, removed, or type
+     * changed), this test fails during CI — signalling that clearStaleLocks needs updating.
+     */
+    @SuppressForbidden(reason = "Test verifies reflection used by clearStaleLocks is compatible with current Lucene")
+    public void testNativeFSLockFactoryLockHeldFieldAccessible() throws Exception {
+        java.lang.reflect.Field field = org.apache.lucene.store.NativeFSLockFactory.class.getDeclaredField("LOCK_HELD");
+        field.setAccessible(true);
+        Object value = field.get(null);
+        assertNotNull("LOCK_HELD field must be accessible via reflection", value);
+        assertTrue("LOCK_HELD must be a Set<String>", value instanceof java.util.Set);
     }
 }

@@ -891,34 +891,39 @@ public class DataFormatAwareEngine implements Indexer {
                         Writer<?> writerToFlush;
                         while ((writerToFlush = flushQueue.poll()) != null) {
                             ensureOpen(); // short-circuit if engine has failed/closed concurrently
-                            final long writerFlushStartNanos = System.nanoTime();
-                            FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
-                            final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
+                            try {
+                                final long writerFlushStartNanos = System.nanoTime();
+                                FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
+                                final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
 
-                            Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());
-                            boolean hasFiles = false;
-                            for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                                Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());
+                                boolean hasFiles = false;
+                                for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                                    logger.trace(
+                                        "Writer gen={} flushed format=[{}] files={}",
+                                        writerToFlush.generation(),
+                                        entry.getKey().name(),
+                                        entry.getValue().files()
+                                    );
+                                    segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                                    hasFiles = true;
+                                }
                                 logger.trace(
-                                    "Writer gen={} flushed format=[{}] files={}",
+                                    "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
+                                    source,
                                     writerToFlush.generation(),
-                                    entry.getKey().name(),
-                                    entry.getValue().files()
+                                    writerFlushElapsedMs,
+                                    hasFiles
                                 );
-                                segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
-                                hasFiles = true;
+                                if (hasFiles) {
+                                    newSegments.add(segmentBuilder.build());
+                                }
+                                refreshed |= hasFiles;
+                            } catch (Exception e) {
+                                IOUtils.closeWhileHandlingException(writerToFlush);
+                                throw e;
                             }
-                            logger.trace(
-                                "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
-                                source,
-                                writerToFlush.generation(),
-                                writerFlushElapsedMs,
-                                hasFiles
-                            );
                             toClose.add(writerToFlush);
-                            if (hasFiles) {
-                                newSegments.add(segmentBuilder.build());
-                            }
-                            refreshed |= hasFiles;
                             flushLatch.countDown();
                         }
 
@@ -1616,6 +1621,7 @@ public class DataFormatAwareEngine implements Indexer {
      * recovery replay the translog. The writer is checked out of the pool before any work that
      * could throw, so on throw the caller can still safely flag it as checked-out.
      */
+
     private boolean retireWriterIfNeeded(DefaultLockableHolder<Writer<?>> lockedWriter) {
         Writer<?> writer = lockedWriter.get();
         WriterState postState = writer.state();
@@ -1827,6 +1833,12 @@ public class DataFormatAwareEngine implements Indexer {
                 Writer<?> pendingWriter;
                 while ((pendingWriter = pendingWritersToClose.poll()) != null) {
                     IOUtils.closeWhileHandlingException(pendingWriter);
+                }
+                // Close writers still in the flush queue (checked out of pool, not yet flushed).
+                // Without this, their LuceneWriter IndexWriter locks remain in LOCK_HELD.
+                Writer<?> queuedWriter;
+                while ((queuedWriter = flushQueue.poll()) != null) {
+                    IOUtils.closeWhileHandlingException(queuedWriter);
                 }
                 // Close all writers still in the pool (unflushed writers from the current cycle)
                 for (var holder : writerPool.checkoutAll()) {
