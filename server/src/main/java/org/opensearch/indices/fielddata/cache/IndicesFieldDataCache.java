@@ -118,9 +118,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     ) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
-        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder().removalListener(this);
+        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder()
+            .removalListener(this)
+            .weigher(new FieldDataWeigher());
         if (sizeInBytes > 0) {
-            cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
+            cacheBuilder.setMaximumWeight(sizeInBytes);
         }
         cache = cacheBuilder.build();
         if (clusterService != null) {
@@ -409,8 +411,13 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     private void updateMaximumWeight(ByteSizeValue newMaximumWeight) {
         long oldMaximumWeight = cache.getMaximumWeight();
-        cache.setMaximumWeight(newMaximumWeight.getBytes());
-        if (newMaximumWeight.getBytes() < oldMaximumWeight) {
+        long newMaximumWeightBytes = newMaximumWeight.getBytes();
+        if (newMaximumWeightBytes <= 0) {
+            cache.unsetMaximumWeight();
+            return;
+        }
+        cache.setMaximumWeight(newMaximumWeightBytes);
+        if (oldMaximumWeight == -1 || newMaximumWeightBytes < oldMaximumWeight) {
             // Evict entries if needed, if the new size is smaller than the old.
             // Do it asynchronously to avoid blocking cluster applier thread
             if (threadPool != null) {

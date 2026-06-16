@@ -956,6 +956,20 @@ public class CacheTests extends OpenSearchTestCase {
         }
     }
 
+    public void testUnsetMaximumWeightDisablesWeightEviction() {
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().setMaximumWeight(10).weigher((k, v) -> 6).build();
+        cache.put(1, "one");
+        assertEquals(6, cache.weight());
+
+        cache.unsetMaximumWeight();
+        cache.put(2, "two");
+        cache.put(3, "three");
+
+        assertEquals(-1, cache.getMaximumWeight());
+        assertEquals(3, cache.count());
+        assertEquals(18, cache.weight());
+    }
+
     public void testWithInvalidSegmentNumber() {
         assertThrows(
             "Number of segments for cache should be a power of two up-to 256",

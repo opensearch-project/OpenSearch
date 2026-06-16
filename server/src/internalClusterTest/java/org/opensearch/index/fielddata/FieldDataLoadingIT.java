@@ -133,6 +133,23 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         });
     }
 
+    public void testIndicesFieldDataCacheSizeCanBeSetToUnbounded() {
+        try {
+            updateFieldDataCacheSize("1b");
+            updateFieldDataCacheSize("-1");
+        } finally {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().putNull(INDICES_FIELDDATA_CACHE_SIZE_KEY.getKey()));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
+    }
+
+    private void updateFieldDataCacheSize(String value) {
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(INDICES_FIELDDATA_CACHE_SIZE_KEY.getKey(), value));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
     private void createIndex(String index, int numFieldsPerIndex, String fieldPrefix) throws Exception {
         assert numFieldsPerIndex >= 1;
         XContentBuilder req = jsonBuilder().startObject().startObject("properties");
