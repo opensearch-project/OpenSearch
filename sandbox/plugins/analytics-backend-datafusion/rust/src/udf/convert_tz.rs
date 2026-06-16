@@ -525,4 +525,58 @@ mod tests {
         assert!(arr.is_null(1));
         assert!(arr.is_null(2));
     }
+
+    // Column-valued tz strings can't be validated plan-side, so the UDF must
+    // null them out at row time. Both just-outside-the-band entries (-14:00,
+    // +14:01) and well-outside ones (+15:00) must collapse to NULL.
+    #[test]
+    fn invoke_out_of_band_offset_strings_yield_nulls() {
+        let udf = ConvertTzUdf::new();
+        let ts = TimestampMillisecondArray::from(vec![
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+        ]);
+        let from = StringArray::from(vec![
+            Some("+00:00"),
+            Some("-14:00"), // just past negative cap
+            Some("+15:00"), // well past positive cap
+            Some("+00:00"),
+        ]);
+        let to = StringArray::from(vec![
+            Some("+14:00"), // boundary OK
+            Some("+00:00"),
+            Some("+00:00"),
+            Some("+14:01"), // just past positive cap
+        ]);
+        let args = ScalarFunctionArgs {
+            args: vec![
+                ColumnarValue::Array(Arc::new(ts)),
+                ColumnarValue::Array(Arc::new(from)),
+                ColumnarValue::Array(Arc::new(to)),
+            ],
+            number_rows: 4,
+            arg_fields: vec![],
+            return_field: Arc::new(datafusion::arrow::datatypes::Field::new(
+                "out",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            )),
+            config_options: Arc::new(datafusion::config::ConfigOptions::new()),
+        };
+        let out = udf.invoke_with_args(args).unwrap();
+        let arr = match out {
+            ColumnarValue::Array(a) => a,
+            _ => panic!("expected array"),
+        };
+        let arr = arr
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        assert!(!arr.is_null(0), "in-band +14:00 must produce a value");
+        assert!(arr.is_null(1), "from=-14:00 (out-of-band) must yield NULL");
+        assert!(arr.is_null(2), "from=+15:00 (out-of-band) must yield NULL");
+        assert!(arr.is_null(3), "to=+14:01 (out-of-band) must yield NULL");
+    }
 }
