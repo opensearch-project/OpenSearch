@@ -31,6 +31,8 @@
 
 package org.opensearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -69,6 +71,8 @@ import java.util.stream.Collectors;
  */
 @PublicApi(since = "1.0.0")
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
+
+    private static final Logger logger = LogManager.getLogger(SnapshotInfo.class);
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
@@ -800,25 +804,16 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * Resolves the OpenSearch {@link Version} that a snapshot was created with from its stored
-     * {@code version_id}.
-     * <p>
-     * Snapshots created on unsupported versions (for example, indices originally created on legacy
-     * Elasticsearch versions) cannot be restored into this OpenSearch version. However, their
-     * metadata must still be readable so that read-only operations such as listing snapshots
-     * ({@code _snapshot/_all}) and retrieving snapshot status ({@code _snapshot/.../_status}) do not
-     * fail for an entire repository because of a single incompatible snapshot. In that case the
-     * version is reported as unknown ({@code null}); the nullable {@code version} field is already
-     * handled gracefully throughout {@link SnapshotInfo} (see {@link #toXContent}).
-     *
-     * @param versionId the stored {@code version_id}
-     * @return the resolved {@link Version}, or {@code null} if the version is not supported
+     * Resolves the {@link Version} a snapshot was created with from its stored {@code version_id},
+     * returning {@code null} for unsupported (e.g. legacy Elasticsearch) versions so that read-only
+     * operations such as listing snapshots do not fail for the whole repository.
      */
     @Nullable
     private static Version resolveSnapshotVersion(int versionId) {
         try {
             return Version.fromId(versionId);
         } catch (Version.UnsupportedVersionException e) {
+            logger.debug("Encountered unsupported snapshot version_id [{}]; reporting version as unknown", versionId);
             return null;
         }
     }

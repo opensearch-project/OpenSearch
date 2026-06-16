@@ -48,75 +48,47 @@ import java.util.Map;
 
 public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotInfo> {
 
-    /**
-     * A snapshot whose {@code version_id} refers to an unsupported version (for example, an index
-     * originally created on a legacy Elasticsearch version) must still be readable so that listing
-     * snapshots and retrieving snapshot status do not fail for the whole repository. The version is
-     * reported as {@code null} in that case rather than throwing.
-     */
+    // Legacy Elasticsearch 7.10.2 version id: it lacks the OpenSearch version mask bit, so it is not
+    // supported and Version.fromId rejects it.
+    private static final int LEGACY_ES_7_10_2_VERSION_ID = 7100299;
+
+    private static String snapshotJson(String name, int versionId) {
+        return "{\"snapshot\":{\"name\":\""
+            + name
+            + "\",\"uuid\":\"uuid\",\"version_id\":"
+            + versionId
+            + ",\"state\":\"SUCCESS\",\"indices\":[\"idx-1\"],\"total_shards\":1,\"successful_shards\":1}}";
+    }
+
+    /** An unsupported {@code version_id} must parse to an unknown ({@code null}) version, not throw. */
     public void testFromXContentInternalToleratesUnsupportedVersionId() throws IOException {
-        // 7100299 is the legacy Elasticsearch 7.10.2 version id; it lacks the OpenSearch mask bit
-        // and is therefore not supported by OpenSearch 3.x.
-        final String json = "{\"snapshot\":{"
-            + "\"name\":\"snap-legacy\","
-            + "\"uuid\":\"abc123\","
-            + "\"version_id\":7100299,"
-            + "\"state\":\"SUCCESS\","
-            + "\"indices\":[\"idx-1\"],"
-            + "\"total_shards\":1,"
-            + "\"successful_shards\":1"
-            + "}}";
+        final String json = snapshotJson("snap-legacy", LEGACY_ES_7_10_2_VERSION_ID);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             SnapshotInfo snapshotInfo = SnapshotInfo.fromXContentInternal(parser);
             assertEquals("snap-legacy", snapshotInfo.snapshotId().getName());
-            assertNull("unsupported version id must resolve to null instead of throwing", snapshotInfo.version());
+            assertNull(snapshotInfo.version());
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         }
     }
 
-    /**
-     * A supported {@code version_id} must continue to resolve to the corresponding {@link Version}.
-     */
+    /** A supported {@code version_id} must still resolve to its {@link Version}. */
     public void testFromXContentInternalResolvesSupportedVersionId() throws IOException {
-        final String json = "{\"snapshot\":{"
-            + "\"name\":\"snap-ok\","
-            + "\"uuid\":\"def456\","
-            + "\"version_id\":"
-            + Version.CURRENT.id
-            + ","
-            + "\"state\":\"SUCCESS\","
-            + "\"indices\":[\"idx-1\"],"
-            + "\"total_shards\":1,"
-            + "\"successful_shards\":1"
-            + "}}";
+        final String json = snapshotJson("snap-ok", Version.CURRENT.id);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            SnapshotInfo snapshotInfo = SnapshotInfo.fromXContentInternal(parser);
-            assertEquals(Version.CURRENT, snapshotInfo.version());
+            assertEquals(Version.CURRENT, SnapshotInfo.fromXContentInternal(parser).version());
         }
     }
 
-    /**
-     * A {@link SnapshotInfo} with an unknown (null) version, as produced for a snapshot created on an
-     * unsupported version, must survive a transport-layer serialization round trip. This guards the
-     * coordinating-node to client path used by snapshot listing and status APIs.
-     */
+    /** A {@link SnapshotInfo} with an unknown (null) version must survive a wire round trip. */
     public void testWireRoundTripWithUnknownVersion() throws IOException {
-        final String json = "{\"snapshot\":{"
-            + "\"name\":\"snap-legacy\","
-            + "\"uuid\":\"abc123\","
-            + "\"version_id\":7100299,"
-            + "\"state\":\"SUCCESS\","
-            + "\"indices\":[\"idx-1\"],"
-            + "\"total_shards\":1,"
-            + "\"successful_shards\":1"
-            + "}}";
+        final String json = snapshotJson("snap-legacy", LEGACY_ES_7_10_2_VERSION_ID);
         final SnapshotInfo original;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             original = SnapshotInfo.fromXContentInternal(parser);
         }
         assertNull(original.version());
         SnapshotInfo roundTripped = copyInstance(original);
-        assertNull("null version must be preserved across the wire", roundTripped.version());
+        assertNull(roundTripped.version());
         assertEquals(original, roundTripped);
     }
 
