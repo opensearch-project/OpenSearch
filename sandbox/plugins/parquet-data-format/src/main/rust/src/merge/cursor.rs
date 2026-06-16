@@ -19,17 +19,12 @@ use super::heap::{get_sort_values, SortKey};
 use super::io_task::get_merge_pool;
 use super::schema::projection_indices_excluding_row_id;
 
-/// Default minimum number of variable-width (string/binary) non-sort columns to activate
-/// deferred data loading. Default 0 means always deferred — sort columns are always
-/// read separately from data columns. Overridable via index setting
-/// `index.parquet.merge_deferred_column_threshold`.
-const DEFAULT_DEFERRED_WIDE_COLUMN_THRESHOLD: usize = 0;
-
 /// A cursor over a single sorted Parquet input file.
 ///
-/// For wide schemas (≥3 variable-width non-sort columns), uses two readers:
-/// a sort-only reader for the merge heap and a data reader loaded on demand.
-/// For narrow schemas, uses a single all-column reader (zero overhead vs original).
+/// When deferred mode is active (controlled by the dynamic index setting
+/// `index.parquet.merge_deferred_column_threshold`, default 0 = always deferred),
+/// uses two readers: a sort-only reader for the merge heap and a data reader
+/// loaded on demand. Otherwise uses a single all-column reader.
 pub struct FileCursor {
     sort_reader: Arc<Mutex<parquet::arrow::arrow_reader::ParquetRecordBatchReader>>,
     sort_prefetch_rx: std::sync::mpsc::Receiver<Option<MergeResult<RecordBatch>>>,

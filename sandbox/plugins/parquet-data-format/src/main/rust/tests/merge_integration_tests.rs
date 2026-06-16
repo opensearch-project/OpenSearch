@@ -1393,3 +1393,192 @@ fn test_deferred_tier3_many_cursors() {
     let src_vals = read_all_strings(&output, "src");
     assert_eq!(src_vals, vec!["a", "b", "c", "d", "a", "b", "c", "d", "a", "b", "c", "d"]);
 }
+
+/// Merge files with different schemas in deferred mode — verifies that columns
+/// missing in some files are padded with nulls and the deferred data reader
+/// handles mismatched schemas correctly.
+#[test]
+fn test_deferred_different_schemas() {
+    let schema_a = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("col_a", DataType::Utf8, true),
+        Field::new("col_b", DataType::Utf8, true),
+        Field::new("col_c", DataType::Utf8, true),
+    ]));
+    let schema_b = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("col_b", DataType::Utf8, true),
+        Field::new("col_d", DataType::Utf8, true),
+        Field::new("col_e", DataType::Utf8, true),
+    ]));
+
+    let index = "test_deferred_different_schemas";
+    register_deferred_settings(index, 3, 0);
+
+    let batch_a = RecordBatch::try_new(schema_a.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 3, 5])),
+        Arc::new(StringArray::from(vec![Some("a1"), Some("a3"), Some("a5")])),
+        Arc::new(StringArray::from(vec![Some("b1"), Some("b3"), Some("b5")])),
+        Arc::new(StringArray::from(vec![Some("c1"), Some("c3"), Some("c5")])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema_b.clone(), vec![
+        Arc::new(Int64Array::from(vec![2, 4, 6])),
+        Arc::new(StringArray::from(vec![Some("b2"), Some("b4"), Some("b6")])),
+        Arc::new(StringArray::from(vec![Some("d2"), Some("d4"), Some("d6")])),
+        Arc::new(StringArray::from(vec![Some("e2"), Some("e4"), Some("e6")])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
+
+    // col_b present in both files
+    let b_vals = read_all_strings(&output, "col_b");
+    assert_eq!(b_vals, vec!["b1", "b2", "b3", "b4", "b5", "b6"]);
+
+    // col_a only in file A — file B rows should be null
+    let file = File::open(&output).unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let mut col_a_nulls = Vec::new();
+    for batch in reader {
+        let batch = batch.unwrap();
+        let idx = batch.schema().index_of("col_a").unwrap();
+        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..arr.len() {
+            col_a_nulls.push(arr.is_null(i));
+        }
+    }
+    // Sorted order: ts=[1,2,3,4,5,6], rows from file A at positions 0,2,4; file B at 1,3,5
+    assert_eq!(col_a_nulls, vec![false, true, false, true, false, true]);
+
+    // col_d only in file B — file A rows should be null
+    let file = File::open(&output).unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let mut col_d_vals = Vec::new();
+    for batch in reader {
+        let batch = batch.unwrap();
+        let idx = batch.schema().index_of("col_d").unwrap();
+        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                col_d_vals.push("NULL".to_string());
+            } else {
+                col_d_vals.push(arr.value(i).to_string());
+            }
+        }
+    }
+    assert_eq!(col_d_vals, vec!["NULL", "d2", "NULL", "d4", "NULL", "d6"]);
+}
+
+/// Merge three files with progressively wider schemas in deferred mode —
+/// verifies union schema construction and null padding across multiple files.
+#[test]
+fn test_deferred_three_files_different_schemas() {
+    let schema_1 = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+    let schema_2 = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, true),
+        Field::new("city", DataType::Utf8, true),
+        Field::new("extra", DataType::Utf8, true),
+    ]));
+    let schema_3 = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("country", DataType::Utf8, true),
+        Field::new("extra", DataType::Utf8, true),
+    ]));
+
+    let index = "test_deferred_three_files_different_schemas";
+    register_deferred_settings(index, 4, 0);
+
+    let batch_1 = RecordBatch::try_new(schema_1.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 4])),
+        Arc::new(StringArray::from(vec![Some("alice"), Some("dave")])),
+    ]).unwrap();
+    let batch_2 = RecordBatch::try_new(schema_2.clone(), vec![
+        Arc::new(Int64Array::from(vec![2, 5])),
+        Arc::new(StringArray::from(vec![Some("bob"), Some("eve")])),
+        Arc::new(StringArray::from(vec![Some("NYC"), Some("LA")])),
+        Arc::new(StringArray::from(vec![Some("x2"), Some("x5")])),
+    ]).unwrap();
+    let batch_3 = RecordBatch::try_new(schema_3.clone(), vec![
+        Arc::new(Int64Array::from(vec![3, 6])),
+        Arc::new(StringArray::from(vec![Some("US"), Some("UK")])),
+        Arc::new(StringArray::from(vec![Some("x3"), Some("x6")])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_1 = tmp.path().join("f1.parquet").to_string_lossy().to_string();
+    let file_2 = tmp.path().join("f2.parquet").to_string_lossy().to_string();
+    let file_3 = tmp.path().join("f3.parquet").to_string_lossy().to_string();
+    write_parquet(&file_1, &batch_1);
+    write_parquet(&file_2, &batch_2);
+    write_parquet(&file_3, &batch_3);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_1, file_2, file_3], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
+
+    // "name" in files 1 and 2 only
+    let file = File::open(&output).unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let mut name_vals = Vec::new();
+    for batch in reader {
+        let batch = batch.unwrap();
+        let idx = batch.schema().index_of("name").unwrap();
+        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..arr.len() {
+            if arr.is_null(i) { name_vals.push("NULL".to_string()); }
+            else { name_vals.push(arr.value(i).to_string()); }
+        }
+    }
+    assert_eq!(name_vals, vec!["alice", "bob", "NULL", "dave", "eve", "NULL"]);
+
+    // "country" only in file 3
+    let file = File::open(&output).unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let mut country_vals = Vec::new();
+    for batch in reader {
+        let batch = batch.unwrap();
+        let idx = batch.schema().index_of("country").unwrap();
+        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..arr.len() {
+            if arr.is_null(i) { country_vals.push("NULL".to_string()); }
+            else { country_vals.push(arr.value(i).to_string()); }
+        }
+    }
+    assert_eq!(country_vals, vec!["NULL", "NULL", "US", "NULL", "NULL", "UK"]);
+
+    // "extra" in files 2 and 3
+    let file = File::open(&output).unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let mut extra_vals = Vec::new();
+    for batch in reader {
+        let batch = batch.unwrap();
+        let idx = batch.schema().index_of("extra").unwrap();
+        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..arr.len() {
+            if arr.is_null(i) { extra_vals.push("NULL".to_string()); }
+            else { extra_vals.push(arr.value(i).to_string()); }
+        }
+    }
+    assert_eq!(extra_vals, vec!["NULL", "x2", "x3", "NULL", "x5", "x6"]);
+}
