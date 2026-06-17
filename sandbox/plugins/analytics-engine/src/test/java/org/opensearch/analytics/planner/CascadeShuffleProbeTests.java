@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.JoinRelType;
@@ -21,6 +22,8 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter;
 import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
+import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
@@ -76,8 +79,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         // Mirror DefaultPlanExecutor's plan pipeline EXCEPT convertAll — the mock backend has no
         // fragment convertor. forkAll + selectAll populate plan alternatives' backendId, which is all
         // the structural rewrite reads; convertAll (real backend) is exercised by the live cluster.
-        org.opensearch.analytics.planner.dag.PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        org.opensearch.analytics.planner.dag.PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
 
         // Now drive the recursive DAG rewriter (worker-tier surgery) and assert the cascade shape.
         assertTrue("expected a cascade DAG (>1 join-shuffle stage)", CascadeShuffleDAGRewriter.isCascade(dag));
@@ -125,9 +128,45 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         assertEquals("top worker id matches", top.worker().getStageId(), topWorkerInDag.getStageId());
         assertEquals(
             "top worker gathers SINGLETON to coordinator",
-            org.apache.calcite.rel.RelDistribution.Type.SINGLETON,
+            RelDistribution.Type.SINGLETON,
             topWorkerInDag.getExchangeInfo().distributionType()
         );
+    }
+
+    /**
+     * Positive: {@code Aggregate(Join(Join(A,B), C))} — an Aggregate sits ABOVE the topmost join
+     * (the TPC-H q3 shape: `… join … join … | stats … by …`). The aggregate runs on the COORDINATOR
+     * after the worker join (only the join is lifted into a worker), so it must NOT block cascade
+     * detection. Regression guard: an earlier version checked the whole stage-fragment ROOT for
+     * partition-preservation and wrongly rejected this — q3 then mis-routed to the single-level
+     * HashShuffleDispatch and failed "could not locate consumer stage". The agg-ABOVE-join case is
+     * safe; only agg/sort BETWEEN join levels is not (covered by the negative tests).
+     */
+    public void testCascadeDetected_aggregateAboveTopJoin() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode logical = makeAggregateOverThreeWayJoin(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode rewritten = CascadeShufflePlanRewriter.rewrite(cbo, CLUSTER_DATA_NODES);
+        QueryDAG dag = DAGBuilder.build(rewritten, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        assertTrue(
+            "Aggregate ABOVE the top join (q3 shape) must still be detected as a cascade — the agg runs"
+                + " on the coordinator after the worker join, not per-partition",
+            CascadeShuffleDAGRewriter.isCascade(dag)
+        );
+        // And it has the two worker tiers (inner + outer join).
+        CascadeShuffleDAGRewriter.Structure structure = CascadeShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+        assertEquals("two join levels → two worker tiers", 2, structure.buildLevels().size());
     }
 
     /**
@@ -146,8 +185,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         RelNode rewritten = CascadeShufflePlanRewriter.rewrite(cbo, CLUSTER_DATA_NODES);
         QueryDAG dag = DAGBuilder.build(rewritten, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
-        org.opensearch.analytics.planner.dag.PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        org.opensearch.analytics.planner.dag.PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
 
         // The outer join must NOT be cascaded — the Aggregate between the levels makes per-partition
         // execution unsafe. isCascade requires >1 join-over-shuffles stage with a partition-preserving
@@ -177,8 +216,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         RelNode rewritten = CascadeShufflePlanRewriter.rewrite(cbo, CLUSTER_DATA_NODES);
         QueryDAG dag = DAGBuilder.build(rewritten, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
-        org.opensearch.analytics.planner.dag.PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        org.opensearch.analytics.planner.dag.PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
 
         // No cascade: the aggregate between the lowest two join levels breaks the partition-preserving
         // chain, so the middle join is never a validated cascade level and the outer join must not lift.
@@ -218,6 +257,23 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             rexBuilder.makeInputRef(intType, abCols)
         );
         return LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+    }
+
+    /** Builds Aggregate(Join(Join(a,b), c) by col0, count) — an Aggregate ABOVE the top join (the
+     *  TPC-H q3 shape). The agg runs on the coordinator after the worker join, so cascade detection
+     *  must NOT be blocked by it. */
+    private RelNode makeAggregateOverThreeWayJoin(PlannerContext context) {
+        RelNode join = makeThreeWayJoin(context);
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            join,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(0), null, List.of(countCall));
     }
 
     /** Builds Join(Aggregate(Join(a,b) by col0, count), c) — an Aggregate between the join levels.

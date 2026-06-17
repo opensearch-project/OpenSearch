@@ -28,9 +28,11 @@ import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Recursive sibling of {@link HashShuffleDAGRewriter}. Handles the cascaded hash-shuffle shape that
@@ -168,7 +170,7 @@ public final class CascadeShuffleDAGRewriter {
         // caller's nodeResolver can hand out a distinct node list per tier.
         // joinShuffleStages is top-down, so reverse for bottom-up indexing.
         List<Stage> bottomUp = new ArrayList<>(joinShuffleStages);
-        java.util.Collections.reverse(bottomUp);
+        Collections.reverse(bottomUp);
         Map<Integer, Integer> levelIndex = new HashMap<>();
         for (int i = 0; i < bottomUp.size(); i++) {
             levelIndex.put(bottomUp.get(i).getStageId(), i);
@@ -259,7 +261,7 @@ public final class CascadeShuffleDAGRewriter {
 
     /** Result of {@link #rewriteStructure}: the rewritten DAG plus a deferred builder for the
      *  per-level worker descriptors (built after the caller runs the convert pipeline). */
-    public record Structure(QueryDAG dag, java.util.function.Supplier<List<WorkerLevel>> levelBuilder) {
+    public record Structure(QueryDAG dag, Supplier<List<WorkerLevel>> levelBuilder) {
         /** Builds the worker-level descriptors. Call only after the convert pipeline has run on
          *  {@link #dag()} (so non-top stages carry resolved plan alternatives). */
         public List<WorkerLevel> buildLevels() {
@@ -372,15 +374,6 @@ public final class CascadeShuffleDAGRewriter {
         if (join == null) {
             return false;
         }
-        // The path from the fragment ROOT down to the join must be partition-preserving (Project /
-        // Filter only). If an Aggregate / Sort / Limit / Union sits between the stage root and the
-        // join, lifting this whole stage into a per-partition SHUFFLE_WORKER would run that operator
-        // once per hash partition instead of globally — silently wrong (per-partition partial groups
-        // / per-partition top-K). Such a stage keeps its CBO-chosen (coord-centric / agg-shuffle)
-        // path. Mirrors CascadeShufflePlanRewriter.isPartitionPreservingCascadeInput.
-        if (!CascadeShufflePlanRewriter.isPartitionPreservingCascadeInput(fragment)) {
-            return false;
-        }
         // INNER only — mirrors the CascadeShufflePlanRewriter guard. Defense-in-depth: a non-INNER
         // join that CBO itself shuffled (not via our plan rewriter) must not be pulled into the
         // cascade worker tier, which only implements INNER hash-join semantics across partitions.
@@ -388,8 +381,31 @@ public final class CascadeShuffleDAGRewriter {
         if (join.getJoinType() != JoinRelType.INNER) {
             return false;
         }
-        return RelNodeUtils.unwrapHep(join.getInput(0)) instanceof OpenSearchShuffleExchange
-            && RelNodeUtils.unwrapHep(join.getInput(1)) instanceof OpenSearchShuffleExchange;
+        // Both of the JOIN'S INPUTS must be shuffles. Only the join is lifted into a worker (the
+        // rewriter replaces just the join node with a StageInputScan), so operators ABOVE the join
+        // in this stage's fragment — e.g. the root stage's Aggregate / Sort / Project that run on the
+        // COORDINATOR after the worker join — are irrelevant to cascade safety and must NOT be checked
+        // here (checking the whole fragment root wrongly rejected the canonical Agg/Sort-over-join
+        // root stage). The partition-preserving constraint that matters — no Aggregate/Sort BETWEEN
+        // join levels — is enforced by CascadeShufflePlanRewriter when it decides to shuffle the
+        // inputs (an unsafe intermediate op leaves the input a reducer, not a shuffle), so the
+        // join-inputs-are-shuffles check below is exactly the post-condition to verify.
+        if (!(RelNodeUtils.unwrapHep(join.getInput(0)) instanceof OpenSearchShuffleExchange)
+            || !(RelNodeUtils.unwrapHep(join.getInput(1)) instanceof OpenSearchShuffleExchange)) {
+            return false;
+        }
+        // The join must be the stage's ONLY source of child stages. rebuild() lifts the join and
+        // rebuilds this stage with the worker as its single child — if the fragment has any other
+        // OpenSearchStageInputScan leaf (a sibling of the join, e.g. Union(Join(...), StageInput→X)
+        // or an appendcol), that sibling's child stage would be orphaned and the fragment left
+        // dangling. The join's two inputs contribute exactly two stage-input leaves (one per shuffle);
+        // require the whole fragment to have exactly those two. A multi-input root keeps its
+        // CBO-chosen (single-level / coord-centric) path rather than risk a dropped sibling.
+        // (codex review: multi-input-root orphan blocker.)
+        if (RelNodeUtils.findNodes(fragment, OpenSearchStageInputScan.class).size() != 2) {
+            return false;
+        }
+        return true;
     }
 
     /**
