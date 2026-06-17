@@ -3463,15 +3463,16 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     /**
      * Verifies the merge-count / drain wrappers delegate to the merge scheduler. On a freshly
-     * recovered engine with no indexing or merges, the scheduler reports zero active/pending
-     * merges and {@code onMergesDrained} fires the listener immediately (already drained).
+     * recovered engine with no indexing or merges, the scheduler reports zero active merges and
+     * no pending queue, and {@code onMergesDrained} fires the listener immediately
+     * (already drained).
      */
     public void testMergeCountWrappers_IdleEngine_ReportZeroAndAlreadyDrained() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
 
             assertEquals("idle engine has no active merges", 0, engine.getActiveMergeCount());
-            assertEquals("idle engine has no pending merges", 0, engine.getPendingMergeCount());
+            assertFalse("idle engine has no pending merges", engine.hasPendingMerges());
 
             AtomicBoolean listenerFired = new AtomicBoolean(false);
             engine.onMergesDrained(() -> listenerFired.set(true));

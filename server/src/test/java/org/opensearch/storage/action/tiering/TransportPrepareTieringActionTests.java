@@ -9,17 +9,22 @@
 package org.opensearch.storage.action.tiering;
 
 import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
@@ -29,12 +34,15 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.storage.common.tiering.TieringUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -351,10 +359,10 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         Scheduler.ScheduledCancellable timeout = threadPool.schedule(() -> {
             if (completed.compareAndSet(false, true)) {
                 int activeMerges = indexShard.getActiveMergeCount();
-                int pendingMerges = indexShard.getPendingMergeCount();
+                boolean hasPendingMerges = indexShard.hasPendingMerges();
                 try {
                     listener.onFailure(
-                        new MergeDrainTimeoutException(shardRouting.shardId(), activeMerges, pendingMerges, mergeTimeout.toString())
+                        new MergeDrainTimeoutException(shardRouting.shardId(), activeMerges, hasPendingMerges, mergeTimeout.toString())
                     );
                 } finally {
                     permit.close();
@@ -515,7 +523,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             doAnswer(invocation -> null).when(mockIndexShard).onMergesDrained(any(Runnable.class));
 
             when(mockIndexShard.getActiveMergeCount()).thenReturn(3);
-            when(mockIndexShard.getPendingMergeCount()).thenReturn(2);
+            when(mockIndexShard.hasPendingMerges()).thenReturn(true);
 
             AtomicReference<Exception> failureRef = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
@@ -548,7 +556,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             MergeDrainTimeoutException timeoutEx = (MergeDrainTimeoutException) failureRef.get();
             assertTrue("Message should report shard id", timeoutEx.getMessage().contains(shardId.toString()));
             assertTrue("Message should report active merges", timeoutEx.getMessage().contains("Active merges: 3"));
-            assertTrue("Message should report pending merges", timeoutEx.getMessage().contains("pending merges: 2"));
+            assertTrue("Message should report pending merges as yes", timeoutEx.getMessage().contains("pending: yes"));
             assertTrue("Timeout message should contain timeout value", timeoutEx.getMessage().contains("100ms"));
 
             verify(mockPermit).close();
@@ -653,7 +661,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             doAnswer(invocation -> null).when(mockIndexShard).onMergesDrained(drainCallbackCaptor.capture());
 
             when(mockIndexShard.getActiveMergeCount()).thenReturn(1);
-            when(mockIndexShard.getPendingMergeCount()).thenReturn(0);
+            when(mockIndexShard.hasPendingMerges()).thenReturn(false);
 
             AtomicInteger completionCount = new AtomicInteger(0);
             CountDownLatch latch = new CountDownLatch(1);
@@ -737,7 +745,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             when(mockIndexShard.state()).thenReturn(IndexShardState.STARTED);
             doAnswer(invocation -> null).when(mockIndexShard).onMergesDrained(any(Runnable.class));
             when(mockIndexShard.getActiveMergeCount()).thenReturn(1);
-            when(mockIndexShard.getPendingMergeCount()).thenReturn(0);
+            when(mockIndexShard.hasPendingMerges()).thenReturn(false);
 
             CountDownLatch latch = new CountDownLatch(1);
 
@@ -822,7 +830,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             ArgumentCaptor<Runnable> drainCallbackCaptor = ArgumentCaptor.forClass(Runnable.class);
             doAnswer(invocation -> null).when(mockIndexShard).onMergesDrained(drainCallbackCaptor.capture());
             when(mockIndexShard.getActiveMergeCount()).thenReturn(2);
-            when(mockIndexShard.getPendingMergeCount()).thenReturn(1);
+            when(mockIndexShard.hasPendingMerges()).thenReturn(true);
 
             AtomicInteger responseCount = new AtomicInteger(0);
             AtomicInteger failureCount = new AtomicInteger(0);
@@ -913,7 +921,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             doAnswer(invocation -> null).when(mockIndexShard).onMergesDrained(any(Runnable.class));
 
             when(mockIndexShard.getActiveMergeCount()).thenReturn(5);
-            when(mockIndexShard.getPendingMergeCount()).thenReturn(3);
+            when(mockIndexShard.hasPendingMerges()).thenReturn(true);
 
             AtomicReference<Exception> failureRef = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
@@ -946,7 +954,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             MergeDrainTimeoutException timeoutEx = (MergeDrainTimeoutException) failureRef.get();
             assertTrue("Message should report shard id", timeoutEx.getMessage().contains(shardId.toString()));
             assertTrue("Message should report active merges", timeoutEx.getMessage().contains("Active merges: 5"));
-            assertTrue("Message should report pending merges", timeoutEx.getMessage().contains("pending merges: 3"));
+            assertTrue("Message should report pending merges as yes", timeoutEx.getMessage().contains("pending: yes"));
             assertTrue("Message should contain the configured timeout", timeoutEx.getMessage().contains("50ms"));
 
             verify(mockPermit).close();
@@ -1038,6 +1046,77 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             inOrder.verify(mockIndexShard).onMergesDrained(any(Runnable.class));
         } finally {
             terminate(testThreadPool);
+        }
+    }
+
+    // ── Real-action tests (no simulation) ───────────────────────────────────────────────────────
+    // These construct an actual TransportPrepareTieringAction with mocked dependencies and assert
+    // contracts that ONLY hold against production code (not against the simulation helpers above).
+
+    /**
+     * Constructs a real {@link TransportPrepareTieringAction} with the minimum mock dependencies its
+     * constructor requires. The mocked {@link TransportService#registerRequestHandler} is a no-op so
+     * the base-class constructor completes; {@link ClusterService#getSettings} and
+     * {@link ClusterService#getClusterSettings} are wired so the dynamic timeout consumer registers
+     * cleanly. The returned action is suitable for asserting protected/instance method contracts;
+     * it will NOT execute end-to-end transport flows.
+     */
+    private TransportPrepareTieringAction newRealAction(TestThreadPool threadPool) {
+        ClusterService mockClusterService = mock(ClusterService.class);
+        Settings nodeSettings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, java.util.Set.of(TieringUtils.PREPARE_TIERING_TIMEOUT));
+        when(mockClusterService.getSettings()).thenReturn(nodeSettings);
+        when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        TransportService mockTransportService = mock(TransportService.class);
+        when(mockTransportService.getThreadPool()).thenReturn(threadPool);
+
+        return new TransportPrepareTieringAction(
+            mockClusterService,
+            mockTransportService,
+            mockIndicesService,
+            new ActionFilters(java.util.Set.of()),
+            mock(IndexNameExpressionResolver.class)
+        );
+    }
+
+    /**
+     * The real action must opt-in to async per-shard execution. This is the wiring decision that
+     * routes prepare through {@code shardOperationAsync} (non-blocking merge drain) rather than the
+     * synchronous {@code shardOperation} path. Pinning this on the real action — not the simulation —
+     * catches regressions where someone toggles the override.
+     */
+    public void testRealAction_IsAsyncShardOperation_ReturnsTrue() {
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            TransportPrepareTieringAction action = newRealAction(threadPool);
+            assertTrue("prepare must run async (non-blocking merge drain)", action.isAsyncShardOperation());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * The synchronous {@code shardOperation} path must throw {@link UnsupportedOperationException} —
+     * it is a sentinel that catches misuse if the framework ever calls the sync path despite
+     * {@link TransportPrepareTieringAction#isAsyncShardOperation()} returning {@code true}. The
+     * simulation tests cannot enforce this contract because the simulation never invokes
+     * {@code shardOperation}; only the real action does.
+     */
+    public void testRealAction_ShardOperation_SyncSentinel_ThrowsUnsupported() {
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            TransportPrepareTieringAction action = newRealAction(threadPool);
+            UnsupportedOperationException ex = expectThrows(
+                UnsupportedOperationException.class,
+                () -> action.shardOperation(new PrepareTieringRequest("test-index"), primaryShardRouting)
+            );
+            assertTrue(
+                "sentinel message should mention shardOperationAsync, got: " + ex.getMessage(),
+                ex.getMessage().toLowerCase(Locale.ROOT).contains("shardoperationasync")
+            );
+        } finally {
+            terminate(threadPool);
         }
     }
 }

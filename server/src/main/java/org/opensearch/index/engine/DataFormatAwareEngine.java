@@ -1387,6 +1387,7 @@ public class DataFormatAwareEngine implements Indexer {
      *
      * @param listener the callback to fire when merges are drained
      */
+    @Override
     public void onMergesDrained(Runnable listener) {
         mergeScheduler.onDrained(listener);
     }
@@ -1396,17 +1397,18 @@ public class DataFormatAwareEngine implements Indexer {
      *
      * @return the active merge count, or 0 if no merges are running
      */
+    @Override
     public int getActiveMergeCount() {
         return mergeScheduler.getActiveMergeCount();
     }
 
     /**
-     * Returns the number of pending (queued but not yet started) merge tasks.
-     *
-     * @return the pending merge count, or 0 if none queued
+     * Returns whether any merges are queued but not yet started. DFA primary delegates
+     * directly to its {@link MergeScheduler} (orthogonal to active count).
      */
-    public int getPendingMergeCount() {
-        return mergeScheduler.getPendingMergeCount();
+    @Override
+    public boolean hasPendingMerges() {
+        return mergeScheduler.hasPendingMerges();
     }
 
     /** {@inheritDoc} Delegates to {@link #refresh(String)} and always returns {@code true}. */
@@ -2261,6 +2263,7 @@ public class DataFormatAwareEngine implements Indexer {
      *   <li>{@link #triggerPossibleMerges()} becomes a no-op</li>
      * </ul>
      */
+    @Override
     public void freezeForTiering() {
         if (frozenForTiering.compareAndSet(false, true)) {
             mergeScheduler.freeze();

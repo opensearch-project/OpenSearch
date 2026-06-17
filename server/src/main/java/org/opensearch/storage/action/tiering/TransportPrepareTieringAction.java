@@ -196,10 +196,10 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
         Scheduler.ScheduledCancellable timeout = threadPool.schedule(() -> {
             if (completed.compareAndSet(false, true)) {
                 int activeMerges = indexShard.getActiveMergeCount();
-                int pendingMerges = indexShard.getPendingMergeCount();
+                boolean hasPendingMerges = indexShard.hasPendingMerges();
                 try {
                     listener.onFailure(
-                        new MergeDrainTimeoutException(shardRouting.shardId(), activeMerges, pendingMerges, mergeTimeout.toString())
+                        new MergeDrainTimeoutException(shardRouting.shardId(), activeMerges, hasPendingMerges, mergeTimeout.toString())
                     );
                 } finally {
                     permit.close();

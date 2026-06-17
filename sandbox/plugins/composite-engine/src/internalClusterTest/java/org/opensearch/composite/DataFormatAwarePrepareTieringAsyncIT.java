@@ -104,12 +104,70 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
             for (int shardId = 0; shardId < NUM_SHARDS; shardId++) {
                 IndexShard primary = primaryShard(ASYNC_INDEX, shardId);
                 assertEquals("shard [" + shardId + "] active merges should be drained", 0, primary.getActiveMergeCount());
-                assertEquals("shard [" + shardId + "] pending merges should be drained", 0, primary.getPendingMergeCount());
+                assertFalse("shard [" + shardId + "] no pending merges should remain", primary.hasPendingMerges());
             }
 
             // Data integrity after prepare: a successful prepare flushes and verifies zero uncommitted
             // translog ops on every shard (verifyNoUncommittedOps) — a shard that lost or left data
             // uncommitted would have surfaced as a failed shard above, which we asserted is zero.
+        } finally {
+            client().admin().indices().delete(new DeleteIndexRequest(ASYNC_INDEX)).actionGet();
+        }
+    }
+
+    /**
+     * Calling prepare twice on the same index must succeed both times. The second invocation
+     * exercises the already-drained inline-fire branch on every primary (no merges to drain, no
+     * uncommitted ops, engine already frozen) — production's idempotent freeze + zero-uncommitted
+     * verification + force-flush guard must all be no-ops on the second call rather than throw.
+     * Regression test for the freeze CAS, the {@code force=true}/{@code "prepare_tiering"} flush+refresh
+     * bypasses, and {@code verifyNoUncommittedOps}.
+     */
+    public void testPrepareTieringIsIdempotentAcrossInvocations() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(NUM_SHARDS);
+
+        Settings settings = Settings.builder().put(dfaIndexSettings(0)).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).build();
+        client().admin().indices().prepareCreate(ASYNC_INDEX).setSettings(settings).get();
+        ensureGreen(ASYNC_INDEX);
+
+        try {
+            int id = 0;
+            for (int batch = 0; batch < INDEX_BATCHES; batch++) {
+                for (int i = 0; i < DOCS_PER_BATCH; i++) {
+                    client().prepareIndex(ASYNC_INDEX)
+                        .setId(String.valueOf(id))
+                        .setSource("field_text", "value_" + id, "field_number", (long) id)
+                        .get();
+                    id++;
+                }
+                client().admin().indices().prepareRefresh(ASYNC_INDEX).get();
+            }
+            client().admin().indices().prepareFlush(ASYNC_INDEX).setForce(true).get();
+
+            PrepareTieringRequest first = new PrepareTieringRequest(ASYNC_INDEX);
+            first.timeout(TimeValue.timeValueSeconds(90));
+            BroadcastResponse firstResponse = client().execute(PrepareTieringAction.INSTANCE, first).actionGet();
+            assertEquals("first prepare: all shards targeted", NUM_SHARDS, firstResponse.getTotalShards());
+            assertEquals("first prepare: no shard should fail", 0, firstResponse.getFailedShards());
+            assertEquals("first prepare: all shards succeed", NUM_SHARDS, firstResponse.getSuccessfulShards());
+
+            // Second prepare on an already-prepared (frozen, drained, flushed) index must be a no-op
+            // success on every shard. This exercises the already-drained inline-fire path and the
+            // idempotent freeze.
+            PrepareTieringRequest second = new PrepareTieringRequest(ASYNC_INDEX);
+            second.timeout(TimeValue.timeValueSeconds(90));
+            BroadcastResponse secondResponse = client().execute(PrepareTieringAction.INSTANCE, second).actionGet();
+            assertEquals("second prepare: all shards targeted", NUM_SHARDS, secondResponse.getTotalShards());
+            assertEquals("second prepare: no shard should fail", 0, secondResponse.getFailedShards());
+            assertEquals("second prepare: all shards succeed", NUM_SHARDS, secondResponse.getSuccessfulShards());
+
+            // Merge counts must still be drained after the redundant prepare.
+            for (int shardId = 0; shardId < NUM_SHARDS; shardId++) {
+                IndexShard primary = primaryShard(ASYNC_INDEX, shardId);
+                assertEquals("shard [" + shardId + "] active merges drained after re-prepare", 0, primary.getActiveMergeCount());
+                assertFalse("shard [" + shardId + "] no pending merges remain after re-prepare", primary.hasPendingMerges());
+            }
         } finally {
             client().admin().indices().delete(new DeleteIndexRequest(ASYNC_INDEX)).actionGet();
         }

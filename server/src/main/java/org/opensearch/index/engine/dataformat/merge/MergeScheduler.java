@@ -275,12 +275,17 @@ public class MergeScheduler {
     }
 
     /**
-     * Returns the number of pending (queued but not yet started) merge tasks.
+     * Returns whether there are any merges queued but not yet started.
+     * <p>
+     * Reports pending state orthogonally from active state: a {@code true} result here
+     * means the queue is non-empty regardless of how many merges are currently running.
+     * Callers that want a "any work outstanding" signal should combine this with
+     * {@link #getActiveMergeCount()}.
      *
-     * @return the pending merge count
+     * @return {@code true} if {@link MergeHandler#hasPendingMerges()} is {@code true}
      */
-    public int getPendingMergeCount() {
-        return mergeHandler.getPendingMergeCount();
+    public boolean hasPendingMerges() {
+        return mergeHandler.hasPendingMerges();
     }
 
     /**

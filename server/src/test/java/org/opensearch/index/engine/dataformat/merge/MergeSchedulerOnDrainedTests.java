@@ -120,14 +120,14 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
      */
     public void testMergeDrainTimeoutException_CarriesData() {
         ShardId testShardId = new ShardId(new org.opensearch.core.index.Index("my-index", "uuid"), 0);
-        MergeDrainTimeoutException ex = new MergeDrainTimeoutException(testShardId, 3, 2, "90s");
+        MergeDrainTimeoutException ex = new MergeDrainTimeoutException(testShardId, 3, true, "90s");
 
         assertEquals("active merges accessor", 3, ex.getActiveMerges());
-        assertEquals("pending merges accessor", 2, ex.getPendingMerges());
+        assertTrue("hasPendingMerges accessor", ex.hasPendingMerges());
         assertTrue(ex.getMessage().contains(MergeDrainTimeoutException.MERGE_DRAIN_TIMEOUT_MARKER));
         assertTrue(ex.getMessage().contains(testShardId.toString()));
         assertTrue(ex.getMessage().contains("Active merges: 3"));
-        assertTrue(ex.getMessage().contains("pending merges: 2"));
+        assertTrue(ex.getMessage().contains("pending: yes"));
         assertTrue(ex.getMessage().contains("90s"));
     }
 
@@ -135,12 +135,12 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
      * Verifies the merge-drain timeout round-trips through wire serialization as a typed
      * {@link MergeDrainTimeoutException}. The type is registered with the {@code OpenSearchException}
      * serialization registry, so between nodes on the registered version (or newer) it deserializes
-     * back to the concrete type with its shard id, typed active/pending merge counts, and message
+     * back to the concrete type with its shard id, typed active count, pending flag, and message
      * (including {@link MergeDrainTimeoutException#MERGE_DRAIN_TIMEOUT_MARKER}) preserved.
      */
     public void testMergeDrainTimeoutException_RoundTripsAsTypedException() throws Exception {
         ShardId testShardId = new ShardId(new org.opensearch.core.index.Index("my-index", "uuid"), 2);
-        MergeDrainTimeoutException original = new MergeDrainTimeoutException(testShardId, 4, 7, "90s");
+        MergeDrainTimeoutException original = new MergeDrainTimeoutException(testShardId, 4, false, "90s");
 
         final Throwable deserialized;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -156,11 +156,11 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
         );
         MergeDrainTimeoutException typed = (MergeDrainTimeoutException) deserialized;
         assertEquals("active merges must survive serialization", 4, typed.getActiveMerges());
-        assertEquals("pending merges must survive serialization", 7, typed.getPendingMerges());
+        assertFalse("hasPendingMerges must survive serialization", typed.hasPendingMerges());
         assertNotNull("message must survive serialization", typed.getMessage());
         assertTrue("marker must survive serialization", typed.getMessage().contains(MergeDrainTimeoutException.MERGE_DRAIN_TIMEOUT_MARKER));
         assertTrue(typed.getMessage().contains("Active merges: 4"));
-        assertTrue(typed.getMessage().contains("pending merges: 7"));
+        assertTrue(typed.getMessage().contains("pending: no"));
         assertTrue(typed.getMessage().contains("90s"));
     }
 
@@ -276,18 +276,21 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that getPendingMergeCount returns the value from the merge handler.
+     * Verifies that {@code hasPendingMerges} delegates to the underlying merge handler. Reports
+     * pending state orthogonally — the active-count is unchecked here.
      */
-    public void testGetPendingMergeCount_DelegatesToMergeHandler() {
+    public void testHasPendingMerges_DelegatesToMergeHandler() {
         MergeHandler mockHandler = mock(MergeHandler.class);
-        when(mockHandler.hasPendingMerges()).thenReturn(false);
-        when(mockHandler.getPendingMergeCount()).thenReturn(7);
+        when(mockHandler.hasPendingMerges()).thenReturn(true);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
         MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
 
-        assertEquals("getPendingMergeCount should delegate to handler", 7, scheduler.getPendingMergeCount());
+        assertTrue("hasPendingMerges should delegate to handler when handler reports true", scheduler.hasPendingMerges());
+
+        when(mockHandler.hasPendingMerges()).thenReturn(false);
+        assertFalse("hasPendingMerges should delegate to handler when handler reports false", scheduler.hasPendingMerges());
     }
 
     /**

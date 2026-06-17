@@ -5548,38 +5548,79 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies the tiering merge-drain wrappers behave correctly on a standard (non-DFA) engine.
-     * A non-DFA engine has no merge scheduler, so it is always considered "drained": merge counts
-     * are 0, {@code onMergesDrained} fires the listener immediately (already drained), and
-     * {@code freezeForTiering} is a no-op rather than throwing.
+     * Verifies the tiering diagnostic wrappers report correct values on a standard (non-DFA) engine.
+     * After the typed-method conversion, non-DFA engines no longer return a hardcoded 0; they read
+     * real values from the underlying merge scheduler. An idle Lucene shard with no merges in flight
+     * reports 0 active and {@code false} pending — the same outcome, but derived from the live state.
      */
-    public void testTieringMergeWrappers_NonDfaEngine_AlreadyDrained() throws IOException {
+    public void testTieringMergeWrappers_NonDfaEngine_DiagnosticsReportRealValues() throws IOException {
         IndexShard shard = newStartedShard(true);
         try {
-            assertEquals("non-DFA engine reports 0 active merges", 0, shard.getActiveMergeCount());
-            assertEquals("non-DFA engine reports 0 pending merges", 0, shard.getPendingMergeCount());
-
-            AtomicBoolean listenerFired = new AtomicBoolean(false);
-            shard.onMergesDrained(() -> listenerFired.set(true));
-
-            assertTrue("listener fires immediately when already drained on non-DFA engine", listenerFired.get());
+            assertEquals("idle non-DFA engine reports 0 active merges", 0, shard.getActiveMergeCount());
+            assertFalse("idle non-DFA engine reports no pending merges", shard.hasPendingMerges());
         } finally {
             closeShards(shard);
         }
     }
 
     /**
-     * Verifies {@code freezeForTiering} is a safe no-op on a non-DFA engine (must not throw).
+     * Verifies {@code onMergesDrained} now throws {@link UnsupportedOperationException} on a non-DFA
+     * engine. Tiering targets DFA-format indices only; calling this wrapper on a Lucene shard is a
+     * wiring bug, and the typed surface surfaces it loudly rather than silently firing the listener.
      */
-    public void testFreezeForTiering_NonDfaEngine_IsNoOp() throws IOException {
+    public void testOnMergesDrained_NonDfaEngine_ThrowsUnsupported() throws IOException {
         IndexShard shard = newStartedShard(true);
         try {
-            shard.freezeForTiering(); // no-op for non-DFA engines — must not throw
-            // Still drained afterwards.
-            assertEquals(0, shard.getActiveMergeCount());
-            assertEquals(0, shard.getPendingMergeCount());
+            expectThrows(UnsupportedOperationException.class, () -> shard.onMergesDrained(() -> {}));
         } finally {
             closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code freezeForTiering} now throws {@link UnsupportedOperationException} on a non-DFA
+     * engine. Same rationale as the {@code onMergesDrained} test — tiering only targets DFA shards,
+     * and the typed surface fails fast on misconfiguration.
+     */
+    public void testFreezeForTiering_NonDfaEngine_ThrowsUnsupported() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            expectThrows(UnsupportedOperationException.class, shard::freezeForTiering);
+            // Diagnostic accessors remain safe to call.
+            assertEquals(0, shard.getActiveMergeCount());
+            assertFalse(shard.hasPendingMerges());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies the primary-only assertion on {@code freezeForTiering}: tiering preparation is
+     * primary-side only (replicas receive segments via segment-rep), so calling this method on a
+     * replica is a wiring bug and the assertion surfaces it loudly.
+     */
+    public void testFreezeForTiering_OnReplica_TripsPrimaryAssertion() throws IOException {
+        IndexShard replica = newStartedShard(false);
+        try {
+            AssertionError e = expectThrows(AssertionError.class, replica::freezeForTiering);
+            assertThat(e.getMessage(), containsString("freezeForTiering should only be called on primary shards"));
+        } finally {
+            closeShards(replica);
+        }
+    }
+
+    /**
+     * Verifies the primary-only assertion on {@code onMergesDrained}: drain notifications are
+     * primary-side (replicas don't run merges), so calling this method on a replica is a wiring bug
+     * and the assertion surfaces it loudly.
+     */
+    public void testOnMergesDrained_OnReplica_TripsPrimaryAssertion() throws IOException {
+        IndexShard replica = newStartedShard(false);
+        try {
+            AssertionError e = expectThrows(AssertionError.class, () -> replica.onMergesDrained(() -> {}));
+            assertThat(e.getMessage(), containsString("onMergesDrained should only be called on primary shards"));
+        } finally {
+            closeShards(replica);
         }
     }
 }
