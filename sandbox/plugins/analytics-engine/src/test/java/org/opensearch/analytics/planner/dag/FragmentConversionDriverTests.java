@@ -245,6 +245,53 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     }
 
     /**
+     * PARTIAL aggregate stages must emit SETUP_PARTIAL_AGGREGATE so the shard executor
+     * strips the DF Final layer. Without this, slice_count > 1 causes FinalPartitioned
+     * to hash-repartition groups within the shard, producing incorrect cross-shard merges.
+     */
+    public void testPartialAggregateInstruction_emittedForCountGroupBy() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, makeAggregate(countStarCall()), convertor);
+        assertShardHasPartialAggInstruction(dag, "COUNT");
+    }
+
+    public void testPartialAggregateInstruction_emittedForSumGroupBy() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, makeAggregate(sumCall()), convertor);
+        assertShardHasPartialAggInstruction(dag, "SUM");
+    }
+
+    public void testPartialAggregateInstruction_emittedForFilteredAggregate() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(
+            2,
+            makeAggregate(
+                makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                countStarCall()
+            ),
+            convertor
+        );
+        assertShardHasPartialAggInstruction(dag, "COUNT with filter (delegation path)");
+    }
+
+    public void testPartialAggregateInstruction_emittedForApproxCountDistinct() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        QueryDAG dag = buildAndConvert(2, makeAggregate(approxCountDistinctCall(scan)), convertor);
+        assertShardHasPartialAggInstruction(dag, "APPROX_COUNT_DISTINCT (engine-native)");
+    }
+
+    private void assertShardHasPartialAggInstruction(QueryDAG dag, String label) {
+        Stage shardStage = dag.rootStage().getChildStages().getFirst();
+        StagePlan plan = shardStage.getPlanAlternatives().getFirst();
+        assertTrue(
+            label + ": PARTIAL aggregate shard stage must emit SETUP_PARTIAL_AGGREGATE",
+            plan.instructions().stream().anyMatch(node -> node.type() == InstructionType.SETUP_PARTIAL_AGGREGATE)
+        );
+    }
+
+    /**
      * Multi-shard Sort(Aggregate(Filter(Scan))) with limit — full OLAP pipeline, two stages.
      */
     public void testTwoStageSortOnAggregateOnFilteredScan() {

@@ -220,6 +220,24 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return new MergeStats();
     }
 
+    /**
+     * Returns {@code true} if the underlying merge scheduler has merges queued but not yet started.
+     * Default returns {@code false}; engines with a pending-merge queue (e.g., {@link InternalEngine}'s
+     * {@link DocumentIndexWriter}) override.
+     */
+    public boolean hasPendingMerges() {
+        return false;
+    }
+
+    /**
+     * Returns the number of merges currently in flight on this engine.
+     * Default returns {@code 0}; engines with a running-merges accessor (e.g.,
+     * {@link InternalEngine}'s {@code OpenSearchConcurrentMergeScheduler}) override.
+     */
+    public int getActiveMergeCount() {
+        return 0;
+    }
+
     public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
         return engineConfig.getMergedSegmentTransferTracker();
     }

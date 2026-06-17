@@ -31,6 +31,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -189,6 +190,16 @@ public class DataFormatAwareEngine implements Indexer {
 
     // Merge
     private final MergeScheduler mergeScheduler;
+
+    /**
+     * When {@code true}, tiering-sensitive operations are blocked: primary index ops, merges,
+     * refresh, flush, and merge-result catalog commits (each with documented bypasses below).
+     * Set in three places: the constructor (freeze-on-open when a shard opens mid-tiering),
+     * {@link #onSettingsChanged} (when INDEX_TIERING_STATE transitions to HOT_TO_WARM),
+     * and {@link #freezeForTiering()} (explicitly, from the prepare action). Cleared when the state
+     * returns to HOT (tiering cancel or prepare failure).
+     */
+    private final AtomicBoolean frozenForTiering = new AtomicBoolean(false);
 
     // TODO Refactor these flush managing activities into FlushManager.
 
@@ -447,7 +458,6 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
             }, shardId, engineConfig.getIndexSettings(), engineConfig.getThreadPool());
-
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -552,6 +562,10 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
+        if (isFrozenForTiering() && index.origin() == Engine.Operation.Origin.PRIMARY) {
+            throw new IllegalStateException("Engine is frozen for tiering — index operations blocked");
+        }
+
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         // DataFormatAwareEngine is the primary-side engine in a segment-replication cluster.
         // Replicas use a separate engine (analogous to NRTReplicationEngine) that consumes segments.
@@ -1229,6 +1243,10 @@ public class DataFormatAwareEngine implements Indexer {
         if (upgrade || upgradeOnlyAncientSegments || onlyExpungeDeletes) {
             return;
         }
+        if (isFrozenForTiering()) {
+            logger.debug("forceMerge blocked — engine is frozen for tiering");
+            return;
+        }
         mergeScheduler.forceMerge(maxNumSegments);
         if (flush) {
             flush(true, true);
@@ -1290,6 +1308,45 @@ public class DataFormatAwareEngine implements Indexer {
 
         // This checks if the settings related to merge are changed and based on that updates the local variables in the class
         mergeScheduler.refreshConfig();
+        updateTieringFreezeState();
+    }
+
+    /**
+     * Detects tiering state transitions and freezes/unfreezes the engine accordingly.
+     * Only freezes for HOT_TO_WARM (actual data migration in progress).
+     * The prepare action explicitly calls freezeForTiering() while the index is still
+     * HOT, so there is no separate transient state to freeze on here.
+     * Unfreeze logic covers both cancel (HOT_TO_WARM → HOT) and prepare failure
+     * (frozen-while-HOT → HOT) to ensure merge scheduler resumes.
+     */
+    private void updateTieringFreezeState() {
+        String tieringStateStr = engineConfig.getIndexSettings()
+            .getSettings()
+            .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        boolean shouldFreeze;
+        try {
+            IndexModule.TieringState tieringState = IndexModule.TieringState.valueOf(tieringStateStr);
+            shouldFreeze = tieringState == IndexModule.TieringState.HOT_TO_WARM;
+        } catch (IllegalArgumentException e) {
+            // Unrecognized tiering-state value — treat as not frozen, but surface the misconfiguration.
+            logger.warn(
+                "Unrecognized {} value [{}]; treating engine as not frozen for tiering",
+                IndexModule.INDEX_TIERING_STATE.getKey(),
+                tieringStateStr
+            );
+            shouldFreeze = false;
+        }
+        if (shouldFreeze) {
+            if (frozenForTiering.compareAndSet(false, true)) {
+                logger.info("Freezing engine for tiering — blocking merges, refresh, flush, and catalog commits");
+                mergeScheduler.freeze();
+            }
+        } else {
+            if (frozenForTiering.compareAndSet(true, false)) {
+                logger.info("Unfreezing engine — tiering cancelled, resuming normal operations");
+                mergeScheduler.unfreeze();
+            }
+        }
     }
 
     /** {@inheritDoc} Always returns {@code true} — a refresh is always considered needed. */
@@ -1297,6 +1354,61 @@ public class DataFormatAwareEngine implements Indexer {
     public boolean refreshNeeded() {
         // A refresh is needed if there are operations since the last refresh
         return true;
+    }
+
+    /**
+     * Returns true if the engine is frozen for tiering and the operation should be blocked.
+     * <p>
+     * Prefers the cached volatile flag, which is set by the constructor on open, by
+     * {@link #onSettingsChanged} on a tiering transition, and by {@link #freezeForTiering()}. The
+     * live-settings fallback also returns true for a shard opened mid-tiering (restart/relocation) —
+     * though the constructor already covers that — and, more importantly, closes the apply-ordering
+     * gap on a live engine where the index settings already reflect HOT_TO_WARM but
+     * {@link #onSettingsChanged} has not yet flipped the flag, so a request arriving in that window
+     * is still blocked. (Requests already past this guard are drained separately by the prepare
+     * action acquiring all primary permits.)
+     */
+    private boolean isFrozenForTiering() {
+        if (frozenForTiering.get()) {
+            return true;
+        }
+        // Fallback: read live settings to close the apply-ordering gap described above.
+        String state = engineConfig.getIndexSettings()
+            .getSettings()
+            .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        return IndexModule.TieringState.HOT_TO_WARM.name().equals(state);
+    }
+
+    /**
+     * Registers a listener that fires when all in-flight merges have completed.
+     * If merges are already drained, fires the listener immediately inline.
+     * Otherwise, the listener will fire on the merge thread when
+     * the last merge finishes.
+     *
+     * @param listener the callback to fire when merges are drained
+     */
+    @Override
+    public void onMergesDrained(Runnable listener) {
+        mergeScheduler.onDrained(listener);
+    }
+
+    /**
+     * Returns the number of currently active (in-flight) merge tasks.
+     *
+     * @return the active merge count, or 0 if no merges are running
+     */
+    @Override
+    public int getActiveMergeCount() {
+        return mergeScheduler.getActiveMergeCount();
+    }
+
+    /**
+     * Returns whether any merges are queued but not yet started. DFA primary delegates
+     * directly to its {@link MergeScheduler} (orthogonal to active count).
+     */
+    @Override
+    public boolean hasPendingMerges() {
+        return mergeScheduler.hasPendingMerges();
     }
 
     /** {@inheritDoc} Delegates to {@link #refresh(String)} and always returns {@code true}. */
@@ -1845,6 +1957,9 @@ public class DataFormatAwareEngine implements Indexer {
             logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
             return;
         }
+        if (isFrozenForTiering()) {
+            return;
+        }
         mergeScheduler.triggerMerges();
     }
 
@@ -2133,5 +2248,26 @@ public class DataFormatAwareEngine implements Indexer {
     /** Returns the store. Visible for testing only. */
     Store getStore() {
         return store;
+    }
+
+    /**
+     * Explicitly freezes the engine for tiering. Called by {@code TransportPrepareTieringAction}
+     * after flush and remote sync are complete, just before the state transitions to HOT_TO_WARM.
+     * Idempotent and thread-safe — a no-op if already frozen. The atomic {@code compareAndSet}
+     * ensures only one caller wins the freeze transition under parallel tier/cancel.
+     * <p>
+     * After this call:
+     * <ul>
+     *   <li>No new merges will be registered (existing in-flight and pending merges drain to completion)</li>
+     *   <li>Primary indexing operations are rejected with "frozen for tiering"</li>
+     *   <li>{@link #triggerPossibleMerges()} becomes a no-op</li>
+     * </ul>
+     */
+    @Override
+    public void freezeForTiering() {
+        if (frozenForTiering.compareAndSet(false, true)) {
+            mergeScheduler.freeze();
+            logger.info("Engine explicitly frozen for tiering by prepare action");
+        }
     }
 }
