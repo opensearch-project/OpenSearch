@@ -168,8 +168,8 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         return new FragmentInstructionHandlerFactory() {
             @Override
-            public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
-                return Optional.of(new ShardScanInstructionNode(requestsRowIds));
+            public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, boolean hasPartialAggregate) {
+                return Optional.of(new ShardScanInstructionNode(requestsRowIds, hasPartialAggregate));
             }
 
             @Override
@@ -185,9 +185,12 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             public Optional<InstructionNode> createShardScanWithDelegationNode(
                 FilterTreeShape treeShape,
                 int delegatedPredicateCount,
-                boolean requestsRowIds
+                boolean requestsRowIds,
+                boolean hasPartialAggregate
             ) {
-                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
+                return Optional.of(
+                    new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds, hasPartialAggregate)
+                );
             }
 
             @Override

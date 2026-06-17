@@ -233,13 +233,15 @@ public class FragmentConversionDriver {
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
             // backend so it picks the row-id-aware table provider regardless of delegation.
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
+            boolean hasPartialAgg = containsPartialAggregate(resolvedFragment);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, hasPartialAgg)
+                    .ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanNode(requestsRowIds, hasPartialAgg).ifPresent(instructions::add);
             }
-            if (containsPartialAggregate(resolvedFragment)) {
+            if (hasPartialAgg) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
         } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {

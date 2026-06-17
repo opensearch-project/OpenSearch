@@ -26,21 +26,32 @@ import java.io.IOException;
 public class ShardScanInstructionNode implements InstructionNode, Writeable {
 
     private final boolean requestsRowIds;
+    private final boolean hasPartialAggregate;
 
     public ShardScanInstructionNode() {
-        this(false);
+        this(false, false);
     }
 
     public ShardScanInstructionNode(boolean requestsRowIds) {
+        this(requestsRowIds, false);
+    }
+
+    public ShardScanInstructionNode(boolean requestsRowIds, boolean hasPartialAggregate) {
         this.requestsRowIds = requestsRowIds;
+        this.hasPartialAggregate = hasPartialAggregate;
     }
 
     public ShardScanInstructionNode(StreamInput in) throws IOException {
         this.requestsRowIds = in.readBoolean();
+        this.hasPartialAggregate = in.readBoolean();
     }
 
     public boolean requestsRowIds() {
         return requestsRowIds;
+    }
+
+    public boolean hasPartialAggregate() {
+        return hasPartialAggregate;
     }
 
     @Override
@@ -51,5 +62,6 @@ public class ShardScanInstructionNode implements InstructionNode, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(requestsRowIds);
+        out.writeBoolean(hasPartialAggregate);
     }
 }
