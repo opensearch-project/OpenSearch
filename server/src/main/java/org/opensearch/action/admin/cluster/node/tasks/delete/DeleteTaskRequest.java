@@ -24,7 +24,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.7.0")
+@PublicApi(since = "3.8.0")
 public class DeleteTaskRequest extends ActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
 

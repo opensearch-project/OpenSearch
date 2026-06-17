@@ -19,7 +19,7 @@ import org.opensearch.transport.client.OpenSearchClient;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.7.0")
+@PublicApi(since = "3.8.0")
 public class DeleteTaskRequestBuilder extends ActionRequestBuilder<DeleteTaskRequest, AcknowledgedResponse> {
     public DeleteTaskRequestBuilder(OpenSearchClient client, DeleteTaskAction action) {
         super(client, action, new DeleteTaskRequest());

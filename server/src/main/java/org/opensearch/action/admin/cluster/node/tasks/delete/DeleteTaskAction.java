@@ -18,7 +18,7 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
  */
 public class DeleteTaskAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteTaskAction INSTANCE = new DeleteTaskAction();
-    public static final String NAME = "cluster:admin/task/delete";
+    public static final String NAME = "cluster:admin/tasks/delete";
 
     private DeleteTaskAction() {
         super(NAME, AcknowledgedResponse::new);
