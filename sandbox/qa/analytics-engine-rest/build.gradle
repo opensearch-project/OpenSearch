@@ -129,6 +129,7 @@ integTest {
     exclude '**/SpillStatsEnabledIT.class'
     exclude '**/SpillCleanupOnBootIT.class'
     exclude '**/YmlOversamplingIT.class'
+    exclude '**/*NoMergeIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
@@ -187,6 +188,30 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+}
+
+// ── No-merge variant: 2 nodes, parquet segment merge disabled ────────────────
+// Runs every *NoMergeIT with the dataformat merge gate turned off. The gate
+// (DataFormatAwareEngine.MERGE_ENABLED_PROPERTY) defaults to ENABLED, so background
+// merges would otherwise collapse per-flush parquet segments. Tests that need each
+// flush to persist as its own segment (e.g. to exercise multi-segment / schema-drift
+// behavior) belong here — name them with the *NoMergeIT suffix. They are excluded from
+// the default integTest above so they only run under this merge-disabled cluster.
+task integTestNoMerge(type: RestIntegTestTask) {
+    description = 'Runs *NoMergeIT tests with parquet segment merge disabled'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.*NoMergeIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestNoMerge)
+
+testClusters.integTestNoMerge {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    systemProperty 'opensearch.pluggable.dataformat.merge.enabled', 'false'
 }
 
 // ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
