@@ -198,10 +198,13 @@ pub async fn execute_query(
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
     let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
 
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_executor.handle() {
+        crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
 
     // Attach phantom corrector for self-correcting budget (if provided)
@@ -293,9 +296,12 @@ pub async fn execute_with_context(
                 e
             })?;
             let (cross_rt_stream, abort_handle) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            if let Some(rt) = cpu_executor.handle() {
+                crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
             }
             let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
                 cross_rt_stream.schema(),
@@ -332,9 +338,12 @@ pub async fn execute_with_context(
             })?;
 
             let (cross_rt_stream, abort_handle) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            if let Some(rt) = cpu_executor.handle() {
+                crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
             }
             let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
                 cross_rt_stream.schema(),
@@ -358,10 +367,13 @@ pub async fn execute_with_context(
         })?;
 
         let (cross_rt_stream, abort_handle) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
 
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id, h);
+        }
+        if let Some(rt) = cpu_executor.handle() {
+            crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
         }
 
         let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(

@@ -22,7 +22,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
-use log::debug;
+use log::{debug, warn};
 use once_cell::sync::Lazy;
 use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
@@ -172,6 +172,10 @@ pub struct QueryTracker {
     pub cancellation_token: CancellationToken,
     /// CPU task abort handle, set after the stream is created.
     pub abort_handle: OnceLock<AbortHandle>,
+    /// Handle to the DedicatedExecutor's tokio runtime. Used by `cancel_query`
+    /// to flush pending deferred drops (pull_from_input tasks holding GroupValues
+    /// buffers) after aborting the outer CrossRtStream task.
+    pub cpu_runtime_handle: OnceLock<tokio::runtime::Handle>,
     /// Nanos since PROCESS_START when cancellation was signalled, or 0 if not cancelled.
     /// Set atomically via CAS in cancel_query — no lock needed.
     pub cancelled_at_nanos: AtomicU64,
@@ -351,7 +355,27 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     written
 }
 
-/// Fire the cancellation token for the given context_id.
+/// Maximum time `cancel_query` will block waiting for the CPU runtime to
+/// flush deferred drops (pull_from_input tasks holding GroupValues buffers).
+const CANCEL_FLUSH_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Yields per flush worker. The abort cascade needs 2 scheduling rounds:
+/// Round 1: CrossRtStream task is polled → cancelled → drops future → drops
+///          PerPartitionStreams → Arc hits 0 → SpawnedTask::drop aborts N
+///          pull_from_input tasks (synchronous, single worker).
+/// Round 2: Each pull_from_input task is polled → cancelled → drops future →
+///          GroupedHashAggregateStream dropped → memory freed.
+/// 3 yields per worker gives headroom for contention.
+const FLUSH_YIELDS_PER_WORKER: usize = 3;
+
+/// Number of flush tasks to spawn. Spawning across multiple workers ensures
+/// the woken pull_from_input tasks (which may land on different workers' queues)
+/// are processed in parallel rather than serialized through one worker's yields.
+const FLUSH_WORKER_COUNT: usize = 4;
+
+/// Fire the cancellation token for the given context_id, abort the CPU task,
+/// and flush the CPU runtime so deferred drops (GroupValues buffers in
+/// pull_from_input tasks) are processed before returning.
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
@@ -361,6 +385,45 @@ pub fn cancel_query(context_id: i64) {
         }
         let nanos = PROCESS_START.elapsed().as_nanos() as u64;
         tracker.cancelled_at_nanos.compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed).ok();
+
+        let rt_handle = tracker.cpu_runtime_handle.get().cloned();
+        // Drop the DashMap ref before blocking to avoid holding the shard lock.
+        drop(tracker);
+
+        // After abort(), the cascade is:
+        //   1. CrossRtStream task woken → polled → cancelled → drops future (sync)
+        //      → PerPartitionStream drops → Arc<SpawnedTask> refcount 0
+        //      → SpawnedTask::drop aborts N pull_from_input tasks (sync)
+        //   2. Each pull_from_input task woken → polled → cancelled → drops future
+        //      → GroupedHashAggregateStream dropped → GroupValues buffers freed
+        //
+        // Step 1 happens on whichever worker processes the CrossRtStream abort.
+        // Step 2 requires N scheduling rounds across workers. We spawn multiple
+        // flush tasks to ensure multiple workers are active and processing work.
+        if let Some(handle) = rt_handle {
+            let (tx, rx) = std::sync::mpsc::sync_channel(FLUSH_WORKER_COUNT);
+            for _ in 0..FLUSH_WORKER_COUNT {
+                let tx = tx.clone();
+                handle.spawn(async move {
+                    for _ in 0..FLUSH_YIELDS_PER_WORKER {
+                        tokio::task::yield_now().await;
+                    }
+                    let _ = tx.send(());
+                });
+            }
+            drop(tx);
+            // Wait for ALL flush tasks to complete (they run in parallel on
+            // different workers, flushing different portions of the abort queue).
+            for _ in 0..FLUSH_WORKER_COUNT {
+                if rx.recv_timeout(CANCEL_FLUSH_TIMEOUT).is_err() {
+                    warn!(
+                        "cancel_query({}): flush timed out after {}ms",
+                        context_id, CANCEL_FLUSH_TIMEOUT.as_millis()
+                    );
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -373,6 +436,14 @@ pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
 pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.abort_handle.set(handle).ok();
+    }
+}
+
+/// Store the CPU runtime handle for the given context_id so that
+/// `cancel_query` can flush deferred drops on that runtime.
+pub fn set_cpu_runtime_handle(context_id: i64, handle: tokio::runtime::Handle) {
+    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        tracker.cpu_runtime_handle.set(handle).ok();
     }
 }
 
@@ -430,6 +501,7 @@ impl QueryTrackingContext {
             memory_pool: query_pool,
             cancellation_token: CancellationToken::new(),
             abort_handle: OnceLock::new(),
+            cpu_runtime_handle: OnceLock::new(),
             cancelled_at_nanos: AtomicU64::new(0),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),

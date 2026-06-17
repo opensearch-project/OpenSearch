@@ -472,9 +472,12 @@ async unsafe fn execute_indexed_with_context_inner(
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
         let (cross_rt_stream, abort_handle) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id_early, h);
+        }
+        if let Some(rt) = cpu_executor.handle() {
+            crate::query_tracker::set_cpu_runtime_handle(context_id_early, rt);
         }
         let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
             cross_rt_stream.schema(),
@@ -922,10 +925,13 @@ async unsafe fn execute_indexed_with_context_inner(
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
     let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
 
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_executor.handle() {
+        crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
 
     let schema = cross_rt_stream.schema();

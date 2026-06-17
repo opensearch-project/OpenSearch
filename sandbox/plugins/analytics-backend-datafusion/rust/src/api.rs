@@ -1737,10 +1737,14 @@ pub async unsafe fn execute_local_plan(
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
+    let cpu_exec = manager.cpu_executor();
     let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
@@ -1780,10 +1784,14 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
+    let cpu_exec = manager.cpu_executor();
     let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
