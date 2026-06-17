@@ -34,6 +34,7 @@ public class NativeSettings {
     private final Integer mergeBatchSize;
     private final Integer mergeRayonThreads;
     private final Integer mergeIoThreads;
+    private final Integer mergeDeferredColumnThreshold;
     private final Map<String, String> fieldEncodings;
     private final Map<String, String> fieldCompressions;
     private final Map<String, Boolean> fieldBloomFilterEnabled;
@@ -60,6 +61,7 @@ public class NativeSettings {
         this.mergeBatchSize = builder.mergeBatchSize;
         this.mergeRayonThreads = builder.mergeRayonThreads;
         this.mergeIoThreads = builder.mergeIoThreads;
+        this.mergeDeferredColumnThreshold = builder.mergeDeferredColumnThreshold;
         this.fieldEncodings = builder.fieldEncodings != null ? Collections.unmodifiableMap(builder.fieldEncodings) : Collections.emptyMap();
         this.fieldCompressions = builder.fieldCompressions != null
             ? Collections.unmodifiableMap(builder.fieldCompressions)
@@ -146,6 +148,10 @@ public class NativeSettings {
         return mergeIoThreads;
     }
 
+    public Integer getMergeDeferredColumnThreshold() {
+        return mergeDeferredColumnThreshold;
+    }
+
     public Map<String, String> getFieldEncodings() {
         return fieldEncodings;
     }
@@ -199,6 +205,7 @@ public class NativeSettings {
         private Integer mergeBatchSize;
         private Integer mergeRayonThreads;
         private Integer mergeIoThreads;
+        private Integer mergeDeferredColumnThreshold;
         private Map<String, String> fieldEncodings;
         private Map<String, String> fieldCompressions;
         private Map<String, Boolean> fieldBloomFilterEnabled;
@@ -285,6 +292,11 @@ public class NativeSettings {
 
         public Builder mergeIoThreads(Integer v) {
             this.mergeIoThreads = v;
+            return this;
+        }
+
+        public Builder mergeDeferredColumnThreshold(Integer v) {
+            this.mergeDeferredColumnThreshold = v;
             return this;
         }
 

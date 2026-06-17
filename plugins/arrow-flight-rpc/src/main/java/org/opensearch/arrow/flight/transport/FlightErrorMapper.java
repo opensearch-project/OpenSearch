@@ -19,8 +19,10 @@ import org.opensearch.transport.stream.StreamException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.OpenSearchException.OPENSEARCH_PREFIX_KEY;
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRELATION_ID_KEY;
 
 /**
  * Maps between OpenSearch StreamException and Arrow Flight CallStatus/FlightRuntimeException.
@@ -31,6 +33,12 @@ import static org.opensearch.OpenSearchException.OPENSEARCH_PREFIX_KEY;
 class FlightErrorMapper {
     private static final Logger logger = LogManager.getLogger(FlightErrorMapper.class);
     private static final boolean skipMetadata = true;
+
+    /**
+     * Arrow Flight trailers worth surfacing on the exception metadata. Other internal transport
+     * trailers (such as {@code raw-header} and {@code content-type}) are dropped.
+     */
+    static final Set<String> SAFE_METADATA_KEYS = Set.of(CORRELATION_ID_KEY);
 
     /**
      * Maps a StreamException to a FlightRuntimeException.
@@ -57,6 +65,9 @@ class FlightErrorMapper {
     /**
      * Maps a FlightRuntimeException to a StreamException.
      *
+     * <p>Only trailers in {@link #SAFE_METADATA_KEYS} are copied onto the exception metadata; other
+     * internal transport trailers are dropped to keep them out of user-facing error responses.
+     *
      * @param exception the FlightRuntimeException to map
      * @return a StreamException with equivalent error information
      */
@@ -65,7 +76,9 @@ class FlightErrorMapper {
         StreamException streamException = new StreamException(errorCode, exception.getMessage(), exception.getCause());
         ErrorFlightMetadata metadata = exception.status().metadata();
         for (String key : metadata.keys()) {
-            streamException.addMetadata(OPENSEARCH_PREFIX_KEY + key, metadata.get(key));
+            if (SAFE_METADATA_KEYS.contains(key)) {
+                streamException.addMetadata(OPENSEARCH_PREFIX_KEY + key, metadata.get(key));
+            }
         }
         return streamException;
     }

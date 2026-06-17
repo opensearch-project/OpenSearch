@@ -15,6 +15,8 @@ use datafusion::common::ScalarValue;
 use dashmap::DashMap;
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::cache::cache_manager::{CachedFileMetadata, FileStatisticsCache, FileStatisticsCacheEntry};
+use datafusion::execution::cache::TableScopedPath;
+use datafusion::common::TableReference;
 use datafusion::physical_plan::Statistics;
 use object_store::{path::Path, ObjectMeta};
 use std::collections::HashMap;
@@ -132,9 +134,9 @@ pub struct CustomStatisticsCache {
     /// Combined memory tracking state
     memory_state: Arc<Mutex<MemoryState>>,
     /// Cache hit count (thread-safe)
-    hit_count: Arc<Mutex<usize>>,
+    hit_count: AtomicUsize,
     /// Cache miss count (thread-safe)
-    miss_count: Arc<Mutex<usize>>,
+    miss_count: AtomicUsize,
 }
 
 impl CustomStatisticsCache {
@@ -149,8 +151,8 @@ impl CustomStatisticsCache {
                 tracker: HashMap::new(),
                 total: 0,
             })),
-            hit_count: Arc::new(Mutex::new(0)),
-            miss_count: Arc::new(Mutex::new(0)),
+            hit_count: AtomicUsize::new(0),
+            miss_count: AtomicUsize::new(0),
         }
     }
 
@@ -171,12 +173,12 @@ impl CustomStatisticsCache {
 
     /// Get cache hit count
     pub fn hit_count(&self) -> usize {
-        self.hit_count.lock().map(|guard| *guard).unwrap_or(0)
+        self.hit_count.load(Ordering::Relaxed)
     }
 
     /// Get cache miss count
     pub fn miss_count(&self) -> usize {
-        self.miss_count.lock().map(|guard| *guard).unwrap_or(0)
+        self.miss_count.load(Ordering::Relaxed)
     }
 
     /// Get cache hit rate (returns value between 0.0 and 1.0)
@@ -189,8 +191,8 @@ impl CustomStatisticsCache {
 
     /// Reset hit and miss counters
     pub fn reset_stats(&self) {
-        if let Ok(mut hits) = self.hit_count.lock() { *hits = 0; }
-        if let Ok(mut misses) = self.miss_count.lock() { *misses = 0; }
+        self.hit_count.store(0, Ordering::Relaxed);
+        self.miss_count.store(0, Ordering::Relaxed);
     }
 
     /// Update the cache size limit
@@ -243,6 +245,11 @@ impl CustomStatisticsCache {
     /// Get current cache size according to policy (uses actual memory consumption)
     pub fn current_size(&self) -> CacheResult<usize> {
         Ok(self.memory_consumed())
+    }
+
+    /// Get current size limit in bytes (configured cap, not utilization)
+    pub fn current_size_limit(&self) -> usize {
+        self.size_limit.load(Ordering::Relaxed)
     }
 
     /// Manually trigger eviction (requires &mut self)
@@ -323,13 +330,18 @@ impl CustomStatisticsCache {
     }
 }
 
-// Implement CacheAccessor - DashMap handles concurrency
-impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
-    fn get(&self, k: &Path) -> Option<CachedFileMetadata> {
+// Path-keyed core operations. DF54 keys the FileStatisticsCache by
+// `TableScopedPath`; the convenience methods and tests in this module still use
+// bare `Path`, so the storage and bookkeeping stay Path-keyed and the
+// CacheAccessor<TableScopedPath> impl below delegates to these via `&key.path`.
+// These are inherent methods: for a `&Path` argument they take priority over the
+// trait's `&TableScopedPath` methods, so existing callers keep working unchanged.
+impl CustomStatisticsCache {
+    pub fn get(&self, k: &Path) -> Option<CachedFileMetadata> {
         let result = self.inner_cache.get(k);
 
         if result.is_some() {
-            if let Ok(mut hits) = self.hit_count.lock() { *hits += 1; }
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
             let key = k.to_string();
             let memory_size = {
                 let state = self.memory_state.lock();
@@ -339,13 +351,13 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
                 policy_guard.on_access(&key, memory_size);
             }
         } else {
-            if let Ok(mut misses) = self.miss_count.lock() { *misses += 1; }
+            self.miss_count.fetch_add(1, Ordering::Relaxed);
         }
 
         result.map(|s| s.value().clone())
     }
 
-    fn put(&self, k: &Path, v: CachedFileMetadata) -> Option<CachedFileMetadata> {
+    pub fn put(&self, k: &Path, v: CachedFileMetadata) -> Option<CachedFileMetadata> {
         let key = k.to_string();
         let memory_size = v.statistics.memory_size();
 
@@ -387,7 +399,7 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
         result
     }
 
-    fn remove(&self, k: &Path) -> Option<CachedFileMetadata> {
+    pub fn remove(&self, k: &Path) -> Option<CachedFileMetadata> {
         let key = k.to_string();
         let result = self.inner_cache.remove(k);
         if result.is_some() {
@@ -403,15 +415,15 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
         result.map(|x| x.1)
     }
 
-    fn contains_key(&self, k: &Path) -> bool {
+    pub fn contains_key(&self, k: &Path) -> bool {
         self.inner_cache.get(k).is_some()
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.memory_state.lock().map(|s| s.tracker.len()).unwrap_or(0)
     }
 
-    fn clear(&self) {
+    pub fn clear(&self) {
         self.inner_cache.clear();
         if let Ok(mut state) = self.memory_state.lock() {
             state.tracker.clear();
@@ -421,7 +433,7 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
         self.reset_stats();
     }
 
-    fn name(&self) -> String {
+    pub fn name(&self) -> String {
         format!(
             "CustomStatisticsCache({})",
             self.policy_name().unwrap_or_else(|_| "unknown".to_string())
@@ -429,9 +441,61 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
     }
 }
 
+// DF54 `FileStatisticsCache: CacheAccessor<TableScopedPath, CachedFileMetadata>`.
+// Storage stays Path-keyed (see inherent methods above); this delegates via
+// `&key.path`. The table scope is not used by this cache.
+impl CacheAccessor<TableScopedPath, CachedFileMetadata> for CustomStatisticsCache {
+    fn get(&self, k: &TableScopedPath) -> Option<CachedFileMetadata> {
+        CustomStatisticsCache::get(self, &k.path)
+    }
+
+    fn put(&self, k: &TableScopedPath, v: CachedFileMetadata) -> Option<CachedFileMetadata> {
+        CustomStatisticsCache::put(self, &k.path, v)
+    }
+
+    fn remove(&self, k: &TableScopedPath) -> Option<CachedFileMetadata> {
+        CustomStatisticsCache::remove(self, &k.path)
+    }
+
+    fn contains_key(&self, k: &TableScopedPath) -> bool {
+        CustomStatisticsCache::contains_key(self, &k.path)
+    }
+
+    fn len(&self) -> usize {
+        CustomStatisticsCache::len(self)
+    }
+
+    fn clear(&self) {
+        CustomStatisticsCache::clear(self)
+    }
+
+    fn name(&self) -> String {
+        CustomStatisticsCache::name(self)
+    }
+}
+
 impl FileStatisticsCache for CustomStatisticsCache {
-    fn list_entries(&self) -> std::collections::HashMap<Path, FileStatisticsCacheEntry> {
+    fn cache_limit(&self) -> usize {
+        self.size_limit.load(Ordering::Relaxed)
+    }
+
+    fn update_cache_limit(&self, limit: usize) {
+        // Best-effort: update_size_limit also triggers eviction; ignore its Result
+        // since the trait method is infallible.
+        let _ = self.update_size_limit(limit);
+    }
+
+    fn list_entries(&self) -> std::collections::HashMap<TableScopedPath, FileStatisticsCacheEntry> {
         std::collections::HashMap::new()
+    }
+
+    fn drop_table_entries(
+        &self,
+        _table_ref: &Option<TableReference>,
+    ) -> datafusion::common::Result<()> {
+        // This cache does not track table scope, so there are no per-table
+        // entries to drop. No-op.
+        Ok(())
     }
 }
 

@@ -23,10 +23,14 @@ import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
+import org.opensearch.be.lucene.stats.LuceneStatsProvider;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -42,8 +46,11 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -53,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
@@ -79,6 +87,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
 
+    private final LuceneShardStatsTracker stats = new LuceneShardStatsTracker();
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
@@ -120,18 +129,42 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
-        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex(), stats);
 
         // Create the lucene subdirectory if it doesn't exist, or clear stale contents
         // from a prior engine lifecycle. Any data here is either already hardlinked into
         // index/ (via addIndexes) or will be replayed from the translog on recovery.
-        if (Files.isDirectory(baseDirectory)) {
-            tryDeleteDirectory(baseDirectory);
-        }
+        // Before deleting, release any stale NativeFSLock entries left in Lucene's static
+        // LOCK_HELD set from a prior engine that failed to close its writers properly.
+        boolean registered = false;
+        LuceneStatsProvider provider = null;
         try {
-            Files.createDirectories(baseDirectory);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
+            if (Files.isDirectory(baseDirectory)) {
+                clearStaleLocks(baseDirectory);
+                tryDeleteDirectory(baseDirectory);
+            }
+            try {
+                Files.createDirectories(baseDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
+            }
+            // Register this shard's tracker with the format-wide stats provider so the
+            // /_plugins/lucene/{index}/_stats and /_plugins/lucene/_nodes/{nodeId}/_stats
+            // REST endpoints can read live counters. Unregistered in close().
+            provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(LuceneStatsProvider.FORMAT_NAME);
+            if (provider != null) {
+                provider.register(store.shardId(), stats);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered && provider != null) {
+                try {
+                    provider.unregister(store.shardId());
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister lucene stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
         }
     }
 
@@ -182,7 +215,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 analyzer,
                 codec,
                 getChildWriterSortConfiguration(),
-                activeWriters
+                activeWriters,
+                stats
             );
             pendingCleanup.put(config.writerGeneration(), writer);
             return writer;
@@ -205,9 +239,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         Analyzer analyzer,
         Codec codec,
         Sort indexSort,
-        Set<LuceneWriter> registry
+        Set<LuceneWriter> registry,
+        LuceneShardStatsTracker stats
     ) throws IOException {
-        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
+        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry, stats);
     }
 
     private Sort getChildWriterSortConfiguration() {
@@ -274,80 +309,90 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             return new RefreshResult(List.of());
         }
 
-        List<Segment> resultSegments = new ArrayList<>(refreshInput.existingSegments());
+        long refreshStart = System.nanoTime();
+        try {
+            List<Segment> resultSegments = new ArrayList<>(refreshInput.existingSegments());
 
-        // Collect all source directories and their paths for a single batched addIndexes call
-        List<Directory> sourceDirectories = new ArrayList<>();
-        Set<Long> writerGenerations = new HashSet<>();
+            // Collect all source directories and their paths for a single batched addIndexes call
+            List<Directory> sourceDirectories = new ArrayList<>();
+            Set<Long> writerGenerations = new HashSet<>();
 
-        for (Segment segment : refreshInput.writerFiles()) {
-            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
-            if (wfs == null) {
-                continue;
+            for (Segment segment : refreshInput.writerFiles()) {
+                WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+                if (wfs == null) {
+                    continue;
+                }
+
+                Path dirPath = Path.of(wfs.directory());
+                if (Files.isDirectory(dirPath) == false) {
+                    logger.warn("Lucene writer directory does not exist: {}", dirPath);
+                    continue;
+                }
+
+                sourceDirectories.add(new HardlinkCopyDirectoryWrapper(new MMapDirectory(dirPath)));
+                writerGenerations.add(wfs.writerGeneration());
             }
 
-            Path dirPath = Path.of(wfs.directory());
-            if (Files.isDirectory(dirPath) == false) {
-                logger.warn("Lucene writer directory does not exist: {}", dirPath);
-                continue;
-            }
-
-            sourceDirectories.add(new HardlinkCopyDirectoryWrapper(new MMapDirectory(dirPath)));
-            writerGenerations.add(wfs.writerGeneration());
-        }
-
-        // Single batched addIndexes call for all source directories
-        if (sourceDirectories.isEmpty() == false) {
-            try {
-                sharedWriter.addIndexes(sourceDirectories.toArray(new Directory[0]));
-                logger.debug("Incorporated {} Lucene segments into shared writer in a single addIndexes call", sourceDirectories.size());
-            } finally {
-                // Close all source directories
-                for (Directory dir : sourceDirectories) {
-                    try {
-                        dir.close();
-                    } catch (IOException e) {
-                        logger.warn("Failed to close source directory after addIndexes", e);
+            // Single batched addIndexes call for all source directories
+            if (sourceDirectories.isEmpty() == false) {
+                try {
+                    StatsRecorder.recordTimeMillis(() -> {
+                        sharedWriter.addIndexes(sourceDirectories.toArray(new Directory[0]));
+                        logger.debug(
+                            "Incorporated {} Lucene segments into shared writer in a single addIndexes call",
+                            sourceDirectories.size()
+                        );
+                    }, stats::addRefreshAddIndexesTimeMillis);
+                } finally {
+                    // Close all source directories
+                    for (Directory dir : sourceDirectories) {
+                        try {
+                            dir.close();
+                        } catch (IOException e) {
+                            logger.warn("Failed to close source directory after addIndexes", e);
+                        }
                     }
                 }
-            }
 
-            // After addIndexes, open an NRT reader to discover the actual file names
-            // for the newly added segments. Lucene renames files during addIndexes,
-            // so the original temp directory file names are no longer valid.
-            Path sharedDir = store.shardPath().resolveIndex();
+                // After addIndexes, open an NRT reader to discover the actual file names
+                // for the newly added segments. Lucene renames files during addIndexes,
+                // so the original temp directory file names are no longer valid.
+                Path sharedDir = store.shardPath().resolveIndex();
 
-            try (DirectoryReader reader = DirectoryReader.open(sharedWriter)) {
-                List<LeafReaderContext> leaves = reader.leaves();
+                try (DirectoryReader reader = DirectoryReader.open(sharedWriter)) {
+                    List<LeafReaderContext> leaves = reader.leaves();
 
-                for (int i = 0; i < leaves.size(); i++) {
-                    LeafReaderContext ctx = leaves.get(i);
-                    if (ctx.reader() instanceof SegmentReader segReader) {
-                        SegmentCommitInfo segInfo = segReader.getSegmentInfo();
-                        String genAttr = segInfo.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
-                        if (genAttr == null) {
-                            continue;
+                    for (int i = 0; i < leaves.size(); i++) {
+                        LeafReaderContext ctx = leaves.get(i);
+                        if (ctx.reader() instanceof SegmentReader segReader) {
+                            SegmentCommitInfo segInfo = segReader.getSegmentInfo();
+                            String genAttr = segInfo.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
+                            if (genAttr == null) {
+                                continue;
+                            }
+
+                            long writerGen = Long.parseLong(genAttr);
+                            if (!writerGenerations.contains(writerGen)) {
+                                continue;
+                            }
+                            long numDocs = segReader.maxDoc();
+
+                            WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
+                                .directory(sharedDir)
+                                .writerGeneration(writerGen)
+                                .addNumRows(numDocs);
+
+                            for (String file : segInfo.files()) {
+                                wfsBuilder.addFile(file);
+                            }
+
+                            resultSegments.add(Segment.builder(writerGen).addSearchableFiles(dataFormat, wfsBuilder.build()).build());
+                            writerGenerations.remove(writerGen);
+                            stats.incRefreshSegmentsIncorporatedTotal();
                         }
-
-                        long writerGen = Long.parseLong(genAttr);
-                        if (!writerGenerations.contains(writerGen)) {
-                            continue;
-                        }
-                        long numDocs = segReader.maxDoc();
-
-                        WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
-                            .directory(sharedDir)
-                            .writerGeneration(writerGen)
-                            .addNumRows(numDocs);
-
-                        for (String file : segInfo.files()) {
-                            wfsBuilder.addFile(file);
-                        }
-
-                        resultSegments.add(Segment.builder(writerGen).addSearchableFiles(dataFormat, wfsBuilder.build()).build());
-                        writerGenerations.remove(writerGen);
                     }
                 }
+                assert writerGenerations.isEmpty() : "Could not get segments from all writers";
             }
             assert writerGenerations.isEmpty() : "Could not get segments from all writers";
 
@@ -362,9 +407,12 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                     }
                 }
             }
-        }
 
-        return new RefreshResult(List.copyOf(resultSegments));
+            return new RefreshResult(List.copyOf(resultSegments));
+        } finally {
+            stats.incRefreshTotal();
+            stats.addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - refreshStart));
+        }
     }
 
     @Override
@@ -406,7 +454,74 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     /** No-op — the {@link LuceneCommitter} owns the shared IndexWriter lifecycle. */
     @Override
     public void close() throws IOException {
+        // Unregister this shard's tracker from the stats provider before tearing down.
+        LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(LuceneStatsProvider.FORMAT_NAME);
+        if (provider != null) {
+            provider.unregister(store.shardId());
+        }
+        // Close any writers still tracked by this engine. This is the single safety net
+        // for all failure modes — regardless of whether a writer leaked from the pool,
+        // flushQueue, or any other DFAE path, closing it here releases its NativeFSLock
+        // from Lucene's static LOCK_HELD set.
+        for (LuceneWriter writer : activeWriters) {
+            IOUtils.closeWhileHandlingException(writer);
+        }
+        activeWriters.clear();
+        pendingCleanup.clear();
         // LuceneCommitter owns the shared IndexWriter lifecycle
+    }
+
+    /**
+     * Best-effort removal of stale NativeFSLock entries from Lucene's static LOCK_HELD set.
+     * A prior engine that failed to close its writers leaves paths in this JVM-level set.
+     * On engine restart the generation counter can produce the same value, causing
+     * LockObtainFailedException. This method removes any entries under this shard's
+     * lucene base directory so the new engine can reuse those generations.
+     */
+    /**
+     * Removes stale NativeFSLock entries from Lucene's static LOCK_HELD set.
+     * Uses reflection on {@code NativeFSLockFactory.LOCK_HELD} (a private static
+     * {@code Set<String>}) — tied to Lucene 10.x. If Lucene changes this field,
+     * reflection fails with a WARN log so the incompatibility is caught during testing.
+     */
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "Clear stale lock entries leaked by a prior engine lifecycle")
+    private static void clearStaleLocks(Path baseDirectory) {
+        Set<String> lockHeld;
+        try {
+            Field field = NativeFSLockFactory.class.getDeclaredField("LOCK_HELD");
+            field.setAccessible(true);
+            lockHeld = (Set<String>) field.get(null);
+        } catch (Exception e) {
+            logger.warn(
+                "Cannot access NativeFSLockFactory.LOCK_HELD via reflection — "
+                    + "stale lock cleanup disabled. Check Lucene version compatibility.",
+                e
+            );
+            return;
+        }
+        try {
+            Path realBase = baseDirectory.toRealPath();
+            int removed = 0;
+            synchronized (lockHeld) {
+                for (var it = lockHeld.iterator(); it.hasNext();) {
+                    Path lockPath = Path.of(it.next());
+                    if (lockPath.startsWith(realBase)) {
+                        it.remove();
+                        removed++;
+                    }
+                }
+            }
+            if (removed > 0) {
+                logger.warn(
+                    "Cleared {} stale NativeFSLock entries under [{}]. " + "A prior engine failed to close its LuceneWriters properly.",
+                    removed,
+                    realBase
+                );
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to resolve base directory [{}] for stale lock cleanup: {}", baseDirectory, e.getMessage());
+        }
     }
 
     /**

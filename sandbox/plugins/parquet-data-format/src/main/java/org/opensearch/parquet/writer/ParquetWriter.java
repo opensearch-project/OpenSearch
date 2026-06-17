@@ -25,7 +25,9 @@ import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.vsr.VSRManager;
+import org.opensearch.plugin.stats.StatsRecorder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -55,6 +57,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
     private final Supplier<Schema> schemaSupplier;
+    private final ParquetShardStatsTracker stats;
     private volatile long mappingVersion;
     private volatile WriterState state = WriterState.ACTIVE;
     private long acceptedRows = 0L;
@@ -74,6 +77,42 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param indexSettings index settings for writer configuration
      * @param threadPool the thread pool for background native writes
      * @param checksumStrategy strategy to register pre-computed checksums on
+     * @param stats shard-level stats tracker
+     */
+    public ParquetWriter(
+        String file,
+        long writerGeneration,
+        long mappingVersion,
+        ParquetDataFormat dataFormat,
+        Schema schema,
+        Supplier<Schema> schemaSupplier,
+        ArrowBufferPool bufferPool,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ParquetShardStatsTracker stats
+    ) {
+        this.file = file;
+        this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
+        this.dataFormat = dataFormat;
+        this.checksumStrategy = checksumStrategy;
+        this.schemaSupplier = schemaSupplier;
+        this.stats = stats;
+        this.vsrManager = new VSRManager(
+            file,
+            indexSettings,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            threadPool,
+            writerGeneration,
+            stats
+        );
+    }
+
+    /**
+     * Creates a new ParquetWriter without stats collection.
      */
     public ParquetWriter(
         String file,
@@ -87,20 +126,18 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
     ) {
-        this.file = file;
-        this.writerGeneration = writerGeneration;
-        this.mappingVersion = mappingVersion;
-        this.dataFormat = dataFormat;
-        this.checksumStrategy = checksumStrategy;
-        this.schemaSupplier = schemaSupplier;
-        this.vsrManager = new VSRManager(
+        this(
             file,
-            indexSettings,
+            writerGeneration,
+            mappingVersion,
+            dataFormat,
             schema,
+            schemaSupplier,
             bufferPool,
-            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            indexSettings,
             threadPool,
-            writerGeneration
+            checksumStrategy,
+            new ParquetShardStatsTracker()
         );
     }
 
@@ -109,16 +146,19 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         if (state != WriterState.ACTIVE) {
             throw new IllegalStateException("Writer is not active, state=" + state);
         }
-        // Schema mismatch is recoverable: the VSR rejected the doc pre-admission, so the
-        // caller-driven rollback no-ops in the VSR and restores ACTIVE.
-        try {
-            vsrManager.addDocument(d);
-        } catch (MismatchedInputException e) {
-            state = WriterState.PENDING_ROLLBACK;
-            return new WriteResult.Failure(e, -1, -1, -1);
-        }
-        acceptedRows++;
-        return new WriteResult.Success(1L, 1L, 1L);
+        return StatsRecorder.recordTimeMillis(() -> {
+            // Schema mismatch is recoverable: the VSR rejected the doc pre-admission, so the
+            // caller-driven rollback no-ops in the VSR and restores ACTIVE.
+            try {
+                vsrManager.addDocument(d);
+            } catch (MismatchedInputException e) {
+                state = WriterState.PENDING_ROLLBACK;
+                return new WriteResult.Failure(e, -1, -1, -1);
+            }
+            acceptedRows++;
+            stats.addDocsIndexed(1);
+            return new WriteResult.Success(1L, 1L, 1L);
+        }, stats::addIndexTimeMillis);
     }
 
     @Override

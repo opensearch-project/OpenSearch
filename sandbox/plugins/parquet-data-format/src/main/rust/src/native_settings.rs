@@ -38,6 +38,7 @@ pub struct NativeSettings {
     pub row_group_max_bytes: Option<usize>,
     pub merge_rayon_threads: Option<usize>,
     pub merge_io_threads: Option<usize>,
+    pub merge_deferred_column_threshold: Option<usize>,
 }
 
 impl NativeSettings {
@@ -111,6 +112,10 @@ impl NativeSettings {
 
     pub fn get_merge_io_threads(&self) -> Option<usize> {
         self.merge_io_threads
+    }
+
+    pub fn get_merge_deferred_column_threshold(&self) -> usize {
+        self.merge_deferred_column_threshold.unwrap_or(0)
     }
 }
 

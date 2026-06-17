@@ -18,6 +18,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
@@ -26,12 +27,16 @@ import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.writer.FieldValuePair;
 import org.opensearch.parquet.writer.MismatchedInputException;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -68,6 +73,7 @@ public class VSRManager implements AutoCloseable {
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
     private final long writerGeneration;
+    private final ParquetShardStatsTracker stats;
     private volatile Future<?> pendingWrite;
     private final NativeParquetWriter writer;
     private final int ROTATION_TIMEOUT = 120;
@@ -84,9 +90,61 @@ public class VSRManager implements AutoCloseable {
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
         ThreadPool threadPool,
+        long writerGeneration,
+        ParquetShardStatsTracker stats
+    ) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats);
+    }
+
+    /**
+     * Creates a new VSRManager with asynchronous background writes and no stats collection.
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
         long writerGeneration
     ) {
-        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration);
+        this(
+            fileName,
+            indexSettings,
+            schema,
+            bufferPool,
+            maxRowsPerVSR,
+            threadPool,
+            true,
+            writerGeneration,
+            new ParquetShardStatsTracker()
+        );
+    }
+
+    /**
+     * Creates a new VSRManager without stats collection.
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
+        boolean runAsync,
+        long writerGeneration
+    ) {
+        this(
+            fileName,
+            indexSettings,
+            schema,
+            bufferPool,
+            maxRowsPerVSR,
+            threadPool,
+            runAsync,
+            writerGeneration,
+            new ParquetShardStatsTracker()
+        );
     }
 
     /**
@@ -101,6 +159,7 @@ public class VSRManager implements AutoCloseable {
      * @param runAsync if true, frozen VSR writes run on the background thread pool;
      *                 if false, they run on the calling thread (for benchmarks/tests)
      * @param writerGeneration the writer generation to store in file metadata
+     * @param stats shard-level stats tracker
      */
     public VSRManager(
         String fileName,
@@ -110,29 +169,39 @@ public class VSRManager implements AutoCloseable {
         int maxRowsPerVSR,
         ThreadPool threadPool,
         boolean runAsync,
-        long writerGeneration
+        long writerGeneration,
+        ParquetShardStatsTracker stats
     ) {
         this.fileName = fileName;
         this.indexSettings = indexSettings;
         this.writerGeneration = writerGeneration;
+        this.stats = stats;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
         this.managedVSR.set(vsrPool.getActiveVSR());
-        this.writer = new NativeParquetWriter(fileName);
+        this.writer = new NativeParquetWriter(fileName, stats);
     }
 
     /**
      * Adds a document to the active VSR, rotating if necessary.
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
+     * <p>
+     * Enforces single-value semantics: if the same {@link MappedFieldType} instance
+     * appears more than once in the document's field list, a {@link MapperParsingException}
+     * is thrown. Identity equality (reference {@code ==}) is used because the mapper
+     * service reuses field type instances — the same instance appearing twice indicates
+     * a multi-value field, which columnar formats do not support.
      *
      * @param doc the document input containing field-value pairs
+     * @throws MapperParsingException if a field appears more than once in the document
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
         if (pendingWrite != null && pendingWrite.isDone()) {
             Future.State state = pendingWrite.state();
             if (state == Future.State.FAILED) {
+                stats.incBackgroundWriteFailures();
                 throw new IllegalStateException(pendingWrite.exceptionNow());
             } else if (state == Future.State.CANCELLED) {
                 throw new IllegalStateException("Background write was cancelled");
@@ -146,8 +215,14 @@ public class VSRManager implements AutoCloseable {
             );
         }
         ManagedVSR activeVSR = managedVSR.get();
+        Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
         for (FieldValuePair pair : doc.getFinalInput()) {
             MappedFieldType fieldType = pair.getFieldType();
+            if (dedup.add(fieldType) == false) {
+                throw new MapperParsingException(
+                    "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
+                );
+            }
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
             if (parquetField == null) {
                 // Defense-in-depth: schema reconciliation is supposed to happen in
@@ -227,6 +302,7 @@ public class VSRManager implements AutoCloseable {
         if (rotated == false) {
             return;
         }
+        stats.incVsrRotations();
         logger.debug("VSR rotation occurred for {}", fileName);
         ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
         if (frozenVSR != null) {
@@ -321,21 +397,27 @@ public class VSRManager implements AutoCloseable {
         if (pendingWrite == null) {
             return;
         }
+        long startNanos = System.nanoTime();
         try {
             if (timeoutSeconds > 0) {
                 pendingWrite.get(timeoutSeconds, TimeUnit.SECONDS);
             } else {
                 pendingWrite.get();
             }
+            stats.incBackgroundWriteTotal();
         } catch (TimeoutException e) {
+            stats.incBackgroundWriteTimeouts();
             if (ignoreTimeout) {
                 logger.warn("Timed out waiting for background VSR write for {}", fileName);
             } else {
                 throw new IOException("Timed out waiting for background VSR write for " + fileName, e);
             }
         } catch (Exception e) {
+            stats.incBackgroundWriteFailures();
             throw new IOException("Background VSR write failed for " + fileName, e.getCause());
         } finally {
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.addBackgroundWriteWaitMillis(elapsed);
             pendingWrite = null;
         }
     }

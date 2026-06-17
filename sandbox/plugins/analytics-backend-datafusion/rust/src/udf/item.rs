@@ -27,7 +27,6 @@
 //!   * Map cell is null → NULL output.
 //!   * Key cell is null → NULL output (no entry can match a NULL key).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -65,9 +64,6 @@ impl Default for ItemUdf {
 }
 
 impl ScalarUDFImpl for ItemUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "item"
     }

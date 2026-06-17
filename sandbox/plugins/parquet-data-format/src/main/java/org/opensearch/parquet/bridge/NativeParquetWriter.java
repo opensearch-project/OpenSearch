@@ -10,6 +10,8 @@ package org.opensearch.parquet.bridge;
 
 import org.opensearch.common.SetOnce;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,6 +36,7 @@ public class NativeParquetWriter {
     private final String filePath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
     private final SetOnce<RowIdMapping> rowIdMapping = new SetOnce<>();
+    private final ParquetShardStatsTracker stats;
     private volatile boolean initialized = false;
 
     /**
@@ -41,9 +44,20 @@ public class NativeParquetWriter {
      * call {@link #initialize(String, long, ParquetSortConfig, long)} before the first write.
      *
      * @param filePath the path to the Parquet file to write
+     * @param stats shard-level stats tracker
+     */
+    public NativeParquetWriter(String filePath, ParquetShardStatsTracker stats) {
+        this.filePath = filePath;
+        this.stats = stats;
+    }
+
+    /**
+     * Creates a new NativeParquetWriter handle without stats collection.
+     *
+     * @param filePath the path to the Parquet file to write
      */
     public NativeParquetWriter(String filePath) {
-        this.filePath = filePath;
+        this(filePath, new ParquetShardStatsTracker());
     }
 
     /**
@@ -89,7 +103,12 @@ public class NativeParquetWriter {
         if (initialized == false) {
             throw new IllegalStateException("Writer not initialized: " + filePath);
         }
-        RustBridge.write(filePath, arrayAddress, schemaAddress);
+        StatsRecorder.recordOutcome(
+            () -> RustBridge.write(filePath, arrayAddress, schemaAddress),
+            stats::addNativeWriteTimeMillis,
+            stats::incNativeWriteTotal,
+            stats::incNativeWriteFailures
+        );
     }
 
     /**
@@ -103,13 +122,15 @@ public class NativeParquetWriter {
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
             if (initialized) {
-                RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
-                if (result != null) {
-                    metadata.set(result.metadata());
-                    if (result.rowIdMapping() != null) {
-                        rowIdMapping.set(result.rowIdMapping());
+                StatsRecorder.recordOutcome(() -> {
+                    RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
+                    if (result != null) {
+                        metadata.set(result.metadata());
+                        if (result.rowIdMapping() != null) {
+                            rowIdMapping.set(result.rowIdMapping());
+                        }
                     }
-                }
+                }, stats::addNativeFinalizeTimeMillis, stats::incNativeFinalizeTotal, stats::incNativeFinalizeFailures);
             }
         }
         return metadata.get();

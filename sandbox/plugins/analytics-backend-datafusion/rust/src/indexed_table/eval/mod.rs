@@ -65,7 +65,7 @@ pub(super) fn remap_expr_to_batch(
 
     expr.clone()
         .transform(|e| {
-            if let Some(col) = e.as_any().downcast_ref::<Column>() {
+            if let Some(col) = e.downcast_ref::<Column>() {
                 if let Ok(new_idx) = batch.schema().index_of(col.name()) {
                     if new_idx != col.index() {
                         let remapped = Arc::new(Column::new(col.name(), new_idx))
@@ -83,6 +83,7 @@ pub(super) fn remap_expr_to_batch(
 use super::bool_tree::ResolvedNode;
 use super::page_pruner::PagePruneMetrics;
 use super::page_pruner::PagePruner;
+use super::page_pruner::StatsPruneTree;
 use super::row_selection::PositionMap;
 use super::stream::RowGroupInfo;
 use datafusion::arrow::buffer::Buffer;
@@ -272,6 +273,7 @@ pub trait TreeEvaluator: Send + Sync {
         page_pruner: &PagePruner,
         pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
         page_prune_metrics: Option<&PagePruneMetrics>,
+        stats_prune_tree: Option<&StatsPruneTree>,
     ) -> Result<TreePrefetch, String>;
 
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
@@ -348,6 +350,8 @@ pub struct TreeBitsetSource {
     /// recommended here — multiple FFM calls per collector per RG can
     /// be expensive in multi-collector trees.
     pub collector_strategy: CollectorCallStrategy,
+    /// Precomputed per-subtree RG match vectors. Built once at construction.
+    pub stats_prune_tree: Option<StatsPruneTree>,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -358,6 +362,18 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         max_doc: i32,
     ) -> Result<Option<PrefetchedRg>, String> {
         let t = Instant::now();
+
+        // RG-level early-exit: precomputed from column stats at construction.
+        if let Some(ref ann) = self.stats_prune_tree {
+            if let Some(&false) = ann.rg_can_match.get(rg.index) {
+                native_bridge_common::log_debug!(
+                    "BitmapTree: skipping RG {} — pruned by RG-level stats",
+                    rg.index
+                );
+                return Ok(None);
+            }
+        }
+
         let ctx = RgEvalContext {
             rg_idx: rg.index,
             rg_first_row: rg.first_row,
@@ -405,6 +421,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 // inflate counts. We compute final page-level metrics below
                 // after the bitmap tree is fully resolved.
                 None,
+                self.stats_prune_tree.as_ref(),
             )
             .map_err(|e| format!("TreeBitsetSource::prefetch_rg(rg={}): {}", rg.index, e))?;
         if prefetch.candidates.is_empty() {
@@ -755,6 +772,7 @@ mod tests {
             _page_pruner: &PagePruner,
             _pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
             _page_prune_metrics: Option<&PagePruneMetrics>,
+            _stats_prune_tree: Option<&StatsPruneTree>,
         ) -> Result<TreePrefetch, String> {
             Ok(TreePrefetch {
                 candidates: roaring::RoaringBitmap::new(),
@@ -803,6 +821,7 @@ mod tests {
             pruning_predicates: std::sync::Arc::new(HashMap::new()),
             page_prune_metrics: None,
             collector_strategy: CollectorCallStrategy::TightenOuterBounds,
+            stats_prune_tree: None,
         };
         assert!(!source.needs_row_mask());
     }

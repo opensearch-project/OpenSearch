@@ -55,5 +55,6 @@ pub mod udaf;
 pub mod udf;
 pub mod udwf;
 pub mod native_node_stats;
+pub mod search_stats;
 pub mod stats;
 pub mod task_monitors;

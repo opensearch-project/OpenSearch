@@ -120,13 +120,45 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         Map<Integer, List<RexLiteral>> finalExtraLiteralArgs,
         List<IntermediateField> perCallIntermediateField
     ) {
-        super(cluster, traitSet, List.of(), input, groupSet, groupSets, aggCalls);
+        super(
+            cluster,
+            traitSet,
+            List.of(),
+            input,
+            frontGroupSetForFinal(groupSet, mode),
+            frontGroupSetsForFinal(groupSet, groupSets, mode),
+            aggCalls
+        );
         this.mode = mode;
         this.viableBackends = viableBackends;
         this.callAnnotations = Map.copyOf(callAnnotations);
         this.finalExtraLiteralArgs = Map.copyOf(finalExtraLiteralArgs);
         // Collections.unmodifiableList — List.copyOf would NPE on the null pass-through entries.
         this.perCallIntermediateField = Collections.unmodifiableList(new ArrayList<>(perCallIntermediateField));
+    }
+
+    /**
+     * FINAL reads PARTIAL's output, where Calcite has fronted the group keys to {@code 0..n-1}; group
+     * on the prefix range so a non-prefix key (e.g. {@code avg(x) by span(y,5)} → {@code {1}}) isn't
+     * read as an agg-state column. No-op for SINGLE/PARTIAL (raw input) and already-fronted sets.
+     */
+    private static ImmutableBitSet frontGroupSetForFinal(ImmutableBitSet groupSet, AggregateMode mode) {
+        return mode == AggregateMode.FINAL ? ImmutableBitSet.range(groupSet.cardinality()) : groupSet;
+    }
+
+    /**
+     * Keeps {@code groupSets} consistent with the fronted {@code groupSet}. PPL only emits simple
+     * (single-set) aggregates, so this collapses to one set; revisit if GROUPING SETS is ever added.
+     */
+    private static List<ImmutableBitSet> frontGroupSetsForFinal(
+        ImmutableBitSet groupSet,
+        List<ImmutableBitSet> groupSets,
+        AggregateMode mode
+    ) {
+        if (mode != AggregateMode.FINAL || groupSets == null || groupSets.isEmpty()) {
+            return groupSets;
+        }
+        return List.of(ImmutableBitSet.range(groupSet.cardinality()));
     }
 
     /** Builds a FINAL aggregate post-rewrite; clears both stashes so a later {@code copy()} can't replay them. */
@@ -248,18 +280,31 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      * independently, results would never merge). Return infinite cost so Volcano picks the
      * split alternative. Allow SOURCE/EXECUTION SINGLETON (already gathered) and ANY
      * (Volcano's "still exploring" placeholder). PARTIAL/FINAL skip the gate.
+     *
+     * <p><b>DO NOT REMOVE the infinite-cost branch below.</b> It is the correctness backstop for
+     * the whole split: {@code OpenSearchAggregateSplitRule} now emits a single alternative
+     * deterministically (no cost comparison), so this gate is the ONLY thing that rejects a SINGLE
+     * aggregate placed over RANDOM (multi-shard) input. Without it, Volcano can legally land a
+     * SINGLE aggregate directly on partitioned data — each shard aggregates in isolation, the
+     * partials never merge, and queries return silently wrong results. Plan-shape tests happen to
+     * catch the current shapes, but they are not a substitute for this gate; deleting it breaks
+     * correctness, not just a test.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (mode == AggregateMode.SINGLE) {
-            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-                RelTrait trait = getInput().getTraitSet().getTrait(index);
-                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
+        for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+            RelTrait trait = getInput().getTraitSet().getTrait(index);
+            if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
+                || distribution.getType() == RelDistribution.Type.ANY;
+
+            // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
+            // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
             }
         }
         return planner.getCostFactory().makeTinyCost();

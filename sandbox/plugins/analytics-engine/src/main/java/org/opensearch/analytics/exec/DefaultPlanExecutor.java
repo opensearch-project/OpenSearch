@@ -39,8 +39,8 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
@@ -95,7 +95,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile int maxShardsPerQuery;
     private volatile int maxConcurrentShardRequestsPerNode;
     private volatile boolean preferMetadataDriver;
-    private volatile double oversamplingFactor;
+    private final PlannerSettings plannerSettings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -149,9 +149,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
-        this.oversamplingFactor = AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterService.getSettings());
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR, v -> oversamplingFactor = v);
+        // Planner settings (oversampling factor + delegation block-list); self-registers update
+        // consumers for live changes.
+        this.plannerSettings = PlannerSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings(),
+            capabilityRegistry
+        );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
     }
@@ -236,7 +240,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             false,
             preferMetadataDriver
         );
-        plannerContext.setOversamplingFactor(oversamplingFactor);
+        plannerContext.setPlannerSettings(plannerSettings);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
@@ -282,11 +286,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 dag,
                 threadPool,
                 queryTask,
-                queryAllocator,
-                ownsAllocator,
                 maxConcurrentShardRequestsPerNode,
                 maxShardsPerQuery,
-                List.of(queryListener)
+                List.of(queryListener),
+                queryAllocator,
+                ownsAllocator,
+                profile
             );
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
@@ -356,9 +361,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ActionListener<ProfiledResult> listener
     ) {
         return ActionListener.wrap(rows -> {
-            ExecutionGraph graph = execRef.get().getGraph();
+            // A fast query can fire this terminal inline (on the calling thread, inside
+            // scheduler.execute) BEFORE execRef.set runs — so execRef may still be null. Guard it
+            // like the failure path below: skip graph-based profiling rather than NPE on getGraph().
+            QueryExecution exec = execRef.get();
+            ExecutionGraph graph = exec != null ? exec.getGraph() : null;
             statsCollector.recordExecution(graph, context.dag(), planningTimeMs);
-            QueryProfile qp = includeProfileInResponse ? QueryProfileBuilder.snapshot(graph, context, fullPlan, planningTimeMs) : null;
+            QueryProfile qp = includeProfileInResponse && graph != null
+                ? QueryProfileBuilder.snapshot(graph, context, fullPlan, planningTimeMs)
+                : null;
             listener.onResponse(new ProfiledResult(rows, null, qp));
         }, e -> {
             QueryExecution exec = execRef.get();
@@ -379,10 +390,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The listener is wrapped to convert backend-specific exceptions.
-        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
-            listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? contextProvider.convertException(ex) : e)
-        );
+        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(listener::onResponse, e -> {
+            Exception converted = e instanceof Exception ex ? contextProvider.convertException(ex) : new RuntimeException(e);
+            listener.onFailure(converted);
+        });
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
                 executeInternal(

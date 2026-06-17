@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatisticsCache, CacheManagerConfig};
-use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
+use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
 use crate::statistics_cache::compute_parquet_statistics;
 use crate::cache::MutexFileMetadataCache;
@@ -94,11 +94,11 @@ impl CustomCacheManager {
 
         // Add statistics cache if available - use CustomStatisticsCache directly
         if let Some(stats_cache) = &self.statistics_cache {
-            config = config.with_files_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>));
+            config = config.with_file_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>));
         } else {
             // Default statistics cache if none set
             let default_stats = Arc::new(DefaultFileStatisticsCache::default());
-            config = config.with_files_statistics_cache(Some(default_stats));
+            config = config.with_file_statistics_cache(Some(default_stats));
         }
 
         config
@@ -504,9 +504,58 @@ impl CustomCacheManager {
             .unwrap_or(0.0)
     }
 
+    /// Get statistics cache entry count
+    pub fn statistics_cache_entry_count(&self) -> usize {
+        self.statistics_cache.as_ref()
+            .map(|cache| <CustomStatisticsCache as CacheAccessor<_, _>>::len(cache))
+            .unwrap_or(0)
+    }
+
+    /// Get statistics cache size limit in bytes
+    pub fn statistics_cache_size_limit(&self) -> usize {
+        self.statistics_cache.as_ref()
+            .map(|cache| cache.current_size_limit())
+            .unwrap_or(0)
+    }
+
     /// Reset statistics cache stats
     pub fn statistics_cache_reset_stats(&self) {
         if let Some(cache) = &self.statistics_cache {
+            cache.reset_stats();
+        }
+    }
+
+    /// Get metadata cache hit count
+    pub fn metadata_cache_hit_count(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| cache.hit_count())
+            .unwrap_or(0)
+    }
+
+    /// Get metadata cache miss count
+    pub fn metadata_cache_miss_count(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| cache.miss_count())
+            .unwrap_or(0)
+    }
+
+    /// Get metadata cache entry count
+    pub fn metadata_cache_entry_count(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| <MutexFileMetadataCache as CacheAccessor<_, _>>::len(cache))
+            .unwrap_or(0)
+    }
+
+    /// Get metadata cache size limit in bytes
+    pub fn metadata_cache_size_limit(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| cache.get_cache_limit())
+            .unwrap_or(0)
+    }
+
+    /// Reset metadata cache stats
+    pub fn metadata_cache_reset_stats(&self) {
+        if let Some(cache) = &self.file_metadata_cache {
             cache.reset_stats();
         }
     }

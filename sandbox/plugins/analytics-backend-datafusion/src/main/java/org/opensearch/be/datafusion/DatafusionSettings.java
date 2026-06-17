@@ -14,6 +14,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.search.SearchService;
 
 import java.util.List;
@@ -31,6 +33,8 @@ import java.util.List;
  */
 @ExperimentalApi
 public final class DatafusionSettings {
+
+    public static final String POOL_DATAFUSION = "datafusion";
 
     // ── New indexed query settings ──
 
@@ -68,6 +72,20 @@ public final class DatafusionSettings {
      */
     public static final Setting<Boolean> INDEXED_BLOOM_FILTER_ON_READ = Setting.boolSetting(
         "datafusion.indexed.bloom_filter_on_read",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Whether the indexed scan accepts runtime dynamic filters (TopK / join)
+     * pushed down via physical filter pushdown and uses them to prune row groups
+     * whose parquet statistics cannot satisfy the tightening predicate. On by
+     * default; turn off to A/B the performance impact. When off, the scan
+     * declines the pushdown and behaves exactly as before this feature.
+     */
+    public static final Setting<Boolean> INDEXED_DYNAMIC_FILTER_PUSHDOWN = Setting.boolSetting(
+        "datafusion.indexed.dynamic_filter_pushdown",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -177,22 +195,29 @@ public final class DatafusionSettings {
 
     // ── Concurrency gate settings ──
 
-    /** Datanode concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
-    public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.datanode_multiplier",
-        1.5,
-        0.1,
-        10.0,
-        Setting.Property.NodeScope
+    /** Minimum guaranteed bytes for the DataFusion memory pool. Default is half of datafusion max (37% of budget). */
+    public static final Setting<Long> DATAFUSION_MEMORY_POOL_MIN = new Setting<>(
+        "datafusion.memory_pool_min_bytes",
+        s -> derivePoolMinDefault(s, 37),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [datafusion.memory_pool_min_bytes] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    /** Coordinator concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
-    public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.coordinator_multiplier",
+    /** Fragment executor concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
+        "datafusion.concurrency.fragment_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Query strategy constants
@@ -236,6 +261,19 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Computes the default for a pool min as a percentage of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}.
+     * Returns 0 when AC is unconfigured.
+     */
+    static String derivePoolMinDefault(Settings settings, int percent) {
+        ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        if (nativeLimit.getBytes() <= 0) {
+            return "0";
+        }
+        return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
+    }
+
     // ── All settings registered by the plugin ──
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
@@ -251,6 +289,7 @@ public final class DatafusionSettings {
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD,
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD,
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD,
+        DATAFUSION_MEMORY_POOL_MIN,
 
         // Cache settings — metadata and statistics cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,
@@ -262,7 +301,6 @@ public final class DatafusionSettings {
 
         // Concurrency gate settings
         CONCURRENCY_DATANODE_MULTIPLIER,
-        CONCURRENCY_COORDINATOR_MULTIPLIER,
 
         // Indexed query settings — per-query tuning knobs for the indexed execution path
         INDEXED_BATCH_SIZE,
@@ -273,7 +311,8 @@ public final class DatafusionSettings {
         INDEXED_SINGLE_COLLECTOR_STRATEGY,
         INDEXED_TREE_COLLECTOR_STRATEGY,
         INDEXED_MAX_COLLECTOR_PARALLELISM,
-        INDEXED_QUERY_STRATEGY
+        INDEXED_QUERY_STRATEGY,
+        INDEXED_DYNAMIC_FILTER_PUSHDOWN
     );
 
     // ── Snapshot management ──
@@ -316,6 +355,7 @@ public final class DatafusionSettings {
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
+            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
             .build();
 
         registerListeners(clusterSettings);
@@ -340,6 +380,7 @@ public final class DatafusionSettings {
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
+            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
             .build();
     }
 
@@ -378,6 +419,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_QUERY_STRATEGY, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).queryStrategy(queryStrategyToWireValue(newValue)).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_DYNAMIC_FILTER_PUSHDOWN, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).indexedDynamicFilterPushdown(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {

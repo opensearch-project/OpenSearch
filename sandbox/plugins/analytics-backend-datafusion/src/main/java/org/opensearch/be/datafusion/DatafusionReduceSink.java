@@ -405,6 +405,8 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         Exception failure = null;
         try {
             drainOutputIntoDownstream(outStream);
+            // Extract DataFusion execution metrics + physical plan after drain (before close)
+            this.executionMetrics = NativeBridge.streamGetMetrics(outStream.getPointer());
         } catch (Exception e) {
             failure = e;
         } finally {

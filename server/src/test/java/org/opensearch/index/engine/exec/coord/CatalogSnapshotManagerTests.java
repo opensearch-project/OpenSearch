@@ -836,6 +836,92 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     /**
+     * Once an initial snapshot carries non-null {@code replicatingCommitData}, a generation bump
+     * must carry it forward so the replica's catalog snapshot never loses the primary's replicated
+     * SegmentInfos.
+     */
+    public void testBumpGenerationPreservesReplicatingCommitData() throws Exception {
+        Object commitData = new Object();
+        DataformatAwareCatalogSnapshot initial = new DataformatAwareCatalogSnapshot(1L, 1L, 0L, randomSegments(), 1L, Map.of());
+        initial.setLastCommitInfo("segments_1", 1L, 0L);
+        initial.setReplicatingCommitData(commitData);
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(initial),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            mock(CommitFileManager.class)
+        );
+        try {
+            // A single bump must carry the data forward by identity.
+            manager.bumpGeneration();
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                DataformatAwareCatalogSnapshot latest = (DataformatAwareCatalogSnapshot) ref.get();
+                assertNotNull("replicatingCommitData must survive a generation bump", latest.getReplicatingCommitData());
+                assertSame("replicatingCommitData must be carried forward unchanged", commitData, latest.getReplicatingCommitData());
+            }
+
+            // Repeated bumps must keep it non-null at every generation.
+            int extraBumps = randomIntBetween(1, 10);
+            for (int i = 0; i < extraBumps; i++) {
+                manager.bumpGeneration();
+                try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                    DataformatAwareCatalogSnapshot latest = (DataformatAwareCatalogSnapshot) ref.get();
+                    assertNotNull("replicatingCommitData must remain non-null after repeated bumps", latest.getReplicatingCommitData());
+                    assertSame(commitData, latest.getReplicatingCommitData());
+                }
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * {@code applyReplicationSnapshot} followed by a generation bump must keep the incoming
+     * snapshot's non-null {@code replicatingCommitData} (the value the primary replicated).
+     */
+    public void testReplicationSnapshotThenBumpPreservesReplicatingCommitData() throws Exception {
+        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), mock(CommitFileManager.class));
+        try {
+            CatalogSnapshot previous;
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                previous = ref.get();
+            }
+
+            Object commitData = new Object();
+            DataformatAwareCatalogSnapshot incoming = new DataformatAwareCatalogSnapshot(
+                randomNonNegativeLong(),
+                previous.getGeneration() + 1,
+                randomNonNegativeLong(),
+                randomSegments(),
+                randomNonNegativeLong(),
+                randomUserData(randomIntBetween(0, 4))
+            );
+            incoming.setReplicatingCommitData(commitData);
+
+            manager.applyReplicationSnapshot(incoming);
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                DataformatAwareCatalogSnapshot latest = (DataformatAwareCatalogSnapshot) ref.get();
+                assertNotNull("replicatingCommitData must be copied from the incoming snapshot", latest.getReplicatingCommitData());
+                assertSame(commitData, latest.getReplicatingCommitData());
+            }
+
+            // The subsequent bump (e.g. a replica flush) must not drop it to null.
+            manager.bumpGeneration();
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                DataformatAwareCatalogSnapshot latest = (DataformatAwareCatalogSnapshot) ref.get();
+                assertNotNull("replicatingCommitData must survive the post-replication bump", latest.getReplicatingCommitData());
+                assertSame(commitData, latest.getReplicatingCommitData());
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
      * Replica manager with a {@link CommitFileManager} must protect commit-owned files
      * (e.g. {@code segments_N}, {@code write.lock}) from the startup orphan sweep, even when
      * they are present on disk but not referenced by the initial committed snapshot.

@@ -28,10 +28,13 @@ import java.util.List;
  * <ul>
  *   <li>{@link #argMin()} / {@link #argMax()} — {@code ARG_MIN/MAX(value, ts)} →
  *       {@code FIRST_VALUE/LAST_VALUE(value) ORDER BY ts ASC} (no native arg_min/max UDAF in DataFusion 53.x).</li>
- *   <li>{@link #distinctCountApprox()} — {@code DISTINCT_COUNT_APPROX(x)} → Calcite
+ *   <li>{@link #distinctCountApprox()} — PPL {@code DISTINCT_COUNT_APPROX(x)} → Calcite
  *       {@code APPROX_COUNT_DISTINCT(x)}, which the convertor renames to substrait {@code approx_distinct}
- *       (DataFusion's built-in HLL UDAF). Direct rewrite to {@code COUNT(DISTINCT x)} is unsafe — the
- *       DataFusion substrait consumer drops the DISTINCT flag on window functions.</li>
+ *       (DataFusion's built-in HLL UDAF).</li>
+ *   <li>{@link #countDistinctExact()} — {@code COUNT(DISTINCT x) OVER(...)} → sandbox
+ *       {@code os_count_distinct(x)}. DataFusion 54.x's substrait window consumer drops the
+ *       {@code AggregationInvocation::DISTINCT} bit, so a vanilla COUNT-with-distinct lowers to
+ *       a plain non-distinct COUNT. Encoding DISTINCT in the operator name sidesteps the bug.</li>
  * </ul>
  *
  * @opensearch.internal
@@ -58,6 +61,30 @@ final class WindowFunctionAdapters {
             over.isDistinct(),
             cluster
         );
+    }
+
+    /**
+     * Replaces {@code COUNT(DISTINCT x) OVER(...)} with {@code os_count_distinct(x) OVER(...)}.
+     * Non-distinct {@code COUNT(x) OVER(...)} passes through unchanged. The distinct flag is
+     * cleared on the rebuilt RexOver because it's already encoded in the operator name —
+     * leaving it set would emit a substrait operator named {@code os_count_distinct} carrying a
+     * redundant {@code AggregationInvocation::DISTINCT} bit.
+     */
+    static WindowFunctionAdapter countDistinctExact() {
+        return (over, operands, partitions, orderKeys, cluster) -> {
+            if (!over.isDistinct()) {
+                return rebuild(over, over.getAggOperator(), operands, partitions, orderKeys, /* distinct */ false, cluster);
+            }
+            return rebuild(
+                over,
+                DataFusionFragmentConvertor.LOCAL_OS_COUNT_DISTINCT_OP,
+                operands,
+                partitions,
+                orderKeys,
+                /* distinct */ false,
+                cluster
+            );
+        };
     }
 
     /** Rewrites {@code ARG_MIN(value, ts)} / {@code ARG_MAX(value, ts)} to

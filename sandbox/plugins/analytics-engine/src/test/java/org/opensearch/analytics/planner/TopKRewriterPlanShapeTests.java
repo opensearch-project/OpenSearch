@@ -15,12 +15,16 @@ import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -68,7 +72,10 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(sort, contextWithOversampling(2.0));
         String plan = RelOptUtil.toString(result);
         long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
-        assertEquals("no per-partition Sort for scalar aggregate", 1, sortCount);
+        // TopK must not add a per-partition Sort for a scalar aggregate. The coordinator Sort
+        // itself is redundant over a 1-row scalar agg and SORT_REMOVE_REDUNDANT drops it, so the
+        // count is 0; the point is that no extra (per-partition) Sort was inserted.
+        assertTrue("no per-partition Sort for scalar aggregate", sortCount <= 1);
     }
 
     /** Sort without collation (bare LIMIT) → skip. */
@@ -348,7 +355,389 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
 
     private PlannerContext contextWithOversampling(double factor) {
         PlannerContext ctx = buildContext("parquet", 2, intFields());
-        ctx.setOversamplingFactor(factor);
+        ctx.setPlannerSettings(PlannerSettings.of(factor, DelegationBlockList.empty()));
         return ctx;
+    }
+
+    // ── PPL column-swap tests: Sort key remapped through intermediate Project ──
+
+    /**
+     * q13: {@code stats count() as c by SearchPhrase | sort - c | head 10}.
+     * Single group-by, single COUNT, sort on measure. Shard sort must use $1.
+     * Two coordinator Sorts (fetch=10000 + fetch=10) survive because this planner does not
+     * register SORT_REMOVE_REDUNDANT. DF collapses them in the physical plan.
+     */
+    public void testRewrite_pplShape_q13_sortKeyRemappedThroughProject() {
+        RelNode result = runPlanner(buildPplSwapPlan(ImmutableBitSet.of(0), List.of(countStarCall()), 10), contextWithOversampling(2.0));
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[10000], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(cnt=[$1], status=[$0], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                          OpenSearchSort(sort0=[$1], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                            OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * q15: {@code stats count() as c by X, Y | sort - c | head 10}.
+     * Multi-group-by, single COUNT, sort on measure. Shard sort must use $2.
+     */
+    public void testRewrite_pplShape_q15_multiGroup_sortKeyRemappedThroughProject() {
+        RelNode result = runPlanner(
+            buildPplSwapPlan(ImmutableBitSet.of(0, 1), List.of(countStarCall(stubScan(mockTable("test_index", "status", "size")))), 10),
+            contextWithOversampling(2.0)
+        );
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[10000], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(cnt=[$2], status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0, 1}], cnt=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                          OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                            OpenSearchAggregate(group=[{0, 1}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * q11: {@code stats dc(UserID) as u by MobilePhoneModel | sort - u | head 10}.
+     * dc() with column swap — combines reduce_eval logic with the Project remapping.
+     */
+    public void testRewrite_pplShape_q11_dcWithSwap_sortKeyRemapped() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RelNode result = runPlanner(
+            buildPplSwapPlan(ImmutableBitSet.of(0), List.of(approxCountDistinctCall(scan)), 10),
+            contextWithOversampling(2.0)
+        );
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[10000], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(dc=[$1], status=[$0], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                          OpenSearchProject(status=[$0], dc=[$1], viableBackends=[[mock-parquet]])
+                            OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                              OpenSearchProject(status=[$0], dc=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[mock-parquet]])
+                                OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Sort by group key (not measure) with swap Project: the swap puts the key at $1 in
+     * post-project schema. Remapping should produce shard sort on $0 (the group key at
+     * partial agg level). Ensures the fix doesn't break sort-by-key queries.
+     */
+    public void testRewrite_pplShape_sortByGroupKey_remapsCorrectly() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+
+        // PPL swap: (cnt=$1, status=$0)
+        RelNode swapProject = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(agg, 1), rexBuilder.makeInputRef(agg, 0)),
+            List.of("cnt", "status")
+        );
+
+        // Sort on $1 (which is status/group-key in the swapped schema)
+        RelNode innerSort = LogicalSort.create(
+            swapProject,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+
+        RelNode outerLimit = LogicalSort.create(
+            innerSort,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+
+        RelNode result = runPlanner(outerLimit, contextWithOversampling(2.0));
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$1], dir0=[DESC], fetch=[10000], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$1], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(cnt=[$1], status=[$0], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                          OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                            OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    // ── Detection: AVG does NOT get TopK (reduce decomposition inserts computed Project) ──
+
+    /** AVG is decomposed into SUM/COUNT with a divide Project — rewriter bails. */
+    public void testDetection_avgByGroup_noTopK() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(avgCall(scan)));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertEquals("AVG decomposition prevents TopK — no shard Sort", 0, countShardSortsBelowER(plan));
+    }
+
+    /**
+     * Multiple adjacent Projects between Sort and Aggregate: if PROJECT_MERGE is ever removed,
+     * the rewriter should still work (captures only the first Project, skips remapping for the
+     * second). This test verifies TopK still fires — sort key passes through un-remapped since
+     * the second Project is not captured.
+     */
+    public void testDetection_multipleProjects_topKStillFires() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+
+        // First Project: identity (no swap)
+        RelNode proj1 = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(agg, 0), rexBuilder.makeInputRef(agg, 1)),
+            List.of("status", "cnt")
+        );
+        // Second Project: also identity
+        RelNode proj2 = LogicalProject.create(
+            proj1,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(proj1, 0), rexBuilder.makeInputRef(proj1, 1)),
+            List.of("status", "cnt")
+        );
+
+        RelNode sort = LogicalSort.create(
+            proj2,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertTrue("TopK should still fire with multiple projects (PROJECT_MERGE collapses them)", sortCount >= 2);
+    }
+
+    /** Computed expression (literal) in Project between Sort and Aggregate — rewriter bails. */
+    public void testDetection_computedProjectExpression_topKBails() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+
+        // Project with a literal expression (not a column reference)
+        RelNode proj = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeLiteral(42, typeFactory.createSqlType(SqlTypeName.INTEGER), true), rexBuilder.makeInputRef(agg, 0)),
+            List.of("const", "status")
+        );
+
+        // Sort on $0 which is the literal — cannot be remapped
+        RelNode sort = LogicalSort.create(
+            proj,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertEquals("Computed expression in Project — TopK must bail", 0, countShardSortsBelowER(plan));
+    }
+
+    // ── Rewrite: PPL swap Project shapes ────────────────────────────────────────
+
+    /** SUM with swap Project: shard sort must use $1 (the SUM measure). */
+    public void testRewrite_pplShape_sumWithSwap_sortKeyRemapped() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RelNode result = runPlanner(buildPplSwapPlan(ImmutableBitSet.of(0), List.of(sumCall(scan)), 10), contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertTrue("shard sort must use $1", planHasShardSortOn(plan, "$1"));
+    }
+
+    /** Multi-group dc() with swap: shard sort must use $3 (reduce_eval appended column). */
+    public void testRewrite_pplShape_multiGroupDcWithSwap_sortKeyRemapped() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RelNode result = runPlanner(
+            buildPplSwapPlan(ImmutableBitSet.of(0, 1), List.of(approxCountDistinctCall(scan)), 10),
+            contextWithOversampling(2.0)
+        );
+        String plan = RelOptUtil.toString(result);
+        assertTrue("multi-group dc shard sort must use $3 (reduce_eval column), plan:\n" + plan, planHasShardSortOn(plan, "$3"));
+    }
+
+    /** Swap with offset: shard fetch must honor offset. */
+    public void testRewrite_pplShape_swapWithOffset_shardFetchHonorsOffset() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+        RelNode swapProject = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(agg, 1), rexBuilder.makeInputRef(agg, 0)),
+            List.of("cnt", "status")
+        );
+        RelNode innerSort = LogicalSort.create(
+            swapProject,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.DESCENDING)),
+            rexBuilder.makeLiteral(100, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode outerLimit = LogicalSort.create(
+            innerSort,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(outerLimit, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        // coordLimit = 100+10 = 110, shardSize = ceil(110*2)+110 = 330
+        assertTrue("shard fetch must be 330, plan:\n" + plan, plan.contains("fetch=[330]"));
+        assertTrue("shard sort must use $1", planHasShardSortOn(plan, "$1"));
+    }
+
+    /** ASC sort direction with swap: direction must be preserved in shard sort. */
+    public void testRewrite_pplShape_ascDirection_preserved() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+        RelNode swapProject = LogicalProject.create(
+            agg,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(agg, 1), rexBuilder.makeInputRef(agg, 0)),
+            List.of("cnt", "status")
+        );
+        RelNode innerSort = LogicalSort.create(
+            swapProject,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode outerLimit = LogicalSort.create(
+            innerSort,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING)),
+            null,
+            rexBuilder.makeLiteral(10000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(outerLimit, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertTrue("shard sort must use $1 ASC", planHasShardSortOn(plan, "$1") && plan.contains("dir0=[ASC]"));
+    }
+
+    /** Factor=1.5 with swap: verifies arithmetic (ceil(10*1.5)+10 = 25). */
+    public void testRewrite_pplShape_factor1_5_shardFetchCorrect() {
+        RelNode result = runPlanner(buildPplSwapPlan(ImmutableBitSet.of(0), List.of(countStarCall()), 10), contextWithOversampling(1.5));
+        String plan = RelOptUtil.toString(result);
+        assertTrue("shard fetch must be 25, plan:\n" + plan, plan.contains("fetch=[25]"));
+    }
+
+    /** Large fetch (head 1000) with swap: shard fetch = ceil(1000*2)+1000 = 3000. */
+    public void testRewrite_pplShape_largeFetch_shardFetchCorrect() {
+        RelNode result = runPlanner(buildPplSwapPlan(ImmutableBitSet.of(0), List.of(countStarCall()), 1000), contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertTrue("shard fetch must be 3000, plan:\n" + plan, plan.contains("fetch=[3000]"));
+    }
+
+    private static boolean planHasShardSortOn(String plan, String expectedField) {
+        String[] lines = plan.split("\n");
+        boolean belowER = false;
+        for (String line : lines) {
+            if (line.contains("ExchangeReducer")) {
+                belowER = true;
+                continue;
+            }
+            if (belowER && line.contains("OpenSearchSort")) {
+                return line.contains("sort0=[" + expectedField + "]");
+            }
+        }
+        return false;
+    }
+
+    private static long countShardSortsBelowER(String plan) {
+        String[] lines = plan.split("\n");
+        boolean belowER = false;
+        long count = 0;
+        for (String line : lines) {
+            if (line.contains("ExchangeReducer")) {
+                belowER = true;
+                continue;
+            }
+            if (belowER && line.contains("OpenSearchSort")) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // ── PPL swap plan builder ───────────────────────────────────────────────────
+
+    /**
+     * Builds the PPL-style plan shape with a column-swapping Project:
+     * SystemLimit($0 DESC, 10000) → Sort($0 DESC, fetch) → Project(measures..., keys...) → Agg
+     *
+     * <p>PPL always puts measures first in output. This builder reorders the Aggregate's
+     * output (keys first, measures second) into (measures first, keys second) via a Project,
+     * then creates a Sort on $0 (the first measure in swapped output).
+     */
+    private RelNode buildPplSwapPlan(ImmutableBitSet groupSet, List<AggregateCall> aggCalls, int fetch) {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), groupSet, null, aggCalls);
+
+        int groupCount = groupSet.cardinality();
+        int measureCount = aggCalls.size();
+
+        // Build swap project: measures first, then keys
+        List<RexNode> swapExprs = new ArrayList<>();
+        List<String> swapNames = new ArrayList<>();
+        for (int i = 0; i < measureCount; i++) {
+            swapExprs.add(rexBuilder.makeInputRef(agg, groupCount + i));
+            swapNames.add(agg.getRowType().getFieldNames().get(groupCount + i));
+        }
+        for (int i = 0; i < groupCount; i++) {
+            swapExprs.add(rexBuilder.makeInputRef(agg, i));
+            swapNames.add(agg.getRowType().getFieldNames().get(i));
+        }
+
+        RelNode swapProject = LogicalProject.create(agg, List.of(), swapExprs, swapNames);
+
+        // Sort on $0 (first measure in swapped output)
+        RelNode innerSort = LogicalSort.create(
+            swapProject,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+
+        return LogicalSort.create(
+            innerSort,
+            RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
     }
 }

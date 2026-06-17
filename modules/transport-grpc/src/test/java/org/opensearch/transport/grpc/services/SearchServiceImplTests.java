@@ -63,6 +63,12 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     @Mock
     private StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
 
+    @Mock
+    private StreamObserver<org.opensearch.protobufs.CreatePITResponse> createPitResponseObserver;
+
+    @Mock
+    private StreamObserver<org.opensearch.protobufs.DeletePITResponse> deletePitResponseObserver;
+
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
@@ -245,10 +251,106 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any());
     }
 
+    public void testCreatePitSuccess() {
+        org.opensearch.protobufs.CreatePitRequest request = createTestCreatePitRequest();
+
+        service.createPit(request, createPitResponseObserver);
+
+        verify(client).createPit(any(org.opensearch.action.search.CreatePitRequest.class), any());
+    }
+
+    public void testCreatePitCircuitBreakerTripsAndRejectsRequest() throws Exception {
+        org.opensearch.protobufs.CreatePitRequest request = createTestCreatePitRequest();
+        CircuitBreakingException circuitBreakerException = new CircuitBreakingException(
+            "Data too large",
+            100L,
+            50 * 1024 * 1024L,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        doThrow(circuitBreakerException).when(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+
+        service.createPit(request, createPitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_request>"));
+        verify(client, never()).createPit(any(org.opensearch.action.search.CreatePitRequest.class), any());
+        verify(createPitResponseObserver).onError(any());
+    }
+
+    public void testCreatePitBytesReleasedOnException() throws Exception {
+        org.opensearch.protobufs.CreatePitRequest request = createTestCreatePitRequest();
+        ArgumentCaptor<Long> addedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> releasedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+
+        doThrow(new RuntimeException("Test exception")).when(client).createPit(any(), any());
+
+        service.createPit(request, createPitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(addedBytesCaptor.capture(), eq("<grpc_request>"));
+        verify(circuitBreaker).addWithoutBreaking(releasedBytesCaptor.capture());
+
+        long addedBytes = addedBytesCaptor.getValue();
+        long releasedBytes = releasedBytesCaptor.getValue();
+        assertTrue("Added bytes should be positive", addedBytes > 0);
+        assertEquals("Released bytes should equal negative of added bytes", -addedBytes, releasedBytes);
+        verify(createPitResponseObserver).onError(any());
+    }
+
+    public void testDeletePitSuccess() {
+        org.opensearch.protobufs.DeletePitRequest request = createTestDeletePitRequest();
+
+        service.deletePit(request, deletePitResponseObserver);
+
+        verify(client).deletePits(any(org.opensearch.action.search.DeletePitRequest.class), any());
+    }
+
+    public void testDeletePitCircuitBreakerTripsAndRejectsRequest() throws Exception {
+        org.opensearch.protobufs.DeletePitRequest request = createTestDeletePitRequest();
+        CircuitBreakingException circuitBreakerException = new CircuitBreakingException(
+            "Data too large",
+            100L,
+            50 * 1024 * 1024L,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        doThrow(circuitBreakerException).when(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+
+        service.deletePit(request, deletePitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_request>"));
+        verify(client, never()).deletePits(any(org.opensearch.action.search.DeletePitRequest.class), any());
+        verify(deletePitResponseObserver).onError(any());
+    }
+
+    public void testDeletePitBytesReleasedOnException() throws Exception {
+        org.opensearch.protobufs.DeletePitRequest request = createTestDeletePitRequest();
+        ArgumentCaptor<Long> addedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> releasedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+
+        doThrow(new RuntimeException("Test exception")).when(client).deletePits(any(), any());
+
+        service.deletePit(request, deletePitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(addedBytesCaptor.capture(), eq("<grpc_request>"));
+        verify(circuitBreaker).addWithoutBreaking(releasedBytesCaptor.capture());
+
+        long addedBytes = addedBytesCaptor.getValue();
+        long releasedBytes = releasedBytesCaptor.getValue();
+        assertTrue("Added bytes should be positive", addedBytes > 0);
+        assertEquals("Released bytes should equal negative of added bytes", -addedBytes, releasedBytes);
+        verify(deletePitResponseObserver).onError(any());
+    }
+
     private org.opensearch.protobufs.SearchRequest createTestSearchRequest() {
         return org.opensearch.protobufs.SearchRequest.newBuilder()
             .addIndex("test-index")
             .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
             .build();
+    }
+
+    private org.opensearch.protobufs.CreatePitRequest createTestCreatePitRequest() {
+        return org.opensearch.protobufs.CreatePitRequest.newBuilder().addIndex("test-index").setKeepAlive("1m").build();
+    }
+
+    private org.opensearch.protobufs.DeletePitRequest createTestDeletePitRequest() {
+        return org.opensearch.protobufs.DeletePitRequest.newBuilder().addPitId("pit-id-1").build();
     }
 }

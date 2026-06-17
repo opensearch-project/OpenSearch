@@ -13,19 +13,14 @@ import org.opensearch.client.Request;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Verifies {@code stats list(<field>)} round-trips and renders correctly for every supported
- * element type — boolean, byte, short, integer, long, float, double, keyword, text, date,
- * date_nanos, ip, binary. One method per type asserts the returned array contains the indexed
- * value in its canonical form (IP as dotted-quad, binary as Base64, dates as the configured
- * format).
- */
+/** {@code stats list(<field>)} per element type — canonical forms (IP dotted-quad, binary base64, dates as configured). */
 public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     private static final String INDEX = "list_agg_multi_type";
 
     public void testListBoolean() throws Exception {
         provision();
+        // list/values render booleans lowercase (String.valueOf), unlike cast/tostring's TRUE.
         assertSingleElement("boolean_value", "true");
     }
 
@@ -66,14 +61,14 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     public void testListDate() throws Exception {
         provision();
-        // DataFusion's CAST(TIMESTAMP AS VARCHAR) emits ISO-8601 'T' between date and time.
-        assertSingleElement("date_value", "2020-10-13T13:00:00");
+        // temporal list element renders with space separator (not ISO 'T')
+        assertSingleElement("date_value", "2020-10-13 13:00:00");
     }
 
     public void testListDateNanos() throws Exception {
         provision();
-        // DataFusion's CAST(TIMESTAMP_NS AS VARCHAR) emits ISO-8601 'T' between date and time.
-        assertSingleElement("date_nanos_value", "2019-03-24T01:34:46.123456789");
+        // nanosecond precision preserved
+        assertSingleElement("date_nanos_value", "2019-03-24 01:34:46.123456789");
     }
 
     public void testListText() throws Exception {

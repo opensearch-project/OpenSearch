@@ -341,6 +341,9 @@ public class CatalogSnapshotManager implements Closeable {
             latestCatalogSnapshot.getCommitDataFormatVersion()
         );
 
+        // Carry forward the primary's replicated SegmentInfos; same segment set, so it still applies.
+        newSnapshot.setReplicatingCommitData(latestCatalogSnapshot.getReplicatingCommitData());
+
         installSnapshot(newSnapshot);
     }
 

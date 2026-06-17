@@ -57,6 +57,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -88,6 +89,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private final AtomicLong lastRunStartTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
     private final Counter fsHealthFailCounter;
+    private final List<Path> additionalHealthPaths;
     private static final String COUNTER_METRICS_UNIT = "1";
 
     @Nullable
@@ -127,6 +129,17 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         NodeEnvironment nodeEnv,
         MetricsRegistry metricsRegistry
     ) {
+        this(settings, clusterSettings, threadPool, nodeEnv, metricsRegistry, List.of());
+    }
+
+    public FsHealthService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        NodeEnvironment nodeEnv,
+        MetricsRegistry metricsRegistry,
+        List<Path> additionalHealthPaths
+    ) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
@@ -135,6 +148,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.healthyTimeoutThreshold = HEALTHY_TIMEOUT_SETTING.get(settings);
         this.nodeEnv = nodeEnv;
         this.metricsRegistry = metricsRegistry;
+        this.additionalHealthPaths = List.copyOf(additionalHealthPaths);
         fsHealthFailCounter = metricsRegistry.createCounter(
             "fsHealth.failure.count",
             "Counter for number of times FS health check has failed",
@@ -232,9 +246,18 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            Path[] paths = null;
+            Path[] paths;
             try {
-                paths = nodeEnv.nodeDataPaths();
+                Path[] dataPaths = nodeEnv.nodeDataPaths();
+                if (additionalHealthPaths.isEmpty()) {
+                    paths = dataPaths;
+                } else {
+                    paths = new Path[dataPaths.length + additionalHealthPaths.size()];
+                    System.arraycopy(dataPaths, 0, paths, 0, dataPaths.length);
+                    for (int i = 0; i < additionalHealthPaths.size(); i++) {
+                        paths[dataPaths.length + i] = additionalHealthPaths.get(i);
+                    }
+                }
             } catch (IllegalStateException e) {
                 logger.error("health check failed", e);
                 brokenLock = true;

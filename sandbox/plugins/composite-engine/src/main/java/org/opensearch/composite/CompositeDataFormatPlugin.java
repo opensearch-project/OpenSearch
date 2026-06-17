@@ -34,10 +34,13 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -85,10 +88,15 @@ import java.util.stream.Collectors;
  * {@code extendedPlugins = ['composite-engine']} in their {@code build.gradle}
  * and implementing {@link DataFormatPlugin}.
  *
+ * <p>Implements {@link ExtensiblePlugin} so that other data-format plugins (parquet, lucene)
+ * can declare {@code extendedPlugins=['composite-engine']} in their plugin descriptors. This
+ * makes composite-engine's bundled {@code plugin-stats-spi} classes available to those plugins'
+ * classloaders — ensuring all formats share the same {@link DataFormatStatsProviderRegistry}.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin {
+public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin, ExtensiblePlugin, MapperPlugin {
 
     private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
@@ -433,4 +441,10 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         }
         return Map.copyOf(strategies);
     }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(RowIdFieldMapper.CONTENT_TYPE, RowIdFieldMapper.PARSER);
+    }
+
 }

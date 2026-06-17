@@ -26,8 +26,4 @@ public class NativeAllocatorPoolConfigTests extends OpenSearchTestCase {
         assertEquals("native.allocator.pool.query.min", NativeAllocatorPoolConfig.SETTING_QUERY_MIN);
         assertEquals("native.allocator.pool.query.max", NativeAllocatorPoolConfig.SETTING_QUERY_MAX);
     }
-
-    public void testRootSettingKey() {
-        assertEquals("native.allocator.root.limit", NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT);
-    }
 }

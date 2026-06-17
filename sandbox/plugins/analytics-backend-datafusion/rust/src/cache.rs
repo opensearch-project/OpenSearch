@@ -6,12 +6,13 @@
  * compatible open source license.
  */
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use datafusion::execution::cache::cache_manager::{
     CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
 };
-use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
+use datafusion::execution::cache::DefaultFilesMetadataCache;
 use datafusion::execution::cache::CacheAccessor;
 use log::error;
 use object_store::path::Path;
@@ -28,13 +29,30 @@ fn log_cache_error(operation: &str, error: &str) {
 // Wrapper to make Mutex<DefaultFilesMetadataCache> implement FileMetadataCache
 pub struct MutexFileMetadataCache {
     pub inner: Mutex<DefaultFilesMetadataCache>,
+    hit_count: AtomicUsize,
+    miss_count: AtomicUsize,
 }
 
 impl MutexFileMetadataCache {
     pub fn new(cache: DefaultFilesMetadataCache) -> Self {
         Self {
             inner: Mutex::new(cache),
+            hit_count: AtomicUsize::new(0),
+            miss_count: AtomicUsize::new(0),
         }
+    }
+
+    pub fn hit_count(&self) -> usize {
+        self.hit_count.load(Ordering::Relaxed)
+    }
+
+    pub fn miss_count(&self) -> usize {
+        self.miss_count.load(Ordering::Relaxed)
+    }
+
+    pub fn reset_stats(&self) {
+        self.hit_count.store(0, Ordering::Relaxed);
+        self.miss_count.store(0, Ordering::Relaxed);
     }
 
     pub fn clear_cache(&self) {
@@ -61,7 +79,15 @@ impl MutexFileMetadataCache {
 impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     fn get(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
         match self.inner.lock() {
-            Ok(cache) => cache.get(k),
+            Ok(cache) => {
+                let result = cache.get(k);
+                if result.is_some() {
+                    self.hit_count.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    self.miss_count.fetch_add(1, Ordering::Relaxed);
+                }
+                result
+            }
             Err(e) => {
                 log_cache_error("get", &e.to_string());
                 None
