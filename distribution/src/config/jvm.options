@@ -86,6 +86,7 @@ ${error.file}
 
 21-:-javaagent:agent/opensearch-agent.jar
 21-:--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
+21-:--enable-native-access=ALL-UNNAMED
 
 # For cases with high memory-mapped file counts, a lower value can improve stability and
 # prevent issues like "leaked" maps or performance degradation. A value of 1 effectively
