@@ -1038,6 +1038,102 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
         }
     }
 
+    /**
+     * Verifies collapse + rescore when the documents of a single group are spread across multiple shards.
+     * <p>
+     * Unlike {@link #testRescoreAfterCollapseRandom()}, the documents are NOT routed by group, so a group's
+     * documents land on different shards based on the (random) document id.
+     */
+    public void testRescoreAfterCollapseGroupAcrossShards() throws Exception {
+        int numShards = randomIntBetween(2, 5);
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards))
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("group")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("shouldFilter")
+                        .field("type", "boolean")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        ensureGreen("test");
+        // Keep the number of groups small relative to the number of documents so that each group is very likely
+        // to have its documents spread across several shards.
+        int numGroups = randomIntBetween(1, 10);
+        int numDocs = atLeast(100);
+        GroupDoc[] groups = new GroupDoc[numGroups];
+        long expectedNumHits = 0;
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int group = randomIntBetween(0, numGroups - 1);
+            boolean shouldFilter = rarely();
+            String id = UUID.randomUUID().toString();
+            float firstPassScore = randomFloat();
+            float secondPassScore = randomFloat();
+            float bestScore = groups[group] == null ? -1 : groups[group].firstPassScore;
+            GroupDoc doc = new GroupDoc(id, Integer.toString(group), firstPassScore, secondPassScore, shouldFilter);
+            if (shouldFilter == false) {
+                if (firstPassScore == bestScore) {
+                    // avoid tiebreaker
+                    continue;
+                }
+                expectedNumHits++;
+                if (firstPassScore > bestScore) {
+                    groups[group] = doc;
+                }
+            }
+            requests.add(
+                // Intentionally do NOT route by group, so a group's documents are distributed across shards
+                // by the (random) document id.
+                client().prepareIndex("test")
+                    .setId(doc.id())
+                    .setSource(
+                        "group",
+                        doc.group(),
+                        "firstPassScore",
+                        doc.firstPassScore(),
+                        "secondPassScore",
+                        doc.secondPassScore(),
+                        "shouldFilter",
+                        doc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        GroupDoc[] sortedGroups = Arrays.stream(groups)
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparingDouble(GroupDoc::secondPassScore).reversed())
+            .toArray(GroupDoc[]::new);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .setRescorer(
+                new QueryRescorerBuilder(
+                    fieldValueScoreQuery("secondPassScore")
+                ).setQueryWeight(0f)
+                    .setRescoreQueryWeight(1.0f)
+                    .windowSize(numGroups)
+            )
+            .setCollapse(new CollapseBuilder("group"))
+            .setSize(Math.min(numGroups, 10))
+            .get();
+
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(expectedNumHits));
+        for (int pos = 0; pos < searchResponse.getHits().getHits().length; pos++) {
+            SearchHit hit = searchResponse.getHits().getAt(pos);
+            assertThat(hit.getId(), equalTo(sortedGroups[pos].id()));
+            assertThat(hit.field("group").getValue(), equalTo(sortedGroups[pos].group()));
+            assertThat(hit.getScore(), equalTo(sortedGroups[pos].secondPassScore));
+        }
+    }
+
     private QueryBuilder fieldValueScoreQuery(String scoreField) {
         return functionScoreQuery(
             termQuery("shouldFilter", false),
