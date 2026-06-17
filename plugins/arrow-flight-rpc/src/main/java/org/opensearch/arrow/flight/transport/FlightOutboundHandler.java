@@ -157,9 +157,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             return;
         }
 
-        // Root the handler allocates for the first frame (when the channel has none yet). On success
-        // the channel adopts it (sendBatch -> serverStreamListener.start) and closes it at stream
-        // end; on failure we must close it ourselves if the channel never adopted it — see catch.
+        // First-frame root the handler allocates; closed in failStream only if the channel never adopted it.
         VectorSchemaRoot handlerCreatedRoot = null;
         try {
             VectorStreamOutput out;
@@ -189,13 +187,12 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             }
             try (out) {
                 flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out, metadata);
-                // Channel has adopted the root (it is now flightChannel.getRoot()); it owns the close.
+                // Channel has adopted the root; it owns the close from here on.
                 handlerCreatedRoot = null;
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }
         } catch (FlightRuntimeException e) {
-            // Fail the stream BEFORE notifying the listener (mirrors processErrorTask order) so a
-            // listener that throws cannot leave the stream un-terminated and the consumer hanging.
+            // Fail the stream before notifying the listener so a throwing listener can't leave it un-terminated.
             failStream(flightChannel, task, handlerCreatedRoot, e);
             messageListener.onResponseSent(task.requestId(), task.action(), FlightErrorMapper.fromFlightException(e));
         } catch (Exception e) {
@@ -205,44 +202,26 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     }
 
     /**
-     * Terminates the stream with {@code cause} after a batch send fails. Without this, a batch that
-     * cannot be serialized/sent (e.g. a malformed Arrow batch with no field vectors) is dropped and
-     * the stream is later closed via the normal {@code completeStream} path — but no schema frame
-     * ever reaches the client, so its {@code FlightStream.getRoot()} blocks forever waiting for the
-     * first frame. Sending the error fails the gRPC call instead, surfacing the failure to the
-     * consumer as an exception rather than an indefinite hang. Runs inline on the channel executor
-     * (same thread as the failed send).
-     *
-     * <p>After the best-effort {@code sendError}, the channel is released exactly as the normal
-     * error path does (a {@code BatchTask} with {@code isError=true} releases via
-     * {@code BatchTask#close}): this flips {@code FlightServerChannel.open} to false so a
-     * subsequently-enqueued {@code completeStream} task no-ops on its {@code open} guard instead of
-     * calling {@code ServerStreamListener.completed()} after {@code .error()} — an illegal double
-     * terminal on the gRPC stream. Release is idempotent (breaker release CASes, channel close
-     * guards on {@code open}), so it is safe even if the channel is already closed/cancelled.
+     * Fails the stream after a batch send error: sends the error so the consumer's
+     * {@code FlightStream.getRoot()} surfaces an exception instead of hanging on a never-arriving first
+     * frame, then releases the channel so a later {@code completeStream} can't double-terminate the gRPC
+     * listener. Closes the handler-created first-frame root only if the channel never adopted it (to avoid
+     * a leak), but never when the channel did adopt it (to avoid a double-close). Best-effort and
+     * idempotent; runs inline on the channel executor.
      */
     private void failStream(FlightServerChannel flightChannel, BatchTask task, VectorSchemaRoot unownedRoot, Exception cause) {
         try {
             Exception flightError = cause instanceof StreamException se ? FlightErrorMapper.toFlightException(se) : cause;
             flightChannel.sendError(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), flightError);
         } catch (Exception suppressed) {
-            // Channel already closed/cancelled (consumer gone), or header serialization failed —
-            // nothing left to fail. Log at debug with the cause for diagnosability.
+            // Channel already closed/cancelled, or header serialization failed — nothing left to fail.
             logger.debug(new ParameterizedMessage("failStream: could not send error for requestId [{}]", task.requestId()), suppressed);
         } finally {
-            // Close the handler-created first-frame root iff the channel never adopted it.
-            // sendBatch assigns FlightServerChannel.root = output.getRoot() BEFORE start()/putNext(),
-            // so a throw after that assignment leaves the channel owning the SAME root (it closes it
-            // in close()/completeStream) — closing it here too would double-close. Only close when
-            // the channel's root is not our root. VectorStreamOutput.forNativeArrow(...).close() is a
-            // no-op, so an un-adopted root would otherwise leak. Checked before releaseChannel, which
-            // closes the channel (and its root) below.
+            // Close our first-frame root only if the channel never adopted it (NativeArrow.close() is a
+            // no-op, so an un-adopted root would otherwise leak); if adopted, the channel owns the close.
             if (unownedRoot != null) {
-                // Snapshot getRoot() defensively: resolve adoption OUTSIDE the close decision so a
-                // throw here can't skip the close. getRoot() is a plain field read today and won't
-                // throw, but if a future implementation could, treat "unknown" as adopted (false) —
-                // a spurious double-close (freeing a root the channel still holds) is worse than a
-                // rare leak on an unreachable path.
+                // Resolve adoption defensively: on a throwing probe, treat as adopted — a rare leak on an
+                // unreachable path beats freeing a root the channel still holds.
                 boolean adopted;
                 try {
                     adopted = flightChannel.getRoot() == unownedRoot;
@@ -259,8 +238,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                     } catch (Exception ignore) {}
                 }
             }
-            // Make the channel terminal regardless of whether sendError succeeded, so a later
-            // completeStream cannot double-terminate the gRPC listener. Idempotent.
+            // Make the channel terminal so a later completeStream can't double-terminate the listener. Idempotent.
             if (task.transportChannel() != null) {
                 task.transportChannel().releaseChannel(true);
             }
