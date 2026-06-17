@@ -34,9 +34,19 @@ public class PartitionGateStatsPropertyTests extends OpenSearchTestCase {
     }
 
     private PartitionGateStats randomPartitionGateStats() {
-        String name = randomFrom("datanode_gate", "coordinator_gate");
+        String name = "fragment_executor_gate";
         long maxPermits = nonNegLong();
-        return new PartitionGateStats(name, maxPermits, nonNegLong(), nonNegLong(), nonNegLong(), 0, maxPermits);
+        return new PartitionGateStats(
+            name,
+            maxPermits,
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            0,
+            maxPermits,
+            nonNegLong(),
+            nonNegLong()
+        );
     }
 
     // ---- Property: StreamOutput/StreamInput round trip produces equal object ----
@@ -64,6 +74,8 @@ public class PartitionGateStatsPropertyTests extends OpenSearchTestCase {
             assertEquals("totalBatchesStarted mismatch", original.totalBatchesStarted, deserialized.totalBatchesStarted);
             assertEquals("poisonPermits mismatch", original.poisonPermits, deserialized.poisonPermits);
             assertEquals("targetMaxPermits mismatch", original.targetMaxPermits, deserialized.targetMaxPermits);
+            assertEquals("pendingAcquirePermits mismatch", original.pendingAcquirePermits, deserialized.pendingAcquirePermits);
+            assertEquals("pendingAcquireBatches mismatch", original.pendingAcquireBatches, deserialized.pendingAcquireBatches);
         }
     }
 }

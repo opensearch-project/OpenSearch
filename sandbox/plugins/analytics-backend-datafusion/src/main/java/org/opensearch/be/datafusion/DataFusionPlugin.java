@@ -433,7 +433,6 @@ public class DataFusionPlugin extends Plugin
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
             .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
-            .coordinatorMultiplier(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
@@ -460,11 +459,6 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
             int newMax = Math.max(1, (int) (cpuThreads * multiplier));
             NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
-        });
-
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
-            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
-            NativeBridge.updateConcurrencyGate("reduce", newMax);
         });
 
         // Apply initial values
@@ -705,6 +699,10 @@ public class DataFusionPlugin extends Plugin
         NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
         // Pull index.sort.field / index.sort.order off IndexSettings so the native reader can declare
         // file sort order to DataFusion. Empty lists when the index has no index sort configured.
+        // Two consumers downstream:
+        // - Vanilla path: ListingOptions.with_file_sort_order so the planner can drop SortExec.
+        // - Indexed path: indexed_executor reverses segment iteration when the query's leading
+        // ORDER BY runs counter to the catalog direction.
         List<String> sortFields = List.of();
         List<String> sortOrders = List.of();
         IndexSettings indexSettings = settings.indexSettings();
@@ -800,7 +798,7 @@ public class DataFusionPlugin extends Plugin
             try {
                 return NativeMemoryFetcher.fetch();
             } catch (Exception e) {
-                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             }
         };
     }

@@ -390,10 +390,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The listener is wrapped to convert backend-specific exceptions.
-        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
-            listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? contextProvider.convertException(ex) : e)
-        );
+        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(listener::onResponse, e -> {
+            Exception converted = e instanceof Exception ex ? contextProvider.convertException(ex) : new RuntimeException(e);
+            listener.onFailure(converted);
+        });
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
                 executeInternal(

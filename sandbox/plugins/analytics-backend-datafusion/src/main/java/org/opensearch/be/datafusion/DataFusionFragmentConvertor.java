@@ -119,6 +119,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_LIKE, "regexp_like"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
@@ -185,14 +186,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
         FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
         FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonAdapter.LOCAL_JSON_OP, "json"),
         FunctionMappings.s(JsonFunctionAdapters.JsonAppendAdapter.LOCAL_JSON_APPEND_OP, "json_append"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonArrayAdapter.LOCAL_JSON_ARRAY_OP, "json_array"),
         FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAllAdapter.LOCAL_JSON_EXTRACT_ALL_OP, "json_extract_all"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonObjectAdapter.LOCAL_JSON_OBJECT_OP, "json_object"),
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonValidAdapter.LOCAL_JSON_VALID_OP, "json_valid"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
@@ -406,6 +411,26 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /**
+     * Exact distinct count for use in a window context — replaces
+     * {@code count(distinct x) OVER(...)} via {@link WindowFunctionAdapters#countDistinctExact()}.
+     * Encoding DISTINCT in the operator name avoids the dropped-DISTINCT bug in DataFusion 54.x's
+     * substrait window consumer. Custom Rust UDAF in {@code rust/src/udaf/os_count_distinct.rs}.
+     */
+    static final SqlAggFunction LOCAL_OS_COUNT_DISTINCT_OP = new SqlAggFunction(
+        "os_count_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
@@ -415,13 +440,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
-        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
         // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
-        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     /**

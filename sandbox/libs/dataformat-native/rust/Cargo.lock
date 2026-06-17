@@ -2691,6 +2691,7 @@ version = "0.1.0"
 dependencies = [
  "native-bridge-macros",
  "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
  "tikv-jemallocator",
 ]
 

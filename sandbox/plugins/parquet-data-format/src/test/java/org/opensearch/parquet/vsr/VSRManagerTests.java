@@ -22,6 +22,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
@@ -582,6 +583,55 @@ public class VSRManagerTests extends ParquetBaseTests {
         ParquetFileMetadata metadata = manager.flush();
         assertNotNull(metadata);
         assertEquals(totalDocs, metadata.numRows());
+    }
+
+    public void testRejectsDuplicateFieldInSingleDocument() throws Exception {
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
+        String filePath = createTempDir().resolve("dedup.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(valField, 10);
+        doc.addField(valField, 20); // same field instance — multi-value
+
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> manager.addDocument(doc));
+        assertTrue(e.getMessage().contains("Cannot accept multiple values for field: [val]"));
+        manager.close();
+    }
+
+    public void testAllowsDistinctFieldsInSingleDocument() throws Exception {
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("price", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        fields.add(new Field("qty", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
+        String filePath = createTempDir().resolve("distinct.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
+
+        NumberFieldMapper.NumberFieldType priceField = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
+        NumberFieldMapper.NumberFieldType qtyField = new NumberFieldMapper.NumberFieldType("qty", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(priceField, PARQUET_FORMAT);
+        assignTestCapabilities(qtyField, PARQUET_FORMAT);
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(priceField, 10);
+        doc.addField(qtyField, 5);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+
+        manager.addDocument(doc);
+        assertEquals(1, manager.getActiveManagedVSR().getRowCount());
+        manager.flush();
     }
 
 }

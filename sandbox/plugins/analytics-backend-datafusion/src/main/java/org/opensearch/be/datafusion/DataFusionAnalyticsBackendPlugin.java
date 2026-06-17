@@ -116,7 +116,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
         ScalarFunction.LATEST,
-        ScalarFunction.CIDRMATCH
+        ScalarFunction.CIDRMATCH,
+        // json_valid returns BOOLEAN, so it is a valid filter predicate (e.g. `where
+        // json_valid(col)` / `where not json_valid(col)`). DataFusion evaluates the json_valid Rust
+        // UDF natively; same shape as CIDRMATCH.
+        ScalarFunction.JSON_VALID
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -174,6 +178,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.LESS_THAN_OR_EQUAL,
         ScalarFunction.IN,
         ScalarFunction.LIKE,
+        ScalarFunction.REGEXP,
         ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.CIDRMATCH,
         ScalarFunction.REPLACE,
@@ -320,7 +325,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MSTIME,
         ScalarFunction.CTIME,
         ScalarFunction.MKTIME,
+        ScalarFunction.JSON,
         ScalarFunction.JSON_APPEND,
+        ScalarFunction.JSON_ARRAY,
         ScalarFunction.JSON_ARRAY_LENGTH,
         ScalarFunction.JSON_DELETE,
         ScalarFunction.JSON_EXTEND,
@@ -329,7 +336,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // is registered separately via {@link #MAP_RETURNING_PROJECT_OPS} (keyed on
         // FieldType.MAP rather than SUPPORTED_FIELD_TYPES, mirroring the ARRAY-return split).
         ScalarFunction.JSON_KEYS,
+        ScalarFunction.JSON_OBJECT,
         ScalarFunction.JSON_SET,
+        ScalarFunction.JSON_VALID,
         // Array functions whose RETURN type is element-typed (not ARRAY itself), so the
         // capability lookup at OpenSearchProjectRule resolves the call's return type to a
         // standard scalar FieldType and matches against SUPPORTED_FIELD_TYPES.
@@ -548,7 +557,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     WindowFunction.ARG_MAX,
                     WindowFunctionAdapters.argMax(),
                     WindowFunction.DISTINCT_COUNT_APPROX,
-                    WindowFunctionAdapters.distinctCountApprox()
+                    WindowFunctionAdapters.distinctCountApprox(),
+                    // COUNT(DISTINCT x) OVER(...) → os_count_distinct(x) OVER(...). Non-distinct
+                    // COUNT(x) passes through unchanged.
+                    WindowFunction.COUNT,
+                    WindowFunctionAdapters.countDistinctExact()
                 );
             }
 
@@ -731,14 +744,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.FROM_UNIXTIME, new RustUdfDateTimeAdapters.FromUnixtimeAdapter()),
                     Map.entry(ScalarFunction.HOUR, hour),
                     Map.entry(ScalarFunction.HOUR_OF_DAY, hour),
+                    Map.entry(ScalarFunction.JSON, new JsonFunctionAdapters.JsonAdapter()),
                     Map.entry(ScalarFunction.JSON_APPEND, new JsonFunctionAdapters.JsonAppendAdapter()),
+                    Map.entry(ScalarFunction.JSON_ARRAY, new JsonFunctionAdapters.JsonArrayAdapter()),
                     Map.entry(ScalarFunction.JSON_ARRAY_LENGTH, new JsonFunctionAdapters.JsonArrayLengthAdapter()),
                     Map.entry(ScalarFunction.JSON_DELETE, new JsonFunctionAdapters.JsonDeleteAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTEND, new JsonFunctionAdapters.JsonExtendAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTRACT, new JsonFunctionAdapters.JsonExtractAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTRACT_ALL, new JsonFunctionAdapters.JsonExtractAllAdapter()),
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
+                    Map.entry(ScalarFunction.JSON_OBJECT, new JsonFunctionAdapters.JsonObjectAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
+                    Map.entry(ScalarFunction.JSON_VALID, new JsonFunctionAdapters.JsonValidAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
                     Map.entry(ScalarFunction.PATTERN_PARSER, new PatternParserAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
@@ -767,6 +784,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.RANGE_BUCKET, new RangeBucketAdapter()),
+                    Map.entry(ScalarFunction.REGEXP, nameMapping(SqlLibraryOperators.REGEXP_LIKE)),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),

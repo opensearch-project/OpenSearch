@@ -30,15 +30,17 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
         RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(17, 18, 19, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28, 0, 0));
         return new DataFusionStats(
             new NativeExecutorsStats(io, cpu, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
-            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, 0L)
+            new PartitionGateStats("fragment_executor_gate", 12, 0, 0, 0, 0, 12, 0, 0),
+            null,
+            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, 0L),
+            null,
+            null
         );
     }
 
@@ -115,15 +117,15 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testCpuRuntimeAbsentWhenNull() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16));
-        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25, 0, 0));
 
         DataFusionStats stats = new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("fragment_executor_gate", 12, 0, 0, 0, 0, 12, 0, 0),
+            null,
             null
         );
         assertNull(stats.getNativeExecutorsStats().getCpuRuntime());
@@ -195,15 +197,15 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testToXContentCpuRuntimeOmitted() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16));
-        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25, 0, 0));
 
         DataFusionStats stats = new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("fragment_executor_gate", 12, 0, 0, 0, 0, 12, 0, 0),
+            null,
             null
         );
         String json = toJsonString(stats);
@@ -269,10 +271,10 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testCacheStatsPresentRendersIntoJson() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(0, 0, 0));
-        taskMonitors.put("query_execution", new TaskMonitorStats(0, 0, 0));
-        taskMonitors.put("stream_next", new TaskMonitorStats(0, 0, 0));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(0, 0, 0, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(0, 0, 0, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(0, 0, 0, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(0, 0, 0, 0, 0));
 
         CacheStats cache = new CacheStats(
             new CacheGroupStats(100, 5, 25, 4096, 250_000_000),
@@ -280,8 +282,8 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         );
         DataFusionStats stats = new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12, 0, 0),
+            null,
             null,
             cache,
             null
