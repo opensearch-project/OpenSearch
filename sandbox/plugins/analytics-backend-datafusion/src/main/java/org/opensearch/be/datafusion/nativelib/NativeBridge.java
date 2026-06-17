@@ -100,6 +100,10 @@ public final class NativeBridge {
      * versions of the native library.
      */
     private static final MethodHandle SET_SPILL_LIMIT;
+    private static final MethodHandle TASK_TRACKER_SET_ENABLED;
+    private static final MethodHandle TASK_TRACKER_ZOMBIE_COUNT;
+    private static final MethodHandle TASK_TRACKER_LOG_ZOMBIES;
+    private static final MethodHandle TASK_TRACKER_LIVE_COUNT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
     private static final MethodHandle SET_REDUCE_TARGET_PARTITIONS;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
@@ -208,6 +212,23 @@ public final class NativeBridge {
                 )
             )
             .orElse(null);
+
+        TASK_TRACKER_SET_ENABLED = linker.downcallHandle(
+            lib.find("df_task_tracker_set_enabled").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        TASK_TRACKER_ZOMBIE_COUNT = linker.downcallHandle(
+            lib.find("df_task_tracker_zombie_count").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_DOUBLE)
+        );
+        TASK_TRACKER_LOG_ZOMBIES = linker.downcallHandle(
+            lib.find("df_task_tracker_log_zombies").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_DOUBLE)
+        );
+        TASK_TRACKER_LIVE_COUNT = linker.downcallHandle(
+            lib.find("df_task_tracker_live_count").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
 
         SET_MIN_TARGET_PARTITIONS = linker.downcallHandle(
             lib.find("df_set_min_target_partitions").orElseThrow(),
@@ -1581,4 +1602,40 @@ public final class NativeBridge {
     }
 
     public static void initLogger() {}
+
+    // ── Task tracker ──
+
+    public static void setTaskTrackerEnabled(boolean enabled) {
+        try {
+            TASK_TRACKER_SET_ENABLED.invokeExact(enabled ? 1L : 0L);
+        } catch (Throwable t) {
+            logger.debug("Failed to set task tracker enabled", t);
+        }
+    }
+
+    public static long getTaskTrackerZombieCount(double thresholdSecs) {
+        try {
+            return (long) TASK_TRACKER_ZOMBIE_COUNT.invokeExact(thresholdSecs);
+        } catch (Throwable t) {
+            logger.debug("Failed to get task tracker zombie count", t);
+            return 0;
+        }
+    }
+
+    public static void logTaskTrackerZombies(double thresholdSecs) {
+        try {
+            TASK_TRACKER_LOG_ZOMBIES.invokeExact(thresholdSecs);
+        } catch (Throwable t) {
+            logger.debug("Failed to log task tracker zombies", t);
+        }
+    }
+
+    public static long getTaskTrackerLiveCount() {
+        try {
+            return (long) TASK_TRACKER_LIVE_COUNT.invokeExact();
+        } catch (Throwable t) {
+            logger.debug("Failed to get task tracker live count", t);
+            return 0;
+        }
+    }
 }

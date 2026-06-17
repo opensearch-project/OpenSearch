@@ -461,6 +461,10 @@ public class DataFusionPlugin extends Plugin
             NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
         });
 
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.TASK_TRACKER_ENABLED, enabled -> {
+            NativeBridge.setTaskTrackerEnabled(enabled);
+        });
+
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));

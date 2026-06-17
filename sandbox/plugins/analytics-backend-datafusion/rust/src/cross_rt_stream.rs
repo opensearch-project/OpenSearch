@@ -83,12 +83,23 @@ impl CrossRtStream {
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
     ) -> (Self, Option<AbortHandle>, oneshot::Receiver<()>) {
+        Self::new_with_df_error_stream_cancellable_ctx(stream, exec, 0)
+    }
+
+    /// Like [`new_with_df_error_stream_cancellable`], but associates the spawned
+    /// task with a query `context_id` for task-tracker correlation.
+    pub fn new_with_df_error_stream_cancellable_ctx(
+        stream: SendableRecordBatchStream,
+        exec: DedicatedExecutor,
+        context_id: i64,
+    ) -> (Self, Option<AbortHandle>, oneshot::Receiver<()>) {
         let schema = stream.schema();
         let (tx, rx) = channel(1);
         let tx_captured = tx.clone();
         let (done_tx, done_rx) = oneshot::channel();
 
         let fut = async move {
+            crate::task_tracker::associate_query(context_id);
             let _done = DoneGuard(Some(done_tx));
             tokio::pin!(stream);
             while let Some(res) = stream.next().await {

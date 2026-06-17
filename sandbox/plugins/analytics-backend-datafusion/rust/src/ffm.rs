@@ -208,6 +208,36 @@ pub unsafe extern "C" fn df_set_memory_pool_limit(runtime_ptr: i64, new_limit: i
     Ok(0)
 }
 
+// ---------------------------------------------------------------------------
+// Task tracker — zombie task detection
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub extern "C" fn df_task_tracker_set_enabled(enabled: i64) {
+    if enabled != 0 {
+        crate::task_tracker::enable();
+    } else {
+        crate::task_tracker::disable();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn df_task_tracker_zombie_count(threshold_secs: f64) -> i64 {
+    crate::task_tracker::zombie_tasks(threshold_secs).len() as i64
+}
+
+#[no_mangle]
+pub extern "C" fn df_task_tracker_log_zombies(threshold_secs: f64) {
+    crate::task_tracker::log_zombies(threshold_secs);
+}
+
+#[no_mangle]
+pub extern "C" fn df_task_tracker_live_count() -> i64 {
+    crate::task_tracker::live_task_count() as i64
+}
+
+// ---------------------------------------------------------------------------
+
 #[no_mangle]
 pub extern "C" fn df_set_min_target_partitions(value: i64) {
     api::set_min_target_partitions(value);
