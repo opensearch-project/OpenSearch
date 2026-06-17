@@ -18,6 +18,7 @@ import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -55,6 +56,7 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.settings.PlannerSettings;
+import org.opensearch.analytics.spi.BroadcastSizeExceededException;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
@@ -239,6 +241,60 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         boolean profile,
         ActionListener<ProfiledResult> listener
     ) {
+        executeInternal(queryTask, logicalFragment, queryCtx, profile, listener, /* broadcastDisabled */ false);
+    }
+
+    /**
+     * @param broadcastDisabled when true, the planner is told to suppress every BROADCAST join
+     *   alternative (via {@code PlannerContext.setBroadcastEligible(false)}, which makes
+     *   {@code OpenSearchBroadcastJoinSplitRule.matches()} return false). Set on the automatic retry
+     *   after a broadcast build overflowed the runtime cap at execution time — pre-flight row
+     *   estimates can under-count filter/semijoin selectivity, so a build CBO judged small enough can
+     *   still blow the cap; rather than fail, we re-plan without broadcast so CBO falls back to
+     *   hash-shuffle / coordinator-centric. The
+     *   flag also guards against infinite retry (the second attempt never picks broadcast).
+     */
+    private void executeInternal(
+        AnalyticsQueryTask queryTask,
+        RelNode logicalFragment,
+        QueryRequestContext queryCtx,
+        boolean profile,
+        ActionListener<ProfiledResult> outerListener,
+        boolean broadcastDisabled
+    ) {
+        // Broadcast→shuffle retry: on the FIRST attempt, intercept a terminal failure whose cause
+        // chain holds a BroadcastSizeExceededException (the build overflowed the runtime cap — a
+        // pre-flight under-estimate of filter/semijoin selectivity) and re-plan once with broadcast
+        // made ineligible. The broadcastDisabled flag bounds it to a single retry. Mirrors
+        // Presto-on-Spark's DISABLE_BROADCAST_JOIN retry.
+        //
+        // Broadcast→shuffle retry, in two halves so it is both ORDERING-safe and EXCEPTION-safe:
+        // 1) The wrapper below only DETECTS the overflow and stashes it in retryOverflow; it does
+        // NOT submit the retry. This keeps the outer listener un-fired on the overflow path.
+        // 2) The actual retry is submitted from a runAfter installed on the terminal batches
+        // listener (see below), which runs strictly AFTER attempt-1's QueryContext/allocator
+        // teardown completes — so attempt 2 never overlaps attempt 1's allocator under the
+        // shared pool. It is dispatched on the SEARCH executor (off the callback thread, with a
+        // fresh THREAD_PROVIDERS) and guarded by try/catch so a synchronous planning/conversion
+        // throw in attempt 2 still reaches outerListener instead of being lost on a worker.
+        // retryOverflow is non-null only on the first attempt's overflow; broadcastDisabled bounds
+        // it to a single retry.
+        final AtomicReference<BroadcastSizeExceededException> retryOverflow = new AtomicReference<>();
+        final ActionListener<ProfiledResult> listener;
+        if (broadcastDisabled) {
+            listener = outerListener;
+        } else {
+            listener = ActionListener.wrap(result -> {
+                BroadcastSizeExceededException overflow = result.isSuccess()
+                    ? null
+                    : (BroadcastSizeExceededException) ExceptionsHelper.unwrap(result.failure(), BroadcastSizeExceededException.class);
+                if (overflow != null) {
+                    retryOverflow.set(overflow); // retry submitted post-teardown by the runAfter below
+                } else {
+                    outerListener.onResponse(result);
+                }
+            }, outerListener::onFailure);
+        }
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
@@ -272,6 +328,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
             )
+            // Overlay the broadcast byte cap too: OpenSearchBroadcastJoinSplitRule's pre-flight size
+            // gate reads it from PlannerContext settings, and it must agree with the runtime cap
+            // BroadcastCaptureSink enforces (DefaultPlanExecutor reads it live from cluster settings).
+            // Without this, a dynamic PUT /_cluster/settings update would shift the runtime cap while
+            // the planner gate kept the node-bootstrap value — gate and runtime would disagree mid-query.
+            .put(
+                AnalyticsSettings.BROADCAST_MAX_BYTES.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES)
+            )
             .build();
         // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
         // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.
@@ -294,6 +359,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             tableRowCounts
         );
         plannerContext.setPlannerSettings(plannerSettings);
+        // On the broadcast→shuffle retry, make BROADCAST ineligible so CBO falls back to
+        // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
+        plannerContext.setBroadcastEligible(!broadcastDisabled);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
@@ -459,6 +527,32 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 context.close();
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("[query-{}] QueryContext.close() threw on teardown", dag.queryId()), e);
+            }
+            // Submit the broadcast→shuffle retry ONLY after this attempt's context/allocator is
+            // closed above, so attempt 2 never overlaps attempt 1's per-query allocator. Dispatched
+            // on the SEARCH executor (off this terminal/callback thread, fresh THREAD_PROVIDERS) and
+            // guarded so a synchronous planning/conversion throw in attempt 2 still reaches
+            // outerListener rather than being lost on a worker thread. retryOverflow is non-null only
+            // on the first attempt's overflow; the retry runs with broadcastDisabled=true (no re-retry).
+            BroadcastSizeExceededException overflow = retryOverflow.get();
+            if (overflow != null) {
+                logger.warn(
+                    "[task-{}] broadcast build overflowed the runtime cap (observed={} bytes, limit={} bytes); "
+                        + "re-planning without broadcast (falling back to hash-shuffle / coordinator-centric). "
+                        + "Raise analytics.mpp.broadcast.max_bytes to keep broadcasting larger builds.",
+                    queryTask.getId(),
+                    overflow.observedBytes(),
+                    overflow.limitBytes()
+                );
+                ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
+                    try {
+                        executeInternal(queryTask, logicalFragment, queryCtx, profile, outerListener, /* broadcastDisabled */ true);
+                    } catch (Exception e) {
+                        outerListener.onFailure(e);
+                    } catch (Throwable t) {
+                        outerListener.onFailure(new RuntimeException("broadcast→shuffle retry failed", t));
+                    }
+                });
             }
         });
 

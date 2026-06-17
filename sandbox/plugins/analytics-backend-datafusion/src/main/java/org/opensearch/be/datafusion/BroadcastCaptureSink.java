@@ -14,6 +14,7 @@ import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.spi.BroadcastSizeExceededException;
 import org.opensearch.analytics.spi.ExchangeSink;
 
 import java.io.ByteArrayOutputStream;

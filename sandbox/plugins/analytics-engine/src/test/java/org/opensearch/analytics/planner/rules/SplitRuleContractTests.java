@@ -14,6 +14,7 @@ import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -117,6 +118,86 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
         );
         assertTrue("Broadcast rule must match equi when mpp.enabled", broadcastRule(/* mppEnabled */ true).matches(stubCallFor(equi)));
         assertTrue("Hash rule must match equi when mpp.enabled", hashRule(/* mppEnabled */ true).matches(stubCallFor(equi)));
+    }
+
+    // ── broadcast build-side byte gate ─────────────────────────────────────
+
+    // The build side here is a scan over two INTEGER columns (status, size) → estimated row width
+    // is 4 + 4 = 8 bytes/row, derived from the RelDataType (not RelMetadataQuery.getAverageRowSize,
+    // which returns null for OpenSearch RelNodes — the bug this gate works around). The gate uses
+    // the OPTIMISTIC selectivity-aware expected count (getRowCount), Spark-style; the runtime cap +
+    // broadcast→shuffle retry corrects builds whose filter under-delivers.
+
+    public void testBroadcastGateAdmitsBuildWithinCap() {
+        RelNode build = scanWith(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        RelMetadataQuery mq = mock(RelMetadataQuery.class);
+        when(mq.getRowCount(build)).thenReturn(1_000.0); // 1000 × 8B = ~8KB
+        assertTrue(
+            "build estimated at ~8KB must be admitted under a 32MB cap",
+            OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(build, mq, 32L * 1024 * 1024)
+        );
+    }
+
+    public void testBroadcastGateSuppressesBuildOverCap() {
+        RelNode build = scanWith(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        RelMetadataQuery mq = mock(RelMetadataQuery.class);
+        // 60M rows × 8 bytes = 480MB — TPC-H q18-class build side, ~15x the 32MB default cap.
+        when(mq.getRowCount(build)).thenReturn(60_000_000.0);
+        assertFalse(
+            "build estimated at 480MB must be suppressed under a 32MB cap so CBO falls back to shuffle/coord",
+            OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(build, mq, 32L * 1024 * 1024)
+        );
+    }
+
+    public void testBroadcastGateTrustsOptimisticFilteredEstimate() {
+        // Spark-style optimism: the gate uses the EXPECTED (post-filter) count, not a selectivity-
+        // ignoring upper bound. A selective filter (e.g. q17's part WHERE p_brand=… AND p_container=…)
+        // drops the expected count below the cap → broadcast is admitted even though the unfiltered
+        // table is huge. If the filter under-delivers at runtime, the broadcast→shuffle retry corrects
+        // it. getMaxRowCount is deliberately NOT consulted.
+        RelNode build = scanWith(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        RelMetadataQuery mq = mock(RelMetadataQuery.class);
+        when(mq.getRowCount(build)).thenReturn(1_000.0); // optimistic post-filter: ~8KB
+        assertTrue(
+            "filtered build estimated at ~8KB must be admitted (optimistic), runtime retry is the backstop",
+            OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(build, mq, 32L * 1024 * 1024)
+        );
+    }
+
+    public void testBroadcastGateAdmitsWhenRowCountUnknown() {
+        RelNode build = scanWith(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        RelMetadataQuery mq = mock(RelMetadataQuery.class);
+        // getRowCount null (no seeded stats). Missing stats must NOT suppress broadcast; the runtime
+        // cap + retry stay the safety net.
+        when(mq.getRowCount(build)).thenReturn(null);
+        assertTrue(
+            "unknown row count must admit broadcast (runtime backstop)",
+            OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(build, mq, 32L * 1024 * 1024)
+        );
+    }
+
+    public void testBroadcastGateDisabledWhenCapNonPositive() {
+        RelNode build = scanWith(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        RelMetadataQuery mq = mock(RelMetadataQuery.class);
+        when(mq.getRowCount(build)).thenReturn(60_000_000.0);
+        assertTrue(
+            "a non-positive cap means 'no limit' — always admit",
+            OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(build, mq, 0L)
+        );
+    }
+
+    public void testBroadcastGateEstimatesUnspecifiedPrecisionVarchar() {
+        // A bare VARCHAR column (OpenSearch keyword/text) has precision = PRECISION_NOT_SPECIFIED (-1).
+        // A naive width formula (precision × bytesPerChar) would go negative and zero the estimate,
+        // silently no-op-ing the gate for string-heavy builds. The width must fall back to a positive
+        // cap so a large-row-count build is still suppressed.
+        RelNode build = scanWithVarcharColumn(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        RelMetadataQuery mq = mock(RelMetadataQuery.class);
+        when(mq.getRowCount(build)).thenReturn(60_000_000.0); // 60M rows × ~100B/row ≫ 32MB
+        assertFalse(
+            "a 60M-row VARCHAR build must be suppressed — unspecified precision must not zero the width",
+            OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(build, mq, 32L * 1024 * 1024)
+        );
     }
 
     // ── aggregate shuffle: shard-local input gate ──────────────────────────
@@ -311,6 +392,19 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
             volcanoCluster,
             traits,
             mockTable("test_index", "status", "size"),
+            List.of("mock-parquet"),
+            List.<FieldStorageInfo>of()
+        );
+    }
+
+    /** A scan over a single bare VARCHAR column (precision unspecified = PRECISION_NOT_SPECIFIED),
+     *  mirroring an OpenSearch keyword/text field — the case where a naive width formula goes negative. */
+    private OpenSearchTableScan scanWithVarcharColumn(OpenSearchDistribution dist) {
+        RelTraitSet traits = RelTraitSet.createEmpty().plus(OpenSearchConvention.INSTANCE).plus(dist);
+        return new OpenSearchTableScan(
+            volcanoCluster,
+            traits,
+            mockTable("text_index", new String[] { "body" }, new SqlTypeName[] { SqlTypeName.VARCHAR }),
             List.of("mock-parquet"),
             List.<FieldStorageInfo>of()
         );

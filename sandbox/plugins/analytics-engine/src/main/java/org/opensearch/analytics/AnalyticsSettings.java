@@ -44,17 +44,24 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Runtime cap: the build-side IPC payload assembled by the coordinator-side capture sink
-     * may not exceed this many bytes. When the build stage's accumulated Arrow IPC exceeds
-     * this threshold during pass 1, the broadcast dispatch fails the query — operators can
-     * either raise the cap, narrow the query, or flip {@link #MPP_ENABLED} off.
+     * Runtime cap: the build-side IPC payload assembled by the coordinator-side capture sink may
+     * not exceed this many bytes. When the build stage's accumulated Arrow IPC exceeds this
+     * threshold during pass 1, the capture sink raises {@code BroadcastSizeExceededException}.
      *
-     * <p>The runtime cap exists because pre-flight row-count gates can't account for filter
-     * selectivity, projection width, or stats staleness. It's the actual memory safety net.
+     * <p>This same value drives the pre-flight planning gate in {@code OpenSearchBroadcastJoinSplitRule}
+     * (a build whose estimated bytes exceed the cap never gets a broadcast alternative), and the
+     * runtime cap stays the safety net for builds whose size CBO under-estimated (filter/semijoin
+     * selectivity). On a runtime overflow the coordinator re-plans without broadcast (falling back
+     * to hash-shuffle / coordinator-centric) rather than failing — see {@code DefaultPlanExecutor}.
+     *
+     * <p>Default 64 MiB: broadcast is for small dimension builds, and 64 MiB stays well within the
+     * 256 MiB default {@code analytics.coordinator.buffer_limit} (≈1/4) even after the build is
+     * captured + replicated. Operators broadcasting larger builds can raise this; very large builds
+     * should route through hash-shuffle instead.
      */
     public static final Setting<ByteSizeValue> BROADCAST_MAX_BYTES = Setting.byteSizeSetting(
         "analytics.mpp.broadcast.max_bytes",
-        new ByteSizeValue(32L * 1024 * 1024),
+        new ByteSizeValue(64L * 1024 * 1024),
         new ByteSizeValue(0L),
         new ByteSizeValue(Long.MAX_VALUE),
         Setting.Property.NodeScope,

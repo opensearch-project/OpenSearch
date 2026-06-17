@@ -16,6 +16,9 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -43,11 +46,23 @@ import org.opensearch.analytics.planner.rel.OpenSearchJoin;
  *       traits but no exchange has wrapped them yet). Without this gate the rule re-fires
  *       on the alternatives it produced.</li>
  *   <li>Probe-node estimate (from cluster setting / data-node count) must be ≥ 1.</li>
+ *   <li><b>Estimated build-side bytes must be within {@code analytics.mpp.broadcast.max_bytes}.</b>
+ *       Broadcast materializes the whole build side in coordinator memory and replicates it to
+ *       every probe node; the runtime {@code BroadcastCaptureSink} hard-fails with
+ *       {@code BroadcastSizeExceededException} when the captured payload exceeds that cap. This
+ *       pre-flight gate stops CBO from ever emitting a broadcast alternative whose build side is
+ *       estimated to blow the cap, so a too-large build falls back to hash-shuffle /
+ *       coordinator-centric at planning time instead of failing at runtime. The estimate is
+ *       {@code rowCount × avgRowSize}; when either is unknown (no seeded stats) the gate admits
+ *       broadcast and the runtime cap stays the safety net — gating on missing stats would
+ *       wrongly suppress broadcast for un-analyzed indices.</li>
  * </ul>
  *
  * @opensearch.internal
  */
 public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
+
+    private static final Logger logger = LogManager.getLogger(OpenSearchBroadcastJoinSplitRule.class);
 
     private final PlannerContext context;
     private final OpenSearchDistributionTraitDef distTraitDef;
@@ -61,6 +76,12 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
     @Override
     public boolean matches(RelOptRuleCall call) {
         if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
+            return false;
+        }
+        // Broadcast made ineligible for this planning attempt — the re-plan after a runtime
+        // broadcast-size overflow (see DefaultPlanExecutor's broadcast→shuffle retry). Stay out of
+        // CBO so the join routes through hash-shuffle / coordinator-centric instead.
+        if (!context.isBroadcastEligible()) {
             return false;
         }
         OpenSearchJoin join = call.rel(0);
@@ -106,11 +127,140 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
             return;
         }
 
-        if (leftAsBuildEligible) {
+        // Pre-flight size gate: only emit a broadcast alternative for a build side whose estimated
+        // bytes fit the configured cap. A build that would exceed it is left to OpenSearchHashJoinSplitRule
+        // (shuffle) / OpenSearchJoinSplitRule (coord-centric), so CBO never picks a doomed broadcast that
+        // the runtime BroadcastCaptureSink would reject. See the class javadoc "build-side bytes" gate.
+        long maxBytes = AnalyticsSettings.BROADCAST_MAX_BYTES.get(context.getSettings()).getBytes();
+        RelMetadataQuery mq = call.getMetadataQuery();
+
+        if (leftAsBuildEligible && buildSideFitsBroadcast(join.getLeft(), mq, maxBytes)) {
             emitBroadcastAlternative(call, join, /* buildSide = */ true, probeNodes);
         }
-        if (rightAsBuildEligible) {
+        if (rightAsBuildEligible && buildSideFitsBroadcast(join.getRight(), mq, maxBytes)) {
             emitBroadcastAlternative(call, join, /* buildSide = */ false, probeNodes);
+        }
+    }
+
+    /**
+     * Estimates whether replicating {@code buildSide} stays within the broadcast byte cap.
+     * Estimate = {@code rows × avgRowWidth} (the whole build side is materialized + replicated, so
+     * total — not per-shard — rows are the right quantity).
+     *
+     * <p><b>Optimistic, selectivity-aware row count.</b> We gate on {@code getRowCount} — the
+     * expected post-filter estimate — NOT the selectivity-ignoring {@code getMaxRowCount} upper
+     * bound. This mirrors Spark's plan-time {@code canBroadcastBySize}, which compares the
+     * filter-reduced {@code stats.sizeInBytes} against {@code autoBroadcastJoinThreshold}: a build
+     * behind a selective filter (e.g. TPC-H q17's {@code part WHERE p_brand=… AND p_container=…})
+     * estimates small and is allowed to broadcast, even though the unfiltered table is huge. A
+     * conservative max-bound would suppress those legitimate broadcasts. The cost of trusting the
+     * estimate — a build that filters less than predicted and overflows the runtime cap — is caught
+     * by the runtime {@code BroadcastSizeExceededException} + broadcast→shuffle re-plan
+     * ({@code DefaultPlanExecutor}). Spark relies on AQE measuring materialized shuffle output to
+     * the same end; we re-plan on the capture-sink overflow instead.
+     *
+     * <p>Row width is derived from the build-side {@code RelDataType} directly (sum of per-column
+     * type widths), NOT from {@code RelMetadataQuery.getAverageRowSize}: the {@code OpenSearch*}
+     * RelNodes don't register a {@code BuiltInMetadata.Size} handler, so {@code getAverageRowSize}
+     * returns {@code null} for them. Computing from the row type keeps the gate self-contained and
+     * matches Calcite's own per-type width heuristics (see {@code RelMdSize.averageTypeValueSize}).
+     *
+     * <p>Returns {@code true} (admit broadcast) when the row count is unknown or the row width can't
+     * be estimated: missing stats must not suppress broadcast. A cap of {@code 0} (or negative)
+     * means "no limit configured" → always admit.
+     */
+    static boolean buildSideFitsBroadcast(RelNode buildSide, RelMetadataQuery mq, long maxBytes) {
+        if (maxBytes <= 0) {
+            return true;
+        }
+        Double rows = mq.getRowCount(buildSide);
+        if (rows == null || rows.isInfinite() || rows.isNaN()) {
+            return true;
+        }
+        double avgRowWidth = estimateRowWidthBytes(buildSide.getRowType());
+        if (avgRowWidth <= 0) {
+            return true;
+        }
+        double estimatedBytes = rows * avgRowWidth;
+        boolean fits = estimatedBytes <= maxBytes;
+        if (!fits && logger.isDebugEnabled()) {
+            logger.debug(
+                "[BroadcastJoinSplitRule] suppressing broadcast alternative: estimated build-side {} bytes "
+                    + "(rows={}, avgRowWidth={}) exceeds analytics.mpp.broadcast.max_bytes={} — leaving shuffle/coord-centric to CBO",
+                (long) estimatedBytes,
+                rows,
+                avgRowWidth,
+                maxBytes
+            );
+        }
+        return fits;
+    }
+
+    /**
+     * Average bytes per row for a {@code RelDataType}, summed over per-column type widths. Mirrors
+     * Calcite's {@code RelMdSize.averageTypeValueSize} heuristics (fixed-width types by precision;
+     * variable-width CHAR/VARCHAR/BINARY capped). Unknown column types contribute a conservative
+     * default so a partially-typed row still estimates non-zero rather than collapsing to 0.
+     */
+    private static double estimateRowWidthBytes(org.apache.calcite.rel.type.RelDataType rowType) {
+        double total = 0d;
+        for (org.apache.calcite.rel.type.RelDataTypeField field : rowType.getFieldList()) {
+            total += averageTypeWidthBytes(field.getType());
+        }
+        return total;
+    }
+
+    /**
+     * Per-column average width in bytes — a LOCAL heuristic in the spirit of Calcite's
+     * {@code RelMdSize.averageTypeValueSize} (fixed-width types by size, variable-width CHAR/VARCHAR/
+     * BINARY capped), but not an exact mirror: less-common SQL types (unsigned ints, time/timestamp
+     * -with-zone, intervals) fall through to {@code defaultWidth} rather than their exact Calcite
+     * sizes. That's acceptable here — the result feeds a coarse broadcast size gate backed by a
+     * runtime cap + retry, not anything that needs byte-exact accounting.
+     */
+    private static double averageTypeWidthBytes(org.apache.calcite.rel.type.RelDataType type) {
+        // BYTES_PER_CHARACTER in Calcite's RelMdSize is 2 (UTF-16 estimate).
+        final int bytesPerChar = 2;
+        // Width estimate for variable-width string/binary columns: Calcite caps these at 100 bytes
+        // since most values are small even in wide columns. We also USE this as the width when the
+        // precision is unspecified — OpenSearch keyword/text fields commonly arrive as bare VARCHAR
+        // with RelDataType.PRECISION_NOT_SPECIFIED (-1), and feeding -1 into the formulas below would
+        // yield a negative width that silently zeroes the row estimate and no-ops the size gate.
+        final double variableWidthCap = 100d;
+        final double defaultWidth = 8d; // conservative fallback for types we don't special-case
+        if (type.getSqlTypeName() == null) {
+            return defaultWidth;
+        }
+        int precision = type.getPrecision(); // may be PRECISION_NOT_SPECIFIED (-1)
+        switch (type.getSqlTypeName()) {
+            case BOOLEAN:
+            case TINYINT:
+                return 1d;
+            case SMALLINT:
+                return 2d;
+            case INTEGER:
+            case REAL:
+            case DECIMAL:
+            case DATE:
+            case TIME:
+                return 4d;
+            case BIGINT:
+            case DOUBLE:
+            case FLOAT:
+            case TIMESTAMP:
+                return 8d;
+            case BINARY:
+                return precision > 0 ? precision : variableWidthCap;
+            case VARBINARY:
+                return precision > 0 ? Math.min(precision, variableWidthCap) : variableWidthCap;
+            case CHAR:
+                return precision > 0 ? (double) precision * bytesPerChar : variableWidthCap;
+            case VARCHAR:
+                // Even in large (e.g. VARCHAR(2000)) columns most strings are small; unspecified
+                // precision (the common OpenSearch keyword/text case) falls back to the cap.
+                return precision > 0 ? Math.min((double) precision * bytesPerChar, variableWidthCap) : variableWidthCap;
+            default:
+                return defaultWidth;
         }
     }
 

@@ -53,6 +53,11 @@ public class PlannerContext {
     // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
     // instance via setPlannerSettings before planning.
     private PlannerSettings plannerSettings = PlannerSettings.defaults();
+    // Whether BROADCAST is an eligible join strategy for this planning attempt. Default true.
+    // Set false on the re-plan after a broadcast build overflowed the runtime cap at execution
+    // (see DefaultPlanExecutor's broadcast→shuffle retry) so CBO falls back to hash-shuffle /
+    // coordinator-centric. Read by OpenSearchBroadcastJoinSplitRule.matches().
+    private boolean broadcastEligible = true;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
         this(capabilityRegistry, clusterState, null, false, true, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS);
@@ -192,6 +197,20 @@ public class PlannerContext {
     /** Inject the live, settings-backed planner settings. Called by {@code DefaultPlanExecutor} before planning. */
     public void setPlannerSettings(PlannerSettings plannerSettings) {
         this.plannerSettings = plannerSettings;
+    }
+
+    /** Whether BROADCAST is an eligible join strategy for this planning attempt (default true). */
+    public boolean isBroadcastEligible() {
+        return broadcastEligible;
+    }
+
+    /**
+     * Marks BROADCAST eligible or not for this planning attempt. Set false on the re-plan after a
+     * broadcast build overflowed the runtime cap, so {@code OpenSearchBroadcastJoinSplitRule}
+     * emits no broadcast alternative and CBO falls back to hash-shuffle / coordinator-centric.
+     */
+    public void setBroadcastEligible(boolean broadcastEligible) {
+        this.broadcastEligible = broadcastEligible;
     }
 
     public ClusterState getClusterState() {

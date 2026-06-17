@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.analytics.spi.BroadcastSizeExceededException;
+
 /**
  * Thrown by {@link DatafusionMemtableReduceSink} when buffering the next reduce input batch
  * would exceed the per-query coordinator memory budget (the limit of the query's Arrow
