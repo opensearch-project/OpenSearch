@@ -1417,7 +1417,6 @@ public final class NativeBridge {
             try {
                 result = call.invoke(EXECUTE_WITH_CONTEXT, sessionCtxPtr, plan, planLen);
             } finally {
-                // Rust took ownership via Box::from_raw; do not let doClose() double-free.
                 sessionContext.markConsumed();
             }
             listener.onResponse(result);

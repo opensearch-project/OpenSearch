@@ -24,9 +24,11 @@ import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegationDescriptor;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
@@ -406,6 +408,12 @@ public class AnalyticsSearchService implements AutoCloseable {
             // TODO: currently assumes single accepting backend. When multiple accepting backends exist
             // (e.g., Lucene + Tantivy), group expressions by acceptingBackendId and create one handle per group.
             DelegationDescriptor delegation = resolved.plan.getDelegationDescriptor();
+            // Inject synthetic MATCHALL delegation when the shard has soft-deleted documents
+            // but no real delegation exists. The MATCHALL scorer iterates all docs and
+            // collectDocs() checks liveDocs — filtering deleted rows via the existing FFM path.
+            if (delegation == null && ctx.hasDeletedDocs()) {
+                delegation = buildLiveDocsDelegation(ctx);
+            }
             if (delegation != null) {
                 // Filter delegation routes per-query state via taskId; without a task we cannot
                 // isolate concurrent queries from each other. Validate before allocating any
@@ -567,7 +575,44 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setQueryCache(shard.getQueryCache());
         ctx.setQueryCachingPolicy(shard.getQueryCachingPolicy());
         ctx.setShardId(shard.shardId());
+
+        for (AnalyticsSearchBackendPlugin backend : backends.values()) {
+            if (backend.hasDeletedDocs(reader)) {
+                ctx.setHasDeletedDocs(true);
+                break;
+            }
+        }
         return ctx;
+    }
+
+    /**
+     * Builds a synthetic MATCHALL delegation descriptor for live-docs filtering.
+     * The MATCHALL scorer iterates all docs; collectDocs() checks liveDocs to exclude deleted ones.
+     */
+    private DelegationDescriptor buildLiveDocsDelegation(ShardScanExecutionContext ctx) {
+        String luceneBackendId = null;
+        for (Map.Entry<String, AnalyticsSearchBackendPlugin> entry : backends.entrySet()) {
+            if (entry.getValue().hasDeletedDocs(ctx.getReader())) {
+                luceneBackendId = entry.getKey();
+                break;
+            }
+        }
+
+        // In case registered format is parquet only format, return null.
+        if (luceneBackendId == null) {
+            return null;
+        }
+        try {
+            var matchAll = new org.opensearch.index.query.MatchAllQueryBuilder();
+            var out = new org.opensearch.common.io.stream.BytesStreamOutput();
+            out.writeNamedWriteable(matchAll);
+            byte[] expressionBytes = org.opensearch.core.common.bytes.BytesReference.toBytes(out.bytes());
+            DelegatedExpression expr = new DelegatedExpression(0, luceneBackendId, expressionBytes);
+            return new DelegationDescriptor(FilterTreeShape.CONJUNCTIVE, 1, List.of(expr));
+        } catch (IOException e) {
+            LOGGER.warn("Failed to build synthetic MATCHALL delegation for live-docs filtering", e);
+            return null;
+        }
     }
 
     // ── Assertion helpers (invoked only when -ea is enabled; bodies are dead in production) ──

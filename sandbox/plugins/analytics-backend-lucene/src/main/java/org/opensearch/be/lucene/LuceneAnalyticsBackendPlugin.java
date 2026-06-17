@@ -10,6 +10,7 @@ package org.opensearch.be.lucene;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -294,5 +295,19 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     @Override
     public DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
         return new LuceneSubtreeConvertor(QuerySerializerRegistry.getSerializers());
+    }
+
+    @Override
+    public boolean hasDeletedDocs(IndexReaderProvider.Reader reader) {
+        LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
+        if (luceneReader == null) {
+            return false;
+        }
+        for (LeafReaderContext leaf : luceneReader.directoryReader().leaves()) {
+            if (leaf.reader().getLiveDocs() != null) {
+                return true;
+            }
+        }
+        return false;
     }
 }

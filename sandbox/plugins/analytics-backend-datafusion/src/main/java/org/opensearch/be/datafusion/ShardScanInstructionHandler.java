@@ -58,28 +58,28 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         String tableName = context.getTableName();
 
         WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
+        boolean hasDeletedDocs = context.hasDeletedDocs();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);
             SessionContextHandle sessionCtxHandle;
-            if (node.requestsRowIds()) {
-                // QTF query phase — narrowed scan emits __row_id__. Use the indexed session
-                // context so the IndexedTableProvider injects shard-global row ids during scan.
-                // No delegated predicates here (delegation goes through ShardScanWithDelegationHandler),
-                // so treeShape=NO_DELEGATION and delegatedPredicateCount=0.
+            // Use IndexedTableProvider (segment-aware parquet scan with delegation callbacks)
+            // when the query needs shard-global __row_id__ for QTF fetch phase, or when the
+            // shard has deleted docs requiring liveDocs bitset filtering via Lucene delegation.
+            // Otherwise use plain ListingTable for a simpler, faster parquet-only scan.
+            if (node.requestsRowIds() || hasDeletedDocs) {
                 sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
                     readerPtr,
                     runtimePtr,
                     tableName,
                     contextId,
-                    FilterTreeShape.NO_DELEGATION.ordinal(),
-                    0,
-                    true,
+                    hasDeletedDocs ? FilterTreeShape.CONJUNCTIVE.ordinal() : FilterTreeShape.NO_DELEGATION.ordinal(),
+                    hasDeletedDocs ? 1 : 0,
+                    node.requestsRowIds(),
                     segment.address(),
                     context.getFragmentBytes()
                 );
             } else {
-                // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
                 sessionCtxHandle = NativeBridge.createSessionContext(
                     readerPtr,
                     runtimePtr,

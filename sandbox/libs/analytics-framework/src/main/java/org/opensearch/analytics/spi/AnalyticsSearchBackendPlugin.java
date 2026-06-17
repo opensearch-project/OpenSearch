@@ -200,4 +200,17 @@ public interface AnalyticsSearchBackendPlugin {
     default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
     }
+
+    /**
+     * Returns whether the shard has soft-deleted documents that need filtering.
+     *
+     * <p>Only the backend that owns the secondary index (typically Lucene) implements this.
+     * Other backends return {@code false} (default).
+     *
+     * @param reader the point-in-time reader for the current shard
+     * @return {@code true} if the shard has deletions
+     */
+    default boolean hasDeletedDocs(Reader reader) {
+        return false;
+    }
 }

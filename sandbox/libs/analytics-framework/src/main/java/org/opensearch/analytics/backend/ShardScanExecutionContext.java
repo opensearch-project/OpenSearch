@@ -38,6 +38,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private QueryCache queryCache;
     private QueryCachingPolicy queryCachingPolicy;
     private ShardId shardId;
+    private boolean hasDeletedDocs;
 
     /**
      * Constructs an execution context.
@@ -142,5 +143,19 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
 
     public void setShardId(ShardId shardId) {
         this.shardId = shardId;
+    }
+
+    /**
+     * Returns whether this shard has soft-deleted documents that need filtering.
+     */
+    public boolean hasDeletedDocs() {
+        return hasDeletedDocs;
+    }
+
+    /**
+     * Sets whether this shard has soft-deleted documents.
+     */
+    public void setHasDeletedDocs(boolean hasDeletedDocs) {
+        this.hasDeletedDocs = hasDeletedDocs;
     }
 }
