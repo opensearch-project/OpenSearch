@@ -439,7 +439,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         handler.registerMerge(oneMerge);
         assertTrue(handler.hasPendingMerges());
 
-        handler.onMergeFinished(oneMerge);
+        handler.onMergeFinished(oneMerge, false);
     }
 
     public void testRegisterMergeAndOnMergeFailure() {

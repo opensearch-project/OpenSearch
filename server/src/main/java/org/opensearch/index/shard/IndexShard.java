@@ -1638,6 +1638,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mergeStats;
     }
 
+    /**
+     * Explicitly freezes the engine for tiering. Closes the race window where the
+     * cluster state with HOT_TO_WARM hasn't propagated to this data node yet.
+     * After this call, no new merges can start and in-flight merges are drained.
+     * <p>
+     * Throws {@link UnsupportedOperationException} when the indexer does not support
+     * tiering (Lucene-backed primaries, replicas, read-only engines). Callers must
+     * gate on the index being tier-eligible before invoking. No-op when the shard's
+     * indexer is not yet initialised.
+     */
+    public void freezeForTiering() {
+        assert routingEntry().primary() : "freezeForTiering should only be called on primary shards";
+        final Indexer engine = getIndexerOrNull();
+        if (engine != null) {
+            engine.freezeForTiering();
+        }
+    }
+
+    /**
+     * Registers a listener that fires when all in-flight merge operations have completed.
+     * If merges are already drained (none active, none pending), fires the listener
+     * immediately inline. Otherwise, the listener will be invoked on the merge thread
+     * when the last merge finishes.
+     * <p>
+     * Throws {@link UnsupportedOperationException} when the indexer does not maintain
+     * a drainable merge queue (Lucene-backed primaries, replicas, read-only engines).
+     * Callers must gate on the index being tier-eligible before invoking. No-op when
+     * the shard's indexer is not yet initialised.
+     *
+     * @param listener the callback to fire when merges are drained
+     */
+    public void onMergesDrained(Runnable listener) {
+        assert routingEntry().primary() : "onMergesDrained should only be called on primary shards";
+        final Indexer engine = getIndexerOrNull();
+        if (engine != null) {
+            engine.onMergesDrained(listener);
+        }
+    }
+
+    /**
+     * Returns the number of currently active (in-flight) merge tasks. Returns the live
+     * count from the underlying merge scheduler — {@link DataFormatAwareEngine} reports
+     * its internal counter; Lucene-backed engines report
+     * {@code MergeStats.getCurrent()}; replica / read-only engines report {@code 0}.
+     * Returns {@code 0} when the shard's indexer is not yet initialised.
+     *
+     * @return the active merge count
+     */
+    public int getActiveMergeCount() {
+        final Indexer engine = getIndexerOrNull();
+        return engine == null ? 0 : engine.getActiveMergeCount();
+    }
+
+    /**
+     * Returns whether any merges are queued but not yet started. Reports orthogonally from
+     * {@link #getActiveMergeCount()} — {@code true} only when merges are queued, regardless
+     * of how many are currently running. Returns {@code false} when the shard's indexer is
+     * not yet initialised.
+     */
+    public boolean hasPendingMerges() {
+        final Indexer engine = getIndexerOrNull();
+        return engine != null && engine.hasPendingMerges();
+    }
+
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getIndexer().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());

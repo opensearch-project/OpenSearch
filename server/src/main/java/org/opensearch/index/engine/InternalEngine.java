@@ -2296,6 +2296,16 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
+    @Override
+    public boolean hasPendingMerges() {
+        return documentIndexWriter.hasPendingMerges();
+    }
+
+    @Override
+    public int getActiveMergeCount() {
+        return mergeScheduler.onGoingMerges().size();
+    }
+
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }
