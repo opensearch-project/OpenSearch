@@ -19,6 +19,9 @@ use super::context::MergeContext;
 use super::error::MergeResult;
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior, MERGE_WAIT_TIMEOUT};
+use crate::memory::merge_pool;
+
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
 /// rewrites `__row_id__` with globally sequential values. No sorting performed.
 pub fn merge_unsorted(
@@ -26,6 +29,18 @@ pub fn merge_unsorted(
     output_path: &str,
     index_name: &str,
     output_writer_generation: i64,
+) -> MergeResult<super::MergeOutput> {
+    let mut reservation = MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Wait(MERGE_WAIT_TIMEOUT));
+    merge_unsorted_with_pool(input_files, output_path, index_name, output_writer_generation, &mut reservation)
+}
+
+/// Unsorted merge with an explicit memory reservation.
+pub fn merge_unsorted_with_pool(
+    input_files: &[String],
+    output_path: &str,
+    index_name: &str,
+    output_writer_generation: i64,
+    reservation: &mut MemoryReservation,
 ) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -68,6 +83,7 @@ pub fn merge_unsorted(
         file_generations.push(generation);
     }
 
+    let ctx_reservation = reservation.child("merge:flush");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
         &parquet_descriptors,
@@ -77,6 +93,7 @@ pub fn merge_unsorted(
         rayon_threads,
         io_threads,
         output_writer_generation,
+        ctx_reservation,
     )?;
 
     // Precompute column mappings per reader
@@ -87,6 +104,8 @@ pub fn merge_unsorted(
     // Build row-ID mapping: for unsorted merge, files are concatenated sequentially.
     // old_row_id maps directly to new_row_id with a per-file offset.
     let total_rows: usize = file_row_counts.iter().sum();
+    let mapping_bytes = total_rows * std::mem::size_of::<i64>();
+    reservation.request(mapping_bytes).map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
     let mut mapping: Vec<i64> = vec![0i64; total_rows];
     let mut gen_keys: Vec<i64> = Vec::with_capacity(input_files.len());
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(input_files.len());
@@ -108,10 +127,23 @@ pub fn merge_unsorted(
         let file_start_row_id = new_row_id;
 
         let col_mapping = &col_mappings[file_idx];
+        let mut batch_tracked: usize = 0;
         for batch_result in reader {
             let batch = batch_result?;
             let num_rows = batch.num_rows();
-            // Record mapping: each row in this batch gets the next sequential new_row_id
+            let batch_bytes = batch.get_array_memory_size();
+            // Track reader batch memory: grow on first batch, delta-adjust on subsequent
+            if batch_tracked == 0 {
+                reservation.grow(batch_bytes);
+                batch_tracked = batch_bytes;
+            } else if batch_bytes != batch_tracked {
+                if batch_bytes > batch_tracked {
+                    reservation.grow(batch_bytes - batch_tracked);
+                } else {
+                    reservation.shrink(batch_tracked - batch_bytes);
+                }
+                batch_tracked = batch_bytes;
+            }
             for _ in 0..num_rows {
                 mapping[mapping_offset] = new_row_id;
                 mapping_offset += 1;
@@ -119,6 +151,8 @@ pub fn merge_unsorted(
             }
             ctx.push_batch(col_mapping.pad_batch(&batch)?)?;
         }
+        // File done — release batch memory (reader dropped, batch no longer alive)
+        reservation.shrink(batch_tracked);
 
         let file_rows = (new_row_id - file_start_row_id) as i32;
         gen_sizes.push(file_rows);
@@ -133,6 +167,9 @@ pub fn merge_unsorted(
         stats.metadata.num_row_groups(),
         stats.crc32
     );
+
+    // Detach mapping from reservation — FFI layer will track via merge_pool().grow
+    reservation.shrink(mapping_bytes);
 
     Ok(super::MergeOutput {
         mapping,
