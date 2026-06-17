@@ -52,6 +52,70 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
         assertNull(mgr.getBuffer("q1", 0, 0));
     }
 
+    /**
+     * clearForQuery must remove EVERY buffer for the query (all stages + partitions on this node) so
+     * the on-heap payload becomes collectible at query end, while leaving OTHER queries' buffers
+     * intact. This is the cross-query leak fix — without it buffers live for the JVM's lifetime.
+     */
+    public void testClearForQueryRemovesAllQueryBuffersOnly() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        // q1: two stages, multiple partitions (a cascade puts >1 worker stage on a node).
+        mgr.getOrCreateBuffer("q1", 2, 0);
+        mgr.getOrCreateBuffer("q1", 2, 1);
+        mgr.getOrCreateBuffer("q1", 4, 0);
+        // q2: a different query whose buffers must survive q1's cleanup.
+        mgr.getOrCreateBuffer("q2", 2, 0);
+
+        int removed = mgr.clearForQuery("q1");
+        assertEquals("clearForQuery must remove all 3 of q1's buffers", 3, removed);
+        assertNull(mgr.getBuffer("q1", 2, 0));
+        assertNull(mgr.getBuffer("q1", 2, 1));
+        assertNull(mgr.getBuffer("q1", 4, 0));
+        assertNotNull("a different query's buffer must NOT be cleared", mgr.getBuffer("q2", 2, 0));
+    }
+
+    /** clearForQuery is idempotent and a no-op (0 removed) for a query with no buffers — the common
+     *  non-shuffle / already-cleaned case, plus the cancellation backstop firing after normal cleanup. */
+    public void testClearForQueryIdempotentAndNoOpWhenAbsent() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        assertEquals("no buffers → 0 removed", 0, mgr.clearForQuery("nonexistent"));
+        assertEquals("null queryId → 0 removed, no NPE", 0, mgr.clearForQuery(null));
+
+        mgr.getOrCreateBuffer("q1", 0, 0);
+        assertEquals(1, mgr.clearForQuery("q1"));
+        assertEquals("second clear is a no-op", 0, mgr.clearForQuery("q1"));
+    }
+
+    /** Prefix matching must not be fooled by a query id that is a PREFIX of another (q1 vs q10):
+     *  the key separator ':' makes "q1:" not a prefix of "q10:". */
+    public void testClearForQueryPrefixIsExactPerQueryId() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        mgr.getOrCreateBuffer("q1", 0, 0);
+        mgr.getOrCreateBuffer("q10", 0, 0);
+        assertEquals("only q1's buffer, not q10's", 1, mgr.clearForQuery("q1"));
+        assertNull(mgr.getBuffer("q1", 0, 0));
+        assertNotNull("q10 must be untouched by clearForQuery(q1)", mgr.getBuffer("q10", 0, 0));
+    }
+
+    /**
+     * After clearForQuery (cancel/abort), a late producer RPC racing in via getOrCreateBuffer must
+     * NOT repopulate the map — it gets an unstored throwaway buffer instead, so the cleared query
+     * stays cleared and the late write lands on a collectible object. Without the tombstone this
+     * recreated buffer would leak (no consumer to drain/remove it).
+     */
+    public void testGetOrCreateAfterClearDoesNotRepopulate() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        mgr.getOrCreateBuffer("q1", 2, 0);
+        assertEquals(1, mgr.clearForQuery("q1"));
+        // Late producer RPC for the cancelled query:
+        ShuffleBufferManager.ShuffleBuffer late = mgr.getOrCreateBuffer("q1", 2, 0);
+        assertNotNull("getOrCreate must still return a usable (throwaway) buffer, never null", late);
+        assertNull("the throwaway must NOT be stored in the map", mgr.getBuffer("q1", 2, 0));
+        // A different (live) query is unaffected by q1's tombstone.
+        ShuffleBufferManager.ShuffleBuffer live = mgr.getOrCreateBuffer("q2", 0, 0);
+        assertSame("non-aborted query buffers are stored normally", live, mgr.getBuffer("q2", 0, 0));
+    }
+
     public void testBackpressureRejectWhenCapExceeded() {
         ShuffleBufferManager.ShuffleBuffer buffer = new ShuffleBufferManager.ShuffleBuffer(/* maxBytes */ 10);
         assertTrue(buffer.tryAddData("left", new byte[] { 1, 2, 3, 4, 5 }));

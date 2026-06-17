@@ -396,6 +396,18 @@ public class AnalyticsSearchService implements AutoCloseable {
         StreamingFragmentResponseHandler responseHandler,
         Executor executor
     ) {
+        // Abort backstop: if the query is cancelled (client disconnect, timeout, explicit kill) the
+        // worker body below may never reach its finally to free its buffer — and producer-side
+        // buffers for not-yet-consumed partitions would also leak. Clearing ALL of this query's
+        // buffers on cancel is safe: a cancelled query won't consume them again. Idempotent.
+        if (shuffleBufferRegistry != null) {
+            final String cancelQueryId = request.getQueryId();
+            // Additive (not set): the DataFusion engine registers its own native-cancel listener on
+            // this same task during engine.execute. setCancellationListener is single-slot and the
+            // engine's call would overwrite this buffer-cleanup hook (→ leak on cancel of a running
+            // worker); addCancellationListener composes so both fire.
+            task.addCancellationListener(() -> shuffleBufferRegistry.clearForQuery(cancelQueryId));
+        }
         try {
             executor.execute(() -> {
                 FragmentInstructionHandler handler;
@@ -477,9 +489,30 @@ public class AnalyticsSearchService implements AutoCloseable {
                             backendContext.close();
                         } catch (Exception ignore) {}
                     }
+                    // Free the shuffle buffer this worker task consumed (keyed by the worker's own
+                    // stage + partition). The buffer holds the partition's payload as on-heap
+                    // byte[]; without this it lives for the JVM's lifetime and accumulates across
+                    // queries → OOM. Runs on success AND failure (both hit this finally). The
+                    // per-query clearForQuery backstop (cancellation path) covers tasks that never
+                    // reach here. Guarded for non-shuffle workers (registry null / no such buffer →
+                    // idempotent no-op).
+                    if (shuffleBufferRegistry != null) {
+                        try {
+                            shuffleBufferRegistry.removeBuffer(request.getQueryId(), request.getStageId(), request.getPartitionIndex());
+                        } catch (Exception ignore) {}
+                    }
                 }
             });
         } catch (Exception e) {
+            // executor.execute rejected (pool shutdown / saturated) before the worker body ran, so
+            // its finally never executes. Producers dispatch concurrently and may already have
+            // populated this query's buffers on the node — clear them here (same backstop as the
+            // cancellation listener) so they don't leak when the worker never starts.
+            if (shuffleBufferRegistry != null) {
+                try {
+                    shuffleBufferRegistry.clearForQuery(request.getQueryId());
+                } catch (Exception ignore) {}
+            }
             responseHandler.onFailure(e);
         }
     }

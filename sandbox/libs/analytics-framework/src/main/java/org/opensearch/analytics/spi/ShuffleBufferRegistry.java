@@ -28,4 +28,23 @@ public interface ShuffleBufferRegistry {
      * consumer's first call here doesn't race the producer's first packet.
      */
     ShuffleBufferAccess getOrCreate(String queryId, int targetStageId, int partitionIndex);
+
+    /**
+     * Removes the buffer for {@code (queryId, targetStageId, partitionIndex)} after its consuming
+     * worker task has drained it. The buffer holds the partition's shuffled payload as on-heap
+     * {@code byte[]} lists; without removal these accumulate for the JVM's lifetime across queries
+     * and eventually OOM the node. Called from the consumer fragment's terminal path (success or
+     * failure). Idempotent — a no-op when the buffer is absent.
+     */
+    void removeBuffer(String queryId, int targetStageId, int partitionIndex);
+
+    /**
+     * Removes ALL buffers belonging to {@code queryId} (every stage / partition on this node).
+     * Backstop for the per-buffer {@link #removeBuffer} cleanup: called when a query terminates
+     * abnormally (task cancellation / abort) where individual consumer tasks may never reach their
+     * own terminal path. Idempotent — a no-op when the query has no buffers.
+     *
+     * @return the number of buffers removed
+     */
+    int clearForQuery(String queryId);
 }
