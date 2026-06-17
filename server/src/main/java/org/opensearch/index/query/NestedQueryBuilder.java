@@ -518,7 +518,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         visitor.accept(this);
         if (query != null) {
             final QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.MUST);
-            query.visit(subVisitor);
+            if (subVisitor != null) {
+                query.visit(subVisitor);
+            }
         }
     }
 }
