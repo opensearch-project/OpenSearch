@@ -282,7 +282,37 @@ public final class HashShuffleDispatch {
         String side,
         CapabilityRegistry registry
     ) {
-        List<Integer> hashKeys = producerStage.getExchangeInfo().partitionKeyIndices();
+        // Single-level path: the producer is a leaf shard stage whose own exchange info carries the
+        // hash keys (DAGBuilder.cutShuffle set them to the join's per-side keys).
+        enrichProducerAlternatives(
+            producerStage,
+            producerStage.getExchangeInfo().partitionKeyIndices(),
+            queryId,
+            consumerStageId,
+            partitionCount,
+            targetWorkerNodeIds,
+            side,
+            registry
+        );
+    }
+
+    /**
+     * Overload taking explicit {@code hashKeys}. The cascade dispatcher uses this because an
+     * INTERMEDIATE worker producer's own exchange info is SINGLETON (it gathers its children) — the
+     * keys it must PARTITION ITS OUTPUT on are the parent join's per-side keys, threaded in by the
+     * caller (see {@code CascadeShuffleDispatch}). For leaf producers the keys equal the producer
+     * stage's own exchange-info keys, so both call sites agree.
+     */
+    static void enrichProducerAlternatives(
+        Stage producerStage,
+        List<Integer> hashKeys,
+        String queryId,
+        int consumerStageId,
+        int partitionCount,
+        List<String> targetWorkerNodeIds,
+        String side,
+        CapabilityRegistry registry
+    ) {
         List<StagePlan> enriched = new ArrayList<>(producerStage.getPlanAlternatives().size());
         for (StagePlan sp : producerStage.getPlanAlternatives()) {
             // Only a backend that can serialize+ship hash partitions (declares

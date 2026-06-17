@@ -307,11 +307,27 @@ public class AnalyticsSearchService implements AutoCloseable {
      * empty schema so the response carries a recognizable Arrow Flight frame.
      */
     private void drainAndEmitHeader(FragmentResources ctx, StreamingFragmentResponseHandler responseHandler) throws Exception {
-        ExchangeSink sink = ctx.partitionedSink();
+        drainIntoPartitionedSink(ctx.partitionedSink(), ctx.stream(), responseHandler);
+    }
+
+    /**
+     * Drains a hash-shuffle producer fragment's engine output into its {@code partitionedSink}
+     * (which ships batches out-of-band to worker peers via the shuffle transport), then emits a
+     * single zero-row, schema-bearing response on the coordinator-bound stream so the streaming
+     * transport has ≥1 frame to terminate on. Reader-independent — shared by the shard-fragment
+     * ({@link #startFragment}) and worker-fragment ({@link #executeWorkerFragmentStreamingAsync})
+     * producer paths. Closes {@code sink} in {@code finally} so isLast markers ship before the
+     * caller tears down the engine; the sink contract is idempotent-on-close.
+     */
+    private void drainIntoPartitionedSink(
+        ExchangeSink sink,
+        EngineResultStream resultStream,
+        StreamingFragmentResponseHandler responseHandler
+    ) throws Exception {
         int count = 0;
         Schema capturedSchema = null;
         try {
-            Iterator<EngineResultBatch> it = ctx.stream().iterator();
+            Iterator<EngineResultBatch> it = resultStream.iterator();
             while (it.hasNext()) {
                 VectorSchemaRoot batch = it.next().getArrowRoot();
                 if (capturedSchema == null) {
@@ -404,13 +420,36 @@ public class AnalyticsSearchService implements AutoCloseable {
                         }
                     }
 
+                    // Cascaded shuffle: a worker fragment can ALSO be a shuffle producer (its plan
+                    // carries a ShuffleProducerInstructionNode) — e.g. an intermediate join level whose
+                    // output feeds a higher shuffle. Same instruction-driven mechanism as the shard
+                    // path (resolveProducerSink), so no dedicated stage type is needed. Non-producer
+                    // workers (the common leaf-consumer case) get a null sink and drain to the response.
+                    ProducerSinkResolution producer = resolveProducerSink(
+                        backend,
+                        backendContext,
+                        ctx,
+                        request.getQueryId(),
+                        request.getStageId()
+                    );
+                    ExchangeSink partitionedSink = producer.partitionedSink();
+                    backendContext = producer.engineContext();
+
                     engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
                     stream = engine.execute(ctx);
-                    Iterator<EngineResultBatch> it = stream.iterator();
-                    while (it.hasNext()) {
-                        responseHandler.onBatch(it.next());
+                    if (partitionedSink != null) {
+                        // Producer worker: ship batches out-of-band via the partitioned sink and emit
+                        // a single header-only frame on the coordinator-bound stream (mirrors the shard
+                        // producer path). drainIntoPartitionedSink closes the sink when done.
+                        drainIntoPartitionedSink(partitionedSink, stream, responseHandler);
+                        responseHandler.onComplete();
+                    } else {
+                        Iterator<EngineResultBatch> it = stream.iterator();
+                        while (it.hasNext()) {
+                            responseHandler.onBatch(it.next());
+                        }
+                        responseHandler.onComplete();
                     }
-                    responseHandler.onComplete();
                 } catch (Exception e) {
                     LOGGER.error(
                         () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -663,18 +702,9 @@ public class AnalyticsSearchService implements AutoCloseable {
             // partitioned sink, and unwrap the carrier so the engine factory sees the upstream
             // session state (not the carrier). The drain into the sink happens later in
             // executeFragmentStreamingAsync; we just attach the sink to FragmentResources here.
-            ExchangeSink partitionedSink = null;
-            if (backendContext instanceof ShuffleProducerOutputState producerState) {
-                if (client == null || threadPool == null || clusterService == null) {
-                    throw new IllegalStateException(
-                        "AnalyticsSearchService: shuffle sender deps not plumbed; "
-                            + "setShuffleSenderDeps(client, threadPool, clusterService) must be called at plugin startup"
-                    );
-                }
-                partitionedSink = buildPartitionedSink(backend, producerState, ctx, resolved);
-                // Engine sees the upstream session state, not the carrier.
-                backendContext = producerState.getDelegate();
-            }
+            ProducerSinkResolution producer = resolveProducerSink(backend, backendContext, ctx, resolved.queryId, resolved.stageId);
+            ExchangeSink partitionedSink = producer.partitionedSink();
+            backendContext = producer.engineContext();
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
@@ -718,7 +748,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         AnalyticsSearchBackendPlugin backend,
         ShuffleProducerOutputState producerState,
         ShardScanExecutionContext ctx,
-        ResolvedFragment resolved
+        String queryId,
+        int stageId
     ) {
         ShuffleSender sender = new ShuffleSenderImpl(
             client,
@@ -733,8 +764,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         // into another in-process sink). fragmentBytes is left empty for the same reason — the
         // partitioning operates on the engine's terminal output, not on a plan.
         ExchangeSinkContext sinkCtx = new ExchangeSinkContext(
-            resolved.queryId,
-            resolved.stageId,
+            queryId,
+            stageId,
             ctx.getTask() == null ? 0L : ctx.getTask().getId(),
             new byte[0],
             ctx.getAllocator(),
@@ -749,6 +780,44 @@ public class AnalyticsSearchService implements AutoCloseable {
                 sender,
                 sinkCtx
             );
+    }
+
+    /**
+     * Holder for the result of {@link #resolveProducerSink}: the partitioned sink to drain into
+     * (null when this fragment is not a hash-shuffle producer) and the {@link BackendExecutionContext}
+     * the engine should run against (the upstream session state, unwrapped from the producer carrier).
+     */
+    private record ProducerSinkResolution(ExchangeSink partitionedSink, BackendExecutionContext engineContext) {
+    }
+
+    /**
+     * Hash-shuffle producer routing, shared by the shard-fragment ({@link #startFragment}) and
+     * worker-fragment ({@link #executeWorkerFragmentStreamingAsync}) paths. When the instruction
+     * chain produced a {@link ShuffleProducerOutputState}, builds the framework ShuffleSender + the
+     * backend's partitioned sink and unwraps the carrier so the engine factory sees the upstream
+     * session state. Otherwise returns the context unchanged with a null sink (non-producer fragment).
+     * Reader-independent — takes {@code queryId}/{@code stageId} directly rather than a shard-only
+     * {@code ResolvedFragment}.
+     */
+    private ProducerSinkResolution resolveProducerSink(
+        AnalyticsSearchBackendPlugin backend,
+        BackendExecutionContext backendContext,
+        ShardScanExecutionContext ctx,
+        String queryId,
+        int stageId
+    ) {
+        if (backendContext instanceof ShuffleProducerOutputState producerState) {
+            if (client == null || threadPool == null || clusterService == null) {
+                throw new IllegalStateException(
+                    "AnalyticsSearchService: shuffle sender deps not plumbed; "
+                        + "setShuffleSenderDeps(client, threadPool, clusterService) must be called at plugin startup"
+                );
+            }
+            ExchangeSink partitionedSink = buildPartitionedSink(backend, producerState, ctx, queryId, stageId);
+            // Engine sees the upstream session state, not the carrier.
+            return new ProducerSinkResolution(partitionedSink, producerState.getDelegate());
+        }
+        return new ProducerSinkResolution(null, backendContext);
     }
 
     /**

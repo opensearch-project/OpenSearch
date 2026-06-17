@@ -102,6 +102,23 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Per-strategy sub-toggle for <em>cascaded</em> hash-shuffle joins (multi-way joins where each
+     * binary join level runs as its own worker tier, the inner worker producing a shuffle to the
+     * outer worker). When {@code true} (default), a post-CBO RelNode rewrite
+     * ({@code CascadeShufflePlanRewriter}) turns each {@code OpenSearchJoin}'s coordinator-gathered
+     * inputs into hash-shuffle inputs so {@code DAGBuilder} cuts a cascaded shuffle DAG, and the
+     * recursive {@code HashShuffleDispatch} lifts every join level into a worker. When {@code false},
+     * only the bottom join shuffles and the outer join coordinator-reduces (pre-cascade behavior) —
+     * a kill switch if a cascade-specific issue is seen. Gated under {@link #MPP_ENABLED}.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_CASCADE_ENABLED = Setting.boolSetting(
+        "analytics.mpp.shuffle.cascade.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-strategy sub-toggle for hash-shuffle <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
      * strategy emitted by {@code OpenSearchAggregateShuffleSplitRule}: PARTIAL on shards →
      * hash-shuffle on group keys → FINAL on data-node workers in parallel).
@@ -142,6 +159,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
+        MPP_SHUFFLE_CASCADE_ENABLED,
         MPP_BROADCAST_PROBE_ESTIMATE
     );
 }

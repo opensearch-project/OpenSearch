@@ -32,8 +32,12 @@ import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
 import org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor;
 import org.opensearch.analytics.exec.agg.HashShuffleAggregateDispatch;
 import org.opensearch.analytics.exec.join.BroadcastDispatch;
+import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter;
+import org.opensearch.analytics.exec.join.CascadeShuffleDispatch;
+import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
 import org.opensearch.analytics.exec.join.HashShuffleDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
+import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
@@ -324,6 +328,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
             )
+            // Cascade kill switch must follow dynamic updates too — the rewrite is gated on this in
+            // executeInternal below; without the overlay a PUT /_cluster/settings to disable cascade
+            // would be ignored and the rewrite would keep firing on the node-bootstrap default (true).
+            .put(
+                AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED)
+            )
             .put(
                 AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
@@ -363,6 +374,22 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
         plannerContext.setBroadcastEligible(!broadcastDisabled);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
+        // Cascaded hash-shuffle: post-CBO, turn a multi-way join's coordinator-gathered inputs
+        // into hash-shuffle inputs so DAGBuilder cuts a cascaded shuffle DAG (each join level its
+        // own worker tier) instead of leaving the outer join COORDINATOR_CENTRIC → ReduceSize
+        // overflow at scale. CBO is not shuffle-cascade-native (it only shuffles a join over two
+        // pure shard scans); the rewrite extends an existing lower-level shuffle upward. Gated on
+        // MPP + the cascade sub-toggle; the rewriter itself only fires on a join whose subtree
+        // already shuffles, so small-probe joins CBO kept coord-centric are untouched.
+        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings) && AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.get(perQuerySettings)) {
+            int cascadePartitions = MppShufflePartitions.resolve(
+                perQuerySettings,
+                planningState,
+                capabilityRegistry,
+                ((OpenSearchRelNode) plan).getViableBackends()
+            );
+            plan = CascadeShufflePlanRewriter.rewrite(plan, cascadePartitions);
+        }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 
@@ -396,6 +423,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             && shuffleLeft != null
             && shuffleRight != null
             && isQueryScheduler;
+        // Cascade: a multi-way join where every level shuffles (>1 join-over-two-shuffles stage).
+        // The single-level HashShuffleDispatch only lifts one join; the cascade dispatcher lifts
+        // every level into its own worker tier. Detected structurally so a plain 2-way shuffle join
+        // keeps the simpler path.
+        final boolean dispatchCascadeShuffle = dispatchHashShuffle && CascadeShuffleDAGRewriter.isCascade(dag);
         final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;
 
         if (JoinStrategyAdvisor.containsJoin(dag)) {
@@ -576,6 +608,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         try {
             if (dispatchBroadcast) {
                 dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
+            } else if (dispatchCascadeShuffle) {
+                dispatchCascadeShuffle(dag, context, execRef, batchesListener);
             } else if (dispatchHashShuffle) {
                 dispatchHashShuffle(dag, shuffleLeft, shuffleRight, context, execRef, batchesListener);
             } else if (dispatchHashShuffleAggregate) {
@@ -686,6 +720,28 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             leftProducer,
             rightProducer,
             consumer,
+            execRef::set,
+            terminal
+        );
+    }
+
+    /**
+     * Runs the CASCADED hash-shuffle path: a multi-way join where every level shuffles. Delegates to
+     * {@link CascadeShuffleDispatch}, which rewrites the DAG into a chain of worker tiers (each join
+     * level → one worker; intermediate workers consume the level below and produce to the level
+     * above) and enriches every level's shuffle instructions. Unlike {@link #dispatchHashShuffle},
+     * there is no single (left, right, consumer) triple — the dispatcher walks all levels.
+     */
+    private void dispatchCascadeShuffle(
+        QueryDAG dag,
+        QueryContext context,
+        AtomicReference<QueryExecution> execRef,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        QueryScheduler qscheduler = (QueryScheduler) scheduler;
+        new CascadeShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry, preferMetadataDriver).run(
+            context,
+            dag,
             execRef::set,
             terminal
         );
