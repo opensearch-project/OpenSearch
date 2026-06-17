@@ -170,7 +170,6 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
             runtimeHandle.get(),
             tableName,
             0L,
-            false,
             configSegment.address(),
             new byte[0]
         );

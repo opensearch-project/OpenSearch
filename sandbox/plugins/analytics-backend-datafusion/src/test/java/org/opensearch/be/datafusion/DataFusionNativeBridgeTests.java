@@ -114,7 +114,6 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
             runtimeHandle.get(),
             "test_table",
             0L,
-            false,
             queryConfigPtr,
             new byte[0]
         );

@@ -536,8 +536,8 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
             return new FragmentInstructionHandlerFactory() {
                 @Override
-                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, boolean hasPartialAggregate) {
-                    return Optional.of(new ShardScanInstructionNode(requestsRowIds, hasPartialAggregate));
+                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+                    return Optional.of(new ShardScanInstructionNode(requestsRowIds));
                 }
 
                 @Override
@@ -553,12 +553,9 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
                 public Optional<InstructionNode> createShardScanWithDelegationNode(
                     FilterTreeShape treeShape,
                     int delegatedPredicateCount,
-                    boolean requestsRowIds,
-                    boolean hasPartialAggregate
+                    boolean requestsRowIds
                 ) {
-                    return Optional.of(
-                        new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds, hasPartialAggregate)
-                    );
+                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
                 }
 
                 @Override

@@ -42,12 +42,12 @@ final class LuceneInstructionHandlerFactory implements FragmentInstructionHandle
     // ── Coordinator-side: produce instruction nodes ──
 
     @Override
-    public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, boolean hasPartialAggregate) {
+    public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
         // Lucene driver doesn't emit row ids — QTF is DataFusion-only. If a Lucene-driver
         // alternative were ever paired with a row-id-requesting parent stage, reject here
         // so the framework picks DataFusion instead.
         if (requestsRowIds) return Optional.empty();
-        return Optional.of(new ShardScanInstructionNode(requestsRowIds, hasPartialAggregate));
+        return Optional.of(new ShardScanInstructionNode(requestsRowIds));
     }
 
     @Override
@@ -65,13 +65,12 @@ final class LuceneInstructionHandlerFactory implements FragmentInstructionHandle
     public Optional<InstructionNode> createShardScanWithDelegationNode(
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
-        boolean requestsRowIds,
-        boolean hasPartialAggregate
+        boolean requestsRowIds
     ) {
         // Lucene driver doesn't accept delegated predicates, so the with-delegation variant
         // collapses to a plain shard-scan. The treeShape / delegatedPredicateCount fields
         // are ignored.
-        return createShardScanNode(requestsRowIds, hasPartialAggregate);
+        return createShardScanNode(requestsRowIds);
     }
 
     @Override

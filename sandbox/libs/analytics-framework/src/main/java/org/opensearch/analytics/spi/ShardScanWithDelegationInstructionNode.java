@@ -27,20 +27,11 @@ public class ShardScanWithDelegationInstructionNode extends ShardScanInstruction
     private final int delegatedPredicateCount;
 
     public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-        this(treeShape, delegatedPredicateCount, false, false);
+        this(treeShape, delegatedPredicateCount, false);
     }
 
     public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount, boolean requestsRowIds) {
-        this(treeShape, delegatedPredicateCount, requestsRowIds, false);
-    }
-
-    public ShardScanWithDelegationInstructionNode(
-        FilterTreeShape treeShape,
-        int delegatedPredicateCount,
-        boolean requestsRowIds,
-        boolean hasPartialAggregate
-    ) {
-        super(requestsRowIds, hasPartialAggregate);
+        super(requestsRowIds);
         this.treeShape = treeShape;
         this.delegatedPredicateCount = delegatedPredicateCount;
     }

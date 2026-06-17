@@ -28,10 +28,8 @@ public interface FragmentInstructionHandlerFactory {
     /**
      * Creates a shard scan instruction node. {@code requestsRowIds} signals that the scan
      * must emit shard-global {@code __row_id__} values (QTF query phase).
-     * {@code hasPartialAggregate} signals that the fragment contains a partial aggregate,
-     * allowing the backend to conditionally exclude the CombinePartialFinalAggregate optimizer rule.
      */
-    Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, boolean hasPartialAggregate);
+    Optional<InstructionNode> createShardScanNode(boolean requestsRowIds);
 
     /** Creates a filter delegation instruction node with the given delegation metadata. */
     Optional<InstructionNode> createFilterDelegationNode(
@@ -45,13 +43,11 @@ public interface FragmentInstructionHandlerFactory {
      * delegation config. {@code requestsRowIds} signals that the scan must emit shard-global
      * {@code __row_id__} values (QTF query phase). Backends that don't support QTF should
      * return {@link Optional#empty()} when {@code requestsRowIds} is true.
-     * {@code hasPartialAggregate} signals that the fragment contains a partial aggregate.
      */
     Optional<InstructionNode> createShardScanWithDelegationNode(
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
-        boolean requestsRowIds,
-        boolean hasPartialAggregate
+        boolean requestsRowIds
     );
 
     /** Creates a partial aggregate instruction node. */
