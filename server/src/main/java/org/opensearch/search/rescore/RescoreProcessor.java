@@ -60,10 +60,7 @@ public class RescoreProcessor {
             }
             Map<Integer, Object> map = new HashMap<>();
             for (int i = 0; i < docs.scoreDocs.length; i++) {
-                map.put(
-                    docs.scoreDocs[i].doc,
-                    docs.collapseValues[i]
-                );
+                map.put(docs.scoreDocs[i].doc, docs.collapseValues[i]);
             }
             return new CollapseSnapShot(docs.field, docs.fields, map);
         }
@@ -88,10 +85,7 @@ public class RescoreProcessor {
             }
             // Rescoring drops the collapse information, so reconstruct the CollapseTopFieldDocs from the snapshot.
             if (collapseSnapShot != null) {
-                topDocs = reconstructCollapseTopFieldDocs(
-                    collapseSnapShot,
-                    topDocs
-                );
+                topDocs = reconstructCollapseTopFieldDocs(collapseSnapShot, topDocs);
             }
             context.queryResult()
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
@@ -118,10 +112,7 @@ public class RescoreProcessor {
         return true;
     }
 
-    private static CollapseTopFieldDocs reconstructCollapseTopFieldDocs(
-        CollapseSnapShot snapShot,
-        TopDocs rescoredTopDocs
-    ) {
+    private static CollapseTopFieldDocs reconstructCollapseTopFieldDocs(CollapseSnapShot snapShot, TopDocs rescoredTopDocs) {
         // collapse + rescore is always score-sorted (rescore cannot be combined with sort), so the sort value
         // built below is a single score. This assertion guards that precondition.
         assert snapShot.sortFields().length == 1 && SortField.FIELD_SCORE.equals(snapShot.sortFields()[0])
@@ -131,7 +122,9 @@ public class RescoreProcessor {
         for (int i = 0; i < rescoredTopDocs.scoreDocs.length; i++) {
             ScoreDoc scoreDoc = rescoredTopDocs.scoreDocs[i];
             if (!snapShot.docIdToCollapseValue().containsKey(scoreDoc.doc)) {
-                throw new IllegalStateException("rescore must not introduce new docs, but doc " + scoreDoc.doc + " was not in original results");
+                throw new IllegalStateException(
+                    "rescore must not introduce new docs, but doc " + scoreDoc.doc + " was not in original results"
+                );
             }
             newCollapseValues[i] = snapShot.docIdToCollapseValue().get(scoreDoc.doc);
             // Carry the rescored score in the sort value: CollapseTopFieldDocs.merge orders by FieldDoc.fields.

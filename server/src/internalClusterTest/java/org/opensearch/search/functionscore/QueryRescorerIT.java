@@ -57,7 +57,13 @@ import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -871,7 +877,8 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
         }
     }
 
-    record GroupDoc(String id, String group, float firstPassScore, float secondPassScore, boolean shouldFilter) {}
+    record GroupDoc(String id, String group, float firstPassScore, float secondPassScore, boolean shouldFilter) {
+    }
 
     public void testRescoreAfterCollapse() throws Exception {
         assertAcked(
@@ -897,10 +904,9 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
             new GroupDoc("4", "c", 1, 1000, false),
             // should be highest on rescore, but filtered out during collapse
             new GroupDoc("5", "a", 2, 20, false),
-            new GroupDoc("6", "b", 1, 40, false),
-        };
+            new GroupDoc("6", "b", 1, 40, false), };
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        for (var doc: groupDocs) {
+        for (var doc : groupDocs) {
             requests.add(
                 client().prepareIndex("test")
                     .setId(doc.id())
@@ -922,9 +928,7 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(fieldValueScoreQuery("firstPassScore"))
             .setRescorer(
-                new QueryRescorerBuilder(
-                    fieldValueScoreQuery("secondPassScore")
-                ).setQueryWeight(1.0f)
+                new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(1.0f)
                     .setRescoreQueryWeight(1.0f)
                     .setScoreMode(QueryRescoreMode.Total)
             )
@@ -1018,9 +1022,7 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(fieldValueScoreQuery("firstPassScore"))
             .setRescorer(
-                new QueryRescorerBuilder(
-                    fieldValueScoreQuery("secondPassScore")
-                ).setQueryWeight(0f)
+                new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f)
                     .setRescoreQueryWeight(1.0f)
                     .windowSize(numGroups)
             )
@@ -1114,9 +1116,7 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(fieldValueScoreQuery("firstPassScore"))
             .setRescorer(
-                new QueryRescorerBuilder(
-                    fieldValueScoreQuery("secondPassScore")
-                ).setQueryWeight(0f)
+                new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f)
                     .setRescoreQueryWeight(1.0f)
                     .windowSize(numGroups)
             )
@@ -1135,9 +1135,8 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
     }
 
     private QueryBuilder fieldValueScoreQuery(String scoreField) {
-        return functionScoreQuery(
-            termQuery("shouldFilter", false),
-            ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)
-        ).boostMode(CombineFunction.REPLACE);
+        return functionScoreQuery(termQuery("shouldFilter", false), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)).boostMode(
+            CombineFunction.REPLACE
+        );
     }
 }
