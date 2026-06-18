@@ -81,11 +81,19 @@ public class AnalyticsQueryTask extends SearchTask {
         if (onCancelCallback.compareAndSet(null, callback) == false) {
             throw new IllegalStateException("onCancelCallback already set for AnalyticsQueryTask " + queryId);
         }
+        // Cancel may have arrived before this install — fire inline if so. Mirrors AnalyticsShardTask.setCancellationListener.
+        if (isCancelled()) {
+            runCallbackOnce();
+        }
     }
 
     @Override
     protected void onCancelled() {
-        Runnable cb = onCancelCallback.get();
+        runCallbackOnce();
+    }
+
+    private void runCallbackOnce() {
+        Runnable cb = onCancelCallback.getAndSet(null);
         if (cb != null) {
             try {
                 cb.run();
