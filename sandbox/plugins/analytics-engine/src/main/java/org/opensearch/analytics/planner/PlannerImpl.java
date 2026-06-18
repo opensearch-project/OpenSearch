@@ -23,10 +23,12 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
+import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
@@ -82,6 +84,30 @@ import java.util.Optional;
 public class PlannerImpl {
 
     private static final Logger LOGGER = LogManager.getLogger(PlannerImpl.class);
+
+    /**
+     * Like {@link CoreRules#FILTER_PROJECT_TRANSPOSE} but refuses to push a Filter below a Project
+     * that computes any non-deterministic expression (e.g. {@code eval r = rand() | where r > 0}).
+     *
+     * <p>This is a <b>semantic-correctness</b> guard, not a delegation/performance one. The stock
+     * rule only guards against window functions ({@code !containsOver()}); pushing a Filter past a
+     * {@code rand()} Project inlines {@code RAND()} into the predicate, so a reference to one
+     * already-computed random value ({@code $ref > literal}) becomes a fresh {@code RAND() > literal}
+     * evaluated again at scan time. That re-evaluates / duplicates the non-deterministic expression
+     * and changes results, so the Filter must stay above the Project regardless of backend.
+     *
+     * <p>(Aside: such an inlined {@code RAND() > literal} predicate is also what gets incorrectly
+     * marked Lucene-delegation-viable today — a separate filter-viability gap where a field-less
+     * predicate inherits its child's viable backends instead of validating its scalar calls. That is
+     * tracked/fixed separately; it is not the reason for this rule.)
+     */
+    private static final FilterProjectTransposeRule FILTER_PROJECT_TRANSPOSE_DETERMINISTIC = FilterProjectTransposeRule.Config.DEFAULT
+        .withOperandFor(
+            Filter.class,
+            filter -> true,
+            Project.class,
+            project -> project.getProjects().stream().allMatch(RexUtil::isDeterministic)
+        ).toRule();
 
     public static RelNode createPlan(RelNode rawRelNode, PlannerContext context) {
         return runAllOptimizations(rawRelNode, context);
@@ -313,7 +339,7 @@ public class PlannerImpl {
             // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
             .addRuleCollection(
                 List.of(
-                    CoreRules.FILTER_PROJECT_TRANSPOSE,
+                    FILTER_PROJECT_TRANSPOSE_DETERMINISTIC,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
                     CoreRules.PROJECT_MERGE,
