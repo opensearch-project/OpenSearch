@@ -102,6 +102,39 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Node-level on-heap hash-shuffle budget, as a PERCENT of the JVM max heap ({@code -Xmx}).
+     *
+     * <p>The shuffle consumer is buffer-all-then-drain: a worker blocks on
+     * {@code ShuffleBuffer.awaitReady} until both producer sides finish, then drains the accumulated
+     * Arrow-IPC {@code byte[]} chunks. Those chunks live ON the JVM heap, and a node's live shuffle
+     * bytes are the SUM across every buffer it holds (all queries/stages/partitions). Without a bound
+     * a large shuffle accumulates its whole input on-heap and OOMs the node (observed: 7.4 GB of
+     * {@code byte[]} on an 8 GB heap for TPC-H q17 at sf=10). A PER-BUFFER cap can't bound the sum
+     * (N partitions each under the cap still OOM in aggregate), so the budget is per-NODE.
+     *
+     * <p>{@code ShuffleBufferManager} admits a chunk only if the node total stays under
+     * {@code percent% × maxHeap}; over-budget admissions are rejected for retry (room frees when
+     * other queries finish) UNLESS a single query's own footprint exceeds the budget, which fails
+     * fast and non-retryably with {@code ShuffleBufferExceededException} (waiting can't help — the
+     * query can't fit even on an idle node). A percent (not an absolute byte value) auto-scales to
+     * node heap size.
+     *
+     * <p>Default 80(%): generous enough that legitimately-fitting shuffles run while leaving heap for
+     * the rest of query execution; bounds runaway buffers well before OOM. Operator remediation on a
+     * fast failure: raise this (toward but below 100), give the node more heap, narrow the query, or
+     * set {@code analytics.mpp.enabled=false}. Set to {@code 0} to disable the budget (pre-fix
+     * behavior — NOT recommended; risks node OOM).
+     */
+    public static final Setting<Integer> MPP_SHUFFLE_NODE_BUDGET_PERCENT = Setting.intSetting(
+        "analytics.mpp.shuffle.node_budget_percent",
+        80,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-strategy sub-toggle for <em>cascaded</em> hash-shuffle joins (multi-way joins where each
      * binary join level runs as its own worker tier, the inner worker producing a shuffle to the
      * outer worker). When {@code true} (default), a post-CBO RelNode rewrite
@@ -158,6 +191,7 @@ public final class AnalyticsSettings {
         BROADCAST_MAX_BYTES,
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
+        MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_SHUFFLE_CASCADE_ENABLED,
         MPP_BROADCAST_PROBE_ESTIMATE

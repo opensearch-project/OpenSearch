@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
@@ -26,6 +27,9 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.QueryRequestContext;
+import org.opensearch.analytics.exec.action.AnalyticsClearShuffleAction;
+import org.opensearch.analytics.exec.action.AnalyticsClearShuffleRequest;
+import org.opensearch.analytics.exec.action.AnalyticsClearShuffleResponse;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
@@ -65,19 +69,26 @@ import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -105,6 +116,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final Scheduler scheduler;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
@@ -145,6 +157,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
+        this.transportService = transportService;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.threadPool = threadPool;
         this.client = client;
@@ -429,6 +442,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // keeps the simpler path.
         final boolean dispatchCascadeShuffle = dispatchHashShuffle && CascadeShuffleDAGRewriter.isCascade(dag);
         final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;
+        // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
+        // buffers may be populated on data nodes (join shuffle, cascade, or shuffle-aggregate all cut
+        // a HASH_DISTRIBUTED exchange in the DAG). Drives the terminal cleanup broadcast: skip it for
+        // the common non-shuffle query so we don't fan O(data-nodes) no-op RPCs on every analytics
+        // query. Computed from the DAG (not the dispatch flags) so a shuffle plan that falls back to
+        // coord-centric at dispatch still cleans up any buffers a partially-run producer created.
+        final boolean planUsesShuffle = dagHasHashExchange(dag);
 
         if (JoinStrategyAdvisor.containsJoin(dag)) {
             MppStrategy routedStrategy;
@@ -555,6 +575,18 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             queryListener.onQueryComplete(dag.queryId(), System.nanoTime() - queryStartNanos, totalRows);
             rowsListener.onResponse(rows);
         }, rowsListener::onFailure), () -> {
+            // Release shuffle buffers on query terminal (success / failure / cancel). This runAfter
+            // fires unconditionally, so it covers the FAILURE path that does NOT cancel data-node
+            // tasks (e.g. a shuffle byte-budget breach) and so never triggers the per-task
+            // cancellation-listener cleanup — without this, a failed shuffle query leaks its buffered
+            // byte[] on-heap until the next query OOMs. Gated on the plan actually containing a HASH
+            // exchange: only hash-shuffle producers populate ShuffleBufferManager, so a non-shuffle
+            // query (the vast majority) needn't pay O(data-nodes) cleanup RPCs. The gate
+            // over-approximates safely — it fires even if dispatch later falls back to coord-centric
+            // (a harmless no-op broadcast), and never misses a real shuffle (a miss re-opens the leak).
+            if (planUsesShuffle) {
+                broadcastClearShuffle(dag.queryId());
+            }
             try {
                 context.close();
             } catch (Exception e) {
@@ -789,6 +821,145 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             if (found != null) return found;
         }
         return null;
+    }
+
+    /** True if any stage in the DAG carries a HASH-distributed exchange — i.e. the plan can populate
+     *  {@link org.opensearch.analytics.exec.shuffle.ShuffleBufferManager} buffers on data nodes
+     *  (join shuffle, cascade, or shuffle-aggregate). Used to gate the terminal cleanup broadcast so
+     *  non-shuffle queries don't fan no-op cleanup RPCs to every data node. Over-approximates safely. */
+    private static boolean dagHasHashExchange(QueryDAG dag) {
+        return dag != null && stageHasHashExchange(dag.rootStage());
+    }
+
+    private static boolean stageHasHashExchange(Stage stage) {
+        if (stage == null) {
+            return false;
+        }
+        if (stage.getExchangeInfo() != null && stage.getExchangeInfo().distributionType() == RelDistribution.Type.HASH_DISTRIBUTED) {
+            return true;
+        }
+        for (Stage child : stage.getChildStages()) {
+            if (stageHasHashExchange(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Max attempts to deliver a shuffle-cleanup RPC to one node before giving up. A still-alive node
+     *  whose cleanup never lands holds those buffers until it restarts (no later terminal clears THIS
+     *  queryId), so we retry across a generous window (≈26s with the cap below) to ride out transient
+     *  transport blips before accepting the rare leak. */
+    private static final int CLEAR_SHUFFLE_MAX_ATTEMPTS = 10;
+    /** Base backoff between cleanup retries; doubles each attempt, capped at {@link #CLEAR_SHUFFLE_MAX_BACKOFF_MS}. */
+    private static final long CLEAR_SHUFFLE_RETRY_BASE_MS = 200L;
+    /** Backoff ceiling (mirrors the sender retry cap) so late attempts don't grow unbounded. */
+    private static final long CLEAR_SHUFFLE_MAX_BACKOFF_MS = 5_000L;
+
+    /**
+     * Broadcasts a shuffle-buffer release for {@code queryId} to every data node, on query terminal
+     * (success / failure / cancel). This is the cleanup the FAILURE path needs — a failed query does
+     * not cancel data-node tasks, so the per-task cancellation-listener cleanup never fires; an
+     * undelivered release permanently shrinks that node's per-node shuffle budget (the buffer is
+     * never reclaimed), so a transient send failure is retried with bounded backoff rather than just
+     * logged. Each node's {@code clearForQuery} is idempotent and a no-op when it holds no buffers,
+     * so re-sends are harmless and we don't track the exact participating set. A retry is abandoned
+     * once the node leaves the cluster (its buffers died with the process) or the attempt cap is hit.
+     */
+    private void broadcastClearShuffle(String queryId) {
+        if (queryId == null) {
+            return;
+        }
+        Map<String, DiscoveryNode> dataNodes;
+        try {
+            dataNodes = clusterService.state().nodes().getDataNodes();
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("[query-{}] could not resolve data nodes for shuffle cleanup", queryId), e);
+            return;
+        }
+        if (dataNodes == null || dataNodes.isEmpty()) {
+            return;
+        }
+        AnalyticsClearShuffleRequest request = new AnalyticsClearShuffleRequest(queryId);
+        for (DiscoveryNode node : dataNodes.values()) {
+            sendClearShuffle(queryId, node, request, 1);
+        }
+    }
+
+    /** Sends one shuffle-cleanup RPC to {@code node}; on failure reschedules up to
+     *  {@link #CLEAR_SHUFFLE_MAX_ATTEMPTS} with exponential backoff, abandoning once the node has left
+     *  the cluster (no buffers to leak) or the cap is reached. */
+    private void sendClearShuffle(String queryId, DiscoveryNode node, AnalyticsClearShuffleRequest request, int attempt) {
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.REG).build();
+        try {
+            transportService.sendRequest(
+                node,
+                AnalyticsClearShuffleAction.NAME,
+                request,
+                options,
+                new TransportResponseHandler<AnalyticsClearShuffleResponse>() {
+                    @Override
+                    public AnalyticsClearShuffleResponse read(StreamInput in) throws IOException {
+                        return new AnalyticsClearShuffleResponse(in);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(AnalyticsClearShuffleResponse response) {
+                        // delivered — buffers (if any) released on the node
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        retryClearShuffle(queryId, node, request, attempt, exp);
+                    }
+                }
+            );
+        } catch (Exception e) {
+            retryClearShuffle(queryId, node, request, attempt, e);
+        }
+    }
+
+    /** Reschedules a failed cleanup send if the node is still in the cluster and attempts remain. */
+    private void retryClearShuffle(String queryId, DiscoveryNode node, AnalyticsClearShuffleRequest request, int attempt, Exception cause) {
+        // A node no longer in the cluster has dropped its on-heap buffers with the process — nothing
+        // to reclaim, so stop retrying.
+        if (!clusterService.state().nodes().nodeExists(node)) {
+            logger.debug(
+                new ParameterizedMessage("[query-{}] shuffle cleanup to {} abandoned — node left cluster", queryId, node.getId()),
+                cause
+            );
+            return;
+        }
+        if (attempt >= CLEAR_SHUFFLE_MAX_ATTEMPTS) {
+            logger.warn(
+                new ParameterizedMessage(
+                    "[query-{}] shuffle cleanup to {} failed after {} attempts while the node is still in the cluster; "
+                        + "it may hold this query's shuffle buffers until it restarts (no later query terminal clears this queryId)",
+                    queryId,
+                    node.getId(),
+                    attempt
+                ),
+                cause
+            );
+            return;
+        }
+        // Exponential backoff capped at the ceiling; guard the shift against overflow at high attempts.
+        int shift = Math.min(attempt - 1, 32);
+        long delayMs = Math.min(CLEAR_SHUFFLE_MAX_BACKOFF_MS, CLEAR_SHUFFLE_RETRY_BASE_MS << shift);
+        try {
+            threadPool.schedule(
+                () -> sendClearShuffle(queryId, node, request, attempt + 1),
+                TimeValue.timeValueMillis(delayMs),
+                ThreadPool.Names.SAME
+            );
+        } catch (Exception e) {
+            logger.debug(new ParameterizedMessage("[query-{}] could not schedule shuffle cleanup retry to {}", queryId, node.getId()), e);
+        }
     }
 
     /** Walks {@code stage}'s subtree looking for the stage whose direct {@code childStages} list

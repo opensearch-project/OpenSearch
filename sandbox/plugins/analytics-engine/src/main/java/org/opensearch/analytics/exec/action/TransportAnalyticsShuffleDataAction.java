@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
+import org.opensearch.analytics.spi.ShuffleBufferExceededException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -27,9 +28,18 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 
 /**
- * Handles incoming shuffle payloads on a worker node. Writes each partition's bytes into the
- * corresponding {@link ShuffleBufferManager.ShuffleBuffer}; returns {@code backpressureReject=true}
- * when the per-partition byte cap is exceeded so the sender retries with exponential backoff.
+ * Handles incoming shuffle payloads on a worker node. Admits each chunk against the node-level +
+ * per-query on-heap byte budget ({@link ShuffleBufferManager#tryAdmit}) and, when accepted, writes
+ * its bytes into the corresponding {@link ShuffleBufferManager.ShuffleBuffer}. Two budget outcomes
+ * map to the wire protocol:
+ * <ul>
+ *   <li>node total momentarily over budget while the query still fits its share → returns
+ *       {@code backpressureReject=true} so the sender retries with exponential backoff (the
+ *       contention clears as other queries finish and release their buffers);</li>
+ *   <li>this query's OWN footprint exceeds the per-query budget (can never fit, even on an idle
+ *       node) → {@link ShuffleBufferExceededException} → {@code listener.onFailure} as a fail-fast,
+ *       NON-retryable error.</li>
+ * </ul>
  *
  * <p>When {@link AnalyticsShuffleDataRequest#getTargetNodeId} is non-null and not the local node,
  * forwards the request to the named target via {@link TransportService#sendRequest}. This
@@ -115,28 +125,42 @@ public class TransportAnalyticsShuffleDataAction extends HandledTransportAction<
             // partitions of the same stage in small-cluster configurations; merging them here
             // would let one partition's consumer observe another partition's rows and isLast
             // markers, silently corrupting the join.
-            ShuffleBufferManager.ShuffleBuffer buffer = shuffleBufferManager.getOrCreateBuffer(
-                request.getQueryId(),
-                request.getTargetStageId(),
-                request.getPartitionIndex()
-            );
             if (request.getData() != null) {
-                boolean accepted = buffer.tryAddData(request.getSide(), request.getData());
-                if (!accepted) {
+                // Admit against the NODE + PER-QUERY shuffle budgets (ShuffleBufferManager.tryAdmit):
+                // - throws ShuffleBufferExceededException if THIS query's footprint alone exceeds the
+                // per-query budget → caught below → listener.onFailure → terminal, NON-retryable
+                // failure (the query can never fit; waiting won't help — the q17 OOM case);
+                // - returns REJECT_RETRY if the NODE is momentarily over budget but this query still
+                // fits its share → backpressureReject response → ShuffleSenderRetry backs off and
+                // retries (room frees when other queries finish and release their buffers);
+                // - ACCEPTED otherwise (bytes reserved + chunk stored).
+                ShuffleBufferManager.AdmitResult admit = shuffleBufferManager.tryAdmit(
+                    request.getQueryId(),
+                    request.getTargetStageId(),
+                    request.getPartitionIndex(),
+                    request.getSide(),
+                    request.getData()
+                );
+                if (admit == ShuffleBufferManager.AdmitResult.REJECT_RETRY) {
                     logger.debug(
-                        "Shuffle buffer full: query={}, stage={}, partition={}, side={}, current={}, cap={}",
+                        "Shuffle node over budget (retryable): query={}, stage={}, partition={}, side={}, nodeTotal={}, nodeBudget={}",
                         request.getQueryId(),
                         request.getTargetStageId(),
                         request.getPartitionIndex(),
                         request.getSide(),
-                        buffer.getCurrentBytes(),
-                        buffer.getMaxBytes()
+                        shuffleBufferManager.getTotalBytes(),
+                        shuffleBufferManager.getNodeBudgetBytes()
                     );
                     listener.onResponse(AnalyticsShuffleDataResponse.backpressureReject());
                     return;
                 }
             }
             if (request.isLast()) {
+                ShuffleBufferManager.ShuffleBuffer buffer = shuffleBufferManager.getOrCreateBuffer(
+                    request.getQueryId(),
+                    request.getTargetStageId(),
+                    request.getPartitionIndex()
+                );
                 buffer.senderDone(request.getSide());
                 logger.debug(
                     "Shuffle sender done: query={}, stage={}, partition={}, side={}",
@@ -147,6 +171,19 @@ public class TransportAnalyticsShuffleDataAction extends HandledTransportAction<
                 );
             }
             listener.onResponse(new AnalyticsShuffleDataResponse());
+        } catch (ShuffleBufferExceededException e) {
+            // Expected, deliberate fail-fast: this query's footprint alone exceeds the per-query
+            // budget so it can never fit (the q17 case). Non-retryable; surface to the caller without
+            // an ERROR-level stack trace (it's not a defect — debug-log the actionable detail only).
+            logger.debug(
+                "Shuffle query over per-query budget (fail-fast): query={}, stage={}, partition={}, side={}: {}",
+                request.getQueryId(),
+                request.getTargetStageId(),
+                request.getPartitionIndex(),
+                request.getSide(),
+                e.getMessage()
+            );
+            listener.onFailure(e);
         } catch (Exception e) {
             logger.error("Failed to process shuffle data", e);
             listener.onFailure(e);

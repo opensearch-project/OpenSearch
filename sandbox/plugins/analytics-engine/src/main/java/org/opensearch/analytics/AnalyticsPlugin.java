@@ -24,8 +24,10 @@ import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.ReaderContextStore;
 import org.opensearch.analytics.exec.Scheduler;
+import org.opensearch.analytics.exec.action.AnalyticsClearShuffleAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsShuffleDataAction;
+import org.opensearch.analytics.exec.action.TransportAnalyticsClearShuffleAction;
 import org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
@@ -193,6 +195,14 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             readerContextStore
         );
         searchService.setShuffleBufferRegistry(shuffleBufferManager);
+        // Wire the node-level shuffle budget from settings (initial value + dynamic updates). The
+        // budget is a percent of max heap; node budget == per-query max (a lone query may use the
+        // whole budget, but no single query may exceed it — that fails fast, non-retryably). Without
+        // this the manager's budget stays Long.MAX_VALUE and a large shuffle accumulates its whole
+        // input on-heap as byte[] until the node OOMs (the inert-cap bug; observed on TPC-H q17 sf=10).
+        applyShuffleBudget(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT, this::applyShuffleBudget);
         searchService.setShuffleSenderDeps(client, threadPool, clusterService);
         DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
@@ -219,6 +229,24 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             analyticsSearchSlowLog,
             statsCollector
         );
+    }
+
+    /**
+     * Resolve the node-level shuffle byte budget from {@code percent}% of the JVM max heap and apply
+     * it to the manager. Node budget == per-query max: a lone query may use the whole budget, but a
+     * single query whose footprint exceeds it fails fast (non-retryable). {@code percent==0} disables
+     * the budget (Long.MAX_VALUE — pre-fix behavior). Called at startup and on dynamic updates.
+     */
+    private void applyShuffleBudget(int percent) {
+        long budget;
+        if (percent <= 0) {
+            budget = Long.MAX_VALUE;
+        } else {
+            long maxHeap = Runtime.getRuntime().maxMemory();
+            budget = maxHeap == Long.MAX_VALUE ? Long.MAX_VALUE : (long) (maxHeap * (percent / 100.0));
+        }
+        shuffleBufferManager.setBudgets(budget, budget);
+        logger.info("[analytics] hash-shuffle node budget set to {}% of max heap = {} bytes", percent, budget);
     }
 
     @Override
@@ -260,6 +288,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         return List.of(
             new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
             new ActionHandler<>(AnalyticsShuffleDataAction.INSTANCE, TransportAnalyticsShuffleDataAction.class),
+            new ActionHandler<>(AnalyticsClearShuffleAction.INSTANCE, TransportAnalyticsClearShuffleAction.class),
             new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }
