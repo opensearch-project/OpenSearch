@@ -1,0 +1,183 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:aggregate_functions
+aggregate_functions:
+  - name: approx_distinct
+    description: >-
+      Approximate distinct count using HyperLogLog. Maps to DataFusion's
+      approx_distinct aggregate function via its Substrait consumer.
+    impls:
+      - args:
+          - value: any
+            name: "input"
+        return: i64
+  - name: min
+    description: >-
+      Min over string or boolean values. Substrait's stdlib functions_arithmetic.yaml
+      only defines min for i8..fp64; these overloads extend the binding so PPL
+      `stats min(varchar|bool)` resolves and dispatches to DataFusion's native
+      min UDF, which already supports Utf8 and Boolean.
+    impls:
+      - args:
+          - name: x
+            value: "string"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "string?"
+        return: "string?"
+      - args:
+          - name: x
+            value: "boolean"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "boolean?"
+        return: "boolean?"
+  - name: max
+    description: >-
+      Max over string or boolean values. See min above.
+    impls:
+      - args:
+          - name: x
+            value: "string"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "string?"
+        return: "string?"
+      - args:
+          - name: x
+            value: "boolean"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "boolean?"
+        return: "boolean?"
+  - name: take
+    description: >-
+      PPL `take(field, N)` — bounded, arrival-order array. Custom Rust UDAF in
+      `rust/src/udaf/take.rs`. Distinct generics `any1`/`any2` because state
+      and n have unrelated types.
+    impls:
+      - args:
+          - name: x
+            value: any1
+          - name: n
+            value: any2
+        return: any1
+      - args:
+          - name: x
+            value: any1
+        return: any1
+  - name: first_value
+    description: PPL `first(field)` — DataFusion native first_value.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: last_value
+    description: PPL `last(field)` — DataFusion native last_value.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: array_agg
+    description: >-
+      PPL `list(field)` (and `values(field)` with `INVOCATION_DISTINCT`) —
+      DataFusion native array_agg. Used at PARTIAL only; FINAL re-aggregates
+      via list_merge / list_merge_distinct.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: list_merge
+    description: >-
+      Cross-shard FINAL of LIST. Concatenates per-shard `List<elem>` states.
+      Custom Rust UDAF in `rust/src/udaf/list_merge.rs`.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: list_merge_distinct
+    description: Cross-shard FINAL of VALUES — concatenates and re-deduplicates.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: approx_percentile_cont
+    description: >-
+      PPL `percentile_approx(field, percentile)` — t-digest based approximate
+      percentile. Maps to DataFusion's builtin `approx_percentile_cont`.
+    impls:
+      - args:
+          - name: x
+            value: any1
+          - name: percentile
+            value: any2
+        return: any1
+  - name: os_count_distinct
+    description: >-
+      Exact distinct count for use in a window context. PPL
+      `count(distinct x) OVER(...)` would normally lower to substrait `count`
+      with `AggregationInvocation::DISTINCT`, but DataFusion 54.x's substrait
+      consumer drops that bit on window functions. Routing through this named
+      UDAF encodes DISTINCT in the operator name, sidestepping the bug.
+      Custom Rust UDAF in `rust/src/udaf/os_count_distinct.rs`.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: i64
+  - name: internal_pattern
+    description: >-
+      PPL `patterns ... method=BRAIN` (aggregation mode). Custom Rust UDAF in
+      `rust/src/udaf/internal_pattern.rs`. Collects per-group log lines, runs
+      BRAIN over the corpus at finalize time, and emits
+      List<Struct<pattern, pattern_count, tokens, sample_logs>>.
+      The variadic tail (max_sample_count, buffer_limit, show_numbered_token,
+      [threshold_percentage], [variable_count_threshold]) is consumed from the
+      aggregate call's literal args at accumulator-construction time, so
+      Substrait sees them as additional ANY positional arguments.
+    impls:
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+        return: any5
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+          - name: threshold_percentage
+            value: any5
+        return: any6
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+          - name: threshold_percentage
+            value: any5
+          - name: variable_count_threshold
+            value: any6
+        return: any7
+      - args:
+          - name: state
+            value: any1
+        return: any2

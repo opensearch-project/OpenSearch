@@ -36,6 +36,25 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertEquals(List.of("lucene"), info.getIndexFormats());
     }
 
+    public void testTextFieldWithKeywordSubfieldCapturesSubfieldName() {
+        FieldStorageResolver resolver = newResolver(
+            "parquet",
+            Map.of("gender", Map.of("type", "text", "fields", Map.of("keyword", Map.of("type", "keyword"))))
+        );
+        FieldStorageInfo info = resolver.resolve(List.of("gender")).get(0);
+        assertEquals("keyword", info.getExactMatchSubfield());
+    }
+
+    public void testTextFieldWithoutKeywordSubfieldHasNullSubfield() {
+        FieldStorageResolver resolver = newResolver("parquet", Map.of("name", Map.of("type", "text")));
+        assertNull(resolver.resolve(List.of("name")).get(0).getExactMatchSubfield());
+    }
+
+    public void testKeywordFieldHasNullSubfield() {
+        FieldStorageResolver resolver = newResolver("parquet", Map.of("tag", Map.of("type", "keyword")));
+        assertNull(resolver.resolve(List.of("tag")).get(0).getExactMatchSubfield());
+    }
+
     public void testLongFieldGetsDocValuesInPrimaryFormat() {
         FieldStorageResolver resolver = newResolver("parquet", Map.of("age", Map.of("type", "long")));
 
@@ -54,6 +73,22 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertTrue("expected 'no storage' error, got: " + ex.getMessage(), ex.getMessage().contains("has no storage in any format"));
     }
 
+    public void testMergedResolverUnionsFieldsAcrossIndices() {
+        // Mirrors an index pattern (test*) whose backing indices declare different field sets:
+        // index A = {name, age}, index B = {name, alias}. The union scan row type references all
+        // three; a single-index resolver would throw on the field its index lacks.
+        FieldStorageResolver a = newResolver("parquet", Map.of("name", Map.of("type", "text"), "age", Map.of("type", "long")));
+        FieldStorageResolver b = newResolver("parquet", Map.of("name", Map.of("type", "text"), "alias", Map.of("type", "keyword")));
+
+        FieldStorageResolver merged = FieldStorageResolver.merged(List.of(a, b));
+        List<FieldStorageInfo> infos = merged.resolve(List.of("name", "age", "alias"));
+
+        assertEquals(3, infos.size());
+        assertEquals("name", infos.get(0).getFieldName());
+        assertEquals("age", infos.get(1).getFieldName());
+        assertEquals("alias", infos.get(2).getFieldName());
+    }
+
     private static FieldStorageResolver newResolver(String primaryFormat, Map<String, Map<String, Object>> fieldMappings) {
         Map<String, Object> mappingSource = Map.of("properties", fieldMappings);
 
@@ -62,7 +97,12 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
 
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.composite.primary_data_format", primaryFormat).build());
+        when(indexMetadata.getSettings()).thenReturn(
+            Settings.builder()
+                .put("index.composite.primary_data_format", primaryFormat)
+                .putList("index.composite.secondary_data_formats", "lucene")
+                .build()
+        );
         when(indexMetadata.mapping()).thenReturn(mappingMetadata);
 
         return new FieldStorageResolver(indexMetadata);

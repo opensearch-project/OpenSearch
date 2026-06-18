@@ -23,6 +23,9 @@ import java.util.Set;
  */
 public sealed interface FilterCapability {
 
+    /** The scalar function this capability covers. */
+    ScalarFunction function();
+
     /** Standard comparison filter (EQUALS, GT, IN, LIKE, etc.) on field types in given formats. */
     record Standard(ScalarFunction function, Set<FieldType> fieldTypes, Set<String> formats) implements FilterCapability {
     }

@@ -1,0 +1,20 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "wildcard": {
+      "URL": {
+        "wildcard": "*google*",
+        "boost": 1.0
+      }
+    }
+  },
+  "_source": {
+    "includes": [
+      "URL"
+    ],
+    "excludes": []
+  },
+  "track_total_hits": 2147483647
+}

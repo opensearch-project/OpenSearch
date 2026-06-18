@@ -8,6 +8,7 @@
 
 package org.opensearch.http.reactor.netty4;
 
+import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,6 +35,7 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
     private final AtomicBoolean disposed = new AtomicBoolean(false);
     private volatile FluxSink<HttpContent> emitter;
     private volatile boolean lastHttpContentEmitted = false;
+    private volatile HttpChannel channel;
 
     ReactorNetty4NonStreamingRequestConsumer(
         ReactorNetty4HttpServerTransport transport,
@@ -84,7 +86,7 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
         if (in instanceof LastHttpContent) {
             lastHttpContentEmitted = true;
 
-            final ReactorNetty4NonStreamingHttpChannel channel = new ReactorNetty4NonStreamingHttpChannel(request, response, emitter);
+            channel = transport.newNonStreamingHttpChannel(request, response, emitter);
             final HttpRequest r = createRequest(request, content);
 
             try {
@@ -113,6 +115,13 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
 
     @Override
     public void dispose() {
+        // Always close the HttpChannel instance here since the underlying publisher is disposed.
+        final HttpChannel httpChannel = channel;
+        if (httpChannel != null) {
+            httpChannel.close();
+            channel = null;
+        }
+
         if (disposed.compareAndSet(false, true)) {
             this.content.release();
         }

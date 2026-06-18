@@ -73,6 +73,16 @@ public interface Indexer
     EngineConfig config();
 
     /**
+     * Returns {@code true} when this indexer represents a REPLICA engine (one that receives
+     * segments via segment replication rather than writing them directly). Implementations
+     * encapsulate the dispatch so callers don't need {@code instanceof} checks on the concrete
+     * engine type. Default: {@code false} (primary).
+     */
+    default boolean isReplicaIndexer() {
+        return false;
+    }
+
+    /**
      * Returns information about the safe commit point.
      * The safe commit represents a consistent state that can be used for recovery.
      *
@@ -145,12 +155,92 @@ public interface Indexer
     GatedCloseable<CatalogSnapshot> acquireSnapshot();
 
     /**
+     * Serializes the given {@link CatalogSnapshot} to a byte array in the format expected by the
+     * remote-store metadata file (Lucene {@code SegmentInfos} layout). Implementations:
+     * <ul>
+     *   <li>Non-DFA (segrep Lucene engine): writes the real Lucene {@code SegmentInfos}.</li>
+     *   <li>DFA primary: delegates to the {@link org.opensearch.index.engine.exec.coord.CatalogSnapshotManager},
+     *       which dispatches to the {@link org.opensearch.index.engine.exec.CommitFileManager}
+     *       for the shard's Lucene format; that implementation uses the reader registered for
+     *       the snapshot to produce bytes strictly consistent with the catalog's Lucene files.</li>
+     *   <li>DFA replica (NRT): unsupported — replicas don't produce upload bytes.</li>
+     * </ul>
+     */
+    byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException;
+
+    /**
      * Acquires a safe index commit for snapshot or recovery operations.
      * The commit is guaranteed to be consistent and will not be deleted while held.
      *
      * @return a gated closeable wrapping the index commit
      * @throws EngineException if acquiring the commit fails
+     * @deprecated Use {@link #acquireSafeCatalogSnapshot()} which avoids the extra
+     *             {@code segments_N} disk read required to materialize an {@link IndexCommit}.
      */
+    @Deprecated
     GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
 
+    /**
+     * Acquires a safe {@link CatalogSnapshot} for the latest commit. Preferred over
+     * {@link #acquireSafeIndexCommit()} because it avoids re-reading {@code segments_N}
+     * to materialize a {@link IndexCommit}. Implementations with a native catalog
+     * (DFA engines) return the committed snapshot directly; legacy engines wrap
+     * their in-memory {@link org.apache.lucene.index.SegmentInfos} as a
+     * {@link org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot}.
+     * <p>
+     * The caller owns the returned handle and MUST close it to release the underlying refcount.
+     */
+    GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException;
+
+    /**
+     * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
+     * regardless of retention policy. Used for peer-recovery phase-1 metadata diffing.
+     * Caller MUST close the returned handle to release the refcount.
+     */
+    GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException;
+
+    /**
+     * Returns {@code true} if there are merges queued but not yet started.
+     * <p>
+     * Implementations must override explicitly — there is no default to ensure each engine
+     * type makes a deliberate choice (e.g., DFA primary delegates to its merge scheduler;
+     * replica/read-only engines return {@code false}; Lucene primary delegates to the
+     * underlying {@link org.opensearch.index.engine.Engine}).
+     */
+    boolean hasPendingMerges();
+
+    /**
+     * Returns the number of merges currently in flight on this indexer.
+     * <p>
+     * Implementations must override explicitly — there is no default to ensure each engine
+     * type makes a deliberate choice (DFA primary reads its scheduler's atomic counter directly;
+     * Lucene primary delegates through the wrapped {@link org.opensearch.index.engine.Engine};
+     * replica / read-only engines return {@code 0}).
+     */
+    int getActiveMergeCount();
+
+    /**
+     * Freezes this indexer for tiering preparation: blocks new merges and primary index
+     * operations so the catalog can be sealed before upload.
+     * <p>
+     * Default throws {@link UnsupportedOperationException} — only data-format-aware primary
+     * engines support tiering. Lucene primaries, replicas, and read-only engines all inherit
+     * this default; calling it on a non-DFA shard is a wiring bug and surfaces loudly here
+     * rather than silently no-op'ing at the {@link org.opensearch.index.shard.IndexShard} layer.
+     */
+    default void freezeForTiering() {
+        throw new UnsupportedOperationException("freezeForTiering not supported on " + getClass().getSimpleName());
+    }
+
+    /**
+     * Registers a one-shot listener invoked when all in-flight merges have drained.
+     * <p>
+     * Default throws {@link UnsupportedOperationException} — only data-format-aware primary
+     * engines maintain a drainable merge queue. Lucene primaries, replicas, and read-only
+     * engines all inherit this default; tiering preparation never targets a non-DFA shard,
+     * so the throw surfaces wiring bugs.
+     */
+    default void onMergesDrained(Runnable listener) {
+        throw new UnsupportedOperationException("onMergesDrained not supported on " + getClass().getSimpleName());
+    }
 }

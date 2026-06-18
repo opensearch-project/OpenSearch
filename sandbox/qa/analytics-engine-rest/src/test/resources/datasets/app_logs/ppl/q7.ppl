@@ -1,0 +1,1 @@
+source=app_logs | where message like '%Exception%' or message like '%Error%' or error_message is not null | stats count() as error_count by service_name, log_level | sort - error_count

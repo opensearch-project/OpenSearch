@@ -1,0 +1,1 @@
+source=test_data | eval utc_time = convert_tz(timestamp, 'UTC', 'America/New_York') | fields timestamp, utc_time | head 3

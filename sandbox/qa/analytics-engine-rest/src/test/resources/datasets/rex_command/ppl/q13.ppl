@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "(?<metricname>cpu_usage|memory_usage|disk_usage)=(?<metricvalue>[\d.]+)%" | where metricvalue > 80 | stats avg(metricvalue) by metricname

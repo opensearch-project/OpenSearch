@@ -8,6 +8,8 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
@@ -15,16 +17,17 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.composite.framework.ParquetOnlyDataFormatPlugin;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -43,6 +46,7 @@ import java.util.function.Function;
  *   --tests "*.CompositeParquetIndexIT" \
  *   -Dsandbox.enabled=true
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
@@ -50,7 +54,15 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
+        // ParquetDataFormatPlugin sources its allocator from the unified native-allocator
+        // framework's ingest pool, so the framework plugin must be installed.
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetOnlyDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class
+        );
     }
 
     @Override
@@ -75,9 +87,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(INDEX_NAME)
             .setSettings(indexSettings)
-            .setMapping("field_text", "type=text")
-            .setMapping("field_keyword", "type=keyword")
-            .setMapping("field_number", "type=integer")
+            .setMapping("field_text", "type=text,index=false", "field_keyword", "type=keyword,index=false", "field_number", "type=integer")
             .get();
         assertTrue("Index creation should be acknowledged", response.isAcknowledged());
 
@@ -160,7 +170,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(indexName)
             .setSettings(indexSettings)
-            .setMapping("field_text", "type=text", "field_keyword", "type=keyword", "field_number", "type=integer")
+            .setMapping("field_text", "type=text,index=false", "field_keyword", "type=keyword,index=false", "field_number", "type=integer")
             .get();
         assertTrue("Index creation should be acknowledged", response.isAcknowledged());
 
@@ -229,5 +239,176 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
         }
 
         ensureGreen(indexName);
+    }
+
+    public void testCompositeIndexUsesClusterDefaultFormatsWhenOverridesAbsent() throws IOException {
+        String indexName = "test-composite-cluster-default";
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                    .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "lucene")
+            )
+            .get();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .build();
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(indexSettings)
+            .setMapping("field_text", "type=text,index=false", "field_keyword", "type=keyword,index=false", "field_number", "type=integer")
+            .get();
+        assertTrue("Index creation should be acknowledged", response.isAcknowledged());
+
+        ensureGreen(indexName);
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        Settings actual = settingsResponse.getIndexToSettings().get(indexName);
+        assertEquals("parquet", actual.get(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey()));
+        assertEquals("lucene", actual.getAsList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey()).get(0));
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse indexResponse = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", randomInt(100))
+                .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(indexName).get().getStatus());
+        assertEquals(RestStatus.OK, client().admin().indices().prepareFlush(indexName).get().getStatus());
+
+        IndicesStatsResponse statsResponse = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .clear()
+            .setIndexing(true)
+            .setRefresh(true)
+            .setDocs(true)
+            .setStore(true)
+            .get();
+        ShardStats shardStats = statsResponse.getIndex(indexName).getShards()[0];
+        assertEquals(10, shardStats.getStats().indexing.getTotal().getIndexCount());
+
+        CommitStats commitStats = shardStats.getCommitStats();
+        assertNotNull(commitStats);
+        assertTrue(commitStats.getUserData().containsKey(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY));
+
+        DataformatAwareCatalogSnapshot snapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+            commitStats.getUserData().get(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY),
+            Function.identity()
+        );
+        assertEquals(Set.of("parquet", "lucene"), snapshot.getDataFormats());
+
+        ensureGreen(indexName);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey())
+            )
+            .get();
+    }
+
+    public void testCompositeIndexRequestOverrideBeatsClusterDefault() throws IOException {
+        String indexName = "test-composite-request-override";
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "lucene")
+                    .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "parquet")
+            )
+            .get();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats")
+            .build();
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(indexSettings)
+            .setMapping(
+                "field_text",
+                "type=text,index=false,store=true",
+                "field_keyword",
+                "type=keyword,index=false",
+                "field_number",
+                "type=integer"
+            )
+            .get();
+        assertTrue("Index creation should be acknowledged", response.isAcknowledged());
+
+        ensureGreen(indexName);
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        Settings actual = settingsResponse.getIndexToSettings().get(indexName);
+        assertEquals("parquet", actual.get(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey()));
+        assertTrue(actual.getAsList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey()).isEmpty());
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse indexResponse = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", randomInt(100))
+                .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(indexName).get().getStatus());
+        assertEquals(RestStatus.OK, client().admin().indices().prepareFlush(indexName).get().getStatus());
+
+        IndicesStatsResponse statsResponse = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .clear()
+            .setIndexing(true)
+            .setRefresh(true)
+            .setDocs(true)
+            .setStore(true)
+            .get();
+        ShardStats shardStats = statsResponse.getIndex(indexName).getShards()[0];
+        assertEquals(10, shardStats.getStats().indexing.getTotal().getIndexCount());
+
+        CommitStats commitStats = shardStats.getCommitStats();
+        assertNotNull(commitStats);
+        assertTrue(commitStats.getUserData().containsKey(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY));
+
+        DataformatAwareCatalogSnapshot snapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+            commitStats.getUserData().get(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY),
+            Function.identity()
+        );
+        assertEquals(Set.of("parquet"), snapshot.getDataFormats());
+
+        ensureGreen(indexName);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey())
+            )
+            .get();
     }
 }

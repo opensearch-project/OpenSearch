@@ -22,6 +22,7 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
@@ -55,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class CompositeMergerTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
-    private static final RowIdMapping STUB_ROW_ID_MAPPING = (oldId, oldGen) -> oldId;
+    private static final RowIdMapping STUB_ROW_ID_MAPPING = new PackedRowIdMapping(new long[] { 0 }, false);
 
     private DataFormat primaryFormat;
     private DataFormat secondaryFormat;
@@ -138,7 +139,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -221,7 +223,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(multiEngine, multiFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
@@ -371,7 +374,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(dupEngine, dupFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -435,7 +439,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         handler.registerMerge(oneMerge);
         assertTrue(handler.hasPendingMerges());
 
-        handler.onMergeFinished(oneMerge);
+        handler.onMergeFinished(oneMerge, false);
     }
 
     public void testRegisterMergeAndOnMergeFailure() {
@@ -565,7 +569,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(compositeEngine, compositeDataFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
     }
 
@@ -578,7 +583,14 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), SHARD_ID);
-        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), SHARD_ID, policy, policy);
+        return new MergeHandler(
+            snapshotSupplier,
+            new CompositeMerger(compositeEngine, compositeDataFormat),
+            SHARD_ID,
+            policy,
+            policy,
+            () -> 1L
+        );
     }
 
     private static DataFormat stubFormat(String name) {
@@ -614,7 +626,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     }
 
     private static WriterFileSet wfs(Path dir, long gen, Set<String> files, long numRows) {
-        return new WriterFileSet(dir.toString(), gen, files, numRows);
+        return new WriterFileSet(dir.toString(), gen, files, numRows, 0L);
     }
 
     private static Segment buildSegment(long generation, DataFormat fmt1, WriterFileSet wfs1, DataFormat fmt2, WriterFileSet wfs2) {

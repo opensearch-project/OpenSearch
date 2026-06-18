@@ -1,0 +1,1 @@
+source=kubernetes_logs | stats count() as logs by `cluster.region`, `cluster.name` | sort - logs

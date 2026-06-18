@@ -1,0 +1,201 @@
+{"index": {}}
+{"timestamp": "2026-05-14T09:16:38.173006", "user": "BOB", "ip_address": "192.168.1.0", "amount": -81.02, "temperature": 20.34, "message": "  Test Message  ", "status": "active", "unix_time": 1778730398}
+{"index": {}}
+{"timestamp": "2026-05-14T09:17:38.173006", "user": "ALICE", "ip_address": "192.168.1.1", "amount": -97.8, "temperature": 7.2, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778730458}
+{"index": {}}
+{"timestamp": "2026-05-14T09:18:38.173006", "user": "BOB", "ip_address": "192.168.1.2", "amount": -68.24, "temperature": 1.27, "message": "  Test Message  ", "status": "pending", "unix_time": 1778730518}
+{"index": {}}
+{"timestamp": "2026-05-14T09:19:38.173006", "user": "ALICE", "ip_address": "192.168.1.3", "amount": 71.98, "temperature": -7.78, "message": "  Test Message  ", "status": null, "unix_time": 1778730578}
+{"index": {}}
+{"timestamp": "2026-05-14T09:20:38.173006", "user": "BOB", "ip_address": "192.168.1.4", "amount": -45.08, "temperature": 17.96, "message": "  Test Message  ", "status": "active", "unix_time": 1778730638}
+{"index": {}}
+{"timestamp": "2026-05-14T09:21:38.173006", "user": "BOB", "ip_address": "192.168.1.5", "amount": 84.72, "temperature": 38.49, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778730698}
+{"index": {}}
+{"timestamp": "2026-05-14T09:22:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.6", "amount": -22.58, "temperature": 28.13, "message": "  Test Message  ", "status": "pending", "unix_time": 1778730758}
+{"index": {}}
+{"timestamp": "2026-05-14T09:23:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.7", "amount": 86.27, "temperature": 11.94, "message": "  Test Message  ", "status": null, "unix_time": 1778730818}
+{"index": {}}
+{"timestamp": "2026-05-14T09:24:38.173006", "user": "ALICE", "ip_address": "192.168.1.8", "amount": -94.02, "temperature": 34.57, "message": "  Test Message  ", "status": "active", "unix_time": 1778730878}
+{"index": {}}
+{"timestamp": "2026-05-14T09:25:38.173006", "user": "ALICE", "ip_address": "192.168.1.9", "amount": -74.35, "temperature": 2.84, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778730938}
+{"index": {}}
+{"timestamp": "2026-05-14T09:26:38.173006", "user": "ALICE", "ip_address": "192.168.1.10", "amount": 28.4, "temperature": 39.22, "message": "  Test Message  ", "status": "pending", "unix_time": 1778730998}
+{"index": {}}
+{"timestamp": "2026-05-14T09:27:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.11", "amount": 44.88, "temperature": 29.98, "message": "  Test Message  ", "status": null, "unix_time": 1778731058}
+{"index": {}}
+{"timestamp": "2026-05-14T09:28:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.12", "amount": -79.46, "temperature": 33.72, "message": "  Test Message  ", "status": "active", "unix_time": 1778731118}
+{"index": {}}
+{"timestamp": "2026-05-14T09:29:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.13", "amount": -99.2, "temperature": -7.36, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778731178}
+{"index": {}}
+{"timestamp": "2026-05-14T09:30:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.14", "amount": 73.23, "temperature": 39.58, "message": "  Test Message  ", "status": "pending", "unix_time": 1778731238}
+{"index": {}}
+{"timestamp": "2026-05-14T09:31:38.173006", "user": "BOB", "ip_address": "192.168.1.15", "amount": -47.02, "temperature": 39.55, "message": "  Test Message  ", "status": null, "unix_time": 1778731298}
+{"index": {}}
+{"timestamp": "2026-05-14T09:32:38.173006", "user": "ALICE", "ip_address": "192.168.1.16", "amount": -99.97, "temperature": 9.13, "message": "  Test Message  ", "status": "active", "unix_time": 1778731358}
+{"index": {}}
+{"timestamp": "2026-05-14T09:33:38.173006", "user": "BOB", "ip_address": "192.168.1.17", "amount": 76.41, "temperature": -5.85, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778731418}
+{"index": {}}
+{"timestamp": "2026-05-14T09:34:38.173006", "user": "BOB", "ip_address": "192.168.1.18", "amount": 54.39, "temperature": -9.72, "message": "  Test Message  ", "status": "pending", "unix_time": 1778731478}
+{"index": {}}
+{"timestamp": "2026-05-14T09:35:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.19", "amount": -22.85, "temperature": 29.38, "message": "  Test Message  ", "status": null, "unix_time": 1778731538}
+{"index": {}}
+{"timestamp": "2026-05-14T09:36:38.173006", "user": "ALICE", "ip_address": "192.168.1.20", "amount": -31.47, "temperature": 34.96, "message": "  Test Message  ", "status": "active", "unix_time": 1778731598}
+{"index": {}}
+{"timestamp": "2026-05-14T09:37:38.173006", "user": "BOB", "ip_address": "192.168.1.21", "amount": 57.57, "temperature": 9.32, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778731658}
+{"index": {}}
+{"timestamp": "2026-05-14T09:38:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.22", "amount": 22.12, "temperature": -7.8, "message": "  Test Message  ", "status": "pending", "unix_time": 1778731718}
+{"index": {}}
+{"timestamp": "2026-05-14T09:39:38.173006", "user": "ALICE", "ip_address": "192.168.1.23", "amount": -92.11, "temperature": 6.9, "message": "  Test Message  ", "status": null, "unix_time": 1778731778}
+{"index": {}}
+{"timestamp": "2026-05-14T09:40:38.173006", "user": "ALICE", "ip_address": "192.168.1.24", "amount": 53.91, "temperature": -9.93, "message": "  Test Message  ", "status": "active", "unix_time": 1778731838}
+{"index": {}}
+{"timestamp": "2026-05-14T09:41:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.25", "amount": -89.53, "temperature": 25.79, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778731898}
+{"index": {}}
+{"timestamp": "2026-05-14T09:42:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.26", "amount": -88.32, "temperature": -8.54, "message": "  Test Message  ", "status": "pending", "unix_time": 1778731958}
+{"index": {}}
+{"timestamp": "2026-05-14T09:43:38.173006", "user": "ALICE", "ip_address": "192.168.1.27", "amount": 6.98, "temperature": 14.17, "message": "  Test Message  ", "status": null, "unix_time": 1778732018}
+{"index": {}}
+{"timestamp": "2026-05-14T09:44:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.28", "amount": -42.6, "temperature": 23.57, "message": "  Test Message  ", "status": "active", "unix_time": 1778732078}
+{"index": {}}
+{"timestamp": "2026-05-14T09:45:38.173006", "user": "BOB", "ip_address": "192.168.1.29", "amount": 62.62, "temperature": 11.96, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778732138}
+{"index": {}}
+{"timestamp": "2026-05-14T09:46:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.30", "amount": -77.68, "temperature": -4.58, "message": "  Test Message  ", "status": "pending", "unix_time": 1778732198}
+{"index": {}}
+{"timestamp": "2026-05-14T09:47:38.173006", "user": "ALICE", "ip_address": "192.168.1.31", "amount": -85.62, "temperature": -2.85, "message": "  Test Message  ", "status": null, "unix_time": 1778732258}
+{"index": {}}
+{"timestamp": "2026-05-14T09:48:38.173006", "user": "BOB", "ip_address": "192.168.1.32", "amount": 9.74, "temperature": 14.6, "message": "  Test Message  ", "status": "active", "unix_time": 1778732318}
+{"index": {}}
+{"timestamp": "2026-05-14T09:49:38.173006", "user": "ALICE", "ip_address": "192.168.1.33", "amount": -1.01, "temperature": -4.34, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778732378}
+{"index": {}}
+{"timestamp": "2026-05-14T09:50:38.173006", "user": "BOB", "ip_address": "192.168.1.34", "amount": 54.25, "temperature": 10.38, "message": "  Test Message  ", "status": "pending", "unix_time": 1778732438}
+{"index": {}}
+{"timestamp": "2026-05-14T09:51:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.35", "amount": -96.45, "temperature": 11.4, "message": "  Test Message  ", "status": null, "unix_time": 1778732498}
+{"index": {}}
+{"timestamp": "2026-05-14T09:52:38.173006", "user": "ALICE", "ip_address": "192.168.1.36", "amount": 58.58, "temperature": 4.58, "message": "  Test Message  ", "status": "active", "unix_time": 1778732558}
+{"index": {}}
+{"timestamp": "2026-05-14T09:53:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.37", "amount": 89.34, "temperature": 23.2, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778732618}
+{"index": {}}
+{"timestamp": "2026-05-14T09:54:38.173006", "user": "ALICE", "ip_address": "192.168.1.38", "amount": -0.29, "temperature": 14.47, "message": "  Test Message  ", "status": "pending", "unix_time": 1778732678}
+{"index": {}}
+{"timestamp": "2026-05-14T09:55:38.173006", "user": "BOB", "ip_address": "192.168.1.39", "amount": -56.29, "temperature": -6.18, "message": "  Test Message  ", "status": null, "unix_time": 1778732738}
+{"index": {}}
+{"timestamp": "2026-05-14T09:56:38.173006", "user": "BOB", "ip_address": "192.168.1.40", "amount": -12.45, "temperature": 14.66, "message": "  Test Message  ", "status": "active", "unix_time": 1778732798}
+{"index": {}}
+{"timestamp": "2026-05-14T09:57:38.173006", "user": "BOB", "ip_address": "192.168.1.41", "amount": 92.15, "temperature": 12.17, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778732858}
+{"index": {}}
+{"timestamp": "2026-05-14T09:58:38.173006", "user": "BOB", "ip_address": "192.168.1.42", "amount": -64.9, "temperature": 23.06, "message": "  Test Message  ", "status": "pending", "unix_time": 1778732918}
+{"index": {}}
+{"timestamp": "2026-05-14T09:59:38.173006", "user": "BOB", "ip_address": "192.168.1.43", "amount": -85.95, "temperature": 24.86, "message": "  Test Message  ", "status": null, "unix_time": 1778732978}
+{"index": {}}
+{"timestamp": "2026-05-14T10:00:38.173006", "user": "ALICE", "ip_address": "192.168.1.44", "amount": -10.05, "temperature": -2.32, "message": "  Test Message  ", "status": "active", "unix_time": 1778733038}
+{"index": {}}
+{"timestamp": "2026-05-14T10:01:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.45", "amount": -5.85, "temperature": 35.73, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778733098}
+{"index": {}}
+{"timestamp": "2026-05-14T10:02:38.173006", "user": "ALICE", "ip_address": "192.168.1.46", "amount": -10.65, "temperature": 14.48, "message": "  Test Message  ", "status": "pending", "unix_time": 1778733158}
+{"index": {}}
+{"timestamp": "2026-05-14T10:03:38.173006", "user": "BOB", "ip_address": "192.168.1.47", "amount": -31.59, "temperature": 19.25, "message": "  Test Message  ", "status": null, "unix_time": 1778733218}
+{"index": {}}
+{"timestamp": "2026-05-14T10:04:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.48", "amount": 21.24, "temperature": 12.17, "message": "  Test Message  ", "status": "active", "unix_time": 1778733278}
+{"index": {}}
+{"timestamp": "2026-05-14T10:05:38.173006", "user": "ALICE", "ip_address": "192.168.1.49", "amount": 23.78, "temperature": 35.42, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778733338}
+{"index": {}}
+{"timestamp": "2026-05-14T10:06:38.173006", "user": "BOB", "ip_address": "192.168.1.50", "amount": 68.27, "temperature": -0.55, "message": "  Test Message  ", "status": "pending", "unix_time": 1778733398}
+{"index": {}}
+{"timestamp": "2026-05-14T10:07:38.173006", "user": "BOB", "ip_address": "192.168.1.51", "amount": -52.95, "temperature": 2.53, "message": "  Test Message  ", "status": null, "unix_time": 1778733458}
+{"index": {}}
+{"timestamp": "2026-05-14T10:08:38.173006", "user": "ALICE", "ip_address": "192.168.1.52", "amount": -68.31, "temperature": 31.0, "message": "  Test Message  ", "status": "active", "unix_time": 1778733518}
+{"index": {}}
+{"timestamp": "2026-05-14T10:09:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.53", "amount": -18.78, "temperature": -3.86, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778733578}
+{"index": {}}
+{"timestamp": "2026-05-14T10:10:38.173006", "user": "BOB", "ip_address": "192.168.1.54", "amount": -26.95, "temperature": 3.89, "message": "  Test Message  ", "status": "pending", "unix_time": 1778733638}
+{"index": {}}
+{"timestamp": "2026-05-14T10:11:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.55", "amount": -12.49, "temperature": 39.64, "message": "  Test Message  ", "status": null, "unix_time": 1778733698}
+{"index": {}}
+{"timestamp": "2026-05-14T10:12:38.173006", "user": "BOB", "ip_address": "192.168.1.56", "amount": -62.08, "temperature": 11.64, "message": "  Test Message  ", "status": "active", "unix_time": 1778733758}
+{"index": {}}
+{"timestamp": "2026-05-14T10:13:38.173006", "user": "ALICE", "ip_address": "192.168.1.57", "amount": -75.94, "temperature": 26.73, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778733818}
+{"index": {}}
+{"timestamp": "2026-05-14T10:14:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.58", "amount": 0.88, "temperature": 22.18, "message": "  Test Message  ", "status": "pending", "unix_time": 1778733878}
+{"index": {}}
+{"timestamp": "2026-05-14T10:15:38.173006", "user": "ALICE", "ip_address": "192.168.1.59", "amount": -78.05, "temperature": 1.98, "message": "  Test Message  ", "status": null, "unix_time": 1778733938}
+{"index": {}}
+{"timestamp": "2026-05-14T10:16:38.173006", "user": "BOB", "ip_address": "192.168.1.60", "amount": 31.4, "temperature": 32.93, "message": "  Test Message  ", "status": "active", "unix_time": 1778733998}
+{"index": {}}
+{"timestamp": "2026-05-14T10:17:38.173006", "user": "ALICE", "ip_address": "192.168.1.61", "amount": 34.26, "temperature": 6.58, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778734058}
+{"index": {}}
+{"timestamp": "2026-05-14T10:18:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.62", "amount": -32.88, "temperature": -2.31, "message": "  Test Message  ", "status": "pending", "unix_time": 1778734118}
+{"index": {}}
+{"timestamp": "2026-05-14T10:19:38.173006", "user": "ALICE", "ip_address": "192.168.1.63", "amount": -7.04, "temperature": 4.57, "message": "  Test Message  ", "status": null, "unix_time": 1778734178}
+{"index": {}}
+{"timestamp": "2026-05-14T10:20:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.64", "amount": 80.24, "temperature": 5.92, "message": "  Test Message  ", "status": "active", "unix_time": 1778734238}
+{"index": {}}
+{"timestamp": "2026-05-14T10:21:38.173006", "user": "BOB", "ip_address": "192.168.1.65", "amount": 46.41, "temperature": 1.84, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778734298}
+{"index": {}}
+{"timestamp": "2026-05-14T10:22:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.66", "amount": 90.09, "temperature": 28.28, "message": "  Test Message  ", "status": "pending", "unix_time": 1778734358}
+{"index": {}}
+{"timestamp": "2026-05-14T10:23:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.67", "amount": 91.48, "temperature": 33.27, "message": "  Test Message  ", "status": null, "unix_time": 1778734418}
+{"index": {}}
+{"timestamp": "2026-05-14T10:24:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.68", "amount": 5.79, "temperature": -8.23, "message": "  Test Message  ", "status": "active", "unix_time": 1778734478}
+{"index": {}}
+{"timestamp": "2026-05-14T10:25:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.69", "amount": 58.2, "temperature": 39.98, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778734538}
+{"index": {}}
+{"timestamp": "2026-05-14T10:26:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.70", "amount": -52.11, "temperature": 1.66, "message": "  Test Message  ", "status": "pending", "unix_time": 1778734598}
+{"index": {}}
+{"timestamp": "2026-05-14T10:27:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.71", "amount": 64.85, "temperature": 0.49, "message": "  Test Message  ", "status": null, "unix_time": 1778734658}
+{"index": {}}
+{"timestamp": "2026-05-14T10:28:38.173006", "user": "ALICE", "ip_address": "192.168.1.72", "amount": 47.36, "temperature": 6.98, "message": "  Test Message  ", "status": "active", "unix_time": 1778734718}
+{"index": {}}
+{"timestamp": "2026-05-14T10:29:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.73", "amount": 71.14, "temperature": 39.04, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778734778}
+{"index": {}}
+{"timestamp": "2026-05-14T10:30:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.74", "amount": 40.43, "temperature": 39.2, "message": "  Test Message  ", "status": "pending", "unix_time": 1778734838}
+{"index": {}}
+{"timestamp": "2026-05-14T10:31:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.75", "amount": 17.7, "temperature": 11.2, "message": "  Test Message  ", "status": null, "unix_time": 1778734898}
+{"index": {}}
+{"timestamp": "2026-05-14T10:32:38.173006", "user": "ALICE", "ip_address": "192.168.1.76", "amount": 15.51, "temperature": 37.92, "message": "  Test Message  ", "status": "active", "unix_time": 1778734958}
+{"index": {}}
+{"timestamp": "2026-05-14T10:33:38.173006", "user": "ALICE", "ip_address": "192.168.1.77", "amount": -92.98, "temperature": 9.89, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778735018}
+{"index": {}}
+{"timestamp": "2026-05-14T10:34:38.173006", "user": "BOB", "ip_address": "192.168.1.78", "amount": -28.04, "temperature": 28.85, "message": "  Test Message  ", "status": "pending", "unix_time": 1778735078}
+{"index": {}}
+{"timestamp": "2026-05-14T10:35:38.173006", "user": "BOB", "ip_address": "192.168.1.79", "amount": -1.13, "temperature": 4.76, "message": "  Test Message  ", "status": null, "unix_time": 1778735138}
+{"index": {}}
+{"timestamp": "2026-05-14T10:36:38.173006", "user": "ALICE", "ip_address": "192.168.1.80", "amount": -33.73, "temperature": -1.98, "message": "  Test Message  ", "status": "active", "unix_time": 1778735198}
+{"index": {}}
+{"timestamp": "2026-05-14T10:37:38.173006", "user": "BOB", "ip_address": "192.168.1.81", "amount": -88.31, "temperature": 24.06, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778735258}
+{"index": {}}
+{"timestamp": "2026-05-14T10:38:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.82", "amount": 76.17, "temperature": 18.79, "message": "  Test Message  ", "status": "pending", "unix_time": 1778735318}
+{"index": {}}
+{"timestamp": "2026-05-14T10:39:38.173006", "user": "ALICE", "ip_address": "192.168.1.83", "amount": -59.85, "temperature": 25.69, "message": "  Test Message  ", "status": null, "unix_time": 1778735378}
+{"index": {}}
+{"timestamp": "2026-05-14T10:40:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.84", "amount": 55.17, "temperature": 10.19, "message": "  Test Message  ", "status": "active", "unix_time": 1778735438}
+{"index": {}}
+{"timestamp": "2026-05-14T10:41:38.173006", "user": "BOB", "ip_address": "192.168.1.85", "amount": 19.78, "temperature": 26.13, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778735498}
+{"index": {}}
+{"timestamp": "2026-05-14T10:42:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.86", "amount": 25.89, "temperature": 11.57, "message": "  Test Message  ", "status": "pending", "unix_time": 1778735558}
+{"index": {}}
+{"timestamp": "2026-05-14T10:43:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.87", "amount": 51.84, "temperature": -4.57, "message": "  Test Message  ", "status": null, "unix_time": 1778735618}
+{"index": {}}
+{"timestamp": "2026-05-14T10:44:38.173006", "user": "BOB", "ip_address": "192.168.1.88", "amount": 74.84, "temperature": 34.03, "message": "  Test Message  ", "status": "active", "unix_time": 1778735678}
+{"index": {}}
+{"timestamp": "2026-05-14T10:45:38.173006", "user": "ALICE", "ip_address": "192.168.1.89", "amount": -44.38, "temperature": -7.62, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778735738}
+{"index": {}}
+{"timestamp": "2026-05-14T10:46:38.173006", "user": "BOB", "ip_address": "192.168.1.90", "amount": 58.18, "temperature": 31.39, "message": "  Test Message  ", "status": "pending", "unix_time": 1778735798}
+{"index": {}}
+{"timestamp": "2026-05-14T10:47:38.173006", "user": "ALICE", "ip_address": "192.168.1.91", "amount": 26.48, "temperature": 29.85, "message": "  Test Message  ", "status": null, "unix_time": 1778735858}
+{"index": {}}
+{"timestamp": "2026-05-14T10:48:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.92", "amount": 60.6, "temperature": 26.23, "message": "  Test Message  ", "status": "active", "unix_time": 1778735918}
+{"index": {}}
+{"timestamp": "2026-05-14T10:49:38.173006", "user": "BOB", "ip_address": "192.168.1.93", "amount": -39.68, "temperature": 7.43, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778735978}
+{"index": {}}
+{"timestamp": "2026-05-14T10:50:38.173006", "user": "ALICE", "ip_address": "192.168.1.94", "amount": -56.01, "temperature": 5.94, "message": "  Test Message  ", "status": "pending", "unix_time": 1778736038}
+{"index": {}}
+{"timestamp": "2026-05-14T10:51:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.95", "amount": -25.15, "temperature": 19.5, "message": "  Test Message  ", "status": null, "unix_time": 1778736098}
+{"index": {}}
+{"timestamp": "2026-05-14T10:52:38.173006", "user": "BOB", "ip_address": "192.168.1.96", "amount": -19.98, "temperature": 22.76, "message": "  Test Message  ", "status": "active", "unix_time": 1778736158}
+{"index": {}}
+{"timestamp": "2026-05-14T10:53:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.97", "amount": -36.81, "temperature": 30.6, "message": "  Test Message  ", "status": "inactive", "unix_time": 1778736218}
+{"index": {}}
+{"timestamp": "2026-05-14T10:54:38.173006", "user": "BOB", "ip_address": "192.168.1.98", "amount": -64.07, "temperature": 20.07, "message": "  Test Message  ", "status": "pending", "unix_time": 1778736278}
+{"index": {}}
+{"timestamp": "2026-05-14T10:55:38.173006", "user": "CHARLIE", "ip_address": "192.168.1.99", "amount": -34.85, "temperature": 23.41, "message": "  Test Message  ", "status": null, "unix_time": 1778736338}
+

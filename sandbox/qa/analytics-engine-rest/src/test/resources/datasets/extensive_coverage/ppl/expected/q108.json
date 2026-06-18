@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "is_blank",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "1",
+      "hello world test",
+      false
+    ],
+    [
+      "2",
+      "sample data entry",
+      false
+    ],
+    [
+      "3",
+      "test example record",
+      false
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

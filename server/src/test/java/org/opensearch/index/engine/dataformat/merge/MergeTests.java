@@ -11,6 +11,7 @@ package org.opensearch.index.engine.dataformat.merge;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
@@ -39,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
@@ -55,10 +57,11 @@ public class MergeTests extends OpenSearchTestCase {
 
     private final List<ExecutorService> executors = new CopyOnWriteArrayList<>();
 
-    private ExecutorService daemonPool() {
+    private ExecutorService daemonPool(String name) {
         ExecutorService pool = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r);
             t.setDaemon(true);
+            t.setName(name + "-" + t.threadId());
             return t;
         });
         executors.add(pool);
@@ -67,9 +70,35 @@ public class MergeTests extends OpenSearchTestCase {
 
     private ThreadPool mockThreadPool() {
         ThreadPool tp = mock(ThreadPool.class);
-        when(tp.executor(eq(ThreadPool.Names.MERGE))).thenReturn(daemonPool());
-        when(tp.executor(eq(ThreadPool.Names.FORCE_MERGE))).thenReturn(daemonPool());
+        when(tp.executor(eq(ThreadPool.Names.MERGE))).thenReturn(daemonPool(ThreadPool.Names.MERGE));
+        when(tp.executor(eq(ThreadPool.Names.FORCE_MERGE))).thenReturn(daemonPool(ThreadPool.Names.FORCE_MERGE));
         return tp;
+    }
+
+    /**
+     * Runs the given action on a thread whose name contains
+     * {@link ThreadPool.Names#FORCE_MERGE} to satisfy the forceMerge assertion.
+     */
+    private void onForceMergeThread(ThrowingRunnable action) throws Exception {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                action.run();
+            } catch (Exception e) {
+                failure.set(e);
+            }
+        }, ThreadPool.Names.FORCE_MERGE + "-test");
+        t.setDaemon(true);
+        t.start();
+        t.join(30_000);
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     @Override
@@ -104,7 +133,7 @@ public class MergeTests extends OpenSearchTestCase {
 
     private MergeHandler createNoopHandler(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier) {
         Merger noopMerger = mergeInput -> new MergeResult(Map.of());
-        return new MergeHandler(snapshotSupplier, noopMerger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER);
+        return new MergeHandler(snapshotSupplier, noopMerger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER, () -> 1L);
     }
 
     private MergeHandler createHandlerWithRealPolicy(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier, Merger merger) {
@@ -112,7 +141,7 @@ public class MergeTests extends OpenSearchTestCase {
             new IndexSettings(newIndexMeta("test", Settings.EMPTY), Settings.EMPTY).getMergePolicy(true),
             SHARD_ID
         );
-        return new MergeHandler(snapshotSupplier, merger, SHARD_ID, policy, policy);
+        return new MergeHandler(snapshotSupplier, merger, SHARD_ID, policy, policy, () -> 1L);
     }
 
     private static Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplierOf(List<Segment> segments) {
@@ -150,6 +179,7 @@ public class MergeTests extends OpenSearchTestCase {
         return new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mergeResult, oneMerge) -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
@@ -168,8 +198,8 @@ public class MergeTests extends OpenSearchTestCase {
     public void testOneMergeAggregatesDocCounts() {
         Path dir = createTempDir();
         MockDataFormat format = new MockDataFormat();
-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, 0L);
 
         Segment seg1 = Segment.builder(1L).addSearchableFiles(format, fs1).build();
         Segment seg2 = Segment.builder(2L).addSearchableFiles(format, fs2).build();
@@ -203,7 +233,7 @@ public class MergeTests extends OpenSearchTestCase {
         OneMerge merge = new OneMerge(Collections.emptyList());
         handler.registerMerge(merge);
         handler.findAndRegisterMerges();
-        handler.onMergeFinished(merge);
+        handler.onMergeFinished(merge, false);
         handler.onMergeFailure(merge);
     }
 
@@ -252,7 +282,7 @@ public class MergeTests extends OpenSearchTestCase {
         handler.registerMerge(merge);
         assertTrue(handler.hasPendingMerges());
 
-        handler.onMergeFinished(merge);
+        handler.onMergeFinished(merge, false);
         assertFalse(handler.hasPendingMerges());
     }
 
@@ -298,11 +328,24 @@ public class MergeTests extends OpenSearchTestCase {
     // ---- MergeHandler doMerge tests ----
 
     public void testDoMergeReturnsResult() throws IOException {
-        MergeResult expectedResult = new MergeResult(Map.of());
+        Path dir = createTempDir();
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10, 0L);
+        Segment seg = Segment.builder(1L).addSearchableFiles(format, inputWfs).build();
+
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10, 0L);
+        MergeResult expectedResult = new MergeResult(Map.of(format, mergedWfs));
         Merger merger = mergeInput -> expectedResult;
 
-        MergeHandler handler = new MergeHandler(emptySnapshotSupplier(), merger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER);
-        MergeResult result = handler.doMerge(new OneMerge(Collections.emptyList()));
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(seg)),
+            merger,
+            SHARD_ID,
+            NOOP_MERGE_POLICY,
+            NOOP_MERGE_LISTENER,
+            () -> 1L
+        );
+        MergeResult result = handler.doMerge(new OneMerge(List.of(seg)));
 
         assertSame(expectedResult, result);
     }
@@ -329,10 +372,10 @@ public class MergeTests extends OpenSearchTestCase {
         scheduler.refreshConfig();
     }
 
-    public void testSchedulerTriggerAndForceMerge() throws IOException {
+    public void testSchedulerTriggerAndForceMerge() throws Exception {
         MergeScheduler scheduler = createMergeScheduler();
         scheduler.triggerMerges();
-        scheduler.forceMerge(1);
+        onForceMergeThread(() -> scheduler.forceMerge(1));
     }
 
     @SuppressForbidden(reason = "test needs to set private isShutdown field via reflection")
@@ -358,6 +401,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mr, om) -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
@@ -370,7 +414,9 @@ public class MergeTests extends OpenSearchTestCase {
 
     public void testTriggerMergesExecutesMergeThread() throws Exception {
         List<Segment> segments = createSegments(15);
-        MergeResult mergeResult = new MergeResult(Map.of());
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15, 0L);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
         CountDownLatch latch = new CountDownLatch(1);
 
         Merger merger = mergeInput -> {
@@ -383,6 +429,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> captured.set(mr),
+            () -> {},
             SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
@@ -404,7 +451,14 @@ public class MergeTests extends OpenSearchTestCase {
         };
         MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
 
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
 
         scheduler.triggerMerges();
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -413,7 +467,9 @@ public class MergeTests extends OpenSearchTestCase {
 
     public void testForceMergeExecutesMerges() throws Exception {
         List<Segment> segments = createSegments(3);
-        MergeResult mergeResult = new MergeResult(Map.of());
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3, 0L);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
         CountDownLatch latch = new CountDownLatch(1);
 
         Merger merger = mergeInput -> mergeResult;
@@ -423,9 +479,9 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {
             captured.set(mr);
             latch.countDown();
-        }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        }, () -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
 
-        scheduler.forceMerge(1);
+        onForceMergeThread(() -> scheduler.forceMerge(1));
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(captured.get());
     }
@@ -439,5 +495,238 @@ public class MergeTests extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    // ---- MergeScheduler: forceMerge serialization and lifecycle tests ----
+
+    public void testForceMergeSerializesOnlyConcurrentCallers() throws Exception {
+        List<Segment> segments = createSegments(3);
+        CountDownLatch mergeStarted = new CountDownLatch(1);
+        CountDownLatch allowMergeToFinish = new CountDownLatch(1);
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3, 0L);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+
+        Merger slowMerger = mergeInput -> {
+            mergeStarted.countDown();
+            try {
+                allowMergeToFinish.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return mergeResult;
+        };
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), slowMerger);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
+
+        AtomicBoolean secondStarted = new AtomicBoolean(false);
+        AtomicBoolean secondFinished = new AtomicBoolean(false);
+
+        Thread t1 = new Thread(() -> {
+            try {
+                scheduler.forceMerge(1);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }, ThreadPool.Names.FORCE_MERGE + "-t1");
+
+        Thread t2 = new Thread(() -> {
+            try {
+                mergeStarted.await(5, TimeUnit.SECONDS);
+                secondStarted.set(true);
+                scheduler.forceMerge(1);
+                secondFinished.set(true);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, ThreadPool.Names.FORCE_MERGE + "-t2");
+
+        t1.start();
+        t2.start();
+
+        assertTrue(mergeStarted.await(5, TimeUnit.SECONDS));
+        Thread.sleep(200);
+        // Second caller should be blocked (not finished) while first is in progress
+        assertTrue(secondStarted.get());
+        assertFalse(secondFinished.get());
+
+        allowMergeToFinish.countDown();
+        t1.join(5000);
+        t2.join(5000);
+        assertTrue(secondFinished.get());
+    }
+
+    public void testForceMergeBlocksUntilComplete() throws Exception {
+        List<Segment> segments = createSegments(3);
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3, 0L);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+
+        Merger slowMerger = mergeInput -> {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return mergeResult;
+        };
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), slowMerger);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
+
+        long start = System.nanoTime();
+        onForceMergeThread(() -> scheduler.forceMerge(1));
+        long elapsed = TimeValue.nsecToMSec(System.nanoTime() - start);
+
+        assertTrue("forceMerge should block until complete, took " + elapsed + "ms", elapsed >= 150);
+    }
+
+    public void testForceMergePropagatesFailure() throws Exception {
+        List<Segment> segments = createSegments(3);
+
+        Merger failingMerger = mergeInput -> { throw new IOException("simulated merge failure"); };
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
+
+        AtomicReference<Exception> caught = new AtomicReference<>();
+        onForceMergeThread(() -> {
+            try {
+                scheduler.forceMerge(1);
+            } catch (IOException e) {
+                caught.set(e);
+            }
+        });
+        assertNotNull("Expected IOException from forceMerge", caught.get());
+        assertTrue(caught.get().getMessage().contains("simulated merge failure"));
+    }
+
+    public void testRunMergeInvokesCleanupOnFailure() throws Exception {
+        List<Segment> segments = createSegments(3);
+        AtomicBoolean cleanupCalled = new AtomicBoolean(false);
+
+        Merger failingMerger = mergeInput -> { throw new IOException("merge failure"); };
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> cleanupCalled.set(true),
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
+
+        // Use forceMerge which catches exceptions from runMerge properly
+        onForceMergeThread(() -> {
+            try {
+                scheduler.forceMerge(1);
+            } catch (IOException expected) {
+                // expected
+            }
+        });
+        assertTrue("onMergeFailureCleanup should be called", cleanupCalled.get());
+    }
+
+    public void testRunMergeInvokesApplyOnSuccess() throws Exception {
+        List<Segment> segments = createSegments(3);
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3, 0L);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+        AtomicReference<MergeResult> capturedResult = new AtomicReference<>();
+
+        Merger merger = mergeInput -> mergeResult;
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), merger);
+
+        BiConsumer<MergeResult, OneMerge> applyCallback = (mr, om) -> capturedResult.set(mr);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            applyCallback,
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
+
+        onForceMergeThread(() -> scheduler.forceMerge(1));
+        assertSame(mergeResult, capturedResult.get());
+    }
+
+    public void testForceMergeWithNoSegmentsIsNoop() throws Exception {
+        MergeScheduler scheduler = new MergeScheduler(createNoopHandler(emptySnapshotSupplier()), (mr, om) -> {
+            fail("applyMergeChanges should not be called");
+        }, () -> { fail("onMergeFailureCleanup should not be called"); }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+
+        onForceMergeThread(() -> scheduler.forceMerge(1));
+    }
+
+    public void testConcurrentForceMergeAndBackgroundMerge() throws Exception {
+        List<Segment> segments = createSegments(15);
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15, 0L);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+
+        Merger merger = mergeInput -> mergeResult;
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), merger);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
+
+        AtomicReference<Exception> forceMergeError = new AtomicReference<>();
+        AtomicReference<Exception> triggerError = new AtomicReference<>();
+
+        Thread forceMergeThread = new Thread(() -> {
+            try {
+                scheduler.forceMerge(1);
+            } catch (Exception e) {
+                forceMergeError.set(e);
+            }
+        }, ThreadPool.Names.FORCE_MERGE + "-test");
+
+        Thread triggerThread = new Thread(() -> {
+            try {
+                scheduler.triggerMerges();
+            } catch (Exception e) {
+                triggerError.set(e);
+            }
+        });
+
+        forceMergeThread.start();
+        triggerThread.start();
+
+        forceMergeThread.join(10000);
+        triggerThread.join(10000);
+
+        assertNull("forceMerge should complete without error", forceMergeError.get());
+        assertNull("triggerMerges should complete without error", triggerError.get());
     }
 }

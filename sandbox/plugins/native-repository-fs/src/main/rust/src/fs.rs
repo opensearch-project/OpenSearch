@@ -34,7 +34,7 @@ pub fn build(
 mod tests {
     use super::*;
     use object_store::path::Path;
-    use object_store::PutPayload;
+    use object_store::{ObjectStoreExt, PutPayload};
     use futures::TryStreamExt;
 
     #[test]

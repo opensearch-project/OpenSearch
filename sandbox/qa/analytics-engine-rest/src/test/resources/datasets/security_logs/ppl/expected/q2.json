@@ -1,0 +1,64 @@
+{
+  "schema": [
+    {
+      "name": "incident_count",
+      "type": "bigint"
+    },
+    {
+      "name": "actions",
+      "type": "array"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "source_ip",
+      "type": "ip"
+    }
+  ],
+  "datarows": [
+    [
+      5,
+      [
+        "blocked",
+        "denied",
+        "rejected"
+      ],
+      "bwilson",
+      "10.0.0.200"
+    ],
+    [
+      5,
+      [
+        "blocked",
+        "denied",
+        "rejected"
+      ],
+      "asmith",
+      "10.0.0.200"
+    ],
+    [
+      5,
+      [
+        "blocked",
+        "denied",
+        "rejected"
+      ],
+      "bwilson",
+      "192.168.1.200"
+    ],
+    [
+      5,
+      [
+        "blocked",
+        "denied",
+        "rejected"
+      ],
+      "asmith",
+      "192.168.1.200"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

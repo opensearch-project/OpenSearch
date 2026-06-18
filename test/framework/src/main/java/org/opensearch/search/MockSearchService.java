@@ -44,6 +44,7 @@ import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -99,7 +100,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        WorkloadGroupService workloadGroupService
     ) {
         super(
             clusterService,
@@ -114,7 +116,8 @@ public class MockSearchService extends SearchService {
             indexSearcherExecutor,
             taskResourceTrackingService,
             Collections.emptyList(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            workloadGroupService
         );
     }
 

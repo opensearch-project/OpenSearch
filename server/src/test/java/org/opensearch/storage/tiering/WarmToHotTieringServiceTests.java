@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -28,6 +29,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule.TieringState;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -111,18 +113,64 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    public void testGetTieringStartSettingsToAdd() {
-        Settings settings = service.getTieringStartSettingsToAdd();
+    public void testGetTieringStartSettingsToAdd_DfaIndex() {
+        Settings settings = service.getTieringStartSettingsToAdd(buildDfaIndexMetadata());
         assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(WARM_TO_HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals("default", settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
+        assertEquals("false", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
     }
 
-    public void testGetIndexTierSettingsToRestoreAfterCancellation() {
-        Settings settings = service.getIndexTierSettingsToRestoreAfterCancellation();
+    public void testGetTieringStartSettingsToAdd_NonDfaIndex_NoWriteBlockSetting() {
+        Settings settings = service.getTieringStartSettingsToAdd(buildNonDfaIndexMetadata());
+        assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
+        assertEquals(WARM_TO_HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
+        assertNull(
+            "blocks.write must NOT be set for non-DFA on W2H start",
+            settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
+        );
+    }
+
+    public void testGetIndexTierSettingsToRestoreAfterCancellation_DfaIndex() {
+        Settings settings = service.getIndexTierSettingsToRestoreAfterCancellation(buildDfaIndexMetadata());
         assertEquals("true", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(TieringState.WARM.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals(TIERED_COMPOSITE_INDEX_TYPE, settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
+        assertEquals("true", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+    }
+
+    public void testGetIndexTierSettingsToRestoreAfterCancellation_NonDfaIndex_NoWriteBlockSetting() {
+        Settings settings = service.getIndexTierSettingsToRestoreAfterCancellation(buildNonDfaIndexMetadata());
+        assertEquals("true", settings.get(IS_WARM_INDEX_SETTING.getKey()));
+        assertEquals(TieringState.WARM.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
+        assertNull(
+            "blocks.write must NOT be set for non-DFA on W2H cancel — would wrongly lock a non-DFA index",
+            settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
+        );
+    }
+
+    public void testGetTieringStartClusterBlocksToAdd_RemovesWriteBlock() {
+        // W2H tiering start: index transitions to hot → remove write block
+        String indexName = "test-index";
+        ClusterBlocks.Builder builder = ClusterBlocks.builder().addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+
+        ClusterBlocks result = service.getTieringStartClusterBlocksToAdd(builder, indexName, buildDfaIndexMetadata()).build();
+
+        assertFalse(
+            "INDEX_WRITE_BLOCK must be removed when W2H tiering starts",
+            result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+        );
+    }
+
+    public void testGetIndexTierClusterBlocksToRestoreAfterCancellation_AddsWriteBlock() {
+        // W2H cancel: index goes back to warm → restore write block
+        String indexName = "test-index";
+        ClusterBlocks.Builder builder = ClusterBlocks.builder();
+
+        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName, buildDfaIndexMetadata())
+            .build();
+
+        assertTrue("INDEX_WRITE_BLOCK must be restored after W2H cancel", result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
     }
 
     public void testGetTieringStartTimeKey() {
@@ -173,6 +221,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
 
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.iterator()).thenReturn(Collections.emptyIterator());
 
         service.tieringIndices.add(testIndex);
         service.clusterChanged(event);
@@ -208,6 +257,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.index(testIndex)).thenReturn(indexMetadata);
+        when(metadata.iterator()).thenReturn(Collections.emptyIterator());
 
         service.tieringIndices.add(testIndex);
         service.clusterChanged(event);
@@ -289,6 +339,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.index(testIndex)).thenReturn(indexMetadata);
+        when(metadata.iterator()).thenReturn(Collections.emptyIterator());
 
         service.tieringIndices.add(testIndex);
         service.clusterChanged(event);
@@ -303,6 +354,35 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         when(shard.currentNodeId()).thenReturn(nodeId);
         when(shard.started()).thenReturn(started);
         return shard;
+    }
+
+    private IndexMetadata buildDfaIndexMetadata() {
+        return IndexMetadata.builder("test-dfa")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "dfa-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+    }
+
+    private IndexMetadata buildNonDfaIndexMetadata() {
+        return IndexMetadata.builder("test-non-dfa")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "non-dfa-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
     }
 
     private IndexMetadata createIndexMetadata(String name, String tieringState) {

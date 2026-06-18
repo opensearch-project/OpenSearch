@@ -624,7 +624,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
         assert indicesService != null;
         final IndexShard indexShard = indicesService.getShardOrNull(shardId);
         // Proceed with round of segment replication only when it is allowed
-        if (indexShard == null || indexShard.getReplicationEngine().isEmpty()) {
+        if (indexShard == null || indexShard.isReplicationTarget() == false) {
             listener.onResponse(TransportResponse.Empty.INSTANCE);
         } else {
             // We are skipping any validation for an incoming checkpoint, use the shard's latest checkpoint in the target.

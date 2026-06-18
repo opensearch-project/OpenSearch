@@ -139,6 +139,70 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         sink.close();
     }
 
+    // ─── Row-limit truncation (PR 6) ─────────────────────────────────────
+
+    /**
+     * Once {@code totalRows} reaches {@code maxRows}, further batches are dropped (and closed)
+     * rather than rejected — the sink truncates the result set instead of throwing, so a query
+     * exceeding the limit returns a capped result rather than failing the whole request.
+     */
+    public void testFeedTruncatesAtMaxRowsInsteadOfThrowing() {
+        RowProducingSink sink = new RowProducingSink(2);
+
+        VectorSchemaRoot r1 = makeVsr(List.of("id"), new Object[][] { { "1" }, { "2" } });
+        VectorSchemaRoot r2 = makeVsr(List.of("id"), new Object[][] { { "3" } });
+        VectorSchemaRoot r3 = makeVsr(List.of("id"), new Object[][] { { "4" } });
+
+        sink.feed(r1); // totalRows = 2, reaches the limit
+        sink.feed(r2); // totalRows >= maxRows → dropped + closed, no throw
+        sink.feed(r3); // dropped + closed
+
+        assertEquals("result is capped at maxRows", 2, sink.getRowCount());
+        Iterator<VectorSchemaRoot> it = sink.readResult().iterator();
+        assertSame("only the pre-limit batch is retained", r1, it.next());
+        assertFalse("over-limit batches are not buffered", it.hasNext());
+
+        sink.close();
+    }
+
+    /**
+     * The accepting batch may overshoot {@code maxRows} (the check is "stop once at/over the
+     * limit", evaluated before each batch) — but the next batch is then dropped. This pins the
+     * exact boundary semantics so a future refactor can't silently change them.
+     */
+    public void testFeedAcceptsBatchThatCrossesLimitThenStops() {
+        RowProducingSink sink = new RowProducingSink(2);
+
+        VectorSchemaRoot r1 = makeVsr(List.of("id"), new Object[][] { { "1" }, { "2" }, { "3" } });
+        VectorSchemaRoot r2 = makeVsr(List.of("id"), new Object[][] { { "4" } });
+
+        sink.feed(r1); // totalRows was 0 (< 2) → accepted whole, totalRows = 3 (overshoots)
+        sink.feed(r2); // totalRows 3 >= 2 → dropped
+
+        assertEquals("the crossing batch is accepted in full", 3, sink.getRowCount());
+        Iterator<VectorSchemaRoot> it = sink.readResult().iterator();
+        assertSame(r1, it.next());
+        assertFalse(it.hasNext());
+
+        sink.close();
+    }
+
+    /**
+     * {@code maxRows = Long.MAX_VALUE} disables the cap — every batch is retained.
+     */
+    public void testUnlimitedSinkRetainsAllBatches() {
+        RowProducingSink sink = new RowProducingSink(Long.MAX_VALUE);
+
+        VectorSchemaRoot r1 = makeVsr(List.of("id"), new Object[][] { { "1" } });
+        VectorSchemaRoot r2 = makeVsr(List.of("id"), new Object[][] { { "2" } });
+
+        sink.feed(r1);
+        sink.feed(r2);
+
+        assertEquals(2, sink.getRowCount());
+        sink.close();
+    }
+
     // ─── Helpers ────────────────────────────────────────────────────────
 
     private VectorSchemaRoot makeVsr(List<String> fieldNames, Object[][] rows) {

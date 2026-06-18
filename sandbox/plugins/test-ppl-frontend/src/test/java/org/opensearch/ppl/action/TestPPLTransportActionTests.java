@@ -11,6 +11,8 @@ package org.opensearch.ppl.action;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -36,33 +38,54 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
 
     private UnifiedQueryService mockUnifiedQueryService;
     private TestPPLTransportAction action;
+    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         mockUnifiedQueryService = mock(UnifiedQueryService.class);
+        threadPool = new TestThreadPool(getTestName());
 
         action = new TestPPLTransportAction(
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
-            mockUnifiedQueryService
+            mockUnifiedQueryService,
+            threadPool
         );
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        ThreadPool.terminate(threadPool, 10, java.util.concurrent.TimeUnit.SECONDS);
+        super.tearDown();
     }
 
     /**
      * Success path: {@code unifiedQueryService.execute()} returns a response →
      * {@code listener.onResponse()} is called with that response.
      */
-    public void testSuccessPathCallsOnResponse() {
+    public void testSuccessPathCallsOnResponse() throws Exception {
         List<Object[]> rows = new ArrayList<>();
         rows.add(new Object[] { "server-1", 200 });
         PPLResponse expectedResponse = new PPLResponse(List.of("host", "status"), rows);
         when(mockUnifiedQueryService.execute("source=logs")).thenReturn(expectedResponse);
 
-        ActionListener<PPLResponse> listener = mock(ActionListener.class);
+        AtomicReference<PPLResponse> captured = new AtomicReference<>();
+        ActionListener<PPLResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(PPLResponse r) {
+                captured.set(r);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Should not fail: " + e.getMessage());
+            }
+        };
         action.execute(null, new PPLRequest("source=logs"), listener);
 
-        verify(listener).onResponse(expectedResponse);
+        assertBusy(() -> assertNotNull("onResponse should be called", captured.get()));
+        assertSame(expectedResponse, captured.get());
         verify(mockUnifiedQueryService).execute("source=logs");
     }
 
@@ -70,21 +93,33 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
      * Failure path: {@code unifiedQueryService.execute()} throws →
      * {@code listener.onFailure()} is called with the exception.
      */
-    public void testFailurePathCallsOnFailure() {
+    public void testFailurePathCallsOnFailure() throws Exception {
         RuntimeException expectedException = new RuntimeException("PPL execution failed");
         when(mockUnifiedQueryService.execute(any(String.class))).thenThrow(expectedException);
 
-        ActionListener<PPLResponse> listener = mock(ActionListener.class);
+        AtomicReference<Exception> captured = new AtomicReference<>();
+        ActionListener<PPLResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(PPLResponse r) {
+                fail("Should not succeed");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                captured.set(e);
+            }
+        };
         action.execute(null, new PPLRequest("invalid query"), listener);
 
-        verify(listener).onFailure(expectedException);
+        assertBusy(() -> assertNotNull("onFailure should be called", captured.get()));
+        assertSame(expectedException, captured.get());
         verify(mockUnifiedQueryService).execute("invalid query");
     }
 
     /**
      * Exactly-one-callback on success: only {@code onResponse} is called, never {@code onFailure}.
      */
-    public void testExactlyOneCallbackOnSuccess() {
+    public void testExactlyOneCallbackOnSuccess() throws Exception {
         PPLResponse response = new PPLResponse(Collections.emptyList(), Collections.emptyList());
         when(mockUnifiedQueryService.execute(any(String.class))).thenReturn(response);
 
@@ -105,14 +140,14 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
 
         action.execute(null, new PPLRequest("source=test"), listener);
 
-        assertEquals("onResponse should be called exactly once", 1, responseCount.get());
+        assertBusy(() -> assertEquals("onResponse should be called exactly once", 1, responseCount.get()));
         assertEquals("onFailure should not be called", 0, failureCount.get());
     }
 
     /**
      * Exactly-one-callback on failure: only {@code onFailure} is called, never {@code onResponse}.
      */
-    public void testExactlyOneCallbackOnFailure() {
+    public void testExactlyOneCallbackOnFailure() throws Exception {
         when(mockUnifiedQueryService.execute(any(String.class))).thenThrow(new RuntimeException("fail"));
 
         AtomicInteger responseCount = new AtomicInteger(0);
@@ -134,8 +169,8 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
 
         action.execute(null, new PPLRequest("source=test"), listener);
 
+        assertBusy(() -> assertEquals("onFailure should be called exactly once", 1, failureCount.get()));
         assertEquals("onResponse should not be called", 0, responseCount.get());
-        assertEquals("onFailure should be called exactly once", 1, failureCount.get());
         assertNotNull("Exception should be captured", capturedError.get());
     }
 
@@ -143,13 +178,25 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
      * Verify that the correct PPL text is forwarded to
      * {@code unifiedQueryService.execute()}.
      */
-    public void testCorrectArgumentsPassedToUnifiedQueryService() {
+    public void testCorrectArgumentsPassedToUnifiedQueryService() throws Exception {
         PPLResponse response = new PPLResponse(Collections.emptyList(), Collections.emptyList());
         when(mockUnifiedQueryService.execute(any(String.class))).thenReturn(response);
 
-        ActionListener<PPLResponse> listener = mock(ActionListener.class);
+        AtomicReference<PPLResponse> captured = new AtomicReference<>();
+        ActionListener<PPLResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(PPLResponse r) {
+                captured.set(r);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Should not fail");
+            }
+        };
         action.execute(null, new PPLRequest("source=metrics | where status=500"), listener);
 
+        assertBusy(() -> assertNotNull(captured.get()));
         verify(mockUnifiedQueryService).execute("source=metrics | where status=500");
         verifyNoMoreInteractions(mockUnifiedQueryService);
     }

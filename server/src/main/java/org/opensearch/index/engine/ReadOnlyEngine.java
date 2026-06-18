@@ -46,6 +46,8 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
@@ -451,6 +453,12 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
         return acquireLastIndexCommit(false);
+    }
+
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() {
+        store.incRef();
+        return new GatedCloseable<>(new SegmentInfosCatalogSnapshot(lastCommittedSegmentInfos), store::decRef);
     }
 
     @Override

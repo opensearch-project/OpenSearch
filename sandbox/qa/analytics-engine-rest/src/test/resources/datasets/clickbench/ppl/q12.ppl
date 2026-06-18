@@ -1,0 +1,1 @@
+source = clickbench | where MobilePhoneModel != '' | stats dc(UserID) as u by MobilePhone, MobilePhoneModel | sort - u | head 10

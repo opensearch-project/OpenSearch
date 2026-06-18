@@ -10,9 +10,11 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
@@ -23,6 +25,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
@@ -51,12 +54,13 @@ public class CatalogSnapshotManager implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(CatalogSnapshotManager.class);
 
-    private volatile CatalogSnapshot latestCatalogSnapshot;
+    private volatile DataformatAwareCatalogSnapshot latestCatalogSnapshot;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap = new ConcurrentHashMap<>();
     private final IndexFileDeleter indexFileDeleter;
     private final CatalogSnapshotDeletionPolicy deletionPolicy;
     private final List<CatalogSnapshotLifecycleListener> snapshotListeners;
+    private final CheckedFunction<CatalogSnapshot, byte[], IOException> snapshotSerializer;
 
     /**
      * Creates a new {@link DataformatAwareCatalogSnapshot} for use in tests.
@@ -86,7 +90,7 @@ public class CatalogSnapshotManager implements Closeable {
      *
      * @param committedSnapshots   the committed snapshots, ordered oldest first; must not be empty
      * @param deletionPolicy       decides which committed snapshots to keep
-     * @param fileDeleters         per-format deleters for actual file deletion
+     * @param fileDeleter          per-format deleters for actual file deletion
      * @param filesListeners       per-format listeners notified on file add/delete
      * @param snapshotListeners    listeners notified on snapshot deletion
      * @param shardPath            for orphan cleanup on init, or null if not needed
@@ -95,7 +99,7 @@ public class CatalogSnapshotManager implements Closeable {
     public CatalogSnapshotManager(
         List<CatalogSnapshot> committedSnapshots,
         CatalogSnapshotDeletionPolicy deletionPolicy,
-        Map<String, FileDeleter> fileDeleters,
+        FileDeleter fileDeleter,
         Map<String, FilesListener> filesListeners,
         List<CatalogSnapshotLifecycleListener> snapshotListeners,
         ShardPath shardPath,
@@ -106,18 +110,34 @@ public class CatalogSnapshotManager implements Closeable {
         }
         this.deletionPolicy = deletionPolicy;
         this.snapshotListeners = snapshotListeners;
-        this.latestCatalogSnapshot = committedSnapshots.getLast();
+        this.latestCatalogSnapshot = (DataformatAwareCatalogSnapshot) committedSnapshots.getLast();
         for (CatalogSnapshot cs : committedSnapshots) {
-            catalogSnapshotMap.put(cs.getGeneration(), cs);
+            catalogSnapshotMap.put(cs.getId(), cs);
         }
         this.indexFileDeleter = new IndexFileDeleter(
             deletionPolicy,
-            fileDeleters,
+            fileDeleter,
             filesListeners,
             committedSnapshots,
             shardPath,
-            commitFileManager
+            commitFileManager,
+            this::onSnapshotDeleted
         );
+        this.snapshotSerializer = commitFileManager::serializeToCommitFormat;
+
+        // Notify listeners about the committed snapshot so reader managers
+        // are initialized on engine open.
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.afterRefresh(true, latestCatalogSnapshot);
+        }
+    }
+
+    /**
+     * Serializes the given {@link CatalogSnapshot} using the registered
+     * {@link org.opensearch.index.engine.exec.CommitFileManager#serializeToCommitFormat}.
+     */
+    public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
+        return snapshotSerializer.apply(catalogSnapshot);
     }
 
     /**
@@ -126,14 +146,29 @@ public class CatalogSnapshotManager implements Closeable {
      *
      * @param mergeResult the result of the merge containing the merged writer file set
      * @param oneMerge    the merge specification identifying which segments were merged
+     * @return the newly created merged {@link Segment}
      * @throws IOException if committing the new snapshot fails
      */
-    public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) throws IOException {
+    public synchronized Segment applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) throws IOException {
 
         List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
 
         Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
         Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
+
+        // All source segments must exist in the current snapshot
+        assert segmentList.containsAll(segmentsToRemove) : "merge source segments must all exist in the current catalog snapshot";
+
+        // Merged segment generation must not collide with any segment that will be retained
+        assert segmentList.stream()
+            .filter(s -> segmentsToRemove.contains(s) == false)
+            .noneMatch(s -> s.generation() == segmentToAdd.generation()) : "merged segment generation ["
+                + segmentToAdd.generation()
+                + "] collides with a retained segment generation";
+
+        // Row count conservation: merged output must have the same total rows as the inputs
+        assert assertRowCountConservation(segmentsToRemove, segmentToAdd)
+            : "merged segment row count must equal sum of source segment row counts";
 
         boolean inserted = false;
         int newSegIdx = 0;
@@ -166,6 +201,7 @@ public class CatalogSnapshotManager implements Closeable {
 
         // Commit new catalog snapshot
         commitNewSnapshot(segmentList);
+        return segmentToAdd;
     }
 
     // ---- Refresh path ----
@@ -178,30 +214,168 @@ public class CatalogSnapshotManager implements Closeable {
      *
      * @param refreshedSegments the segments produced by the latest refresh
      */
-    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) {
+    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) throws IOException {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
 
-        // Snapshot generation must advance monotonically — this is the ordering guarantee
-        // that readers and the commit path depend on
-        long prevGen = latestCatalogSnapshot.getGeneration();
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
+        }
+
+        DataformatAwareCatalogSnapshot newSnapshot;
+        try {
+            newSnapshot = new DataformatAwareCatalogSnapshot(
+                latestCatalogSnapshot.getId() + 1,
+                latestCatalogSnapshot.getGeneration() + 1,
+                latestCatalogSnapshot.getVersion() + 1,  // New changes so this version is changed.
+                refreshedSegments,
+                latestCatalogSnapshot.getLastWriterGeneration() + 1,
+                latestCatalogSnapshot.getUserData(),
+                latestCatalogSnapshot.getLastCommitFileName(),
+                latestCatalogSnapshot.getLastCommitGeneration(),
+                latestCatalogSnapshot.getCommitDataFormatVersion()
+            );
+            newSnapshot.setReplicatingCommitData(latestCatalogSnapshot.getReplicatingCommitData());
+        } catch (Exception e) {
+            // Construction failed (e.g., OOM) — notify listeners that the refresh did not produce a new snapshot
+            // so they can reset any state prepared in beforeRefresh
+            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+                try {
+                    listener.afterRefresh(false, null);
+                } catch (Exception suppressed) {
+                    e.addSuppressed(suppressed);
+                }
+            }
+            throw e;
+        }
+
+        // Segment generation uniqueness: a generation that appeared in a previous snapshot
+        // must not reappear with different files. This prevents generation overlap bugs
+        // where a merge output reuses a writer generation, causing file identity confusion.
+        assert assertSegmentGenerationFileConsistency(refreshedSegments)
+            : "segment generation-to-file mapping is inconsistent with previous snapshots";
+
+        // No duplicate generations within the same snapshot
+        assert refreshedSegments.stream().map(Segment::generation).distinct().count() == refreshedSegments.size()
+            : "refreshed segments contain duplicate generations";
+
+        // Every segment must have at least one format with files
+        assert refreshedSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().isEmpty() == false)
+            : "every segment must have at least one format's files";
+
+        // Every WriterFileSet in every segment must have a positive row count
+        assert refreshedSegments.stream().flatMap(s -> s.dfGroupedSearchableFiles().values().stream()).allMatch(wfs -> wfs.numRows() > 0)
+            : "every WriterFileSet must have a positive row count";
+
+        // Cross-format per-segment row-count parity: within a single segment, every
+        // format's WriterFileSet must report the same row count. This is the invariant
+        // that downstream segment-ord translation relies on (e.g. Rust's parquet
+        // segment_ord → Lucene leaf index mapping asserts that the leaf's maxDoc
+        // equals the catalog segment's per-format row count). A mismatch here means
+        // one of the writers dropped or duplicated rows during a single refresh —
+        // exactly the class of bug that silently produced different match/LIKE
+        // counts at query time.
+        assert assertPerSegmentCrossFormatRowCountParity(refreshedSegments) : "per-segment row count must be equal across all formats";
+        installSnapshot(newSnapshot);
+    }
+
+    /**
+     * Replaces the current snapshot with one received from the primary via segment replication.
+     * Replica-only: does not fire beforeRefresh/afterRefresh since the catalog snapshot
+     * should only become visible after readers are notified by the engine. Idempotent —
+     * a resend of the same (or older) generation is a no-op.
+     */
+    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) throws IOException {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
+        }
+
+        // Generation, id and commit file details are local to the replica.
+        // We should honor the state management within CatalogSnapshotManager to ensure these values
+        // honor the associated invariants (e.g. increasing generaiton)
+        // Primary may switch and come up with an older segment infos while replica may be ahead in
+        // the commit it manages.
+        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1, // Increase this as this is always unique
+            latestCatalogSnapshot.getGeneration() + 1, //
+            incoming.getVersion(), // Honor the version from incoming. As replication would check this for changes.
+            incoming.getSegments(),
+            latestCatalogSnapshot.getLastWriterGeneration() + 1, // Not needed, can be removed.
+            incoming.getUserData(),
+            latestCatalogSnapshot.getLastCommitFileName(),
+            latestCatalogSnapshot.getLastCommitGeneration(),
+            latestCatalogSnapshot.getCommitDataFormatVersion()
+        );
+        newSnapshot.setReplicatingCommitData(((DataformatAwareCatalogSnapshot) incoming).getReplicatingCommitData());
+
+        installSnapshot(newSnapshot);
+    }
+
+    /**
+     * Advances the catalog generation
+     */
+    public synchronized void bumpGeneration() throws IOException {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
+        }
 
         DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
-            latestCatalogSnapshot.getId() + 1,
-            latestCatalogSnapshot.getGeneration() + 1,
-            latestCatalogSnapshot.getVersion(),
-            refreshedSegments,
+            latestCatalogSnapshot.getId() + 1,  // This is unique for each catalog snapshot managed by this manager.
+            latestCatalogSnapshot.getGeneration() + 1, // This is for commit generation tracking. So this should increase as well. Handles
+                                                       // force flush cases
+            latestCatalogSnapshot.getVersion(), // This increases if there is an actual change in the snapshot.
+            latestCatalogSnapshot.getSegments(),
             latestCatalogSnapshot.getLastWriterGeneration() + 1,
-            latestCatalogSnapshot.getUserData()
+            latestCatalogSnapshot.getUserData(),
+            latestCatalogSnapshot.getLastCommitFileName(),
+            latestCatalogSnapshot.getLastCommitGeneration(),
+            latestCatalogSnapshot.getCommitDataFormatVersion()
         );
 
+        // Carry forward the primary's replicated SegmentInfos; same segment set, so it still applies.
+        newSnapshot.setReplicatingCommitData(latestCatalogSnapshot.getReplicatingCommitData());
+
+        installSnapshot(newSnapshot);
+    }
+
+    /**
+     * Updates the latest catalog snapshot with commit metadata from a successful flush.
+     * Called by the engine after {@link org.opensearch.index.engine.exec.commit.Committer#commit}
+     * returns a non-null result, recording the segments file name, Lucene generation, and
+     * data format version so that replicas and recovery can identify the commit point.
+     *
+     * @param commitResult the result of the commit containing the segments_N filename, generation, and format version
+     */
+    public synchronized void updateLastCommitInfo(CommitResult commitResult) {
+        latestCatalogSnapshot.setLastCommitInfo(
+            commitResult.commitFileName(),
+            commitResult.generation(),
+            commitResult.commitDataFormatVersion()
+        );
+    }
+
+    /**
+     * Validates snapshot invariants, registers file references, notifies listeners, and swaps
+     * the snapshot as latest. Shared by commitNewSnapshot and applyReplicationSnapshot.
+     */
+    private void installSnapshot(DataformatAwareCatalogSnapshot newSnapshot) throws IOException {
+
         // New snapshot generation must be strictly greater than the previous
-        assert newSnapshot.getGeneration() > prevGen : "new snapshot generation ["
+        assert newSnapshot.getGeneration() > latestCatalogSnapshot.getGeneration() : "new snapshot generation ["
             + newSnapshot.getGeneration()
             + "] must be > previous ["
-            + prevGen
+            + latestCatalogSnapshot.getGeneration()
             + "]";
+
         // New snapshot ID must be strictly greater than the previous
         assert newSnapshot.getId() > latestCatalogSnapshot.getId() : "new snapshot ID ["
             + newSnapshot.getId()
@@ -209,17 +383,57 @@ public class CatalogSnapshotManager implements Closeable {
             + latestCatalogSnapshot.getId()
             + "]";
 
+        // Register file references BEFORE notifying listeners and swapping the snapshot.
+        // This ensures that if addFileReferences fails, no listener has been told about
+        // the new snapshot and no state has been mutated.
         try {
             indexFileDeleter.addFileReferences(newSnapshot);
         } catch (IOException e) {
+            // File reference registration failed — notify listeners that refresh did not complete
+            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+                try {
+                    listener.afterRefresh(false, null);
+                } catch (Exception suppressed) {
+                    e.addSuppressed(suppressed);
+                }
+            }
             throw new RuntimeException("Failed to add file references for snapshot [gen=" + newSnapshot.getGeneration() + "]", e);
         }
+
+        // Now notify listeners — file references are already registered, so even if a listener
+        // fails, the files are tracked and will be cleaned up when the snapshot is deleted.
+        List<CatalogSnapshotLifecycleListener> notified = new ArrayList<>();
+        try {
+            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+                listener.afterRefresh(true, newSnapshot);
+                notified.add(listener);
+            }
+        } catch (Exception ex) {
+            // A listener failed after file references were registered. The snapshot is tracked
+            // by the file deleter but was never made visible as latestCatalogSnapshot.
+            // Notify already-notified listeners that the snapshot is being discarded.
+            for (CatalogSnapshotLifecycleListener listener : notified) {
+                try {
+                    listener.onDeleted(newSnapshot);
+                } catch (Exception suppressed) {
+                    ex.addSuppressed(suppressed);
+                }
+            }
+            // Remove file references since the snapshot will never be used
+            try {
+                indexFileDeleter.removeFileReferences(newSnapshot);
+            } catch (IOException suppressed) {
+                ex.addSuppressed(suppressed);
+            }
+            throw ex;
+        }
+
         catalogSnapshotMap.put(newSnapshot.getGeneration(), newSnapshot);
 
-        CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
+        DataformatAwareCatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         latestCatalogSnapshot = newSnapshot;
 
-        logger.trace("New Catalog Snapshot created: {}", latestCatalogSnapshot);
+        logger.debug("New Catalog Snapshot created: {}", latestCatalogSnapshot);
 
         // Release the manager's own reference to the old snapshot.
         // The snapshot won't be deleted if the commit path still holds a reference.
@@ -239,10 +453,7 @@ public class CatalogSnapshotManager implements Closeable {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
-        final CatalogSnapshot snapshot = latestCatalogSnapshot;
-        if (snapshot.tryIncRef() == false) {
-            throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
-        }
+        final CatalogSnapshot snapshot = acquireLatestSnapshot();
         return new GatedCloseable<>(snapshot, () -> decRefAndMaybeDelete(snapshot));
     }
 
@@ -263,17 +474,26 @@ public class CatalogSnapshotManager implements Closeable {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
-        final CatalogSnapshot snapshot = latestCatalogSnapshot;
-        if (snapshot.tryIncRef() == false) {
-            throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
-        }
+        final CatalogSnapshot snapshot = acquireLatestSnapshot();
         return new GatedConditionalCloseable<>(snapshot, () -> {
             try {
+                snapshot.markCommitted();
                 indexFileDeleter.onCommit(snapshot);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to register commit [gen=" + snapshot.getGeneration() + "]", e);
             }
         }, () -> decRefAndMaybeDelete(snapshot));
+    }
+
+    private CatalogSnapshot acquireLatestSnapshot() {
+        CatalogSnapshot snapshot;
+        do {
+            if (closed.get()) {
+                throw new IllegalStateException("CatalogSnapshotManager is closed");
+            }
+            snapshot = latestCatalogSnapshot;
+        } while (!snapshot.tryIncRef());
+        return snapshot;
     }
 
     // ---- Snapshot protection for _snapshot API / peer recovery ----
@@ -298,25 +518,44 @@ public class CatalogSnapshotManager implements Closeable {
         });
     }
 
+    /**
+     * Returns information about the safe commit from the underlying deletion policy.
+     */
+    public SafeCommitInfo getSafeCommitInfo() {
+        return deletionPolicy.getSafeCommitInfo();
+    }
+
     // ---- Internal ----
 
-    private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
-        final long gen = snapshot.getGeneration();
-        if (snapshot.decRef()) {
-            catalogSnapshotMap.remove(gen);
+    /**
+     * Called when a CatalogSnapshot's refCount reaches 0 — either from this class
+     * (via {@link #decRefAndMaybeDelete}) or from {@link IndexFileDeleter} when the
+     * deletion policy triggers removal of a committed snapshot.
+     * <p>
+     * Removes the snapshot from the tracking map and notifies lifecycle listeners
+     * (e.g., to close readers).
+     */
+    private void onSnapshotDeleted(CatalogSnapshot snapshot) {
+        catalogSnapshotMap.remove(snapshot.getGeneration());
+        Exception firstException = null;
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
             try {
-                indexFileDeleter.removeFileReferences(snapshot);
+                listener.onDeleted(snapshot);
             } catch (IOException e) {
-                throw new RuntimeException("Failed to clean up files for snapshot [gen=" + gen + "]", e);
-            }
-            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
-                try {
-                    listener.onDeleted(snapshot);
-                } catch (IOException e) {
-                    throw new RuntimeException("Listener failed on snapshot deletion [gen=" + gen + "]", e);
-                }
+                if (firstException == null) firstException = e;
+                else firstException.addSuppressed(e);
             }
         }
+        if (firstException != null) {
+            throw new RuntimeException(
+                "Failed to notify listener of snapshot deletion [gen=" + snapshot.getGeneration() + "]",
+                firstException
+            );
+        }
+    }
+
+    private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
+        indexFileDeleter.decRefAndMaybeDelete(snapshot);
     }
 
     /**
@@ -329,6 +568,12 @@ public class CatalogSnapshotManager implements Closeable {
     private Segment getSegment(Map<DataFormat, WriterFileSet> writerFileSetMap) {
         if (writerFileSetMap.isEmpty()) {
             throw new IllegalArgumentException("writerFileSetMap must not be empty");
+        }
+        // Check for null values (format participated but returned no result)
+        for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {
+            if (entry.getValue() == null) {
+                throw new IllegalStateException("WriterFileSet is null for format [" + entry.getKey().name() + "] — merge was incomplete");
+            }
         }
         long generation = writerFileSetMap.values().iterator().next().writerGeneration();
         Segment.Builder segment = Segment.builder(generation);
@@ -344,5 +589,112 @@ public class CatalogSnapshotManager implements Closeable {
     @Override
     public void close() {
         closed.compareAndSet(false, true);
+    }
+
+    /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getUnreferencedFileCleanUpsPerformed() {
+        return indexFileDeleter.getCleanUpsPerformed();
+    }
+
+    /**
+     * Increments the merge failure cleanup counter.
+     */
+    public void incrementUnreferencedFileCleanUps() {
+        indexFileDeleter.incrementCleanUpsPerformed();
+    }
+
+    /**
+     * Asserts that no segment generation in the new snapshot conflicts with a different
+     * file set in any existing tracked snapshot. This catches generation overlap bugs
+     * where a merge or writer reuses a generation number, causing the catalog to track
+     * two different file sets under the same generation — which would lead to data loss
+     * when the "wrong" files are deleted.
+     */
+    private boolean assertSegmentGenerationFileConsistency(List<Segment> newSegments) {
+        for (Segment newSeg : newSegments) {
+            for (CatalogSnapshot existing : catalogSnapshotMap.values()) {
+                for (Segment existingSeg : existing.getSegments()) {
+                    if (existingSeg.generation() == newSeg.generation()) {
+                        // Same generation — files must be identical per format
+                        for (Map.Entry<String, WriterFileSet> entry : newSeg.dfGroupedSearchableFiles().entrySet()) {
+                            WriterFileSet existingWfs = existingSeg.dfGroupedSearchableFiles().get(entry.getKey());
+                            if (existingWfs != null && existingWfs.files().equals(entry.getValue().files()) == false) {
+                                logger.error(
+                                    "Generation {} has conflicting files for format [{}]: existing={}, new={}",
+                                    newSeg.generation(),
+                                    entry.getKey(),
+                                    existingWfs.files(),
+                                    entry.getValue().files()
+                                );
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Asserts that the total row count across all formats in the merged segment equals
+     * the total row count across all formats in the source segments. This catches bugs
+     * where rows are silently dropped or duplicated during merge.
+     */
+    private boolean assertRowCountConservation(Set<Segment> sourceSegments, Segment mergedSegment) {
+        long sourceRows = 0;
+        for (Segment seg : sourceSegments) {
+            for (WriterFileSet wfs : seg.dfGroupedSearchableFiles().values()) {
+                sourceRows += wfs.numRows();
+            }
+        }
+        long mergedRows = 0;
+        for (WriterFileSet wfs : mergedSegment.dfGroupedSearchableFiles().values()) {
+            mergedRows += wfs.numRows();
+        }
+        if (sourceRows != mergedRows) {
+            logger.error("Row count mismatch: source segments have {} rows but merged segment has {} rows", sourceRows, mergedRows);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Asserts that within each segment, every format's {@link WriterFileSet} reports
+     * the same {@link WriterFileSet#numRows()}.
+     *
+     * <p>The multi-format segment model pairs one logical row set across formats — e.g.
+     * a parquet file and a Lucene leaf that both represent the same 1000 rows. Segment
+     * ordinal translation on the query side (parquet segment_ord → Lucene leaf index
+     * via writer generation) relies on that invariant to pick the right leaf. A mismatch
+     * here means the writers dropped or duplicated rows against each other during a
+     * single refresh — which produces silent correctness issues like different counts
+     * from {@code match} vs {@code LIKE} over the same field.
+     */
+    private boolean assertPerSegmentCrossFormatRowCountParity(List<Segment> segments) {
+        for (Segment seg : segments) {
+            long expected = -1L;
+            String referenceFormat = null;
+            for (Map.Entry<String, WriterFileSet> entry : seg.dfGroupedSearchableFiles().entrySet()) {
+                long rows = entry.getValue().numRows();
+                if (expected == -1L) {
+                    expected = rows;
+                    referenceFormat = entry.getKey();
+                } else if (rows != expected) {
+                    logger.error(
+                        "Per-segment row count mismatch at generation {}: format [{}] has {} rows but format [{}] has {} rows",
+                        seg.generation(),
+                        referenceFormat,
+                        expected,
+                        entry.getKey(),
+                        rows
+                    );
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

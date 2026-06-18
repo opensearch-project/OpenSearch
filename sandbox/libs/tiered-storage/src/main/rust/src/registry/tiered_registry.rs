@@ -16,7 +16,6 @@
 
 use std::collections::HashSet;
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
 
@@ -30,14 +29,10 @@ use crate::types::{FileLocation, ReadGuard, TieredFileEntry};
 /// Production file registry backed by [`DashMap`].
 ///
 /// Tracks per-file metadata and provides RAII-based ref counting via
-/// [`ReadGuard`]. Metrics counters are monotonic for monitoring.
+/// [`ReadGuard`].
 pub struct TieredStorageRegistry {
     /// Per-file metadata. Key is the file path.
     files: DashMap<String, TieredFileEntry>,
-    /// Total acquire calls (monotonic counter for monitoring).
-    acquire_count: AtomicU64,
-    /// Total remove calls (monotonic counter for monitoring).
-    remove_count: AtomicU64,
 }
 
 // TODO: Add PendingAction (EvictLocal/RemoveFull) and pinned fields to
@@ -50,30 +45,21 @@ impl TieredStorageRegistry {
         native_bridge_common::log_info!("TieredStorageRegistry: created");
         Self {
             files: DashMap::new(),
-            acquire_count: AtomicU64::new(0),
-            remove_count: AtomicU64::new(0),
         }
     }
 
-    /// Monitoring metrics: `(acquires, removes)`.
-    #[must_use]
-    pub fn metrics(&self) -> (u64, u64) {
-        (
-            self.acquire_count.load(Ordering::Relaxed),
-            self.remove_count.load(Ordering::Relaxed),
-        )
-    }
-
-    /// List entries matching `prefix`. Returns `(key, location, size)`.
+    /// List entries matching `prefix`. Returns `(key, location)`.
     ///
     /// If `prefix` is empty or `"/"`, returns all entries.
     #[must_use]
-    pub fn entries_matching(&self, prefix: &str) -> Vec<(String, FileLocation, Option<u64>)> {
-        let match_all = prefix.is_empty() || prefix == "/";
+    pub fn entries_matching(&self, prefix: &str) -> Vec<(String, FileLocation, u64)> {
+        // Strip leading "/" — keys are stored without leading slash
+        let prefix = prefix.strip_prefix('/').unwrap_or(prefix);
+        let match_all = prefix.is_empty();
         self.files
             .iter()
             .filter(|e| match_all || e.key().starts_with(prefix))
-            .map(|e| (e.key().clone(), e.value().location(), e.value().file_size()))
+            .map(|e| (e.key().clone(), e.value().location(), e.value().size()))
             .collect()
     }
 }
@@ -102,35 +88,37 @@ impl fmt::Display for TieredStorageRegistry {
 
 impl FileRegistry for TieredStorageRegistry {
     fn register(&self, key: &str, value: TieredFileEntry) {
+        // Strip leading "/" — keys are stored without leading slash
+        let key = key.strip_prefix('/').unwrap_or(key);
         self.files.insert(key.to_string(), value);
     }
 
     fn get(&self, key: &str) -> Option<ReadGuard<'_>> {
+        // Strip leading "/" — keys are stored without leading slash
+        let key = key.strip_prefix('/').unwrap_or(key);
         let entry = self.files.get(key)?;
-        self.acquire_count.fetch_add(1, Ordering::Relaxed);
         Some(ReadGuard::new(entry))
     }
 
     fn update(&self, key: &str, f: impl FnOnce(&mut TieredFileEntry)) {
+        // Strip leading "/" — keys are stored without leading slash
+        let key = key.strip_prefix('/').unwrap_or(key);
         if let Some(mut entry) = self.files.get_mut(key) {
             f(entry.value_mut());
         }
     }
 
     fn remove(&self, key: &str, force: bool) -> bool {
+        // Strip leading "/" — keys are stored without leading slash
+        let key = key.strip_prefix('/').unwrap_or(key);
         if force {
-            let removed = self.files.remove(key).is_some();
-            if removed {
-                self.remove_count.fetch_add(1, Ordering::Relaxed);
-            }
-            removed
+            self.files.remove(key).is_some()
         } else {
             // Only remove if ref_count == 0.
             match self.files.entry(key.to_string()) {
                 dashmap::mapref::entry::Entry::Occupied(entry) => {
                     if entry.get().ref_count() == 0 {
                         entry.remove();
-                        self.remove_count.fetch_add(1, Ordering::Relaxed);
                         true
                     } else {
                         false
@@ -142,6 +130,8 @@ impl FileRegistry for TieredStorageRegistry {
     }
 
     fn remove_by_prefix(&self, prefix: &str, force: bool) -> usize {
+        // Strip leading "/" — keys are stored without leading slash
+        let prefix = prefix.strip_prefix('/').unwrap_or(prefix);
         if force {
             let mut removed = 0usize;
             self.files.retain(|key, _| {
@@ -152,10 +142,6 @@ impl FileRegistry for TieredStorageRegistry {
                     true
                 }
             });
-            if removed > 0 {
-                self.remove_count
-                    .fetch_add(removed as u64, Ordering::Relaxed);
-            }
             removed
         } else {
             let matching: Vec<String> = self
@@ -176,12 +162,13 @@ impl FileRegistry for TieredStorageRegistry {
 
     fn purge_stale(&self, valid_keys: &HashSet<String>) -> usize {
         let before = self.files.len();
-        self.files
-            .retain(|key, _| valid_keys.contains(key.as_str()));
+        self.files.retain(|key, _| {
+            // Check both with and without leading "/" since callers may pass either form
+            valid_keys.contains(key.as_str())
+                || valid_keys.contains(&format!("/{}", key))
+        });
         let removed = before.saturating_sub(self.files.len());
         if removed > 0 {
-            self.remove_count
-                .fetch_add(removed as u64, Ordering::Relaxed);
             native_bridge_common::log_info!(
                 "TieredStorageRegistry: purge_stale removed {} entries",
                 removed
@@ -202,7 +189,6 @@ impl FileRegistry for TieredStorageRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_store::memory::InMemory;
     use std::sync::Arc;
     use std::sync::Barrier;
     use std::thread;
@@ -211,31 +197,21 @@ mod tests {
         TieredStorageRegistry::new()
     }
 
-    fn mock_store() -> Arc<dyn object_store::ObjectStore> {
-        Arc::new(InMemory::new())
-    }
-
     fn local_entry() -> TieredFileEntry {
-        TieredFileEntry::new(FileLocation::Local, None, None, None, None)
+        TieredFileEntry::new(FileLocation::Local, None)
     }
 
-    fn remote_entry(store: Arc<dyn object_store::ObjectStore>) -> TieredFileEntry {
+    fn remote_entry() -> TieredFileEntry {
         TieredFileEntry::new(
             FileLocation::Remote,
             Some(Arc::from("remote/a.parquet")),
-            Some("repo1".into()),
-            Some(store),
-            None,
         )
     }
 
-    fn both_entry(store: Arc<dyn object_store::ObjectStore>) -> TieredFileEntry {
+    fn both_entry() -> TieredFileEntry {
         TieredFileEntry::new(
-            FileLocation::Both,
+            FileLocation::Remote,
             Some(Arc::from("remote/a.parquet")),
-            Some("repo1".into()),
-            Some(store),
-            None,
         )
     }
 
@@ -251,14 +227,14 @@ mod tests {
     #[test]
     fn test_register_remote() {
         let reg = make_registry();
-        reg.register("/a.parquet", remote_entry(mock_store()));
+        reg.register("/a.parquet", remote_entry());
         assert_eq!(reg.len(), 1);
     }
 
     #[test]
     fn test_register_both() {
         let reg = make_registry();
-        reg.register("/a.parquet", both_entry(mock_store()));
+        reg.register("/a.parquet", both_entry());
         assert_eq!(reg.len(), 1);
     }
 
@@ -266,7 +242,7 @@ mod tests {
     fn test_register_overwrites() {
         let reg = make_registry();
         reg.register("/a.parquet", local_entry());
-        reg.register("/a.parquet", remote_entry(mock_store()));
+        reg.register("/a.parquet", remote_entry());
         assert_eq!(reg.len(), 1);
         let guard = reg.get("/a.parquet").unwrap();
         assert_eq!(guard.location(), FileLocation::Remote);
@@ -277,12 +253,10 @@ mod tests {
     #[test]
     fn test_get_returns_guard_with_correct_data() {
         let reg = make_registry();
-        let store = mock_store();
-        reg.register("/a.parquet", remote_entry(store));
+        reg.register("/a.parquet", remote_entry());
         let guard = reg.get("/a.parquet").unwrap();
         assert_eq!(guard.location(), FileLocation::Remote);
         assert_eq!(guard.remote_path(), Some("remote/a.parquet"));
-        assert!(guard.remote_store().is_some());
         assert_eq!(guard.ref_count(), 1);
     }
 
@@ -326,12 +300,10 @@ mod tests {
         let reg = make_registry();
         reg.register("/a.parquet", local_entry());
         reg.update("/a.parquet", |e| {
-            e.location = FileLocation::Both;
-            e.size = Some(42);
+            e.location = FileLocation::Remote;
         });
         let guard = reg.get("/a.parquet").unwrap();
-        assert_eq!(guard.location(), FileLocation::Both);
-        assert_eq!(guard.value().file_size(), Some(42));
+        assert_eq!(guard.location(), FileLocation::Remote);
     }
 
     #[test]
@@ -445,20 +417,6 @@ mod tests {
         assert_eq!(reg.len(), 1);
     }
 
-    // -- Metrics ------------------------------------------------------------
-
-    #[test]
-    fn test_metrics_track_operations() {
-        let reg = make_registry();
-        reg.register("/a.parquet", local_entry());
-        let _g = reg.get("/a.parquet");
-        drop(_g);
-        reg.remove("/a.parquet", true);
-        let (acq, rem) = reg.metrics();
-        assert_eq!(acq, 1);
-        assert_eq!(rem, 1);
-    }
-
     // -- entries_matching ---------------------------------------------------
 
     #[test]
@@ -467,7 +425,7 @@ mod tests {
         reg.register("data/a.parquet", local_entry());
         reg.register(
             "data/b.parquet",
-            TieredFileEntry::new(FileLocation::Remote, None, None, None, Some(100)),
+            TieredFileEntry::new(FileLocation::Remote, None),
         );
         reg.register("other/c.parquet", local_entry());
 
