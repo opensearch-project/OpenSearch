@@ -14,7 +14,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -564,7 +563,7 @@ public class FragmentConversionDriver {
             if (node instanceof OpenSearchFilter filter && resolver instanceof AnnotationResolver ar) {
                 // Combine delegated predicates in a single pass, then strip with simple unwrapper
                 RexNode resolved = ar.resolveTree(filter.getCondition());
-                RexNode flattened = RexUtil.flatten(node.getCluster().getRexBuilder(), resolved);
+                RexNode flattened = RelNodeUtils.deepFlatten(node.getCluster().getRexBuilder(), resolved);
                 return LogicalFilter.create(strippedChildren.getFirst(), flattened);
             }
             return openSearchNode.stripAnnotations(strippedChildren, resolver);
