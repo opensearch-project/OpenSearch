@@ -1046,6 +1046,7 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
      * Unlike {@link #testRescoreAfterCollapseRandom()}, the documents are NOT routed by group, so a group's
      * documents land on different shards based on the (random) document id.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/22131#issue-4647788700")
     public void testRescoreAfterCollapseGroupAcrossShards() throws Exception {
         int numShards = randomIntBetween(2, 5);
         assertAcked(
