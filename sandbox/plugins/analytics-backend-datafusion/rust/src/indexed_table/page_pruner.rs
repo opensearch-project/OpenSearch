@@ -116,12 +116,21 @@ impl PagePruner {
             Option<(StatisticsConverter<'_>, usize)>,
         )> = Vec::new();
 
+        // Resolve against the segment's own schema (see eval_leaf): the full table
+        // schema misaligns StatisticsConverter's positional column lookup under
+        // dynamic-mapping schema drift.
+        let descr = self.metadata.file_metadata().schema_descr();
+        let seg_arrow_schema = match datafusion::parquet::arrow::parquet_to_arrow_schema(
+            descr,
+            self.metadata.file_metadata().key_value_metadata(),
+        ) {
+            Ok(s) => Arc::new(s),
+            Err(_) => Arc::clone(&self.schema),
+        };
+
         for col in &columns {
-            let converter = match StatisticsConverter::try_new(
-                col.name(),
-                &self.schema,
-                self.metadata.file_metadata().schema_descr(),
-            ) {
+            let converter = match StatisticsConverter::try_new(col.name(), &seg_arrow_schema, descr)
+            {
                 Ok(c) => c,
                 Err(_) => {
                     // Column not in Arrow schema either — nothing we can
@@ -525,7 +534,20 @@ fn eval_leaf(
     if columns.is_empty() {
         return vec![true; num];
     }
-    let arrow_schema = schema.as_ref();
+    // Resolve stats against the segment's OWN parquet schema, not the full table
+    // schema. StatisticsConverter maps a column name to a parquet index positionally
+    // (parquet crate `parquet_column`), so passing the full schema reads the wrong /
+    // no column when the segment's schema is narrower or reordered (dynamic-mapping
+    // schema drift) — yielding null stats that prune RGs that actually match.
+    let descr = metadata.file_metadata().schema_descr();
+    let seg_arrow_schema = match datafusion::parquet::arrow::parquet_to_arrow_schema(
+        descr,
+        metadata.file_metadata().key_value_metadata(),
+    ) {
+        Ok(s) => Arc::new(s),
+        Err(_) => Arc::clone(schema),
+    };
+    let arrow_schema = seg_arrow_schema.as_ref();
     let rg_metas: Vec<_> = rg_indices
         .iter()
         .filter_map(|&idx| metadata.row_groups().get(idx))
@@ -538,9 +560,7 @@ fn eval_leaf(
         if arrow_schema.index_of(col.name()).is_err() {
             continue;
         }
-        let converter = match StatisticsConverter::try_new(
-            col.name(), arrow_schema, metadata.file_metadata().schema_descr(),
-        ) {
+        let converter = match StatisticsConverter::try_new(col.name(), arrow_schema, descr) {
             Ok(c) => c,
             Err(_) => continue,
         };
@@ -1536,5 +1556,49 @@ mod tests {
         assert_eq!(spt.children[2].children[1].rg_can_match, vec![true, true, true, true, true]);
         // AND₃/NOT/p8
         assert_eq!(spt.children[2].children[1].children[0].rg_can_match, vec![true, true, false, false, false]);
+    }
+
+    // Schema drift: the table schema orders columns differently from the segment's own
+    // parquet file, so resolving `severity` positionally against the table schema lands on
+    // a DIFFERENT real file column (`neg`, all-negative). The always-true `severity >= 0`
+    // then reads neg's stats (max < 0) and `eval_leaf` wrongly prunes the RG. Resolving
+    // against the segment's own schema reads the real `severity` stats and keeps it.
+    #[test]
+    fn eval_leaf_resolves_stats_against_segment_schema_under_drift() {
+        let file_schema = Arc::new(Schema::new(vec![
+            Field::new("name", DataType::Int32, false),
+            Field::new("neg", DataType::Int32, false),
+            Field::new("severity", DataType::Int32, false),
+        ]));
+        let table_schema = Arc::new(Schema::new(vec![
+            Field::new("name", DataType::Int32, false),
+            Field::new("severity", DataType::Int32, false),
+            Field::new("neg", DataType::Int32, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            file_schema.clone(),
+            vec![
+                Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
+                Arc::new(Int32Array::from(vec![-9, -8, -7, -6])),
+                Arc::new(Int32Array::from(vec![0, 5, 10, 17])),
+            ],
+        )
+        .unwrap();
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), file_schema, None).unwrap();
+        w.write(&batch).unwrap();
+        w.close().unwrap();
+        let md = ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new())
+            .unwrap()
+            .metadata()
+            .clone();
+
+        let expr = bin(col("severity", 1), Operator::GtEq, lit_int(0));
+        let pp = build_pruning_predicate(&expr, table_schema.clone()).unwrap();
+        assert_eq!(
+            eval_leaf(&pp, &md, &table_schema, &[0]),
+            vec![true],
+            "severity >= 0 is always true; eval_leaf must not prune under schema drift"
+        );
     }
 }
