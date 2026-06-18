@@ -55,6 +55,9 @@ public class RescoreProcessor {
     /** Collapse information needed to rebuild a {@link CollapseTopFieldDocs} after rescoring. */
     private record CollapseSnapShot(String field, SortField[] sortFields, Map<Integer, Object> docIdToCollapseValue) {
         static CollapseSnapShot capture(CollapseTopFieldDocs docs) {
+            if (docs.scoreDocs.length != docs.collapseValues.length) {
+                throw new IllegalStateException("scoreDocs and collapseValues arrays must have the same length");
+            }
             Map<Integer, Object> map = new HashMap<>();
             for (int i = 0; i < docs.scoreDocs.length; i++) {
                 map.put(
