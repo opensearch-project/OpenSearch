@@ -146,6 +146,8 @@ public class DataFormatAwareEngine implements Indexer {
 
     private final IndexingExecutionEngine indexingExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final DocumentCountTracker documentCountTracker;
+    private final AtomicLong pendingRowCount = new AtomicLong();
     private final LockablePool<DefaultLockableHolder<Writer<?>>> writerPool;
     private final AtomicLong writerGenerationCounter;
 
@@ -405,6 +407,15 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }, logger);
             this.refreshListeners.add(this.statsCache);
+            this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
+                // First get active writes as active writes are only reduced after catalog snapshot refresh
+                // This prevents under-accounting
+                long docsIngested = pendingRowCount.get();
+                try (var cs = catalogSnapshotManager.acquireSnapshot()) {
+                    docsIngested += cs.get().getNumDocs();
+                }
+                return docsIngested;
+            }, indexingExecutionEngine.maxIndexableDocs());
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig.getIndexSettings(),
                 engineConfig.getShardId(),
@@ -416,7 +427,7 @@ public class DataFormatAwareEngine implements Indexer {
                 op -> OpVsEngineDocStatus.OP_NEWER,
                 (a, b) -> null,
                 this::updateAutoIdTimestamp,
-                (a, b) -> null
+                documentCountTracker::tryAcquireInFlightDocs
             );
             // All critical engine components must be initialized before the engine is considered ready
             assert translogManager != null : "translog manager must be initialized";
@@ -574,6 +585,7 @@ public class DataFormatAwareEngine implements Indexer {
             || index.origin() == Engine.Operation.Origin.LOCAL_RESET)
             : "DataFormatAwareEngine only supports PRIMARY, LOCAL_TRANSLOG_RECOVERY, or LOCAL_RESET origins but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
+        int rows = 0;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             try (Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}) {
@@ -584,6 +596,7 @@ public class DataFormatAwareEngine implements Indexer {
                 } else {
                     plan = indexingStrategyPlanner.planOperationAsNonPrimary(index);
                 }
+                rows = plan.reservedDocs;
                 final Engine.IndexResult indexResult;
                 if (plan.earlyResultOnPreFlightError.isPresent()) {
                     assert index.origin() == Engine.Operation.Origin.PRIMARY : index.origin();
@@ -632,6 +645,10 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
                 return indexResult;
+            } finally {
+                if (rows > 0) {
+                    documentCountTracker.releaseInFlightDocs(rows);
+                }
             }
         } catch (RuntimeException | IOException e) {
             maybeFailEngine("index id[" + index.id() + "] origin[" + index.origin() + "]", e);
@@ -672,6 +689,7 @@ public class DataFormatAwareEngine implements Indexer {
                     + "] must match operation seq no ["
                     + index.seqNo()
                     + "]";
+                pendingRowCount.incrementAndGet();
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
                 try {
@@ -897,6 +915,7 @@ public class DataFormatAwareEngine implements Indexer {
 
                         final long flushAllStartNanos = System.nanoTime();
                         int writerCount = writers.size();
+                        long rowsToRelease = 0L;
 
                         // Add all checked-out writers to the shared flushQueue with a latch
                         // so the refresh thread can wait for ALL writers to be flushed
@@ -936,7 +955,9 @@ public class DataFormatAwareEngine implements Indexer {
                                     hasFiles
                                 );
                                 if (hasFiles) {
-                                    newSegments.add(segmentBuilder.build());
+                                    Segment segment = segmentBuilder.build();
+                                    newSegments.add(segment);
+                                    rowsToRelease += segment.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
                                 }
                                 refreshed |= hasFiles;
                             } catch (Exception e) {
@@ -970,6 +991,7 @@ public class DataFormatAwareEngine implements Indexer {
                         Segment pendingSeg;
                         while ((pendingSeg = pendingSegments.poll()) != null) {
                             newSegments.add(pendingSeg);
+                            rowsToRelease += pendingSeg.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
                             refreshed = true;
                         }
                         // Drain pending writers so they get closed after addIndexes incorporates their files
@@ -1023,6 +1045,11 @@ public class DataFormatAwareEngine implements Indexer {
 
                             final long commitStartNanos = System.nanoTime();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                            assert rowsToRelease > 0L : "Rows to release from active writes should be greater than 0 but was: "
+                                + rowsToRelease
+                                + " for shard: "
+                                + shardId;
+                            pendingRowCount.addAndGet(-rowsToRelease);
                             final long commitElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
                             logger.trace("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
                         } else if ("flush".equals(source)) {

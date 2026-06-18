@@ -285,7 +285,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     /**
      * Wraps {@link EngineTestCase#createParsedDoc(String, String)} to attach a
-     * {@link MockDocumentInput}. {@link DataFormatAwareEngine#indexIntoEngine} requires a
+     * {@link MockDocumentInput}. {@link DataFormatAwareEngine#index} requires a
      * non-null {@code DocumentInput} on every doc (it calls {@code addField} for version,
      * seqNo, primaryTerm), but the base helper leaves that field null because production
      * code (e.g., {@code IndexShard.applyIndexOperation}) populates it via
@@ -3551,6 +3551,108 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             // Unrecognized value is treated as not frozen — indexing still works.
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("0", null)));
             assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+        }
+    }
+
+    public void testDocCountLimitRejectsIndexingAboveMax() throws Exception {
+        final int maxDocs = randomIntBetween(1, 20);
+        MockIndexingExecutionEngine limitedEngine = new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public long maxIndexableDocs() {
+                return maxDocs;
+            }
+        };
+        MockDataFormatPlugin limitedPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return limitedEngine;
+            }
+        };
+
+        EngineConfig config = buildFailingEngineConfig(limitedPlugin, new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {}
+        });
+        try (DataFormatAwareEngine eng = new DataFormatAwareEngine(config)) {
+            int numDocs = between(maxDocs + 1, maxDocs * 2);
+            for (int i = 0; i < numDocs; i++) {
+                final long maxSeqNo = eng.getProcessedLocalCheckpoint();
+                Engine.IndexResult result = eng.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                if (i < maxDocs) {
+                    assertThat("doc " + i + " should succeed", result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    assertNull(result.getFailure());
+                    assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
+                } else {
+                    assertThat("doc " + i + " should be rejected", result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                    assertNotNull(result.getFailure());
+                    assertThat(result.getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(
+                        result.getFailure().getMessage(),
+                        containsString("Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "]")
+                    );
+                    assertThat("seq no must not be assigned on rejection", result.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+                    assertThat("local checkpoint must not advance on rejection", eng.getProcessedLocalCheckpoint(), equalTo(maxSeqNo));
+                }
+            }
+            // Engine must remain open on primary even after rejections
+            eng.refresh("verify-still-open");
+        }
+    }
+
+    public void testConcurrentIndexAndRefreshDocCountNeverUnderCounts() throws Exception {
+        Path translogPath = createTempDir();
+        try (DataFormatAwareEngine eng = createDFAEngine(store, translogPath)) {
+            int numThreads = 4;
+            int docsPerThread = 50;
+            int totalDocs = numThreads * docsPerThread;
+            CyclicBarrier barrier = new CyclicBarrier(numThreads + 1); // +1 for refresh thread
+            AtomicInteger successCount = new AtomicInteger();
+
+            Thread[] indexThreads = new Thread[numThreads];
+            for (int t = 0; t < numThreads; t++) {
+                final int threadId = t;
+                indexThreads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        for (int d = 0; d < docsPerThread; d++) {
+                            Engine.IndexResult result = eng.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
+                            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                                successCount.incrementAndGet();
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                indexThreads[t].start();
+            }
+
+            // Refresh thread that runs concurrently with indexing
+            Thread refreshThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < 10; i++) {
+                        eng.refresh("concurrent-refresh-" + i);
+                        Thread.sleep(5);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            refreshThread.start();
+
+            for (Thread t : indexThreads)
+                t.join(30_000);
+            refreshThread.join(30_000);
+
+            // Final refresh to flush remaining buffered docs
+            eng.refresh("final");
+
+            // Verify: catalogSnapshot docs + pendingRowCount must equal successCount
+            try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                long catalogDocs = ref.get().getNumDocs();
+                assertThat("catalog must contain all successfully indexed docs", catalogDocs, equalTo((long) successCount.get()));
+            }
         }
     }
 }

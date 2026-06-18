@@ -451,6 +451,11 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         return Map.of();
     }
 
+    @Override
+    public long maxIndexableDocs() {
+        return IndexWriter.MAX_DOCS;
+    }
+
     /** No-op — the {@link LuceneCommitter} owns the shared IndexWriter lifecycle. */
     @Override
     public void close() throws IOException {
