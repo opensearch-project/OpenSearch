@@ -50,14 +50,22 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.snakeyaml.engine.v2.api.LoadSettings;
+import org.snakeyaml.engine.v2.nodes.Tag;
+import org.snakeyaml.engine.v2.resolver.CoreScalarResolver;
+import org.snakeyaml.engine.v2.resolver.ScalarResolver;
+import org.snakeyaml.engine.v2.schema.CoreSchema;
 import tools.jackson.core.JsonEncoding;
+import tools.jackson.core.ObjectReadContext;
 import tools.jackson.core.StreamReadConstraints;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.core.StreamWriteConstraints;
+import tools.jackson.core.io.IOContext;
 import tools.jackson.dataformat.yaml.YAMLFactory;
 import tools.jackson.dataformat.yaml.YAMLFactoryBuilder;
+import tools.jackson.dataformat.yaml.YAMLParser;
 
 /**
  * A YAML based content implementation using Jackson.
@@ -74,6 +82,20 @@ public class YamlXContent implements XContent, XContentConstraints {
         final LoadSettings loadSettings = LoadSettings.builder()
             .setCodePointLimit(DEFAULT_CODEPOINT_LIMIT)
             .setBufferSize(DEFAULT_BUFFER_SIZE)
+            .setSchema(new CoreSchema() {
+                @Override
+                public ScalarResolver getScalarResolver() {
+                    return new CoreScalarResolver(true) {
+                        public static final Pattern BOOL_EXT = Pattern.compile("^(?:on|On|ON|off|Off|OFF|yes|Yes|YES|no|No|NO)$");
+
+                        @Override
+                        protected void addImplicitResolvers() {
+                            super.addImplicitResolvers();
+                            addImplicitResolver(Tag.BOOL, BOOL_EXT, "oOyYnN");
+                        }
+                    };
+                }
+            })
             .build();
         final YAMLFactoryBuilder builder = new YAMLFactoryBuilder(new YAMLFactory()).loadSettings(loadSettings);
         builder.configure(StreamReadFeature.STRICT_DUPLICATE_DETECTION, true);
@@ -87,7 +109,40 @@ public class YamlXContent implements XContent, XContentConstraints {
         );
         builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
 
-        yamlFactory = new OpenSearchYamlFactory(builder);
+        yamlFactory = new YAMLFactory(builder) {
+            @Override
+            protected YAMLParser _createParser(ObjectReadContext readCtxt, IOContext ioCtxt, Reader r) {
+                return new YAMLParser(
+                    readCtxt,
+                    ioCtxt,
+                    _getBufferRecycler(),
+                    readCtxt.getStreamReadFeatures(_streamReadFeatures),
+                    readCtxt.getFormatReadFeatures(_formatReadFeatures),
+                    _loadSettings,
+                    r
+                ) {
+                    @Override
+                    protected Boolean _matchYAMLBoolean(String value, int len) {
+                        switch (len) {
+                            case 2:
+                                if ("on".equalsIgnoreCase(value)) return Boolean.TRUE;
+                                if ("no".equalsIgnoreCase(value)) return Boolean.FALSE;
+                                break;
+                            case 3:
+                                if ("off".equalsIgnoreCase(value)) return Boolean.FALSE;
+                                if ("yes".equalsIgnoreCase(value)) return Boolean.TRUE;
+                                break;
+                        }
+                        return super._matchYAMLBoolean(value, len);
+                    }
+                };
+            }
+
+            @Override
+            protected YAMLParser _createParser(ObjectReadContext readCtxt, IOContext ioCtxt, InputStream is) {
+                return _createParser(readCtxt, ioCtxt, _createReader(is, null, ioCtxt));
+            }
+        };
         yamlXContent = new YamlXContent();
     }
 

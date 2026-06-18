@@ -221,12 +221,14 @@ impl MemoryPool for DynamicLimitPool {
                 "Memory CANCEL: RSS exceeds critical threshold for consumer [{}]. Cancelling query to protect node.",
                 reservation.consumer().name()
             );
-            return Err(DataFusionError::ResourcesExhausted(format!(
-                "Query cancelled: native memory RSS exceeds critical threshold ({}% of pool limit {}B). \
-                 Reduce query concurrency or increase datafusion.memory_pool_limit_bytes.",
+            self.tripped_count.fetch_add(1, Ordering::Relaxed);
+            return Err(crate::native_error::critical_pressure_error(
+                additional,
+                reservation.consumer().name(),
+                reservation.size(),
+                limit,
                 (crate::memory_guard::get_thresholds().execution_critical * 100.0) as u32,
-                limit
-            )));
+            ));
         }
 
         // RSS between operator (85%) and critical (95%) — reject (operator will spill)

@@ -220,16 +220,6 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
-    /** Reduce concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
-    public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.reduce_executor_multiplier",
-        1.5,
-        0.1,
-        10.0,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     // Query strategy constants
     public static final String QUERY_STRATEGY_NONE = "none";
     public static final String QUERY_STRATEGY_LISTING_TABLE = "listing_table";
@@ -311,7 +301,6 @@ public final class DatafusionSettings {
 
         // Concurrency gate settings
         CONCURRENCY_DATANODE_MULTIPLIER,
-        CONCURRENCY_COORDINATOR_MULTIPLIER,
 
         // Indexed query settings — per-query tuning knobs for the indexed execution path
         INDEXED_BATCH_SIZE,

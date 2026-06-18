@@ -307,17 +307,28 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (mode == AggregateMode.SINGLE) {
-            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-                RelTrait trait = getInput().getTraitSet().getTrait(index);
-                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
+        // SINGLE / PARTIAL placement gates (upstream): price out a SINGLE over partitioned input
+        // and a PARTIAL over singleton input so Volcano never lands them on the wrong distribution.
+        for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+            RelTrait trait = getInput().getTraitSet().getTrait(index);
+            if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
+                || distribution.getType() == RelDistribution.Type.ANY;
+
+            // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
             }
-        } else if (mode == AggregateMode.FINAL) {
+            // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
+        }
+        // FINAL placement + parallel-merge cost (our hash-shuffle feature): FINAL is legal only over
+        // a COORDINATOR+SINGLETON gather or a WORKER+HASH shuffle, and the HASH case merges in
+        // parallel across N workers (the /partitionCount discount that lets shuffle beat coord-centric
+        // for high-cardinality GROUP BY).
+        if (mode == AggregateMode.FINAL) {
             int partitionCount = 1;
             boolean traitResolved = false;
             for (int index = 0; index < getInput().getTraitSet().size(); index++) {

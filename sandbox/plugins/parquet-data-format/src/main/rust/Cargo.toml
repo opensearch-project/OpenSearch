@@ -28,3 +28,7 @@ serde_json = { workspace = true }
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }
 
+
+[[bench]]
+name = "merge_projection_bench"
+harness = false

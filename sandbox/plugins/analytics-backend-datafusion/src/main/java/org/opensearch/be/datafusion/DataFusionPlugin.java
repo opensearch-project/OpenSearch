@@ -24,6 +24,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -45,6 +46,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.nativebridge.spi.RustLoggerBridge;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
@@ -433,7 +435,6 @@ public class DataFusionPlugin extends Plugin
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
             .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
-            .coordinatorMultiplier(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
@@ -449,6 +450,11 @@ public class DataFusionPlugin extends Plugin
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
+
+        // Push Rust log level whenever any logger.* cluster setting changes, so Rust macros
+        // can short-circuit format!() for suppressed levels without polling.
+        clusterService.getClusterSettings()
+            .addAffixUpdateConsumer(Loggers.LOG_LEVEL_SETTING, (namespace, level) -> RustLoggerBridge.pushLevel(), (k, v) -> {});
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
@@ -460,11 +466,6 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
             int newMax = Math.max(1, (int) (cpuThreads * multiplier));
             NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
-        });
-
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
-            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
-            NativeBridge.updateConcurrencyGate("reduce", newMax);
         });
 
         // Apply initial values
@@ -705,6 +706,10 @@ public class DataFusionPlugin extends Plugin
         NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
         // Pull index.sort.field / index.sort.order off IndexSettings so the native reader can declare
         // file sort order to DataFusion. Empty lists when the index has no index sort configured.
+        // Two consumers downstream:
+        // - Vanilla path: ListingOptions.with_file_sort_order so the planner can drop SortExec.
+        // - Indexed path: indexed_executor reverses segment iteration when the query's leading
+        // ORDER BY runs counter to the catalog direction.
         List<String> sortFields = List.of();
         List<String> sortOrders = List.of();
         IndexSettings indexSettings = settings.indexSettings();
@@ -800,7 +805,7 @@ public class DataFusionPlugin extends Plugin
             try {
                 return NativeMemoryFetcher.fetch();
             } catch (Exception e) {
-                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             }
         };
     }

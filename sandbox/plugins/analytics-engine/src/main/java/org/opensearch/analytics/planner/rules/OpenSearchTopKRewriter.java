@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -83,10 +84,30 @@ public final class OpenSearchTopKRewriter {
             true
         );
 
-        RelNode sortInput = partial;
+        // Remap collation through the intermediate Project (if any) between Sort and FINAL Aggregate.
+        // PPL emits measures-first output via a column-swapping Project (e.g. Project(c=$1, key=$0)).
+        // The outer Sort's indices reference the Project's output; the shard Sort must reference
+        // the PARTIAL Aggregate's output (group-keys first, measures second).
+        // If the Project contains computed expressions (literals, casts, arithmetic) rather than
+        // simple column references, we bail — the sort key has no direct mapping to the aggregate
+        // output and TopK cannot be safely applied.
         RelCollation adjustedCollation = sort.getCollation();
+        if (match.intermediateProject != null) {
+            List<RelFieldCollation> remapped = new ArrayList<>();
+            for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
+                RexNode expr = match.intermediateProject.getProjects().get(fc.getFieldIndex());
+                if (expr instanceof RexInputRef ref) {
+                    remapped.add(new RelFieldCollation(ref.getIndex(), fc.getDirection(), fc.nullDirection));
+                } else {
+                    return Optional.empty();
+                }
+            }
+            adjustedCollation = RelCollations.of(remapped);
+        }
 
-        if (hasEngineNativeMergeMeasure(partial, sort.getCollation())) {
+        RelNode sortInput = partial;
+
+        if (hasEngineNativeMergeMeasure(partial, adjustedCollation)) {
             RelDataType partialRowType = partial.getRowType();
             int fieldCount = partialRowType.getFieldCount();
             int groupCount = partial.getGroupSet().cardinality();
@@ -99,7 +120,7 @@ public final class OpenSearchTopKRewriter {
             }
 
             List<RelFieldCollation> newCollations = new ArrayList<>();
-            for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
+            for (RelFieldCollation fc : adjustedCollation.getFieldCollations()) {
                 int sortIdx = fc.getFieldIndex();
                 if (sortIdx >= groupCount && AggregateFunction.isEngineNativeMerge(partial.getAggCallList().get(sortIdx - groupCount))) {
                     AggregateFunction aggFunc = AggregateFunction.fromSqlAggFunction(
@@ -183,15 +204,35 @@ public final class OpenSearchTopKRewriter {
             if (found != null) return found;
         }
         if (node instanceof OpenSearchSort sort && !sort.getCollation().getFieldCollations().isEmpty()) {
-            OpenSearchAggregate finalAgg = findFinalAgg(sort.getInput());
-            if (finalAgg != null) return new SortAboveFinal(sort, finalAgg);
+            PathToFinal path = findFinalAgg(sort.getInput());
+            if (path != null) return new SortAboveFinal(sort, path.project, path.finalAgg);
         }
         return null;
     }
 
-    private static OpenSearchAggregate findFinalAgg(RelNode node) {
-        if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) return agg;
-        if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0));
+    private static PathToFinal findFinalAgg(RelNode node) {
+        return findFinalAgg(node, null);
+    }
+
+    /**
+     * Walks toward the FINAL aggregate, capturing at most one intermediate Project.
+     * The {@code seenProject == null} guard assumes CoreRules.PROJECT_MERGE has collapsed
+     * adjacent Projects during RBO — if that rule is ever removed, multiple Projects may
+     * appear and this method will skip the second one (returning null for the project field),
+     * which safely disables the collation remapping (TopK still fires with the raw collation,
+     * correct when no reordering exists between the two).
+     *
+     * <p>Multi-input nodes (joins, unions) terminate the walk — TopK only applies to
+     * single-path Sort → Aggregate chains.
+     */
+    private static PathToFinal findFinalAgg(RelNode node, OpenSearchProject seenProject) {
+        if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
+            return new PathToFinal(seenProject, agg);
+        }
+        if (node instanceof OpenSearchProject proj && seenProject == null) {
+            return findFinalAgg(proj.getInput(), proj);
+        }
+        if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0), seenProject);
         return null;
     }
 
@@ -224,6 +265,9 @@ public final class OpenSearchTopKRewriter {
         return context.getOversamplingFactor();
     }
 
-    private record SortAboveFinal(OpenSearchSort sort, OpenSearchAggregate finalAgg) {
+    private record PathToFinal(OpenSearchProject project, OpenSearchAggregate finalAgg) {
+    }
+
+    private record SortAboveFinal(OpenSearchSort sort, OpenSearchProject intermediateProject, OpenSearchAggregate finalAgg) {
     }
 }

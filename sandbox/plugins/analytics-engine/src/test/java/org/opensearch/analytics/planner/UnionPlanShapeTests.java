@@ -13,6 +13,7 @@ import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.HashSet;
@@ -155,6 +156,30 @@ public class UnionPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape("""
             OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
             """, result);
+    }
+
+    public void testAggregateOverUnion_2shard_doesNotSplit() {
+        // Aggregate over a Union must NOT split into PARTIAL/FINAL: the Union gathers its arms to
+        // the coordinator (each arm forced to SINGLETON), so the aggregate's input is already
+        // gathered — a shard-side PARTIAL would have nothing partitioned to pre-aggregate.
+        // OpenSearchAggregateSplitRule.childForcesGather stops at the Union → single SINGLE aggregate.
+        RelNode union = LogicalUnion.create(
+            List.of(stubScan(mockTable("test_index", "status", "size")), stubScan(mockTable("test_index", "status", "size"))),
+            /* all */ true
+        );
+        RelNode plan = makeAggregate(union, ImmutableBitSet.of(0), countStarCall(union));
+        RelNode result = runPlanner(plan, unionContextSingleIndex("test_index", 2));
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
     }
 
     // ── Context helpers ───────────────────────────────────────────────────────

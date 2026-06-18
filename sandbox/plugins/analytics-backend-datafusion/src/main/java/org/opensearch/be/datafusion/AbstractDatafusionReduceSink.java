@@ -51,6 +51,8 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
     protected final ExchangeSinkContext ctx;
     protected final NativeRuntimeHandle runtimeHandle;
     protected final DatafusionLocalSession session;
+    /** Execution metrics + physical plan JSON, populated after reduce drains. */
+    protected volatile byte[] executionMetrics;
 
     /**
      * Non-null when constructed from a pre-prepared plan (FinalAggregateInstructionHandler):
@@ -145,6 +147,11 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
      * close {@code batch} — the base does it in {@code finally}.
      */
     protected abstract void feedBatchUnderLock(VectorSchemaRoot batch);
+
+    /** Returns execution metrics JSON (including physical_plan) captured after reduce, or null. */
+    public byte[] getExecutionMetrics() {
+        return executionMetrics;
+    }
 
     /**
      * Subclass shutdown. Despite the historical name, this is NOT called under {@link #feedLock} —

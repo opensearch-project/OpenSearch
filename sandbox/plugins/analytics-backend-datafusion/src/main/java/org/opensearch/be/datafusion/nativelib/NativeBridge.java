@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.be.datafusion.NativeErrorConverter;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -56,6 +57,29 @@ import java.util.Map;
 public final class NativeBridge {
 
     private static final Logger logger = LogManager.getLogger(NativeBridge.class);
+
+    /**
+     * Converts a Throwable from the FFM boundary into an appropriate Exception, applying
+     * {@link NativeErrorConverter} to translate known native error patterns into OpenSearch
+     * exception types (e.g. CircuitBreakingException, OpenSearchStatusException).
+     */
+    private static Exception convertNativeError(Throwable t) {
+        Exception ex = t instanceof Exception e ? e : new RuntimeException(t);
+        return NativeErrorConverter.convert(ex);
+    }
+
+    /**
+     * For synchronous FFM methods: converts and rethrows as RuntimeException.
+     * NativeErrorConverter only returns RuntimeException subtypes when it matches,
+     * so this preserves the unchecked throw semantics of the original call site.
+     */
+    private static RuntimeException rethrowConverted(RuntimeException e) {
+        Exception converted = NativeErrorConverter.convert(e);
+        if (converted instanceof RuntimeException rte) {
+            return rte;
+        }
+        return e;
+    }
 
     private static final MethodHandle INIT_RUNTIME_MANAGER;
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
@@ -451,6 +475,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_BYTE,   // hasPartialAggregate (0/1)
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
@@ -468,6 +493,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_BYTE,   // requestsRowIds (0/1) — QTF query phase signal
+                ValueLayout.JAVA_BYTE,   // hasPartialAggregate (0/1)
                 ValueLayout.JAVA_LONG,   // queryConfigPtr
                 ValueLayout.ADDRESS,     // planBytes (multi-index schema widening)
                 ValueLayout.JAVA_LONG    // planLen
@@ -872,10 +898,11 @@ public final class NativeBridge {
      * @param segments per-segment metadata — each carries a single filename and writer generation
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      * @param sortFields index.sort.field values, or empty list if the index has no sort configured.
-     *                   Parallel to {@code sortOrders}.
+     *                   Parallel to {@code sortOrders}. Two consumers Rust-side: vanilla path's
+     *                   {@code ListingOptions.with_file_sort_order(...)} so the parquet scan advertises
+     *                   {@code output_ordering} to the optimizer, and indexed path's segment-iteration
+     *                   reversal when the query's leading ORDER BY runs counter to catalog direction.
      * @param sortOrders index.sort.order values ("asc" or "desc"), parallel to {@code sortFields}.
-     *                   Used by Rust to call {@code ListingOptions.with_file_sort_order(...)} so the
-     *                   parquet scan advertises {@code output_ordering} to the DataFusion optimizer.
      */
     public static long createDatafusionReader(
         String path,
@@ -967,7 +994,7 @@ public final class NativeBridge {
             );
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -979,7 +1006,7 @@ public final class NativeBridge {
             long result = NativeLibraryLoader.checkResult((long) STREAM_GET_SCHEMA.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -989,7 +1016,7 @@ public final class NativeBridge {
             long result = NativeLibraryLoader.checkResult((long) STREAM_NEXT.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -1065,8 +1092,7 @@ public final class NativeBridge {
             }
 
             // Partition gates
-            var datanodeGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "datanode_gate");
-            var coordinatorGate = StatsLayout.readPartitionGate(seg, "reduce_executor_gate", "coordinator_gate");
+            var fragmentExecutorGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "fragment_executor_gate");
 
             // Cache stats (zeroed in native when caches are disabled)
             var cacheStats = StatsLayout.readCacheStats(seg);
@@ -1076,8 +1102,8 @@ public final class NativeBridge {
 
             return new DataFusionStats(
                 new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
-                datanodeGate,
-                coordinatorGate,
+                fragmentExecutorGate,
+                StatsLayout.readAdaptiveBudgetStats(seg),
                 null,
                 cacheStats,
                 searchStats
@@ -1242,6 +1268,8 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length, contextId);
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1459,6 +1487,8 @@ public final class NativeBridge {
      *
      * @param tableName the logical table name (alias/pattern) to register the table under
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     * @param hasPartialAggregate whether the fragment contains a partial aggregate — signals Rust to
+     *                            exclude the CombinePartialFinalAggregate optimizer rule
      * @param planBytes Substrait plan bytes — used to widen the registered schema for multi-index
      *                  queries (null-filling columns this shard omits). Empty = skip widening.
      */
@@ -1467,6 +1497,7 @@ public final class NativeBridge {
         long runtimePtr,
         String tableName,
         long contextId,
+        boolean hasPartialAggregate,
         long queryConfigPtr,
         byte[] planBytes
     ) {
@@ -1485,6 +1516,7 @@ public final class NativeBridge {
                 table.len(),
                 contextId,
                 queryConfigPtr,
+                (byte) (hasPartialAggregate ? 1 : 0),
                 planSegment,
                 planLen
             );
@@ -1513,6 +1545,8 @@ public final class NativeBridge {
      * on the Rust handle for use during execution.
      *
      * @param tableName the logical table name (alias/pattern) to register the table under
+     * @param hasPartialAggregate whether the fragment contains a partial aggregate — signals Rust to
+     *                            exclude the CombinePartialFinalAggregate optimizer rule
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      * @param planBytes Substrait plan bytes for multi-index schema widening (empty = skip)
      */
@@ -1524,6 +1558,7 @@ public final class NativeBridge {
         int treeShapeOrdinal,
         int delegatedPredicateCount,
         boolean requestsRowIds,
+        boolean hasPartialAggregate,
         long queryConfigPtr,
         byte[] planBytes
     ) {
@@ -1544,6 +1579,7 @@ public final class NativeBridge {
                 treeShapeOrdinal,
                 delegatedPredicateCount,
                 (byte) (requestsRowIds ? 1 : 0),
+                (byte) (hasPartialAggregate ? 1 : 0),
                 queryConfigPtr,
                 planSegment,
                 planLen
@@ -1593,7 +1629,7 @@ public final class NativeBridge {
             }
             listener.onResponse(result);
         } catch (Throwable throwable) {
-            listener.onFailure(throwable instanceof Exception ? (Exception) throwable : new RuntimeException(throwable));
+            listener.onFailure(convertNativeError(throwable));
         }
     }
 
@@ -1647,6 +1683,8 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr, contextId);
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1687,6 +1725,8 @@ public final class NativeBridge {
                 runtimePtr,
                 contextId
             );
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 

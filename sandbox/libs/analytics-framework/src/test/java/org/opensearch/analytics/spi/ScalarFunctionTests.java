@@ -89,6 +89,27 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         assertEquals(ScalarFunction.CONCAT, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.CONCAT));
     }
 
+    public void testFromSqlOperatorResolvesVariadicConcatViaReferenceOperator() {
+        // SqlLibraryOperators.CONCAT_FUNCTION shares the name "CONCAT" with the binary `||` enum
+        // constant, so identifier-name fallback resolves to the wrong constant. The
+        // referenceOperator pin disambiguates by singleton identity, routing the variadic
+        // call to its dedicated adapter.
+        assertEquals("CONCAT", SqlLibraryOperators.CONCAT_FUNCTION.getName());
+        assertSame(ScalarFunction.CONCAT_FUNCTION, ScalarFunction.fromSqlOperatorWithFallback(SqlLibraryOperators.CONCAT_FUNCTION));
+    }
+
+    public void testFromSqlOperatorResolvesJsonValidViaReferenceOperator() {
+        // PPL json_valid reaches AE as SqlStdOperatorTable.IS_JSON_VALUE — a SqlPostfixOperator
+        // named "IS JSON VALUE" with SqlKind.OTHER. Neither fromSqlKind (OTHER is unmapped) nor
+        // identifier-name valueOf ("IS JSON VALUE" != "JSON_VALID") resolves it; only the
+        // referenceOperator identity pin does. Pins the exact production resolution path so a
+        // future refactor can't silently regress json_valid to "No backend supports scalar
+        // function" at the AE route.
+        assertEquals("IS JSON VALUE", SqlStdOperatorTable.IS_JSON_VALUE.getName());
+        assertEquals(SqlKind.OTHER, SqlStdOperatorTable.IS_JSON_VALUE.getKind());
+        assertSame(ScalarFunction.JSON_VALID, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.IS_JSON_VALUE));
+    }
+
     // ── fromSqlOperatorWithFallback: identifier-name branch ────────────────────────────────
 
     public void testFromSqlOperatorResolvesViaIdentifierName() {

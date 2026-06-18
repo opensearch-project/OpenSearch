@@ -145,8 +145,11 @@ fn render_token(tok: Token, dt: DateTime<Utc>, mode: FormatMode) -> Option<Rende
         Token::VLower => date_only!(Str(format!("{:02}", week_number_monday_first_01(dt)))),
         Token::XUpper => date_only!(Str(format!("{:04}", week_year_sunday_first(dt)))),
         Token::XLower => date_only!(Str(format!("{:04}", week_year_monday_first(dt)))),
-        // %c emits month with no leading zero (MySQL semantics).
-        Token::C => Str(if time_mode { "0".into() } else { dt.month().to_string() }),
+        // %c emits the zero-padded month, matching the PPL reference (SQL-plugin
+        // DateTimeFormatterUtil maps %c -> "MM" in date mode), which differs from stock MySQL's
+        // no-leading-zero %c. PPL semantics are the contract on the analytics-engine route.
+        // Time mode keeps the reference's single-"0" literal (TIME_HANDLERS maps %c -> "0").
+        Token::C => Str(if time_mode { "0".into() } else { format!("{:02}", dt.month()) }),
         Token::DLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.day()) }),
         Token::E => Str(if time_mode { "0".into() } else { dt.day().to_string() }),
         Token::MLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.month()) }),
@@ -353,8 +356,13 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
     let mut pos = 0;
     let mut f = Parsed::default();
     for tok in tokens {
-        if pos > input_bytes.len() {
-            return None;
+        // Input exhausted before format: trailing tokens default to zero via Parsed::to_naive.
+        // An empty input (pos still 0) is a hard failure — don't let it default to all zeros.
+        if pos >= input_bytes.len() {
+            if pos == 0 {
+                return None;
+            }
+            break;
         }
         while pos < input_bytes.len() && (input_bytes[pos] as char).is_whitespace() {
             pos += 1;
@@ -362,6 +370,10 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
         match tok {
             Token::Literal(c) => {
                 if c.is_whitespace() {
+                    // Accept ISO-8601 `T` where the format expects whitespace.
+                    if pos < input_bytes.len() && input_bytes[pos] == b'T' {
+                        pos += 1;
+                    }
                     continue;
                 }
                 if pos >= input_bytes.len() || input_bytes[pos] as char != c {
@@ -417,8 +429,9 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
                 pos = np;
             }
             Token::HLower | Token::IUpper | Token::L => {
+                // MySQL accepts "00" for %h/%I/%l; Parsed::to_naive maps h12=0 → hour 0.
                 let (v, np) = read_digits(input_bytes, pos, 1, 2)?;
-                if !(1..=12).contains(&v) {
+                if v > 12 {
                     return None;
                 }
                 f.hour_12 = Some(v);
@@ -457,7 +470,7 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
             }
             Token::R => {
                 let (h, np) = read_digits(input_bytes, pos, 1, 2)?;
-                if !(1..=12).contains(&h) {
+                if h > 12 {
                     return None;
                 }
                 pos = expect_literal(input_bytes, np, b':')?;
@@ -662,14 +675,15 @@ mod tests {
 
     #[test]
     fn date_format_timestamp_full_token_set() {
-        // Full token set from CalciteDateTimeFunctionIT.testDateFormat: %c is unpadded; %P literal.
+        // Full token set from CalciteDateTimeFunctionIT.testDateFormat: %c is zero-padded month
+        // (PPL reference maps %c -> "MM", unlike stock MySQL); %P literal.
         let ts = chrono::NaiveDate::from_ymd_opt(1998, 1, 31)
             .unwrap()
             .and_hms_micro_opt(13, 14, 15, 12_345)
             .unwrap();
         let dt = chrono::Utc.from_utc_datetime(&ts);
         let fmtstr = "%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %% %P";
-        let want = "Sat Jan 1 31st 31 31 012345 13 01 01 14 031 13 1 January 01 PM 01:14:15 PM 15 15 13:14:15 % P";
+        let want = "Sat Jan 01 31st 31 31 012345 13 01 01 14 031 13 1 January 01 PM 01:14:15 PM 15 15 13:14:15 % P";
         assert_eq!(fmt(dt, fmtstr, FormatMode::Date).unwrap(), want);
     }
 
@@ -732,5 +746,35 @@ mod tests {
     fn parse_fractional_seconds() {
         let p = parse_os_strftime("2020-03-15 10:30:45.123456", "%Y-%m-%d %H:%i:%S.%f").unwrap();
         assert_eq!(p.to_naive().unwrap().and_utc().timestamp_micros(), 1_584_268_245_123_456);
+    }
+
+    #[test]
+    fn parse_lenient_when_input_runs_out_before_format() {
+        let p = parse_os_strftime("2017-10-23", "%Y-%m-%d %h:%i:%s").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2017-10-23 00:00:00");
+        let p = parse_os_strftime("2020-03", "%Y-%m-%d").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2020-03-01 00:00:00");
+    }
+
+    #[test]
+    fn parse_h12_accepts_zero() {
+        let p = parse_os_strftime("23-Oct-17 00:00:00", "%d-%b-%y %h:%i:%s").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2017-10-23 00:00:00");
+        let p = parse_os_strftime("00:00:00 AM", "%r").unwrap();
+        assert_eq!(p.to_naive().unwrap().time().to_string(), "00:00:00");
+    }
+
+    #[test]
+    fn parse_h12_rejects_above_twelve() {
+        assert!(parse_os_strftime("13:00:00", "%h:%i:%s").is_none());
+    }
+
+    #[test]
+    fn parse_iso_t_separator_accepted_for_format_space() {
+        let p = parse_os_strftime("2017-10-23T00:00:00", "%Y-%m-%d %h:%i:%s").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2017-10-23 00:00:00");
+        let p = parse_os_strftime("2017-10-23 00:00:00", "%Y-%m-%d %h:%i:%s").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2017-10-23 00:00:00");
+        assert!(parse_os_strftime("2017-10-23X00:00:00", "%Y-%m-%d %h:%i:%s").is_none());
     }
 }

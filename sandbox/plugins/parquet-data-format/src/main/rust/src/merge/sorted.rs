@@ -39,6 +39,7 @@ pub fn merge_sorted(
     let output_flush_rows = config.get_row_group_max_rows();
     let rayon_threads = config.get_merge_rayon_threads();
     let io_threads = config.get_merge_io_threads();
+    let deferred_threshold = config.get_merge_deferred_column_threshold();
     if input_files.is_empty() {
         return Err(super::MergeError::Logic(
             "merge_sorted called with empty input_files".into(),
@@ -82,7 +83,7 @@ pub fn merge_sorted(
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
         let (cursor, projected_schema, parquet_descr, generation, row_count) =
-            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size)?;
+            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size, deferred_threshold)?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
         parquet_descriptors.push(parquet_descr);
@@ -160,7 +161,7 @@ pub fn merge_sorted(
             loop {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 if remaining > 0 {
-                    let slice = cursor.take_slice(cursor.row_idx, remaining);
+                    let slice = cursor.take_slice(cursor.row_idx, remaining)?;
                     for _ in 0..remaining {
                         mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
                         rows_emitted_per_file[file_id] += 1;
@@ -187,7 +188,7 @@ pub fn merge_sorted(
             let last_val = cursor.last_sort_values()?;
             if cmp_sort_values(&last_val, heap_top, reverse_sorts) != Ordering::Greater {
                 let remaining = cursor.batch_height() - cursor.row_idx;
-                let slice = cursor.take_slice(cursor.row_idx, remaining);
+                let slice = cursor.take_slice(cursor.row_idx, remaining)?;
                 for _ in 0..remaining {
                     mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
                     rows_emitted_per_file[file_id] += 1;
@@ -214,7 +215,7 @@ pub fn merge_sorted(
             // TIER 3: Binary search for the exact boundary
             let run_start = cursor.row_idx;
             let batch_h = cursor.batch_height();
-            let batch = cursor.current_batch.as_ref().unwrap();
+            let batch = cursor.sort_batch.as_ref().unwrap();
 
             let mut lo = run_start;
             let mut hi = batch_h - 1;
@@ -239,7 +240,7 @@ pub fn merge_sorted(
 
             let run_len = run_end - run_start + 1;
             if run_len > 0 {
-                let slice = cursor.take_slice(run_start, run_len);
+                let slice = cursor.take_slice(run_start, run_len)?;
                 for _ in 0..run_len {
                     mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
                     rows_emitted_per_file[file_id] += 1;

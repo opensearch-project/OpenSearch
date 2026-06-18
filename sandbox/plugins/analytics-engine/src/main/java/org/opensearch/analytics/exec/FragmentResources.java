@@ -18,9 +18,11 @@ import org.opensearch.analytics.spi.ExchangeSink;
  * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
  * the duration of a streaming fragment execution, and releases them in reverse order on close.
  *
- * <p>The reader is owned by {@link ReaderContextStore}, not by this class — close releases
- * (does not free) the context, so the reader stays alive across the QTF query→fetch
- * boundary. The store's reaper closes the underlying reader after keepAlive elapses.
+ * <p>The reader is owned by {@link ReaderContextStore}, not by this class. When a fetch phase will
+ * reuse the reader (QTF query phase), close only releases the context so it stays alive across the
+ * query→fetch boundary, and the store's reaper closes it after keepAlive. Otherwise (non-QTF query,
+ * or the terminal fetch phase itself) close frees the context immediately so the reader is not
+ * pinned in the store until the reaper sweeps it.
  *
  * @opensearch.internal
  */
@@ -40,15 +42,21 @@ public final class FragmentResources implements AutoCloseable {
      * pull memory out from under the FFM call.
      */
     private final BigIntVector rowIdVector;
+    /**
+     * True when this query requested top-N docs (row-ids), so a fetch phase will reuse this reader
+     * (QTF query phase); close then keeps the reader in the store for that fetch.
+     */
+    private final boolean requiresTopDocs;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
         ReaderContext readerContext,
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
-        Runnable onClose
+        Runnable onClose,
+        boolean requiresTopDocs
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, null, null, null);
+        this(readerContextStore, readerContext, engine, stream, onClose, null, requiresTopDocs, null, null);
     }
 
     public FragmentResources(
@@ -57,12 +65,16 @@ public final class FragmentResources implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
         Runnable onClose,
-        BigIntVector rowIdVector
+        BigIntVector rowIdVector,
+        boolean requiresTopDocs
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, rowIdVector, null, null);
+        this(readerContextStore, readerContext, engine, stream, onClose, rowIdVector, requiresTopDocs, null, null);
     }
 
     /**
+     * Convenience overload for the hash-shuffle producer path: no top-docs fetch (producers stream
+     * their output into the partitioned sink, never reuse the reader for a fetch phase).
+     *
      * @param partitionedSink  non-null when the fragment's instruction chain produced a
      *                         {@code ShuffleProducerOutputState}: the engine's output is to be
      *                         drained into this sink instead of through the streaming response.
@@ -81,6 +93,25 @@ public final class FragmentResources implements AutoCloseable {
         ExchangeSink partitionedSink,
         ShardScanExecutionContext executionContext
     ) {
+        this(readerContextStore, readerContext, engine, stream, onClose, rowIdVector, false, partitionedSink, executionContext);
+    }
+
+    /**
+     * Full constructor. Upstream's {@code requiresTopDocs} is kept ahead of our MPP-shuffle params
+     * ({@code partitionedSink}, {@code executionContext}) per the "our params to the END of
+     * upstream-owned signatures" convention.
+     */
+    public FragmentResources(
+        ReaderContextStore readerContextStore,
+        ReaderContext readerContext,
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
+        EngineResultStream stream,
+        Runnable onClose,
+        BigIntVector rowIdVector,
+        boolean requiresTopDocs,
+        ExchangeSink partitionedSink,
+        ShardScanExecutionContext executionContext
+    ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
         this.readerContext = readerContext;
@@ -88,6 +119,7 @@ public final class FragmentResources implements AutoCloseable {
         this.stream = stream;
         this.onClose = onClose;
         this.rowIdVector = rowIdVector;
+        this.requiresTopDocs = requiresTopDocs;
         this.partitionedSink = partitionedSink;
         this.executionContext = executionContext;
     }
@@ -151,11 +183,18 @@ public final class FragmentResources implements AutoCloseable {
         // close() runs, so the sink's isLast markers are guaranteed to ship before the engine /
         // reader are torn down. We don't double-close here — close() is idempotent on the sink
         // but we keep ownership clear: routing closes when draining is done.
-        // Release (not close) the reader context — the store's reaper closes after keepAlive,
-        // and the QTF fetch phase may still need this reader before then.
+        //
+        // Reader context: if this query requested top-N docs, a fetch phase will reuse this reader,
+        // so only release this phase's use-reference (releaseContext) — it stays alive for the fetch
+        // and the store's reaper closes it after keepAlive. Otherwise releaseAndFree now so the reader
+        // is closed immediately instead of being pinned until the reaper sweeps it.
         if (readerContext != null) {
             try {
-                readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
+                if (requiresTopDocs) {
+                    readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
+                } else {
+                    readerContextStore.releaseAndFree(readerContext.getQueryId(), readerContext.getShardId());
+                }
             } catch (Exception e) {
                 if (first == null) first = e;
                 else first.addSuppressed(e);

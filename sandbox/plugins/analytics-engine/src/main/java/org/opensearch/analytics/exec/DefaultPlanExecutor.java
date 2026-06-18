@@ -76,6 +76,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -221,6 +222,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // from the RelNode's TableScan nodes.
         String[] indices = RelNodeUtils.extractIndices(logicalFragment);
         AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices);
+        applyParentTask(request, queryCtx);
         client.execute(
             AnalyticsQueryAction.INSTANCE,
             request,
@@ -235,11 +237,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // searchExecutor. The SecurityFilter also evaluates index permissions on this path.
         String[] indices = RelNodeUtils.extractIndices(logicalFragment);
         AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices, true);
+        applyParentTask(request, queryCtx);
         client.execute(
             AnalyticsQueryAction.INSTANCE,
             request,
             ActionListener.wrap(resp -> listener.onResponse(resp.getProfiledResult()), listener::onFailure)
         );
+    }
+
+    /**
+     * Registers the analytics query task as a child of the front-end task so a front-end cancel
+     * (disconnect / timeout / {@code _tasks/_cancel}) cascades into the query and its fragments.
+     * Set here, not in {@code createTask}, because the parent {@link TaskId} needs the local node id.
+     */
+    private void applyParentTask(AnalyticsQueryRequest request, QueryRequestContext queryCtx) {
+        if (queryCtx == null || queryCtx.parentTask() == null) {
+            return;
+        }
+        request.setParentTask(new TaskId(clusterService.localNode().getId(), queryCtx.parentTask().getId()));
     }
 
     /**
@@ -995,8 +1010,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         return ActionListener.wrap(rows -> {
             // execRef is populated by scheduler.execute (single-pass) or by the MPP dispatchers
             // (BROADCAST / HASH_SHUFFLE / HASH_SHUFFLE_AGG). The dispatcher path threads its
-            // inner scheduler.execute result through a Consumer back to execRef. If something
-            // in that wiring drifts and execRef (or its graph) stays null, fall back to a
+            // inner scheduler.execute result through a Consumer back to execRef. A fast query can
+            // also fire this terminal inline (on the calling thread, inside scheduler.execute)
+            // BEFORE execRef.set runs. Either way, if execRef (or its graph) is null, fall back to a
             // planning-only profile rather than NPE-ing — the failure path below uses the same
             // fallback for consistency.
             QueryExecution successExec = execRef.get();
@@ -1027,10 +1043,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The listener is wrapped to convert backend-specific exceptions.
-        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
-            listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? contextProvider.convertException(ex) : e)
-        );
+        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(listener::onResponse, e -> {
+            Exception converted = e instanceof Exception ex ? contextProvider.convertException(ex) : new RuntimeException(e);
+            listener.onFailure(converted);
+        });
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
                 executeInternal(

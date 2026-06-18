@@ -78,6 +78,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     FilterTreeShape.NO_DELEGATION.ordinal(),
                     0,
                     true,
+                    context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()
                 );
@@ -88,6 +89,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     runtimePtr,
                     tableName,
                     contextId,
+                    context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()
                 );

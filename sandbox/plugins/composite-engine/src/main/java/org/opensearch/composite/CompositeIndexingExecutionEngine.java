@@ -556,4 +556,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return secondaryEngines;
     }
 
+    @Override
+    public long maxIndexableDocs() {
+        long maxAllowedDocs = primaryEngine.maxIndexableDocs();
+        for (var engine : secondaryEngines) {
+            maxAllowedDocs = Math.min(maxAllowedDocs, engine.maxIndexableDocs());
+        }
+        return maxAllowedDocs;
+    }
 }

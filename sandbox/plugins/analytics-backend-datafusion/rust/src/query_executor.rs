@@ -197,7 +197,7 @@ pub async fn execute_query(
     })?;
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, _task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
     if let Some(h) = abort_handle {
@@ -288,11 +288,11 @@ pub async fn execute_with_context(
         // and fall through to the standard decode + execute below.
         if let Some(prepared) = handle.prepared_plan.as_ref() {
             let physical_plan = std::sync::Arc::clone(prepared);
-            let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+            let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
                 error!("execute_with_context: failed to execute prepared plan: {}", e);
                 e
             })?;
-            let (cross_rt_stream, abort_handle) =
+            let (cross_rt_stream, abort_handle, _task_done) =
                 CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
@@ -301,10 +301,8 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            // Prepared (engine-native PARTIAL) path carries no physical_plan handle — match the
-            // tuple shape of the other exits so the closure's return type stays consistent.
             return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>(
-                (Box::into_raw(Box::new(wrapped)) as i64, None),
+                (Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)),
             );
         }
 
@@ -337,7 +335,7 @@ pub async fn execute_with_context(
                 e
             })?;
 
-            let (cross_rt_stream, abort_handle) =
+            let (cross_rt_stream, abort_handle, _task_done) =
                 CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
@@ -356,13 +354,14 @@ pub async fn execute_with_context(
 
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+        log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
         let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
             error!("execute_with_context: failed to create stream: {}", e);
             e
         })?;
 
-        let (cross_rt_stream, abort_handle) =
+        let (cross_rt_stream, abort_handle, _task_done) =
             CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
         if let Some(h) = abort_handle {
@@ -394,6 +393,31 @@ pub async fn execute_with_context(
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
+/// The shared per-query `RuntimeEnv` builder chain: inherits the global runtime's
+/// caches (file-metadata, file-statistics + limit) and uses a fresh object-store
+/// registry plus the provided per-query `list_file_cache`. Callers overlay any
+/// per-query memory pool, then `.build()`.
+pub fn query_runtime_env_builder(
+    runtime: &DataFusionRuntime,
+    list_file_cache: Arc<DefaultListFilesCache>,
+) -> RuntimeEnvBuilder {
+    RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
+        .with_object_store_registry(Arc::new(datafusion::execution::object_store::DefaultObjectStoreRegistry::new()))
+        .with_cache_manager(
+            CacheManagerConfig::default()
+                .with_list_files_cache(Some(list_file_cache))
+                .with_file_metadata_cache(Some(
+                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+                ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
+                .with_file_statistics_cache(
+                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
+                ),
+        )
+}
+
 /// Build a per-query RuntimeEnv sharing global caches, with a fresh list-files
 /// cache pre-populated for the given table path and object metas.
 pub fn build_query_runtime_env(
@@ -408,18 +432,7 @@ pub fn build_query_runtime_env(
     };
     list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.to_vec()));
 
-    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_file_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        )
-        .build()?;
+    let runtime_env = query_runtime_env_builder(runtime, list_file_cache).build()?;
     Ok(Arc::from(runtime_env))
 }
 

@@ -40,6 +40,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private QueryCache queryCache;
     private QueryCachingPolicy queryCachingPolicy;
     private ShardId shardId;
+    private boolean hasPartialAggregate;
 
     /**
      * Constructs an execution context.
@@ -161,5 +162,14 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
 
     public void setShardId(ShardId shardId) {
         this.shardId = shardId;
+    }
+
+    /** Whether the fragment contains a PARTIAL aggregate instruction. */
+    public boolean hasPartialAggregate() {
+        return hasPartialAggregate;
+    }
+
+    public void setHasPartialAggregate(boolean hasPartialAggregate) {
+        this.hasPartialAggregate = hasPartialAggregate;
     }
 }

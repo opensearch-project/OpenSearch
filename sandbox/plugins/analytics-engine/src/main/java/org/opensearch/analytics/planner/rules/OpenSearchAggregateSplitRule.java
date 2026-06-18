@@ -32,8 +32,11 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
-import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
+import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
@@ -173,8 +176,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // perturbs the global cost model for unrelated query shapes). For unpartitioned input
         // (1 shard / already gathered) or a non-splittable aggregate, the single-stage plan is the
         // correct and only choice.
+        // Split into PARTIAL/FINAL only when the input is genuinely partitioned AND no operator
+        // below forces a gather (a gather-forced input is already singleton — a PARTIAL over it
+        // would be invalid). Otherwise emit the single coordinator aggregate.
         boolean partitioned = isPartitioned(child);
-        if (!partitioned || childGatheredByWindow(child) || shouldSkipPartialFinalSplit(aggregate)) {
+        if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate)) {
             call.transformTo(singleOnSingleton);
             return;
         }
@@ -248,35 +254,54 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /**
-     * True when a window (a {@code RexOver}-bearing Project) sits between this aggregate and its
-     * scan. A global-frame window has infinite cost unless its input is SINGLETON, so the planner
-     * gathers below it — meaning this aggregate's input is already on one node and splitting it
-     * would add a redundant PARTIAL/FINAL pass.
+     * True when a gather-forcing operator sits between this aggregate and its scan, so the
+     * aggregate's input is already (or will be) gathered to one node — splitting it into
+     * PARTIAL/FINAL is invalid (the PARTIAL would sit over SINGLETON input, and the shard-side
+     * PARTIAL is unsatisfiable). Walks the single-input chain, descending past pass-through
+     * Projects (no {@code RexOver}) and Filters; stops at the first gather-forcing op or a terminal.
      *
-     * <p>This only runs after {@link #isPartitioned} confirmed {@code node} carries the RANDOM
-     * trait, i.e. {@code node} is on the shard-side (pre-gather) segment of the plan. The
-     * window's gather is a not-yet-materialized converter and the FINAL aggregate of any
-     * lower split outputs SINGLETON (which {@code isPartitioned} would have screened out), so
-     * there is no {@link OpenSearchExchangeReducer} between {@code node} and its scan to walk
-     * past — the descent stays within this one RANDOM segment. The walk simply looks for a
-     * window over the single-input chain down to the scan; a multi-input op (join/union) ends it.
+     * <p>Gather-forcing operators (each returns infinite cost over non-SINGLETON input in its own
+     * {@code computeSelfCost}, so Volcano gathers below them):
+     * <ul>
+     *   <li>collated or limited {@link OpenSearchSort} (global order/limit can't run per-shard);</li>
+     *   <li>a {@code RexOver}-bearing {@link OpenSearchProject} (window needs gathered input);</li>
+     *   <li>{@link OpenSearchJoin} and {@link OpenSearchUnion} (coordinator-gathered today);</li>
+     *   <li>a nested {@link OpenSearchAggregate} (its FINAL/SINGLE output is gathered).</li>
+     * </ul>
+     * Pass-through Project / Filter are walked past; scans/values and anything else end the walk
+     * as not-gather-forcing (split allowed).
      */
-    private static boolean childGatheredByWindow(RelNode node) {
+    private static boolean childForcesGather(RelNode node) {
         RelNode cur = unwrapForWalk(node);
         while (cur != null) {
-            if (cur instanceof OpenSearchProject project && project.containsOver()) {
-                return true; // window forces a gather above its input → our input is already singleton
+            // Gather-forcing operators: each returns infinite cost over non-SINGLETON input in its
+            // own computeSelfCost (verified: Sort-collated/limited, RexOver-Project, Join, Union,
+            // nested Aggregate), so Volcano gathers below them → our input is already singleton.
+            if (cur instanceof OpenSearchSort sort) {
+                return !sort.getCollation().getFieldCollations().isEmpty() || sort.fetch != null || sort.offset != null;
             }
-            if (cur.getInputs().size() != 1) {
-                return false; // scan (no inputs) or a multi-input op (join/union) — no single window gather
+            if (cur instanceof OpenSearchJoin || cur instanceof OpenSearchUnion || cur instanceof OpenSearchAggregate) {
+                return true;
             }
-            cur = unwrapForWalk(cur.getInput(0));
+            if (cur instanceof OpenSearchProject project) {
+                if (project.containsOver()) return true;      // window → gathered input
+                cur = unwrapForWalk(cur.getInput(0));          // pass-through project → keep walking
+                continue;
+            }
+            // Pass-through, non-gathering: Filter (q37's split must still happen) → keep walking.
+            if (cur instanceof OpenSearchFilter) {
+                cur = unwrapForWalk(cur.getInput(0));
+                continue;
+            }
+            // Terminals that do not force a gather: TableScan / StageInputScan / Values, or any
+            // other shape we don't explicitly treat as gather-forcing. Conservative: allow split.
+            return false;
         }
         return false;
     }
 
     /**
-     * Resolves a node to its concrete rel for the {@link #childGatheredByWindow} walk. During
+     * Resolves a node to its concrete rel for the {@link #childForcesGather} walk. During
      * Volcano, {@code getInput(0)} returns a {@link RelSubset}, not a concrete rel — its
      * {@code getInputs()} is empty, which would end the walk one hop below the aggregate and miss a
      * window sitting behind an intermediate op (e.g. a {@code where} Filter). Unwrap the HEP vertex,

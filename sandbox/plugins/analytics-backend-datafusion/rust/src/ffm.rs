@@ -73,6 +73,11 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
         .ok_or_else(|| "Runtime manager not initialized".to_string())
 }
 
+/// Non-erroring accessor; `None` before init / after shutdown.
+pub(crate) fn try_get_rt_manager() -> Option<Arc<RuntimeManager>> {
+    TOKIO_RUNTIME_MANAGER.read().clone()
+}
+
 
 #[no_mangle]
 pub extern "C" fn df_init_runtime_manager(cpu_threads: i32, datanode_multiplier: f64, coordinator_multiplier: f64) {
@@ -89,8 +94,7 @@ pub extern "C" fn df_shutdown_runtime_manager() {
 }
 
 /// Updates the effective permit count of a named concurrency gate.
-/// Gate names: "fragment_executor" (targets DedicatedExecutor gate) or
-///             "reduce" (targets RuntimeManager coordinator gate).
+/// Gate names: "fragment_executor" (targets DedicatedExecutor gate).
 ///
 /// Scale-up is synchronous. Scale-down spawns an async task on the IO
 /// runtime to acquire poison permits (may need to wait for in-flight
@@ -117,7 +121,6 @@ pub unsafe extern "C" fn df_update_concurrency_gate(
 
     let gate = match gate_name {
         "fragment_executor" => mgr.cpu_executor().concurrency_gate().clone(),
-        "reduce" => mgr.coordinator_gate().clone(),
         other => {
             warn!("df_update_concurrency_gate: unknown gate '{}'", other);
             return Ok(0);
@@ -952,6 +955,7 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_len: i64,
     context_id: i64,
     query_config_ptr: i64,
+    has_partial_aggregate: u8,
     plan_ptr: *const u8,
     plan_len: i64,
 ) -> i64 {
@@ -973,6 +977,7 @@ pub unsafe extern "C" fn df_create_session_context(
                 shard_view_ptr,
                 table_name,
                 context_id,
+                has_partial_aggregate != 0,
                 query_config,
                 plan_bytes,
             )
@@ -1008,6 +1013,7 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     requests_row_ids: u8,
+    has_partial_aggregate: u8,
     query_config_ptr: i64,
     plan_ptr: *const u8,
     plan_len: i64,
@@ -1037,6 +1043,7 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
                 tree_shape,
                 delegated_predicate_count,
                 requests_row_ids != 0,
+                has_partial_aggregate != 0,
                 query_config,
                 plan_bytes,
             )
@@ -1283,14 +1290,14 @@ pub unsafe extern "C" fn df_execute_with_context(
 /// `runtime_ptr` may be `0` to skip cache-stats collection. When non-zero it
 /// must be a valid pointer returned by [`df_create_global_runtime`].
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (552).
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (600).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i64) -> i64 {
     use crate::stats::{
         layout, pack_cache_stats, pack_partition_gate, pack_runtime_metrics, pack_task_monitor,
-        CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
+        pack_adaptive_budget, CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
     };
     use crate::task_monitors::{
         coordinator_reduce_monitor, query_execution_monitor,
@@ -1340,7 +1347,7 @@ pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i
         stream_next: pack_task_monitor(stream_next_monitor()),
         plan_setup: pack_task_monitor(plan_setup_monitor()),
         fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
-        reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
+        adaptive_budget: pack_adaptive_budget(),
         cache_stats,
         search_stats: crate::search_stats::snapshot(),
     };
@@ -1477,7 +1484,7 @@ mod tests {
         )
     }
 
-    /// Validates: Requirements 2.2, 2.3, 2.4, 2.6
+    /// Validates: Requirements 2.2, 2.4, 2.6
     ///
     /// Combined test for FFI gate routing to avoid global state conflicts
     /// between parallel test threads. Tests are run sequentially within this
@@ -1485,7 +1492,6 @@ mod tests {
     ///
     /// Covers:
     /// - "fragment_executor" routes to the DedicatedExecutor's gate (Req 2.2)
-    /// - "reduce" routes to the RuntimeManager's coordinator gate (Req 2.3)
     /// - Unknown gate name logs warning and returns success (Req 2.4)
     /// - Calling update before runtime init returns success (Req 2.6)
     #[test]
@@ -1520,34 +1526,11 @@ mod tests {
             );
         }
 
-        // ── Test 3: "reduce" routes to coordinator gate (Req 2.3) ──
-        {
-            let gate = mgr.coordinator_gate().clone();
-            let initial_max = gate.max_permits();
-            let new_max = initial_max + 4;
-
-            let result = unsafe { call_update_gate("reduce", new_max) };
-            assert_eq!(result, 0, "FFI call should return success for 'reduce'");
-
-            // The resize is spawned on the IO runtime asynchronously.
-            // Wait briefly for it to complete.
-            std::thread::sleep(std::time::Duration::from_millis(200));
-
-            assert_eq!(
-                gate.max_permits(),
-                new_max,
-                "reduce gate max_permits should be updated to {}",
-                new_max
-            );
-        }
-
-        // ── Test 4: unknown gate name returns success without modifying gates (Req 2.4) ──
+        // ── Test 3: unknown gate name returns success without modifying gates (Req 2.4) ──
         {
             let fragment_executor_gate = mgr.cpu_executor().concurrency_gate().clone();
-            let reduce_executor_gate = mgr.coordinator_gate().clone();
 
             let fragment_executor_max_before = fragment_executor_gate.max_permits();
-            let reduce_max_before = reduce_executor_gate.max_permits();
 
             let result = unsafe { call_update_gate("unknown_gate", 99) };
             assert_eq!(result, 0, "FFI call should return success even for unknown gate");
@@ -1555,16 +1538,11 @@ mod tests {
             // Wait briefly to ensure no async resize was spawned
             std::thread::sleep(std::time::Duration::from_millis(100));
 
-            // Neither gate should have been modified
+            // Gate should not have been modified
             assert_eq!(
                 fragment_executor_gate.max_permits(),
                 fragment_executor_max_before,
                 "fragment_executor gate should not be modified for unknown gate name"
-            );
-            assert_eq!(
-                reduce_executor_gate.max_permits(),
-                reduce_max_before,
-                "reduce gate should not be modified for unknown gate name"
             );
         }
 

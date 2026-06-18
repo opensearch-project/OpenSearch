@@ -37,12 +37,18 @@ import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateReq
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
+import org.opensearch.action.admin.indices.readonly.AddIndexBlockClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.opensearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -53,6 +59,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -64,6 +71,7 @@ import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotInfoTests;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.CoreMatchers;
 
 import java.util.ArrayList;
@@ -75,6 +83,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -92,7 +101,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
@@ -381,6 +394,52 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
         );
     }
 
+    public void testAddIndexBlockSkipsSearchOnlyShardWithoutPrimary() throws Exception {
+        final String indexName = "search-only";
+        final ClusterState initialState = searchOnlyClusterState(indexName);
+        final AtomicReference<ClusterState> currentState = new AtomicReference<>(initialState);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenAnswer(invocation -> currentState.get());
+        doAnswer(invocation -> {
+            final String source = invocation.getArgument(0);
+            final ClusterStateUpdateTask task = invocation.getArgument(1);
+            final ClusterState oldState = currentState.get();
+            final ClusterState newState = task.execute(oldState);
+            currentState.set(newState);
+            task.clusterStateProcessed(source, oldState, newState);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(ThreadPool.Names.MANAGEMENT)).thenReturn(OpenSearchExecutors.newDirectExecutorService());
+        final TransportVerifyShardIndexBlockAction verifyShardIndexBlockAction = mock(TransportVerifyShardIndexBlockAction.class);
+        final MetadataIndexStateService service = new MetadataIndexStateService(
+            clusterService,
+            null,
+            null,
+            null,
+            null,
+            threadPool,
+            null,
+            verifyShardIndexBlockAction
+        );
+        final Index index = initialState.metadata().index(indexName).getIndex();
+        final AddIndexBlockClusterStateUpdateRequest request = new AddIndexBlockClusterStateUpdateRequest(APIBlock.WRITE, 1L).indices(
+            new Index[] { index }
+        );
+        final PlainActionFuture<AddIndexBlockResponse> future = PlainActionFuture.newFuture();
+
+        service.addIndexBlock(request, future);
+        final AddIndexBlockResponse response = future.actionGet();
+
+        assertTrue(response.isAcknowledged());
+        assertTrue(response.isShardsAcknowledged());
+        assertThat(response.getIndices(), hasSize(1));
+        assertFalse(response.getIndices().get(0).hasFailures());
+        assertTrue(currentState.get().blocks().hasIndexBlockWithId(indexName, APIBlock.WRITE.getBlock().id()));
+        verifyNoInteractions(verifyShardIndexBlockAction);
+    }
+
     public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.OPEN, null);
     }
@@ -444,6 +503,29 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
         );
         return ClusterState.builder(newState)
             .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry)))
+            .build();
+    }
+
+    private static ClusterState searchOnlyClusterState(final String indexName) {
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                    .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
+            )
+            .build();
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+        final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(newShardRouting(shardId, "search-node", false, true, ShardRoutingState.STARTED, null))
+            .build();
+
+        return ClusterState.builder(new ClusterName("testSearchOnlyClusterState"))
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
     }
 

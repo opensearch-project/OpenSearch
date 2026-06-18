@@ -23,10 +23,12 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
+import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
@@ -34,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
+import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateShuffleSplitRule;
@@ -56,6 +59,8 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -83,6 +88,30 @@ public class PlannerImpl {
 
     private static final Logger LOGGER = LogManager.getLogger(PlannerImpl.class);
 
+    /**
+     * Like {@link CoreRules#FILTER_PROJECT_TRANSPOSE} but refuses to push a Filter below a Project
+     * that computes any non-deterministic expression (e.g. {@code eval r = rand() | where r > 0}).
+     *
+     * <p>This is a <b>semantic-correctness</b> guard, not a delegation/performance one. The stock
+     * rule only guards against window functions ({@code !containsOver()}); pushing a Filter past a
+     * {@code rand()} Project inlines {@code RAND()} into the predicate, so a reference to one
+     * already-computed random value ({@code $ref > literal}) becomes a fresh {@code RAND() > literal}
+     * evaluated again at scan time. That re-evaluates / duplicates the non-deterministic expression
+     * and changes results, so the Filter must stay above the Project regardless of backend.
+     *
+     * <p>(Aside: such an inlined {@code RAND() > literal} predicate is also what gets incorrectly
+     * marked Lucene-delegation-viable today — a separate filter-viability gap where a field-less
+     * predicate inherits its child's viable backends instead of validating its scalar calls. That is
+     * tracked/fixed separately; it is not the reason for this rule.)
+     */
+    private static final FilterProjectTransposeRule FILTER_PROJECT_TRANSPOSE_DETERMINISTIC = FilterProjectTransposeRule.Config.DEFAULT
+        .withOperandFor(
+            Filter.class,
+            filter -> true,
+            Project.class,
+            project -> project.getProjects().stream().allMatch(RexUtil::isDeterministic)
+        ).toRule();
+
     public static RelNode createPlan(RelNode rawRelNode, PlannerContext context) {
         return runAllOptimizations(rawRelNode, context);
     }
@@ -104,6 +133,7 @@ public class PlannerImpl {
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -252,6 +282,20 @@ public class PlannerImpl {
     }
 
     /**
+     * Phase 1c': duplicate an aggregate's literal-config-arg Project (e.g. percentile's {@code 50})
+     * into a pinned upper copy (literal stays with the aggregate) over an unpinned physical-only
+     * lower copy (pushes below the ExchangeReducer). Runs AFTER marking — operates on
+     * {@code OpenSearch*} nodes and emits a pinned {@code OpenSearchProject} whose
+     * {@code computeSelfCost} forces the CBO-inserted ER below it, keeping the literal in the
+     * coordinator fragment for the DataFusion substrait converter. Placed after marking so the
+     * pre-marking {@code PROJECT_MERGE} cannot re-fuse the two copies. See
+     * {@link OpenSearchAggLiteralArgProjectSplitRule}.
+     */
+    private static RelNode splitAggLiteralArgProject(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("agg-literal-arg-split").addRuleInstance(new OpenSearchAggLiteralArgProjectSplitRule()).run(input, listener);
+    }
+
+    /**
      * Phase 1a: constant-expression reduction on Filter and Project predicates. Kept in
      * its own phase so {@code ProjectReduceExpressionsRule} cannot use a downstream
      * Filter's predicates (introduced by the pushdown phase in Phase 1b) to rewrite
@@ -285,15 +329,16 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("pushdown-rules")
             .bottomUp()
-            // Transposes (filter-into-* and sort-into-project) cascade together within
-            // one fixpoint, alongside PROJECT_MERGE which collapses the intermediate
-            // adjacent Projects that SORT_PROJECT_TRANSPOSE produces. FILTER_MERGE
-            // runs as its own instruction so it only fires after the transposes have
-            // settled — that way any auto-injected NOT NULL collapses with the user's
-            // WHERE on the post-pushdown filter, not on a half-pushed intermediate.
-            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
-            // rewriter by lifting Project above Sort so it sees a single Project layer
-            // above the anchor.
+            // Transposes (filter-into-*) cascade together within one fixpoint, alongside
+            // PROJECT_MERGE which collapses adjacent Projects. FILTER_MERGE runs as its own
+            // instruction so it only fires after the transposes have settled — that way any
+            // auto-injected NOT NULL collapses with the user's WHERE on the post-pushdown filter,
+            // not on a half-pushed intermediate.
+            //
+            // SORT_PROJECT_TRANSPOSE is intentionally omitted: lifting Project above Sort puts it
+            // above the Exchange, defeating projection pushdown. Keeping it below lets DataFusion
+            // prune the scan. QTF relocates the below-Sort Project above its wrapper itself.
+            //
             // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably bounded to
             // within the limit (e.g. a collation-less `head N` or a sort over a scalar
             // aggregate, getMaxRowCount <= 1): a no-op that the marking rule must not have to
@@ -302,10 +347,9 @@ public class PlannerImpl {
             // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
             .addRuleCollection(
                 List.of(
-                    CoreRules.FILTER_PROJECT_TRANSPOSE,
+                    FILTER_PROJECT_TRANSPOSE_DETERMINISTIC,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
-                    CoreRules.SORT_PROJECT_TRANSPOSE,
                     CoreRules.PROJECT_MERGE,
                     CoreRules.LIMIT_MERGE,
                     CoreRules.SORT_REMOVE_REDUNDANT
@@ -401,7 +445,13 @@ public class PlannerImpl {
             if (!copied.getTraitSet().equals(desiredTraits)) {
                 volcanoPlanner.setRoot(volcanoPlanner.changeTraits(copied, desiredTraits));
             }
-            return volcanoPlanner.findBestExp();
+            RelNode best = volcanoPlanner.findBestExp();
+            if (LOGGER.isDebugEnabled()) {
+                StringWriter sw = new StringWriter();
+                volcanoPlanner.dump(new PrintWriter(sw));
+                LOGGER.debug("Volcano memo:\n{}", sw);
+            }
+            return best;
         } finally {
             if (listener != null) listener.endPhase("cbo");
         }

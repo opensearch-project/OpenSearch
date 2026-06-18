@@ -54,6 +54,7 @@ use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::execute_stream;
+use datafusion::physical_plan::metrics::MetricValue;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
@@ -88,6 +89,9 @@ pub struct QueryStreamHandle {
     /// Physical plan reference for post-execution metrics extraction.
     /// Available after execution completes; read via `df_stream_get_metrics`.
     physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+    /// Fires when the spawned CPU task has fully dropped; `stream_close` waits on it so borrowed
+    /// input batches are released before the per-query allocator closes. `None` outside coordinator-reduce.
+    task_done: Option<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl QueryStreamHandle {
@@ -110,6 +114,31 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
+        }
+    }
+
+    /// Attaches the task-completion signal `stream_close` joins on before the allocator closes.
+    pub fn with_task_done(mut self, task_done: tokio::sync::oneshot::Receiver<()>) -> Self {
+        self.task_done = Some(task_done);
+        self
+    }
+
+    pub fn new_with_plan(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        plan: Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+    ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: None,
+            has_views,
+            _concurrency_permit: permit,
+            physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -127,6 +156,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
         }
     }
 
@@ -145,6 +175,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -154,19 +185,47 @@ impl QueryStreamHandle {
         let plan = self.physical_plan.as_ref()?;
         let mut map = serde_json::Map::new();
         Self::collect_metrics(plan.as_ref(), &mut map);
-        if map.is_empty() {
-            return None;
-        }
+        // Include the physical plan display text
+        let plan_text = datafusion::physical_plan::displayable(plan.as_ref()).indent(true).to_string();
+        map.insert("physical_plan".to_string(), serde_json::Value::String(plan_text));
         serde_json::to_vec(&map).ok()
     }
 
     fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
         if let Some(metrics) = plan.metrics() {
             for m in metrics.iter() {
-                let name = m.value().name().to_string();
-                let value = m.value().as_usize() as i64;
-                // Later operators override earlier ones if same name — leaf (scan) metrics take priority
-                map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                let add = |map: &mut serde_json::Map<String, serde_json::Value>, key: String, delta: i64| {
+                    let prev = map.get(&key).and_then(|v| v.as_i64()).unwrap_or(0);
+                    map.insert(key, serde_json::Value::Number(serde_json::Number::from(prev + delta)));
+                };
+                match m.value() {
+                    MetricValue::PruningMetrics { name, pruning_metrics } => {
+                        add(map, format!("{}_pruned", name), pruning_metrics.pruned() as i64);
+                        add(map, format!("{}_matched", name), pruning_metrics.matched() as i64);
+                    }
+                    MetricValue::StartTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("start_timestamp").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+                        if v > 0 && v < prev {
+                            map.insert("start_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::EndTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("end_timestamp").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if v > prev {
+                            map.insert("end_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::Ratio { .. } | MetricValue::Gauge { .. } | MetricValue::CurrentMemoryUsage(_) => {
+                        let name = m.value().name().to_string();
+                        let value = m.value().as_usize() as i64;
+                        map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                    }
+                    other => {
+                        add(map, other.name().to_string(), other.as_usize() as i64);
+                    }
+                }
             }
         }
         for child in plan.children() {
@@ -335,9 +394,14 @@ pub struct ShardView {
     /// Index sort fields, in priority order. Sourced from the index's
     /// `index.sort.field` setting on the Java side. Empty when the index has
     /// no `index.sort.field` configured. Parallel to `sort_orders`.
-    /// Used to build `ListingOptions.with_file_sort_order(...)` so DataFusion
-    /// advertises `output_ordering` from the scan and enables the
-    /// `sort_prefix` optimization on TopK / SortPreservingMerge.
+    ///
+    /// Two consumers today:
+    ///   - Vanilla path: `ListingOptions.with_file_sort_order(...)` so DataFusion advertises
+    ///     `output_ordering` from the scan and the `sort_prefix` optimization fires on
+    ///     TopK / SortPreservingMerge.
+    ///   - Indexed path (`indexed_executor`): when the query's leading ORDER BY runs counter
+    ///     to catalog-snapshot order, the per-shard segment iteration is reversed so a TopK
+    ///     above us can prune via parquet page statistics.
     pub sort_fields: Vec<String>,
     /// Index sort directions per field — values: `"asc"` or `"desc"`.
     /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
@@ -950,6 +1014,7 @@ pub async unsafe fn fetch_by_row_ids(
         shard_view.object_metas.as_ref(),
         shard_view.writer_generations.as_ref(),
         metadata_cache,
+        &shard_view.sort_fields,
     )
         .await
         .map_err(DataFusionError::Execution)?;
@@ -1265,8 +1330,31 @@ fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
 /// # Safety
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
-    if stream_ptr != 0 {
-        let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    if stream_ptr == 0 {
+        return;
+    }
+    let mut handle = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    // Dropping the handle aborts the CPU task but does not wait for it; on the coordinator-reduce
+    // path that task still holds Java-borrowed input batches. Wait for it to fully unwind (signal
+    // fires once its batches drop) before returning, so the caller's allocator close is safe.
+    let task_done = handle.task_done.take();
+    drop(handle);
+    if let Some(rx) = task_done {
+        if let Some(mgr) = crate::ffm::try_get_rt_manager() {
+            // Already aborted, so this resolves as soon as the task unwinds; 30s is a backstop
+            // against a wedged task hanging the reduce thread. If it fires we proceed anyway and
+            // may leak the borrow — log it so a recurring timeout is visible rather than silent.
+            let timed_out = mgr
+                .io_runtime
+                .block_on(async { tokio::time::timeout(std::time::Duration::from_secs(30), rx).await })
+                .is_err();
+            if timed_out {
+                native_bridge_common::log_error!(
+                    "stream_close: timed out after 30s waiting for the reduce CPU task to release \
+                     borrowed buffers; proceeding with allocator close (possible leak)"
+                );
+            }
+        }
     }
 }
 
@@ -1289,7 +1377,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
+    use datafusion::execution::cache::cache_manager::CachedFileList;
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -1309,21 +1397,7 @@ pub unsafe fn sql_to_substrait(
             },
             CachedFileList::new(object_metas.as_ref().clone()),
         );
-        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-            .with_cache_manager(
-                CacheManagerConfig::default()
-                    .with_list_files_cache(Some(list_file_cache))
-                    .with_file_metadata_cache(Some(
-                        runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                    ))
-                    .with_metadata_cache_limit(
-                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                    )
-                    .with_file_statistics_cache(
-                        runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                    ),
-            )
-            .build()?;
+        let runtime_env = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
 
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())
@@ -1597,6 +1671,18 @@ fn collect_plan_reads(plan: &substrait::proto::Plan) -> Vec<substrait::proto::Re
     reads
 }
 
+/// Extracts the table name from the first NamedTable read in the plan bytes.
+pub(crate) fn first_named_table_name(plan_bytes: &[u8]) -> Option<String> {
+    use substrait::proto::read_rel::ReadType;
+    let plan: substrait::proto::Plan = prost::Message::decode(plan_bytes).ok()?;
+    for read in collect_plan_reads(&plan) {
+        if let Some(ReadType::NamedTable(nt)) = read.read_type {
+            return nt.names.last().cloned();
+        }
+    }
+    None
+}
+
 /// Extracts the `base_schema` NamedStruct from the plan's first ReadRel matching `table_name`.
 pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &str) -> Option<substrait::proto::NamedStruct> {
     use substrait::proto::read_rel::ReadType;
@@ -1724,7 +1810,7 @@ pub async unsafe fn execute_local_plan(
     // a `cancel_query(context_id)` call from Java interrupts even before the
     // first batch is produced (planning, from_substrait_plan, repartition
     // setup, etc. can all take non-trivial time on a wide reduce).
-    let df_stream = cancellation::cancellable(
+    let (df_stream, physical_plan) = cancellation::cancellable(
         token.as_ref(),
         context_id,
         session.execute_substrait(substrait_bytes),
@@ -1736,14 +1822,15 @@ pub async unsafe fn execute_local_plan(
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Attach the teardown signal so stream_close releases borrowed input batches before allocator close.
+    let handle = QueryStreamHandle::new_with_plan(wrapped, query_context, permit, physical_plan).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1779,14 +1866,15 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Same teardown signal as execute_local_plan.
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1833,7 +1921,9 @@ pub unsafe fn sender_send(
     array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
-    let batch = RecordBatch::from(struct_array);
+    // Zero-copy: from_ffi BORROWS the Java buffers, keeping them alive until DataFusion drops the
+    // batch. stream_close's teardown barrier releases that borrow before the allocator closes.
+    let borrowed_batch = RecordBatch::from(struct_array);
 
     // The producer may emit a string column as plain Utf8 where the declared
     // (sender/StreamingTable) schema is Utf8View, or vice versa — e.g. an outer
@@ -1845,8 +1935,9 @@ pub unsafe fn sender_send(
     // bit-compatible Int/UInt pairs; Utf8 and Utf8View have distinct buffer
     // layouts, so this must be a real cast rather than a relabel. Other tolerated
     // divergences (e.g. Timestamp precision) are left untouched — see
-    // conform_batch_to_schema.
-    let batch = conform_batch_to_schema(batch, sender.schema())?;
+    // conform_batch_to_schema. (A cast copies only the mismatched columns, ending
+    // the zero-copy borrow for those; conformant columns keep borrowing as above.)
+    let batch = conform_batch_to_schema(borrowed_batch, sender.schema())?;
 
     Ok(sender.send_blocking(Ok(batch), io_handle))
 }

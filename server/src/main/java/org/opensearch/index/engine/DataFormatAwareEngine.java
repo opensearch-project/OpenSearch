@@ -31,6 +31,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -145,6 +146,8 @@ public class DataFormatAwareEngine implements Indexer {
 
     private final IndexingExecutionEngine indexingExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final DocumentCountTracker documentCountTracker;
+    private final AtomicLong pendingRowCount = new AtomicLong();
     private final LockablePool<DefaultLockableHolder<Writer<?>>> writerPool;
     private final AtomicLong writerGenerationCounter;
 
@@ -189,6 +192,16 @@ public class DataFormatAwareEngine implements Indexer {
 
     // Merge
     private final MergeScheduler mergeScheduler;
+
+    /**
+     * When {@code true}, tiering-sensitive operations are blocked: primary index ops, merges,
+     * refresh, flush, and merge-result catalog commits (each with documented bypasses below).
+     * Set in three places: the constructor (freeze-on-open when a shard opens mid-tiering),
+     * {@link #onSettingsChanged} (when INDEX_TIERING_STATE transitions to HOT_TO_WARM),
+     * and {@link #freezeForTiering()} (explicitly, from the prepare action). Cleared when the state
+     * returns to HOT (tiering cancel or prepare failure).
+     */
+    private final AtomicBoolean frozenForTiering = new AtomicBoolean(false);
 
     // TODO Refactor these flush managing activities into FlushManager.
 
@@ -394,6 +407,15 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }, logger);
             this.refreshListeners.add(this.statsCache);
+            this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
+                // First get active writes as active writes are only reduced after catalog snapshot refresh
+                // This prevents under-accounting
+                long docsIngested = pendingRowCount.get();
+                try (var cs = catalogSnapshotManager.acquireSnapshot()) {
+                    docsIngested += cs.get().getNumDocs();
+                }
+                return docsIngested;
+            }, indexingExecutionEngine.maxIndexableDocs());
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig.getIndexSettings(),
                 engineConfig.getShardId(),
@@ -405,7 +427,7 @@ public class DataFormatAwareEngine implements Indexer {
                 op -> OpVsEngineDocStatus.OP_NEWER,
                 (a, b) -> null,
                 this::updateAutoIdTimestamp,
-                (a, b) -> null
+                documentCountTracker::tryAcquireInFlightDocs
             );
             // All critical engine components must be initialized before the engine is considered ready
             assert translogManager != null : "translog manager must be initialized";
@@ -433,15 +455,20 @@ public class DataFormatAwareEngine implements Indexer {
                     return gen;
                 }
             );
-            this.mergeScheduler = new MergeScheduler(
-                mergeHandler,
-                this::applyMergeChanges,
-                catalogSnapshotManager::incrementUnreferencedFileCleanUps,
-                shardId,
-                engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()
-            );
-
+            // Merge failure cleanup: cleans up unreferenced files and acts as a safety net
+            // for refreshLock. The preMergeCommitHook acquires refreshLock on the merge thread;
+            // if the merge fails before applyMergeChanges can release it, this callback ensures
+            // the lock is not permanently held.
+            this.mergeScheduler = new MergeScheduler(mergeHandler, this::applyMergeChanges, () -> {
+                try {
+                    catalogSnapshotManager.incrementUnreferencedFileCleanUps();
+                } finally {
+                    if (refreshLock.isHeldByCurrentThread()) {
+                        logger.debug("releasing refreshLock held after merge failure (safety-net unlock)");
+                        refreshLock.unlock();
+                    }
+                }
+            }, shardId, engineConfig.getIndexSettings(), engineConfig.getThreadPool());
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -546,6 +573,10 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
+        if (isFrozenForTiering() && index.origin() == Engine.Operation.Origin.PRIMARY) {
+            throw new IllegalStateException("Engine is frozen for tiering — index operations blocked");
+        }
+
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         // DataFormatAwareEngine is the primary-side engine in a segment-replication cluster.
         // Replicas use a separate engine (analogous to NRTReplicationEngine) that consumes segments.
@@ -554,6 +585,7 @@ public class DataFormatAwareEngine implements Indexer {
             || index.origin() == Engine.Operation.Origin.LOCAL_RESET)
             : "DataFormatAwareEngine only supports PRIMARY, LOCAL_TRANSLOG_RECOVERY, or LOCAL_RESET origins but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
+        int rows = 0;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             try (Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}) {
@@ -564,6 +596,7 @@ public class DataFormatAwareEngine implements Indexer {
                 } else {
                     plan = indexingStrategyPlanner.planOperationAsNonPrimary(index);
                 }
+                rows = plan.reservedDocs;
                 final Engine.IndexResult indexResult;
                 if (plan.earlyResultOnPreFlightError.isPresent()) {
                     assert index.origin() == Engine.Operation.Origin.PRIMARY : index.origin();
@@ -612,6 +645,10 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
                 return indexResult;
+            } finally {
+                if (rows > 0) {
+                    documentCountTracker.releaseInFlightDocs(rows);
+                }
             }
         } catch (RuntimeException | IOException e) {
             maybeFailEngine("index id[" + index.id() + "] origin[" + index.origin() + "]", e);
@@ -652,6 +689,7 @@ public class DataFormatAwareEngine implements Indexer {
                     + "] must match operation seq no ["
                     + index.seqNo()
                     + "]";
+                pendingRowCount.incrementAndGet();
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
                 try {
@@ -877,6 +915,7 @@ public class DataFormatAwareEngine implements Indexer {
 
                         final long flushAllStartNanos = System.nanoTime();
                         int writerCount = writers.size();
+                        long rowsToRelease = 0L;
 
                         // Add all checked-out writers to the shared flushQueue with a latch
                         // so the refresh thread can wait for ALL writers to be flushed
@@ -891,34 +930,41 @@ public class DataFormatAwareEngine implements Indexer {
                         Writer<?> writerToFlush;
                         while ((writerToFlush = flushQueue.poll()) != null) {
                             ensureOpen(); // short-circuit if engine has failed/closed concurrently
-                            final long writerFlushStartNanos = System.nanoTime();
-                            FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
-                            final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
+                            try {
+                                final long writerFlushStartNanos = System.nanoTime();
+                                FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
+                                final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
 
-                            Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());
-                            boolean hasFiles = false;
-                            for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                                Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());
+                                boolean hasFiles = false;
+                                for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                                    logger.trace(
+                                        "Writer gen={} flushed format=[{}] files={}",
+                                        writerToFlush.generation(),
+                                        entry.getKey().name(),
+                                        entry.getValue().files()
+                                    );
+                                    segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                                    hasFiles = true;
+                                }
                                 logger.trace(
-                                    "Writer gen={} flushed format=[{}] files={}",
+                                    "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
+                                    source,
                                     writerToFlush.generation(),
-                                    entry.getKey().name(),
-                                    entry.getValue().files()
+                                    writerFlushElapsedMs,
+                                    hasFiles
                                 );
-                                segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
-                                hasFiles = true;
+                                if (hasFiles) {
+                                    Segment segment = segmentBuilder.build();
+                                    newSegments.add(segment);
+                                    rowsToRelease += segment.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
+                                }
+                                refreshed |= hasFiles;
+                            } catch (Exception e) {
+                                IOUtils.closeWhileHandlingException(writerToFlush);
+                                throw e;
                             }
-                            logger.trace(
-                                "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
-                                source,
-                                writerToFlush.generation(),
-                                writerFlushElapsedMs,
-                                hasFiles
-                            );
                             toClose.add(writerToFlush);
-                            if (hasFiles) {
-                                newSegments.add(segmentBuilder.build());
-                            }
-                            refreshed |= hasFiles;
                             flushLatch.countDown();
                         }
 
@@ -945,6 +991,7 @@ public class DataFormatAwareEngine implements Indexer {
                         Segment pendingSeg;
                         while ((pendingSeg = pendingSegments.poll()) != null) {
                             newSegments.add(pendingSeg);
+                            rowsToRelease += pendingSeg.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
                             refreshed = true;
                         }
                         // Drain pending writers so they get closed after addIndexes incorporates their files
@@ -998,6 +1045,11 @@ public class DataFormatAwareEngine implements Indexer {
 
                             final long commitStartNanos = System.nanoTime();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                            assert rowsToRelease > 0L : "Rows to release from active writes should be greater than 0 but was: "
+                                + rowsToRelease
+                                + " for shard: "
+                                + shardId;
+                            pendingRowCount.addAndGet(-rowsToRelease);
                             final long commitElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
                             logger.trace("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
                         } else if ("flush".equals(source)) {
@@ -1192,6 +1244,20 @@ public class DataFormatAwareEngine implements Indexer {
         refresh("write indexing buffer");
     }
 
+    /**
+     * Forces a merge to reduce the number of segments to at most {@code maxNumSegments}.
+     * <p>
+     * This method is a no-op for {@code upgrade}, {@code upgradeOnlyAncientSegments}, and
+     * {@code onlyExpungeDeletes} operations since those are Lucene-specific concepts not
+     * applicable to the data format engine.
+     * <p>
+     * When {@code flush} is true, a full flush is performed first to ensure all in-flight
+     * indexing data (pending VSR writes, buffered segments) is committed before merge
+     * candidate selection runs. This guarantees force merge operates on the complete
+     * set of segments.
+     * <p>
+     * Runs synchronously on the calling {@code FORCE_MERGE} thread.
+     */
     @Override
     public void forceMerge(
         boolean flush,
@@ -1201,7 +1267,17 @@ public class DataFormatAwareEngine implements Indexer {
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
     ) throws EngineException, IOException {
-        mergeScheduler.forceMerge(1);
+        if (upgrade || upgradeOnlyAncientSegments || onlyExpungeDeletes) {
+            return;
+        }
+        if (isFrozenForTiering()) {
+            logger.debug("forceMerge blocked — engine is frozen for tiering");
+            return;
+        }
+        mergeScheduler.forceMerge(maxNumSegments);
+        if (flush) {
+            flush(true, true);
+        }
     }
 
     /** {@inheritDoc} Returns the heap RAM bytes used by the indexing execution engine. */
@@ -1259,6 +1335,45 @@ public class DataFormatAwareEngine implements Indexer {
 
         // This checks if the settings related to merge are changed and based on that updates the local variables in the class
         mergeScheduler.refreshConfig();
+        updateTieringFreezeState();
+    }
+
+    /**
+     * Detects tiering state transitions and freezes/unfreezes the engine accordingly.
+     * Only freezes for HOT_TO_WARM (actual data migration in progress).
+     * The prepare action explicitly calls freezeForTiering() while the index is still
+     * HOT, so there is no separate transient state to freeze on here.
+     * Unfreeze logic covers both cancel (HOT_TO_WARM → HOT) and prepare failure
+     * (frozen-while-HOT → HOT) to ensure merge scheduler resumes.
+     */
+    private void updateTieringFreezeState() {
+        String tieringStateStr = engineConfig.getIndexSettings()
+            .getSettings()
+            .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        boolean shouldFreeze;
+        try {
+            IndexModule.TieringState tieringState = IndexModule.TieringState.valueOf(tieringStateStr);
+            shouldFreeze = tieringState == IndexModule.TieringState.HOT_TO_WARM;
+        } catch (IllegalArgumentException e) {
+            // Unrecognized tiering-state value — treat as not frozen, but surface the misconfiguration.
+            logger.warn(
+                "Unrecognized {} value [{}]; treating engine as not frozen for tiering",
+                IndexModule.INDEX_TIERING_STATE.getKey(),
+                tieringStateStr
+            );
+            shouldFreeze = false;
+        }
+        if (shouldFreeze) {
+            if (frozenForTiering.compareAndSet(false, true)) {
+                logger.info("Freezing engine for tiering — blocking merges, refresh, flush, and catalog commits");
+                mergeScheduler.freeze();
+            }
+        } else {
+            if (frozenForTiering.compareAndSet(true, false)) {
+                logger.info("Unfreezing engine — tiering cancelled, resuming normal operations");
+                mergeScheduler.unfreeze();
+            }
+        }
     }
 
     /** {@inheritDoc} Always returns {@code true} — a refresh is always considered needed. */
@@ -1266,6 +1381,61 @@ public class DataFormatAwareEngine implements Indexer {
     public boolean refreshNeeded() {
         // A refresh is needed if there are operations since the last refresh
         return true;
+    }
+
+    /**
+     * Returns true if the engine is frozen for tiering and the operation should be blocked.
+     * <p>
+     * Prefers the cached volatile flag, which is set by the constructor on open, by
+     * {@link #onSettingsChanged} on a tiering transition, and by {@link #freezeForTiering()}. The
+     * live-settings fallback also returns true for a shard opened mid-tiering (restart/relocation) —
+     * though the constructor already covers that — and, more importantly, closes the apply-ordering
+     * gap on a live engine where the index settings already reflect HOT_TO_WARM but
+     * {@link #onSettingsChanged} has not yet flipped the flag, so a request arriving in that window
+     * is still blocked. (Requests already past this guard are drained separately by the prepare
+     * action acquiring all primary permits.)
+     */
+    private boolean isFrozenForTiering() {
+        if (frozenForTiering.get()) {
+            return true;
+        }
+        // Fallback: read live settings to close the apply-ordering gap described above.
+        String state = engineConfig.getIndexSettings()
+            .getSettings()
+            .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        return IndexModule.TieringState.HOT_TO_WARM.name().equals(state);
+    }
+
+    /**
+     * Registers a listener that fires when all in-flight merges have completed.
+     * If merges are already drained, fires the listener immediately inline.
+     * Otherwise, the listener will fire on the merge thread when
+     * the last merge finishes.
+     *
+     * @param listener the callback to fire when merges are drained
+     */
+    @Override
+    public void onMergesDrained(Runnable listener) {
+        mergeScheduler.onDrained(listener);
+    }
+
+    /**
+     * Returns the number of currently active (in-flight) merge tasks.
+     *
+     * @return the active merge count, or 0 if no merges are running
+     */
+    @Override
+    public int getActiveMergeCount() {
+        return mergeScheduler.getActiveMergeCount();
+    }
+
+    /**
+     * Returns whether any merges are queued but not yet started. DFA primary delegates
+     * directly to its {@link MergeScheduler} (orthogonal to active count).
+     */
+    @Override
+    public boolean hasPendingMerges() {
+        return mergeScheduler.hasPendingMerges();
     }
 
     /** {@inheritDoc} Delegates to {@link #refresh(String)} and always returns {@code true}. */
@@ -1616,6 +1786,7 @@ public class DataFormatAwareEngine implements Indexer {
      * recovery replay the translog. The writer is checked out of the pool before any work that
      * could throw, so on throw the caller can still safely flag it as checked-out.
      */
+
     private boolean retireWriterIfNeeded(DefaultLockableHolder<Writer<?>> lockedWriter) {
         Writer<?> writer = lockedWriter.get();
         WriterState postState = writer.state();
@@ -1813,6 +1984,9 @@ public class DataFormatAwareEngine implements Indexer {
             logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
             return;
         }
+        if (isFrozenForTiering()) {
+            return;
+        }
         mergeScheduler.triggerMerges();
     }
 
@@ -1827,6 +2001,12 @@ public class DataFormatAwareEngine implements Indexer {
                 Writer<?> pendingWriter;
                 while ((pendingWriter = pendingWritersToClose.poll()) != null) {
                     IOUtils.closeWhileHandlingException(pendingWriter);
+                }
+                // Close writers still in the flush queue (checked out of pool, not yet flushed).
+                // Without this, their LuceneWriter IndexWriter locks remain in LOCK_HELD.
+                Writer<?> queuedWriter;
+                while ((queuedWriter = flushQueue.poll()) != null) {
+                    IOUtils.closeWhileHandlingException(queuedWriter);
                 }
                 // Close all writers still in the pool (unflushed writers from the current cycle)
                 for (var holder : writerPool.checkoutAll()) {
@@ -2095,5 +2275,26 @@ public class DataFormatAwareEngine implements Indexer {
     /** Returns the store. Visible for testing only. */
     Store getStore() {
         return store;
+    }
+
+    /**
+     * Explicitly freezes the engine for tiering. Called by {@code TransportPrepareTieringAction}
+     * after flush and remote sync are complete, just before the state transitions to HOT_TO_WARM.
+     * Idempotent and thread-safe — a no-op if already frozen. The atomic {@code compareAndSet}
+     * ensures only one caller wins the freeze transition under parallel tier/cancel.
+     * <p>
+     * After this call:
+     * <ul>
+     *   <li>No new merges will be registered (existing in-flight and pending merges drain to completion)</li>
+     *   <li>Primary indexing operations are rejected with "frozen for tiering"</li>
+     *   <li>{@link #triggerPossibleMerges()} becomes a no-op</li>
+     * </ul>
+     */
+    @Override
+    public void freezeForTiering() {
+        if (frozenForTiering.compareAndSet(false, true)) {
+            mergeScheduler.freeze();
+            logger.info("Engine explicitly frozen for tiering by prepare action");
+        }
     }
 }
