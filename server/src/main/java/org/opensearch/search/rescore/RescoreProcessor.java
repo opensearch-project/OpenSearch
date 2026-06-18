@@ -127,7 +127,9 @@ public class RescoreProcessor {
         FieldDoc[] newFieldDocs = new FieldDoc[rescoredTopDocs.scoreDocs.length];
         for (int i = 0; i < rescoredTopDocs.scoreDocs.length; i++) {
             ScoreDoc scoreDoc = rescoredTopDocs.scoreDocs[i];
-            assert snapShot.docIdToCollapseValue().containsKey(scoreDoc.doc) : "rescore must not introduce new docs";
+            if (!snapShot.docIdToCollapseValue().containsKey(scoreDoc.doc)) {
+                throw new IllegalStateException("rescore must not introduce new docs, but doc " + scoreDoc.doc + " was not in original results");
+            }
             newCollapseValues[i] = snapShot.docIdToCollapseValue().get(scoreDoc.doc);
             // Carry the rescored score in the sort value: CollapseTopFieldDocs.merge orders by FieldDoc.fields.
             newFieldDocs[i] = new FieldDoc(scoreDoc.doc, scoreDoc.score, new Object[] { scoreDoc.score });
