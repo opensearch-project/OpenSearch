@@ -685,7 +685,12 @@ public abstract class TieringService implements ClusterStateListener {
      * @param currentState current cluster state
      */
     void validateTieringCancelRequest(final Index index, final IndexMetadata indexMetadata, final ClusterState currentState) {
-        if (!tieringIndices.contains(index)) {
+        // Accept the index as cancellable if it is tracked in the in-memory set OR its persisted tiering
+        // state shows a migration in progress. The in-memory set is per-cluster-manager and starts empty
+        // on a newly elected cluster-manager; until it is rebuilt from cluster state
+        // (reconstructInProgressTieringRequests), the persisted INDEX_TIERING_STATE is what lets cancel
+        // reach a mid-migration index. (The cluster state itself is durable and not lost across failover.)
+        if (!tieringIndices.contains(index) && !isMigrationInProgress(indexMetadata)) {
             throw new IllegalArgumentException("Index [" + index + "] is not currently undergoing tiering operation");
         }
         if (indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), "").equals(getTargetTieringState().toString())) {
@@ -696,6 +701,18 @@ public abstract class TieringService implements ClusterStateListener {
         if (currentState.routingTable().hasIndex(index) == false) {
             throw new IllegalArgumentException("Index [" + index + "] deleted before tiering cancellation");
         }
+    }
+
+    /**
+     * Returns true if the index's persisted tiering state indicates a migration is in progress
+     * (HOT_TO_WARM or WARM_TO_HOT), as opposed to a terminal HOT/WARM state.
+     */
+    private static boolean isMigrationInProgress(final IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return false;
+        }
+        final String state = indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        return IndexModule.TieringState.HOT_TO_WARM.name().equals(state) || IndexModule.TieringState.WARM_TO_HOT.name().equals(state);
     }
 
     /**

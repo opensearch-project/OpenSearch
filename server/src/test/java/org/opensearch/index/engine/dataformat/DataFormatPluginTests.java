@@ -117,7 +117,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(2, writerFileSet.get().numRows());
         assertEquals(1L, writerFileSet.get().writerGeneration());
 
-        writer.sync();
         writer.close();
 
         // 4. Write a second batch with a new writer generation

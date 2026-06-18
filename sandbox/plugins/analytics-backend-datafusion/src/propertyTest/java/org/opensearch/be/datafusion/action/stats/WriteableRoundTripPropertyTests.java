@@ -13,6 +13,7 @@ import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.SpillStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -63,8 +64,7 @@ public class WriteableRoundTripPropertyTests {
         "query_execution",
         "stream_next",
         "plan_setup",
-        "datanode_gate",
-        "coordinator_gate"
+        "fragment_executor_gate"
     );
 
     // ═══════════════════════════════════════════════════════════════════
@@ -88,25 +88,49 @@ public class WriteableRoundTripPropertyTests {
 
     @Provide
     Arbitrary<PartitionGateStats> partitionGateStats() {
-        Arbitrary<String> names = Arbitraries.of("datanode_gate", "coordinator_gate");
+        Arbitrary<String> names = Arbitraries.of("fragment_executor_gate");
         Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
         return Combinators.combine(names, nonNeg, nonNeg, nonNeg, nonNeg).as(PartitionGateStats::new);
     }
 
+    /**
+     * Generates a {@link SpillStats}. Threaded into the {@link #dataFusionStats()}
+     * generator so the round-trip property exercises the present-spill-stats branch
+     * of {@code writeOptionalWriteable}, not just the {@code null} case. Catches
+     * regressions in the SpillStats wire format that the fixed-input unit test in
+     * {@code SpillStatsTests} cannot.
+     */
     @Provide
-    Arbitrary<DataFusionStats> dataFusionStats() {
-        return Arbitraries.oneOf(dataFusionStatsWithCpu(), dataFusionStatsWithoutCpu());
+    Arbitrary<SpillStats> spillStats() {
+        Arbitrary<String> directory = Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20).map(s -> "/spill/" + s);
+        Arbitrary<Long> nonNeg = Arbitraries.longs().between(0L, Long.MAX_VALUE / 2);
+        Arbitrary<Long> staleCount = Arbitraries.longs().between(0L, 10_000L);
+        return Combinators.combine(directory, nonNeg, nonNeg, nonNeg, nonNeg, staleCount).as(SpillStats::new);
     }
 
-    private Arbitrary<DataFusionStats> dataFusionStatsWithCpu() {
+    @Provide
+    Arbitrary<DataFusionStats> dataFusionStats() {
+        // Cover both wire-format branches: with-spill exercises the present-Writeable case,
+        // without-spill exercises the {@code writeOptionalWriteable} false-byte case.
+        return Arbitraries.oneOf(
+            dataFusionStatsWithCpu(/*withSpill*/ true),
+            dataFusionStatsWithCpu(/*withSpill*/ false),
+            dataFusionStatsWithoutCpu(/*withSpill*/ true),
+            dataFusionStatsWithoutCpu(/*withSpill*/ false)
+        );
+    }
+
+    private Arbitrary<DataFusionStats> dataFusionStatsWithCpu(boolean withSpill) {
+        Arbitrary<SpillStats> spill = withSpill ? spillStats() : Arbitraries.just(null);
         return Combinators.combine(
             runtimeMetrics(),
             runtimeMetrics(),
             taskMonitorStats(),
             taskMonitorStats(),
             taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cpu, cr, qe, sn, ps) -> {
+            taskMonitorStats(),
+            spill
+        ).as((io, cpu, cr, qe, sn, ps, sp) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
@@ -114,15 +138,17 @@ public class WriteableRoundTripPropertyTests {
             monitors.put("plan_setup", ps);
             return new DataFusionStats(
                 new NativeExecutorsStats(io, cpu, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 50, 0, 12, 0, 0),
+                null,
+                null
             );
         });
     }
 
-    private Arbitrary<DataFusionStats> dataFusionStatsWithoutCpu() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
-            .as((io, cr, qe, sn, ps) -> {
+    private Arbitrary<DataFusionStats> dataFusionStatsWithoutCpu(boolean withSpill) {
+        Arbitrary<SpillStats> spill = withSpill ? spillStats() : Arbitraries.just(null);
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), spill)
+            .as((io, cr, qe, sn, ps, sp) -> {
                 Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
                 monitors.put("coordinator_reduce", cr);
                 monitors.put("query_execution", qe);
@@ -130,8 +156,9 @@ public class WriteableRoundTripPropertyTests {
                 monitors.put("plan_setup", ps);
                 return new DataFusionStats(
                     new NativeExecutorsStats(io, null, monitors),
-                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                    new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 50, 0, 12, 0, 0),
+                    null,
+                    null
                 );
             });
     }
@@ -139,7 +166,7 @@ public class WriteableRoundTripPropertyTests {
     /** Generates a set of stat section names (possibly empty). */
     @Provide
     Arbitrary<Set<String>> statsToRetrieve() {
-        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(0).ofMaxSize(8);
+        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(0).ofMaxSize(7);
     }
 
     /** Generates an array of node IDs (possibly empty). */

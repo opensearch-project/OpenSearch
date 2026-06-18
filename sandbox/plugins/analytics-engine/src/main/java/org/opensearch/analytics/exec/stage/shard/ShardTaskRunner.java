@@ -55,13 +55,16 @@ public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
         transport.dispatchFragmentStreaming(
             request,
             target.node(),
-            stage.responseListenerFor(target.ordinal(), listener),
+            stage.responseListenerFor(task, listener),
             config.parentTask(),
             pending
         );
     }
 
     private PendingExecutions pendingFor(ShardExecutionTarget target) {
-        return pendingPerNode.computeIfAbsent(target.node().getId(), n -> new PendingExecutions(config.maxConcurrentShardRequests()));
+        return pendingPerNode.computeIfAbsent(
+            target.node().getId(),
+            n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
+        );
     }
 }

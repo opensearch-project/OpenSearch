@@ -72,23 +72,51 @@ public final class FoyerBlockCacheSettings {
     /**
      * Block size for the Foyer disk tier.
      *
-     * <p>Must be &ge; the largest entry ever put into the cache. DataFusion reads
-     * Parquet row groups of up to 64&nbsp;MB; Lucene blocks are also up to 64&nbsp;MB.
-     * A block size smaller than an entry causes a silent drop — the put succeeds but
-     * the entry is not stored, resulting in a cache miss on the next read.
+     * <p>Must be &ge; the largest entry ever put into the cache. Parquet row groups
+     * can be up to 128&nbsp;MB. A block size smaller than an entry causes a silent
+     * drop — the put succeeds but the entry is not stored, resulting in a cache miss.
      *
-     * <p>Default: 64&nbsp;MB. Range: [1&nbsp;MB, 256&nbsp;MB].
-     *
-     * <p>Configure in {@code opensearch.yml}:
-     * <pre>{@code
-     * block_cache.foyer.block_size: 64mb
-     * }</pre>
+     * <p>Default: 128&nbsp;MB. Range: [1&nbsp;MB, 512&nbsp;MB].
      */
     public static final Setting<ByteSizeValue> BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
         "block_cache.foyer.block_size",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
+        new ByteSizeValue(128, ByteSizeUnit.MB),
         new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Total buffer pool size for the Foyer flusher.
+     *
+     * <p>The flusher stages entries in this buffer before writing to disk. Must be
+     * &ge; {@code block_size} so the flusher can accumulate a full block. Entries
+     * larger than this buffer are silently dropped.
+     *
+     * <p>Default: 128&nbsp;MB. Range: [16&nbsp;MB, 512&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> BUFFER_POOL_SIZE_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.buffer_pool_size",
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        new ByteSizeValue(16, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Submit queue size threshold for the Foyer block engine.
+     *
+     * <p>Maximum total bytes allowed to be pending in the flusher queue. When
+     * exceeded, new entries are silently dropped instead of being written to disk.
+     * Should be &ge; 2&times; {@code buffer_pool_size} to absorb write bursts.
+     *
+     * <p>Default: 256&nbsp;MB. Range: [16&nbsp;MB, 1024&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.submit_queue_size_threshold",
         new ByteSizeValue(256, ByteSizeUnit.MB),
+        new ByteSizeValue(16, ByteSizeUnit.MB),
+        new ByteSizeValue(1024, ByteSizeUnit.MB),
         Setting.Property.NodeScope
     );
 

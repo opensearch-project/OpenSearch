@@ -18,7 +18,6 @@
 //! | `rmcomma`| `"12,345.67"` (→ 12345.67) | `"12abc"` (letter present) | Strips every comma, then parses; letters short-circuit to NULL. |
 //! | `rmunit` | `"100MB"` (→ 100), `"-3.14cm"`, `"1.5e2kg"` | `"abc"`, `".mb"` (no leading number) | Regex-extracts the leading numeric token and parses. |
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -124,10 +123,6 @@ impl Hash for NumericConversionUdf {
 }
 
 impl ScalarUDFImpl for NumericConversionUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         self.kind.name()
     }

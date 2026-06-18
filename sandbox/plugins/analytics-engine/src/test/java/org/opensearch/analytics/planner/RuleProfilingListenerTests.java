@@ -40,6 +40,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
         "pushdown-rules",
         "aggregate-decompose",
         "marking",
+        "agg-literal-arg-split",
         "cbo"
     );
 
@@ -93,7 +94,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 4L),
+                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 Map.entry("OpenSearchDistributionDeriveRule", 3L),
                 Map.entry("ExpandConversionRule", 5L)
             )
@@ -122,6 +124,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchJoinSplitRule",
                 1L,
+                "OpenSearchAggLiteralArgProjectSplitRule",
+                0L,
                 "ExpandConversionRule",
                 2L
             )

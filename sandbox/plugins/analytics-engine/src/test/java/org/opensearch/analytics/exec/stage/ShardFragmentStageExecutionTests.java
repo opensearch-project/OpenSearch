@@ -481,7 +481,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     private QueryContext mockQueryContext() {
         QueryContext config = mock(QueryContext.class);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
-        when(config.maxConcurrentShardRequests()).thenReturn(5);
+        when(config.maxConcurrentShardRequestsPerNode()).thenReturn(5);
         when(config.bufferAllocator()).thenReturn(allocator);
         return config;
     }

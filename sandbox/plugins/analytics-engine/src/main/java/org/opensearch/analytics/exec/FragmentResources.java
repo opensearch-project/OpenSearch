@@ -17,9 +17,11 @@ import org.opensearch.analytics.backend.ShardScanExecutionContext;
  * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
  * the duration of a streaming fragment execution, and releases them in reverse order on close.
  *
- * <p>The reader is owned by {@link ReaderContextStore}, not by this class — close releases
- * (does not free) the context, so the reader stays alive across the QTF query→fetch
- * boundary. The store's reaper closes the underlying reader after keepAlive elapses.
+ * <p>The reader is owned by {@link ReaderContextStore}, not by this class. When a fetch phase will
+ * reuse the reader (QTF query phase), close only releases the context so it stays alive across the
+ * query→fetch boundary, and the store's reaper closes it after keepAlive. Otherwise (non-QTF query,
+ * or the terminal fetch phase itself) close frees the context immediately so the reader is not
+ * pinned in the store until the reaper sweeps it.
  *
  * @opensearch.internal
  */
@@ -37,15 +39,21 @@ public final class FragmentResources implements AutoCloseable {
      * pull memory out from under the FFM call.
      */
     private final BigIntVector rowIdVector;
+    /**
+     * True when this query requested top-N docs (row-ids), so a fetch phase will reuse this reader
+     * (QTF query phase); close then keeps the reader in the store for that fetch.
+     */
+    private final boolean requiresTopDocs;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
         ReaderContext readerContext,
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
-        Runnable onClose
+        Runnable onClose,
+        boolean requiresTopDocs
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, null);
+        this(readerContextStore, readerContext, engine, stream, onClose, null, requiresTopDocs);
     }
 
     public FragmentResources(
@@ -54,7 +62,8 @@ public final class FragmentResources implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
         Runnable onClose,
-        BigIntVector rowIdVector
+        BigIntVector rowIdVector,
+        boolean requiresTopDocs
     ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
@@ -63,6 +72,7 @@ public final class FragmentResources implements AutoCloseable {
         this.stream = stream;
         this.onClose = onClose;
         this.rowIdVector = rowIdVector;
+        this.requiresTopDocs = requiresTopDocs;
     }
 
     private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
@@ -73,6 +83,23 @@ public final class FragmentResources implements AutoCloseable {
 
     public EngineResultStream stream() {
         return stream;
+    }
+
+    /**
+     * Extracts execution metrics from the underlying engine stream (if supported).
+     * Must be called after the stream is exhausted but before close().
+     * Returns null if the stream doesn't support metrics extraction.
+     */
+    public byte[] getExecutionMetrics() {
+        if (stream instanceof MetricsCapable mc) {
+            return mc.getMetricsJson();
+        }
+        return null;
+    }
+
+    /** Marker interface for streams that can provide execution metrics. */
+    public interface MetricsCapable {
+        byte[] getMetricsJson();
     }
 
     @Override
@@ -93,11 +120,17 @@ public final class FragmentResources implements AutoCloseable {
                 else first.addSuppressed(e);
             }
         }
-        // Release (not close) — the store's reaper closes after keepAlive, and the QTF
-        // fetch phase may still need this reader before then.
+        // If this query requested top-N docs, a fetch phase will reuse this reader, so only release
+        // this phase's use-reference; it stays alive for the fetch and the reaper closes after
+        // keepAlive. Otherwise release and free it now so the reader is closed immediately instead
+        // of being pinned until the reaper sweeps it.
         if (readerContext != null) {
             try {
-                readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
+                if (requiresTopDocs) {
+                    readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
+                } else {
+                    readerContextStore.releaseAndFree(readerContext.getQueryId(), readerContext.getShardId());
+                }
             } catch (Exception e) {
                 if (first == null) first = e;
                 else first.addSuppressed(e);

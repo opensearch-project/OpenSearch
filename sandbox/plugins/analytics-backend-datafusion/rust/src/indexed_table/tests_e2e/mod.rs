@@ -39,6 +39,7 @@ use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFil
 
 mod boolean_algebra;
 mod constant_predicate;
+mod dynamic_filter_pushdown;
 mod fuzz;
 mod metrics;
 mod multi_segment;
@@ -48,6 +49,7 @@ mod qtf_fetch_phase;
 mod row_id_emission;
 mod row_id_strategies;
 mod schema_drift;
+mod sort_reverse_row_id;
 mod streaming_at_scale;
 
 // ── Test fixture: parquet table with 16 rows ────────────────────────
@@ -229,7 +231,9 @@ async fn run_tree_and_plan(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     // Normalize NOT push-down; build one collector per Collector leaf in DFS order.
     let tree = tree.push_not_down();
@@ -247,7 +251,7 @@ async fn run_tree_and_plan(
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -269,6 +273,7 @@ async fn run_tree_and_plan(
                     ),
                 ),
                 collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -296,6 +301,9 @@ async fn run_tree_and_plan(
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

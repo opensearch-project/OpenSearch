@@ -324,6 +324,16 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public boolean hasPendingMerges() {
+        return engine.hasPendingMerges();
+    }
+
+    @Override
+    public int getActiveMergeCount() {
+        return engine.getActiveMergeCount();
+    }
+
+    @Override
     public long getIndexThrottleTimeInMillis() {
         return engine.getIndexThrottleTimeInMillis();
     }

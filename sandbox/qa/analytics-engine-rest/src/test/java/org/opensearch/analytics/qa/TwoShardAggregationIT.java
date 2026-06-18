@@ -14,11 +14,18 @@ import java.util.Map;
 /**
  * 2-shard reduce correctness for aggregations: exact tier {@code agg/} (count/sum/avg/min/max,
  * stddev/var, span, values/list) and approximate tier {@code approx/} (distinct_count/dc/percentile/
- * median).
+ * median). {@code distinct_count}/{@code dc} are rewritten to {@code APPROX_COUNT_DISTINCT} and
+ * computed once at the coordinator, so per-shard distinct counts are never summed.
  *
- * <p>{@code distinct_count}/{@code dc} are correct cross-shard: DISTINCT aggregates skip the additive
- * PARTIAL/FINAL split ({@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule})
- * and are computed once at the coordinator, so per-shard distinct counts are never summed.
+ * <p>The {@code agg/span_*} set covers every aggregate over a {@code span(...)} group key — a
+ * non-prefix groupSet that exercises the PARTIAL/FINAL key-fronting fix. A few of those
+ * ({@code span_distinct_count_label}, {@code span_percentile_50}, {@code span_median}) use
+ * approximate algorithms (HLL / percentile_approx) yet sit in the EXACT tier: on the fixed 30-row
+ * {@code merge_coverage} dataset they are below the approximation threshold and return exact,
+ * shard-invariant results, so the 1-shard==2-shard differential holds. If that dataset ever grows
+ * past the approximation threshold these must move to the {@code approx/} tier — but note the
+ * approx tier's tolerance aligner keys rows on non-numeric group cells, so a numeric {@code span}
+ * key can't be aligned there without a harness change.
  */
 public class TwoShardAggregationIT extends TwoShardReduceTestCase {
 
@@ -28,12 +35,5 @@ public class TwoShardAggregationIT extends TwoShardReduceTestCase {
         t.put("agg", false);       // exact
         t.put("approx", true);     // golden + tolerance
         return t;
-    }
-
-    @Override
-    protected Map<String, String> knownIssues() {
-        // No known issues: dc/distinct_count cross-shard over-counting (repeated keyword sets,
-        // label 5->9 at 2 shards) is fixed by skipping the additive split for DISTINCT aggregates.
-        return Map.of();
     }
 }

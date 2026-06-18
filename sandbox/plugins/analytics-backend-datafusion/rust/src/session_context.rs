@@ -13,11 +13,12 @@
 
 use std::sync::Arc;
 
+use native_bridge_common::log_debug;
 use datafusion::{
     common::DataFusionError,
     datasource::file_format::parquet::ParquetFormat,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
-    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
+    execution::cache::cache_manager::CachedFileList,
     execution::cache::{CacheAccessor, DefaultListFilesCache},
     execution::context::SessionContext,
     execution::memory_pool::MemoryPool,
@@ -41,12 +42,22 @@ pub struct SessionContextHandle {
     /// Java-side catalog snapshot via `create_reader`. Authoritative for stamping
     /// `SegmentFileInfo.writer_generation`; footer-kv reads are debug-only assertions.
     pub writer_generations: Arc<Vec<i64>>,
+    /// `index.sort.field` plumbed from the Java side (`ShardView.sort_fields`).
+    /// Empty when the index has no `index.sort.field`. Consumed by the vanilla path
+    /// (`IndexedTableProvider` `output_ordering`) and by the indexed path's
+    /// segment-reversal optimization.
+    pub sort_fields: Vec<String>,
+    /// Parallel to `sort_fields`. Each entry is `"asc"` or `"desc"` (lowercase).
+    pub sort_orders: Vec<String>,
     pub query_context: QueryTrackingContext,
     pub table_name: String,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
+    /// IO runtime handle for bloom filter reads and other async I/O dispatched
+    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
@@ -72,7 +83,7 @@ pub struct IndexedExecutionConfig {
 /// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
 /// (which already marks all fields nullable). The consumer is built from the session's existing
 /// state — no throwaway SessionState needed.
-fn widen_schema_from_plan(
+pub(crate) fn widen_schema_from_plan(
     ctx: &SessionContext,
     plan_bytes: &[u8],
     table_name: &str,
@@ -131,6 +142,7 @@ pub async unsafe fn create_session_context(
     shard_view_ptr: i64,
     table_name: &str,
     context_id: i64,
+    has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
@@ -152,20 +164,7 @@ pub async unsafe fn create_session_context(
         CachedFileList::new(shard_view.object_metas.as_ref().clone()),
     );
 
-    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_metadata_cache_limit(
-                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                )
-                .with_files_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        );
+    let mut runtime_env_builder = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache);
 
     if let Some(pool) = query_memory_pool {
         runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
@@ -201,12 +200,21 @@ pub async unsafe fn create_session_context(
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
+    // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
+    // file-group partitioner so `output_ordering` can propagate from the scan.
+    if !shard_view.sort_fields.is_empty() {
+        config.options_mut().execution.split_file_groups_by_statistics = true;
+    }
 
     let mut state_builder = SessionStateBuilder::new()
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine());
+        .with_physical_optimizer_rules(if has_partial_aggregate {
+            crate::agg_mode::physical_optimizer_rules_without_combine()
+        } else {
+            datafusion::physical_optimizer::optimizer::PhysicalOptimizer::new().rules
+        });
 
     // For ListingTable query strategy:
     // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
@@ -234,9 +242,20 @@ pub async unsafe fn create_session_context(
     crate::udwf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans.
-    let listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
+    //
+    // `target_partitions` on the listing options drives the sort-aware bin-packer in
+    // `split_groups_by_statistics_with_target_partitions`. We set it to the session's
+    // effective partition count so the bin-packer produces up to N groups (one file per
+    // group when min/max ranges can't chain). The session-state's `target_partitions`
+    // controls EnforceDistribution; this one is independent.
+    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
         .with_file_extension(".parquet")
-        .with_collect_stat(true);
+        .with_collect_stat(true)
+        .with_target_partitions(effective_partitions);
+
+    if let Some(sort_exprs) = build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders) {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
     // which differs from table_name (the concrete shard index). Extract it from the plan and
@@ -267,9 +286,24 @@ pub async unsafe fn create_session_context(
         // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
         crate::schema_coerce::coerce_inferred_schema(inferred)
     };
+    // Pre-widening field count — compared below to detect whether widening added columns.
+    let inferred_field_count = inferred.fields().len();
 
-    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
+    // Widen to the plan's base_schema if this shard's parquet is missing columns the plan
+    // expects (multi-index unions, or single-index cross-shard drift). No-op when the shard
+    // already covers every base_schema column.
     let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
+
+    // If widening added columns, disable stat collection: the global stats cache is keyed by
+    // path (not schema), so a narrow cached Statistics can be merged against the widened one,
+    // failing with "Cannot merge statistics with different number of columns". Non-widened
+    // (single-index) scans keep full stats.
+    // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
+    let listing_options = if resolved_schema.fields().len() != inferred_field_count {
+        listing_options.with_collect_stat(false)
+    } else {
+        listing_options
+    };
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -296,6 +330,11 @@ pub async unsafe fn create_session_context(
         );
         e
     })?;
+    log_debug!(
+        "create_session_context: registered table '{}' with file_sort_order_keys={}",
+        register_name,
+        shard_view.sort_fields.len()
+    );
 
     error!(
         "create_session_context: successfully registered table '{}', table_name_len={}",
@@ -308,10 +347,13 @@ pub async unsafe fn create_session_context(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
+        sort_fields: shard_view.sort_fields.clone(),
+        sort_orders: shard_view.sort_orders.clone(),
         query_context,
         table_name: table_name.to_string(),
         indexed_config: None,
         query_config,
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: phantom,
@@ -340,10 +382,11 @@ pub async unsafe fn create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     requests_row_ids: bool,
+    has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config, plan_bytes).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, has_partial_aggregate, query_config, plan_bytes).await?;
 
     // Augment with indexed config. The delegation marker UDFs (index_filter, delegation_possible)
     // are now registered for every session by udf::register_all (via create_session_context above);
@@ -382,9 +425,16 @@ pub async fn prepare_partial_plan(
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
-    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+    // Strip first on the raw physical plan so `force_aggregate_mode(Partial)` can find the
+    // Final/Partial pair without a RelabelExec wrapper at the root pre-empting the walk.
+    // Then derive `target_schema` and wrap with RelabelExec from the stripped plan's actual
+    // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
+    // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
+    // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
     let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
+    let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
     handle.prepared_plan = Some(stripped);
     Ok(())
 }
@@ -419,6 +469,55 @@ fn try_acquire_budget(
         config.target_partitions,
         config.batch_size,
     ).ok()
+}
+
+/// Build a per-file sort-order declaration for `ListingOptions::with_file_sort_order`.
+///
+/// This is metadata, not a sort: it tells DataFusion the parquet files are already
+/// in this order so `output_ordering` propagates through the scan,
+/// `SortPreservingMergeExec` replaces `SortExec`, and `sort_prefix` TopK fires.
+/// The OpenSearch writer enforces this sort per segment, so the claim is
+/// verifiable-by-construction (DataFusion also checks per-file min/max stats).
+///
+/// Returns `None` when the index has no `index.sort.field` configured (the input
+/// `sort_fields` slice is empty), so the caller can skip
+/// `with_file_sort_order(...)` entirely.
+///
+/// Caller contract: `sort_fields.len() == sort_orders.len()`. The Java side
+/// (`DataFusionPlugin.createReaderManager`) guarantees this — `IndexSortConfig`
+/// validates size match at index creation, so by the time we get here the
+/// lengths agree.
+///
+/// Notes for readers:
+/// - `.sort(asc, nulls_first)` constructs a `SortExpr` — it does NOT execute a
+///   sort. Misleading name; it's a tuple builder.
+/// - `Column::from_name` (vs `col(&str)`): `col` lowercases via SQL identifier
+///   normalization (`col("EventTime")` → `"eventtime"`), which silently fails
+///   lookup against case-sensitive Arrow schemas. `from_name` preserves case.
+/// - Nulls placement mirrors Lucene's general default (ASC → NULLS FIRST,
+///   DESC → NULLS LAST). `index.sort.missing` can override this per field but
+///   the override isn't propagated yet. A wrong nulls claim at worst causes
+///   DataFusion's per-file chain validator to reject the ordering and fall back
+///   to a regular `SortExec` — never wrong results.
+pub(crate) fn build_file_sort_order(
+    sort_fields: &[String],
+    sort_orders: &[String],
+) -> Option<Vec<datafusion::logical_expr::SortExpr>> {
+    if sort_fields.is_empty() {
+        return None;
+    }
+    use datafusion::common::Column;
+    use datafusion::logical_expr::{Expr, SortExpr};
+    let sort_exprs: Vec<SortExpr> = sort_fields
+        .iter()
+        .zip(sort_orders.iter())
+        .map(|(name, order)| {
+            let ascending = order.eq_ignore_ascii_case("asc");
+            let nulls_first = ascending;
+            Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first)
+        })
+        .collect();
+    Some(sort_exprs)
 }
 
 #[cfg(test)]
@@ -482,6 +581,36 @@ mod tests {
         assert!(Arc::ptr_eq(&result, &inferred), "subset gate must short-circuit to inferred");
     }
 
+    /// Empty-shard case: a shard with zero parquet files yields an empty inferred schema, but the
+    /// plan's base_schema still names columns. widen_schema_from_plan must append all of them as
+    /// nullable so the consumer can bind. (Downstream, the field-count delta — 0 vs N — also
+    /// disables stat collection, avoiding the cache's column-count merge failure.)
+    #[tokio::test]
+    async fn test_widen_schema_from_empty_inferred_adds_all_nullable() {
+        let ctx = SessionContext::new();
+        // base_schema for "t" = [a (Int64), b (Utf8)].
+        let registered_schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        let table = MemTable::try_new(Arc::clone(&registered_schema), vec![vec![]]).expect("memtable");
+        ctx.register_table("t", Arc::new(table)).expect("register");
+        let logical = ctx.sql("SELECT a, b FROM t").await.expect("sql").into_unoptimized_plan();
+        let plan = to_substrait_plan(&logical, &ctx.state()).expect("substrait plan");
+        let mut plan_bytes = Vec::new();
+        plan.encode(&mut plan_bytes).expect("encode");
+
+        // Empty shard → empty inferred schema (0 fields).
+        let inferred = Arc::new(Schema::empty());
+        let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
+
+        assert_eq!(result.fields().len(), 2, "all base_schema columns must be appended");
+        for name in ["a", "b"] {
+            let f = result.field_with_name(name).expect("column present");
+            assert!(f.is_nullable(), "appended column {name} must be nullable");
+        }
+    }
+
     async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {
         let runtime_env = RuntimeEnvBuilder::new().build().expect("runtime env");
         let state = SessionStateBuilder::new()
@@ -519,10 +648,13 @@ mod tests {
             table_path,
             object_metas: Arc::new(vec![]),
             writer_generations: Arc::new(vec![]),
+            sort_fields: vec![],
+            sort_orders: vec![],
             query_context,
             table_name: "t".to_string(),
             indexed_config: None,
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
+            io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
             prepared_plan: None,
             phantom_reservation: None,
@@ -543,5 +675,136 @@ mod tests {
 
         assert_eq!(handle.aggregate_mode, Mode::Partial);
         assert!(handle.prepared_plan.is_some());
+    }
+
+    /// Regression: a shard whose parquet files have FEWER columns than the widened (alias/pattern
+    /// union) table schema must not fail planning with "Cannot merge statistics with different
+    /// number of columns". The runtime-global file statistics cache is keyed by path+size+mtime
+    /// (NOT schema), so a Statistics cached during an earlier NARROW read is returned for a later
+    /// WIDENED read; merging the cached narrow stats against freshly-computed widened stats blows
+    /// up. We avoid this by disabling stat collection when widening changed the schema; this test
+    /// reproduces the straddle (narrow read seeds the cache, widened read reuses it) and asserts
+    /// the widened scan plans + executes.
+    #[tokio::test]
+    async fn widened_scan_over_narrower_files_does_not_fail_stats_merge() {
+        use arrow_array::StringArray;
+        use datafusion::arrow::datatypes::SchemaRef;
+        use datafusion::datasource::file_format::parquet::ParquetFormat;
+        use datafusion::datasource::listing::{
+            ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+        };
+        use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
+        use datafusion::parquet::arrow::ArrowWriter;
+
+        fn write_parquet(dir: &std::path::Path, name: &str, schema: SchemaRef, cols: Vec<Arc<dyn arrow::array::Array>>) {
+            let file = std::fs::File::create(dir.join(name)).unwrap();
+            let batch = RecordBatch::try_new(Arc::clone(&schema), cols).unwrap();
+            let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+            writer.write(&batch).unwrap();
+            writer.close().unwrap();
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        // One file with the narrow schema (column "a" only), one with the widened schema (a + b).
+        let narrow: SchemaRef = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
+        let wide: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        write_parquet(dir.path(), "narrow.parquet", Arc::clone(&narrow), vec![Arc::new(Int64Array::from(vec![1i64]))]);
+        write_parquet(
+            dir.path(),
+            "wide.parquet",
+            Arc::clone(&wide),
+            vec![Arc::new(Int64Array::from(vec![2i64])), Arc::new(StringArray::from(vec!["x"]))],
+        );
+
+        let table_url = ListingTableUrl::parse(format!("file://{}", dir.path().to_str().unwrap())).unwrap();
+        // Shared, runtime-global stats cache — the crux of the bug.
+        let stats_cache = Arc::new(DefaultFileStatisticsCache::default());
+
+        // 1. NARROW read first: registers the table at the narrow (1-col) schema and, with
+        //    collect_stat(true), seeds the shared cache with a 1-column Statistics for narrow.parquet.
+        let ctx = SessionContext::new();
+        let narrow_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
+            .with_file_extension(".parquet")
+            .with_collect_stat(true);
+        let narrow_cfg = ListingTableConfig::new(table_url.clone())
+            .with_listing_options(narrow_opts)
+            .with_schema(Arc::clone(&narrow));
+        let narrow_tbl = Arc::new(ListingTable::try_new(narrow_cfg).unwrap().with_cache(Some(stats_cache.clone())));
+        ctx.register_table("t_narrow", narrow_tbl).unwrap();
+        let _ = ctx.sql("SELECT a FROM t_narrow").await.unwrap().collect().await.unwrap();
+
+        // 2. WIDENED read reusing the SAME cache. This is what create_session_context does after
+        //    widen_schema_from_plan. The fix sets collect_stat(false) because the schema was widened;
+        //    without it, merging the cached 1-col Statistics against a 2-col one fails planning.
+        let widened_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
+            .with_file_extension(".parquet")
+            .with_collect_stat(false); // mirrors the fix in create_session_context for widened tables
+        let widened_cfg = ListingTableConfig::new(table_url)
+            .with_listing_options(widened_opts)
+            .with_schema(Arc::clone(&wide));
+        let widened_tbl = Arc::new(ListingTable::try_new(widened_cfg).unwrap().with_cache(Some(stats_cache)));
+        ctx.register_table("t_wide", widened_tbl).unwrap();
+
+        let rows = ctx
+            .sql("SELECT a, b FROM t_wide ORDER BY a")
+            .await
+            .expect("widened query plans")
+            .collect()
+            .await
+            .expect("widened query executes without stats-merge failure");
+        let total: usize = rows.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(total, 2, "widened scan must read both files");
+    }
+
+    /// Each per-query RuntimeEnv built the way create_session_context builds it must get its own
+    /// ObjectStoreRegistry. Two queries registering different stores under the bare `file://`
+    /// scheme must not clobber each other — the bug that routed one shard's parquet read through
+    /// another shard's store and failed with "No such file or directory".
+    #[tokio::test]
+    async fn test_per_query_object_store_registry_is_isolated() {
+        use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStoreRegistry};
+        use object_store::memory::InMemory;
+        use object_store::ObjectStore;
+        use url::Url;
+
+        // Simulates the single shared global runtime_env (DataFusionRuntime.runtime_env).
+        let shared = RuntimeEnvBuilder::new().build().expect("shared runtime env");
+
+        // Two per-query runtime envs, each derived the way create_session_context derives them:
+        // from the shared env but with a fresh object-store registry.
+        let env_a = RuntimeEnvBuilder::from_runtime_env(&shared)
+            .with_object_store_registry(Arc::new(DefaultObjectStoreRegistry::new()))
+            .build()
+            .expect("per-query runtime env a");
+        let env_b = RuntimeEnvBuilder::from_runtime_env(&shared)
+            .with_object_store_registry(Arc::new(DefaultObjectStoreRegistry::new()))
+            .build()
+            .expect("per-query runtime env b");
+
+        let file_url = Url::parse("file://").unwrap();
+        let store_a: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let store_b: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Each query registers its own shard store under the same bare file:// scheme.
+        env_a.register_object_store(&file_url, Arc::clone(&store_a));
+        env_b.register_object_store(&file_url, Arc::clone(&store_b));
+
+        let got_a = env_a
+            .object_store_registry
+            .get_store(&file_url)
+            .expect("env_a must resolve a file:// store");
+        let got_b = env_b
+            .object_store_registry
+            .get_store(&file_url)
+            .expect("env_b must resolve a file:// store");
+
+        // Each env resolves to its OWN store, and the two are independent: registering in one env
+        // does not leak into the other.
+        assert!(Arc::ptr_eq(&got_a, &store_a), "env_a must resolve to its own store");
+        assert!(Arc::ptr_eq(&got_b, &store_b), "env_b must resolve to its own store");
+        assert!(!Arc::ptr_eq(&got_a, &got_b), "per-query stores must be independent across queries");
     }
 }

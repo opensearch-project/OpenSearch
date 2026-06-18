@@ -45,6 +45,7 @@ import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
@@ -110,24 +111,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
-    /** TopK reduce expression: evaluates opaque aggregate state to a sortable scalar. */
-    static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
-        "reduce_eval",
-        SqlKind.OTHER_FUNCTION,
-        ReturnTypes.BIGINT_NULLABLE,
-        null,
-        OperandTypes.ANY_ANY,
-        SqlFunctionCategory.USER_DEFINED_FUNCTION
-    );
-
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
-        FunctionMappings.s(REDUCE_EVAL_OP, "reduce_eval"),
+        FunctionMappings.s(AggregateFunction.REDUCE_EVAL_OP, "reduce_eval"),
         FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_LIKE, "regexp_like"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
@@ -140,6 +132,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_PATTERN_PARSER_GET_TOKENS_OP, "pattern_parser_get_tokens"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
+        FunctionMappings.s(GrokAdapter.LOCAL_GROK_OP, "grok"),
         FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
@@ -149,13 +142,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_TRUNC_OP, "date_trunc"),
-        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "opensearch_extract"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKEDATE_OP, "makedate"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKETIME_OP, "maketime"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, "date_format"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_TIME_FORMAT_OP, "time_format"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_STR_TO_DATE_OP, "str_to_date"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_OS_WEEK_OP, "os_week"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_OS_YEARWEEK_OP, "os_yearweek"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
@@ -191,14 +186,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
         FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
         FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonAdapter.LOCAL_JSON_OP, "json"),
         FunctionMappings.s(JsonFunctionAdapters.JsonAppendAdapter.LOCAL_JSON_APPEND_OP, "json_append"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonArrayAdapter.LOCAL_JSON_ARRAY_OP, "json_array"),
         FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAllAdapter.LOCAL_JSON_EXTRACT_ALL_OP, "json_extract_all"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonObjectAdapter.LOCAL_JSON_OBJECT_OP, "json_object"),
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonValidAdapter.LOCAL_JSON_VALID_OP, "json_valid"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
@@ -219,6 +218,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(ConvAdapter.LOCAL_CONV_OP, "conv")
     );
 
+    // TODO: extract these LOCAL_*_OP aggregate stubs (+ LocalAggOp and ADDITIONAL_AGGREGATE_SIGS)
+    // into their own class, mirroring the per-function scalar *Adapter classes, to keep this file
+    // from accumulating every aggregate definition. Pure structural move (no behaviour change);
+    // updates the cross-file `DataFusionFragmentConvertor.LOCAL_*` references.
     /** Local stubs for PPL state-expanding aggregates; swapped in by {@link PplAggregateCallRewriter}. */
     static final SqlAggFunction LOCAL_TAKE_OP = new SqlAggFunction(
         "take",
@@ -263,20 +266,54 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
-    /** Backs both LIST (call's isDistinct) and VALUES (forces isDistinct=true). */
-    static final SqlAggFunction LOCAL_ARRAY_AGG_OP = new SqlAggFunction(
-        "array_agg",
-        null,
-        SqlKind.OTHER_FUNCTION,
-        ReturnTypes.TO_ARRAY.andThen(SqlTypeTransforms.FORCE_NULLABLE),
-        null,
-        OperandTypes.ANY,
-        SqlFunctionCategory.USER_DEFINED_FUNCTION,
-        false,
-        false,
-        Optionality.FORBIDDEN
-    ) {
+    /**
+     * LIST/VALUES — carries the PPL element-rendering contract via the {@link LocalAggOp} hooks:
+     * cast to VARCHAR (lowercase booleans), drop nulls, and (VALUES only) lexicographic sort.
+     * Inferred return type is {@code ARRAY<VARCHAR>}.
+     */
+    static final SqlAggFunction LOCAL_ARRAY_AGG_OP = new LocalAggOp("array_agg", SqlKind.OTHER_FUNCTION, opBinding -> {
+        RelDataTypeFactory tf = opBinding.getTypeFactory();
+        return tf.createTypeWithNullability(tf.createArrayType(tf.createSqlType(SqlTypeName.VARCHAR), -1), true);
+    }, OperandTypes.ANY) {
+        @Override
+        public Optional<RexNode> rewriteDataArg(int argIndex, RexNode argRef, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            // Skip array operands (partial→final merge path) and already-VARCHAR operands.
+            if (argRef.getType().getComponentType() != null || argRef.getType().getSqlTypeName() == SqlTypeName.VARCHAR) {
+                return Optional.empty();
+            }
+            return Optional.of(castToVarchar(argRef, rexBuilder, typeFactory));
+        }
+
+        @Override
+        public boolean sortsArgAscending(AggregateCall call) {
+            // VALUES (isDistinct) returns lexicographically sorted distinct strings; LIST does not sort.
+            return call.isDistinct();
+        }
+
+        @Override
+        public boolean filtersNullArgs(AggregateCall call) {
+            // list/values drop null elements per the PPL contract.
+            return true;
+        }
     };
+
+    /**
+     * Casts a list/values element to VARCHAR matching the SQL plugin's {@code String.valueOf}
+     * rendering: ip→{@code ip_to_string}, binary→{@code binary_to_base64}, else a plain CAST.
+     * Unlike the {@code cast}/{@code tostring} path this does NOT uppercase booleans — native
+     * {@code cast(boolean AS Utf8)} yields lowercase {@code true}/{@code false}, per the PPL
+     * {@code list}/{@code values} contract.
+     */
+    private static RexNode castToVarchar(RexNode arg, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+        RelDataType varcharNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        if (arg.getType() instanceof org.opensearch.analytics.schema.IpType) {
+            return rexBuilder.makeCall(varcharNullable, IpBinaryCastFunctionAdapter.IP_TO_STRING_OP, List.of(arg));
+        }
+        if (arg.getType() instanceof org.opensearch.analytics.schema.BinaryType) {
+            return rexBuilder.makeCall(varcharNullable, IpBinaryCastFunctionAdapter.BINARY_TO_BASE64_OP, List.of(arg));
+        }
+        return rexBuilder.makeCast(varcharNullable, arg);
+    }
 
     /** FINAL-side merge for LIST; un-nests per-shard list states. */
     static final SqlAggFunction LOCAL_LIST_MERGE_OP = new SqlAggFunction(
@@ -323,10 +360,22 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
         @Override
         public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
-            if (argIndex == 1 && lit.getValue() instanceof BigDecimal bd) {
-                BigDecimal scaled = bd.divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
-                RelDataType doubleType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
-                return rexBuilder.makeLiteral(scaled, doubleType);
+            // The percentile literal arrives as INTEGER for the standard form percentile(x, 50)
+            // but DOUBLE for the percNN/pNN shortcut (perc50 → 50.0E0), and getValue()'s backing
+            // type differs between the two. Read it through getValueAs so both representations
+            // rescale uniformly; pattern-matching get() on BigDecimal missed the DOUBLE shortcut
+            // and let the unscaled 50.0 reach DataFusion ("must be between 0.0 and 1.0").
+            if (argIndex == 1 && SqlTypeName.NUMERIC_TYPES.contains(lit.getType().getSqlTypeName())) {
+                BigDecimal bd = lit.getValueAs(BigDecimal.class);
+                if (bd != null) {
+                    BigDecimal scaled = bd.divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
+                    RelDataType doubleType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
+                    return rexBuilder.makeLiteral(scaled, doubleType);
+                }
+                // bd == null only for a SQL-NULL percent (getValueAs returns null for NULL value) —
+                // not a valid percentile and never produced by the percNN/pNN suffix or an explicit
+                // numeric percentile() arg. Pass it through unchanged; DataFusion rejects a NULL
+                // percentile at planning. There is no scaled-vs-unscaled ambiguity (NULL ≠ 50.0).
             }
             return lit;
         }
@@ -362,6 +411,26 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /**
+     * Exact distinct count for use in a window context — replaces
+     * {@code count(distinct x) OVER(...)} via {@link WindowFunctionAdapters#countDistinctExact()}.
+     * Encoding DISTINCT in the operator name avoids the dropped-DISTINCT bug in DataFusion 54.x's
+     * substrait window consumer. Custom Rust UDAF in {@code rust/src/udaf/os_count_distinct.rs}.
+     */
+    static final SqlAggFunction LOCAL_OS_COUNT_DISTINCT_OP = new SqlAggFunction(
+        "os_count_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
@@ -371,13 +440,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
-        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
         // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
-        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     /**
@@ -462,11 +533,31 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
-    private byte[] convertToSubstrait(RelNode fragment) {
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+    /**
+     * Shared pre-Substrait rewrite pipeline. Both the top-level fragment path
+     * ({@link #convertToSubstrait}) and the wrapper/partial-aggregate path
+     * ({@link #convertStandalone}) must run the identical set of rewriters so a shape handled on
+     * one path is not missed on the other. Centralizing here keeps the two paths in lockstep as
+     * rewriters are added.
+     *
+     * <p>TODO: assess whether each of these rewriters genuinely needs to run at the Substrait
+     * visitor layer, or whether the ones that only manipulate Calcite {@link RelNode}s (and don't
+     * depend on DataFusion/Substrait-specific classes) can be lifted up into the analytics-engine
+     * planner layer. Moving them up would let other backends reuse them and keep backend fragment
+     * conversion mostly a shape-to-Substrait translation.
+     */
+    private static RelNode preprocessForSubstrait(RelNode rel) {
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
+        preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
+        preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
+        return preprocessed;
+    }
+
+    private byte[] convertToSubstrait(RelNode fragment) {
+        RelNode preprocessed = preprocessForSubstrait(fragment);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -493,10 +584,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Converts a single operator into a Substrait {@link Rel}; children are discarded and rewired by {@link #rewire}. */
     private Rel convertStandalone(RelNode operator) {
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
-        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
-        preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
-        preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
+        RelNode preprocessed = preprocessForSubstrait(operator);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
@@ -626,7 +714,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 Function<RexNode, Expression> rexConverter
             ) {
                 Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, call, rexConverter);
-                if (bound.isEmpty() || !(input instanceof org.apache.calcite.rel.core.Project project)) {
+                if (bound.isEmpty()) {
+                    return bound;
+                }
+                // Let the op rewrite its data args (e.g. a type-coercing CAST) on the bound Substrait
+                // argument — generic dispatch; the cast semantics live on the LocalAggOp, not here.
+                Optional<AggregateFunctionInvocation> rewrittenArgs = rewriteLocalAggDataArgs(input, call, bound.get(), rexConverter);
+                if (rewrittenArgs.isPresent()) {
+                    return rewrittenArgs;
+                }
+                if (!(input instanceof org.apache.calcite.rel.core.Project project)) {
                     return bound;
                 }
                 AggregateFunctionInvocation fn = bound.get();
@@ -672,7 +769,68 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             windowConverter,
             typeConverter
         );
-        return new SubstraitRelVisitor(converterProvider);
+        return new SubstraitRelVisitor(converterProvider) {
+            @Override
+            public Rel visit(org.apache.calcite.rel.core.Aggregate aggregate) {
+                Rel rel = super.visit(aggregate);
+                return rel instanceof Aggregate agg ? addNullArgFilters(aggregate, agg) : rel;
+            }
+        };
+    }
+
+    /**
+     * Adds an {@code is_not_null} {@code preMeasureFilter} to each measure whose {@link LocalAggOp}
+     * declares {@link LocalAggOp#filtersNullArgs} — so the converter stays generic and only the op
+     * opts in (DataFusion's substrait consumer can't take the function's own {@code ignore_nulls}).
+     * Measures line up with the Calcite agg calls minus any {@code GROUP_ID()} (which isthmus drops).
+     */
+    private Aggregate addNullArgFilters(org.apache.calcite.rel.core.Aggregate calcite, Aggregate agg) {
+        List<AggregateCall> calls = calcite.getAggCallList()
+            .stream()
+            .filter(c -> c.getAggregation() != SqlStdOperatorTable.GROUP_ID)
+            .toList();
+        List<Aggregate.Measure> measures = agg.getMeasures();
+        if (calls.size() != measures.size()) {
+            return agg; // shape we don't recognise — leave untouched
+        }
+        List<Aggregate.Measure> rewritten = null;
+        for (int i = 0; i < measures.size(); i++) {
+            Aggregate.Measure m = measures.get(i);
+            if (!(calls.get(i).getAggregation() instanceof LocalAggOp op) || !op.filtersNullArgs(calls.get(i))) {
+                continue;
+            }
+            if (m.getPreMeasureFilter().isPresent()
+                || m.getFunction().arguments().isEmpty()
+                || !(m.getFunction().arguments().get(0) instanceof Expression argExpr)) {
+                continue;
+            }
+            Expression filter = isNotNull(argExpr);
+            if (filter == null) {
+                continue;
+            }
+            if (rewritten == null) {
+                rewritten = new ArrayList<>(measures);
+            }
+            rewritten.set(i, Aggregate.Measure.builder().from(m).preMeasureFilter(filter).build());
+        }
+        return rewritten == null ? agg : Aggregate.builder().from(agg).measures(rewritten).build();
+    }
+
+    /** Builds {@code is_not_null(arg)} from the merged extension catalog, or null if the variant is absent. */
+    private Expression isNotNull(Expression arg) {
+        SimpleExtension.ScalarFunctionVariant variant = extensions.scalarFunctions()
+            .stream()
+            .filter(f -> "is_not_null".equals(f.name()))
+            .findFirst()
+            .orElse(null);
+        if (variant == null) {
+            return null;
+        }
+        return io.substrait.expression.ImmutableExpression.ScalarFunctionInvocation.builder()
+            .declaration(variant)
+            .addArguments(arg)
+            .outputType(io.substrait.type.TypeCreator.REQUIRED.BOOLEAN)
+            .build();
     }
 
     /** Column offset for a simple input-rooted single-segment {@code StructField}, else null. */
@@ -683,6 +841,56 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         io.substrait.expression.FieldReference.ReferenceSegment seg = fr.segments().get(0);
         if (!(seg instanceof io.substrait.expression.FieldReference.StructField sf)) return null;
         return sf.offset();
+    }
+
+    /**
+     * Lets a {@link LocalAggOp} rewrite its data args on the bound Substrait invocation (e.g. a
+     * type-coercing CAST), keyed only on the generic hook — no per-function logic here. Returns
+     * empty when the op is not a {@code LocalAggOp} or leaves every arg unchanged.
+     */
+    private Optional<AggregateFunctionInvocation> rewriteLocalAggDataArgs(
+        RelNode input,
+        AggregateCall call,
+        AggregateFunctionInvocation fn,
+        Function<RexNode, Expression> rexConverter
+    ) {
+        if (!(call.getAggregation() instanceof LocalAggOp op)) {
+            return Optional.empty();
+        }
+        RexBuilder rexBuilder = input.getCluster().getRexBuilder();
+        RelDataTypeFactory typeFactory = input.getCluster().getTypeFactory();
+        List<FunctionArg> rewritten = null;
+        for (int i = 0; i < call.getArgList().size(); i++) {
+            RelDataType srcType = input.getRowType().getFieldList().get(call.getArgList().get(i)).getType();
+            RexNode argRef = rexBuilder.makeInputRef(srcType, call.getArgList().get(i));
+            Optional<RexNode> replacement = op.rewriteDataArg(i, argRef, rexBuilder, typeFactory);
+            if (replacement.isEmpty()) {
+                continue;
+            }
+            if (rewritten == null) {
+                rewritten = new ArrayList<>(fn.arguments());
+            }
+            rewritten.set(i, rexConverter.apply(replacement.get()));
+        }
+        List<FunctionArg> args = rewritten != null ? rewritten : fn.arguments();
+        // Sort the elements ascending by the (rewritten) first arg when the op asks for it — emitted
+        // as the invocation's sort, which DataFusion's array_agg honours (its DISTINCT+ORDER BY rule
+        // is satisfied because the sort key IS the argument expression).
+        List<Expression.SortField> sorts = fn.sort();
+        boolean addedSort = false;
+        if (op.sortsArgAscending(call) && sorts.isEmpty() && !args.isEmpty() && args.get(0) instanceof Expression sortKey) {
+            sorts = List.of(
+                io.substrait.expression.ImmutableExpression.SortField.builder()
+                    .expr(sortKey)
+                    .direction(Expression.SortDirection.ASC_NULLS_LAST)
+                    .build()
+            );
+            addedSort = true;
+        }
+        if (rewritten == null && !addedSort) {
+            return Optional.empty();
+        }
+        return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(args).sort(sorts).build());
     }
 
     /**
@@ -716,6 +924,33 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         /** Identity by default; override to transform the {@code argIndex}-th inlined literal arg. */
         public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
             return lit;
+        }
+
+        /**
+         * Returns the expression to emit for the {@code argIndex}-th data arg in place of a bare
+         * field reference (e.g. a type-coercing CAST), or empty to keep the reference. Applied on
+         * the bound Substrait argument, so it rides the measure without a child Project that the
+         * reduce-stage stitch ({@link #replaceInput}) would drop. Identity by default.
+         */
+        public Optional<RexNode> rewriteDataArg(int argIndex, RexNode argRef, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            return Optional.empty();
+        }
+
+        /**
+         * Whether the aggregate's elements are emitted ascending-sorted by the (rewritten) data arg.
+         * Carried as the invocation's sort, which DataFusion's {@code array_agg} honours. False by default.
+         */
+        public boolean sortsArgAscending(AggregateCall call) {
+            return false;
+        }
+
+        /**
+         * Whether null arguments are dropped before aggregating. Carried as the measure's
+         * {@code is_not_null} preMeasureFilter (DataFusion's substrait consumer can't take the
+         * function's own {@code ignore_nulls}). False by default.
+         */
+        public boolean filtersNullArgs(AggregateCall call) {
+            return false;
         }
     }
 

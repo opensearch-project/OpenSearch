@@ -128,9 +128,12 @@ pub mod crc32;
 pub mod date_format;
 pub mod extract;
 pub mod from_unixtime;
+pub mod grok;
 pub mod ip_to_string;
 pub mod item;
+pub mod json;
 pub mod json_append;
+pub mod json_array;
 pub mod json_array_length;
 pub(crate) mod json_common;
 pub mod json_delete;
@@ -138,14 +141,17 @@ pub mod json_extend;
 pub mod json_extract;
 pub mod json_extract_all;
 pub mod json_keys;
+pub mod json_object;
 pub mod json_set;
+pub mod json_valid;
 pub mod makedate;
 pub mod maketime;
 pub mod minspan_bucket;
 pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
-pub(crate) mod mysql_format;
+pub(crate) mod os_strftime;
+pub mod os_week;
 pub mod parse;
 pub mod pattern_parser;
 pub mod range_bucket;
@@ -176,22 +182,28 @@ pub fn register_all(ctx: &SessionContext) {
     date_format::register_all(ctx);
     extract::register_all(ctx);
     from_unixtime::register_all(ctx);
+    grok::register_all(ctx);
     ip_to_string::register_all(ctx);
     item::register_all(ctx);
+    json::register_all(ctx);
     json_append::register_all(ctx);
+    json_array::register_all(ctx);
     json_array_length::register_all(ctx);
     json_delete::register_all(ctx);
     json_extend::register_all(ctx);
     json_extract::register_all(ctx);
     json_extract_all::register_all(ctx);
     json_keys::register_all(ctx);
+    json_object::register_all(ctx);
     json_set::register_all(ctx);
+    json_valid::register_all(ctx);
     makedate::register_all(ctx);
     maketime::register_all(ctx);
     minspan_bucket::register_all(ctx);
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    os_week::register_all(ctx);
     parse::register_all(ctx);
     pattern_parser::register_all(ctx);
     range_bucket::register_all(ctx);
@@ -215,7 +227,7 @@ pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
     ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, extract, from_unixtime, item, json_append, json_array_length, json_delete, json_extend, json_extract, json_extract_all, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, parse, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, width_bucket registered"
+        "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, opensearch_extract, from_unixtime, item, json, json_append, json_array, json_array_length, json_delete, json_extend, json_extract, json_extract_all, json_keys, json_object, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, parse, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, width_bucket registered"
     );
 }
 

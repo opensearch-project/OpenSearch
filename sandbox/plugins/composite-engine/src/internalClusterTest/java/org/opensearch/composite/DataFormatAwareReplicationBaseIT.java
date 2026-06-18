@@ -8,27 +8,41 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.FileMetadata;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
+import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
+import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
+import org.opensearch.repositories.fs.native_store.FsNativeObjectStorePlugin;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,31 +54,100 @@ import java.util.stream.Stream;
  * Abstract base class for DFA replication integration tests. Centralizes boilerplate
  * shared across promotion and peer-recovery ITs.
  */
+@ThreadLeakFilters(filters = DataFormatAwareReplicationBaseIT.CleanerThreadFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIntegTestCase {
 
     protected static final String INDEX_NAME = "dfa-replication-base-idx";
 
+    /** Suppresses index-input-cleaner threads leaked by MMapDirectory / SwitchableIndexInput. */
+    public static class CleanerThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return t.getName().startsWith("index-input-cleaner");
+        }
+    }
+
+    /** Wires FsNativeObjectStorePlugin into "fs_metadata_supported_repository" repos. */
+    public static class NativeAwareMockFsMetadataSupportedRepositoryPlugin extends Plugin
+        implements
+            org.opensearch.plugins.RepositoryPlugin {
+
+        private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                MockFsMetadataSupportedRepositoryPlugin.TYPE_MD,
+                metadata -> new ReloadableFsRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    recoverySettings,
+                    nativeProvider
+                )
+            );
+        }
+    }
+
+    /** Wires FsNativeObjectStorePlugin into "fs_multipart_repository" repos. */
+    public static class NativeAwareMockFsRepositoryPlugin extends Plugin implements org.opensearch.plugins.RepositoryPlugin {
+
+        private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                MockFsRepositoryPlugin.TYPE,
+                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
+            );
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // Replace both mock repo plugins with native-provider-aware versions so that warm Parquet
+        // shards can obtain a live NativeStoreRepository regardless of which repo type
+        // RemoteStoreBaseIntegTestCase randomly picks (metadataSupportedType = randomBoolean()).
         return Stream.concat(
-            super.nodePlugins().stream(),
-            Stream.of(
+            super.nodePlugins().stream()
+                .filter(p -> p != MockFsMetadataSupportedRepositoryPlugin.class)
+                .filter(p -> p != MockFsRepositoryPlugin.class),
+            Stream.<Class<? extends Plugin>>of(
                 ArrowBasePlugin.class,
                 ParquetDataFormatPlugin.class,
                 CompositeDataFormatPlugin.class,
                 LucenePlugin.class,
-                DataFusionPlugin.class
+                DataFusionPlugin.class,
+                FsNativeObjectStorePlugin.class,
+                NativeAwareMockFsMetadataSupportedRepositoryPlugin.class,
+                NativeAwareMockFsRepositoryPlugin.class
             )
         ).collect(Collectors.toList());
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
-            .build();
+        // Pre-create repo dirs so FsNativeObjectStorePlugin's canonicalize() succeeds at startup.
+        final Settings settings = super.nodeSettings(nodeOrdinal);
+        try {
+            if (segmentRepoPath != null) java.nio.file.Files.createDirectories(segmentRepoPath);
+            if (translogRepoPath != null) java.nio.file.Files.createDirectories(translogRepoPath);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("Failed to pre-create remote store repo directories", e);
+        }
+        return Settings.builder().put(settings).put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true).build();
     }
 
     protected Settings dfaIndexSettings(int replicaCount) {
@@ -74,7 +157,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
     }
 
@@ -92,7 +175,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
 
     /** Whether lucene is configured as a secondary data format (produces searchable segment files). */
     protected boolean hasLuceneSecondary() {
-        return false;
+        return true;
     }
 
     /**

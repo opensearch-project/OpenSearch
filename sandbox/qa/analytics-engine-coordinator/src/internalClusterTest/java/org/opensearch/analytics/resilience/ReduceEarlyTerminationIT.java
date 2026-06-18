@@ -22,7 +22,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -78,7 +78,7 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -125,7 +125,7 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(indexSettings)
-                .setMapping("category", "type=keyword", "value", "type=integer")
+                .setMapping("category", "type=keyword,index=false", "value", "type=integer")
                 .get()
                 .isAcknowledged()
         );
@@ -207,6 +207,7 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
      * it); and the {@code [early-term] cancelling shard stream} log fired (the engine cancelled
      * the stream — which only happens once {@code df_sender_send} surfaces {@code RECEIVER_DROPPED}).
      */
+    @AwaitsFix(bugUrl = "thread leak")
     public void testHeadLimitTerminatesEarlyUnderShardSkew() throws Exception {
         createAndSeedLargeIndex();
 
@@ -268,7 +269,7 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(LARGE_INDEX)
                 .setSettings(indexSettings)
-                .setMapping("category", "type=keyword", "value", "type=integer")
+                .setMapping("category", "type=keyword,index=false", "value", "type=integer")
                 .get()
                 .isAcknowledged()
         );

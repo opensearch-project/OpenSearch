@@ -174,7 +174,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                             }
                         };
                     }
-                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles())));
+                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles(), engineConfig.getIndexSettings())));
             }
             readerManagersRef = Map.copyOf(aggregated);
 
@@ -643,6 +643,18 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public MergeStats getMergeStats() {
         return new MergeStats();
+    }
+
+    /** Replicas do not run merges; they consume segments via segment replication. */
+    @Override
+    public boolean hasPendingMerges() {
+        return false;
+    }
+
+    /** Replicas do not run merges; the active count is always zero. */
+    @Override
+    public int getActiveMergeCount() {
+        return 0;
     }
 
     @Override

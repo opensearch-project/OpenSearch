@@ -75,6 +75,13 @@ jsonpath-rust = "=0.7.5"
 # `regex_match` operator (Operator::RegexMatch).
 regex = "=1.12.3"
 
+# grok UDF — the resolved grok dictionary patterns (e.g. BASE10NUM, IPV4) use
+# lookbehind `(?<!…)` and atomic groups `(?>…)` that the RE2-based `regex` crate
+# rejects. `fancy-regex` wraps `regex` with a backtracking engine that supports
+# those constructs (plus lookahead), matching java.util.regex's feature set that
+# the SQL plugin's grok library relies on. Only used by src/udf/grok.rs.
+fancy-regex = "=0.14.0"
+
 # Cryptographic hash UDFs. `sha1` is a dedicated crate (RFC 3174); DataFusion
 # only exposes SHA-2 variants via its `digest` UDF. `crc32fast` is a SIMD-accelerated
 # IEEE 802.3 CRC-32 implementation used by `crc32`; also pulled in via workspace

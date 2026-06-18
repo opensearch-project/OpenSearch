@@ -40,6 +40,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.index.query.SimpleQueryStringBuilder;
 import org.opensearch.index.query.SimpleQueryStringFlag;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -64,6 +65,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
             new NamedWriteableRegistry.Entry(QueryBuilder.class, QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, WildcardQueryBuilder.NAME, WildcardQueryBuilder::new),
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new)
         )
     );
@@ -391,6 +393,157 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         }
     }
 
+    // --- SQL-to-Lucene wildcard conversion tests ---
+
+    /**
+     * Tests that SQL '%' wildcard is converted to Lucene '*'.
+     */
+    public void testWildcardQueryConvertsPercentToStar() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test%", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("test*", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that SQL '_' wildcard is converted to Lucene '?'.
+     */
+    public void testWildcardQueryConvertsUnderscoreToQuestionMark() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "te_t", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("te?t", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that escaped SQL wildcards (\% and \_) are treated as literal characters.
+     */
+    public void testWildcardQueryEscapedWildcardsRemainLiteral() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "100\\%\\_done", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("100%_done", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests mixed SQL wildcards and escaped wildcards in a single pattern.
+     */
+    public void testWildcardQueryMixedEscapedAndUnescaped() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "%foo\\_bar_", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("*foo_bar?", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that a pattern with no SQL wildcards passes through unchanged.
+     */
+    public void testWildcardQueryNoSqlWildcardsPassesThrough() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "hello*world?", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("hello*world?", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that an escaped backslash (\\) followed by a wildcard correctly produces
+     * a literal backslash plus the converted wildcard.
+     */
+    public void testWildcardQueryEscapedBackslashFollowedByWildcard() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        // Java string "\\\\%" is runtime chars: \, \, %
+        // Expected: first \ escapes second \ → literal \, then % is unescaped → *
+        RexCall call = buildSingleFieldRexCallWithParams("title", "\\\\%", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("\\*", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that a backslash before a non-wildcard character preserves both characters.
+     */
+    public void testWildcardQueryBackslashBeforeNonWildcard() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        // Java string "\\n" is runtime chars: \, n
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test\\n", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("test\\n", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that a trailing backslash is preserved in the output.
+     */
+    public void testWildcardQueryTrailingBackslash() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        // Java string "test\\" is runtime chars: t, e, s, t, \
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test\\", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("test\\", wildcardQb.value());
+        }
+    }
+
     // --- QuerySerializer (no-field) tests ---
 
     /**
@@ -413,6 +566,80 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
         assertTrue("Exception message must contain 'query', got: " + exception.getMessage(), exception.getMessage().contains("query"));
+    }
+
+    // --- EQUALS text-field routing tests ---
+
+    /**
+     * EQUALS on a TEXT field that has a keyword multifield must build the TermQuery against the
+     * {@code .keyword} subfield. A raw TermQuery on the analyzed text field matches nothing
+     * (the analyzer lowercases/ tokenizes the indexed value, but TermQuery does not analyze the
+     * input). Mirrors the SQL engine's {@code OpenSearchTextType.convertTextToKeyword}.
+     */
+    public void testEqualsOnTextFieldWithKeywordSubfieldRoutesToKeyword() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.EQUALS);
+        assertNotNull("EQUALS serializer must be registered", serializer);
+
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexCall call = (RexCall) rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(varcharType, 0),
+            rexBuilder.makeLiteral("F")
+        );
+        // text field "gender" WITH a keyword subfield named "keyword".
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("gender", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false, "keyword")
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            TermQueryBuilder term = (TermQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("gender.keyword", term.fieldName());
+            assertEquals("F", term.value());
+        }
+    }
+
+    /**
+     * EQUALS on a TEXT field with NO keyword subfield leaves the field name unchanged (graceful
+     * fallback — same as the SQL engine, which only rewrites when a keyword subfield exists).
+     */
+    public void testEqualsOnTextFieldWithoutKeywordSubfieldKeepsField() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.EQUALS);
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexCall call = (RexCall) rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(varcharType, 0),
+            rexBuilder.makeLiteral("F")
+        );
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("gender", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            TermQueryBuilder term = (TermQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("gender", term.fieldName());
+        }
+    }
+
+    /**
+     * EQUALS on a KEYWORD field is unchanged — no rewrite (it's already exact-match).
+     */
+    public void testEqualsOnKeywordFieldUnchanged() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.EQUALS);
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexCall call = (RexCall) rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(varcharType, 0),
+            rexBuilder.makeLiteral("Amber")
+        );
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("firstname", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            TermQueryBuilder term = (TermQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("firstname", term.fieldName());
+        }
     }
 
     /**

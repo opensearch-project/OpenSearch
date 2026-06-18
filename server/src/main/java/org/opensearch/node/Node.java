@@ -56,6 +56,8 @@ import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.StreamSearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
+import org.opensearch.arrow.spi.NativeAllocator;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterInfoService;
@@ -92,6 +94,7 @@ import org.opensearch.cluster.service.LocalClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.inject.Injector;
@@ -326,9 +329,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -769,12 +776,26 @@ public class Node implements Closeable {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
+            // Defensive: filter out nulls (a misbehaving plugin returning a list containing null
+            // would NPE inside FsHealthService.monitorFSHealth and mark the node UNHEALTHY with a
+            // misleading log) and dedupe (avoid probing the same path twice if a plugin happens to
+            // report a path that overlaps with another contributor or with nodeDataPaths).
+            final List<Path> pluginAdditionalHealthPaths = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .flatMap(p -> p.getAdditionalHealthPaths(settings).stream())
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+            assertCanWritePluginHealthPaths(pluginAdditionalHealthPaths);
+
             final FsHealthService fsHealthService = new FsHealthService(
                 settings,
                 clusterService.getClusterSettings(),
                 threadPool,
                 nodeEnvironment,
-                metricsRegistry
+                metricsRegistry,
+                pluginAdditionalHealthPaths
             );
             final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
@@ -1205,6 +1226,14 @@ public class Node implements Closeable {
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
+            // Extract the NativeAllocator instance (published by ArrowBasePlugin in phase 1)
+            // so it can be passed to SearchBackEndPlugin.createComponents for virtual pool registration.
+            final NativeAllocator nativeAllocator = pluginComponents.stream()
+                .filter(c -> c instanceof NativeAllocator)
+                .map(c -> (NativeAllocator) c)
+                .findFirst()
+                .orElse(null);
+
             @SuppressWarnings("rawtypes")
             Collection<Object> searchBackEndPluginComponents = pluginsService.filterPlugins(SearchBackEndPlugin.class)
                 .stream()
@@ -1221,7 +1250,8 @@ public class Node implements Closeable {
                         namedWriteableRegistry,
                         clusterModule.getIndexNameExpressionResolver(),
                         repositoriesServiceReference::get,
-                        dataFormatRegistry
+                        dataFormatRegistry,
+                        nativeAllocator
                     ).stream()
                 )
                 .collect(Collectors.toList());
@@ -1237,6 +1267,15 @@ public class Node implements Closeable {
             List<SearchStatsContributor> searchStatsContributors = pluginsService.filterPlugins(SearchStatsContributor.class);
             if (searchStatsContributors.isEmpty() == false) {
                 indicesService.setSearchStatsContributors(searchStatsContributors);
+            }
+
+            // Wire indexing pool group limit changes to the IndexingMemoryController.
+            // When the rebalancer adjusts the effective limit of pools in the INDEXING group,
+            // IMC's native buffer is updated to 70% of the new grouped limit.
+            if (nativeAllocator != null) {
+                nativeAllocator.addPoolGroupLimitListener(PoolGroup.INDEXING, newGroupLimit -> {
+                    indicesService.setNativeIndexBufferBytes((long) (newGroupLimit * 0.70));
+                });
             }
 
             if (nodeCacheService != null) {
@@ -2566,6 +2605,44 @@ public class Node implements Closeable {
     private static String validateFileCacheSize(String capacityRaw) {
         calculateFileCacheSize(capacityRaw, 0L);
         return capacityRaw;
+    }
+
+    /**
+     * Pre-flight write probe for plugin-supplied {@link FsHealthService} paths. Throws
+     * {@link IllegalStateException} on any failure so node boot halts loudly on misconfiguration.
+     * Mirrors the spirit of {@code NodeEnvironment.assertCanWrite()} but for plugin paths.
+     *
+     * <p>Visible for testing.
+     */
+    static void assertCanWritePluginHealthPaths(List<Path> paths) {
+        for (Path path : paths) {
+            Path probe = path.resolve(".opensearch_plugin_health_boot_probe_" + UUIDs.randomBase64UUID());
+            try {
+                Files.deleteIfExists(probe);
+                Files.write(probe, "boot".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
+                Files.delete(probe);
+            } catch (AccessDeniedException e) {
+                throw new IllegalStateException(
+                    "Plugin-supplied health path [" + path + "] is not writable (permission denied): " + e.getMessage(),
+                    e
+                );
+            } catch (NoSuchFileException e) {
+                throw new IllegalStateException(
+                    "Plugin-supplied health path [" + path + "] is not writable (no such file or directory): " + e.getMessage(),
+                    e
+                );
+            } catch (FileSystemException e) {
+                // Covers ENOSPC, read-only filesystem, etc. The reason() field, when present, is
+                // the OS-level error string (e.g. "No space left on device").
+                String reason = e.getReason() != null ? e.getReason() : e.getMessage();
+                throw new IllegalStateException(
+                    "Plugin-supplied health path [" + path + "] is not writable (filesystem error): " + reason,
+                    e
+                );
+            } catch (IOException | RuntimeException e) {
+                throw new IllegalStateException("Plugin-supplied health path [" + path + "] is not writable: " + e.getMessage(), e);
+            }
+        }
     }
 
     /**

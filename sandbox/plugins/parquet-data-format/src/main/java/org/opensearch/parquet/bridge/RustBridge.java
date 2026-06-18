@@ -12,6 +12,7 @@ import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.parquet.stats.ParquetNativeRuntimeStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,7 +36,6 @@ public class RustBridge {
     private static final MethodHandle CREATE_WRITER;
     private static final MethodHandle WRITE;
     private static final MethodHandle FINALIZE_WRITER;
-    private static final MethodHandle SYNC_TO_DISK;
     private static final MethodHandle GET_FILE_METADATA;
     private static final MethodHandle GET_COLUMN_METADATA;
     private static final MethodHandle GET_FILTERED_BYTES;
@@ -45,6 +45,11 @@ public class RustBridge {
     private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
     private static final MethodHandle FREE_ROW_ID_MAPPING;
+    private static final MethodHandle COLLECT_RUNTIME_METRICS;
+    private static final MethodHandle INIT_MEMORY_POOLS;
+    private static final MethodHandle SET_WRITE_POOL_LIMIT;
+    private static final MethodHandle SET_MERGE_POOL_LIMIT;
+    private static final MethodHandle GET_POOL_STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -94,10 +99,6 @@ public class RustBridge {
                 ValueLayout.ADDRESS,                           // sort_perm_ptr_out
                 ValueLayout.ADDRESS                            // sort_perm_len_out
             )
-        );
-        SYNC_TO_DISK = linker.downcallHandle(
-            lib.find("parquet_sync_to_disk").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
         GET_FILE_METADATA = linker.downcallHandle(
             lib.find("parquet_get_file_metadata").orElseThrow(),
@@ -219,7 +220,10 @@ public class RustBridge {
                 ValueLayout.ADDRESS,    // out_gen_keys_ptr
                 ValueLayout.ADDRESS,    // out_gen_offsets_ptr
                 ValueLayout.ADDRESS,    // out_gen_sizes_ptr
-                ValueLayout.ADDRESS     // out_gen_count
+                ValueLayout.ADDRESS,    // out_gen_count
+                ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_count
+                ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_time_millis
+                ValueLayout.ADDRESS     // out_row_id_mapping_max
             )
         );
         FREE_MERGE_RESULT = linker.downcallHandle(
@@ -250,6 +254,30 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,                         // mapping_ptr
                 ValueLayout.JAVA_LONG                          // mapping_len
             )
+        );
+        COLLECT_RUNTIME_METRICS = linker.downcallHandle(
+            lib.find("parquet_collect_runtime_metrics").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,    // return value
+                ValueLayout.ADDRESS,      // out_buf
+                ValueLayout.JAVA_LONG     // out_len
+            )
+        );
+        INIT_MEMORY_POOLS = linker.downcallHandle(
+            lib.find("parquet_init_memory_pools").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        SET_WRITE_POOL_LIMIT = linker.downcallHandle(
+            lib.find("parquet_set_write_pool_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        SET_MERGE_POOL_LIMIT = linker.downcallHandle(
+            lib.find("parquet_set_merge_pool_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        GET_POOL_STATS = linker.downcallHandle(
+            lib.find("parquet_get_pool_stats").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
         );
     }
 
@@ -347,13 +375,6 @@ public class RustBridge {
             }
 
             return new WriterFinalizeResult(metadata, rowIdMapping);
-        }
-    }
-
-    static void syncToDisk(String file) throws IOException {
-        try (var call = new NativeCall()) {
-            var f = call.str(file);
-            call.invokeIO(SYNC_TO_DISK, f.segment(), f.len());
         }
     }
 
@@ -493,6 +514,25 @@ public class RustBridge {
         }
     }
 
+    /**
+     * Collects a snapshot of native runtime metrics for the parquet merge path.
+     * Returns a long array of {@link ParquetNativeRuntimeStats#FIELD_COUNT} elements in the
+     * order documented in {@link org.opensearch.parquet.stats.ParquetNativeRuntimeStats#fromArray}.
+     */
+    public static long[] collectRuntimeMetrics() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(ParquetNativeRuntimeStats.FIELD_COUNT * 8);
+            call.invokeIO(COLLECT_RUNTIME_METRICS, buf, (long) ParquetNativeRuntimeStats.FIELD_COUNT);
+            long[] out = new long[ParquetNativeRuntimeStats.FIELD_COUNT];
+            for (int i = 0; i < ParquetNativeRuntimeStats.FIELD_COUNT; i++) {
+                out[i] = buf.getAtIndex(ValueLayout.JAVA_LONG, i);
+            }
+            return out;
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException("collectRuntimeMetrics failed", e);
+        }
+    }
+
     public static MergeFilesResult mergeParquetFilesInRust(
         List<Path> inputFiles,
         String outputFile,
@@ -518,6 +558,10 @@ public class RustBridge {
             var outGenOffsetsPtr = call.longOut();
             var outGenSizesPtr = call.longOut();
             var outGenCount = call.longOut();
+            // Out-pointers for per-merge stats forwarded to the per-shard tracker.
+            var outFlushChunkCount = call.longOut();
+            var outFlushChunkTimeMillis = call.longOut();
+            var outRowIdMappingMax = call.longOut();
 
             call.invokeIO(
                 MERGE_FILES,
@@ -540,7 +584,10 @@ public class RustBridge {
                 outGenKeysPtr,
                 outGenOffsetsPtr,
                 outGenSizesPtr,
-                outGenCount
+                outGenCount,
+                outFlushChunkCount,
+                outFlushChunkTimeMillis,
+                outRowIdMappingMax
             );
 
             int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
@@ -563,7 +610,11 @@ public class RustBridge {
                 outGenCount
             );
 
-            return new MergeFilesResult(rowIdMapping, metadata);
+            long flushChunkCount = outFlushChunkCount.get(ValueLayout.JAVA_LONG, 0);
+            long flushChunkTimeMillis = outFlushChunkTimeMillis.get(ValueLayout.JAVA_LONG, 0);
+            long rowIdMappingMax = outRowIdMappingMax.get(ValueLayout.JAVA_LONG, 0);
+
+            return new MergeFilesResult(rowIdMapping, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }
@@ -686,6 +737,26 @@ public class RustBridge {
             seg.setAtIndex(ValueLayout.JAVA_LONG, i, map.get(keys[i]));
         }
         return new LongMapArrays(call.strArray(keys), seg);
+    }
+
+    public static void initMemoryPools(long writeLimit, long mergeLimit) {
+        NativeCall.invokeVoid(INIT_MEMORY_POOLS, writeLimit, mergeLimit);
+    }
+
+    public static void setWritePoolLimit(long newLimit) {
+        NativeCall.invokeVoid(SET_WRITE_POOL_LIMIT, newLimit);
+    }
+
+    public static void setMergePoolLimit(long newLimit) {
+        NativeCall.invokeVoid(SET_MERGE_POOL_LIMIT, newLimit);
+    }
+
+    public static long[] getPoolStats() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(6 * 8);
+            NativeCall.invokeVoid(GET_POOL_STATS, buf);
+            return buf.toArray(ValueLayout.JAVA_LONG);
+        }
     }
 
     private RustBridge() {}

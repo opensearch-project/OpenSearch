@@ -8,6 +8,9 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
@@ -71,12 +74,8 @@ final class PplAggregateCallRewriter {
         boolean changed = false;
         for (AggregateCall call : oldCalls) {
             AggregateCall rewritten = rewriteCall(agg, call);
-            if (rewritten == call) {
-                newCalls.add(call);
-            } else {
-                newCalls.add(rewritten);
-                changed = true;
-            }
+            newCalls.add(rewritten);
+            changed |= rewritten != call;
         }
         if (!changed) {
             return agg;
@@ -125,6 +124,37 @@ final class PplAggregateCallRewriter {
             case "TAKE" -> targetOp = DataFusionFragmentConvertor.LOCAL_TAKE_OP;
             case "FIRST" -> targetOp = DataFusionFragmentConvertor.LOCAL_FIRST_OP;
             case "LAST" -> targetOp = DataFusionFragmentConvertor.LOCAL_LAST_OP;
+            case "ARG_MIN", "ARG_MAX" -> {
+                // ARG_MIN/ARG_MAX(value, ts) -> first_value/last_value(value) with ts as the agg
+                // ORDER BY key (DataFusion 53 has no arg_min/max UDAF; first/last_value take ordering).
+                if (call.getArgList().size() != 2) {
+                    return call;
+                }
+                boolean isMin = "ARG_MIN".equalsIgnoreCase(aggregation.getName());
+                SqlAggFunction op = isMin ? DataFusionFragmentConvertor.LOCAL_FIRST_OP : DataFusionFragmentConvertor.LOCAL_LAST_OP;
+                int valueArg = call.getArgList().get(0);
+                int timeArg = call.getArgList().get(1);
+                RelCollation collation = RelCollations.of(
+                    new RelFieldCollation(timeArg, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST)
+                );
+                RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(valueArg).getType();
+                RelDataType nullableArg0 = agg.getCluster().getTypeFactory().createTypeWithNullability(arg0Type, true);
+                return AggregateCall.create(
+                    op,
+                    targetDistinct,
+                    call.isApproximate(),
+                    call.ignoreNulls(),
+                    call.rexList,
+                    List.of(valueArg),
+                    call.filterArg,
+                    call.distinctKeys,
+                    collation,
+                    agg.getGroupCount(),
+                    agg.getInput(),
+                    nullableArg0,
+                    call.getName()
+                );
+            }
             case "LIST", "VALUES" -> {
                 // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
                 if (call.getArgList().isEmpty()) {
@@ -142,7 +172,13 @@ final class PplAggregateCallRewriter {
                 } else {
                     targetOp = DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_OP;
                     targetDistinct = isValues;
-                    explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
+                    // PPL list/values is ARRAY<VARCHAR>; the operand is cast to VARCHAR on the
+                    // substrait arg (LOCAL_ARRAY_AGG_OP#rewriteDataArg). Nullable array matches the
+                    // op's inferred type (a NOT NULL array trips Calcite's typeMatchesInferred).
+                    RelDataTypeFactory typeFactory = agg.getCluster().getTypeFactory();
+                    RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+                    RelDataType arrayType = typeFactory.createArrayType(varchar, -1);
+                    explicitReturnType = typeFactory.createTypeWithNullability(arrayType, true);
                 }
             }
             case "PATTERN" -> {

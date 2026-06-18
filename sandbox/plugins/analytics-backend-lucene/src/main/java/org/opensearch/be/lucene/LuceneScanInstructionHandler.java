@@ -59,13 +59,8 @@ final class LuceneScanInstructionHandler implements FragmentInstructionHandler<S
         if (luceneReader == null) {
             throw new IllegalStateException("Lucene-driver fragment dispatched to a shard with no LuceneReader");
         }
-        IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
-        if (shardCtx.getQueryCache() != null) {
-            searcher.setQueryCache(shardCtx.getQueryCache());
-        }
-        if (shardCtx.getQueryCachingPolicy() != null) {
-            searcher.setQueryCachingPolicy(shardCtx.getQueryCachingPolicy());
-        }
+        // Shared per-reader searcher (see LuceneReader#searcher).
+        IndexSearcher searcher = luceneReader.searcher(shardCtx.getQueryCache(), shardCtx.getQueryCachingPolicy());
         Decoded decoded = decodeFragmentBytes(shardCtx, searcher);
         LOGGER.debug(
             "[lucene-count] shardId={} filterQuery={} columnNames={}",
@@ -95,7 +90,10 @@ final class LuceneScanInstructionHandler implements FragmentInstructionHandler<S
             if (hasFilter) {
                 QueryShardContext qsc = LuceneAnalyticsBackendPlugin.buildMinimalQueryShardContext(shardCtx, searcher);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                filterQuery = queryBuilder.toQuery(qsc);
+                // Rewrite FieldExistsQuery → postings-only equivalent for the doc-values-less
+                // lucene-secondary segment (same reason as the filter-delegation path). This covers
+                // the Lucene-driver scan path (count + non-count) executed by LuceneSearchExecEngine.
+                filterQuery = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(queryBuilder.toQuery(qsc));
             } else {
                 filterQuery = new MatchAllDocsQuery();
             }

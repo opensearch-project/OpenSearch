@@ -8,8 +8,13 @@
 
 package org.opensearch.analytics.planner.rules;
 
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -17,10 +22,11 @@ import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
-import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.analytics.spi.AggregateFunction;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,7 +61,19 @@ public final class OpenSearchTopKRewriter {
         double factor = resolveOversamplingFactor(context);
         if (factor <= 0.0) return Optional.empty();
 
-        long coordLimit = (sort.fetch instanceof RexLiteral lit) ? RexLiteral.intValue(lit) : 10_000L;
+        // coordLimit is the rank the coordinator must satisfy after merging shard streams: for
+        // `head N from M` it skips M then takes N, so the merged stream needs the global top-(M+N).
+        // Non-literal offsets bail to no-pushdown (PPL only emits literal offsets).
+        long fetch = (sort.fetch instanceof RexLiteral lit) ? RexLiteral.intValue(lit) : 10_000L;
+        long offset;
+        if (sort.offset == null) {
+            offset = 0L;
+        } else if (sort.offset instanceof RexLiteral lit) {
+            offset = RexLiteral.intValue(lit);
+        } else {
+            return Optional.empty();
+        }
+        long coordLimit = offset + fetch;
         long shardSize = (long) Math.ceil(coordLimit * factor) + coordLimit;
         if (shardSize > Integer.MAX_VALUE) return Optional.empty();
 
@@ -65,41 +83,168 @@ public final class OpenSearchTopKRewriter {
             sort.getCluster().getTypeFactory().createSqlType(SqlTypeName.INTEGER),
             true
         );
+
+        // Remap collation through the intermediate Project (if any) between Sort and FINAL Aggregate.
+        // PPL emits measures-first output via a column-swapping Project (e.g. Project(c=$1, key=$0)).
+        // The outer Sort's indices reference the Project's output; the shard Sort must reference
+        // the PARTIAL Aggregate's output (group-keys first, measures second).
+        // If the Project contains computed expressions (literals, casts, arithmetic) rather than
+        // simple column references, we bail — the sort key has no direct mapping to the aggregate
+        // output and TopK cannot be safely applied.
+        RelCollation adjustedCollation = sort.getCollation();
+        if (match.intermediateProject != null) {
+            List<RelFieldCollation> remapped = new ArrayList<>();
+            for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
+                RexNode expr = match.intermediateProject.getProjects().get(fc.getFieldIndex());
+                if (expr instanceof RexInputRef ref) {
+                    remapped.add(new RelFieldCollation(ref.getIndex(), fc.getDirection(), fc.nullDirection));
+                } else {
+                    return Optional.empty();
+                }
+            }
+            adjustedCollation = RelCollations.of(remapped);
+        }
+
+        RelNode sortInput = partial;
+
+        if (hasEngineNativeMergeMeasure(partial, adjustedCollation)) {
+            RelDataType partialRowType = partial.getRowType();
+            int fieldCount = partialRowType.getFieldCount();
+            int groupCount = partial.getGroupSet().cardinality();
+
+            List<RexNode> projects = new ArrayList<>();
+            List<String> names = new ArrayList<>();
+            for (int i = 0; i < fieldCount; i++) {
+                projects.add(rb.makeInputRef(partialRowType.getFieldList().get(i).getType(), i));
+                names.add(partialRowType.getFieldNames().get(i));
+            }
+
+            List<RelFieldCollation> newCollations = new ArrayList<>();
+            for (RelFieldCollation fc : adjustedCollation.getFieldCollations()) {
+                int sortIdx = fc.getFieldIndex();
+                if (sortIdx >= groupCount && AggregateFunction.isEngineNativeMerge(partial.getAggCallList().get(sortIdx - groupCount))) {
+                    AggregateFunction aggFunc = AggregateFunction.fromSqlAggFunction(
+                        partial.getAggCallList().get(sortIdx - groupCount).getAggregation()
+                    );
+                    RexNode aggNameLiteral = rb.makeLiteral(aggFunc.reduceEvalName());
+                    RexNode stateRef = rb.makeInputRef(partialRowType.getFieldList().get(sortIdx).getType(), sortIdx);
+                    RexNode reduceCall = rb.makeCall(AggregateFunction.REDUCE_EVAL_OP, aggNameLiteral, stateRef);
+                    int newIdx = projects.size();
+                    projects.add(reduceCall);
+                    names.add("__reduce_eval_" + sortIdx);
+                    newCollations.add(new RelFieldCollation(newIdx, fc.getDirection(), fc.nullDirection));
+                } else {
+                    newCollations.add(fc);
+                }
+            }
+
+            RelDataType reduceEvalRowType = sort.getCluster()
+                .getTypeFactory()
+                .createStructType(projects.stream().map(RexNode::getType).toList(), names);
+            sortInput = new OpenSearchProject(
+                sort.getCluster(),
+                partial.getTraitSet(),
+                partial,
+                projects,
+                reduceEvalRowType,
+                partial.getViableBackends()
+            );
+            adjustedCollation = RelCollations.of(newCollations);
+        }
+
         OpenSearchSort shardSort = new OpenSearchSort(
             sort.getCluster(),
             partial.getTraitSet(),
-            partial,
-            sort.getCollation(),
+            sortInput,
+            adjustedCollation,
             null,
             shardSizeLiteral,
             partial.getViableBackends(),
             true
         );
 
-        RelNode newER = er.copy(er.getTraitSet(), List.of(shardSort));
+        RelNode topKSubtree = shardSort;
+        if (sortInput != partial) {
+            RelDataType sortOutputType = shardSort.getRowType();
+            int originalFieldCount = partial.getRowType().getFieldCount();
+            List<RexNode> stripProjects = new ArrayList<>();
+            List<String> stripNames = new ArrayList<>();
+            for (int i = 0; i < originalFieldCount; i++) {
+                stripProjects.add(rb.makeInputRef(sortOutputType.getFieldList().get(i).getType(), i));
+                stripNames.add(partial.getRowType().getFieldNames().get(i));
+            }
+            topKSubtree = new OpenSearchProject(
+                sort.getCluster(),
+                partial.getTraitSet(),
+                shardSort,
+                stripProjects,
+                partial.getRowType(),
+                partial.getViableBackends()
+            );
+        }
+
+        RelNode newER = er.copy(er.getTraitSet(), List.of(topKSubtree));
         RelNode newFinal = finalAgg.copy(finalAgg.getTraitSet(), List.of(newER));
 
         RelNode result = replaceInTree(root, finalAgg, newFinal);
         return Optional.of(result);
     }
 
-    /** Walks the tree to find the bottommost Sort with collation above a FINAL aggregate. */
+    /**
+     * Walks the tree to find the <em>deepest</em> collated Sort above a FINAL aggregate. Recursing
+     * before matching is deliberate: PPL {@code ... | sort c | head N} arrives as a collated outer
+     * {@code LogicalSystemLimit(fetch=querySizeLimit)} over the user's collated {@code Sort(fetch=N)},
+     * and the oversampling must derive the shard fetch from the inner (tighter) N — not the outer
+     * size cap — or every shard over-fetches {@code ceil(querySizeLimit * factor) + querySizeLimit}
+     * rows. Preferring the deepest match honors the innermost limit.
+     */
     private static SortAboveFinal findSortAboveFinal(RelNode node) {
-        if (node instanceof OpenSearchSort sort && !sort.getCollation().getFieldCollations().isEmpty()) {
-            OpenSearchAggregate finalAgg = findFinalAgg(sort.getInput());
-            if (finalAgg != null) return new SortAboveFinal(sort, finalAgg);
-        }
         for (RelNode child : node.getInputs()) {
             SortAboveFinal found = findSortAboveFinal(child);
             if (found != null) return found;
         }
+        if (node instanceof OpenSearchSort sort && !sort.getCollation().getFieldCollations().isEmpty()) {
+            PathToFinal path = findFinalAgg(sort.getInput());
+            if (path != null) return new SortAboveFinal(sort, path.project, path.finalAgg);
+        }
         return null;
     }
 
-    private static OpenSearchAggregate findFinalAgg(RelNode node) {
-        if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) return agg;
-        if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0));
+    private static PathToFinal findFinalAgg(RelNode node) {
+        return findFinalAgg(node, null);
+    }
+
+    /**
+     * Walks toward the FINAL aggregate, capturing at most one intermediate Project.
+     * The {@code seenProject == null} guard assumes CoreRules.PROJECT_MERGE has collapsed
+     * adjacent Projects during RBO — if that rule is ever removed, multiple Projects may
+     * appear and this method will skip the second one (returning null for the project field),
+     * which safely disables the collation remapping (TopK still fires with the raw collation,
+     * correct when no reordering exists between the two).
+     *
+     * <p>Multi-input nodes (joins, unions) terminate the walk — TopK only applies to
+     * single-path Sort → Aggregate chains.
+     */
+    private static PathToFinal findFinalAgg(RelNode node, OpenSearchProject seenProject) {
+        if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
+            return new PathToFinal(seenProject, agg);
+        }
+        if (node instanceof OpenSearchProject proj && seenProject == null) {
+            return findFinalAgg(proj.getInput(), proj);
+        }
+        if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0), seenProject);
         return null;
+    }
+
+    private static boolean hasEngineNativeMergeMeasure(OpenSearchAggregate agg, RelCollation collation) {
+        int groupCount = agg.getGroupSet().cardinality();
+        for (RelFieldCollation fc : collation.getFieldCollations()) {
+            int idx = fc.getFieldIndex();
+            if (idx >= groupCount && AggregateFunction.isEngineNativeMerge(agg.getAggCallList().get(idx - groupCount))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Replaces oldNode with newNode in the tree (single occurrence). */
@@ -117,12 +262,12 @@ public final class OpenSearchTopKRewriter {
     }
 
     private static double resolveOversamplingFactor(PlannerContext context) {
-        // TODO: Move to per-index setting once index-pattern/alias resolution is handled.
-        Settings clusterSettings = context.getClusterState().metadata().settings();
-        if (clusterSettings == null) return 0.0;
-        return AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterSettings);
+        return context.getOversamplingFactor();
     }
 
-    private record SortAboveFinal(OpenSearchSort sort, OpenSearchAggregate finalAgg) {
+    private record PathToFinal(OpenSearchProject project, OpenSearchAggregate finalAgg) {
+    }
+
+    private record SortAboveFinal(OpenSearchSort sort, OpenSearchProject intermediateProject, OpenSearchAggregate finalAgg) {
     }
 }

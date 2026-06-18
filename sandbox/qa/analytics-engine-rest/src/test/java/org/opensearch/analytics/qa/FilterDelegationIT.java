@@ -295,69 +295,60 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
     /**
      * OR(MATCH on text, EQUALS on keyword), oracle = 10. Both arms are Lucene-delegatable.
      * Under {@code prefer=true} Lucene drives end-to-end (combiner skipped, no tree_shape).
-     * Under {@code prefer=false} the combiner runs: {@code fuse=false} keeps
-     * {@code OR(delegated_predicate, delegation_possible)} as INTERLEAVED; {@code fuse=true}
-     * collapses to a single {@code delegated_predicate} as CONJUNCTIVE.
+     * Under {@code prefer=false} the combiner runs: the dual-viable EQUALS can't stay
+     * performance-delegated under OR, and it has a correctness sibling (the MATCH), so both
+     * collapse into a single {@code delegated_predicate} — CONJUNCTIVE.
      */
-    public void testOrCorrectnessAndPerf_fuseDualViable() throws Exception {
+    public void testOrCorrectnessAndPerf() throws Exception {
         createIndex();
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
-        Map<MatrixKey, ShardStage> expected = Map.of(
-            new MatrixKey(true, false), new ShardStage("lucene", null),
-            new MatrixKey(true, true), new ShardStage("lucene", null),
-            new MatrixKey(false, false), new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new MatrixKey(false, true), new ShardStage("datafusion", "CONJUNCTIVE")
-        );
-        runFuseMatrix(ppl, 10L, expected);
+        try {
+            // prefer=true: Lucene drives end-to-end, no delegation instruction (no tree_shape).
+            assertShardStage(ppl, 10L, /* prefer */ true, "lucene", null);
+            // prefer=false: combiner runs — the dual-viable EQUALS can't stay performance-delegated
+            // under OR, and it has a correctness sibling (the MATCH), so both collapse into a single
+            // delegated_predicate — CONJUNCTIVE.
+            assertShardStage(ppl, 10L, /* prefer */ false, "datafusion", "CONJUNCTIVE");
+        } finally {
+            setPreferMetadataDriver(true);
+        }
     }
 
     /**
-     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The integer arm isn't
-     * Lucene-filterable, so the planner picks DataFusion in every cell, and the OR has a
-     * non-delegatable sibling which keeps the shape INTERLEAVED in both fuse modes.
+     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The keyword EQUALS is dual-viable and,
+     * under the OR, is reclassified to correctness and shipped to Lucene; the integer EQUALS isn't
+     * Lucene-filterable and stays native. The two interleave under the OR → INTERLEAVED.
      */
-    public void testOrTwoPerf_fuseDualViable() throws Exception {
+    public void testOrTwoPerf() throws Exception {
         createIndex();
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
-        ShardStage interleavedDf = new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
-        Map<MatrixKey, ShardStage> expected = Map.of(
-            new MatrixKey(true, false), interleavedDf,
-            new MatrixKey(true, true), interleavedDf,
-            new MatrixKey(false, false), interleavedDf,
-            new MatrixKey(false, true), interleavedDf
-        );
-        runFuseMatrix(ppl, 20L, expected);
-    }
-
-    /** Cluster-setting combination: ({@code prefer_metadata_driver}, {@code fuse_dual_viable}). */
-    private record MatrixKey(boolean prefer, boolean fuse) {}
-
-    /** Asserted SHARD_FRAGMENT profile fields. {@code treeShape == null} means the field
-     *  must be absent (Lucene-as-driver has no delegation instruction). */
-    private record ShardStage(String chosenBackend, String treeShape) {}
-
-    private void runFuseMatrix(String ppl, long oracle, Map<MatrixKey, ShardStage> expected) throws Exception {
         try {
-            for (Map.Entry<MatrixKey, ShardStage> entry : expected.entrySet()) {
-                MatrixKey key = entry.getKey();
-                ShardStage want = entry.getValue();
-                setPreferMetadataDriver(key.prefer());
-                setFuseDualViable(key.fuse());
-
-                String label = "prefer=" + key.prefer() + ",fuse=" + key.fuse();
-                assertEquals(label + " — count", oracle, executeCount(ppl));
-                Map<String, Object> stage = shardFragmentStage(ppl);
-                assertEquals(label + " — chosen_backend", want.chosenBackend(), stage.get("chosen_backend"));
-                assertEquals(label + " — tree_shape", want.treeShape(), stage.get("tree_shape"));
-            }
+            // tag (keyword, dual) ships to Lucene under the OR; value (int, native) stays in
+            // DataFusion → the two interleave under the OR. Same shape both prefer modes.
+            assertShardStage(ppl, 20L, /* prefer */ true, "datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+            assertShardStage(ppl, 20L, /* prefer */ false, "datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
         } finally {
-            setFuseDualViable(false);
             setPreferMetadataDriver(true);
         }
+    }
+
+    /**
+     * Sets {@code prefer_metadata_driver}, then asserts the count oracle and the SHARD_FRAGMENT
+     * profile's {@code chosen_backend} / {@code tree_shape}. A {@code null} {@code treeShape} means
+     * the field must be absent (Lucene-as-driver, or no delegation instruction).
+     */
+    private void assertShardStage(String ppl, long oracle, boolean prefer, String chosenBackend, String treeShape)
+        throws Exception {
+        setPreferMetadataDriver(prefer);
+        String label = "prefer=" + prefer;
+        assertEquals(label + " — count", oracle, executeCount(ppl));
+        Map<String, Object> stage = shardFragmentStage(ppl);
+        assertEquals(label + " — chosen_backend", chosenBackend, stage.get("chosen_backend"));
+        assertEquals(label + " — tree_shape", treeShape, stage.get("tree_shape"));
     }
 
     private long executeCount(String ppl) throws Exception {
@@ -381,16 +372,93 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
     }
 
-    private void setFuseDualViable(boolean value) throws Exception {
-        Request req = new Request("PUT", "/_cluster/settings");
-        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
-        client().performRequest(req);
-    }
-
     private void setPreferMetadataDriver(boolean value) throws Exception {
         Request req = new Request("PUT", "/_cluster/settings");
         req.setJsonEntity("{\"persistent\":{\"analytics.planner.prefer_metadata_driver\": " + value + "}}");
         client().performRequest(req);
+    }
+
+    private static final String KEYWORD_SUBFIELD_INDEX = "text_equals_keyword_subfield_e2e";
+
+    /**
+     * EQUALS on a {@code text} field that has a {@code .keyword} multifield must match the exact,
+     * case-sensitive value by routing the delegated term query to {@code <field>.keyword} — a term
+     * query does not analyze its input, so a term against the analyzed text field would compare the
+     * raw value (e.g. {@code "Engineer"}) to the lowercased indexed tokens ({@code "engineer"}) and
+     * match nothing. Before the fix this returned 0 rows; after, it matches via the keyword subfield.
+     */
+    public void testTextEqualsRoutesToKeywordSubfield() throws Exception {
+        createKeywordSubfieldIndex();
+
+        // 7 docs occupation="Engineer", 3 docs occupation="Doctor" (mixed case on purpose).
+        String exact = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'Engineer' | stats count() as c";
+        List<List<Object>> exactRows = rowsOf(executePplViaShim(exact));
+        assertEquals("scalar agg returns 1 row", 1, exactRows.size());
+        assertEquals("EQUALS on text field matches the exact (case-sensitive) keyword value", 7L,
+            ((Number) exactRows.get(0).get(0)).longValue());
+
+        // The lowercased form must NOT match: routing to .keyword is exact/case-sensitive, so
+        // 'engineer' != 'Engineer'. (A term query on the analyzed text field would wrongly match
+        // here — this asserts we are on the keyword path, not the analyzed-text path.)
+        String wrongCase = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'engineer' | stats count() as c";
+        List<List<Object>> wrongCaseRows = rowsOf(executePplViaShim(wrongCase));
+        assertEquals("lowercase value must not match the exact keyword value", 0L,
+            ((Number) wrongCaseRows.get(0).get(0)).longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rowsOf(Map<String, Object> result) {
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        return rows;
+    }
+
+    private void createKeywordSubfieldIndex() throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + KEYWORD_SUBFIELD_INDEX));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"occupation\": { \"type\": \"text\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } },"
+            + "    \"value\": { \"type\": \"integer\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIndex = new Request("PUT", "/" + KEYWORD_SUBFIELD_INDEX);
+        createIndex.setJsonEntity(body);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index");
+        assertEquals(true, response.get("acknowledged"));
+
+        Request health = new Request("GET", "/_cluster/health/" + KEYWORD_SUBFIELD_INDEX);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 7; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Engineer\", \"value\": 5}\n");
+        }
+        for (int i = 0; i < 3; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Doctor\", \"value\": 3}\n");
+        }
+        Request bulkRequest = new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_bulk");
+        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.addParameter("refresh", "true");
+        client().performRequest(bulkRequest);
+        client().performRequest(new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_flush?force=true"));
     }
 
     private void createIndex() throws Exception {

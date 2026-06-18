@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-use crate::executor::{ConcurrencyGate, DedicatedExecutor};
+use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
@@ -18,14 +18,10 @@ pub struct RuntimeManager {
     pub cpu_executor: DedicatedExecutor,
     pub io_monitor: RuntimeMonitor,
     pub cpu_monitor: Option<RuntimeMonitor>,
-    /// Separate concurrency gate for coordinator-reduce execution.
-    /// Independent from the datanode gate (on DedicatedExecutor) to avoid
-    /// deadlock when shard streams and coordinator reduce run concurrently.
-    coordinator_gate: Arc<ConcurrencyGate>,
 }
 
 impl RuntimeManager {
-    pub fn new(cpu_threads: usize, datanode_multiplier: f64, coordinator_multiplier: f64) -> Self {
+    pub fn new(cpu_threads: usize, datanode_multiplier: f64, _coordinator_multiplier: f64) -> Self {
         let io_threads = cpu_threads * 2;
 
         let io_runtime = Arc::new(
@@ -51,7 +47,7 @@ impl RuntimeManager {
                 register_io_runtime(Some(io_handle.clone()));
             });
 
-        // Datanode concurrency gate: limits concurrent partition tasks from shard scans.
+        // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
         let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
         let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
 
@@ -59,27 +55,16 @@ impl RuntimeManager {
             .handle()
             .map(|h| RuntimeMonitor::new(&h));
 
-        // Coordinator concurrency gate: limits concurrent partition tasks from reduce execution.
-        // Separate from datanode gate to avoid deadlock (shard streams hold datanode permits
-        // while coordinator reduce runs concurrently on single-node clusters).
-        let coordinator_max_concurrent = (cpu_threads as f64 * coordinator_multiplier).max(1.0) as usize;
-        let coordinator_gate = Arc::new(ConcurrencyGate::new(coordinator_max_concurrent));
-
         Self {
             io_runtime,
             cpu_executor,
             io_monitor,
             cpu_monitor,
-            coordinator_gate,
         }
     }
 
     pub fn cpu_executor(&self) -> DedicatedExecutor {
         self.cpu_executor.clone()
-    }
-
-    pub fn coordinator_gate(&self) -> &Arc<ConcurrencyGate> {
-        &self.coordinator_gate
     }
 
     pub fn shutdown(&self) {

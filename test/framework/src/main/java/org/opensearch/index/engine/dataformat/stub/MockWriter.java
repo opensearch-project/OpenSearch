@@ -132,9 +132,6 @@ public class MockWriter implements Writer<MockDocumentInput> {
     }
 
     @Override
-    public void sync() {}
-
-    @Override
     public long generation() {
         return writerGeneration;
     }

@@ -139,6 +139,12 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.3.2"
 
+  constraints {
+    api('org.codehaus.plexus:plexus-utils:4.0.3') {
+      because 'fixes CVE-2025-67030'
+    }
+  }
+
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
@@ -161,7 +167,6 @@ dependencies {
 configurations.all {
   resolutionStrategy {
     force "com.google.guava:guava:${props.getProperty('guava')}"
-    force "org.codehaus.plexus:plexus-utils:4.0.3"
     force "org.apache.logging.log4j:log4j-core:${props.getProperty('log4j')}"
   }
 }

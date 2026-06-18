@@ -35,6 +35,20 @@
       },
       "payload": {
         "type": "keyword"
+      },
+      "big_amount": {
+        "type": "long"
+      },
+      "client_ip": {
+        "type": "ip"
+      },
+      "opt_ts": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "@timestamp": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
       }
     }
   }

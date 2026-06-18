@@ -240,6 +240,11 @@ public class OpenSearchSchemaBuilder {
      * the same shape they did before.
      */
     public static RelDataType buildLeafType(String opensearchType, RelDataTypeFactory typeFactory) {
+        return buildLeafType(opensearchType, null, typeFactory);
+    }
+
+    /** Format-aware overload: classifies {@code date}/{@code date_nanos} into DateOnly / TimeOnly UDT markers. */
+    public static RelDataType buildLeafType(String opensearchType, String format, RelDataTypeFactory typeFactory) {
         if (opensearchType == null) {
             return null;
         }
@@ -249,11 +254,42 @@ public class OpenSearchSchemaBuilder {
         if (BinaryType.NAME.equals(opensearchType)) {
             return BinaryType.nullable();
         }
+        if ("date".equals(opensearchType) || "date_nanos".equals(opensearchType)) {
+            int precision = "date_nanos".equals(opensearchType) ? 9 : 3;
+            switch (DateFormatClassifier.classify(format)) {
+                case DATE_ONLY:
+                    return DateOnlyType.nullable(typeFactory, precision);
+                case TIME_ONLY:
+                    return TimeOnlyType.nullable(typeFactory, precision);
+                default:
+                    // TIMESTAMP — fall through to plain SqlTypeName.TIMESTAMP below
+            }
+        }
         SqlTypeName sqlType = mapFieldType(opensearchType);
         if (sqlType == null) {
             return null;
         }
-        return typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true);
+        // TIMESTAMP must carry sub-second precision: date → millis (3), date_nanos → nanos (9).
+        // Without it the type defaults to precision 0 (→ millis downstream) and clashes with the
+        // parquet read's Timestamp(Nanosecond) for date_nanos. Switch (not default) so an unforeseen
+        // type mapping to TIMESTAMP fails loudly rather than silently inheriting 3.
+        RelDataType base;
+        if (sqlType == SqlTypeName.TIMESTAMP) {
+            int precision = switch (opensearchType) {
+                case "date" -> 3;
+                case "date_nanos" -> 9;
+                default -> throw new IllegalStateException(
+                    "OpenSearch type '"
+                        + opensearchType
+                        + "' maps to TIMESTAMP but has no declared sub-second "
+                        + "precision; add a case in buildLeafType"
+                );
+            };
+            base = typeFactory.createSqlType(sqlType, precision);
+        } else {
+            base = typeFactory.createSqlType(sqlType);
+        }
+        return typeFactory.createTypeWithNullability(base, true);
     }
 
     private static AbstractTable buildTable(Map<String, Object> properties) {
@@ -291,7 +327,8 @@ public class OpenSearchSchemaBuilder {
             if ("nested".equals(fieldType)) {
                 continue;
             }
-            RelDataType columnType = buildLeafType(fieldType, typeFactory);
+            String format = (String) fieldProps.get("format");
+            RelDataType columnType = buildLeafType(fieldType, format, typeFactory);
             if (columnType == null) {
                 // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
                 // column; a query referencing it surfaces a Calcite "column not found" via the

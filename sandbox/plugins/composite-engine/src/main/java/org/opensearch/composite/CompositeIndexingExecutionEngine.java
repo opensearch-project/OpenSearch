@@ -542,7 +542,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             toAugment,
             config.registry(),
             config.shardPath(),
-            config.dataformatAwareStoreHandles()
+            config.dataformatAwareStoreHandles(),
+            config.indexSettings()
         );
     }
 
@@ -555,4 +556,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return secondaryEngines;
     }
 
+    @Override
+    public long maxIndexableDocs() {
+        long maxAllowedDocs = primaryEngine.maxIndexableDocs();
+        for (var engine : secondaryEngines) {
+            maxAllowedDocs = Math.min(maxAllowedDocs, engine.maxIndexableDocs());
+        }
+        return maxAllowedDocs;
+    }
 }
