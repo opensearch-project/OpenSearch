@@ -99,15 +99,10 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
             List<Setting<?>> settings = plugin.getSettings();
             Set<String> settingKeys = settings.stream().map(Setting::getKey).collect(Collectors.toSet());
 
-            assertTrue(settingKeys.contains("datafusion.indexed.batch_size"));
-            assertTrue(settingKeys.contains("datafusion.indexed.parquet_pushdown_filters"));
-            assertTrue(settingKeys.contains("datafusion.indexed.bloom_filter_on_read"));
+            assertTrue(settingKeys.contains("datafusion.batch_size"));
+            assertTrue(settingKeys.contains("datafusion.listing_table.pushdown_filters"));
             assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_default"));
             assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_selectivity_threshold"));
-            assertTrue(settingKeys.contains("datafusion.indexed.single_collector_strategy"));
-            assertTrue(settingKeys.contains("datafusion.indexed.tree_collector_strategy"));
-            assertTrue(settingKeys.contains("datafusion.indexed.max_collector_parallelism"));
-            assertTrue(settingKeys.contains("datafusion.indexed.query_strategy"));
         } catch (Exception e) {
             throw new AssertionError(e);
         }
@@ -116,7 +111,7 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     public void testGetSettingsReturnsTotalExpectedCount() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             List<Setting<?>> settings = plugin.getSettings();
-            assertEquals(35, settings.size());
+            assertEquals(31, settings.size());
         } catch (Exception e) {
             throw new AssertionError(e);
         }
