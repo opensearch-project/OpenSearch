@@ -52,11 +52,12 @@ clone_repositories() {
         repo_dir="${!repo_dir_var}"
         repo_url="https://github.com/wazuh/$repo_name"
 
-        if [ -d "$repo_dir/.git" ]; then
-            git -C "$repo_dir" checkout "$branch"
-        else
-            git clone --branch "$branch" "$repo_url" --depth 1 "$repo_dir"
+        if [ ! -d "$repo_dir/.git" ]; then
+            git clone --depth 1 "$repo_url" "$repo_dir"
         fi
+        # Resolve a branch, tag, or commit SHA (volumes persist across runs).
+        git -C "$repo_dir" fetch --depth 1 origin "$branch"
+        git -C "$repo_dir" checkout --detach FETCH_HEAD
     done
 }
 
@@ -67,7 +68,7 @@ download_snapshots() {
     echo "----------------------------------------"
 
     bash ~/build-scripts/download_snapshots.sh \
-        --env "https://api.pre.cloud.wazuh.com/api/v1" \
+        --env "${CTI_API_URL:-https://api.pre.cloud.wazuh.com/api/v1}" \
         --output-dir ~/artifacts/snapshots
 }
 
@@ -155,7 +156,7 @@ copy_builds() {
     local version="$1"
     local revision="$2"
     local v="${version}.${revision}"
-    local m2="${HOME}/.m2/repository/com/wazuh"
+    local m2="/var/m2/com/wazuh"
     mkdir -p ~/artifacts/plugins
 
     # All plugins are published to Maven local — iterate and copy
@@ -183,11 +184,17 @@ setup_engine_tarball() {
     echo "----------------------------------------"
     echo "Setting up Wazuh Engine tarball"
     echo "----------------------------------------"
-    local tarball_name
+    local tarball_name dest
     tarball_name=$(basename "$ENGINE_TARBALL")
+    dest=~/artifacts/engine/"$tarball_name"
     mkdir -p ~/artifacts/engine
-    cp /tmp/engine-tarball.tar.gz ~/artifacts/engine/"$tarball_name"
-    echo "Engine tarball copied to artifacts/engine/$tarball_name"
+    # Skip the copy if the source and destination are the same file.
+    if [ /tmp/engine-tarball.tar.gz -ef "$dest" ]; then
+        echo "Engine tarball already in place at artifacts/engine/$tarball_name"
+    else
+        cp /tmp/engine-tarball.tar.gz "$dest"
+        echo "Engine tarball copied to artifacts/engine/$tarball_name"
+    fi
 }
 
 # Function for packaging process
@@ -195,6 +202,11 @@ package_artifacts() {
     echo "----------------------------------------"
     echo "Packaging Artifacts"
     echo "----------------------------------------"
+    # Drop packages from previous runs (the bind-mounted artifacts/ persists
+    # locally); assemble.sh matches wazuh-indexer-min* by glob and breaks on a
+    # stale match.
+    rm -rf ~/artifacts/dist ~/artifacts/tmp
+
     local architecture="$1"
     local distribution="$2"
     local revision="$3"

@@ -97,7 +97,7 @@ jobs:
       contents: read
     needs: [call-build-workflow]
     runs-on:
-      group: wz-linux-amd64
+      - codebuild-github-actions-codebuild-runner-indexer-amd-${{ github.run_id }}-${{ github.run_attempt }}
     env:
       docker_path: ./build-scripts/docker
     steps:

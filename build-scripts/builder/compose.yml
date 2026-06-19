@@ -17,6 +17,7 @@ services:
       - IS_STAGE=${IS_STAGE:-false}
       - DISTRIBUTION=${DISTRIBUTION:-rpm}
       - ARCHITECTURE=${ARCHITECTURE:-x64}
+      - CTI_API_URL=${CTI_API_URL:-}
     volumes:
       - ${REPO_PATH}:/home/wazuh-indexer
       - wazuh-indexer-plugins:/home/wazuh-indexer/wazuh-indexer-plugins

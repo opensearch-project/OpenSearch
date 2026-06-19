@@ -1,5 +1,5 @@
-# Use the official Ubuntu Noble image as the base image
-FROM ubuntu:jammy
+# Use the Ubuntu jammy image from AWS ECR Public (no pull-rate limits on CodeBuild).
+FROM public.ecr.aws/ubuntu/ubuntu:jammy
 
 USER root
 
@@ -34,14 +34,27 @@ RUN apt-get update && \
     python3-debian \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install OpenJDK 21
-RUN wget -O- https://download.java.net/openjdk/jdk21/ri/openjdk-21+35_linux-x64_bin.tar.gz | tar xz -C /opt/
+# Architecture-aware JDK 21 from Adoptium/Temurin, which ships both x64 and
+# aarch64 Linux builds (the OpenJDK RI is x64-only). TARGETARCH from Buildx,
+# else the host arch. --strip-components keeps JAVA_HOME stable at /opt/jdk-21.
+ARG TARGETARCH
+RUN set -eux; \
+    arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    case "$arch" in \
+      amd64) jdk_arch="x64" ;; \
+      arm64) jdk_arch="aarch64" ;; \
+      *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /opt/jdk-21; \
+    wget -O- "https://api.adoptium.net/v3/binary/latest/21/ga/linux/${jdk_arch}/jdk/hotspot/normal/eclipse" \
+      | tar xz -C /opt/jdk-21 --strip-components=1
 
 # Set JAVA_HOME environment variable
 ENV JAVA_HOME=/opt/jdk-21
 ENV PATH=$JAVA_HOME/bin:$PATH
 ENV GRADLE_VERSION=8.14
-ENV GRADLE_OPTS="-Xmx2048m -XX:ReservedCodeCacheSize=440m"
+ENV GRADLE_OPTS="-Xmx2048m -XX:ReservedCodeCacheSize=440m -Dmaven.repo.local=/var/m2"
+ENV GRADLE_USER_HOME=/var/gradle
 
 # Download gradle
 RUN wget https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip -P /tmp \
@@ -50,7 +63,7 @@ RUN wget https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.
 
 # Set GRADLE_HOME environment variable
 ENV GRADLE_HOME=/opt/gradle/gradle-${GRADLE_VERSION}
-ENV PATH=$GRADLE_HOME/bin/$PATH
+ENV PATH=$GRADLE_HOME/bin:$PATH
 
 # Clean up APT when done
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -58,6 +71,10 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # Create a non-root user
 RUN addgroup --gid 1000 wazuh-indexer && \
     adduser --ingroup wazuh-indexer --uid 1000 wazuh-indexer
+
+# Gradle/Maven caches outside the bind-mounted workspace, owned by UID 1000.
+RUN mkdir -p /var/gradle /var/m2 && \
+    chown wazuh-indexer:wazuh-indexer /var/gradle /var/m2
 
 # Create repositories path
 RUN mkdir -p /repositories/wazuh-indexer-plugins && \
@@ -72,6 +89,8 @@ RUN mkdir -p /repositories/wazuh-indexer-plugins && \
     chown wazuh-indexer:wazuh-indexer /repositories/wazuh-indexer-common-utils && \
     chown wazuh-indexer:wazuh-indexer /repositories/wazuh-indexer-notifications && \
     chown wazuh-indexer:wazuh-indexer /repositories/wazuh-indexer-alerting
+
+RUN git config --system --add safe.directory '*'
 
 # Copy your build scripts into the container as root
 COPY build-scripts/builder/entrypoint.sh /
