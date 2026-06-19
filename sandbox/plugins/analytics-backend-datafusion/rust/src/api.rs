@@ -2036,6 +2036,33 @@ pub unsafe fn sender_close(sender_ptr: i64) {
     }
 }
 
+/// Fails a partition stream: pushes an `Err(DataFusionError)` into the channel so the consumer's
+/// `RecordBatchStream` yields an ERROR (failing the join/agg), then takes ownership of the sender and
+/// drops it (the same teardown as [`sender_close`]). This is the truncation-safe terminal: a plain
+/// [`sender_close`] closes the channel as a clean EOF, so a producer that died mid-stream (e.g. a
+/// spill-read failure on the Java drain thread) would otherwise make the consumer silently compute a
+/// result from PARTIAL input. Sending the error first turns that into a loud query failure.
+///
+/// Best-effort delivery: if the receiver was already dropped (consumer finished / cancelled) the error
+/// is discarded — there is nothing left to fail, which is correct. The sender is always dropped.
+pub unsafe fn sender_fail(sender_ptr: i64, reason: &str, io_handle: &tokio::runtime::Handle) {
+    if sender_ptr == 0 {
+        return;
+    }
+    // Reclaim ownership so the sender (and its channel) is dropped when this scope ends — mirrors
+    // sender_close. Push the error THROUGH the still-open channel before that drop, but via the
+    // NON-BLOCKING try_fail (try_send + bounded timeout) so a full channel + non-polling consumer
+    // can't deadlock the drain thread. If delivery fails, the sender-drop still terminates the stream
+    // as EOF. (codex review round-4 SHOULD-FIX #3.)
+    let sender = Box::from_raw(sender_ptr as *mut PartitionStreamSender);
+    let _ = sender.try_fail(
+        DataFusionError::Execution(format!(
+            "shuffle partition stream failed on the producer/drain side: {reason}"
+        )),
+        io_handle,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2828,6 +2855,59 @@ pub unsafe fn register_partition_stream_on_session_context(
         .map_err(|e| {
             DataFusionError::Execution(format!(
                 "Failed to register streaming table '{}' on session context: {}",
+                input_id, e
+            ))
+        })?;
+    Ok(Box::into_raw(Box::new(sender)) as i64)
+}
+
+/// Streaming-input registration for the M3 hash-shuffle AGGREGATE worker.
+///
+/// Identical to [`register_partition_stream_on_session_context`] (channel +
+/// `SingleReceiverPartition` + `StreamingTable` + `register_table` on the
+/// `SessionContextHandle`) EXCEPT the table schema is derived from the producer's PARTIAL
+/// substrait via [`derive_schema_from_partial_plan`] — the SAME derivation the
+/// coordinator-reduce path uses in [`register_partition_stream`] — instead of trusting the raw
+/// producer IPC header.
+///
+/// Why this matters (the q1/q15 fix): DataFusion's Substrait consumer binds a `NamedTable`
+/// `ReadRel.base_schema` to the registered provider BY NAME. The producer ships the PARTIAL
+/// aggregate's *physical* output batches, whose state columns are named `<alias>[<state>]`
+/// (e.g. `sum_qty[sum]`). The worker FINAL fragment's `base_schema`, however, declares the
+/// Calcite *logical* names (`sum_qty`). Registering the streaming table with the raw IPC names
+/// (`sum_qty[sum]`) therefore fails the FINAL's by-name lookup with `No field named sum_qty`.
+/// `derive_schema_from_partial_plan` re-lowers the producer plan and returns its top
+/// (logical-named) output schema — matching what the FINAL binds — so registration carries the
+/// logical names. The producer's physically-named batches still feed in fine: the streaming
+/// channel binds the FINAL plan to the registered (logical) names and accepts the batches
+/// positionally (verified — names differ, types/order identical).
+///
+/// Returns the sender pointer; the caller frees it via [`crate::ffm::df_sender_close`].
+///
+/// # Safety
+/// - `session_ctx_handle_ptr` must be a valid, non-zero pointer returned by
+///   `create_session_context` / `create_session_context_indexed` / `create_worker_session_context`.
+/// - `partial_plan_bytes` must be a complete producer-side Substrait plan blob.
+pub unsafe fn register_partition_stream_on_session_context_from_partial_plan(
+    session_ctx_handle_ptr: i64,
+    input_id: &str,
+    partial_plan_bytes: &[u8],
+) -> Result<i64, DataFusionError> {
+    let table_schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+    let (sender, receiver) = crate::partition_stream::channel(Arc::clone(&table_schema));
+    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> =
+        Arc::new(crate::partition_stream::SingleReceiverPartition::new(receiver));
+    let table = datafusion::catalog::streaming::StreamingTable::try_new(
+        Arc::clone(&table_schema),
+        vec![partition],
+    )?;
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    handle
+        .ctx
+        .register_table(input_id, Arc::new(table))
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to register streaming table '{}' on session context (from partial plan): {}",
                 input_id, e
             ))
         })?;

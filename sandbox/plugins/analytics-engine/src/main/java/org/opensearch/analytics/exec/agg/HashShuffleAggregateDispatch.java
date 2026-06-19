@@ -129,7 +129,15 @@ public final class HashShuffleAggregateDispatch {
             targetWorkerNodeIds,
             capabilityRegistry
         );
-        enrichWorkerAlternatives(workerStage, partitionCount, expectedSenders, ctx.queryId(), producer.getStageId());
+        // The worker registers its input-<producerStageId> stream from the producer's RAW Arrow IPC
+        // schema, whose names are DataFusion's PHYSICAL partial-state columns (sum_qty[sum], …). The
+        // worker FINAL's Substrait base_schema binds by LOGICAL name (sum_qty), so the by-name bind
+        // fails ("No field named sum_qty" — TPC-H q1/q15). Pass the producer's converted PARTIAL plan
+        // bytes so the worker can re-lower them to derive the logical-name schema (mirroring the
+        // coordinator-reduce path's derive_schema_from_partial_plan). Use the SAME shuffle-producer-
+        // capable alternative the producer will run.
+        byte[] producerPlanBytes = selectedProducerPlanBytes(producer, capabilityRegistry);
+        enrichWorkerAlternatives(workerStage, partitionCount, expectedSenders, ctx.queryId(), producer.getStageId(), producerPlanBytes);
 
         LOGGER.debug(
             "[HashShuffleAggregateDispatch] dispatching: query={}, workerStage={}, consumerStage={}, partitions={}, senders={}, targets={}",
@@ -211,7 +219,14 @@ public final class HashShuffleAggregateDispatch {
         producerStage.setPlanAlternatives(enriched);
     }
 
-    static void enrichWorkerAlternatives(Stage workerStage, int partitionCount, int expectedSenders, String queryId, int producerStageId) {
+    static void enrichWorkerAlternatives(
+        Stage workerStage,
+        int partitionCount,
+        int expectedSenders,
+        String queryId,
+        int producerStageId,
+        byte[] producerPlanBytes
+    ) {
         int workerStageId = workerStage.getStageId();
         // Convertor rewrites OpenSearchStageInputScan to "input-<producerStageId>" NamedScan.
         String inputId = canonicalInputId(producerStageId);
@@ -227,11 +242,41 @@ public final class HashShuffleAggregateDispatch {
             merged.add(new ShuffleWorkerSetupInstructionNode(queryId, workerStageId, -1, expectedSenders, 0));
             merged.addAll(existing);
             for (int p = 0; p < partitionCount; p++) {
-                merged.add(new ShuffleScanInstructionNode(inputId, p, expectedSenders, queryId, workerStageId, "left"));
+                // producerPlanBytes lets the worker re-lower the PARTIAL plan to register a logical
+                // -name schema (matching the FINAL base_schema), fixing the q1/q15 by-name bind.
+                merged.add(new ShuffleScanInstructionNode(inputId, p, expectedSenders, queryId, workerStageId, "left", producerPlanBytes));
             }
             enriched.add(sp.withInstructions(merged));
         }
         workerStage.setPlanAlternatives(enriched);
+    }
+
+    /** The converted PARTIAL-plan bytes of the producer's shuffle-producer-capable selected
+     *  alternative — what the worker re-lowers to derive its input schema (logical names matching the
+     *  FINAL base_schema). FAILS FAST if none is available rather than returning null: a null would
+     *  send the worker down the raw-IPC schema path, which registers PHYSICAL partial-state names
+     *  ({@code sum_qty[sum]}) and silently reintroduces the "No field named sum_qty" agg-shuffle bug
+     *  (TPC-H q1/q15). The agg-shuffle producer is always a converted PARTIAL aggregate, so absent
+     *  bytes here is a wiring error, not a runtime condition. (codex review BLOCKER/should-fix.) */
+    private static byte[] selectedProducerPlanBytes(Stage producer, CapabilityRegistry registry) {
+        for (StagePlan sp : producer.getPlanAlternatives()) {
+            boolean canProduce = registry.getBackend(sp.backendId())
+                .getCapabilityProvider()
+                .dataTransferCapabilities()
+                .stream()
+                .anyMatch(cap -> cap.kind() == DataTransferCapability.Kind.PRODUCER);
+            if (canProduce && sp.convertedBytes() != null) {
+                return sp.convertedBytes();
+            }
+        }
+        throw new IllegalStateException(
+            "HashShuffleAggregateDispatch: agg-shuffle producer stage "
+                + producer.getStageId()
+                + " has no shuffle-producer-capable alternative with converted PARTIAL plan bytes; "
+                + "the worker needs them to register a logical-name input schema (else the FINAL's "
+                + "by-name bind fails — the q1/q15 sum_qty[sum] regression). This is a conversion-"
+                + "pipeline wiring error (forkAll→adaptAll→selectAll→convertAll must have run)."
+        );
     }
 
     public static String canonicalInputId(int producerStageId) {

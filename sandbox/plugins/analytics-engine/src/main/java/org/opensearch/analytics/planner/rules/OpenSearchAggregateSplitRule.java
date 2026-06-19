@@ -96,11 +96,13 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * the split is conservative in those shapes — distributed parallelism is traded for
      * correctness.
      *
-     * <p>Package-private so {@link OpenSearchAggregateShuffleSplitRule} can share the same
-     * correctness gates — the M3 hash-shuffle aggregate path uses an identical
-     * PARTIAL/FINAL row-type check.
+     * <p>Public so the M3 hash-shuffle aggregate path ({@link OpenSearchAggregateShuffleSplitRule})
+     * AND the distributed-agg-over-cascade path
+     * ({@link org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter}) share the same
+     * correctness gates — all three use an identical PARTIAL/FINAL safety check, so STATE_EXPANDING /
+     * DISTINCT / cross-family-non-prefix shapes stay coordinator-centric in every path.
      */
-    static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
+    public static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
             // STATE_EXPANDING aggregates (TAKE/FIRST/LAST/LIST/VALUES/PERCENTILE_APPROX/PATTERN)
             // can't decompose into per-shard partials reduced additively. APPROXIMATE goes through
@@ -349,9 +351,10 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
      * row-type check on transformTo passes.
      *
-     * <p>Package-private so {@link OpenSearchAggregateShuffleSplitRule} can call it.
+     * <p>Public so {@link OpenSearchAggregateShuffleSplitRule} and
+     * {@link org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter} can call it.
      */
-    static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
+    public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
         List<AggregateCall> rebuilt = null;
         for (int i = 0; i < aggCalls.size(); i++) {
             AggregateCall call = aggCalls.get(i);
@@ -382,7 +385,13 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return rebuilt != null ? rebuilt : aggCalls;
     }
 
-    static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
+    /**
+     * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
+     * {@code Project} so FINAL can re-project them. Public so
+     * {@link org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter} shares the exact
+     * capture the coord-centric split uses (keeps PARTIAL/FINAL literal handling identical).
+     */
+    public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
         if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
             return Map.of();
         }

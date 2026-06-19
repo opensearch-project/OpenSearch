@@ -227,6 +227,297 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
     }
 
+    /**
+     * The TPC-H q5/q10 shape: a join-over-two-shuffles ({@code Join_bottom}) NESTED in the root
+     * fragment UNDER a coordinator dimension join that keys on a DIFFERENT column (so the dimension
+     * stayed a reducer, not a shuffle). Models q5's left-deep
+     * {@code ((((cust⋈ord)⋈lineitem)⋈supplier)⋈nation)⋈region} reduced to one nesting level:
+     * {@code Join_dim( Join_bottom(A⋈B⋈… via shuffle), reducer→D )}.
+     *
+     * <p>This is the case the {@code findNodes(...).size() != 2} guard wrongly rejected (the root
+     * fragment has THREE stage-inputs: stage2 + stage3 feeding {@code Join_bottom}'s shuffles, plus
+     * stage4 feeding the dimension reducer). The fix must:
+     * <ul>
+     *   <li>detect the cascade ({@code isCascade == true}) — recognize the nested join-over-two-
+     *       shuffles even with extra reducer-fed stage-inputs;</li>
+     *   <li>lift the NESTED {@code Join_bottom} (not the topmost {@code Join_dim}, whose right input
+     *       is a reducer) into a worker tier;</li>
+     *   <li>KEEP the dimension stage (stage4) as a coordinator-reduce child of the rebuilt root — NOT
+     *       orphan it — so the dimension join runs on the coordinator over the worker's SINGLETON
+     *       output.</li>
+     * </ul>
+     */
+    public void testCascadeExtend_dimensionJoinAboveNestedShuffleJoin() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE, "d_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode logical = makeFourWayDimTop(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode rewritten = CascadeShufflePlanRewriter.rewrite(cbo, CLUSTER_DATA_NODES);
+        QueryDAG dag = DAGBuilder.build(rewritten, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        // The root fragment has 3 stage-inputs (stage2, stage3 under Join_bottom; stage4 under the
+        // dimension reducer) — the old size()!=2 guard rejected this. The fix must still detect it.
+        assertTrue(
+            "a join-over-two-shuffles nested under a coordinator dimension join must be detected as a cascade",
+            CascadeShuffleDAGRewriter.isCascade(dag)
+        );
+
+        // Capture the root stage's pre-rewrite dimension child stage ids (SINGLETON-reduce children of
+        // the root that feed the dimension join, NOT the two shuffle children of Join_bottom).
+        Stage preRoot = dag.rootStage();
+        List<Integer> dimChildIdsBefore = preRoot.getChildStages()
+            .stream()
+            .filter(s -> s.getExchangeInfo() != null && s.getExchangeInfo().distributionType() == RelDistribution.Type.SINGLETON)
+            .map(Stage::getStageId)
+            .toList();
+        assertEquals("expected exactly one reducer-fed dimension child stage on the root", 1, dimChildIdsBefore.size());
+        int dimStageId = dimChildIdsBefore.get(0);
+
+        CascadeShuffleDAGRewriter.Structure structure = CascadeShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+
+        // Two join levels lifted into workers: the inner A⋈B join (stage2) and Join_bottom.
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("two lifted join levels → two worker tiers", 2, levels.size());
+        for (CascadeShuffleDAGRewriter.WorkerLevel level : levels) {
+            assertEquals(
+                "lifted join level must be a WORKER_FRAGMENT",
+                StageExecutionType.WORKER_FRAGMENT,
+                level.worker().getExecutionType()
+            );
+            assertEquals("lifted join level role SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, level.worker().getRole());
+        }
+
+        // The rebuilt root must keep the dimension stage as a coordinator-reduce child AND gain the
+        // top worker. It must NOT be just [topWorker] (that would orphan the dimension stage).
+        Stage newRoot = structure.dag().rootStage();
+        CascadeShuffleDAGRewriter.WorkerLevel top = levels.get(1);
+        assertEquals(
+            "rebuilt root has two children: the top worker + the (kept) dimension reduce stage",
+            2,
+            newRoot.getChildStages().size()
+        );
+        assertTrue(
+            "the lifted top worker must be a child of the rebuilt root",
+            newRoot.getChildStages().stream().anyMatch(s -> s.getStageId() == top.worker().getStageId())
+        );
+        Stage keptDim = newRoot.getChildStages().stream().filter(s -> s.getStageId() == dimStageId).findFirst().orElse(null);
+        assertTrue("the reducer-fed dimension stage must be KEPT as a root child, not orphaned", keptDim != null);
+        assertEquals(
+            "the kept dimension stage stays a coordinator-reduce (SINGLETON gather), not lifted",
+            RelDistribution.Type.SINGLETON,
+            keptDim.getExchangeInfo().distributionType()
+        );
+        // And the dimension stage is NOT one of the lifted workers (it stays coordinator-side).
+        assertTrue(
+            "the dimension stage must NOT be a lifted worker",
+            levels.stream().noneMatch(l -> l.worker().getStageId() == dimStageId)
+        );
+    }
+
+    /**
+     * Like {@link #testCascadeExtend_dimensionJoinAboveNestedShuffleJoin} but with TWO stacked
+     * coordinator dimension joins above {@code Join_bottom} (the real q5 stacks supplier/nation/
+     * region — three). Exercises {@code isCoordinatorPathTo} walking through MULTIPLE coordinator
+     * joins on the root→liftable-join path, and {@code rebuild} keeping BOTH dimension reduce stages
+     * as coordinator-side children of the rebuilt root. Only {@code Join_bottom} (+ its lower cascade
+     * level) is lifted into workers.
+     */
+    public void testCascadeExtend_twoStackedDimensionJoins() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3, "e_idx", 3);
+        Map<String, Long> rowCounts = new HashMap<>();
+        for (String t : List.of("a_idx", "b_idx", "c_idx", "d_idx", "e_idx")) {
+            rowCounts.put(t, LARGE);
+        }
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+        RelNode logical = makeFiveWayTwoDimsTop(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode rewritten = CascadeShufflePlanRewriter.rewrite(cbo, CLUSTER_DATA_NODES);
+        QueryDAG dag = DAGBuilder.build(rewritten, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        assertTrue(
+            "nested join-over-two-shuffles under TWO stacked dimension joins must cascade",
+            CascadeShuffleDAGRewriter.isCascade(dag)
+        );
+
+        List<Integer> dimChildIds = dag.rootStage()
+            .getChildStages()
+            .stream()
+            .filter(s -> s.getExchangeInfo() != null && s.getExchangeInfo().distributionType() == RelDistribution.Type.SINGLETON)
+            .map(Stage::getStageId)
+            .toList();
+        assertEquals("two reducer-fed dimension children on the root", 2, dimChildIds.size());
+
+        CascadeShuffleDAGRewriter.Structure structure = CascadeShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("only the bottom cascade lifts → two worker tiers", 2, levels.size());
+
+        Stage newRoot = structure.dag().rootStage();
+        // 1 top worker + 2 kept dimension stages = 3 children, none orphaned.
+        assertEquals("rebuilt root keeps both dimension stages + the top worker", 3, newRoot.getChildStages().size());
+        for (int dimId : dimChildIds) {
+            Stage kept = newRoot.getChildStages().stream().filter(s -> s.getStageId() == dimId).findFirst().orElse(null);
+            assertTrue("dimension stage " + dimId + " must be kept, not orphaned", kept != null);
+            assertEquals(
+                "kept dimension stage " + dimId + " stays SINGLETON coordinator-reduce",
+                RelDistribution.Type.SINGLETON,
+                kept.getExchangeInfo().distributionType()
+            );
+            assertTrue(
+                "dimension stage " + dimId + " must NOT be a lifted worker",
+                levels.stream().noneMatch(l -> l.worker().getStageId() == dimId)
+            );
+        }
+    }
+
+    private RelNode makeFiveWayTwoDimsTop(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelNode dScan = stubScan(mockTable("d_idx", "status", "size"));
+        RelNode eScan = stubScan(mockTable("e_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+        int abCols = ab.getRowType().getFieldCount();
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        RelNode abc = LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+        int abcCols = abc.getRowType().getFieldCount();
+        RexNode abcdCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 1),
+            rexBuilder.makeInputRef(intType, abcCols + 1)
+        );
+        RelNode abcd = LogicalJoin.create(abc, dScan, List.of(), abcdCond, Set.of(), JoinRelType.INNER);
+        int abcdCols = abcd.getRowType().getFieldCount();
+        RexNode abcdeCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 1),
+            rexBuilder.makeInputRef(intType, abcdCols + 1)
+        );
+        return LogicalJoin.create(abcd, eScan, List.of(), abcdeCond, Set.of(), JoinRelType.INNER);
+    }
+
+    /**
+     * The faithful TPC-H q10 root shape: {@code Aggregate(Join_dim(Join_bottom(shuffle,shuffle),
+     * reducer→dim))} — an Aggregate sits ABOVE the dimension join, which sits above the nested
+     * {@code Join_bottom}. Matches the REAL captured q10 DAG (verified from the sf=10 cluster log:
+     * {@code Project(Sort(Sort(Sort(Aggregate(Project(Join_nation(Join_bottom(Shuffle→2, Shuffle→3),
+     * Reducer→4)))))))}). The Agg/Sort/Project all run on the coordinator AFTER the worker gathers
+     * {@code Join_bottom}'s output; only {@code Join_bottom} (+ its lower cascade level) lifts. Guards
+     * against a regression where the coordinator-side Agg/Sort/Project above the dim join blocks
+     * cascade detection.
+     */
+    public void testCascadeExtend_aggregateAboveNestedDimensionJoin() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE, "d_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+        RelNode fourWay = makeFourWayDimTop(context);
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            fourWay,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        RelNode logical = LogicalAggregate.create(fourWay, List.of(), ImmutableBitSet.of(0), null, List.of(countCall));
+        RelNode cbo = runPlanner(logical, context);
+        RelNode rewritten = CascadeShufflePlanRewriter.rewrite(cbo, CLUSTER_DATA_NODES);
+        QueryDAG dag = DAGBuilder.build(rewritten, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        assertTrue(
+            "Aggregate above a nested dimension join over a cascade (real q10 shape) must still cascade",
+            CascadeShuffleDAGRewriter.isCascade(dag)
+        );
+        // Capture the pre-rewrite dimension child stage id (the reducer-fed SINGLETON child that is
+        // NOT one of Join_bottom's two HASH shuffle producers).
+        int dimStageId = dag.rootStage()
+            .getChildStages()
+            .stream()
+            .filter(s -> s.getExchangeInfo() != null && s.getExchangeInfo().distributionType() == RelDistribution.Type.SINGLETON)
+            .map(Stage::getStageId)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("expected a reducer-fed dimension child stage on the root"));
+
+        CascadeShuffleDAGRewriter.Structure structure = CascadeShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("only the bottom cascade lifts → two worker tiers", 2, levels.size());
+        // The dimension reduce stage stays a coordinator child of the rebuilt root (kept, not
+        // orphaned) and is NOT lifted into a worker.
+        Stage newRoot = structure.dag().rootStage();
+        Stage keptDim = newRoot.getChildStages().stream().filter(s -> s.getStageId() == dimStageId).findFirst().orElse(null);
+        assertTrue("the dimension reduce stage must be kept on the coordinator, not orphaned", keptDim != null);
+        assertTrue(
+            "the dimension reduce stage must NOT be a lifted worker",
+            levels.stream().noneMatch(l -> l.worker().getStageId() == dimStageId)
+        );
+    }
+
+    /** Builds Join(Join(Join(a,b) on col0, c) on col0, d) on col1 (=size) — the top dimension join
+     *  keys on a DIFFERENT column than the bottom cascade. Models q5's left-deep shape. */
+    private RelNode makeFourWayDimTop(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelNode dScan = stubScan(mockTable("d_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+
+        int abCols = ab.getRowType().getFieldCount();
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        RelNode abc = LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+
+        int abcCols = abc.getRowType().getFieldCount();
+        // Outer join on col1 (size) = d.col1 — DIFFERENT key from the cascade (col0).
+        RexNode abcdCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 1),
+            rexBuilder.makeInputRef(intType, abcCols + 1)
+        );
+        return LogicalJoin.create(abc, dScan, List.of(), abcdCond, Set.of(), JoinRelType.INNER);
+    }
+
     private static List<String> nodeIds(int partitionCount) {
         List<String> ids = new java.util.ArrayList<>(partitionCount);
         for (int p = 0; p < partitionCount; p++) {

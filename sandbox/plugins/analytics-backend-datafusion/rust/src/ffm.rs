@@ -702,6 +702,20 @@ pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
     api::sender_close(sender_ptr);
 }
 
+/// Fails a partition stream: pushes an error into the channel (so the consumer's stream yields an
+/// ERROR rather than a clean EOF), then drops the sender. Used by the Java shuffle drain thread when a
+/// mid-stream failure (e.g. a spill-read error) truncates the partition — turning a silent
+/// wrong-result into a loud query failure. The reason string is included in the surfaced error.
+/// Returns 0 on success, a non-empty error string (via `ffm_wrap`) only on argument-decode failure.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_fail(sender_ptr: i64, reason_ptr: *const u8, reason_len: i64) -> i64 {
+    let reason = str_from_raw(reason_ptr, reason_len).map_err(|e| format!("df_sender_fail: reason: {}", e))?;
+    let mgr = get_rt_manager()?;
+    api::sender_fail(sender_ptr, reason, mgr.io_runtime.handle());
+    Ok(0)
+}
+
 /// Memtable variant of `df_register_partition_stream`: instead of returning a
 /// sender that streams batches one at a time, the caller hands across `n`
 /// already-exported Arrow C Data batches in two parallel pointer arrays and
@@ -811,6 +825,35 @@ pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
         .map_err(|e| format!("df_register_partition_stream_on_session_context: input_id: {}", e))?;
     let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
     api::register_partition_stream_on_session_context(session_ctx_handle_ptr, input_id, schema_ipc)
+        .map_err(|e| e.to_string())
+}
+
+/// M3 hash-shuffle AGGREGATE worker variant of `df_register_partition_stream_on_session_context`.
+///
+/// Identical wiring (channel + `SingleReceiverPartition` + `StreamingTable` registered on the
+/// `SessionContextHandle`, returning the `PartitionStreamSender` pointer), but the table schema
+/// is derived from the producer's PARTIAL substrait plan (the SAME derivation the
+/// coordinator-reduce `df_register_partition_stream` uses) instead of the raw producer IPC
+/// header. This registers the streaming table under the FINAL fragment's logical column names
+/// (e.g. `sum_qty`) rather than the producer's physical state names (e.g. `sum_qty[sum]`), so
+/// the worker FINAL's by-name `base_schema` binding resolves. See
+/// `api::register_partition_stream_on_session_context_from_partial_plan` for the full rationale.
+///
+/// On success returns the sender pointer cast to `i64`; on error returns the FFM error sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context_from_partial_plan(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    partial_plan_ptr: *const u8,
+    partial_plan_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!("df_register_partition_stream_on_session_context_from_partial_plan: input_id: {}", e)
+    })?;
+    let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
+    api::register_partition_stream_on_session_context_from_partial_plan(session_ctx_handle_ptr, input_id, partial_plan)
         .map_err(|e| e.to_string())
 }
 

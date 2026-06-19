@@ -39,6 +39,8 @@ import org.opensearch.analytics.exec.join.BroadcastDispatch;
 import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter;
 import org.opensearch.analytics.exec.join.CascadeShuffleDispatch;
 import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
+import org.opensearch.analytics.exec.join.DistributedAggOverJoinDispatch;
+import org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter;
 import org.opensearch.analytics.exec.join.HashShuffleDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
@@ -363,6 +365,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED)
             )
+            // Distributed-agg-over-cascade kill switch must follow dynamic updates too — the dispatch
+            // branch below gates on it; without the overlay a PUT /_cluster/settings disable would be
+            // ignored and the rewrite would keep firing on the node-bootstrap default (true).
+            .put(
+                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED)
+            )
             .put(
                 AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
@@ -456,6 +465,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // every level into its own worker tier. Detected structurally so a plain 2-way shuffle join
         // keeps the simpler path.
         final boolean dispatchCascadeShuffle = dispatchHashShuffle && CascadeShuffleDAGRewriter.isCascade(dag);
+        // Distributed aggregation over a cascade join (q5/q10): the cascade root holds an
+        // Aggregate(SINGLE) over the dimension joins over the bottom hash-shuffle join. Push a
+        // PARTIAL onto the cascade top worker (dimensions broadcast in) and keep FINAL on the
+        // coordinator. Gated on the toggle + the structural shape; takes precedence over the plain
+        // cascade dispatch (it is a more specific cascade case). See DistributedAggOverJoinRewriter.
+        final boolean dispatchDistributedAggOverJoin = dispatchCascadeShuffle
+            && AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
+            && DistributedAggOverJoinRewriter.canPushPartial(dag);
         final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;
         // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
         // buffers may be populated on data nodes (join shuffle, cascade, or shuffle-aggregate all cut
@@ -655,6 +672,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         try {
             if (dispatchBroadcast) {
                 dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
+            } else if (dispatchDistributedAggOverJoin) {
+                dispatchDistributedAggOverJoin(dag, context, execRef, batchesListener);
             } else if (dispatchCascadeShuffle) {
                 dispatchCascadeShuffle(dag, context, execRef, batchesListener);
             } else if (dispatchHashShuffle) {
@@ -789,6 +808,49 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         new CascadeShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry, preferMetadataDriver).run(
             context,
             dag,
+            execRef::set,
+            terminal
+        );
+    }
+
+    /**
+     * Runs the distributed-aggregation-over-cascade-join path (q5/q10). Delegates to
+     * {@link DistributedAggOverJoinDispatch}, which rewrites the DAG so the cascade top worker carries
+     * the pre-aggregate pipeline + {@code Aggregate(PARTIAL)} (dimension tables broadcast into the
+     * worker), leaving {@code Aggregate(FINAL) → Sort} on the coordinator. Phase 1 builds + captures
+     * each dimension's Arrow IPC; phase 2 injects it into the worker and runs the cascade. Uses the
+     * same backend capture-sink factory as {@link #dispatchBroadcast}.
+     */
+    private void dispatchDistributedAggOverJoin(
+        QueryDAG dag,
+        QueryContext context,
+        AtomicReference<QueryExecution> execRef,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        Stage root = dag.rootStage();
+        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
+            capabilityRegistry,
+            ((OpenSearchRelNode) root.getFragment()).getViableBackends()
+        );
+        if (reduceViable.isEmpty()) {
+            throw new IllegalStateException("No reduce-capable backend for distributed-agg-over-join dimension capture sink");
+        }
+        final String captureBackendId = reduceViable.get(0);
+        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
+        QueryScheduler qscheduler = (QueryScheduler) scheduler;
+        new DistributedAggOverJoinDispatch(
+            qscheduler.getStageExecutionBuilder(),
+            qscheduler,
+            clusterService,
+            shuffleBufferManager,
+            capabilityRegistry,
+            preferMetadataDriver
+        ).run(
+            context,
+            dag,
+            buildStage -> capabilityRegistry.getBackend(captureBackendId)
+                .getExchangeSinkProvider()
+                .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),
             execRef::set,
             terminal
         );

@@ -48,10 +48,42 @@ public final class ShuffleBufferExceededException extends RuntimeException {
                 + limit
                 + " bytes). "
                 + "Raise analytics.mpp.shuffle.node_budget_percent (or give the node more heap), "
-                + "narrow the query, or set analytics.mpp.enabled=false."
+                + "narrow the query, or set analytics.mpp.enabled=false. "
+                + "Alternatively enable disk spill (analytics.mpp.shuffle.spill.enabled=true) to let "
+                + "the query run by spilling buffered shuffle bytes to disk."
         );
         this.observedBytes = observed;
         this.limitBytes = limit;
+    }
+
+    private ShuffleBufferExceededException(long observed, long limit, String message) {
+        super(message);
+        this.observedBytes = observed;
+        this.limitBytes = limit;
+    }
+
+    /**
+     * The terminal failure when disk spill is ENABLED: the node-wide spill footprint would exceed the
+     * hard disk ceiling {@code analytics.mpp.shuffle.spill.max_bytes}, or a spill write hit a disk-full
+     * / I/O error. Unlike the on-heap budget breach, raising heap can't help — the remediation is more
+     * disk, a higher {@code spill.max_bytes}, or a narrower query.
+     *
+     * @param observed bytes the node would hold on disk had the chunk been spilled
+     * @param limit    the configured {@code spill.max_bytes} disk ceiling
+     */
+    public static ShuffleBufferExceededException forDiskCeiling(long observed, long limit) {
+        return new ShuffleBufferExceededException(
+            observed,
+            limit,
+            "Hash-shuffle query exceeded the disk-spill ceiling "
+                + "(observed="
+                + observed
+                + " bytes, limit="
+                + limit
+                + " bytes), or a spill write hit a disk-full / I/O error. "
+                + "Raise analytics.mpp.shuffle.spill.max_bytes (or free disk on the data node), "
+                + "narrow the query, or set analytics.mpp.enabled=false."
+        );
     }
 
     /** Bytes the buffer would have held had the chunk been accepted. */

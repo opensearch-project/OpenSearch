@@ -21,17 +21,23 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.WorkerTargetResolver;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -140,6 +146,20 @@ public final class CascadeShuffleDAGRewriter {
      * shape against a mock backend that has no fragment convertor.
      */
     public static Structure rewriteStructure(QueryDAG dag, CapabilityRegistry registry, NodeListResolver nodeResolver) {
+        return rewriteStructure(dag, registry, nodeResolver, null);
+    }
+
+    /**
+     * Overload taking an optional {@link AggLift}. When non-null AND the topmost join-shuffle stage IS
+     * the root stage (the q5/q10 agg-over-cascade shape), the top worker fragment is decorated with the
+     * lifted pre-aggregate pipeline + {@code Aggregate(PARTIAL)} ({@link AggLift#workerFragment}), the
+     * coordinator root becomes {@code Sort? → Aggregate(FINAL) → StageInputScan(topWorker)}
+     * ({@link AggLift#coordinatorFragment}), and the dimension {@link AggLift#broadcastBuildStages} ride
+     * as extra top-worker children so the dispatcher can build + inject them. Null restores the plain
+     * cascade behaviour (join stays in the worker, agg/sort stay on the coordinator). Threaded by
+     * {@link DistributedAggOverJoinRewriter}.
+     */
+    public static Structure rewriteStructure(QueryDAG dag, CapabilityRegistry registry, NodeListResolver nodeResolver, AggLift aggLift) {
         Stage root = dag.rootStage();
         // Collect every join-shuffle stage (fragment has a join sitting over shuffle inputs),
         // top-down. The first is the topmost join; the rest are intermediate.
@@ -215,10 +235,26 @@ public final class CascadeShuffleDAGRewriter {
         List<String> topNodes = nodesByStageId.get(topStage.getStageId());
         Stage topLeftChild = rebuild(byId.get(topDesc.leftChildId()), topStage.getStageId(), null, intermediateWorkers, byId);
         Stage topRightChild = rebuild(byId.get(topDesc.rightChildId()), topStage.getStageId(), null, intermediateWorkers, byId);
+
+        // Distributed-agg-over-cascade (q5/q10): the top worker carries the lifted pre-agg pipeline +
+        // PARTIAL aggregate, and the dimension build stages ride as extra worker children. Only valid
+        // when the topmost join-shuffle stage IS the root (the aggregate/dim-joins were in the root
+        // fragment above the liftable join). For any deeper-topStage cascade the lift does not apply.
+        boolean applyAggLift = aggLift != null && topStage.getStageId() == root.getStageId();
+        RelNode topWorkerFragment = applyAggLift ? aggLift.workerFragment(topDesc.join(), topWorkerId) : topDesc.join();
+        List<Stage> topWorkerChildren = new ArrayList<>();
+        topWorkerChildren.add(topLeftChild);
+        topWorkerChildren.add(topRightChild);
+        if (applyAggLift) {
+            // The dimension stages become broadcast builds on the worker; keep them as children so the
+            // scheduler/dispatcher can run + capture them (they reference broadcast-<id> NamedScans in
+            // the worker fragment, not partition streams).
+            topWorkerChildren.addAll(aggLift.broadcastBuildStages());
+        }
         Stage topWorker = new Stage(
             topWorkerId,
-            topDesc.join(),
-            List.of(topLeftChild, topRightChild),
+            topWorkerFragment,
+            topWorkerChildren,
             ExchangeInfo.singleton(),
             backend.getExchangeSinkProvider(),
             new WorkerTargetResolver(topNodes)
@@ -226,9 +262,27 @@ public final class CascadeShuffleDAGRewriter {
         topWorker.setRole(Stage.StageRole.SHUFFLE_WORKER);
         topWorker.setInstructionHandlerFactory(backend.getInstructionHandlerFactory());
 
-        // Rebuild the DAG from the root: at the top join-shuffle stage, replace the join with a
-        // StageInputScan(topWorkerId) and make topWorker its only child; elsewhere copy through.
-        Stage newRoot = rebuild(root, topStage.getStageId(), topWorker, intermediateWorkers, byId);
+        // Rebuild the DAG from the root. Default: at the top join-shuffle stage, replace the join with
+        // a StageInputScan(topWorkerId) and make topWorker its only child; elsewhere copy through. For
+        // the agg-lift the coordinator root is rebuilt as Sort? → Aggregate(FINAL) → StageInput(worker)
+        // — the dimension joins moved ONTO the worker, so they no longer appear on the coordinator.
+        Stage newRoot;
+        if (applyAggLift) {
+            newRoot = new Stage(
+                root.getStageId(),
+                aggLift.coordinatorFragment(topWorker),
+                List.of(topWorker),
+                root.getExchangeInfo(),
+                root.getExchangeSinkProvider(),
+                root.getTargetResolver()
+            );
+            newRoot.setRole(root.getRole());
+            if (root.getInstructionHandlerFactory() != null) {
+                newRoot.setInstructionHandlerFactory(root.getInstructionHandlerFactory());
+            }
+        } else {
+            newRoot = rebuild(root, topStage.getStageId(), topWorker, intermediateWorkers, byId);
+        }
         QueryDAG rewrittenDag = new QueryDAG(dag.queryId(), newRoot);
 
         // Capture everything the deferred level builder needs. Levels are built AFTER the caller runs
@@ -275,6 +329,29 @@ public final class CascadeShuffleDAGRewriter {
         List<String> resolve(int levelIndex, int partitionCount);
     }
 
+    /**
+     * Optional hook that turns the cascade top worker into a distributed-agg worker (q5/q10 Variant A).
+     * Supplied by {@link DistributedAggOverJoinRewriter}; the cascade rewriter calls it only when the
+     * topmost join-shuffle stage IS the root stage.
+     *
+     * <ul>
+     *   <li>{@link #workerFragment} wraps the lifted top join in the pre-aggregate pipeline (dimension
+     *       joins rewritten to broadcast scans) + {@code Aggregate(PARTIAL)}; {@code topWorkerId} is the
+     *       new worker's stage id (only needed if the fragment must reference it — it does not today).</li>
+     *   <li>{@link #coordinatorFragment} builds the coordinator reduce fragment ({@code Sort? →
+     *       Aggregate(FINAL) → StageInputScan(topWorker)}) given the freshly-built top worker stage.</li>
+     *   <li>{@link #broadcastBuildStages} are the dimension stages (already tagged
+     *       {@link Stage.StageRole#BROADCAST_BUILD}) to attach as extra top-worker children.</li>
+     * </ul>
+     */
+    public interface AggLift {
+        RelNode workerFragment(OpenSearchJoin liftedTopJoin, int topWorkerId);
+
+        RelNode coordinatorFragment(Stage topWorker);
+
+        List<Stage> broadcastBuildStages();
+    }
+
     /** Per-join-shuffle-stage analysis: the join, its left/right child stage ids, and per-side keys. */
     private record JoinShuffle(OpenSearchJoin join, int leftChildId, int rightChildId, List<Integer> leftKeys, List<Integer> rightKeys,
         int partitionCount) {
@@ -282,9 +359,9 @@ public final class CascadeShuffleDAGRewriter {
 
     /** Extracts the join + its two shuffle inputs' child stage ids and hash keys. */
     private static JoinShuffle analyzeJoinShuffle(Stage stage) {
-        OpenSearchJoin join = findJoin(stage.getFragment());
+        OpenSearchJoin join = findLiftableJoin(stage.getFragment());
         if (join == null) {
-            throw new IllegalStateException("CascadeShuffleDAGRewriter: stage " + stage.getStageId() + " has no join");
+            throw new IllegalStateException("CascadeShuffleDAGRewriter: stage " + stage.getStageId() + " has no liftable join");
         }
         OpenSearchShuffleExchange leftShuffle = asShuffle(join.getInput(0), stage.getStageId(), "left");
         OpenSearchShuffleExchange rightShuffle = asShuffle(join.getInput(1), stage.getStageId(), "right");
@@ -366,54 +443,134 @@ public final class CascadeShuffleDAGRewriter {
     }
 
     private static boolean isJoinShuffleStage(Stage stage) {
-        RelNode fragment = stage.getFragment();
-        if (fragment == null) {
-            return false;
-        }
-        OpenSearchJoin join = findJoin(fragment);
-        if (join == null) {
-            return false;
-        }
-        // INNER only — mirrors the CascadeShufflePlanRewriter guard. Defense-in-depth: a non-INNER
-        // join that CBO itself shuffled (not via our plan rewriter) must not be pulled into the
-        // cascade worker tier, which only implements INNER hash-join semantics across partitions.
-        // A non-INNER join-over-shuffles keeps its single-level HashShuffleDispatch path.
-        if (join.getJoinType() != JoinRelType.INNER) {
-            return false;
-        }
-        // Both of the JOIN'S INPUTS must be shuffles. Only the join is lifted into a worker (the
-        // rewriter replaces just the join node with a StageInputScan), so operators ABOVE the join
-        // in this stage's fragment — e.g. the root stage's Aggregate / Sort / Project that run on the
-        // COORDINATOR after the worker join — are irrelevant to cascade safety and must NOT be checked
-        // here (checking the whole fragment root wrongly rejected the canonical Agg/Sort-over-join
-        // root stage). The partition-preserving constraint that matters — no Aggregate/Sort BETWEEN
-        // join levels — is enforced by CascadeShufflePlanRewriter when it decides to shuffle the
-        // inputs (an unsafe intermediate op leaves the input a reducer, not a shuffle), so the
-        // join-inputs-are-shuffles check below is exactly the post-condition to verify.
-        if (!(RelNodeUtils.unwrapHep(join.getInput(0)) instanceof OpenSearchShuffleExchange)
-            || !(RelNodeUtils.unwrapHep(join.getInput(1)) instanceof OpenSearchShuffleExchange)) {
-            return false;
-        }
-        // The join must be the stage's ONLY source of child stages. rebuild() lifts the join and
-        // rebuilds this stage with the worker as its single child — if the fragment has any other
-        // OpenSearchStageInputScan leaf (a sibling of the join, e.g. Union(Join(...), StageInput→X)
-        // or an appendcol), that sibling's child stage would be orphaned and the fragment left
-        // dangling. The join's two inputs contribute exactly two stage-input leaves (one per shuffle);
-        // require the whole fragment to have exactly those two. A multi-input root keeps its
-        // CBO-chosen (single-level / coord-centric) path rather than risk a dropped sibling.
-        // (codex review: multi-input-root orphan blocker.)
-        if (RelNodeUtils.findNodes(fragment, OpenSearchStageInputScan.class).size() != 2) {
-            return false;
-        }
-        return true;
+        return findLiftableJoin(stage.getFragment()) != null;
     }
 
     /**
-     * Rebuilds a stage subtree. When {@code stage.id == topStageId}, the topmost join in its fragment
-     * is replaced by a {@code StageInputScan(topWorker.id)} and {@code topWorker} becomes its only
-     * child (the stage turns into a reduce over the worker). When a stage id is in
-     * {@code intermediateWorkers}, its worker version is used (with rebuilt children). Otherwise the
-     * stage is copied with rebuilt children.
+     * Returns the {@link OpenSearchJoin} this stage's fragment should lift into a worker tier, or
+     * {@code null} if the fragment has none / is not cascade-safe.
+     *
+     * <p>The liftable join is the HIGHEST {@link OpenSearchJoin} whose two inputs are BOTH
+     * {@link OpenSearchShuffleExchange} — i.e. a join over two already-shuffled cascade inputs. For a
+     * 2-way / leaf cascade level the fragment root IS that join. For a NESTED case (TPC-H q5/q10:
+     * {@code Sort(Agg(Project(Join_dim(... Join_dim(Join_bottom, ER→dim) ...))))}) the liftable join
+     * {@code Join_bottom} sits UNDER one or more coordinator joins that key on different columns and
+     * therefore did not shuffle. Only {@code Join_bottom} is lifted; the coordinator joins above it
+     * stay in this stage consuming the worker's SINGLETON output (their reducer-fed dimension inputs
+     * remain child stages — see {@link #rebuild}).
+     *
+     * <p>Cascade-safety / orphan-protection (codex blockers — do NOT loosen):
+     * <ul>
+     *   <li>The liftable join must be INNER (the worker only implements INNER hash-join across
+     *       partitions). The coordinator joins above it may be any type — they are NOT lifted, they
+     *       run on the coordinator exactly as in the coord-centric path.</li>
+     *   <li>Every operator on the path from the fragment root DOWN TO the liftable join must be a
+     *       coordinator op that runs AFTER the worker gathers — {@link OpenSearchJoin},
+     *       {@link OpenSearchProject}, {@link OpenSearchFilter}, {@link OpenSearchSort},
+     *       {@link OpenSearchAggregate}. A multi-input combinator that is NOT a join (e.g.
+     *       {@link org.opensearch.analytics.planner.rel.OpenSearchUnion} / appendcol) on the path is
+     *       rejected: lifting under it would leave the join's SIBLING stage-input orphaned, and its
+     *       per-partition semantics are not validated. The "nested under coordinator joins (safe)"
+     *       vs "sibling under Union/appendcol (unsafe)" distinction is encoded HERE.</li>
+     *   <li>The liftable join must be UNIQUE in the fragment — no second disjoint join-over-two-
+     *       shuffles (e.g. {@code Union(Join(sh,sh), Join(sh,sh))}). One fragment rebuild lifts exactly
+     *       one join; two would need two workers in one stage, which {@link #rebuild} does not express.</li>
+     * </ul>
+     * The per-side hash-key match and the no-Aggregate/Sort-BETWEEN-levels (partition-preserving)
+     * constraints are enforced upstream by {@link CascadeShufflePlanRewriter} (an unsafe intermediate
+     * op leaves the input a reducer, not a shuffle) and re-checked in {@link #analyzeJoinShuffle}.
+     */
+    static OpenSearchJoin findLiftableJoin(RelNode fragment) {
+        if (fragment == null) {
+            return null;
+        }
+        // Identity set: a fragment is a DAG, not a tree — a common sub-expression (e.g. a shared
+        // join node reachable via two parents) would otherwise be counted twice and trip the
+        // uniqueness check, hiding a legitimately liftable join. Dedup by reference identity so a
+        // SHARED liftable join still counts as one. (real-DAG diagnosis: double-referenced subtree)
+        Set<OpenSearchJoin> liftable = Collections.newSetFromMap(new IdentityHashMap<>());
+        collectLiftableJoins(RelNodeUtils.unwrapHep(fragment), liftable);
+        // Exactly one join-over-two-shuffles may be lifted per fragment (see uniqueness note above).
+        if (liftable.size() != 1) {
+            return null;
+        }
+        OpenSearchJoin join = liftable.iterator().next();
+        if (join.getJoinType() != JoinRelType.INNER) {
+            return null;
+        }
+        // The path from the fragment root down to the liftable join must contain only coordinator
+        // operators (no Union/appendcol sibling) — otherwise lifting would orphan a sibling stage.
+        if (!isCoordinatorPathTo(RelNodeUtils.unwrapHep(fragment), join)) {
+            return null;
+        }
+        return join;
+    }
+
+    /** Collects every {@link OpenSearchJoin} whose two inputs are both {@link OpenSearchShuffleExchange}. */
+    private static void collectLiftableJoins(RelNode node, Set<OpenSearchJoin> out) {
+        if (node instanceof OpenSearchJoin join
+            && RelNodeUtils.unwrapHep(join.getInput(0)) instanceof OpenSearchShuffleExchange
+            && RelNodeUtils.unwrapHep(join.getInput(1)) instanceof OpenSearchShuffleExchange) {
+            out.add(join);
+            // A join-over-two-shuffles' inputs are shuffles (StageInputScan leaves) — no deeper
+            // liftable join inside THIS stage's fragment (lower levels are separate child stages).
+            return;
+        }
+        for (RelNode input : node.getInputs()) {
+            collectLiftableJoins(RelNodeUtils.unwrapHep(input), out);
+        }
+    }
+
+    /**
+     * True iff every node on the path from {@code root} down to {@code target} (inclusive of the
+     * intermediate operators, exclusive of {@code target} itself) is a coordinator op safe to keep in
+     * this stage after the lift: {@link OpenSearchJoin} / {@link OpenSearchProject} /
+     * {@link OpenSearchFilter} / {@link OpenSearchSort} / {@link OpenSearchAggregate}. Any other node
+     * type on the path (notably a non-join multi-input combinator like
+     * {@link org.opensearch.analytics.planner.rel.OpenSearchUnion}) returns false.
+     */
+    private static boolean isCoordinatorPathTo(RelNode root, OpenSearchJoin target) {
+        if (root == target) {
+            return true;
+        }
+        boolean safeNode = root instanceof OpenSearchJoin
+            || root instanceof OpenSearchProject
+            || root instanceof OpenSearchFilter
+            || root instanceof OpenSearchSort
+            || root instanceof OpenSearchAggregate;
+        if (!safeNode) {
+            return false;
+        }
+        for (RelNode input : root.getInputs()) {
+            if (containsNode(RelNodeUtils.unwrapHep(input), target)) {
+                return isCoordinatorPathTo(RelNodeUtils.unwrapHep(input), target);
+            }
+        }
+        return false;
+    }
+
+    /** True iff {@code target} appears anywhere in {@code node}'s subtree (reference identity). */
+    private static boolean containsNode(RelNode node, RelNode target) {
+        if (node == target) {
+            return true;
+        }
+        for (RelNode input : node.getInputs()) {
+            if (containsNode(RelNodeUtils.unwrapHep(input), target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Rebuilds a stage subtree. When {@code stage.id == topStageId}, the LIFTABLE join in its fragment
+     * (see {@link #findLiftableJoin}) is replaced by a {@code StageInputScan(topWorker.id)} and
+     * {@code topWorker} is added as a child. Any other child stages whose {@code StageInputScan} leaves
+     * SURVIVE the replacement — the reducer-fed dimension inputs to coordinator joins ABOVE the lifted
+     * join (TPC-H q5/q10: supplier/nation/region) — are KEPT as children so they are NOT orphaned; only
+     * the two child stages feeding the lifted join's shuffles are dropped (replaced by the worker). When
+     * a stage id is in {@code intermediateWorkers}, its worker version is used (with rebuilt children).
+     * Otherwise the stage is copied with rebuilt children.
      */
     private static Stage rebuild(
         Stage stage,
@@ -426,7 +583,7 @@ public final class CascadeShuffleDAGRewriter {
             return null;
         }
         if (stage.getStageId() == topStageId && topWorker != null) {
-            OpenSearchJoin join = findJoin(stage.getFragment());
+            OpenSearchJoin join = findLiftableJoin(stage.getFragment());
             OpenSearchStageInputScan workerScan = new OpenSearchStageInputScan(
                 join.getCluster(),
                 join.getTraitSet(),
@@ -436,10 +593,29 @@ public final class CascadeShuffleDAGRewriter {
                 ((OpenSearchRelNode) join).getOutputFieldStorage()
             );
             RelNode newFragment = replaceNode(stage.getFragment(), join, workerScan);
+            // The worker is the lifted join's replacement child. Every OTHER child stage still
+            // referenced by a StageInputScan in the rewritten fragment — the reducer-fed dimension
+            // inputs to coordinator joins ABOVE the lifted join — must stay as children (else they are
+            // orphaned: a StageInputScan with no backing stage hangs the scheduler). Recurse so a deeper
+            // cascade under a kept dimension input is also rewritten (defensive; q5/q10 dims are leaf
+            // reducers). The two child stages feeding the lifted join's shuffles are gone — their
+            // StageInputScans were replaced by the single workerScan above. (cascade-extend orphan-safety)
+            List<Integer> survivingChildIds = RelNodeUtils.findNodes(newFragment, OpenSearchStageInputScan.class)
+                .stream()
+                .map(OpenSearchStageInputScan::getChildStageId)
+                .filter(id -> id != topWorker.getStageId())
+                .toList();
+            List<Stage> reduceChildren = new ArrayList<>(survivingChildIds.size() + 1);
+            reduceChildren.add(topWorker);
+            for (Stage child : stage.getChildStages()) {
+                if (survivingChildIds.contains(child.getStageId())) {
+                    reduceChildren.add(rebuild(child, topStageId, topWorker, intermediateWorkers, byId));
+                }
+            }
             Stage reduce = new Stage(
                 stage.getStageId(),
                 newFragment,
-                List.of(topWorker),
+                reduceChildren,
                 stage.getExchangeInfo(),
                 stage.getExchangeSinkProvider(),
                 stage.getTargetResolver()
@@ -475,21 +651,6 @@ public final class CascadeShuffleDAGRewriter {
             copy.setPlanAlternatives(base.getPlanAlternatives());
         }
         return copy;
-    }
-
-    /** Finds the first {@link OpenSearchJoin} in {@code root}'s subtree; null if none. */
-    private static OpenSearchJoin findJoin(RelNode root) {
-        RelNode n = RelNodeUtils.unwrapHep(root);
-        if (n instanceof OpenSearchJoin j) {
-            return j;
-        }
-        for (RelNode input : n.getInputs()) {
-            OpenSearchJoin found = findJoin(input);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
     }
 
     /** Rebuilds {@code root} replacing {@code target} with {@code replacement}; ancestors copy. */

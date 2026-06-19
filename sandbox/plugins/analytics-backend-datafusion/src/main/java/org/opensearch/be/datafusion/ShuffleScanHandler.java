@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.CloseableIterator;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.ShuffleBufferAccess;
@@ -26,7 +27,6 @@ import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 
 import java.io.ByteArrayInputStream;
-import java.util.List;
 
 /**
  * Handler for {@link ShuffleScanInstructionNode} on a hash-shuffle worker.
@@ -155,11 +155,53 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
             throw new RuntimeException("ShuffleScanHandler: interrupted while awaiting shuffle producers for " + inputId, e);
         }
 
-        List<byte[]> sideData = isLeftSide ? buffer.getLeftData() : buffer.getRightData();
-
+        // LAZY drain: pull chunks one at a time. With spill, only ONE chunk is heap-resident at a
+        // time — the rest stream from the spill file — so an over-budget partition drains without
+        // re-materializing (the whole point of disk spill). The iterator owns the spill-file handle.
         BufferAllocator alloc = shardCtx.getAllocator();
-        // Empty partition: register an empty memtable and return — no streaming drain needed.
-        if (sideData.isEmpty()) {
+        CloseableIterator<byte[]> chunks = isLeftSide ? buffer.drainLeft() : buffer.drainRight();
+
+        // Peek the first chunk for the schema (one chunk in heap is fine). No first chunk → empty
+        // partition: register an empty memtable and return. Close the iterator on every path here.
+        byte[] firstChunk;
+        try {
+            firstChunk = chunks.hasNext() ? chunks.next() : null;
+        } catch (RuntimeException e) {
+            chunks.close();
+            throw new RuntimeException("ShuffleScanHandler: failed to read first shuffle chunk for " + inputId, e);
+        }
+        // M3 agg-shuffle worker: the producer ships the PARTIAL aggregate's physical batches whose
+        // state columns are named <alias>[<state>] (e.g. sum_qty[sum]), but the worker FINAL
+        // fragment's Substrait base_schema declares the Calcite LOGICAL names (sum_qty). DataFusion's
+        // Substrait consumer binds base_schema to the registered provider BY NAME, so registering the
+        // table with the raw IPC (physical) names fails the FINAL with "No field named sum_qty". When
+        // producerPlanBytes is present, register via the partial-plan derivation (mirrors the working
+        // coordinator-reduce register_partition_stream) so the table carries logical names; the
+        // physically-named batches still feed in positionally. Null producerPlanBytes (join-shuffle)
+        // keeps the raw-IPC path unchanged.
+        byte[] producerPlanBytes = node.getProducerPlanBytes();
+
+        if (firstChunk == null) {
+            chunks.close();
+            if (producerPlanBytes != null) {
+                // Empty agg-shuffle partition: register the (logical-named) streaming table from the
+                // partial plan so the FINAL binds, then close the sender immediately — 0 rows for
+                // this partition. A 0-column empty memtable would fail the FINAL's by-name bind.
+                LOGGER.debug(
+                    "ShuffleScanHandler: empty partition for {} (queryId={}, stage={}, part={}); registering logical-named empty stream from partial plan",
+                    inputId,
+                    node.getQueryId(),
+                    node.getTargetStageId(),
+                    node.getShufflePartitionIndex()
+                );
+                long emptySenderPtr = NativeBridge.registerPartitionStreamOnSessionContextFromPartialPlan(
+                    sessionState.sessionContextHandle().getPointer(),
+                    inputId,
+                    producerPlanBytes
+                );
+                new DatafusionPartitionSender(emptySenderPtr).close();
+                return backendContext;
+            }
             LOGGER.debug(
                 "ShuffleScanHandler: empty partition for {} (queryId={}, stage={}, part={}); registering empty memtable",
                 inputId,
@@ -177,18 +219,34 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
             return backendContext;
         }
 
-        // Schema from the first chunk's IPC header — needed at registration time.
-        byte[] schemaIpc;
+        // Register the partition stream. Any failure here must close the chunk iterator (which owns an
+        // open spill-file handle when the partition was spilled) — ownership only transfers to the
+        // drain thread AFTER a sender is successfully constructed below. (codex review: spill-file
+        // handle leak on registration throw.)
+        long senderPtr;
         try {
-            schemaIpc = extractSchemaIpc(sideData.get(0), alloc);
+            if (producerPlanBytes != null) {
+                // Agg-shuffle worker: register with the LOGICAL schema derived by re-lowering the
+                // producer's PARTIAL plan (fixes the q1/q15 sum_qty[sum] by-name bind).
+                senderPtr = NativeBridge.registerPartitionStreamOnSessionContextFromPartialPlan(
+                    sessionState.sessionContextHandle().getPointer(),
+                    inputId,
+                    producerPlanBytes
+                );
+            } else {
+                // Join-shuffle: schema from the first chunk's IPC header (producer ships raw rows whose
+                // names already match the consumer's expected input — no re-lowering needed).
+                byte[] schemaIpc = extractSchemaIpc(firstChunk, alloc);
+                senderPtr = NativeBridge.registerPartitionStreamOnSessionContext(
+                    sessionState.sessionContextHandle().getPointer(),
+                    inputId,
+                    schemaIpc
+                );
+            }
         } catch (Exception e) {
-            throw new RuntimeException("ShuffleScanHandler: failed to extract schema for " + inputId, e);
+            chunks.close();
+            throw new RuntimeException("ShuffleScanHandler: failed to register partition stream for " + inputId, e);
         }
-        long senderPtr = NativeBridge.registerPartitionStreamOnSessionContext(
-            sessionState.sessionContextHandle().getPointer(),
-            inputId,
-            schemaIpc
-        );
         DatafusionPartitionSender sender = new DatafusionPartitionSender(senderPtr);
 
         // Drain chunks into the native sender on a background thread. The native partition
@@ -197,32 +255,57 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
         // doesn't run until ALL handlers finish. Running the drain off-thread lets
         // engine.execute start in parallel, drain the channel, and unblock the sender.
         //
-        // The background thread owns the sender's lifecycle: it closes the sender after the
-        // last chunk (signals EOF to the native StreamingTable). Failures stamp the closure
-        // and close the sender so the partition still terminates rather than hanging the join.
-        final List<byte[]> chunks = sideData;
+        // The background thread owns the lifecycle of BOTH the chunk iterator (releases the
+        // spill-file handle) and the sender (closing it signals EOF to the native StreamingTable).
+        // Failures still close both so the partition terminates rather than hanging the join.
+        final byte[] firstChunkFinal = firstChunk;
+        final CloseableIterator<byte[]> chunkIter = chunks;
         final DatafusionPartitionSender finalSender = sender;
         Thread drainThread = new Thread(() -> {
             int totalBatches = 0;
+            int chunkCount = 0;
+            Throwable drainFailure = null;
             try {
-                for (byte[] chunk : chunks) {
-                    totalBatches += pumpChunkIntoSender(chunk, alloc, finalSender);
+                totalBatches += pumpChunkIntoSender(firstChunkFinal, alloc, finalSender);
+                chunkCount++;
+                while (chunkIter.hasNext()) {
+                    totalBatches += pumpChunkIntoSender(chunkIter.next(), alloc, finalSender);
+                    chunkCount++;
                 }
                 LOGGER.debug(
                     "ShuffleScanHandler.drain: drained {} batches across {} chunks for {} (side={}, partition={})",
                     totalBatches,
-                    chunks.size(),
+                    chunkCount,
                     inputId,
                     side,
                     node.getShufflePartitionIndex()
                 );
             } catch (Throwable t) {
-                LOGGER.warn("ShuffleScanHandler.drain failed for " + inputId, t);
+                // A drain/IPC/spill-read failure here means the partition stream is TRUNCATED. Closing
+                // the sender cleanly would signal EOF to the native StreamingTable, so the join/agg
+                // would silently produce WRONG results from partial input. Instead FAIL the sender: it
+                // pushes an error into the channel so the consumer's stream yields an ERROR and the
+                // query fails loudly rather than under-delivering. (#17: native df_sender_fail.)
+                drainFailure = t;
+                LOGGER.error(
+                    "ShuffleScanHandler.drain FAILED for " + inputId + " — partition stream truncated, failing the consumer stream",
+                    t
+                );
             } finally {
                 try {
-                    finalSender.close();
+                    chunkIter.close();
                 } catch (Throwable closeErr) {
-                    LOGGER.warn("ShuffleScanHandler.drain: sender.close failed for " + inputId, closeErr);
+                    LOGGER.warn("ShuffleScanHandler.drain: chunk iterator close failed for " + inputId, closeErr);
+                }
+                try {
+                    if (drainFailure != null) {
+                        // Truncated partition: surface an error to the consumer (not a clean EOF).
+                        finalSender.fail("shuffle drain failed for " + inputId + " (side=" + side + "): " + drainFailure);
+                    } else {
+                        finalSender.close();
+                    }
+                } catch (Throwable closeErr) {
+                    LOGGER.warn("ShuffleScanHandler.drain: sender teardown failed for " + inputId, closeErr);
                 }
             }
         }, "shuffle-drain-" + node.getQueryId() + "-" + node.getTargetStageId() + "-" + side + "-" + node.getShufflePartitionIndex());

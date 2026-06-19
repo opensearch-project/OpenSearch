@@ -17,8 +17,12 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.FieldType;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -39,7 +43,22 @@ public class OpenSearchBroadcastScan extends AbstractRelNode implements OpenSear
 
     private final int buildStageId;
     private final List<String> viableBackends;
+    private final List<FieldStorageInfo> outputFieldStorage;
 
+    /**
+     * Convenience ctor: SYNTHESIZES per-column {@link FieldStorageInfo} from {@code rowType} (one
+     * non-derived, materialized physical column per output field). A broadcast scan is a leaf whose
+     * rows arrive fully materialized from the injected memtable, so each output column is a physical
+     * field identified by its own name — there are no derived columns and no upstream physical deps.
+     *
+     * <p>Reporting real per-column storage (not an empty list) is REQUIRED: when a Project or PARTIAL
+     * aggregate sits above a join that has a broadcast scan as one input (the distributed-agg-over-join
+     * path), the consuming operator resolves {@code RexInputRef}s against the union of its inputs'
+     * {@code getOutputFieldStorage()}. An empty list here truncates that union, so a ref to a column
+     * past the truncation throws "RexInputRef[N] has no matching FieldStorageInfo entry" at fragment
+     * conversion (observed on TPC-H q5/q10). Use {@link #OpenSearchBroadcastScan(RelOptCluster,
+     * RelTraitSet, int, RelDataType, List, List)} to pass the build subtree's exact storage instead.
+     */
     public OpenSearchBroadcastScan(
         RelOptCluster cluster,
         RelTraitSet traitSet,
@@ -47,10 +66,44 @@ public class OpenSearchBroadcastScan extends AbstractRelNode implements OpenSear
         RelDataType rowType,
         List<String> viableBackends
     ) {
+        this(cluster, traitSet, buildStageId, rowType, viableBackends, synthesizeStorage(rowType));
+    }
+
+    public OpenSearchBroadcastScan(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        int buildStageId,
+        RelDataType rowType,
+        List<String> viableBackends,
+        List<FieldStorageInfo> outputFieldStorage
+    ) {
         super(cluster, traitSet);
         this.buildStageId = buildStageId;
         this.viableBackends = viableBackends;
         this.rowType = rowType;
+        this.outputFieldStorage = outputFieldStorage;
+    }
+
+    /** One non-derived (physical, materialized) {@link FieldStorageInfo} per output field — used when
+     *  the caller has no upstream storage to thread through (the build subtree's own row type is the
+     *  authority for a fully-materialized broadcast leaf). */
+    private static List<FieldStorageInfo> synthesizeStorage(RelDataType rowType) {
+        List<FieldStorageInfo> storage = new ArrayList<>(rowType.getFieldCount());
+        for (RelDataTypeField field : rowType.getFieldList()) {
+            storage.add(
+                new FieldStorageInfo(
+                    field.getName(),
+                    field.getType().getSqlTypeName().getName(),
+                    FieldType.fromSqlTypeName(field.getType().getSqlTypeName()),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    /* derived */ false,
+                    new LinkedHashSet<>()
+                )
+            );
+        }
+        return storage;
     }
 
     public int getBuildStageId() {
@@ -73,12 +126,12 @@ public class OpenSearchBroadcastScan extends AbstractRelNode implements OpenSear
 
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        return List.of();
+        return outputFieldStorage;
     }
 
     @Override
     public OpenSearchBroadcastScan copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchBroadcastScan(getCluster(), traitSet, buildStageId, rowType, viableBackends);
+        return new OpenSearchBroadcastScan(getCluster(), traitSet, buildStageId, rowType, viableBackends, outputFieldStorage);
     }
 
     @Override
@@ -93,7 +146,7 @@ public class OpenSearchBroadcastScan extends AbstractRelNode implements OpenSear
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchBroadcastScan(getCluster(), getTraitSet(), buildStageId, rowType, List.of(backend));
+        return new OpenSearchBroadcastScan(getCluster(), getTraitSet(), buildStageId, rowType, List.of(backend), outputFieldStorage);
     }
 
     @Override

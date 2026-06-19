@@ -38,6 +38,13 @@ public final class DatafusionPartitionSender extends NativeHandle {
      */
     private volatile boolean receiverDropped;
 
+    /**
+     * Non-null once {@link #fail} was called: the reason to push into the partition stream as an error
+     * before teardown. Read by {@link #doClose} to pick {@code senderFail} (error then free) over
+     * {@code senderClose} (clean-EOF free). Set under the write lock before the once-only close runs.
+     */
+    private volatile String failReason;
+
     public DatafusionPartitionSender(long senderPtr) {
         super(senderPtr);
     }
@@ -76,8 +83,37 @@ public final class DatafusionPartitionSender extends NativeHandle {
         }
     }
 
+    /**
+     * Fails the partition stream instead of closing it cleanly: records {@code reason} and runs the
+     * once-only teardown, which {@link #doClose} routes to {@code senderFail} — pushing an error into
+     * the channel so the consumer's stream yields an ERROR (failing the join/agg) rather than a clean
+     * EOF. Use this when the producer/drain died mid-stream and the partition is TRUNCATED; a clean
+     * close would let the consumer silently compute a result from partial input. Idempotent (the
+     * NativeHandle once-only close guard ensures the native sender is freed exactly once); a {@link
+     * #close} after a {@link #fail} is a no-op (and vice-versa).
+     */
+    public void fail(String reason) {
+        lifecycle.writeLock().lock();
+        try {
+            // Set the reason BEFORE close() so doClose (which runs inside close()'s once-only guard)
+            // sees it. If already closed, this is a harmless no-op (close() won't re-run doClose).
+            this.failReason = reason == null ? "unknown" : reason;
+            super.close();
+            logger.debug("[sender] failed ptr={} reason={}", ptr, reason);
+        } finally {
+            lifecycle.writeLock().unlock();
+        }
+    }
+
     @Override
     protected void doClose() {
-        NativeBridge.senderClose(ptr);
+        // Routed by failReason: an explicit fail() pushes an error into the stream (consumer sees an
+        // ERROR, not clean EOF) then frees the sender; a normal close just frees it (clean EOF).
+        String reason = failReason;
+        if (reason != null) {
+            NativeBridge.senderFail(ptr, reason);
+        } else {
+            NativeBridge.senderClose(ptr);
+        }
     }
 }

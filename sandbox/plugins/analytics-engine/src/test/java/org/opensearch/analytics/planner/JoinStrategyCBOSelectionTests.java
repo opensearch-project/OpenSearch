@@ -119,6 +119,31 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertContainsBroadcastExchange("dim (small) × fact (large) must pick BROADCAST", result);
     }
 
+    /**
+     * MODEST asymmetry (the {@code BroadcastJoinIT} shape: dim≈5 rows, fact≈30 rows — only a ~6×
+     * ratio, not the 10,000× of the other scenarios). This is the case that regressed when the
+     * upstream merge added {@code widthFactor} to {@code OpenSearchExchangeReducer.computeSelfCost}
+     * but NOT to the broadcast/shuffle exchanges: the distorted cost ratio made CBO fall back to
+     * coordinator-centric for the small-dim × large-fact join. With widthFactor applied uniformly
+     * across all three exchanges the pre-merge ratio is restored and BROADCAST wins again. The big-
+     * ratio scenarios above passed throughout (broadcast wins by orders of magnitude regardless), so
+     * they did NOT catch this — this modest-ratio case is the guard.
+     */
+    public void testModestAsymmetryStillPicksBroadcast() {
+        PlannerContext context = buildMppContext(
+            Map.of("dim_small", 1, "fact_large", 5),
+            Map.of("dim_small", 5L, "fact_large", 30L),
+            /* mppEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "dim_small", "fact_large", JoinRelType.INNER, /* equi */ true), context);
+
+        assertContainsBroadcastExchange(
+            "modest 6x asymmetry (dim=5 × fact=30, the BroadcastJoinIT shape) must still pick BROADCAST",
+            result
+        );
+        assertDoesNotContainShuffleExchange("modest asymmetry must not shuffle a tiny dim", result);
+    }
+
     // ── Contract: mpp.enabled=false ────────────────────────────────────────
 
     public void testMppDisabledForcesCoordCentric() {

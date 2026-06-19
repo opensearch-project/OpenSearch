@@ -50,6 +50,13 @@ use tokio::sync::mpsc;
 /// DataFusion execute side falls behind.
 const CHANNEL_CAPACITY: usize = 4;
 
+/// Upper bound on how long the failure path ([`PartitionStreamSender::try_fail`]) will wait for a
+/// momentarily-full channel to make room for the terminal error before giving up and letting the
+/// sender-drop signal EOF. Bounded so a failed/truncated partition never deadlocks the Java drain
+/// thread against a consumer that is alive but not currently polling this input. Generous enough that
+/// a consumer doing normal work drains a slot well within it. (codex review round-4 SHOULD-FIX #3.)
+const FAIL_SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Producer side of a partition stream.
 ///
 /// Owned by the FFM bridge via `Box::into_raw`; dropping the sender (e.g. via
@@ -94,6 +101,36 @@ impl PartitionStreamSender {
         match handle.block_on(self.tx.send(batch)) {
             Ok(()) => SendOutcome::Sent,
             Err(_) => SendOutcome::ReceiverDropped,
+        }
+    }
+
+    /// Delivers a TERMINAL error into the stream WITHOUT blocking indefinitely. Used by the failure
+    /// path (`sender_fail`) when the producer/drain died mid-stream: the consumer must see an `Err`
+    /// (so the query fails) rather than a clean EOF, but the failure path must NOT deadlock the way a
+    /// plain `send_blocking` would if the bounded channel is full and the consumer is alive but not
+    /// polling (e.g. blocked on a hash-join's other input). Strategy: `try_send` first (non-blocking);
+    /// if the channel is momentarily Full, drive a SINGLE bounded-timeout async send so a briefly-busy
+    /// consumer still receives the error, then give up. Either way this returns promptly so the caller
+    /// can drop the sender (signalling EOF) and never hangs the drain thread. Best-effort by design:
+    /// if the error can't be delivered the dropped sender still terminates the stream as EOF, and the
+    /// loud Java-side ERROR log records the truncation. (codex review round-4 SHOULD-FIX #3.)
+    pub fn try_fail(&self, err: DataFusionError, handle: &Handle) -> SendOutcome {
+        use tokio::sync::mpsc::error::TrySendError;
+        match self.tx.try_send(Err(err)) {
+            Ok(()) => SendOutcome::Sent,
+            Err(TrySendError::Closed(_)) => SendOutcome::ReceiverDropped,
+            Err(TrySendError::Full(batch)) => {
+                // Channel full: the consumer is alive but hasn't drained the queued batches yet. Give
+                // it a bounded window to make room rather than blocking forever; if the window lapses,
+                // drop the error and let the sender-drop signal EOF (no deadlock).
+                let sent = handle.block_on(async {
+                    tokio::time::timeout(FAIL_SEND_TIMEOUT, self.tx.send(batch)).await
+                });
+                match sent {
+                    Ok(Ok(())) => SendOutcome::Sent,
+                    _ => SendOutcome::ReceiverDropped, // timeout or receiver gone — give up, don't hang
+                }
+            }
         }
     }
 }

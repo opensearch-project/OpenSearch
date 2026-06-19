@@ -119,9 +119,11 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_LOCAL_PLAN;
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
+    private static final MethodHandle SENDER_FAIL;
     private static final MethodHandle REGISTER_MEMTABLE;
     private static final MethodHandle REGISTER_MEMTABLE_ON_SESSION_CONTEXT;
     private static final MethodHandle REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT;
+    private static final MethodHandle REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT_FROM_PARTIAL_PLAN;
     private static final MethodHandle PARTITION_BATCH_BY_HASH;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
@@ -354,6 +356,12 @@ public final class NativeBridge {
         // void df_sender_close(sender_ptr)
         SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        // i64 df_sender_fail(sender_ptr, reason_ptr, reason_len)
+        SENDER_FAIL = linker.downcallHandle(
+            lib.find("df_sender_fail").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len,
         // partial_plan_ptr, partial_plan_len,
         // array_ptrs, schema_ptrs, n_batches,
@@ -397,6 +405,18 @@ public final class NativeBridge {
         // Returns the PartitionStreamSender pointer (cast to i64) for the M2 hash-shuffle worker.
         REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT = linker.downcallHandle(
             lib.find("df_register_partition_stream_on_session_context").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT_FROM_PARTIAL_PLAN = linker.downcallHandle(
+            lib.find("df_register_partition_stream_on_session_context_from_partial_plan").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
@@ -1309,6 +1329,20 @@ public final class NativeBridge {
     }
 
     /**
+     * Fails the sender: pushes an error carrying {@code reason} into the partition stream so the
+     * consumer's {@code RecordBatchStream} yields an ERROR (failing the join/agg) instead of a clean
+     * EOF, then drops the sender (same teardown as {@link #senderClose}). Used when the Java drain
+     * thread hits a mid-stream failure (e.g. a spill-read error) that truncates the partition —
+     * turning a silently-incomplete result into a loud query failure. Tolerates a zero pointer.
+     */
+    public static void senderFail(long senderPtr, String reason) {
+        try (var call = new NativeCall()) {
+            var msg = call.str(reason == null ? "unknown" : reason);
+            call.invoke(SENDER_FAIL, senderPtr, msg.segment(), msg.len());
+        }
+    }
+
+    /**
      * Memtable variant of {@link #registerPartitionStream}: hands across a list of
      * already-exported Arrow C Data batches in two parallel pointer arrays so the native side
      * can build a {@code MemTable} in one shot. Schema is derived by lowering the producer-side
@@ -1414,6 +1448,41 @@ public final class NativeBridge {
                 id.len(),
                 call.bytes(schemaIpc),
                 (long) schemaIpc.length
+            );
+        }
+    }
+
+    /**
+     * M3 hash-shuffle AGGREGATE worker variant of {@link #registerPartitionStreamOnSessionContext}.
+     * Registers the same kind of partitioned streaming input on a {@code SessionContextHandle}, but
+     * derives the table schema from the producer's PARTIAL Substrait plan (the same derivation the
+     * coordinator-reduce {@link #registerPartitionStream} uses) instead of the raw producer IPC
+     * header.
+     *
+     * <p>This registers the streaming table under the worker FINAL fragment's logical column names
+     * (e.g. {@code sum_qty}) rather than the producer's physical aggregate-state names (e.g.
+     * {@code sum_qty[sum]}). DataFusion's Substrait consumer binds the FINAL {@code base_schema} to
+     * the provider by name, so the logical-named registration is what makes the FINAL resolve
+     * (otherwise {@code No field named sum_qty}). The producer still ships physically-named batches;
+     * the streaming channel accepts them positionally.
+     *
+     * @return the sender pointer (non-zero); caller must free via {@link #senderClose} when done.
+     */
+    public static long registerPartitionStreamOnSessionContextFromPartialPlan(
+        long sessionContextHandlePtr,
+        String inputId,
+        byte[] partialPlanBytes
+    ) {
+        NativeHandle.validatePointer(sessionContextHandlePtr, "sessionContextHandle");
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT_FROM_PARTIAL_PLAN,
+                sessionContextHandlePtr,
+                id.segment(),
+                id.len(),
+                call.bytes(partialPlanBytes),
+                (long) partialPlanBytes.length
             );
         }
     }

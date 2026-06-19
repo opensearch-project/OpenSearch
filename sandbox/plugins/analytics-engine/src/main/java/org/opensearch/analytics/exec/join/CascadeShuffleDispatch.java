@@ -86,83 +86,8 @@ public final class CascadeShuffleDispatch {
                 (levelIndex, partitionCount) -> resolveTargetWorkerNodeIds(partitionCount)
             );
 
-            // Enrich each worker level bottom-up. A producer feeding an intermediate worker may
-            // itself be a worker (its instructions already carry setup+scan); we append the producer
-            // instruction so the order stays [setup, scan…, producer].
-            for (CascadeShuffleDAGRewriter.WorkerLevel level : rewritten.levels()) {
-                Stage worker = level.worker();
-                int workerStageId = worker.getStageId();
-                List<String> targets = level.targetNodeIds();
-                int partitionCount = level.partitionCount();
-
-                // Fail fast if the resolved target list doesn't have exactly one node per partition
-                // (empty cluster / undersized resolution). Without this, a worker tier could be built
-                // with zero/too-few tasks or producers could ship to a short node list — silently
-                // wrong results or an IndexOutOfBounds deep in dispatch. Mirrors the guard in
-                // HashShuffleDispatch. (codex review R5 should-fix)
-                if (targets.size() != partitionCount) {
-                    throw new IllegalStateException(
-                        "CascadeShuffleDispatch: worker stage "
-                            + workerStageId
-                            + " resolved "
-                            + targets.size()
-                            + " target nodes but partitionCount="
-                            + partitionCount
-                    );
-                }
-
-                int leftExpected = expectedSendersFor(level.leftProducer(), partitionCount);
-                int rightExpected = expectedSendersFor(level.rightProducer(), partitionCount);
-
-                // Producers ship to THIS worker's partitions (its node list), tagged with the side.
-                // The hash keys are THIS join level's per-side keys — passed explicitly because an
-                // intermediate-worker producer's own exchange info is SINGLETON (empty keys); it must
-                // partition its join OUTPUT on the parent join's keys, not its (gathered) input's.
-                HashShuffleDispatch.enrichProducerAlternatives(
-                    level.leftProducer(),
-                    level.leftKeys(),
-                    ctx.queryId(),
-                    workerStageId,
-                    partitionCount,
-                    targets,
-                    "left",
-                    capabilityRegistry
-                );
-                HashShuffleDispatch.enrichProducerAlternatives(
-                    level.rightProducer(),
-                    level.rightKeys(),
-                    ctx.queryId(),
-                    workerStageId,
-                    partitionCount,
-                    targets,
-                    "right",
-                    capabilityRegistry
-                );
-                // The worker consumes its two producers' partitions. enrichWorkerAlternatives prepends
-                // a setup placeholder and appends per-(partition,side) scans; a producer instruction
-                // (added above when this worker also feeds a higher level) stays AFTER the scans
-                // because enrichProducerAlternatives appended it to the worker's own alternatives.
-                HashShuffleDispatch.enrichWorkerAlternatives(
-                    worker,
-                    partitionCount,
-                    leftExpected,
-                    rightExpected,
-                    ctx.queryId(),
-                    level.leftProducer().getStageId(),
-                    level.rightProducer().getStageId()
-                );
-
-                LOGGER.debug(
-                    "[CascadeShuffleDispatch] level worker={} left={} right={} partitions={} leftSenders={} rightSenders={} targets={}",
-                    workerStageId,
-                    level.leftProducer().getStageId(),
-                    level.rightProducer().getStageId(),
-                    partitionCount,
-                    leftExpected,
-                    rightExpected,
-                    targets
-                );
-            }
+            // Enrich each worker level bottom-up (shuffle producer/scan/worker instructions).
+            enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry);
 
             QueryExecution exec = scheduler.execute(ctx.withDag(rewritten.dag()), terminal);
             if (queryExecutionSink != null) {
@@ -170,6 +95,96 @@ public final class CascadeShuffleDispatch {
             }
         } catch (Exception e) {
             terminal.onFailure(e);
+        }
+    }
+
+    /**
+     * Enriches each cascade worker level bottom-up with its shuffle producer / scan / worker
+     * instructions. Shared by {@link CascadeShuffleDispatch} and the distributed-agg-over-cascade
+     * dispatcher ({@code DistributedAggOverJoinDispatch}), which reuses the exact same per-level
+     * shuffle wiring (it only adds a broadcast build/inject phase on top). A producer feeding an
+     * intermediate worker may itself be a worker (its instructions already carry setup+scan); the
+     * producer instruction is appended so the order stays {@code [setup, scan…, producer]}.
+     */
+    static void enrichLevels(
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels,
+        QueryContext ctx,
+        ClusterService clusterService,
+        CapabilityRegistry capabilityRegistry
+    ) {
+        for (CascadeShuffleDAGRewriter.WorkerLevel level : levels) {
+            Stage worker = level.worker();
+            int workerStageId = worker.getStageId();
+            List<String> targets = level.targetNodeIds();
+            int partitionCount = level.partitionCount();
+
+            // Fail fast if the resolved target list doesn't have exactly one node per partition
+            // (empty cluster / undersized resolution). Without this, a worker tier could be built
+            // with zero/too-few tasks or producers could ship to a short node list — silently
+            // wrong results or an IndexOutOfBounds deep in dispatch. Mirrors the guard in
+            // HashShuffleDispatch. (codex review R5 should-fix)
+            if (targets.size() != partitionCount) {
+                throw new IllegalStateException(
+                    "CascadeShuffleDispatch: worker stage "
+                        + workerStageId
+                        + " resolved "
+                        + targets.size()
+                        + " target nodes but partitionCount="
+                        + partitionCount
+                );
+            }
+
+            int leftExpected = expectedSendersFor(level.leftProducer(), partitionCount, clusterService);
+            int rightExpected = expectedSendersFor(level.rightProducer(), partitionCount, clusterService);
+
+            // Producers ship to THIS worker's partitions (its node list), tagged with the side.
+            // The hash keys are THIS join level's per-side keys — passed explicitly because an
+            // intermediate-worker producer's own exchange info is SINGLETON (empty keys); it must
+            // partition its join OUTPUT on the parent join's keys, not its (gathered) input's.
+            HashShuffleDispatch.enrichProducerAlternatives(
+                level.leftProducer(),
+                level.leftKeys(),
+                ctx.queryId(),
+                workerStageId,
+                partitionCount,
+                targets,
+                "left",
+                capabilityRegistry
+            );
+            HashShuffleDispatch.enrichProducerAlternatives(
+                level.rightProducer(),
+                level.rightKeys(),
+                ctx.queryId(),
+                workerStageId,
+                partitionCount,
+                targets,
+                "right",
+                capabilityRegistry
+            );
+            // The worker consumes its two producers' partitions. enrichWorkerAlternatives prepends
+            // a setup placeholder and appends per-(partition,side) scans; a producer instruction
+            // (added above when this worker also feeds a higher level) stays AFTER the scans
+            // because enrichProducerAlternatives appended it to the worker's own alternatives.
+            HashShuffleDispatch.enrichWorkerAlternatives(
+                worker,
+                partitionCount,
+                leftExpected,
+                rightExpected,
+                ctx.queryId(),
+                level.leftProducer().getStageId(),
+                level.rightProducer().getStageId()
+            );
+
+            LOGGER.debug(
+                "[CascadeShuffleDispatch] level worker={} left={} right={} partitions={} leftSenders={} rightSenders={} targets={}",
+                workerStageId,
+                level.leftProducer().getStageId(),
+                level.rightProducer().getStageId(),
+                partitionCount,
+                leftExpected,
+                rightExpected,
+                targets
+            );
         }
     }
 
@@ -197,7 +212,7 @@ public final class CascadeShuffleDispatch {
      * one {@code ExecutionTarget} per task, so {@code resolve(...).size()} is uniform. Falls back to
      * the worker's own {@code partitionCount} when the producer has no resolver.
      */
-    private int expectedSendersFor(Stage producer, int fallbackPartitionCount) {
+    private static int expectedSendersFor(Stage producer, int fallbackPartitionCount, ClusterService clusterService) {
         if (producer.getTargetResolver() == null) {
             return Math.max(fallbackPartitionCount, 1);
         }

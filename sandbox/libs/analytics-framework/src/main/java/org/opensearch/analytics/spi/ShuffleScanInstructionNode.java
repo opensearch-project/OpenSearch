@@ -48,6 +48,7 @@ public class ShuffleScanInstructionNode implements InstructionNode {
     private final String queryId;
     private final int targetStageId;
     private final String side;
+    private final byte[] producerPlanBytes;
 
     public ShuffleScanInstructionNode(
         String namedInputId,
@@ -57,12 +58,25 @@ public class ShuffleScanInstructionNode implements InstructionNode {
         int targetStageId,
         String side
     ) {
+        this(namedInputId, shufflePartitionIndex, expectedSenders, queryId, targetStageId, side, null);
+    }
+
+    public ShuffleScanInstructionNode(
+        String namedInputId,
+        int shufflePartitionIndex,
+        int expectedSenders,
+        String queryId,
+        int targetStageId,
+        String side,
+        byte[] producerPlanBytes
+    ) {
         this.namedInputId = namedInputId;
         this.shufflePartitionIndex = shufflePartitionIndex;
         this.expectedSenders = expectedSenders;
         this.queryId = queryId;
         this.targetStageId = targetStageId;
         this.side = side;
+        this.producerPlanBytes = producerPlanBytes;
     }
 
     public ShuffleScanInstructionNode(StreamInput in) throws IOException {
@@ -72,6 +86,7 @@ public class ShuffleScanInstructionNode implements InstructionNode {
         this.queryId = in.readString();
         this.targetStageId = in.readVInt();
         this.side = in.readString();
+        this.producerPlanBytes = in.readBoolean() ? in.readByteArray() : null;
     }
 
     public String getNamedInputId() {
@@ -98,6 +113,17 @@ public class ShuffleScanInstructionNode implements InstructionNode {
         return side;
     }
 
+    /** The producer's converted PARTIAL-aggregate plan bytes, or {@code null}. When present, the
+     *  worker handler derives the registered input schema by RE-LOWERING this plan (matching the
+     *  coordinator-reduce path's {@code derive_schema_from_partial_plan}) instead of trusting the
+     *  raw Arrow IPC schema, whose physical partial-state column names ({@code sum_qty[sum]}) don't
+     *  match the FINAL Substrait's logical {@code base_schema} names ({@code sum_qty}) — the M3
+     *  agg-shuffle worker-schema mismatch (TPC-H q1/q15). Only the agg-shuffle dispatch sets this;
+     *  the join-shuffle path leaves it null (its producers ship raw rows, names already match). */
+    public byte[] getProducerPlanBytes() {
+        return producerPlanBytes;
+    }
+
     @Override
     public InstructionType type() {
         return InstructionType.SHUFFLE_SCAN;
@@ -111,5 +137,11 @@ public class ShuffleScanInstructionNode implements InstructionNode {
         out.writeString(queryId);
         out.writeVInt(targetStageId);
         out.writeString(side);
+        if (producerPlanBytes != null) {
+            out.writeBoolean(true);
+            out.writeByteArray(producerPlanBytes);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 }

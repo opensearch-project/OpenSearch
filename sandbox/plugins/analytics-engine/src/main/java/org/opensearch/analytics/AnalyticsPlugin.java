@@ -77,6 +77,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -146,6 +147,9 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private AnalyticsSearchService searchService;
     private final MppStrategyMetrics mppStrategyMetrics = new MppStrategyMetrics();
     private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
+    // Resolved once at startup: <path.data>/shuffle_spill, used when the spill.directory setting is
+    // left at its empty default. Null only when the node has no data path (never in practice).
+    private Path shuffleSpillDefaultRoot;
     private AnalyticsSearchSlowLog analyticsSearchSlowLog;
     private AnalyticsFragmentSlowLog analyticsFragmentSlowLog;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
@@ -203,6 +207,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         applyShuffleBudget(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT, this::applyShuffleBudget);
+        // Resolve the spill root once from the environment's first data path (settings default ""
+        // means "use <path.data>/shuffle_spill"); a non-empty setting overrides it. Then wire the
+        // spill config from settings (initial value + dynamic updates). Default OFF — when disabled
+        // a per-query budget breach stays the fail-fast throw (behavior unchanged).
+        this.shuffleSpillDefaultRoot = environment.dataFiles().length > 0 ? environment.dataFiles()[0].resolve("shuffle_spill") : null;
+        applyShuffleSpillConfig(clusterService.getClusterSettings());
+        ClusterSettings cs = clusterService.getClusterSettings();
+        cs.addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_SPILL_ENABLED, enabled -> applyShuffleSpillConfig(cs));
+        cs.addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_SPILL_DIRECTORY, dir -> applyShuffleSpillConfig(cs));
+        cs.addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_SPILL_MAX_BYTES, max -> applyShuffleSpillConfig(cs));
         searchService.setShuffleSenderDeps(client, threadPool, clusterService);
         DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
@@ -247,6 +261,32 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
         shuffleBufferManager.setBudgets(budget, budget);
         logger.info("[analytics] hash-shuffle node budget set to {}% of max heap = {} bytes", percent, budget);
+    }
+
+    /**
+     * Resolve and apply the hash-shuffle disk-spill config from current settings. The directory is
+     * the {@code analytics.mpp.shuffle.spill.directory} setting when non-empty, else
+     * {@code <path.data>/shuffle_spill}. When spill is enabled but no spill root can be resolved (no
+     * data path), spill is left OFF (the manager falls back to the fail-fast budget path). Called at
+     * startup and on any of the three spill settings changing.
+     */
+    private void applyShuffleSpillConfig(ClusterSettings clusterSettings) {
+        boolean enabled = clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_SPILL_ENABLED);
+        String configuredDir = clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_SPILL_DIRECTORY);
+        long maxBytes = clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_SPILL_MAX_BYTES);
+        Path dir;
+        if (configuredDir != null && configuredDir.isEmpty() == false) {
+            dir = Path.of(configuredDir);
+        } else {
+            dir = shuffleSpillDefaultRoot;
+        }
+        boolean effective = enabled && dir != null;
+        shuffleBufferManager.setSpillConfig(effective, dir, maxBytes);
+        if (enabled && dir == null) {
+            logger.warn("[analytics] hash-shuffle spill requested but no data path is available; spill stays disabled");
+        } else {
+            logger.info("[analytics] hash-shuffle spill enabled={}, dir={}, max_bytes={}", effective, dir, maxBytes);
+        }
     }
 
     @Override

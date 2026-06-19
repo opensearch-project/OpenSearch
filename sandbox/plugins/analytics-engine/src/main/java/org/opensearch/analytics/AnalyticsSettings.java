@@ -152,6 +152,31 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Per-strategy sub-toggle for <em>distributed aggregation over a cascade join</em> (the q5/q10
+     * shape: {@code Sort? → stats … by … → dimension-joins → bottom hash-shuffle join}). When
+     * {@code true} (default, under {@link #MPP_ENABLED} + {@link #MPP_SHUFFLE_CASCADE_ENABLED}), a
+     * post-CBO DAG rewrite ({@code DistributedAggOverJoinRewriter}) pushes a PARTIAL aggregate onto
+     * the cascade top worker — moving the dimension joins onto the worker as BROADCAST inputs so the
+     * worker runs the whole pre-aggregate pipeline per partition — and leaves the FINAL aggregate
+     * (plus Sort) on the coordinator. This caps the coordinator gather at {@code N × #distinct-groups}
+     * partial rows instead of the full {@code ~1.7M} post-join rows, so q5/q10 at sf=10 stop OOMing
+     * the coordinator with {@code ReduceSizeExceededException}.
+     *
+     * <p>When {@code false}, the aggregate stays a SINGLE on the coordinator over the gathered join
+     * output (pre-distributed-agg behavior) — a kill switch if a distributed-agg-specific issue is
+     * seen, without disabling the cascade join lift itself. Only SUM/COUNT/MIN/MAX/AVG-class
+     * decomposable aggregates over an all-INNER cascade are pushed; STATE_EXPANDING /
+     * COUNT(DISTINCT) / percentile shapes stay coordinator-centric regardless (the shared
+     * {@code OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit} gate).
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED = Setting.boolSetting(
+        "analytics.mpp.shuffle.aggregate_over_join.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-strategy sub-toggle for hash-shuffle <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
      * strategy emitted by {@code OpenSearchAggregateShuffleSplitRule}: PARTIAL on shards →
      * hash-shuffle on group keys → FINAL on data-node workers in parallel).
@@ -166,6 +191,59 @@ public final class AnalyticsSettings {
     public static final Setting<Boolean> MPP_SHUFFLE_AGGREGATE_ENABLED = Setting.boolSetting(
         "analytics.mpp.shuffle.aggregate.enabled",
         true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
+     * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
+     * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
+     * {@code ShuffleBufferExceededException}. This lets multi-GB shuffle intermediates (TPC-H q5/q10
+     * at sf=10) RUN: the per-query on-heap footprint is bounded by the budget, the rest lives on disk,
+     * and the consumer drains spilled chunks back (in arrival order) followed by the in-memory tail —
+     * preserving the proven buffer-all consumer contract.
+     *
+     * <p>When {@code false} (default), behavior is byte-identical to the pre-spill fail-fast path: a
+     * per-query budget breach still throws {@code ShuffleBufferExceededException}. The node-budget
+     * REJECT_RETRY (transient cross-query contention) path is unchanged either way.
+     *
+     * <p>Even with spill enabled the query still fails — re-messaged to name {@code spill.max_bytes} /
+     * disk-full — once the disk ceiling {@link #MPP_SHUFFLE_SPILL_MAX_BYTES} is hit or a spill write
+     * I/O error occurs. Gated under {@link #MPP_ENABLED}.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_SPILL_ENABLED = Setting.boolSetting(
+        "analytics.mpp.shuffle.spill.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Directory under which hash-shuffle spill files are written, one subdir per query
+     * ({@code <directory>/<queryId>/}). Default empty {@code ""} resolves at wiring time to
+     * {@code <path.data>/shuffle_spill} (the node's first data path), so operators rarely need to set
+     * it. When set, it must be a writable absolute path on the data node. Only consulted when
+     * {@link #MPP_SHUFFLE_SPILL_ENABLED} is {@code true}.
+     */
+    public static final Setting<String> MPP_SHUFFLE_SPILL_DIRECTORY = Setting.simpleString(
+        "analytics.mpp.shuffle.spill.directory",
+        "",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Hard disk ceiling for hash-shuffle spill, in bytes, across all of this node's spill files.
+     * Exceeding it (or hitting a disk-full / write I/O error) is the new terminal failure when spill
+     * is enabled — surfaced as a re-messaged {@code ShuffleBufferExceededException} naming
+     * {@code spill.max_bytes} / disk rather than the on-heap budget. Default 50 GiB
+     * ({@code 53687091200}). Only consulted when {@link #MPP_SHUFFLE_SPILL_ENABLED} is {@code true}.
+     */
+    public static final Setting<Long> MPP_SHUFFLE_SPILL_MAX_BYTES = Setting.longSetting(
+        "analytics.mpp.shuffle.spill.max_bytes",
+        53687091200L,
+        0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -194,6 +272,10 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_SHUFFLE_CASCADE_ENABLED,
+        MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED,
+        MPP_SHUFFLE_SPILL_ENABLED,
+        MPP_SHUFFLE_SPILL_DIRECTORY,
+        MPP_SHUFFLE_SPILL_MAX_BYTES,
         MPP_BROADCAST_PROBE_ESTIMATE
     );
 }
