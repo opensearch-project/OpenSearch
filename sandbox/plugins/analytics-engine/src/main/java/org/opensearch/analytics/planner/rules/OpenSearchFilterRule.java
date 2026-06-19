@@ -25,8 +25,8 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.FieldReferenceExtractor;
 import org.opensearch.analytics.spi.FieldReferences;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
@@ -175,18 +175,20 @@ public class OpenSearchFilterRule extends RelOptRule {
             if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
                 if (TextRelevanceFieldValidator.usesLiteralFieldEncoding(function)) {
                     // A backend that declares full-text capability for these multi-field functions
-                    // MUST register a FieldReferenceExtractor so the planner can see fields named
-                    // inside the query string (not just the `fields` MAP). Missing extractor is a
-                    // wiring error, not a query error — fail explicitly rather than under-validating.
-                    FieldReferenceExtractor extractor = registry.fieldReferenceExtractor(function);
-                    if (extractor == null) {
+                    // MUST register a DelegatedPredicateSerializer whose referencedFields() surfaces
+                    // the fields named inside the query string (not just the `fields` MAP). A missing
+                    // serializer (or one that does not implement referencedFields) is a wiring error,
+                    // not a query error — fail explicitly rather than under-validating.
+                    DelegatedPredicateSerializer serializer = registry.predicateSerializer(function);
+                    FieldReferences refs = serializer == null ? null : serializer.referencedFields(predicate, fieldStorageInfos);
+                    if (refs == null) {
                         throw new IllegalStateException(
-                            "No FieldReferenceExtractor registered for full-text function ["
+                            "No field-reference extraction available for full-text function ["
                                 + predicate.getOperator().getName()
-                                + "]. A backend declaring this function's filter capability must also provide an extractor."
+                                + "]. A backend declaring this function's filter capability must provide a"
+                                + " DelegatedPredicateSerializer that implements referencedFields()."
                         );
                     }
-                    FieldReferences refs = extractor.referencedFields(predicate, fieldStorageInfos);
                     List<String> literalFieldNames = refs.literalFields();
                     boolean lenient = refs.lenient();
                     if (literalFieldNames.isEmpty()) {

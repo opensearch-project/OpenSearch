@@ -11,9 +11,10 @@ package org.opensearch.analytics.planner;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
-import org.opensearch.analytics.spi.FieldReferenceExtractor;
 import org.opensearch.analytics.spi.FieldReferences;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -103,23 +104,31 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     }
 
     /**
-     * Default field-reference extractors for the multi-field full-text functions, mirroring the
-     * planner's pre-extractor behavior: literals come from the {@code fields} MAP, fan-out when
-     * empty, non-lenient. Tests needing in-string fields or explicit lenient override this.
+     * Default delegated-predicate serializers for the multi-field full-text functions. Their
+     * {@code referencedFields} mirrors the planner's pre-extractor behavior: literals come from the
+     * {@code fields} MAP, fan-out when empty, non-lenient. {@code serialize} is unused in planner
+     * tests. Tests needing in-string fields or explicit lenient override this.
      */
     @Override
-    protected Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors() {
-        FieldReferenceExtractor mapLiteralExtractor = (call, fieldStorage) -> {
-            List<String> literals = extractLiteralFieldNames(call);
-            return new FieldReferences(literals, List.of(), false);
+    public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        DelegatedPredicateSerializer mapLiteralSerializer = new DelegatedPredicateSerializer() {
+            @Override
+            public byte[] serialize(RexCall call, List<FieldStorageInfo> fieldStorage) {
+                throw new UnsupportedOperationException("Mock backend does not serialize predicates");
+            }
+
+            @Override
+            public FieldReferences referencedFields(RexCall call, List<FieldStorageInfo> fieldStorage) {
+                return new FieldReferences(extractLiteralFieldNames(call), List.of(), false);
+            }
         };
         return Map.of(
             ScalarFunction.QUERY_STRING,
-            mapLiteralExtractor,
+            mapLiteralSerializer,
             ScalarFunction.SIMPLE_QUERY_STRING,
-            mapLiteralExtractor,
+            mapLiteralSerializer,
             ScalarFunction.MULTI_MATCH,
-            mapLiteralExtractor
+            mapLiteralSerializer
         );
     }
 

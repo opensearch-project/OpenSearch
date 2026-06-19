@@ -23,7 +23,7 @@ import java.util.Set;
  * <p>Multi-field full-text functions ({@code multi_match}, {@code query_string},
  * {@code simple_query_string}) encode field names as string literals inside a nested
  * {@code MAP_VALUE_CONSTRUCTOR} rather than through {@link org.apache.calcite.rex.RexInputRef}.
- * The backend's {@code FieldReferenceExtractor} surfaces those names; this class rejects any that
+ * The backend's {@code DelegatedPredicateSerializer.referencedFields} surfaces those names; this class rejects any that
  * resolve to a non-text/keyword mapping so users get a precise, actionable planning error (naming
  * the field and its type) instead of a generic "no backend can evaluate" failure later in the
  * pipeline.

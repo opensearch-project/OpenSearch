@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.serializers;
 
-import org.apache.calcite.rex.RexCall;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
@@ -16,9 +15,8 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.opensearch.analytics.spi.FieldReferenceExtractor;
 import org.opensearch.analytics.spi.FieldReferences;
-import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.be.lucene.ConversionUtils;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.regex.Regex;
 
@@ -29,29 +27,24 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Lucene implementation of {@link FieldReferenceExtractor} for the multi-field relevance functions
- * ({@code query_string}, {@code simple_query_string}, {@code multi_match}).
+ * Derives the {@link FieldReferences} a multi-field relevance predicate references, for the planner's
+ * plan-time field-type validation. Kept separate from the serializers so the serializer base stays
+ * focused on building {@link org.opensearch.index.query.QueryBuilder}s; the relevance serializers
+ * simply delegate their {@code referencedFields} to this helper.
  *
- * <p>Explicit field tokens and the query string are read via {@link ConversionUtils#extractRelevanceOperands}
- * — the exact operand-extraction path {@link org.opensearch.be.lucene.serializers.AbstractRelevanceSerializer}
- * uses to build the executed {@link org.opensearch.index.query.QueryBuilder} — so extraction cannot drift
- * from execution and field order is preserved (first appearance).
- *
- * <p>For {@code query_string} only, the query string is additionally parsed with Lucene's classic
- * grammar (using a no-op analyzer) to collect fields written inside it (e.g. {@code category:A},
- * {@code age:>=10}, {@code _exists_:status}). Terms with no field qualifier resolve to the sentinel
- * default field and are not emitted as references. No {@code QueryShardContext} is needed: field
- * identity is analyzer-independent.
- *
- * <p>Tokens are classified literal vs. pattern via {@link Regex#isSimpleMatchPattern} — the same
- * predicate OpenSearch's resolver uses — so plan-time classification matches runtime. Only literals
- * are validated by the planner; patterns and fan-out pass through.
+ * <p>Explicit field tokens come from the already-parsed {@link ConversionUtils.RelevanceOperands}
+ * (the same operands the serializer builds its query from, so extraction cannot drift from execution).
+ * For {@code query_string} only, the query string is additionally parsed with Lucene's classic grammar
+ * (no-op analyzer) to collect fields written inside it (e.g. {@code category:A}, {@code _exists_:status}).
+ * Tokens are classified literal vs. pattern via {@link Regex#isSimpleMatchPattern} — the same predicate
+ * OpenSearch's resolver uses — so plan-time classification matches runtime. Only literals are validated
+ * by the planner; patterns and fan-out pass through.
  *
  * @opensearch.internal
  */
-final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
+final class RelevanceFieldExtractor {
 
-    private static final Logger LOGGER = LogManager.getLogger(LuceneFieldReferenceExtractor.class);
+    private static final Logger LOGGER = LogManager.getLogger(RelevanceFieldExtractor.class);
 
     /** Field name for the EXISTS pseudo-operator: {@code _exists_:status} references field {@code status}. */
     private static final String EXISTS_FIELD = "_exists_";
@@ -63,27 +56,35 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
      */
     private static final String DEFAULT_FIELD_SENTINEL = "\u0000__analytics_default_field__";
 
-    /** First operand index at which optional key/value param MAPs begin (after {@code fields} and {@code query}). */
-    private static final int OPTIONAL_PARAMS_START_INDEX = 2;
+    /**
+     * Relevance functions whose query string carries in-string {@code field:value} syntax and should
+     * therefore be parsed for in-string fields. Only {@code query_string} qualifies today;
+     * {@code simple_query_string}/{@code multi_match} have no in-string field grammar (a {@code :} is
+     * treated literally), so their referenced fields come solely from the {@code fields} operand. Add
+     * future functions here. Entries match the serializers' {@code functionName()}.
+     */
+    private static final Set<String> QUERY_STRING_FUNCTIONS = Set.of("query_string");
 
-    private final String functionName;
-    private final boolean parseQueryString;
+    private RelevanceFieldExtractor() {}
 
     /**
-     * @param functionName     the relevance function name, for error messages (e.g. {@code "query_string"})
-     * @param parseQueryString whether to parse the query string for in-string fields (true only for
-     *                         {@code query_string}; {@code simple_query_string}/{@code multi_match} have no
-     *                         in-string field syntax)
+     * Computes the referenced fields for a relevance predicate.
+     *
+     * <p>Explicit {@code fields}/{@code field} tokens are collected for every relevance function; the
+     * query string is additionally parsed for in-string fields only when {@code functionName} is a
+     * query-string-style function (see {@link #QUERY_STRING_FUNCTIONS}).
+     *
+     * @param functionName   the relevance function name (e.g. {@code "query_string"}); decides whether
+     *                       the query string is parsed for in-string fields, and used for log context
+     * @param operands       the predicate's extracted operands (fields, query, etc.)
+     * @param optionalParams the predicate's optional key/value params; the {@code lenient} flag is
+     *                       read from here (absent → non-lenient, preserving eager rejection)
      */
-    LuceneFieldReferenceExtractor(String functionName, boolean parseQueryString) {
-        this.functionName = functionName;
-        this.parseQueryString = parseQueryString;
-    }
-
-    @Override
-    public FieldReferences referencedFields(RexCall call, List<FieldStorageInfo> fieldStorage) {
-        ConversionUtils.RelevanceOperands operands = ConversionUtils.extractRelevanceOperands(call, fieldStorage);
-
+    static FieldReferences referencedFields(
+        String functionName,
+        ConversionUtils.RelevanceOperands operands,
+        Map<String, String> optionalParams
+    ) {
         // Collect referenced field tokens in first-appearance order, deduped.
         Set<String> tokens = new LinkedHashSet<>();
 
@@ -95,12 +96,12 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
             tokens.add(operands.fieldName());
         }
 
-        // 2. For query_string, fields written inside the query string itself.
-        if (parseQueryString && operands.query() != null) {
-            collectInStringFields(operands.query(), tokens);
+        // 2. Only query_string carries in-string field:value syntax; parse it for in-string fields.
+        if (QUERY_STRING_FUNCTIONS.contains(functionName) && operands.query() != null) {
+            collectInStringFields(functionName, operands.query(), tokens);
         }
 
-        // 3. Classify literal vs. pattern.
+        // 3. Classify literal vs. pattern; only literals are validated by the planner.
         List<String> literalFields = new ArrayList<>();
         List<String> patternTokens = new ArrayList<>();
         for (String token : tokens) {
@@ -111,8 +112,7 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
             }
         }
 
-        boolean lenient = resolveLenient(call);
-        return new FieldReferences(literalFields, patternTokens, lenient);
+        return new FieldReferences(literalFields, patternTokens, resolveLenient(optionalParams));
     }
 
     /**
@@ -123,10 +123,10 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
      * <p>Best-effort: the plan-time parser does not implement OpenSearch's {@code query_string}
      * extensions (e.g. {@code field:>15} unbounded ranges). On any parse failure, in-string
      * extraction is skipped and validation relies on the explicit {@code fields} operand — the
-     * authoritative parse happens at execution (see design decision 4). Unqualified terms resolve to
-     * the sentinel default field and are not emitted as field references.
+     * authoritative parse happens at execution. Unqualified terms resolve to the sentinel default
+     * field and are not emitted as field references.
      */
-    private void collectInStringFields(String queryString, Set<String> tokens) {
+    private static void collectInStringFields(String functionName, String queryString, Set<String> tokens) {
         QueryParser parser = new QueryParser(DEFAULT_FIELD_SENTINEL, Lucene.KEYWORD_ANALYZER);
         parser.setAllowLeadingWildcard(true);
         Query query;
@@ -164,13 +164,11 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
 
     /**
      * Effective lenient flag: the explicit {@code lenient} param when present, otherwise {@code false}
-     * (assume non-lenient when unset — see design decision 3, Option B). Treating unset as non-lenient
-     * preserves the planner's eager rejection of explicitly-named non-text fields; an explicit
-     * {@code lenient=true} opts out. No index-setting lookup in this cut.
+     * (assume non-lenient when unset). Treating unset as non-lenient preserves the planner's eager
+     * rejection of explicitly-named non-text fields; an explicit {@code lenient=true} opts out.
      */
-    private boolean resolveLenient(RexCall call) {
-        Map<String, String> params = ConversionUtils.extractOptionalParams(call, OPTIONAL_PARAMS_START_INDEX);
-        String value = params.get("lenient");
+    private static boolean resolveLenient(Map<String, String> optionalParams) {
+        String value = optionalParams.get("lenient");
         return value != null && Boolean.parseBoolean(value);
     }
 }

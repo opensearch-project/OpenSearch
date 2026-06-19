@@ -31,10 +31,11 @@ import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
-import org.opensearch.analytics.spi.FieldReferenceExtractor;
 import org.opensearch.analytics.spi.FieldReferences;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.math.BigDecimal;
@@ -423,10 +424,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
     }
 
-    // ---- FieldReferenceExtractor-driven validation (Wave 4) ----
+    // ---- referencedFields-driven validation (Wave 4) ----
 
     /**
-     * With a backend-registered {@link FieldReferenceExtractor}, a field named only inside the
+     * With a backend serializer that reports field references, a field named only inside the
      * query string (no {@code fields} MAP) is now validated. The stub reports a literal {@code long}
      * field with {@code lenient=false}, so the planner rejects it — coverage the old MAP-literal
      * path missed (field-less queries previously fell back to the TEXT assumption and were accepted).
@@ -490,7 +491,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
     /**
      * DataFusion (FILTER delegation) + Lucene (accepts FILTER delegation, registers a stub
-     * {@link FieldReferenceExtractor} for {@code QUERY_STRING} returning {@code refs}).
+     * {@link DelegatedPredicateSerializer} for {@code QUERY_STRING} whose {@code referencedFields}
+     * returns {@code refs}).
      */
     private List<AnalyticsSearchBackendPlugin> backendsWithExtractor(FieldReferences refs) {
         MockDataFusionBackend df = new MockDataFusionBackend() {
@@ -506,8 +508,19 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             }
 
             @Override
-            protected Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors() {
-                return Map.of(ScalarFunction.QUERY_STRING, (call, fieldStorage) -> refs);
+            public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+                DelegatedPredicateSerializer stub = new DelegatedPredicateSerializer() {
+                    @Override
+                    public byte[] serialize(RexCall call, List<FieldStorageInfo> fieldStorage) {
+                        throw new UnsupportedOperationException("stub");
+                    }
+
+                    @Override
+                    public FieldReferences referencedFields(RexCall call, List<FieldStorageInfo> fieldStorage) {
+                        return refs;
+                    }
+                };
+                return Map.of(ScalarFunction.QUERY_STRING, stub);
             }
         };
         return List.of(df, lucene);

@@ -15,9 +15,9 @@ import java.util.List;
  * {@code multi_match}) explicitly references, plus the metadata the planner needs to decide whether
  * to eagerly validate them.
  *
- * <p>Produced by a {@link FieldReferenceExtractor} at planning time from the predicate's
- * {@link org.apache.calcite.rex.RexCall} and consumed by the planner's text-relevance validation.
- * Field-name extraction is analyzer-independent, so this can be computed without a
+ * <p>Produced by {@link DelegatedPredicateSerializer#referencedFields} at planning time from the
+ * predicate's {@link org.apache.calcite.rex.RexCall} and consumed by the planner's text-relevance
+ * validation. Field-name extraction is analyzer-independent, so this can be computed without a
  * {@code QueryShardContext}.
  *
  * <p>The planner validates only {@link #literalFields()}. {@link #patternTokens()} are

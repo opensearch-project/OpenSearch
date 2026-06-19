@@ -23,7 +23,6 @@ import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
-import org.opensearch.analytics.spi.FieldReferenceExtractor;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
@@ -199,11 +198,6 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             @Override
             public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
                 return QuerySerializerRegistry.getSerializers();
-            }
-
-            @Override
-            public Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors() {
-                return FieldReferenceExtractorRegistry.getExtractors();
             }
 
             @Override
