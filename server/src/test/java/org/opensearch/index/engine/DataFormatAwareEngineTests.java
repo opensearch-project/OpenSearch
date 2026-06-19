@@ -59,8 +59,10 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.DummyShardLock;
@@ -69,6 +71,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -324,6 +327,64 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 engine.getProcessedLocalCheckpoint(),
                 equalTo((long) numDocs - 1)
             );
+        }
+    }
+
+    /**
+     * {@link DataFormatAwareEngine#acquireHistoryRetentionLock()} must return a lock that pins a translog
+     * generation in the deletion policy for as long as it is held, and releases that generation when closed.
+     * Peer recovery / primary relocation relies on this to keep translog history available for the duration
+     * of recovery.
+     */
+    public void testAcquireHistoryRetentionLockPinsTranslogGeneration() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            int numDocs = randomIntBetween(1, 20);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+
+            // The retention lock pins a generation in the translog's deletion policy.
+            TranslogDeletionPolicy deletionPolicy = ((InternalTranslogManager) engine.translogManager()).getTranslog().getDeletionPolicy();
+            // No retention locks are held before acquiring one.
+            deletionPolicy.assertNoOpenTranslogRefs();
+
+            Closeable retentionLock = engine.acquireHistoryRetentionLock();
+            assertThat(retentionLock, notNullValue());
+            // While the lock is held there is an open translog reference pinning a generation.
+            expectThrows(AssertionError.class, deletionPolicy::assertNoOpenTranslogRefs);
+
+            // Releasing the lock releases the pinned generation.
+            retentionLock.close();
+            deletionPolicy.assertNoOpenTranslogRefs();
+        }
+    }
+
+    /**
+     * {@link DataFormatAwareEngine#countNumberOfHistoryOperations(String, long, long)} must count only the
+     * operations whose seqNo falls within the requested {@code [fromSeqNo, toSeqNo]} range, de-duplicated --
+     * i.e. the operations actually yielded by the changes snapshot for that range, not the raw operation
+     * count of the underlying translog generations.
+     */
+    public void testCountNumberOfHistoryOperationsRespectsSeqNoRange() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertThat(result.getSeqNo(), equalTo((long) i));
+            }
+            // Ensure the buffered translog operations are durable and readable by the changes snapshot.
+            engine.translogManager().syncTranslog();
+
+            // Full range counts every operation.
+            assertThat(engine.countNumberOfHistoryOperations("test", 0, Long.MAX_VALUE), equalTo(numDocs));
+
+            // Sub-ranges count only the operations whose seqNo lies within [fromSeqNo, toSeqNo].
+            assertThat(engine.countNumberOfHistoryOperations("test", 5, 9), equalTo(5));
+            assertThat(engine.countNumberOfHistoryOperations("test", 0, 4), equalTo(5));
+            assertThat(engine.countNumberOfHistoryOperations("test", 3, 6), equalTo(4));
+            assertThat(engine.countNumberOfHistoryOperations("test", 7, Long.MAX_VALUE), equalTo(3));
+            // A range above the highest seqNo contains no operations.
+            assertThat(engine.countNumberOfHistoryOperations("test", numDocs, Long.MAX_VALUE), equalTo(0));
         }
     }
 
