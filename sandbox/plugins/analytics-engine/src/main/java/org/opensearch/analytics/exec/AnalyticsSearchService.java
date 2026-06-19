@@ -398,6 +398,11 @@ public class AnalyticsSearchService implements AutoCloseable {
         Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, readerContext.getReader(), resolved.plan, shard, task);
+            ctx.setHasPartialAggregate(
+                resolved.plan.getInstructions()
+                    .stream()
+                    .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE)
+            );
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
             backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);

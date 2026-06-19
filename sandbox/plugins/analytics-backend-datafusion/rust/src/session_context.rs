@@ -18,7 +18,7 @@ use datafusion::{
     common::DataFusionError,
     datasource::file_format::parquet::ParquetFormat,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
-    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
+    execution::cache::cache_manager::CachedFileList,
     execution::cache::{CacheAccessor, DefaultListFilesCache},
     execution::context::SessionContext,
     execution::memory_pool::MemoryPool,
@@ -142,6 +142,7 @@ pub async unsafe fn create_session_context(
     shard_view_ptr: i64,
     table_name: &str,
     context_id: i64,
+    has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
@@ -163,20 +164,7 @@ pub async unsafe fn create_session_context(
         CachedFileList::new(shard_view.object_metas.as_ref().clone()),
     );
 
-    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_metadata_cache_limit(
-                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                )
-                .with_file_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        );
+    let mut runtime_env_builder = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache);
 
     if let Some(pool) = query_memory_pool {
         runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
@@ -222,7 +210,11 @@ pub async unsafe fn create_session_context(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine());
+        .with_physical_optimizer_rules(if has_partial_aggregate {
+            crate::agg_mode::physical_optimizer_rules_without_combine()
+        } else {
+            datafusion::physical_optimizer::optimizer::PhysicalOptimizer::new().rules
+        });
 
     // For ListingTable query strategy:
     // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
@@ -390,10 +382,11 @@ pub async unsafe fn create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     requests_row_ids: bool,
+    has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config, plan_bytes).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, has_partial_aggregate, query_config, plan_bytes).await?;
 
     // Augment with indexed config. The delegation marker UDFs (index_filter, delegation_possible)
     // are now registered for every session by udf::register_all (via create_session_context above);
@@ -764,5 +757,54 @@ mod tests {
             .expect("widened query executes without stats-merge failure");
         let total: usize = rows.iter().map(|b| b.num_rows()).sum();
         assert_eq!(total, 2, "widened scan must read both files");
+    }
+
+    /// Each per-query RuntimeEnv built the way create_session_context builds it must get its own
+    /// ObjectStoreRegistry. Two queries registering different stores under the bare `file://`
+    /// scheme must not clobber each other — the bug that routed one shard's parquet read through
+    /// another shard's store and failed with "No such file or directory".
+    #[tokio::test]
+    async fn test_per_query_object_store_registry_is_isolated() {
+        use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStoreRegistry};
+        use object_store::memory::InMemory;
+        use object_store::ObjectStore;
+        use url::Url;
+
+        // Simulates the single shared global runtime_env (DataFusionRuntime.runtime_env).
+        let shared = RuntimeEnvBuilder::new().build().expect("shared runtime env");
+
+        // Two per-query runtime envs, each derived the way create_session_context derives them:
+        // from the shared env but with a fresh object-store registry.
+        let env_a = RuntimeEnvBuilder::from_runtime_env(&shared)
+            .with_object_store_registry(Arc::new(DefaultObjectStoreRegistry::new()))
+            .build()
+            .expect("per-query runtime env a");
+        let env_b = RuntimeEnvBuilder::from_runtime_env(&shared)
+            .with_object_store_registry(Arc::new(DefaultObjectStoreRegistry::new()))
+            .build()
+            .expect("per-query runtime env b");
+
+        let file_url = Url::parse("file://").unwrap();
+        let store_a: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let store_b: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Each query registers its own shard store under the same bare file:// scheme.
+        env_a.register_object_store(&file_url, Arc::clone(&store_a));
+        env_b.register_object_store(&file_url, Arc::clone(&store_b));
+
+        let got_a = env_a
+            .object_store_registry
+            .get_store(&file_url)
+            .expect("env_a must resolve a file:// store");
+        let got_b = env_b
+            .object_store_registry
+            .get_store(&file_url)
+            .expect("env_b must resolve a file:// store");
+
+        // Each env resolves to its OWN store, and the two are independent: registering in one env
+        // does not leak into the other.
+        assert!(Arc::ptr_eq(&got_a, &store_a), "env_a must resolve to its own store");
+        assert!(Arc::ptr_eq(&got_b, &store_b), "env_b must resolve to its own store");
+        assert!(!Arc::ptr_eq(&got_a, &got_b), "per-query stores must be independent across queries");
     }
 }

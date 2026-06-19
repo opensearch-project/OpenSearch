@@ -118,8 +118,6 @@ test {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
-  // Required by arrow-memory-netty for Unsafe / direct-memory access
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
   systemProperty 'io.netty.allocator.numDirectArenas', '1'
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'

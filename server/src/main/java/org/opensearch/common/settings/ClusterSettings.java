@@ -643,6 +643,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BootstrapSettings.MEMORY_LOCK_SETTING,
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                 BootstrapSettings.CTRLHANDLER_SETTING,
+                BootstrapSettings.SERIAL_FILTER_SETTING,
                 KeyStoreWrapper.SEED_SETTING,
                 IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                 IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
@@ -778,6 +779,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS,
                 TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
                 TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
+                TieringUtils.PREPARE_TIERING_TIMEOUT,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,

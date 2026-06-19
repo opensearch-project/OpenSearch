@@ -219,10 +219,8 @@ impl ScalarUDFImpl for OsYearweekUdf {
     }
 }
 
-/// MySQL `YEARWEEK(date, mode)` — `year * 100 + week`. Keeps the caller's mode unless its week
-/// number is 0, in which case it bumps to mode 2 (for mode ≤ 4) or 7 so the date rolls into the
-/// prior year's last week; the year is the calendar year, decremented when an early-January date
-/// falls in the 52/53 week range (i.e. belongs to the prior year). Reuses [`os_week_number`].
+/// MySQL `YEARWEEK(date, mode)` — `year * 100 + week`. Bumps mode to 2 or 7 when the
+/// per-mode week number is 0 so the date is re-counted in the prior year's frame.
 fn os_yearweek_number(date: NaiveDate, mode: i32) -> i32 {
     let mode_resolved = if os_week_number(date, mode) != 0 {
         mode
@@ -232,97 +230,79 @@ fn os_yearweek_number(date: NaiveDate, mode: i32) -> i32 {
         7
     };
     let week = os_week_number(date, mode_resolved);
-    let mut year = date.year();
-    if week > 51 && date.day() < 7 {
-        year -= 1;
-    }
+    let year = os_year_number(date, mode_resolved);
     year * 100 + week as i32
 }
 
-/// MySQL `WEEK()` modes 0..7; see
-/// https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_week.
-/// Modes 1/3/4/6 use the ≥4-days-in-year rule; the rest use simple counting.
+/// MySQL `WEEK()` modes 0..7. Modes 0/1/4/5 wrap early-January dates to week 0;
+/// see https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_week.
 fn os_week_number(date: NaiveDate, mode: i32) -> u32 {
-    let mode = mode.rem_euclid(8) as u32;
-    let (start, four_day_rule, range_starts_at_one) = match mode {
-        0 => (Weekday::Sun, false, false),
-        1 => (Weekday::Mon, true, false),
-        2 => (Weekday::Sun, false, true),
-        3 => (Weekday::Mon, true, true),
-        4 => (Weekday::Sun, true, false),
-        5 => (Weekday::Mon, false, false),
-        6 => (Weekday::Sun, true, true),
-        7 => (Weekday::Mon, false, true),
-        _ => unreachable!(),
-    };
-    if four_day_rule {
-        week_number_iso_fold(date, start)
-    } else if range_starts_at_one {
-        // Range 1-53: week 0 (dates before the first start-day of the year)
-        // rolls into the prior year's last week.
-        let wn = week_number_simple(date, start);
-        if wn == 0 {
-            let last_of_prior = NaiveDate::from_ymd_opt(date.year() - 1, 12, 31).unwrap();
-            week_number_simple(last_of_prior, start)
-        } else {
-            wn
-        }
-    } else {
-        week_number_simple(date, start)
-    }
-}
-
-/// Modes 0/1: simple count. Week 1 starts at the first `start`-day of the year;
-/// dates before that are week 0.
-fn week_number_simple(date: NaiveDate, start: Weekday) -> u32 {
-    let jan1 = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
-    let offset = days_until_start(jan1.weekday(), start);
-    let first_doy = 1 + offset;
-    let doy = date.ordinal();
-    if doy < first_doy {
+    let m = mode.rem_euclid(8) as u32;
+    let raw = java_calendar_week_of_year(date, week_params(m));
+    if raw > 51 && date.day() < 7 && matches!(m, 0 | 1 | 4 | 5) {
         0
     } else {
-        (doy - first_doy) / 7 + 1
+        raw
     }
 }
 
-/// Modes 2/3: week 1 must contain at least 4 days of the new year; otherwise
-/// the early days roll into the prior year's last week (52 or 53).
-fn week_number_iso_fold(date: NaiveDate, start: Weekday) -> u32 {
+/// Year that owns the week. Decrements for early-January dates that belong to the
+/// prior year's last week.
+fn os_year_number(date: NaiveDate, mode: i32) -> i32 {
+    let m = mode.rem_euclid(8) as u32;
+    let raw = java_calendar_week_of_year(date, week_params(m));
+    if raw > 51 && date.day() < 7 {
+        date.year() - 1
+    } else {
+        date.year()
+    }
+}
+
+/// `(firstDayOfWeek, minimalDaysInFirstWeek)` for MySQL modes 0..7.
+fn week_params(mode: u32) -> (Weekday, u32) {
+    let first = if mode % 2 == 0 { Weekday::Sun } else { Weekday::Mon };
+    let min_days = match mode {
+        1 | 3 => 5,
+        4 | 6 => 4,
+        _ => 7,
+    };
+    (first, min_days)
+}
+
+/// Java `Calendar.WEEK_OF_YEAR` under `(firstDayOfWeek, minimalDaysInFirstWeek)`.
+fn java_calendar_week_of_year(date: NaiveDate, (start, min_days): (Weekday, u32)) -> u32 {
     let year = date.year();
-    let week1_start = first_anchored_week_start(year, start);
-    if date < week1_start {
-        // Roll into prior year's last week.
-        let prev_week1 = first_anchored_week_start(year - 1, start);
-        let days = (date - prev_week1).num_days();
+    let this_w1 = week1_start(year, start, min_days);
+    if date < this_w1 {
+        let prev_w1 = week1_start(year - 1, start, min_days);
+        let days = (date - prev_w1).num_days();
         (days / 7) as u32 + 1
     } else {
-        let next_week1 = first_anchored_week_start(year + 1, start);
-        if date >= next_week1 {
+        let next_w1 = week1_start(year + 1, start, min_days);
+        if date >= next_w1 {
             1
         } else {
-            let days = (date - week1_start).num_days();
+            let days = (date - this_w1).num_days();
             (days / 7) as u32 + 1
         }
     }
 }
 
-/// First day of the year's week 1 under the "≥4 days of new year" anchor —
-/// MySQL modes 2/3 (and ISO 8601, with start=Mon).
-fn first_anchored_week_start(year: i32, start: Weekday) -> NaiveDate {
+/// First day of `year`'s week 1: the week containing Jan 1 owns week 1 iff it has
+/// at least `min_days` days in `year`, else week 1 starts the next `start`-day.
+fn week1_start(year: i32, start: Weekday, min_days: u32) -> NaiveDate {
     let jan1 = NaiveDate::from_ymd_opt(year, 1, 1).unwrap();
-    let offset = days_until_start(jan1.weekday(), start);
-    if offset <= 3 {
-        // Jan 1's week-start lands on Jan {1 - offset}; that week has ≥4 days of new year.
-        jan1 - chrono::Duration::days(offset as i64)
+    let back = back_offset(jan1.weekday(), start);
+    if 7 - back >= min_days {
+        jan1 - chrono::Duration::days(back as i64)
     } else {
-        // Jan 1's week-start lands in prior year; week 1 starts the next start-day.
-        jan1 + chrono::Duration::days((7 - offset) as i64)
+        jan1 + chrono::Duration::days((7 - back) as i64)
     }
 }
 
-fn days_until_start(from: Weekday, start: Weekday) -> u32 {
-    (weekday_idx(start) + 7 - weekday_idx(from)) % 7
+/// Days from `from` back to the most recent `start` weekday.
+fn back_offset(from: Weekday, start: Weekday) -> u32 {
+    (weekday_idx(from) + 7 - weekday_idx(start)) % 7
 }
 
 fn weekday_idx(w: Weekday) -> u32 {
@@ -380,18 +360,24 @@ mod tests {
     }
 
     #[test]
-    fn os_yearweek_delegates_per_mode_to_os_week_number() {
-        // 2008-02-20 is mid-February — far enough from year boundaries that neither the
-        // mode-bump branch (week == 0) nor the year-decrement branch (week > 51 && day < 7)
-        // can fire. Under those conditions, the algebraic contract is:
-        //     os_yearweek_number(d, mode) == year * 100 + os_week_number(d, mode)
-        // Pins that the per-mode math comes from os_week_number for every mode 0..7 — without
-        // claiming exact week numbers for each mode (which the os_week_number tests already
-        // cover for the modes they exercise).
-        let d = NaiveDate::from_ymd_opt(2008, 2, 20).unwrap();
-        for mode in 0..8 {
-            let expected = 2008 * 100 + os_week_number(d, mode) as i32;
-            assert_eq!(os_yearweek_number(d, mode), expected, "mode={mode}");
+    fn os_yearweek_dec_1899_to_jan_1900_boundary() {
+        let dec30_1899 = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+        let jan1_1900 = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap();
+        assert_eq!(os_yearweek_number(dec30_1899, 0), 189952);
+        assert_eq!(os_yearweek_number(dec30_1899, 4), 189952);
+        assert_eq!(os_yearweek_number(jan1_1900, 0), 189953);
+        assert_eq!(os_yearweek_number(jan1_1900, 4), 190001);
+    }
+
+    #[test]
+    fn os_yearweek_jan1_1900_all_modes() {
+        let d = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap();
+        let expected: [(i32, i32); 8] = [
+            (0, 189953), (1, 190001), (2, 189953), (3, 190001),
+            (4, 190001), (5, 190001), (6, 190001), (7, 190001),
+        ];
+        for (mode, want) in expected {
+            assert_eq!(os_yearweek_number(d, mode), want, "mode={mode}");
         }
     }
 }

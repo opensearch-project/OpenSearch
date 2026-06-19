@@ -553,6 +553,18 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         return new MergeStats();
     }
 
+    /** Read-only primaries do not run merges. */
+    @Override
+    public boolean hasPendingMerges() {
+        return false;
+    }
+
+    /** Read-only primaries do not run merges; the active count is always zero. */
+    @Override
+    public int getActiveMergeCount() {
+        return 0;
+    }
+
     // ---- Recovery and Snapshot support (Task 6) ----
 
     @Override

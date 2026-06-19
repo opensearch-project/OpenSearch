@@ -123,7 +123,6 @@ public class QueryExecution {
     public void close() {
         if (closed.compareAndSet(false, true) == false) return;
         runQuietly("terminal sink close", this::closeTerminalSink);
-        // TODO: Re-evaluate this per query child allocator
         logAllocatorState();
         runQuietly("query context close", config::close);
     }

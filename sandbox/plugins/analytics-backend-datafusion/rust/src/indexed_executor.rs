@@ -26,7 +26,6 @@ use datafusion::{
     physical_plan::displayable,
     physical_plan::execute_stream,
     execution::SessionStateBuilder,
-    execution::runtime_env::RuntimeEnvBuilder,
     execution::context::SessionContext,
     common::DataFusionError,
     prelude::*,
@@ -34,7 +33,7 @@ use datafusion::{
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
     datasource::{TableProvider, TableType},
-    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
+    execution::cache::cache_manager::CachedFileList,
     execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
@@ -109,20 +108,7 @@ pub async fn execute_indexed_query(
     };
     list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
 
-    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_metadata_cache_limit(
-                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                )
-                .with_file_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        );
+    let mut runtime_env_builder = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache);
     if let Some(pool) = query_memory_pool {
         runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
     }
@@ -745,11 +731,16 @@ async unsafe fn execute_indexed_with_context_inner(
         use datafusion::physical_plan::empty::EmptyExec;
         use datafusion::physical_plan::ExecutionPlan;
         let context_id_early = handle.query_context.context_id();
-        let plan = Plan::decode(substrait_bytes.as_slice())
-            .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
-        let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
-        let plan_schema: arrow::datatypes::SchemaRef =
-            Arc::new(logical_plan.schema().as_arrow().clone());
+        // engine-native-merge: borrow the partial-state schema from the prepared plan so the
+        // empty stream matches the populated shards' wire shape (e.g. Binary HLL for dc()).
+        let plan_schema: arrow::datatypes::SchemaRef = if let Some(prepared) = handle.prepared_plan.as_ref() {
+            Arc::new(prepared.schema().as_ref().clone())
+        } else {
+            let plan = Plan::decode(substrait_bytes.as_slice())
+                .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+            let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+            Arc::new(logical_plan.schema().as_arrow().clone())
+        };
         let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
@@ -799,10 +790,19 @@ async unsafe fn execute_indexed_with_context_inner(
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
     let context_id = query_context.context_id();
 
+    // The substrait scan binds to the plan's NamedTable name (the alias/pattern like "tb-1,tb-2"
+    // for multi-index queries, the concrete name otherwise), not the per-shard table_name.
+    // create_session_context registered the provider under that name, so re-register under the
+    // same name. Using table_name for a multi-index query leaves the scan unbound, so DataFusion
+    // never consults supports_filters_pushdown and keeps the delegated_predicate FilterExec —
+    // which then executes the marker UDF and errors.
+    let register_name = crate::api::first_named_table_name(substrait_bytes.as_slice())
+        .unwrap_or_else(|| table_name.clone());
+
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
     // Deregister the default ListingTable (registered by create_session_context) — will be replaced
     // with IndexedTableProvider after plan decoding.
-    ctx.deregister_table(&table_name)?;
+    ctx.deregister_table(&register_name)?;
 
     let store = ctx
         .state()
@@ -824,12 +824,12 @@ async unsafe fn execute_indexed_with_context_inner(
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
     // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
-    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &table_name, &schema);
+    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &register_name, &schema);
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),
     });
-    ctx.register_table(&table_name, placeholder)?;
+    ctx.register_table(&register_name, placeholder)?;
 
     let plan = Plan::decode(substrait_bytes.as_slice())
         .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
@@ -1175,7 +1175,7 @@ async unsafe fn execute_indexed_with_context_inner(
         }
     };
 
-    ctx.deregister_table(&table_name)?;
+    ctx.deregister_table(&register_name)?;
     // Extract the scheme+authority portion of the table URL for
     // DataFusion's FileScanConfig. The full URL includes the path
     // (e.g. "file:///Users/.../parquet/"); ObjectStoreUrl wants only
@@ -1199,7 +1199,7 @@ async unsafe fn execute_indexed_with_context_inner(
         sort_fields: sort_fields.clone(),
         sort_orders: sort_orders.clone(),
     }));
-    ctx.register_table(&table_name, provider)?;
+    ctx.register_table(&register_name, provider)?;
 
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
     log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());

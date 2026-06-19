@@ -24,6 +24,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -45,6 +46,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.nativebridge.spi.RustLoggerBridge;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
@@ -448,6 +450,11 @@ public class DataFusionPlugin extends Plugin
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
+
+        // Push Rust log level whenever any logger.* cluster setting changes, so Rust macros
+        // can short-circuit format!() for suppressed levels without polling.
+        clusterService.getClusterSettings()
+            .addAffixUpdateConsumer(Loggers.LOG_LEVEL_SETTING, (namespace, level) -> RustLoggerBridge.pushLevel(), (k, v) -> {});
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
@@ -798,7 +805,7 @@ public class DataFusionPlugin extends Plugin
             try {
                 return NativeMemoryFetcher.fetch();
             } catch (Exception e) {
-                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             }
         };
     }

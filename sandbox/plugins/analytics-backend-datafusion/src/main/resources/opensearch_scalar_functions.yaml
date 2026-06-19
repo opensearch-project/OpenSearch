@@ -398,6 +398,24 @@ scalar_functions:
           - { value: "map<string, string>", name: "map" }
           - { value: string, name: "key" }
         return: string
+  - name: regexp_like
+    description: >-
+      Regex containment match (boolean). datafusion-substrait resolves the
+      extension name "regexp_like" to DataFusion's native `regexp_like` UDF
+      (datafusion-functions/src/regex/regexplike.rs).
+    impls:
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: "boolean?"
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "boolean?"
   - name: regexp_replace
     description: >-
       Regex string replacement — replace every match of `pattern` in `input`
@@ -832,6 +850,38 @@ scalar_functions:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
+
+  - name: "json_valid"
+    description: "TRUE if the input parses as JSON, FALSE on malformed input, NULL on NULL input (parity with legacy JsonUtils.isValidJson / Jackson readTree — empty/whitespace input is valid)."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: boolean
+
+  - name: "json"
+    description: "Round-trip parse a JSON string; NULL on malformed input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: string?
+
+  - name: "json_object"
+    description: >-
+      Build a JSON object from interleaved (key, type-tag, value) triples.
+      The Java `JsonObjectAdapter` casts every operand to VARCHAR and inserts
+      a per-value type-tag literal (`"n"`/`"b"`/`"j"`/`"s"`) so the Rust UDF
+      can recover the original Calcite type when emitting JSON.
+    impls:
+      - args: [{ value: string, name: "key" }]
+        variadic: { min: 1 }
+        return: string?
+
+  - name: "json_array"
+    description: >-
+      Build a JSON array from interleaved (type-tag, value) pairs. Same tag
+      vocabulary as `json_object`; see `JsonArrayAdapter` for the rewrite shape.
+    impls:
+      - args: [{ value: string, name: "tag" }]
+        variadic: { min: 0 }
+        return: string?
 
   - name: "opensearch_extract"
     description: >-

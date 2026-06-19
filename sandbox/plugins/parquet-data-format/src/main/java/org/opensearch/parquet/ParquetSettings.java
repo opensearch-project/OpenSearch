@@ -172,6 +172,19 @@ public final class ParquetSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Minimum number of variable-width (string/binary) non-sort columns required to activate
+     * deferred data loading during merge. Below this threshold, all columns are decoded eagerly
+     * (original behavior). Set to 0 to always defer; set very high to disable deferral.
+     */
+    public static final Setting<Integer> MERGE_DEFERRED_COLUMN_THRESHOLD = Setting.intSetting(
+        "index.parquet.merge_deferred_column_threshold",
+        0,
+        0,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     /** Minimum guaranteed bytes for the native write pool. Default is half of write max (2% of budget). */
     public static final Setting<Long> WRITE_POOL_MIN = new Setting<>(
         "parquet.native.pool.write.min",
@@ -757,6 +770,7 @@ public final class ParquetSettings {
             MERGE_BATCH_SIZE,
             MERGE_RAYON_THREADS,
             MERGE_IO_THREADS,
+            MERGE_DEFERRED_COLUMN_THRESHOLD,
             WRITE_POOL_MIN,
             WRITE_POOL_MAX,
             MERGE_POOL_MIN,
