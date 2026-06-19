@@ -301,6 +301,26 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 key(queryId, targetStageId, partitionIndex),
                 k -> newBuffer(queryId, targetStageId, partitionIndex)
             );
+            // Defensive: NEVER append data to a buffer a consumer has begun draining — the drain
+            // snapshotted the in-memory tail, so this chunk would be silently dropped (lost rows).
+            // The producer's two-phase close (DatafusionPartitionedSink: drain all data sends before
+            // any isLast) makes this unreachable in the normal path, but a buggy/reordered late RPC
+            // must FAIL LOUD here rather than under-deliver. (codex round-5 BLOCKER #2.) Checked under
+            // admitLock, the same lock beginDrain flips `draining` under, so this read can't race a
+            // half-started drain.
+            if (buffer.isDraining()) {
+                buffer.recordRejected();
+                throw new IllegalStateException(
+                    "Shuffle data ("
+                        + size
+                        + " bytes) admitted to an already-draining buffer "
+                        + key(queryId, targetStageId, partitionIndex)
+                        + " side="
+                        + side
+                        + " — the consumer already snapshotted this partition, so the chunk would be lost. "
+                        + "This indicates a producer shipped data after its isLast (a close-ordering bug)."
+                );
+            }
             AtomicLong q = perQueryBytes.computeIfAbsent(queryId, k -> new AtomicLong());
             long qProjected = q.get() + size;
             if (qProjected > perQueryMaxBytes) {
@@ -451,6 +471,30 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         if (size > 0) {
             spilledTotalBytes.accumulateAndGet(size, (cur, b) -> Math.max(0, cur - b));
         }
+    }
+
+    /**
+     * Records {@code bytes} charged for a spill file at {@code path} whose buffer-level delete FAILED,
+     * so {@link #deleteQuerySpillDir} can release them when it (re)deletes the file. Race-safe vs a
+     * concurrent dir-sweep that may delete the file between our failed delete and this record: the
+     * {@code Files.exists} check runs INSIDE the atomic {@code compute}, so if the sweep already removed
+     * the file (its {@code remove(path)} returned null because we hadn't recorded yet), we release the
+     * bytes here and store nothing instead of leaving a phantom orphan entry that never gets swept →
+     * permanent {@code spilledTotalBytes} inflation. (codex round-5 SHOULD-FIX #3.)
+     */
+    private void recordOrphanedSpill(Path path, long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+        orphanedSpillBytes.compute(path, (p, existing) -> {
+            if (Files.exists(p) == false) {
+                // The file is already gone — a concurrent sweep beat our record. Release now; the
+                // sweep's own remove() saw no entry, so we own the release. Drop the map entry.
+                releaseSpillBytes(bytes + (existing == null ? 0L : existing));
+                return null;
+            }
+            return (existing == null ? 0L : existing) + bytes;
+        });
     }
 
     public ShuffleBuffer getOrCreateBuffer(String queryId, int targetStageId, int partitionIndex) {
@@ -679,11 +723,15 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     Files.deleteIfExists(p);
                     // If this path was an orphan (a buffer-level delete failed earlier and its bytes are
                     // still charged), the dir sweep just reclaimed the disk — release those bytes exactly
-                    // once. remove() makes the release idempotent vs a repeat clearForQuery. (round-4 #2.)
-                    Long orphanBytes = orphanedSpillBytes.remove(p);
-                    if (orphanBytes != null) {
-                        releaseSpillBytes(orphanBytes);
-                    }
+                    // once. Use compute (not remove) so this is atomic vs a concurrent recordOrphanedSpill
+                    // on the same path: whichever runs first removes the entry + releases; the other sees
+                    // null and does nothing. (round-4 #2 / codex round-5 SHOULD-FIX #3.)
+                    orphanedSpillBytes.compute(p, (path, orphanBytes) -> {
+                        if (orphanBytes != null) {
+                            releaseSpillBytes(orphanBytes);
+                        }
+                        return null; // drop the entry either way — the file is gone
+                    });
                 } catch (IOException e) {
                     LOGGER.debug(new ParameterizedMessage("Failed to delete shuffle spill path {} for query {}", p, queryId), e);
                 }
@@ -906,10 +954,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 if (deleted) {
                     owner.releaseSpillBytes(onDisk);
                 } else if (onDisk > 0) {
-                    // Delete failed and we're about to drop this SpilledSide — hand the charged bytes to
-                    // the manager's orphan tracker keyed by path so the per-query dir sweep can release
-                    // them when it (re)deletes the file. Else the bytes leak forever. (round-4 #2.)
-                    owner.orphanedSpillBytes.merge(spill.path(), onDisk, Long::sum);
+                    owner.recordOrphanedSpill(spill.path(), onDisk);
                 }
             }
             return null;

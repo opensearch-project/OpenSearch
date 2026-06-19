@@ -2036,31 +2036,29 @@ pub unsafe fn sender_close(sender_ptr: i64) {
     }
 }
 
-/// Fails a partition stream: pushes an `Err(DataFusionError)` into the channel so the consumer's
-/// `RecordBatchStream` yields an ERROR (failing the join/agg), then takes ownership of the sender and
-/// drops it (the same teardown as [`sender_close`]). This is the truncation-safe terminal: a plain
-/// [`sender_close`] closes the channel as a clean EOF, so a producer that died mid-stream (e.g. a
-/// spill-read failure on the Java drain thread) would otherwise make the consumer silently compute a
-/// result from PARTIAL input. Sending the error first turns that into a loud query failure.
+/// Fails a partition stream so the consumer's `RecordBatchStream` yields a terminal ERROR (failing
+/// the join/agg) instead of a clean EOF, then takes ownership of the sender and drops it (the same
+/// teardown as [`sender_close`]). This is the truncation-safe terminal: a plain [`sender_close`]
+/// closes the channel as a clean EOF, so a producer that died mid-stream (e.g. a spill-read failure
+/// on the Java drain thread) would otherwise make the consumer silently compute a result from PARTIAL
+/// input.
 ///
-/// Best-effort delivery: if the receiver was already dropped (consumer finished / cancelled) the error
-/// is discarded — there is nothing left to fail, which is correct. The sender is always dropped.
-pub unsafe fn sender_fail(sender_ptr: i64, reason: &str, io_handle: &tokio::runtime::Handle) {
+/// Delivery is OUT-OF-BAND (`PartitionStreamSender::fail` sets a flag the receiver reads on close), so
+/// this never touches the bounded channel — it cannot block/deadlock against a full channel + a
+/// non-polling consumer, and it surfaces the error even when the channel is full. If the receiver was
+/// already dropped (consumer finished / cancelled) the flag is simply never read, which is correct.
+/// The sender is always dropped. (codex round-5 BLOCKER #1.)
+pub unsafe fn sender_fail(sender_ptr: i64, reason: &str) {
     if sender_ptr == 0 {
         return;
     }
-    // Reclaim ownership so the sender (and its channel) is dropped when this scope ends — mirrors
-    // sender_close. Push the error THROUGH the still-open channel before that drop, but via the
-    // NON-BLOCKING try_fail (try_send + bounded timeout) so a full channel + non-polling consumer
-    // can't deadlock the drain thread. If delivery fails, the sender-drop still terminates the stream
-    // as EOF. (codex review round-4 SHOULD-FIX #3.)
+    // Reclaim ownership so the sender (and its channel) is dropped at end of scope — mirrors
+    // sender_close. fail() records the reason out-of-band BEFORE that drop; the receiver yields it on
+    // channel-close.
     let sender = Box::from_raw(sender_ptr as *mut PartitionStreamSender);
-    let _ = sender.try_fail(
-        DataFusionError::Execution(format!(
-            "shuffle partition stream failed on the producer/drain side: {reason}"
-        )),
-        io_handle,
-    );
+    sender.fail(DataFusionError::Execution(format!(
+        "shuffle partition stream failed on the producer/drain side: {reason}"
+    )));
 }
 
 #[cfg(test)]

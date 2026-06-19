@@ -263,7 +263,17 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             return;
         }
         closed = true;
-        // Send isLast=true to every target so the consumer's per-side awaitReady latch fires.
+        // PHASE 1: drain all in-flight DATA sends to zero BEFORE shipping any isLast. This is
+        // load-bearing for correctness: a data send for partition p (issued in feed()) may still be
+        // backpressure-retrying inside ShuffleSender when close() runs. If we shipped isLast(p) now,
+        // the consumer's awaitReady could fire (once every producer's isLast arrives) and the
+        // consumer could begin draining BEFORE the retried data send lands — the late chunk would be
+        // admitted after the drain snapshot and silently dropped (codex round-5 BLOCKER #2). Ordering
+        // all data sends ahead of every isLast guarantees that when a consumer sees this producer's
+        // isLast, every row this producer will ever ship has already been buffered.
+        awaitPendingDrain("data sends");
+
+        // PHASE 2: send isLast=true to every target so the consumer's per-side awaitReady latch fires.
         // Even partitions we never produced rows for need an isLast — the consumer counts senders
         // by partition, not by row count.
         for (int p = 0; p < partitionCount; p++) {
@@ -274,20 +284,8 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
                 LOGGER.warn("DatafusionPartitionedSink: failed to ship final marker for partition " + p + " (" + logTag + ")", t);
             }
         }
-        // Wait for all in-flight sends to drain. ShuffleSenderRetry handles backpressure, so this
-        // loop is bounded by the per-send retry cap × partitionCount + drain latency. Spinning is
-        // acceptable here: closes happen once per producer fragment (post-stream drain) and the
-        // worker thread we're on is already off the transport hot path.
-        long deadlineMs = System.currentTimeMillis() + 60_000;
-        while (pending.get() > 0 && System.currentTimeMillis() < deadlineMs) {
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                firstError.compareAndSet(null, e);
-                break;
-            }
-        }
+        // Wait for the isLast sends to drain too, so the sink is fully quiesced on return.
+        awaitPendingDrain("isLast markers");
         Throwable err = firstError.get();
         LOGGER.debug(
             "DatafusionPartitionedSink: closed ({}, batches={}, partitions={}, error={})",
@@ -300,6 +298,29 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             if (err instanceof RuntimeException re) throw re;
             if (err instanceof Error e) throw e;
             throw new RuntimeException(err);
+        }
+    }
+
+    /**
+     * Spins until the {@link #pending} send counter returns to zero (or a 60s deadline lapses).
+     * {@code ShuffleSender} handles backpressure retry, so this is bounded by the per-send retry cap ×
+     * partitionCount + drain latency. Spinning is acceptable: close() happens once per producer
+     * fragment (post stream-drain) on a worker thread already off the transport hot path. {@code phase}
+     * names the wave being drained for the timeout log.
+     */
+    private void awaitPendingDrain(String phase) {
+        long deadlineMs = System.currentTimeMillis() + 60_000;
+        while (pending.get() > 0 && System.currentTimeMillis() < deadlineMs) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                firstError.compareAndSet(null, e);
+                return;
+            }
+        }
+        if (pending.get() > 0) {
+            LOGGER.warn("DatafusionPartitionedSink: timed out draining {} for {} ({} sends still pending)", phase, logTag, pending.get());
         }
     }
 }

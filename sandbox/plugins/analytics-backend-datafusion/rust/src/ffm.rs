@@ -711,8 +711,7 @@ pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
 #[no_mangle]
 pub unsafe extern "C" fn df_sender_fail(sender_ptr: i64, reason_ptr: *const u8, reason_len: i64) -> i64 {
     let reason = str_from_raw(reason_ptr, reason_len).map_err(|e| format!("df_sender_fail: reason: {}", e))?;
-    let mgr = get_rt_manager()?;
-    api::sender_fail(sender_ptr, reason, mgr.io_runtime.handle());
+    api::sender_fail(sender_ptr, reason);
     Ok(0)
 }
 
