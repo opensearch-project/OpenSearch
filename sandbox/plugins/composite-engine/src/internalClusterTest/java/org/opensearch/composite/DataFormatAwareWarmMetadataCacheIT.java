@@ -10,6 +10,7 @@ package org.opensearch.composite;
 
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.be.datafusion.stats.CacheGroupStats;
+import org.opensearch.be.datafusion.stats.CacheStats;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.exec.Indexer;
@@ -68,18 +69,27 @@ public class DataFormatAwareWarmMetadataCacheIT extends DataFormatAwareReadonlyE
         long parquetSegments = catalogFiles.stream().filter(f -> f.endsWith(".parquet")).count();
         assertTrue("warm shard must have at least one parquet segment, catalog=" + catalogFiles, parquetSegments > 0);
 
-        // On the cold warm node, the metadata cache is populated solely by the read-only engine's
-        // eager warming at open, before any query:
-        // - entry_count == parquetSegments : every footer was cached proactively (was 0 when lazy).
-        // - hit_count == 0 : nothing has read from the cache (no query, cold node).
+        // On the cold warm node, both DataFusion caches are populated solely by the read-only
+        // engine's eager warming at open, before any query:
+        // - entry_count == parquetSegments : every footer/stats entry was cached proactively (was 0 when lazy).
+        // - hit_count == 0 : nothing has read from the caches yet (no query, cold node).
         DataFusionService dataFusionService = internalCluster().getInstance(DataFusionService.class, primaryNode);
-        CacheGroupStats metadataCache = dataFusionService.getStats().getCacheStats().getMetadataCache();
+        CacheStats cacheStats = dataFusionService.getStats().getCacheStats();
+        CacheGroupStats metadataCache = cacheStats.getMetadataCache();
+        CacheGroupStats statisticsCache = cacheStats.getStatisticsCache();
 
         assertEquals(
             "metadata cache should be eagerly warmed with one entry per parquet segment before any query",
             parquetSegments,
             metadataCache.entryCount
         );
-        assertEquals("cold warm node, no query yet — cache must have zero hits", 0L, metadataCache.hitCount);
+        assertEquals("cold warm node, no query yet — metadata cache must have zero hits", 0L, metadataCache.hitCount);
+
+        assertEquals(
+            "statistics cache should be eagerly warmed with one entry per parquet segment before any query",
+            parquetSegments,
+            statisticsCache.entryCount
+        );
+        assertEquals("cold warm node, no query yet — statistics cache must have zero hits", 0L, statisticsCache.hitCount);
     }
 }
