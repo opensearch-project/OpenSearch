@@ -53,6 +53,7 @@ use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::execute_stream;
+use datafusion::physical_plan::metrics::MetricValue;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
@@ -191,10 +192,39 @@ impl QueryStreamHandle {
 
     fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
         if let Some(metrics) = plan.metrics() {
-            for m in metrics.aggregate_by_name().iter() {
-                let name = m.value().name().to_string();
-                let value = m.value().as_usize() as i64;
-                map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+            for m in metrics.iter() {
+                let add = |map: &mut serde_json::Map<String, serde_json::Value>, key: String, delta: i64| {
+                    let prev = map.get(&key).and_then(|v| v.as_i64()).unwrap_or(0);
+                    map.insert(key, serde_json::Value::Number(serde_json::Number::from(prev + delta)));
+                };
+                match m.value() {
+                    MetricValue::PruningMetrics { name, pruning_metrics } => {
+                        add(map, format!("{}_pruned", name), pruning_metrics.pruned() as i64);
+                        add(map, format!("{}_matched", name), pruning_metrics.matched() as i64);
+                    }
+                    MetricValue::StartTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("start_timestamp").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+                        if v > 0 && v < prev {
+                            map.insert("start_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::EndTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("end_timestamp").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if v > prev {
+                            map.insert("end_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::Ratio { .. } | MetricValue::Gauge { .. } | MetricValue::CurrentMemoryUsage(_) => {
+                        let name = m.value().name().to_string();
+                        let value = m.value().as_usize() as i64;
+                        map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                    }
+                    other => {
+                        add(map, other.name().to_string(), other.as_usize() as i64);
+                    }
+                }
             }
         }
         for child in plan.children() {
@@ -1346,7 +1376,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
+    use datafusion::execution::cache::cache_manager::CachedFileList;
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -1366,21 +1396,7 @@ pub unsafe fn sql_to_substrait(
             },
             CachedFileList::new(object_metas.as_ref().clone()),
         );
-        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-            .with_cache_manager(
-                CacheManagerConfig::default()
-                    .with_list_files_cache(Some(list_file_cache))
-                    .with_file_metadata_cache(Some(
-                        runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                    ))
-                    .with_metadata_cache_limit(
-                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                    )
-                    .with_file_statistics_cache(
-                        runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                    ),
-            )
-            .build()?;
+        let runtime_env = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
 
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())

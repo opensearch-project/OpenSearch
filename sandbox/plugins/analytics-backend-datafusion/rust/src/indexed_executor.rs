@@ -26,7 +26,6 @@ use datafusion::{
     physical_plan::displayable,
     physical_plan::execute_stream,
     execution::SessionStateBuilder,
-    execution::runtime_env::RuntimeEnvBuilder,
     execution::context::SessionContext,
     common::DataFusionError,
     prelude::*,
@@ -34,7 +33,7 @@ use datafusion::{
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
     datasource::{TableProvider, TableType},
-    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
+    execution::cache::cache_manager::CachedFileList,
     execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
@@ -109,20 +108,7 @@ pub async fn execute_indexed_query(
     };
     list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
 
-    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_metadata_cache_limit(
-                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                )
-                .with_file_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        );
+    let mut runtime_env_builder = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache);
     if let Some(pool) = query_memory_pool {
         runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
     }

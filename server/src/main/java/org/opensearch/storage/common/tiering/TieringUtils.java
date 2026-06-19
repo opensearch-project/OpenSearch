@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -121,6 +122,23 @@ public class TieringUtils {
         DEFAULT_JVM_USAGE_TIERING_THRESHOLD_PERCENT,
         0,
         100,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Timeout for the prepare tiering action (merge drain + flush + sync + remote upload).
+     * Controls how long each shard waits for in-flight merges to complete before timing out.
+     * Default is 90 seconds — large indices with many segments may need significant time
+     * for the remote store upload after flush. The default is kept just under the coordinator's
+     * transport channel timeout so the per-shard timeout fires first with diagnostic detail.
+     */
+    public static final String PREPARE_TIERING_TIMEOUT_KEY = "cluster.tiering.prepare_timeout";
+    /** Setting for prepare tiering timeout. Dynamically updatable via cluster settings API. */
+    public static final Setting<TimeValue> PREPARE_TIERING_TIMEOUT = Setting.timeSetting(
+        PREPARE_TIERING_TIMEOUT_KEY,
+        TimeValue.timeValueSeconds(90),
+        TimeValue.timeValueSeconds(30),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

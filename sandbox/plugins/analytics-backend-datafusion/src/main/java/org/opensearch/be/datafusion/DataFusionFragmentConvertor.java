@@ -411,6 +411,26 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /**
+     * Exact distinct count for use in a window context — replaces
+     * {@code count(distinct x) OVER(...)} via {@link WindowFunctionAdapters#countDistinctExact()}.
+     * Encoding DISTINCT in the operator name avoids the dropped-DISTINCT bug in DataFusion 54.x's
+     * substrait window consumer. Custom Rust UDAF in {@code rust/src/udaf/os_count_distinct.rs}.
+     */
+    static final SqlAggFunction LOCAL_OS_COUNT_DISTINCT_OP = new SqlAggFunction(
+        "os_count_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
@@ -420,13 +440,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
-        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
         // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
-        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     /**
@@ -511,15 +533,31 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
-    private byte[] convertToSubstrait(RelNode fragment) {
-        // TODO: move rewriters that don't touch substrait-specific classes up to the analytics-engine
-        // layer so other backends can reuse them.
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+    /**
+     * Shared pre-Substrait rewrite pipeline. Both the top-level fragment path
+     * ({@link #convertToSubstrait}) and the wrapper/partial-aggregate path
+     * ({@link #convertStandalone}) must run the identical set of rewriters so a shape handled on
+     * one path is not missed on the other. Centralizing here keeps the two paths in lockstep as
+     * rewriters are added.
+     *
+     * <p>TODO: assess whether each of these rewriters genuinely needs to run at the Substrait
+     * visitor layer, or whether the ones that only manipulate Calcite {@link RelNode}s (and don't
+     * depend on DataFusion/Substrait-specific classes) can be lifted up into the analytics-engine
+     * planner layer. Moving them up would let other backends reuse them and keep backend fragment
+     * conversion mostly a shape-to-Substrait translation.
+     */
+    private static RelNode preprocessForSubstrait(RelNode rel) {
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
+        return preprocessed;
+    }
+
+    private byte[] convertToSubstrait(RelNode fragment) {
+        RelNode preprocessed = preprocessForSubstrait(fragment);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -546,12 +584,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Converts a single operator into a Substrait {@link Rel}; children are discarded and rewired by {@link #rewire}. */
     private Rel convertStandalone(RelNode operator) {
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
-        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
-        preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
-        preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
-        preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
-        preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
+        RelNode preprocessed = preprocessForSubstrait(operator);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }

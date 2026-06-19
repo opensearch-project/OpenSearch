@@ -26,6 +26,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -78,6 +79,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -193,6 +195,16 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         List<ReferenceManager.RefreshListener> externalListeners,
         List<ReferenceManager.RefreshListener> internalListeners
     ) {
+        return buildDFAEngineConfig(store, translogPath, externalListeners, internalListeners, IndexModule.TieringState.HOT.name());
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners,
+        String tieringState
+    ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -200,6 +212,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
                 .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState)
                 .build()
         );
 
@@ -272,7 +285,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     /**
      * Wraps {@link EngineTestCase#createParsedDoc(String, String)} to attach a
-     * {@link MockDocumentInput}. {@link DataFormatAwareEngine#indexIntoEngine} requires a
+     * {@link MockDocumentInput}. {@link DataFormatAwareEngine#index} requires a
      * non-null {@code DocumentInput} on every doc (it calls {@code addField} for version,
      * seqNo, primaryTerm), but the base helper leaves that field null because production
      * code (e.g., {@code IndexShard.applyIndexOperation}) populates it via
@@ -747,7 +760,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testRefreshNeeded() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            assertTrue(engine.refreshNeeded());
+            assertTrue(engine.
+
+                refreshNeeded());
         }
     }
 
@@ -3255,6 +3270,389 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             int secondFill = engine.fillSeqNoGaps(primaryTerm.get());
             assertEquals("no further NoOps on second call", 0, secondFill);
             assertEquals(5L, engine.getProcessedLocalCheckpoint());
+        }
+    }
+
+    // --- Tiering freeze behavior ---
+
+    /** Creates a DFA engine whose index settings already carry the given tiering state (freeze-on-open path). */
+    private DataFormatAwareEngine createDFAEngineWithTieringState(Store store, Path translogPath, IndexModule.TieringState state)
+        throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, List.of(), List.of(), state.name()));
+    }
+
+    /** Updates the engine's live index settings to the given tiering state (without invoking onSettingsChanged). */
+    private void setTieringStateSetting(DataFormatAwareEngine engine, IndexModule.TieringState state) {
+        IndexSettings indexSettings = engine.config().getIndexSettings();
+        Settings newSettings = Settings.builder()
+            .put(indexSettings.getSettings())
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), state.name())
+            .build();
+        indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(newSettings).build());
+    }
+
+    private void notifySettingsChanged(DataFormatAwareEngine engine) {
+        engine.onSettingsChanged(TimeValue.MINUS_ONE, org.opensearch.core.common.unit.ByteSizeValue.ZERO, 0L);
+    }
+
+    public void testFreezeForTieringBlocksPrimaryIndex() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testFreezeForTieringIsIdempotent() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            engine.freezeForTiering(); // second call must be a no-op, not throw
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    /**
+     * Many threads call {@link DataFormatAwareEngine#freezeForTiering()} simultaneously. The atomic
+     * {@code compareAndSet} guard must make this idempotent under concurrency: no thread throws, and
+     * the engine ends frozen (a primary index op is rejected).
+     */
+    public void testConcurrentFreezeForTiering_EndsFrozen() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            int numThreads = 8;
+            CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            AtomicReference<Throwable> error = new AtomicReference<>();
+            Thread[] threads = new Thread[numThreads];
+            for (int t = 0; t < numThreads; t++) {
+                threads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        engine.freezeForTiering();
+                    } catch (Throwable e) {
+                        error.compareAndSet(null, e);
+                    }
+                });
+                threads[t].start();
+            }
+            for (Thread t : threads) {
+                t.join();
+            }
+
+            assertNull("concurrent freezeForTiering must not throw", error.get());
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    /**
+     * Simulates parallel tier/cancel: freezer threads repeatedly call {@code freezeForTiering()} while a
+     * single thread toggles the tiering state setting (HOT_TO_WARM ⇄ HOT) and drives
+     * {@code onSettingsChanged}. Only that one thread mutates index settings, so the test targets the
+     * freeze-state CAS rather than {@code IndexSettings} concurrency. After the storm, driving a
+     * definitive state must converge the engine consistently (no deadlock, no torn state observable
+     * through the index guard).
+     */
+    public void testConcurrentFreezeAndSettingsUnfreeze_ConvergesConsistently() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            int freezers = 4;
+            int iterations = 100;
+            AtomicReference<Throwable> error = new AtomicReference<>();
+            CyclicBarrier barrier = new CyclicBarrier(freezers + 1);
+            Thread[] threads = new Thread[freezers + 1];
+
+            for (int t = 0; t < freezers; t++) {
+                threads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        for (int n = 0; n < iterations; n++) {
+                            engine.freezeForTiering();
+                        }
+                    } catch (Throwable e) {
+                        error.compareAndSet(null, e);
+                    }
+                });
+                threads[t].start();
+            }
+            // Single settings-mutating thread toggles the tiering state and notifies, racing the freezers.
+            threads[freezers] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int n = 0; n < iterations; n++) {
+                        setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+                        notifySettingsChanged(engine);
+                        setTieringStateSetting(engine, IndexModule.TieringState.HOT);
+                        notifySettingsChanged(engine);
+                    }
+                } catch (Throwable e) {
+                    error.compareAndSet(null, e);
+                }
+            });
+            threads[freezers].start();
+
+            for (Thread t : threads) {
+                t.join();
+            }
+            assertNull("concurrent freeze/unfreeze must not deadlock or throw", error.get());
+
+            // Converge to a definitive HOT state: engine must unfreeze cleanly and accept writes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT);
+            notifySettingsChanged(engine);
+            assertEquals(Engine.Result.Type.SUCCESS, engine.index(indexOp(createParsedDocWithInput("hot", null))).getResultType());
+
+            // Converge to HOT_TO_WARM: engine must freeze cleanly and block writes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            notifySettingsChanged(engine);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("warm", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testFrozenEngineSkipsNonForceFlush() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.index(indexOp(createParsedDocWithInput("0", null)));
+            engine.freezeForTiering();
+            // A non-force flush while frozen must return early without committing.
+            engine.flush(false, true);
+            // A force flush is the prepare path and must proceed.
+            engine.flush(true, true);
+        }
+    }
+
+    public void testFrozenEngineSkipsRefreshExceptPrepareAndFlushSources() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            // These sources are skipped while frozen (no exception, simply a no-op).
+            engine.refresh("write indexing buffer");
+            engine.maybeRefresh("external");
+            // These two bypass the freeze and are allowed to proceed.
+            engine.refresh("prepare_tiering");
+            engine.refresh("flush");
+        }
+    }
+
+    public void testFrozenEngineBlocksForceMerge() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            // Force merge while frozen returns early without scheduling a merge.
+            engine.forceMerge(false, 1, false, false, false, UUID.randomUUID().toString());
+        }
+    }
+
+    /**
+     * Verifies the merge-count / drain wrappers delegate to the merge scheduler. On a freshly
+     * recovered engine with no indexing or merges, the scheduler reports zero active merges and
+     * no pending queue, and {@code onMergesDrained} fires the listener immediately
+     * (already drained).
+     */
+    public void testMergeCountWrappers_IdleEngine_ReportZeroAndAlreadyDrained() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            assertEquals("idle engine has no active merges", 0, engine.getActiveMergeCount());
+            assertFalse("idle engine has no pending merges", engine.hasPendingMerges());
+
+            AtomicBoolean listenerFired = new AtomicBoolean(false);
+            engine.onMergesDrained(() -> listenerFired.set(true));
+
+            assertTrue("listener fires immediately when idle engine is already drained", listenerFired.get());
+        }
+    }
+
+    public void testConstructorFreezesWhenOpenedMidTiering() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngineWithTieringState(store, createTempDir(), IndexModule.TieringState.HOT_TO_WARM)) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            // Opened with INDEX_TIERING_STATE=HOT_TO_WARM — engine must be frozen on construction,
+            // before any onSettingsChanged call.
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testOnSettingsChangedFreezesOnHotToWarm() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            // Initially HOT — indexing works.
+            engine.index(indexOp(createParsedDocWithInput("0", null)));
+            // Transition to HOT_TO_WARM and notify — engine freezes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            notifySettingsChanged(engine);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("1", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testOnSettingsChangedUnfreezesOnReturnToHot() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            notifySettingsChanged(engine);
+            expectThrows(IllegalStateException.class, () -> engine.index(indexOp(createParsedDocWithInput("0", null))));
+            // Tiering cancelled — state returns to HOT, engine unfreezes and indexing resumes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT);
+            notifySettingsChanged(engine);
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+        }
+    }
+
+    public void testIsFrozenForTieringLiveSettingsFallback() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            // Settings reflect HOT_TO_WARM but onSettingsChanged has NOT been called (the cached flag is
+            // still false). The live-settings fallback must still block the operation.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testOnSettingsChangedUnrecognizedTieringValueNotFrozen() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            IndexSettings indexSettings = engine.config().getIndexSettings();
+            Settings newSettings = Settings.builder()
+                .put(indexSettings.getSettings())
+                .put(IndexModule.INDEX_TIERING_STATE.getKey(), "NOT_A_REAL_STATE")
+                .build();
+            indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(newSettings).build());
+            notifySettingsChanged(engine);
+            // Unrecognized value is treated as not frozen — indexing still works.
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("0", null)));
+            assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+        }
+    }
+
+    public void testDocCountLimitRejectsIndexingAboveMax() throws Exception {
+        final int maxDocs = randomIntBetween(1, 20);
+        MockIndexingExecutionEngine limitedEngine = new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public long maxIndexableDocs() {
+                return maxDocs;
+            }
+        };
+        MockDataFormatPlugin limitedPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return limitedEngine;
+            }
+        };
+
+        EngineConfig config = buildFailingEngineConfig(limitedPlugin, new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {}
+        });
+        try (DataFormatAwareEngine eng = new DataFormatAwareEngine(config)) {
+            int numDocs = between(maxDocs + 1, maxDocs * 2);
+            for (int i = 0; i < numDocs; i++) {
+                final long maxSeqNo = eng.getProcessedLocalCheckpoint();
+                Engine.IndexResult result = eng.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                if (i < maxDocs) {
+                    assertThat("doc " + i + " should succeed", result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    assertNull(result.getFailure());
+                    assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
+                } else {
+                    assertThat("doc " + i + " should be rejected", result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                    assertNotNull(result.getFailure());
+                    assertThat(result.getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(
+                        result.getFailure().getMessage(),
+                        containsString("Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "]")
+                    );
+                    assertThat("seq no must not be assigned on rejection", result.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+                    assertThat("local checkpoint must not advance on rejection", eng.getProcessedLocalCheckpoint(), equalTo(maxSeqNo));
+                }
+            }
+            // Engine must remain open on primary even after rejections
+            eng.refresh("verify-still-open");
+        }
+    }
+
+    public void testConcurrentIndexAndRefreshDocCountNeverUnderCounts() throws Exception {
+        Path translogPath = createTempDir();
+        try (DataFormatAwareEngine eng = createDFAEngine(store, translogPath)) {
+            int numThreads = 4;
+            int docsPerThread = 50;
+            int totalDocs = numThreads * docsPerThread;
+            CyclicBarrier barrier = new CyclicBarrier(numThreads + 1); // +1 for refresh thread
+            AtomicInteger successCount = new AtomicInteger();
+
+            Thread[] indexThreads = new Thread[numThreads];
+            for (int t = 0; t < numThreads; t++) {
+                final int threadId = t;
+                indexThreads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        for (int d = 0; d < docsPerThread; d++) {
+                            Engine.IndexResult result = eng.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
+                            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                                successCount.incrementAndGet();
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                indexThreads[t].start();
+            }
+
+            // Refresh thread that runs concurrently with indexing
+            Thread refreshThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < 10; i++) {
+                        eng.refresh("concurrent-refresh-" + i);
+                        Thread.sleep(5);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            refreshThread.start();
+
+            for (Thread t : indexThreads)
+                t.join(30_000);
+            refreshThread.join(30_000);
+
+            // Final refresh to flush remaining buffered docs
+            eng.refresh("final");
+
+            // Verify: catalogSnapshot docs + pendingRowCount must equal successCount
+            try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                long catalogDocs = ref.get().getNumDocs();
+                assertThat("catalog must contain all successfully indexed docs", catalogDocs, equalTo((long) successCount.get()));
+            }
         }
     }
 }

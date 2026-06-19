@@ -20,8 +20,10 @@ import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
@@ -36,6 +38,7 @@ import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -242,6 +245,53 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertEquals(1, dag.rootStage().getChildStages().size());
         assertReduceStageConverted(convertor, dag.rootStage());
         assertShardScanConverted(convertor, dag.rootStage().getChildStages().getFirst());
+    }
+
+    /**
+     * PARTIAL aggregate stages must emit SETUP_PARTIAL_AGGREGATE so the shard executor
+     * strips the DF Final layer. Without this, slice_count > 1 causes FinalPartitioned
+     * to hash-repartition groups within the shard, producing incorrect cross-shard merges.
+     */
+    public void testPartialAggregateInstruction_emittedForCountGroupBy() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, makeAggregate(countStarCall()), convertor);
+        assertShardHasPartialAggInstruction(dag, "COUNT");
+    }
+
+    public void testPartialAggregateInstruction_emittedForSumGroupBy() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, makeAggregate(sumCall()), convertor);
+        assertShardHasPartialAggInstruction(dag, "SUM");
+    }
+
+    public void testPartialAggregateInstruction_emittedForFilteredAggregate() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(
+            2,
+            makeAggregate(
+                makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                countStarCall()
+            ),
+            convertor
+        );
+        assertShardHasPartialAggInstruction(dag, "COUNT with filter (delegation path)");
+    }
+
+    public void testPartialAggregateInstruction_emittedForApproxCountDistinct() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        QueryDAG dag = buildAndConvert(2, makeAggregate(approxCountDistinctCall(scan)), convertor);
+        assertShardHasPartialAggInstruction(dag, "APPROX_COUNT_DISTINCT (engine-native)");
+    }
+
+    private void assertShardHasPartialAggInstruction(QueryDAG dag, String label) {
+        Stage shardStage = dag.rootStage().getChildStages().getFirst();
+        StagePlan plan = shardStage.getPlanAlternatives().getFirst();
+        assertTrue(
+            label + ": PARTIAL aggregate shard stage must emit SETUP_PARTIAL_AGGREGATE",
+            plan.instructions().stream().anyMatch(node -> node.type() == InstructionType.SETUP_PARTIAL_AGGREGATE)
+        );
     }
 
     /**
@@ -1319,6 +1369,68 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         var r = runCombining(makeAnd(or(matchPhrase("hello"), fuzzy("wrld")), or(wildcard("h*"), amountEquals(200))));
         assertEquals(2, r.plan.delegatedExpressions().size());
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, treeShapeOf(r.plan));
+    }
+
+    /**
+     * Regression for the RexUtil.isFlat AssertionError. After predicate delegation strips the
+     * annotation wrappers in FragmentConversionDriver.strip(), an {@code IN (1,2,3)} expands to
+     * a bare OR(=,=,=) nested directly inside another OR — e.g.
+     * {@code AND(OR(delegated_predicate(0), >), OR(delegated_predicate(2), OR(=,=,=)), =)}.
+     * Calcite's shallow RexUtil.flatten does not descend into the inner OR, so
+     * LogicalFilter.create's recursive isFlat assertion fires. RelNodeUtils.deepFlatten walks the
+     * tree bottom-up and removes the nesting. This builds that exact tree and asserts it.
+     */
+    public void testDeepFlatten_removesNestedSameOpOr() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode ref = rexBuilder.makeInputRef(intType, 0);
+        RexNode eq1 = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(1, intType, true));
+        RexNode eq2 = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(2, intType, true));
+        RexNode eq3 = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(3, intType, true));
+        RexNode innerOr = or(eq1, eq2, eq3);
+        // Mirror production: the OR(=,=,=) is nested one level DOWN inside an AND, not at the
+        // root — so a shallow root-only flatten never visits it. AND(OR(eq2, OR(=,=,=)), eq3).
+        RexNode nested = makeAnd(or(eq2, innerOr), eq3);
+        assertFalse("precondition: tree is not flat", RexUtil.isFlat(nested));
+
+        RexNode flat = RelNodeUtils.deepFlatten(rexBuilder, nested);
+        assertTrue("deepFlatten must produce a flat tree", RexUtil.isFlat(flat));
+        // Pure flatten: the inner OR's 3 operands splice into the middle OR (eq2 + 3 = 4), none deduped.
+        RexCall andCall = (RexCall) flat;
+        assertEquals(SqlKind.AND, andCall.getKind());
+        RexNode middleOr = andCall.getOperands().get(0);
+        assertEquals(SqlKind.OR, middleOr.getKind());
+        assertEquals(4, ((RexCall) middleOr).getOperands().size());
+    }
+
+    /** Same-op nesting hidden under a NOT — NOT(OR(eqA, OR(eqB, eqC))) AND eqD. */
+    public void testDeepFlatten_removesNestedOrUnderNot() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode ref = rexBuilder.makeInputRef(intType, 0);
+        RexNode eqA = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(1, intType, true));
+        RexNode eqB = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(2, intType, true));
+        RexNode eqC = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(3, intType, true));
+        RexNode eqD = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(4, intType, true));
+        RexNode nested = makeAnd(not(or(eqA, or(eqB, eqC))), eqD);
+        assertFalse("precondition: tree is not flat", RexUtil.isFlat(nested));
+
+        RexNode flat = RelNodeUtils.deepFlatten(rexBuilder, nested);
+        // The OR nested under NOT must also be flattened (shuttle recurses through NOT).
+        assertTrue("deepFlatten must produce a flat tree", RexUtil.isFlat(flat));
+    }
+
+    /** An already-flat tree is returned unchanged (and stays flat). */
+    public void testDeepFlatten_alreadyFlatUnchanged() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode ref = rexBuilder.makeInputRef(intType, 0);
+        RexNode eqA = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(1, intType, true));
+        RexNode eqB = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(2, intType, true));
+        // AND(eqA, OR(eqA, eqB)) — mixed operators, no same-op nesting → already flat.
+        RexNode flatInput = makeAnd(eqA, or(eqA, eqB));
+        assertTrue("precondition: input already flat", RexUtil.isFlat(flatInput));
+
+        RexNode flat = RelNodeUtils.deepFlatten(rexBuilder, flatInput);
+        assertTrue(RexUtil.isFlat(flat));
+        assertEquals(2, ((RexCall) flat).getOperands().size());
     }
 
     // ---- OR conditions ----

@@ -304,6 +304,7 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
             physicalPlan.contains("QueryShardExec"));
     }
 
+
     @SuppressWarnings("unchecked")
     public void testProfileCoordinatorReduceHasMetrics() throws IOException {
         ensureClickBenchProvisioned();

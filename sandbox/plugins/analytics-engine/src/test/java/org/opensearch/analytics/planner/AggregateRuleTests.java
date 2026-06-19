@@ -11,7 +11,15 @@ package org.opensearch.analytics.planner;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlBasicAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AggregateMode;
@@ -330,6 +338,80 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         AggregateCall rebuilt = agg.getAggCallList().get(0);
         assertSame(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, rebuilt.getAggregation());
         assertFalse("isDistinct must be cleared on the rewritten APPROX_COUNT_DISTINCT call", rebuilt.isDistinct());
+    }
+
+    /**
+     * PPL's {@code distinct_count_approx} UDAF marker — a {@code SqlAggFunction} named
+     * {@code "APPROX_COUNT_DISTINCT"} but not the Calcite stdop, returning a NULLABLE BIGINT —
+     * is rewritten to {@code SqlStdOperatorTable.APPROX_COUNT_DISTINCT} (which infers BIGINT
+     * NOT NULL) and wrapped in a casting {@link OpenSearchProject} that restores the original
+     * nullable row type. The Project bridge is required because {@code Aggregate.typeMatchesInferred}
+     * pins the new aggCall's type to its operator's inferred type while {@code HepPlanner} pins
+     * the replacement's row type to the original's.
+     */
+    public void testPplDistinctCountApproxUdfRewrittenWithCastProject() {
+        SqlAggFunction pplUdfMarker = SqlBasicAggFunction.create(
+            "APPROX_COUNT_DISTINCT",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BIGINT_FORCE_NULLABLE,
+            OperandTypes.ANY
+        );
+        RelDataType nullableBigint = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        AggregateCall pplApprox = AggregateCall.create(pplUdfMarker, /* distinct */ false, List.of(1), -1, scan, nullableBigint, "dca");
+
+        RelNode result = runPlanner(makeAggregate(pplApprox), defaultContext(1));
+        logger.info("Plan:\n{}", RelOptUtil.toString(result));
+        RelNode unwrapped = unwrapRootReducer(result);
+        assertTrue(
+            "Expected OpenSearchProject(OpenSearchAggregate(...)) wrap, got " + unwrapped.getClass().getSimpleName(),
+            unwrapped instanceof OpenSearchProject
+        );
+        OpenSearchProject project = (OpenSearchProject) unwrapped;
+        // Project preserves the original nullable BIGINT for the aggregated column.
+        RelDataType dcaType = project.getRowType().getFieldList().get(1).getType();
+        assertEquals("Project must restore original nullable BIGINT", nullableBigint, dcaType);
+        // Field 1 must be a non-trivial expression (the cast); field 0 stays as a passthrough ref.
+        // OpenSearchProjectRule wraps scalar calls in AnnotatedProjectExpression, so we search
+        // recursively for a CAST node.
+        assertTrue("Project must contain a CAST to bridge nullability", containsCast(project.getProjects().get(1)));
+
+        RelNode innerAgg = RelNodeUtils.unwrapHep(project.getInput());
+        assertTrue(
+            "Inner node must be OpenSearchAggregate, got " + innerAgg.getClass().getSimpleName(),
+            innerAgg instanceof OpenSearchAggregate
+        );
+        OpenSearchAggregate agg = (OpenSearchAggregate) innerAgg;
+        AggregateCall rebuilt = agg.getAggCallList().get(0);
+        assertSame(
+            "Inner aggregate must use SqlStdOperatorTable.APPROX_COUNT_DISTINCT",
+            SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+            rebuilt.getAggregation()
+        );
+        assertFalse("isDistinct must be cleared on the rewritten call", rebuilt.isDistinct());
+    }
+
+    /**
+     * Stdop {@code APPROX_COUNT_DISTINCT} (already canonical) must not be rewritten — the rule's
+     * predicate excludes the stdop, so no Project wrap is added and the result is a plain
+     * {@link OpenSearchAggregate}.
+     */
+    public void testStdopApproxCountDistinctNotRewritten() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        OpenSearchAggregate agg = runAggregate(1, approxCountDistinctCall(scan));
+        AggregateCall call = agg.getAggCallList().get(0);
+        assertSame(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, call.getAggregation());
+    }
+
+    /** Recursive search for a CAST node — Project rule wraps scalar calls in AnnotatedProjectExpression. */
+    private static boolean containsCast(RexNode node) {
+        if (node.getKind() == SqlKind.CAST) return true;
+        if (node instanceof RexCall call) {
+            for (RexNode operand : call.getOperands()) {
+                if (containsCast(operand)) return true;
+            }
+        }
+        return false;
     }
 
     private OpenSearchAggregate runAggregate(int shardCount, AggregateCall aggCall) {
