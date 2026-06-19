@@ -444,7 +444,7 @@ public final class NativeBridge {
             )
         );
 
-        // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
+        // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count, store_ptr)
         CACHE_MANAGER_ADD_FILES = linker.downcallHandle(
             lib.find("df_cache_manager_add_files").orElseThrow(),
             FunctionDescriptor.of(
@@ -452,6 +452,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -1541,10 +1542,10 @@ public final class NativeBridge {
         }
     }
 
-    public static void cacheManagerAddFiles(long runtimePtr, String[] filePaths) {
+    public static void cacheManagerAddFiles(long runtimePtr, String[] filePaths, long storePtr) {
         try (var call = new NativeCall()) {
             var f = call.strArray(filePaths);
-            call.invoke(CACHE_MANAGER_ADD_FILES, runtimePtr, f.ptrs(), f.lens(), f.count());
+            call.invoke(CACHE_MANAGER_ADD_FILES, runtimePtr, f.ptrs(), f.lens(), f.count(), storePtr);
         }
     }
 

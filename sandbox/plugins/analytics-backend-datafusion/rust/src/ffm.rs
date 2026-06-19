@@ -810,6 +810,7 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
     files_ptr: *const *const u8,
     files_len_ptr: *const i64,
     files_count: i64,
+    store_ptr: i64,
 ) -> i64 {
     if runtime_ptr == 0 {
         return Err("df_cache_manager_add_files: null runtime pointer".to_string());
@@ -836,7 +837,7 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
     let rt_handle = rt_manager.io_runtime.handle();
 
-    manager.add_files(&file_paths, rt_handle)
+    manager.add_files(&file_paths, rt_handle, store_ptr)
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
     Ok(0)
 }

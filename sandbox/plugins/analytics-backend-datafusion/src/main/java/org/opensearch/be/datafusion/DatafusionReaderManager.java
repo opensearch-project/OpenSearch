@@ -110,7 +110,25 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     @Override
     public void onFilesAdded(Collection<String> files) throws IOException {
         if (files == null || files.isEmpty()) return;
-        dataFusionService.onFilesAdded(toAbsolutePaths(files));
+        dataFusionService.onFilesAdded(toAbsolutePaths(files), storePointerOrDefault(dataformatAwareStoreHandle));
+    }
+
+    /**
+     * Resolves the native store pointer used for cache warming, mirroring
+     * {@code NativeBridge.createDatafusionReader}: a null / EMPTY / closed handle falls back to the
+     * default (the native side treats {@code <= 0} as the local file system); a live handle yields
+     * its boxed object-store pointer so warm footers are read through the per-shard remote store.
+     */
+    private static long storePointerOrDefault(NativeStoreHandle handle) {
+        if (handle == null) {
+            return 0L;
+        }
+        try {
+            return handle.getPointer();
+        } catch (IllegalStateException closed) {
+            // Handle closed between check and extraction — fall back to local.
+            return 0L;
+        }
     }
 
     @Override

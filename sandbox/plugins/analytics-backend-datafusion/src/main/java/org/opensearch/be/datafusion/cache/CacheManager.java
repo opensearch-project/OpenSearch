@@ -34,7 +34,7 @@ public class CacheManager {
                 return;
             }
             String[] filesArray = files.toArray(new String[0]);
-            NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filesArray);
+            NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filesArray, 0L);
         } catch (Exception e) {
             logger.error("Error adding files to cache manager", e);
         }
