@@ -71,7 +71,10 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.Snapshot;
@@ -89,6 +92,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -316,6 +320,139 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             writer.commit();
             return docs;
         }
+    }
+
+    /**
+     * When the native store provider returns a store that is not live and not EMPTY,
+     * the constructor should close it immediately.
+     */
+    public void testNonLiveStoreIsClosedDuringConstruction() {
+        Path repo = createTempDir();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+            .put("location", repo)
+            .build();
+        RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+
+        // We need a store where isLive() == false but store != EMPTY.
+        // Create a handle, close it so isLive() returns false, then wrap in NativeStoreRepository.
+        // The FsRepository constructor should call store.close() on this non-live, non-EMPTY store.
+        // Since NativeStoreHandle.close() is idempotent, we track via a counter in the destroyer.
+        AtomicBoolean secondCloseCalled = new AtomicBoolean(false);
+
+        NativeRemoteObjectStoreProvider provider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "fs";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata md, Settings nodeSettings) {
+                // Create a handle that's already closed — isLive() will be false
+                NativeStoreHandle handle = new NativeStoreHandle(42L, ptr -> secondCloseCalled.set(true));
+                handle.close(); // first close — destroyer fires, isLive() becomes false
+                // Reset the flag so we can detect the second close from FsRepository
+                secondCloseCalled.set(false);
+                return new NativeStoreRepository(handle);
+            }
+        };
+
+        FsRepository repository = new FsRepository(
+            metadata,
+            new Environment(settings, null),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            provider
+        );
+
+        // The constructor should have called store.close() on the non-live, non-EMPTY store.
+        // NativeStoreHandle.close() is idempotent so the destroyer won't fire again,
+        // but the code path is exercised. Verify the repository's native store remains EMPTY.
+        assertSame(NativeStoreRepository.EMPTY, repository.getNativeStore());
+    }
+
+    /**
+     * When the native store provider returns a live store, it should be assigned to the repository.
+     */
+    public void testLiveStoreIsAssignedDuringConstruction() {
+        Path repo = createTempDir();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+            .put("location", repo)
+            .build();
+        RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+
+        AtomicBoolean destroyed = new AtomicBoolean(false);
+        NativeStoreHandle liveHandle = new NativeStoreHandle(99L, ptr -> destroyed.set(true));
+        NativeStoreRepository liveStore = new NativeStoreRepository(liveHandle);
+
+        NativeRemoteObjectStoreProvider provider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "fs";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata md, Settings nodeSettings) {
+                return liveStore;
+            }
+        };
+
+        FsRepository repository = new FsRepository(
+            metadata,
+            new Environment(settings, null),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            provider
+        );
+
+        assertFalse("Live store should not have been destroyed", destroyed.get());
+        assertSame(liveStore, repository.getNativeStore());
+        assertTrue(repository.getNativeStore().isLive());
+
+        // Clean up: close the repository to release the native handle
+        repository.close();
+        assertTrue("Native handle should be destroyed after repository close", destroyed.get());
+    }
+
+    /**
+     * When the native store provider returns EMPTY, the repository should keep its default EMPTY store.
+     */
+    public void testEmptyStoreFromProviderKeepsDefault() {
+        Path repo = createTempDir();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+            .put("location", repo)
+            .build();
+        RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+
+        NativeRemoteObjectStoreProvider provider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "fs";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata md, Settings nodeSettings) {
+                return NativeStoreRepository.EMPTY;
+            }
+        };
+
+        FsRepository repository = new FsRepository(
+            metadata,
+            new Environment(settings, null),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            provider
+        );
+
+        assertSame(NativeStoreRepository.EMPTY, repository.getNativeStore());
     }
 
 }

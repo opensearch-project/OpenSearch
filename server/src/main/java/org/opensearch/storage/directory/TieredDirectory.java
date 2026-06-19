@@ -12,9 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
@@ -23,6 +23,8 @@ import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.storage.indexinput.CachedSwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInputWrapper;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
+import org.opensearch.storage.utils.DirectoryUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -30,6 +32,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.opensearch.index.store.remote.utils.FileTypeUtils.BLOCK_FILE_IDENTIFIER;
@@ -38,13 +41,25 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 
 /**
  * Extension of Composite directory to support writable warm and other related features
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class TieredDirectory extends CompositeDirectory {
 
     private static final Logger logger = LogManager.getLogger(TieredDirectory.class);
 
-    public TieredDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache, ThreadPool threadPool) {
+    private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
+
+    public TieredDirectory(
+        Directory localDirectory,
+        Directory remoteDirectory,
+        FileCache fileCache,
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
+    ) {
         super(localDirectory, remoteDirectory, fileCache, threadPool);
+        this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
     }
 
     @Override
@@ -218,11 +233,12 @@ public class TieredDirectory extends CompositeDirectory {
             new CachedSwitchableIndexInput(
                 fileCache,
                 fileName,
-                (FSDirectory) localDirectory,
+                DirectoryUtils.unwrapFSDirectory(localDirectory),
                 remoteDirectory,
                 transferManager,
                 cacheFromRemote,
-                threadPool
+                threadPool,
+                tieredStoragePrefetchSettingsSupplier
             )
         );
     }

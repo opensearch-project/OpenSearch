@@ -34,18 +34,22 @@ package org.opensearch.search;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.util.io.IOUtils;
@@ -70,6 +74,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
 
     private static final String STRING_FIELD_NAME = "foo";
     private static final String POINT_FIELD_NAME = "point";
+    private static final String SORTED_SET_FIELD_NAME = "sorted_set";
 
     private static Directory dir;
     private static IndexReader reader;
@@ -98,6 +103,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
             }
             doc.add(new StringField(STRING_FIELD_NAME, sb.toString(), Field.Store.NO));
             doc.add(new IntPoint(POINT_FIELD_NAME, i, i + 1));
+            doc.add(new SortedSetDocValuesField(SORTED_SET_FIELD_NAME, new BytesRef(sb.toString())));
             w.addDocument(doc);
         }
     }
@@ -227,6 +233,68 @@ public class SearchCancellationTests extends OpenSearchTestCase {
         pointValues2.getDocCount();
         pointValues2.getNumIndexDimensions();
         pointValues2.intersect(new PointValuesIntersectVisitor());
+    }
+
+    public void testExitablePostingsEnum() throws IOException {
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        Runnable cancellation = () -> {
+            if (cancelled.get()) {
+                throw new TaskCancelledException("cancelled");
+            }
+        };
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            null,
+            searchContext
+        );
+        searcher.addQueryCancellation(cancellation);
+
+        // Get terms through the ExitableDirectoryReader wrapping chain (cancellation disabled initially)
+        Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME);
+        TermsEnum termsEnum = terms.iterator();
+        termsEnum.next(); // advance to first term
+
+        // Get a PostingsEnum — should be wrapped in ExitablePostingsEnum
+        PostingsEnum postingsEnum = termsEnum.postings(null, PostingsEnum.NONE);
+
+        // Iterate without cancellation — should work fine
+        assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, postingsEnum.nextDoc());
+
+        // Cancel and get a fresh PostingsEnum — first nextDoc() should throw
+        // because ExitablePostingsEnum checks on calls == 0 (first call)
+        cancelled.set(true);
+        PostingsEnum postingsEnum2 = termsEnum.postings(null, PostingsEnum.NONE);
+        expectThrows(TaskCancelledException.class, postingsEnum2::nextDoc);
+
+        // Also verify advance throws when cancelled
+        PostingsEnum postingsEnum3 = termsEnum.postings(null, PostingsEnum.NONE);
+        expectThrows(TaskCancelledException.class, () -> postingsEnum3.advance(0));
+    }
+
+    public void testExitablePostingsEnumNoOpWhenCancellationDisabled() throws IOException {
+        // Without cancellation, PostingsEnum should work normally (backward compat)
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            null,
+            searchContext
+        );
+        // No cancellation added — isEnabled() returns false, so terms() returns raw Terms
+        Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME);
+        assertNotNull(terms);
+        TermsEnum termsEnum = terms.iterator();
+        assertNotNull(termsEnum.next());
+        PostingsEnum postingsEnum = termsEnum.postings(null, PostingsEnum.NONE);
+        assertNotNull(postingsEnum);
+        // Should iterate without issues — no wrapping, no overhead
+        assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, postingsEnum.nextDoc());
     }
 
     private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {

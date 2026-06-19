@@ -55,7 +55,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "8.4.0" apply false
+  id "com.diffplug.spotless" version "8.6.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -72,7 +72,7 @@ apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
 
 // Apply security setup if opensearch-security is in installedPlugins
-if (project.hasProperty('installedPlugins') && 
+if (project.hasProperty('installedPlugins') &&
     project.property('installedPlugins').toString().contains('opensearch-security')) {
   apply from: 'gradle/security-setup.gradle'
 }
@@ -219,7 +219,7 @@ tasks.register("verifyVersions") {
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
-    new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+    new URL('https://ci.opensearch.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
       BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
@@ -421,7 +421,11 @@ gradle.projectsEvaluated {
         task.jvmArgs += [
             "--add-modules=jdk.incubator.vector",
             "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
-            "--enable-native-access=ALL-UNNAMED"
+            "--enable-native-access=ALL-UNNAMED",
+            // Disable ByteBuddy's Unsafe-based class injection path to avoid
+            // "sun.misc.Unsafe::objectFieldOffset has been called by ByteBuddy" JVM warnings on JDK 21+.
+            // ByteBuddy still falls back to Lookup/Reflection injection strategies.
+            "-Dnet.bytebuddy.safe=true"
         ]
 
         // Add Java Agent for security sandboxing
@@ -719,7 +723,7 @@ reporting {
   reports {
     testAggregateTestReport(AggregateTestReport) {
       testSuiteName = "test"
-    }
+     }
   }
 }
 

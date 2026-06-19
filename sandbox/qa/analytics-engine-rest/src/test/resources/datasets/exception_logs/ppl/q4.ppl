@@ -1,0 +1,1 @@
+source=exception_logs | where `exception.exception_message` like '%Exception while getting WebSocket session%' | stats count() by service_name, application_id

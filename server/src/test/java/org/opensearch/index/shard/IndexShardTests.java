@@ -113,6 +113,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -4772,6 +4773,147 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
+     * Verifies that {@code getSegmentInfosSnapshot()} on the ReadOnlyEngine created during
+     * {@link IndexShard#resetEngineToGlobalCheckpoint()} does not block on {@code engineMutex}.
+     * <p>
+     * Regression test for
+     * <a href="https://github.com/opensearch-project/OpenSearch/issues/11869">#11869</a>:
+     * the close thread holds {@code engineMutex} and waits for {@code writeLock}, while the
+     * recovery thread holds {@code readLock} (via {@code recoverFromTranslog}) and calls
+     * {@code getSegmentInfosSnapshot()} through the {@code ReplicationCheckpointUpdater} refresh
+     * listener -- if both paths synchronize on {@code engineMutex}, the cycle deadlocks.
+     * <p>
+     * Pauses {@code resetEngineToGlobalCheckpoint} before translog replay, holds
+     * {@code engineMutex} via reflection, and asserts {@code getSegmentInfosSnapshot()}
+     * completes within 5 seconds.
+     */
+    public void testNoDeadlockOnCloseWhileRecoveringTranslog() throws Exception {
+        CountDownLatch recoveryStartedLatch = new CountDownLatch(1);
+        CountDownLatch proceedWithRecoveryLatch = new CountDownLatch(1);
+        AtomicBoolean armed = new AtomicBoolean(false);
+        Settings segRepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        IndexerFactory customFactory = new EngineBackedIndexerFactory(config -> new InternalEngine(config, new TranslogEventListener() {
+            @Override
+            public void onBeginTranslogRecovery() {
+                if (armed.compareAndSet(true, false)) {
+                    recoveryStartedLatch.countDown();
+                    try {
+                        proceedWithRecoveryLatch.await(30, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        }));
+        IndexShard shard = newShard(false, segRepSettings, customFactory);
+        IndexShard primary = newStartedShard(true, segRepSettings);
+        recoverReplica(shard, primary, true, (a) -> null);
+        closeShards(primary);
+
+        Object engineMutex = shard.getEngineMutex();
+
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+
+        shard.acquireAllReplicaOperationsPermits(
+            shard.getOperationPrimaryTerm(),
+            shard.getLastKnownGlobalCheckpoint(),
+            0L,
+            ActionListener.wrap(r -> {
+                try (Releasable dummy = r) {
+                    armed.set(true);
+                    shard.resetEngineToGlobalCheckpoint();
+                } finally {
+                    engineResetLatch.countDown();
+                }
+            }, Assert::assertNotNull),
+            TimeValue.timeValueMinutes(1L)
+        );
+
+        // Wait until the reset has created the ReadOnlyEngine (installed as current engine)
+        // and the new InternalEngine, then paused before translog replay.
+        assertTrue("recovery should start", recoveryStartedLatch.await(30, TimeUnit.SECONDS));
+
+        // Verify getSegmentInfosSnapshot() on the ReadOnlyEngine doesn't block when
+        // engineMutex is held -- this is the code path that deadlocks in production.
+        CountDownLatch snapshotCompletedLatch = new CountDownLatch(1);
+        Thread snapshotThread = new Thread(() -> {
+            try {
+                GatedCloseable<SegmentInfos> snapshot = shard.getSegmentInfosSnapshot();
+                if (snapshot != null) snapshot.close();
+            } catch (IOException | IllegalStateException ignored) {} finally {
+                snapshotCompletedLatch.countDown();
+            }
+        });
+
+        synchronized (engineMutex) {
+            snapshotThread.start();
+            assertTrue("getSegmentInfosSnapshot should not block on engineMutex", snapshotCompletedLatch.await(5, TimeUnit.SECONDS));
+        }
+        snapshotThread.join(5_000);
+
+        proceedWithRecoveryLatch.countDown();
+        assertTrue("engine reset should complete", engineResetLatch.await(30, TimeUnit.SECONDS));
+        closeShard(shard, false);
+    }
+
+    /**
+     * Verifies that the ReadOnlyEngine delegates throw {@link AlreadyClosedException} when
+     * {@code newEngineReference} is still null -- the window between ReadOnlyEngine installation
+     * and {@code newEngineReference.set(newEngine)} inside {@code resetEngineToGlobalCheckpoint}.
+     * Covers the defensive null-check branches in {@code acquireLastIndexCommit},
+     * {@code acquireSafeIndexCommit}, and {@code acquireSnapshot}.
+     */
+    public void testDelegateThrowsAlreadyClosedBeforeNewEngineSet() throws Exception {
+        CountDownLatch creatingEngineLatch = new CountDownLatch(1);
+        CountDownLatch proceedWithCreationLatch = new CountDownLatch(1);
+        AtomicBoolean armed = new AtomicBoolean(false);
+        Settings segRepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        IndexerFactory customFactory = new EngineBackedIndexerFactory(config -> {
+            if (armed.compareAndSet(true, false)) {
+                creatingEngineLatch.countDown();
+                try {
+                    proceedWithCreationLatch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            return new InternalEngine(config);
+        });
+        IndexShard shard = newShard(false, segRepSettings, customFactory);
+        IndexShard primary = newStartedShard(true, segRepSettings);
+        recoverReplica(shard, primary, true, (a) -> null);
+        closeShards(primary);
+
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+
+        shard.acquireAllReplicaOperationsPermits(
+            shard.getOperationPrimaryTerm(),
+            shard.getLastKnownGlobalCheckpoint(),
+            0L,
+            ActionListener.wrap(r -> {
+                try (Releasable dummy = r) {
+                    armed.set(true);
+                    shard.resetEngineToGlobalCheckpoint();
+                } finally {
+                    engineResetLatch.countDown();
+                }
+            }, Assert::assertNotNull),
+            TimeValue.timeValueMinutes(1L)
+        );
+
+        assertTrue("engine creation should start", creatingEngineLatch.await(30, TimeUnit.SECONDS));
+
+        // The ReadOnlyEngine is now the current engine, but newEngineReference is still null.
+        expectThrows(AlreadyClosedException.class, () -> shard.acquireLastIndexCommit(false));
+        expectThrows(AlreadyClosedException.class, shard::acquireSafeIndexCommit);
+        expectThrows(AlreadyClosedException.class, shard::getCatalogSnapshot);
+
+        proceedWithCreationLatch.countDown();
+        assertTrue("engine reset should complete", engineResetLatch.await(30, TimeUnit.SECONDS));
+        closeShard(shard, false);
+    }
+
+    /**
      * This test simulates a scenario seen rarely in ConcurrentSeqNoVersioningIT. While engine is inside
      * resetEngineToGlobalCheckpoint snapshot metadata could fail
      */
@@ -5372,51 +5514,113 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    public void testCacheWrapperReader() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1s")
-            .build();
+    /**
+     * Verifies that {@code isRemoteSegmentStoreInSync} uses {@code getCatalogSnapshot()} (the unified
+     * catalog API) rather than the legacy {@code getSegmentInfosSnapshot()}. After indexing and refreshing,
+     * the catalog snapshot files should match the remote uploaded files, making the method return true.
+     * Guards against regressions where the method reverts to using getSegmentInfosSnapshot().
+     */
+    public void testIsRemoteSegmentStoreInSyncUsesCatalogSnapshot() throws Exception {
+        String remoteStorePath = createTempDir().toString();
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
+                .build(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        );
+        indexDoc(shard, "_doc", "1");
+        shard.refresh("test");
 
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        // After refresh, remote sync should have completed and catalog snapshot files should match remote
+        assertTrue("isRemoteSegmentStoreInSync should return true after refresh", shard.isRemoteSegmentStoreInSync());
 
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> reader;
-
-        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, wrapper);
-        recoverShardFromStore(primary);
-        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
-        primary.flush(new FlushRequest());
-
-        try (
-            Engine.SearcherSupplier searcherSupplier = primary.acquireSearcherSupplier();
-            Engine.Searcher searcher = searcherSupplier.acquireSearcher("foo")
-        ) {
-            DirectoryReader directoryReader = searcher.getDirectoryReader();
-            Engine.Searcher wrap = IndexShard.wrapSearcher(searcher, wrapper, primary.nonClosingReaderWrapperSupplier());
-            wrap.close();
-            assertEquals(1, primary.nonClosingReaderWrapperCache().size());
-            DirectoryReader nonClosingReaderWrapper = primary.nonClosingReaderWrapperCache().get(directoryReader);
-            assertNotNull(nonClosingReaderWrapper);
-
-            // use the cache
-            wrap = IndexShard.wrapSearcher(searcher, wrapper, primary.nonClosingReaderWrapperSupplier());
-            wrap.close();
-            assertEquals(1, primary.nonClosingReaderWrapperCache().size());
-            DirectoryReader newNonClosingReaderWrapper = primary.nonClosingReaderWrapperCache().get(directoryReader);
-            assertEquals(nonClosingReaderWrapper, newNonClosingReaderWrapper);
-
-            // not use the cache
-            wrap = IndexShard.wrapSearcher(searcher, wrapper, null);
-            assertNotEquals(wrap, newNonClosingReaderWrapper);
-            wrap.close();
+        // Verify getCatalogSnapshot returns non-empty files (proving it's being used)
+        try (GatedCloseable<org.opensearch.index.engine.exec.coord.CatalogSnapshot> snap = shard.getCatalogSnapshot()) {
+            Collection<String> catalogFiles = snap.get().getFiles(true);
+            assertFalse("Catalog snapshot should have files after indexing", catalogFiles.isEmpty());
         }
-        closeShards(primary);
-        assertTrue(primary.nonClosingReaderWrapperCache().isEmpty());
+
+        closeShards(shard);
+    }
+
+    /**
+     * Verifies the tiering diagnostic wrappers report correct values on a standard (non-DFA) engine.
+     * After the typed-method conversion, non-DFA engines no longer return a hardcoded 0; they read
+     * real values from the underlying merge scheduler. An idle Lucene shard with no merges in flight
+     * reports 0 active and {@code false} pending — the same outcome, but derived from the live state.
+     */
+    public void testTieringMergeWrappers_NonDfaEngine_DiagnosticsReportRealValues() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            assertEquals("idle non-DFA engine reports 0 active merges", 0, shard.getActiveMergeCount());
+            assertFalse("idle non-DFA engine reports no pending merges", shard.hasPendingMerges());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code onMergesDrained} now throws {@link UnsupportedOperationException} on a non-DFA
+     * engine. Tiering targets DFA-format indices only; calling this wrapper on a Lucene shard is a
+     * wiring bug, and the typed surface surfaces it loudly rather than silently firing the listener.
+     */
+    public void testOnMergesDrained_NonDfaEngine_ThrowsUnsupported() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            expectThrows(UnsupportedOperationException.class, () -> shard.onMergesDrained(() -> {}));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code freezeForTiering} now throws {@link UnsupportedOperationException} on a non-DFA
+     * engine. Same rationale as the {@code onMergesDrained} test — tiering only targets DFA shards,
+     * and the typed surface fails fast on misconfiguration.
+     */
+    public void testFreezeForTiering_NonDfaEngine_ThrowsUnsupported() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            expectThrows(UnsupportedOperationException.class, shard::freezeForTiering);
+            // Diagnostic accessors remain safe to call.
+            assertEquals(0, shard.getActiveMergeCount());
+            assertFalse(shard.hasPendingMerges());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies the primary-only assertion on {@code freezeForTiering}: tiering preparation is
+     * primary-side only (replicas receive segments via segment-rep), so calling this method on a
+     * replica is a wiring bug and the assertion surfaces it loudly.
+     */
+    public void testFreezeForTiering_OnReplica_TripsPrimaryAssertion() throws IOException {
+        IndexShard replica = newStartedShard(false);
+        try {
+            AssertionError e = expectThrows(AssertionError.class, replica::freezeForTiering);
+            assertThat(e.getMessage(), containsString("freezeForTiering should only be called on primary shards"));
+        } finally {
+            closeShards(replica);
+        }
+    }
+
+    /**
+     * Verifies the primary-only assertion on {@code onMergesDrained}: drain notifications are
+     * primary-side (replicas don't run merges), so calling this method on a replica is a wiring bug
+     * and the assertion surfaces it loudly.
+     */
+    public void testOnMergesDrained_OnReplica_TripsPrimaryAssertion() throws IOException {
+        IndexShard replica = newStartedShard(false);
+        try {
+            AssertionError e = expectThrows(AssertionError.class, () -> replica.onMergesDrained(() -> {}));
+            assertThat(e.getMessage(), containsString("onMergesDrained should only be called on primary shards"));
+        } finally {
+            closeShards(replica);
+        }
     }
 }

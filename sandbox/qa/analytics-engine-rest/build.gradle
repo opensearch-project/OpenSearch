@@ -1,0 +1,340 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+import org.opensearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+
+// analytics-backend-datafusion targets JDK 25; match it here for dependency resolution.
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+repositories {
+  maven {
+    name = 'OpenSearch Snapshots'
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
+
+configurations {
+    // External plugin zips consumed from Maven and installed onto the test cluster
+    // via cluster.plugin(Provider<RegularFile>). opensearch-sql declares
+    // opensearch-job-scheduler in its extended.plugins, so both must be installed
+    // (job-scheduler first to satisfy opensearch-plugin install's jarHell check).
+    jobSchedulerPlugin
+    sqlPlugin
+}
+
+dependencies {
+    testImplementation project(':sandbox:plugins:analytics-engine')
+    testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+    testImplementation project(':sandbox:plugins:dsl-query-executor')
+    testImplementation project(':sandbox:plugins:composite-engine')
+    testImplementation project(':sandbox:plugins:parquet-data-format')
+    // test-ppl-frontend kept available so ExplainApiIT can hit /_analytics/ppl/_explain;
+    // its profile/stage-timing output isn't matched by the real opensearch-sql plugin's
+    // explain endpoint (returns plain Calcite plan text). All other QA tests use
+    // /_plugins/_ppl on the real plugin.
+    testImplementation project(':sandbox:plugins:test-ppl-frontend')
+
+    // job-scheduler pulled from OpenSearch Snapshots (no local build).
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
+    // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
+    // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
+    // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
+}
+
+// ── Shared cluster configuration closure ─────────────────────────────────────
+// All test clusters share the same plugin set and JVM flags; only node count
+// and feature-specific settings differ per task.
+def configureAnalyticsCluster = { cluster ->
+    // arrow-base must precede any plugin that declares it in extendedPlugins —
+    // opensearch-plugin install runs in list order and fails jarHell otherwise.
+    cluster.plugin ':plugins:arrow-base'
+    cluster.plugin ':plugins:arrow-flight-rpc'
+    cluster.plugin ':sandbox:plugins:analytics-engine'
+    cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'
+    cluster.plugin ':sandbox:plugins:composite-engine'
+    cluster.plugin ':sandbox:plugins:analytics-backend-lucene'
+    cluster.plugin ':sandbox:plugins:dsl-query-executor'
+    cluster.plugin ':sandbox:plugins:parquet-data-format'
+    // Shim — keeps /_analytics/ppl/_explain available for ExplainApiIT, which asserts on
+    // the shim's profile/stage-timing output that the real plugin doesn't emit.
+    cluster.plugin ':sandbox:plugins:test-ppl-frontend'
+    // External plugins from Maven. job-scheduler must be installed before
+    // opensearch-sql (which declares it in extended.plugins).
+    cluster.plugin project.layout.file(provider { configurations.jobSchedulerPlugin.singleFile })
+    cluster.plugin project.layout.file(provider { configurations.sqlPlugin.singleFile })
+
+    // Arrow/Flight JVM flags for DataFusion native library
+    cluster.jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    cluster.jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    // Calcite's Aggregate.typeMatchesInferred enforces declared == inferred per aggCall.
+    // Distributed FINAL aggregates pin a different return type than what re-inference over
+    // the array-typed StageInputScan column would produce — the engine's substrait emit
+    // and Rust's derive_schema_from_partial_plan are the source of truth, not Calcite's
+    // re-inference. Disable that one assertion namespace; -ea remains on elsewhere.
+    cluster.jvmArgs '-da:org.apache.calcite...'
+
+    // Arrow memory allocator needs Netty unsafe access on JDK 25; mirrors
+    // gradle/run.gradle's arrow-flight-rpc overrides so AnalyticsSearchService
+    // can construct its RootAllocator at node start.
+    cluster.systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    cluster.systemProperty 'io.netty.noUnsafe', 'false'
+    cluster.systemProperty 'io.netty.tryUnsafe', 'true'
+    cluster.systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+
+    // Native library path for DataFusion
+    cluster.systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
+
+    // Enable pluggable dataformat feature flag
+    cluster.systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+
+    // Cluster-level opt-in: opensearch-sql plugin's RestUnifiedQueryAction#isAnalyticsIndex
+    // gates on this — when set to "composite" it routes every PPL/SQL query to the
+    // analytics-engine path (bypassing the per-index lookup that doesn't handle aliases,
+    // wildcards, or comma-lists).
+    cluster.setting 'cluster.pluggable.dataformat', 'composite'
+
+    // Override default block-list to empty for integration tests so all predicate shapes
+    // are exercised with delegation enabled. Production clusters retain the default
+    // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
+    cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
+
+    // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
+    cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
+}
+
+// ── Default integTest cluster ────────────────────────────────────────────────
+// TODO: enable numberOfNodes = 2 once partial aggs is handled
+testClusters.integTest {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+}
+
+integTest {
+    systemProperty 'tests.security.manager', 'false'
+    exclude '**/CoordinatorReduceMemtableIT.class'
+    exclude '**/StreamingCoordinatorReduceIT.class'
+    exclude '**/QueryCacheIT.class'
+    exclude '**/SpillStatsEnabledIT.class'
+    exclude '**/SpillCleanupOnBootIT.class'
+    exclude '**/YmlOversamplingIT.class'
+    exclude '**/*NoMergeIT.class'
+
+    // Note: parallel forks against the same 2-node testCluster slow the suite down
+    // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
+    // when ITs provision their indices lazily. Keep the OpenSearchTestBasePlugin
+    // defaults (single fork, no maxParallelForks override).
+}
+
+// ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────
+task integTestMemtable(type: RestIntegTestTask) {
+    description = 'Runs coordinator-reduce tests with memtable sink mode'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.CoordinatorReduceMemtableIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestMemtable)
+
+testClusters.integTestMemtable {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'datafusion.reduce.input_mode', 'memtable'
+}
+
+// ── Query cache variant: all_segments=true for cache testing ─────────────────
+task integTestQueryCache(type: RestIntegTestTask) {
+    description = 'Runs query cache tests with all_segments=true to bypass segment size threshold'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.QueryCacheIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestQueryCache)
+
+testClusters.integTestQueryCache {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'indices.queries.cache.all_segments', 'true'
+}
+
+// ── Streaming variant: 2 nodes, Arrow Flight stream transport enabled ────────
+task integTestStreaming(type: RestIntegTestTask) {
+    description = 'Runs coordinator-reduce tests with Arrow Flight streaming'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.StreamingCoordinatorReduceIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestStreaming)
+
+testClusters.integTestStreaming {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+}
+
+// ── No-merge variant: 2 nodes, parquet segment merge disabled ────────────────
+// Runs every *NoMergeIT with the dataformat merge gate turned off. The gate
+// (DataFormatAwareEngine.MERGE_ENABLED_PROPERTY) defaults to ENABLED, so background
+// merges would otherwise collapse per-flush parquet segments. Tests that need each
+// flush to persist as its own segment (e.g. to exercise multi-segment / schema-drift
+// behavior) belong here — name them with the *NoMergeIT suffix. They are excluded from
+// the default integTest above so they only run under this merge-disabled cluster.
+task integTestNoMerge(type: RestIntegTestTask) {
+    description = 'Runs *NoMergeIT tests with parquet segment merge disabled'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.*NoMergeIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestNoMerge)
+
+testClusters.integTestNoMerge {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    systemProperty 'opensearch.pluggable.dataformat.merge.enabled', 'false'
+}
+
+// ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
+// Use the Gradle build directory so each clean build starts with a fresh empty spill
+// directory and no stale state can leak between runs (`./gradlew clean` wipes build/).
+ext.spillItDir = layout.buildDirectory.dir('spill-it').get().asFile.absolutePath
+
+// Create the directory at configuration time, before any task action runs. Cluster start
+// happens in TestClustersPlugin's TaskActionListener.beforeActions, which fires *before*
+// `doFirst` actions — putting the create in `doFirst` would race the cluster boot and
+// (since Security.addFilePermissions fails loudly on a missing spill directory) crash
+// the node immediately. Configuration-phase creation runs once per Gradle invocation,
+// before any task starts, with no possible race.
+java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
+
+task integTestSpillEnabled(type: RestIntegTestTask) {
+    description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestSpillEnabled)
+
+testClusters.integTestSpillEnabled {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    // The collector falls back to 0s when the directory does not exist; using java.io.tmpdir
+    // guarantees a real path and exercises the FileStore lookup branch in
+    // SpillStatsCollector.collect(...). The directory is created in the task's doFirst
+    // block above so DataFusionPlugin's boot writability probe succeeds.
+    setting 'datafusion.spill_directory', spillItDir
+    setting 'datafusion.spill_memory_limit_bytes', '1073741824'
+}
+
+// ── Spill-cleanup-on-boot variant: pre-seed leaked entries, verify boot wipe ─
+// Separate from integTestSpillEnabled so the stats IT isn't perturbed by seeded
+// entries it doesn't expect.
+//
+// Scope: this variant verifies the end-to-end boot wipe + fresh datafusion-XXXXXX/
+// provisioning. It does NOT reproduce the EACCES boot failure that motivated the
+// fix — the seeded directory lives under build/, whose parent the JVM owns. The
+// EACCES regression is owned by the Rust unit test
+// create_global_runtime_succeeds_when_jvm_does_not_own_spill_parent.
+ext.spillCleanupItDir = layout.buildDirectory.dir('spill-cleanup-it').get().asFile.absolutePath
+
+task integTestSpillCleanup(type: RestIntegTestTask) {
+    description = 'Verifies boot-time spill cleanup wipes leaked entries and preserves the spill root (content wipe only; EACCES is covered by the Rust unit test).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.SpillCleanupOnBootIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestSpillCleanup)
+
+// Seed the spill directory before cluster boot. Cluster start fires at execution
+// time (TestClustersPlugin's TaskActionListener.beforeActions, which runs before
+// any task's doFirst), so seeding inside doFirst would race the cluster boot. We
+// gate on the task graph so ./gradlew tasks / assemble / etc. don't pay the I/O.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(integTestSpillCleanup)) {
+        java.nio.file.Path spillCleanupRoot = java.nio.file.Paths.get(spillCleanupItDir)
+        java.nio.file.Files.createDirectories(spillCleanupRoot)
+        File[] spillCleanupExisting = spillCleanupRoot.toFile().listFiles()
+        if (spillCleanupExisting != null) {
+            for (File child : spillCleanupExisting) {
+                if (child.isDirectory()) {
+                    child.deleteDir()
+                } else {
+                    child.delete()
+                }
+            }
+        }
+        java.nio.file.Path leakedSubdir = spillCleanupRoot.resolve('datafusion-aB3kF7')
+        java.nio.file.Files.createDirectories(leakedSubdir)
+        java.nio.file.Files.writeString(leakedSubdir.resolve('tmp_spill_001.arrow'), 'stale spill data')
+        java.nio.file.Files.writeString(spillCleanupRoot.resolve('stray.txt'), 'loose top-level leak')
+    }
+}
+
+testClusters.integTestSpillCleanup {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'datafusion.spill_directory', spillCleanupItDir
+    setting 'datafusion.spill_memory_limit_bytes', '1073741824'
+}
+
+// ── YML oversampling variant: verifies TopK fires from opensearch.yml setting ─
+task integTestYmlOversampling(type: RestIntegTestTask) {
+    description = 'Verifies TopK oversampling works when set via opensearch.yml (node settings)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.YmlOversamplingIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestYmlOversampling)
+
+testClusters.integTestYmlOversampling {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'analytics.shard_bucket_oversampling_factor', '2.0'
+}
+
+// Run against an external cluster (no testClusters lifecycle):
+//   ./gradlew :sandbox:qa:analytics-engine-rest:restTest
+//   ./gradlew :sandbox:qa:analytics-engine-rest:restTest -PrestCluster=host:port
+tasks.register('restTest', Test) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class'
+    def cluster = findProperty('restCluster') ?: 'localhost:9200'
+    def clusterName = findProperty('restClusterName') ?: 'runTask'
+    systemProperty 'tests.rest.cluster', cluster
+    systemProperty 'tests.cluster', cluster
+    systemProperty 'tests.clustername', clusterName
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'tests.rest.load_packaged', 'false'
+    // Inherit OpenSearch test base properties
+    systemProperty 'tests.artifact', 'analytics-engine-rest'
+}

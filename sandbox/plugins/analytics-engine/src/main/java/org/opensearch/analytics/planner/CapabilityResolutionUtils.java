@@ -8,7 +8,8 @@
 
 package org.opensearch.analytics.planner;
 
-import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.ExchangeSinkProvider;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,21 +24,19 @@ public final class CapabilityResolutionUtils {
     private CapabilityResolutionUtils() {}
 
     /**
-     * Filters viable backends to those that support COORDINATOR_REDUCE.
-     *
-     * <p>TODO: COORDINATOR_REDUCE will be replaced by a DataTransferCapability-based
-     * declaration once the coordinator reduce model is redesigned.
+     * Filters viable backends to those that can act as coordinator-side executors,
+     * i.e., backends that provide a non-null {@link ExchangeSinkProvider}.
      */
     public static List<String> filterByReduceCapability(CapabilityRegistry registry, List<String> viableBackends) {
-        List<String> reduceCapable = registry.operatorBackends(EngineCapability.COORDINATOR_REDUCE);
         List<String> result = new ArrayList<>();
         for (String name : viableBackends) {
-            if (reduceCapable.contains(name)) {
+            AnalyticsSearchBackendPlugin backend = registry.getBackend(name);
+            if (backend.getExchangeSinkProvider() != null) {
                 result.add(name);
             }
         }
         if (result.isEmpty()) {
-            throw new IllegalStateException("No viable backend supports COORDINATOR_REDUCE among " + viableBackends);
+            throw new IllegalStateException("No viable backend supports coordinator reduce among " + viableBackends);
         }
         return result;
     }

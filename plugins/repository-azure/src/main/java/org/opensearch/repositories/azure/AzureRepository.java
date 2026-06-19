@@ -45,6 +45,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.ArrayList;
@@ -109,12 +111,26 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final AzureStorageService storageService;
     private final boolean readonly;
 
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
+
     public AzureRepository(
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
+    ) {
+        this(metadata, namedXContentRegistry, storageService, clusterService, recoverySettings, null);
+    }
+
+    public AzureRepository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final AzureStorageService storageService,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
     ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
@@ -139,6 +155,16 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             this.readonly = READONLY_SETTING.get(metadata.settings());
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
+        }
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            } else if (store != null && store != NativeStoreRepository.EMPTY) {
+                store.close();
+            }
         }
     }
 
@@ -189,11 +215,22 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     @Override
+    protected void doClose() {
+        nativeStore.close();
+        super.doClose();
+    }
+
+    @Override
     public List<Setting<?>> getRestrictedSystemRepositorySettings() {
         List<Setting<?>> restrictedSettings = new ArrayList<>();
         restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
         restrictedSettings.add(Repository.BASE_PATH_SETTING);
         restrictedSettings.add(Repository.LOCATION_MODE_SETTING);
         return restrictedSettings;
+    }
+
+    @Override
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
     }
 }

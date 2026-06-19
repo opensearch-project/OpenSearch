@@ -9,7 +9,7 @@
 package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -24,7 +24,9 @@ public class CommitterTests extends OpenSearchTestCase {
     private static Committer noOpCommitter() {
         return new Committer() {
             @Override
-            public void commit(Map<String, String> commitData) {}
+            public CommitResult commit(CommitInput commitInput) {
+                return null;
+            }
 
             @Override
             public void close() {}
@@ -40,8 +42,21 @@ public class CommitterTests extends OpenSearchTestCase {
             }
 
             @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return false;
+            }
+
+            @Override
+            public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("test stub does not serialize commits");
             }
         };
     }
@@ -54,7 +69,9 @@ public class CommitterTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         Committer committer = new Committer() {
             @Override
-            public void commit(Map<String, String> commitData) {}
+            public CommitResult commit(CommitInput commitData) {
+                return null;
+            }
 
             @Override
             public void close() {
@@ -72,8 +89,21 @@ public class CommitterTests extends OpenSearchTestCase {
             }
 
             @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return false;
+            }
+
+            @Override
+            public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("test stub does not serialize commits");
             }
         };
         committer.close();
@@ -84,8 +114,9 @@ public class CommitterTests extends OpenSearchTestCase {
         AtomicBoolean committed = new AtomicBoolean(false);
         Committer committer = new Committer() {
             @Override
-            public void commit(Map<String, String> commitData) {
+            public CommitResult commit(CommitInput commitData) {
                 committed.set(true);
+                return null;
             }
 
             @Override
@@ -102,11 +133,24 @@ public class CommitterTests extends OpenSearchTestCase {
             }
 
             @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return false;
+            }
+
+            @Override
+            public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("test stub does not serialize commits");
             }
         };
-        committer.commit(Map.of());
+        committer.commit(new CommitInput(Map.<String, String>of().entrySet(), null, 0));
         assertTrue("commit() should have been called", committed.get());
     }
 }

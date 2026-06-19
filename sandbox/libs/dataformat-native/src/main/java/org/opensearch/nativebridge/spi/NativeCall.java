@@ -204,6 +204,21 @@ public final class NativeCall implements AutoCloseable {
         return arena.allocateFrom(ValueLayout.JAVA_BYTE, data);
     }
 
+    /**
+     * Allocate a segment from a long array. Returns an empty (zero-byte) segment if the array
+     * is empty so callers can pass it as a non-null pointer with count zero.
+     */
+    public MemorySegment longs(long[] data) {
+        ensureOpen();
+        if (data == null) {
+            throw new NullPointerException("Cannot marshal null long array to native");
+        }
+        if (data.length == 0) {
+            return arena.allocate(0);
+        }
+        return arena.allocateFrom(ValueLayout.JAVA_LONG, data);
+    }
+
     // ---- Invocation ----
 
     /**

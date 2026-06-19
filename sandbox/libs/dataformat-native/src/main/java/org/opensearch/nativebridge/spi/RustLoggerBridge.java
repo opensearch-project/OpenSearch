@@ -8,6 +8,7 @@
 
 package org.opensearch.nativebridge.spi;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,10 +27,24 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>At startup, {@link NativeLibraryLoader} registers {@link #log} as a function pointer
  * with the native library. Rust calls it directly — no JNI.
+ *
+ * <p>Level short-circuit: the Rust {@code log_debug!}/{@code log_info!} macros gate on a
+ * Rust-side atomic level BEFORE {@code format!}, so a suppressed log costs only an atomic
+ * load + branch (no string allocation, no FFM crossing). Java keeps that atomic in sync
+ * via {@link #pushLevel()} — called at registration and re-pushed on every upcall if the
+ * level has drifted (detecting dynamic changes from {@code _cluster/settings}).
  */
 public class RustLoggerBridge {
 
     private static final Logger logger = LogManager.getLogger(RustLoggerBridge.class);
+
+    /** Level codes shared with Rust's {@code LogLevel}: 0=Debug, 1=Info, 2=Error. */
+    private static final int LEVEL_DEBUG = 0;
+    private static final int LEVEL_INFO = 1;
+    private static final int LEVEL_ERROR = 2;
+
+    /** Bound downcall to Rust's {@code native_logger_set_level(int)}; null until registered. */
+    private static volatile MethodHandle setLevelHandle;
 
     /**
      * Called from Rust via the registered function pointer.
@@ -63,6 +78,48 @@ public class RustLoggerBridge {
         } catch (Throwable t) {
             logger.error("Failed to register native logger callback", t);
         }
+    }
+
+    /**
+     * Binds Rust's {@code native_logger_set_level(int)} and pushes the current level.
+     * Called once by {@link NativeLibraryLoader} after {@link #register}.
+     * Dynamic level changes are handled by a cluster settings listener that calls
+     * {@link #pushLevel()} when any {@code logger.*} setting is updated.
+     */
+    static void registerSetLevel(Linker linker, MemorySegment setLevelSymbol) {
+        try {
+            setLevelHandle = linker.downcallHandle(setLevelSymbol, FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+            pushLevel();
+        } catch (Throwable t) {
+            logger.error("Failed to register native logger set-level callback", t);
+        }
+    }
+
+    /**
+     * Push this class's current Log4j level to Rust so the macros short-circuit
+     * suppressed levels. Called at registration and by the cluster settings listener.
+     */
+    public static void pushLevel() {
+        MethodHandle handle = setLevelHandle;
+        if (handle == null) {
+            return;
+        }
+        int level = toRustLevel(logger.getLevel());
+        try {
+            handle.invokeExact(level);
+        } catch (Throwable t) {
+            logger.error("Failed to push native log level", t);
+        }
+    }
+
+    /** Map a Log4j {@link Level} to the Rust LogLevel int (0=Debug, 1=Info, 2=Error). */
+    private static int toRustLevel(Level level) {
+        if (level.intLevel() >= Level.DEBUG.intLevel()) {
+            return LEVEL_DEBUG;
+        } else if (level.intLevel() >= Level.INFO.intLevel()) {
+            return LEVEL_INFO;
+        }
+        return LEVEL_ERROR;
     }
 
     private RustLoggerBridge() {}

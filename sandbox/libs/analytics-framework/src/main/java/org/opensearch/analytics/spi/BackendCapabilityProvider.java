@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -47,6 +48,28 @@ public interface BackendCapabilityProvider {
     }
 
     /**
+     * Join capabilities this backend can execute. Each {@link JoinCapability} declares a
+     * set of {@link JoinCapability.JoinKind}s (INNER, LEFT, etc.) and the storage formats
+     * those joins apply to. The planner narrows viable backends to those whose
+     * capabilities cover the query's required kind. An empty set means the backend cannot
+     * execute joins.
+     */
+    default Set<JoinCapability> joinCapabilities() {
+        return Set.of();
+    }
+
+    /**
+     * Window-function capabilities this backend can execute. Each {@link WindowCapability}
+     * declares a set of {@link WindowFunction}s (ROW_NUMBER, RANK, SUM/AVG/COUNT over a
+     * frame, etc.) and the storage formats those windows apply to. The planner narrows
+     * viable backends to those whose capabilities cover every required function. An empty
+     * set means the backend cannot execute window functions.
+     */
+    default Set<WindowCapability> windowCapabilities() {
+        return Set.of();
+    }
+
+    /**
      * Delegation types this backend can initiate — it has a custom physical operator
      * that calls Analytics Core's delegation API to offload work to another backend.
      */
@@ -60,5 +83,46 @@ public interface BackendCapabilityProvider {
      */
     default Set<DelegationType> acceptedDelegations() {
         return Set.of();
+    }
+
+    /**
+     * Per-shard preference scorer. The planner consults this when the same fragment has
+     * multiple viable backends, so this backend can declare a preference score for the
+     * resolved fragment given shard-local context. Default {@code null} = "no opinion in
+     * any case"; the selector treats this backend as a generic alternative.
+     *
+     * <p>See {@link BackendShardPreference} for the contract and the long-term migration
+     * path away from coordinator-side preference flags toward true shard-local routing.
+     */
+    default BackendShardPreference shardPreference() {
+        return null;
+    }
+
+    /**
+     * Per-function adapters for transforming backend-agnostic scalar function RexCalls
+     * into backend-compatible forms before fragment conversion. Keyed by {@link ScalarFunction}.
+     * Applied regardless of operator context (filter, project, aggregate expression).
+     * Empty map means no adaptation needed.
+     */
+    default Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+        return Map.of();
+    }
+
+    /**
+     * Per-function adapters for transforming backend-agnostic window function RexOvers
+     * into backend-compatible forms before fragment conversion. Keyed by {@link WindowFunction}.
+     * Empty map means no adaptation needed (use the original operator and operands as-is).
+     */
+    default Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+        return Map.of();
+    }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
     }
 }

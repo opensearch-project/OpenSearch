@@ -8,18 +8,14 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 
 /**
- * Factory for creating Kafka consumers
+ * Factory for creating Kafka consumers.
  */
 public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
-
-    /**
-     * Configuration for the Kafka source
-     */
-    protected KafkaSourceConfig config;
 
     /**
      * Constructor.
@@ -27,14 +23,20 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     public KafkaConsumerFactory() {}
 
     @Override
-    public void initialize(IngestionSource ingestionSource) {
-        config = new KafkaSourceConfig((int) ingestionSource.getMaxPollSize(), ingestionSource.params());
-    }
-
-    @Override
-    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId) {
-        assert config != null;
-        return new KafkaPartitionConsumer(clientId, config, shardId);
+    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
+        IngestionSource ingestionSource = indexMetadata.getIngestionSource();
+        KafkaSourceConfig localConfig = new KafkaSourceConfig((int) ingestionSource.getMaxPollSize(), ingestionSource.params());
+        // Constructing a KafkaPartitionConsumer should *never* throw an exception.
+        KafkaPartitionConsumer consumer = new KafkaPartitionConsumer(clientId, localConfig, shardId);
+        try {
+            // But initializing it *may* throw an exception.
+            consumer.initialize();
+        } catch (Exception e) {
+            // In which case, we *must* close the Kafka connection, or else it will leak.
+            consumer.close();
+            throw new IllegalStateException(e);
+        }
+        return consumer;
     }
 
     @Override

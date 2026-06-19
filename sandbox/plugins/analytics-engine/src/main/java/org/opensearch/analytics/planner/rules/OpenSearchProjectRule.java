@@ -13,20 +13,27 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.UnsupportedFunctionException;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Converts {@link Project} → {@link OpenSearchProject}.
@@ -64,13 +71,32 @@ public class OpenSearchProjectRule extends RelOptRule {
         // SqlKind → viable backends map once per onMatch() call, and (b) returning
         // childViableBackends directly when all candidates pass to avoid allocation.
         List<RexNode> annotatedExprs = new ArrayList<>(project.getProjects().size());
+        boolean requiresBackendCapabilityEvaluation = false;
         for (RexNode expr : project.getProjects()) {
-            annotatedExprs.add(annotateExpr(expr, childViableBackends));
+            RexNode annotated = annotateExpr(expr, childViableBackends);
+            annotatedExprs.add(annotated);
+            if (annotated instanceof AnnotatedProjectExpression) {
+                requiresBackendCapabilityEvaluation = true;
+            }
         }
 
-        List<String> viableBackends = computeProjectViableBackends(annotatedExprs, childViableBackends);
+        // Passthrough projection: no RexCall to evaluate, so any child backend can emit it.
+        List<String> viableBackends = requiresBackendCapabilityEvaluation
+            ? computeProjectViableBackends(annotatedExprs, childViableBackends)
+            : childViableBackends;
+
+        // Narrow viable backends to those whose WindowCapability declares every RexOver function used.
+        Set<WindowFunction> requiredWindowFns = collectWindowFunctions(project.getProjects());
+        if (!requiredWindowFns.isEmpty()) {
+            viableBackends = narrowByWindowCapability(viableBackends, requiredWindowFns);
+        }
+
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
+            List<String> funcNames = annotatedExprs.stream()
+                .filter(e -> e instanceof RexCall)
+                .map(e -> ((RexCall) e).getOperator().getName())
+                .toList();
+            throw new UnsupportedFunctionException(funcNames.toString(), "in combination in this query");
         }
 
         call.transformTo(
@@ -86,9 +112,23 @@ public class OpenSearchProjectRule extends RelOptRule {
     }
 
     private RexNode annotateExpr(RexNode expr, List<String> childViableBackends) {
-        if (!(expr instanceof RexCall rexCall)) {
+        if (expr instanceof RexOver) {
+            // Window functions are narrowed separately by narrowByWindowCapability — skip the
+            // scalar path (RexOver's aggregate operator is not a scalar function). Leave the
+            // RexOver as-is so substrait conversion receives the unwrapped shape.
             return expr;
         }
+        if (!(expr instanceof RexCall rexCall)) {
+            // TODO: RexInputRef and RexLiteral are left unannotated — they are implicitly handled
+            // by whichever backend executes the operator (pass-through for refs, constant for literals).
+            // Revisit if delegation requires knowing which backend evaluates each expression
+            // independently, or if a backend cannot handle pass-through refs natively.
+            return expr;
+        }
+
+        // All scalar operators (including arithmetic, CAST, null-handling, conditional,
+        // logical connectives) go through the capability registry. Operands recurse via the
+        // "Standard scalar function" path below so nested operators get their own annotations.
 
         // Opaque operations — no recursion into operands
         if (rexCall.getOperator() instanceof SqlFunction sqlFunction) {
@@ -96,7 +136,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             if (isOpaqueOperation(funcName)) {
                 List<String> exprViable = resolveOpaqueViableBackends(funcName, childViableBackends);
                 if (exprViable.isEmpty()) {
-                    throw new IllegalStateException("No backend can evaluate [" + funcName + "] and no delegation path exists");
+                    throw new UnsupportedFunctionException(funcName, null);
                 }
                 return new AnnotatedProjectExpression(rexCall.getType(), rexCall, exprViable, context.nextAnnotationId());
             }
@@ -105,9 +145,9 @@ public class OpenSearchProjectRule extends RelOptRule {
         // Standard scalar function
         List<String> scalarViable = resolveScalarViableBackends(rexCall, childViableBackends);
         if (scalarViable.isEmpty()) {
-            throw new IllegalStateException(
-                "No backend supports scalar function [" + ScalarFunction.fromSqlKind(rexCall.getKind()) + "] among " + childViableBackends
-            );
+            ScalarFunction resolved = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
+            String label = resolved != null ? resolved.name() : rexCall.getOperator().getName();
+            throw new UnsupportedFunctionException(label, "as a scalar function");
         }
 
         // Recurse into operands
@@ -144,19 +184,36 @@ public class OpenSearchProjectRule extends RelOptRule {
     }
 
     private List<String> resolveScalarViableBackends(RexCall rexCall, List<String> childViableBackends) {
-        ScalarFunction scalarFunc = ScalarFunction.fromSqlKind(rexCall.getKind());
+        ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
         if (scalarFunc == null) {
             return List.of();
         }
         FieldType fieldType = FieldType.fromSqlTypeName(rexCall.getType().getSqlTypeName());
+        // Polymorphic UDF fallback: Calcite UDFs with indeterminate return types (SqlTypeName.ANY)
+        // — e.g. PPL's ScalarMaxFunction / ScalarMinFunction — do not map to a concrete FieldType
+        // directly. When a viability check for such a call lands here, fall back to the first
+        // operand's type. The scalar function's backend capabilities are defined over operand
+        // types anyway (SCALAR_MAX(double, double, ...) → DOUBLE), so inferring from operands
+        // preserves correct backend dispatch while deferring actual type-tightening until the
+        // backend's ScalarFunctionAdapter rewrites the call to a typed library operator.
+        if (fieldType == null) {
+            for (RexNode operand : rexCall.getOperands()) {
+                FieldType operandType = FieldType.fromSqlTypeName(operand.getType().getSqlTypeName());
+                if (operandType != null) {
+                    fieldType = operandType;
+                    break;
+                }
+            }
+        }
         if (fieldType == null) {
             return List.of();
         }
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        List<String> allCapable = registry.scalarBackendsAnyFormat(scalarFunc, fieldType);
+        List<String> allCapable = hasFieldRef(rexCall)
+            ? registry.scalarBackendsAnyFormat(scalarFunc, fieldType)
+            : registry.literalScalarBackends(scalarFunc, fieldType);
 
-        // Prefer child viable backends
         List<String> viable = new ArrayList<>();
         for (String candidateName : childViableBackends) {
             if (allCapable.contains(candidateName)) {
@@ -166,19 +223,26 @@ public class OpenSearchProjectRule extends RelOptRule {
         if (!viable.isEmpty()) {
             return viable;
         }
-        // Fallback: other backends if reachable via delegation
         List<String> delegationSupporters = registry.delegationSupporters(DelegationType.PROJECT);
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
-        boolean canDelegate = childViableBackends.stream().anyMatch(delegationSupporters::contains);
-        if (!canDelegate) {
-            return viable;
-        }
-        for (String backendName : allCapable) {
-            if (delegationAcceptors.contains(backendName)) {
-                viable.add(backendName);
+        if (childViableBackends.stream().anyMatch(delegationSupporters::contains)) {
+            for (String backendName : allCapable) {
+                if (delegationAcceptors.contains(backendName)) {
+                    viable.add(backendName);
+                }
             }
         }
         return viable;
+    }
+
+    private boolean hasFieldRef(RexNode node) {
+        if (node instanceof RexInputRef) return true;
+        if (node instanceof RexCall rexCall) {
+            for (RexNode operand : rexCall.getOperands()) {
+                if (hasFieldRef(operand)) return true;
+            }
+        }
+        return false;
     }
 
     private List<String> computeProjectViableBackends(List<RexNode> annotatedExprs, List<String> childViableBackends) {
@@ -219,5 +283,46 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private boolean isOpaqueOperation(String funcName) {
         return context.getCapabilityRegistry().isOpaqueOperation(funcName);
+    }
+
+    /** Collects {@link WindowFunction}s used by any {@link RexOver} in {@code exprs}.
+     *  Unrecognized window SqlKinds (LAG, LEAD, NTILE, etc.) fail here. The SINGLETON cost gate
+     *  on RexOver-bearing projects guarantees PARTITION BY / ORDER BY see fully-gathered input. */
+    private static Set<WindowFunction> collectWindowFunctions(List<? extends RexNode> exprs) {
+        Set<WindowFunction> fns = new LinkedHashSet<>();
+        for (RexNode expr : exprs) {
+            expr.accept(new org.apache.calcite.rex.RexShuttle() {
+                @Override
+                public RexNode visitOver(RexOver over) {
+                    WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
+                    if (fn == null) {
+                        throw new UnsupportedFunctionException(over.getAggOperator().getName(), "as a window function");
+                    }
+                    fns.add(fn);
+                    return super.visitOver(over);
+                }
+            });
+        }
+        return fns;
+    }
+
+    /** Keep backends whose {@link WindowCapability} covers every {@link WindowFunction} used. */
+    private List<String> narrowByWindowCapability(List<String> candidates, Set<WindowFunction> required) {
+        List<String> out = new ArrayList<>();
+        for (String backend : candidates) {
+            Set<WindowCapability> caps = context.getCapabilityRegistry().getBackend(backend).getCapabilityProvider().windowCapabilities();
+            boolean covers = false;
+            for (WindowCapability cap : caps) {
+                if (cap.functions().containsAll(required)) {
+                    covers = true;
+                    break;
+                }
+            }
+            if (covers) out.add(backend);
+        }
+        if (out.isEmpty()) {
+            throw new UnsupportedFunctionException(required.toString(), "as window functions");
+        }
+        return out;
     }
 }

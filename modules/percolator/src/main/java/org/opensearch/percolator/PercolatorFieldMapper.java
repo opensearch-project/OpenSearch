@@ -125,7 +125,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), queryShardContext).init(this);
+        return new Builder(simpleName(), queryShardContext, mapUnmappedFieldsAsText).init(this);
     }
 
     static class Builder extends ParametrizedFieldMapper.Builder {
@@ -133,10 +133,16 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Supplier<QueryShardContext> queryShardContext;
+        private final boolean mapUnmappedFieldsAsText;
 
         Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
+            this(fieldName, queryShardContext, false);
+        }
+
+        Builder(String fieldName, Supplier<QueryShardContext> queryShardContext, boolean mapUnmappedFieldsAsText) {
             super(fieldName);
             this.queryShardContext = queryShardContext;
+            this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
         }
 
         @Override
@@ -146,6 +152,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public PercolatorFieldMapper build(BuilderContext context) {
+            boolean mapUnmapped = getMapUnmappedFieldAsText(context.indexSettings());
             PercolatorFieldType fieldType = new PercolatorFieldType(buildFullName(context), meta.getValue());
             context.path().add(name());
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
@@ -160,7 +167,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             fieldType.rangeField = rangeFieldMapper.fieldType();
             NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context);
             fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
-            fieldType.mapUnmappedFieldsAsText = getMapUnmappedFieldAsText(context.indexSettings());
+            fieldType.mapUnmappedFieldsAsText = mapUnmapped;
 
             context.path().remove();
             return new PercolatorFieldMapper(
@@ -174,12 +181,15 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
                 queryBuilderField,
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
-                getMapUnmappedFieldAsText(context.indexSettings())
+                mapUnmapped
             );
         }
 
-        private static boolean getMapUnmappedFieldAsText(Settings indexSettings) {
-            return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
+        private boolean getMapUnmappedFieldAsText(Settings indexSettings) {
+            if (INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.exists(indexSettings)) {
+                return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
+            }
+            return mapUnmappedFieldsAsText;
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {

@@ -39,6 +39,7 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -78,12 +79,14 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         });
         indexingThread.start();
 
-        ClusterState initialState = client().admin().cluster().prepareState().get().getState();
-        DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
-        DiscoveryNode relocationSource = initialState.getNodes()
-            .getDataNodes()
-            .get(initialState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());
         for (int i = 0; i < RELOCATION_COUNT; i++) {
+            // Fetch fresh cluster state to get current shard location and available nodes
+            ClusterState currentState = client().admin().cluster().prepareState().get().getState();
+            DiscoveryNode[] dataNodes = currentState.getNodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
+
+            ShardRouting primaryShard = currentState.getRoutingTable().shardRoutingTable("test", 0).primaryShard();
+            DiscoveryNode relocationSource = currentState.getNodes().getDataNodes().get(primaryShard.currentNodeId());
+
             DiscoveryNode relocationTarget = randomFrom(dataNodes);
             while (relocationTarget.equals(relocationSource)) {
                 relocationTarget = randomFrom(dataNodes);
@@ -125,7 +128,6 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
                 throw new AssertionError("timed out waiting for relocation iteration [" + i + "] ");
             }
             logger.info("--> [iteration {}] relocation complete", i);
-            relocationSource = relocationTarget;
             // indexing process aborted early, no need for more relocations as test has already failed
             if (indexingThread.isAlive() == false) {
                 break;

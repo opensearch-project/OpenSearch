@@ -590,6 +590,30 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Reads an optional {@link Settings} from the stream. Returns {@code null} if no settings were written.
+     * Counterpart to {@link #writeOptionalSettingsToStream(Settings, StreamOutput)}.
+     */
+    public static Settings readOptionalSettingsFromStream(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            return readSettingsFromStream(in);
+        }
+        return null;
+    }
+
+    /**
+     * Writes an optional {@link Settings} to the stream. A {@code null} value is permitted.
+     * Counterpart to {@link #readOptionalSettingsFromStream(StreamInput)}.
+     */
+    public static void writeOptionalSettingsToStream(Settings settings, StreamOutput out) throws IOException {
+        if (settings != null) {
+            out.writeBoolean(true);
+            writeSettingsToStream(settings, out);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    /**
      * Returns a builder to be used in order to build settings.
      */
     public static Builder builder() {

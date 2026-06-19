@@ -8,41 +8,53 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 
-/**
- * Aggregate functions that a backend may support, categorized by {@link Type}.
- *
- * <p>Note: {@code COUNT} covers both {@code COUNT(*)} and {@code COUNT(DISTINCT x)}.
- * The distinction is on {@code AggregateCall.isDistinct()}, not on SqlKind.
- *
- * @opensearch.internal
- */
+import java.util.List;
+
+/** Aggregate functions a backend may support, categorized by {@link Type}. */
 public enum AggregateFunction {
-    // Simple — fixed-size state per key
     SUM(Type.SIMPLE, SqlKind.SUM),
     SUM0(Type.SIMPLE, SqlKind.SUM0),
     MIN(Type.SIMPLE, SqlKind.MIN),
     MAX(Type.SIMPLE, SqlKind.MAX),
-    COUNT(Type.SIMPLE, SqlKind.COUNT),
+    COUNT(Type.SIMPLE, SqlKind.COUNT, fields(IF("count", new ArrowType.Int(64, true), SUM))),
     AVG(Type.SIMPLE, SqlKind.AVG),
 
-    // Statistical — fixed-size state, multi-pass or running stats
     STDDEV_POP(Type.STATISTICAL, SqlKind.STDDEV_POP),
     STDDEV_SAMP(Type.STATISTICAL, SqlKind.STDDEV_SAMP),
     VAR_POP(Type.STATISTICAL, SqlKind.VAR_POP),
     VAR_SAMP(Type.STATISTICAL, SqlKind.VAR_SAMP),
 
-    // State-expanding — state grows with input rows per key
     PERCENTILE_CONT(Type.STATE_EXPANDING, SqlKind.PERCENTILE_CONT),
     PERCENTILE_DISC(Type.STATE_EXPANDING, SqlKind.PERCENTILE_DISC),
+    PERCENTILE_APPROX(Type.STATE_EXPANDING, SqlKind.OTHER),
     COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
 
-    // Approximate — probabilistic, fixed-size state
-    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER);
+    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER, fields(IF("hll_registers", new ArrowType.Binary(), null))),
+    TAKE(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("take_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    FIRST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("first_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    // earliest(value, ts) / latest(value, ts); rewritten to first_value/last_value by PplAggregateCallRewriter.
+    ARG_MIN(Type.STATE_EXPANDING, SqlKind.ARG_MIN, fields(IF("arg_min_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    ARG_MAX(Type.STATE_EXPANDING, SqlKind.ARG_MAX, fields(IF("arg_max_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    LIST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("list_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER);
 
-    /** Category of aggregate function. Affects execution strategy (shuffle vs map-reduce). */
+    /** Category of aggregate function; affects execution strategy (shuffle vs map-reduce). */
     public enum Type {
         SIMPLE,
         STATISTICAL,
@@ -50,12 +62,51 @@ public enum AggregateFunction {
         APPROXIMATE
     }
 
+    /** Intermediate field of a partial aggregate; {@code null} reducer means "self". */
+    public record IntermediateField(String name, IntermediateTypeResolver typeResolver, AggregateFunction reducer) {
+    }
+
+    /** Resolves the Calcite type of an intermediate field from a FINAL aggregate's arg types. */
+    @FunctionalInterface
+    public interface IntermediateTypeResolver {
+        RelDataType resolve(List<RelDataType> argTypes, RelDataTypeFactory typeFactory);
+
+        static IntermediateTypeResolver fixed(ArrowType arrowType) {
+            return (argTypes, typeFactory) -> ArrowToCalciteTypeMapper.toCalcite(arrowType, typeFactory);
+        }
+
+        static IntermediateTypeResolver passThroughArg0() {
+            return (argTypes, typeFactory) -> {
+                if (argTypes.isEmpty()) {
+                    throw new IllegalStateException("passThroughArg0 resolver requires at least one arg type");
+                }
+                return argTypes.get(0);
+            };
+        }
+    }
+
+    private static final class ArrowToCalciteTypeMapper {
+        static RelDataType toCalcite(ArrowType t, RelDataTypeFactory f) {
+            return switch (t) {
+                case ArrowType.Int i when i.getBitWidth() == 64 -> f.createSqlType(SqlTypeName.BIGINT);
+                case ArrowType.Binary b -> f.createSqlType(SqlTypeName.VARBINARY, Integer.MAX_VALUE);
+                default -> throw new IllegalArgumentException("Unsupported fixed Arrow type for IntermediateField: " + t);
+            };
+        }
+    }
+
     private final Type type;
     private final SqlKind sqlKind;
+    private final List<IntermediateField> intermediateFields;
 
     AggregateFunction(Type type, SqlKind sqlKind) {
+        this(type, sqlKind, null);
+    }
+
+    AggregateFunction(Type type, SqlKind sqlKind, List<IntermediateField> intermediateFields) {
         this.type = type;
         this.sqlKind = sqlKind;
+        this.intermediateFields = intermediateFields;
     }
 
     public Type getType() {
@@ -66,7 +117,17 @@ public enum AggregateFunction {
         return sqlKind;
     }
 
-    /** Maps a Calcite SqlKind to an AggregateFunction, or null if not recognized. Skips OTHER. */
+    public List<IntermediateField> intermediateFields() {
+        if (intermediateFields == null) return null;
+        return intermediateFields.stream()
+            .map(f -> f.reducer() == null ? new IntermediateField(f.name(), f.typeResolver(), this) : f)
+            .toList();
+    }
+
+    public boolean hasDecomposition() {
+        return intermediateFields != null;
+    }
+
     public static AggregateFunction fromSqlKind(SqlKind kind) {
         for (AggregateFunction func : values()) {
             if (func.sqlKind == kind && func.sqlKind != SqlKind.OTHER) {
@@ -76,12 +137,83 @@ public enum AggregateFunction {
         return null;
     }
 
-    /** Maps an aggregate function name to an AggregateFunction. Throws if not recognized. */
+    /** Case-insensitive name lookup; throws if not recognized. */
     public static AggregateFunction fromNameOrError(String name) {
         try {
-            return valueOf(name);
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }
+    }
+
+    public SqlAggFunction toSqlAggFunction() {
+        return switch (this) {
+            case SUM -> SqlStdOperatorTable.SUM;
+            case SUM0 -> SqlStdOperatorTable.SUM0;
+            case MIN -> SqlStdOperatorTable.MIN;
+            case MAX -> SqlStdOperatorTable.MAX;
+            case COUNT -> SqlStdOperatorTable.COUNT;
+            case AVG -> SqlStdOperatorTable.AVG;
+            case APPROX_COUNT_DISTINCT -> SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+            default -> throw new IllegalStateException("No SqlAggFunction mapping for: " + this);
+        };
+    }
+
+    public static AggregateFunction fromSqlAggFunction(SqlAggFunction op) {
+        try {
+            return fromNameOrError(op.getName());
+        } catch (IllegalStateException ignored) {
+            // fall through
+        }
+        AggregateFunction byKind = fromSqlKind(op.getKind());
+        if (byKind != null) {
+            return byKind;
+        }
+        throw new IllegalStateException("No AggregateFunction mapping for SqlAggFunction [" + op.getName() + "]");
+    }
+
+    /** Evaluates opaque engine-native-merge state to a sortable scalar (used by TopK). */
+    public static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
+        "reduce_eval",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    /**
+     * Returns true if the given aggregate call uses engine-native merge (single intermediate
+     * field whose reducer is the function itself — e.g. APPROX_COUNT_DISTINCT with HLL sketches).
+     */
+    /** Returns the UDAF name used by the reduce_eval UDF to evaluate partial state to a scalar. */
+    public String reduceEvalName() {
+        return switch (this) {
+            case APPROX_COUNT_DISTINCT -> "approx_distinct";
+            default -> throw new IllegalStateException(this + " has no reduce_eval mapping");
+        };
+    }
+
+    public static boolean isEngineNativeMerge(org.apache.calcite.rel.core.AggregateCall call) {
+        AggregateFunction func;
+        try {
+            func = fromSqlAggFunction(call.getAggregation());
+        } catch (IllegalStateException e) {
+            return false;
+        }
+        List<IntermediateField> fields = func.intermediateFields();
+        return fields != null && fields.size() == 1 && fields.get(0).reducer() == func;
+    }
+
+    private static List<IntermediateField> fields(IntermediateField... fs) {
+        return List.of(fs);
+    }
+
+    private static IntermediateField IF(String name, ArrowType arrowType, AggregateFunction reducer) {
+        return new IntermediateField(name, IntermediateTypeResolver.fixed(arrowType), reducer);
+    }
+
+    private static IntermediateField IF(String name, IntermediateTypeResolver typeResolver, AggregateFunction reducer) {
+        return new IntermediateField(name, typeResolver, reducer);
     }
 }

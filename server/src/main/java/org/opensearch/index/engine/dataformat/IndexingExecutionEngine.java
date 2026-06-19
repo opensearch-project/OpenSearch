@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.store.FormatChecksumStrategy;
 
@@ -31,10 +32,10 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     /**
      * Creates a new writer for the given writer generation.
      *
-     * @param writerGeneration the writer generation number
+     * @param config the writer configuration
      * @return a new writer instance
      */
-    Writer<P> createWriter(long writerGeneration);
+    Writer<P> createWriter(WriterConfig config);
 
     /**
      * Returns the merger for combining writer file sets.
@@ -69,21 +70,27 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     T getDataFormat();
 
     /**
+     * Returns the amount of JVM heap memory used by this engine's indexing buffers.
+     *
+     * @return heap memory usage in bytes
+     */
+    long getHeapBytesUsed();
+
+    /**
      * Returns the amount of native (off-heap) memory used by this engine.
      *
      * @return native memory usage in bytes
      */
-    default long getNativeBytesUsed() {
-        return 0;
-    }
+    long getNativeBytesUsed();
 
     /**
      * Deletes the specified files grouped by directory.
      *
-     * @param filesToDelete map of directory paths to collections of file names to delete
+     * @param filesToDelete map of data format name to collections of file names to delete
+     * @return map of data format name to collection of file names that failed to delete
      * @throws IOException if an I/O error occurs during deletion
      */
-    void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;
+    Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;
 
     /**
      * Creates a new empty document input for this engine's data format.
@@ -115,5 +122,29 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      */
     default FormatChecksumStrategy getChecksumStrategy() {
         return null;
+    }
+
+    default Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
+        return config.registry().getReaderManager(config);
+    }
+
+    /**
+     * Returns the tragic exception recorded by the underlying writer/store, if any.
+     * Composite engines multiplex this across delegates and surface the first non-null
+     * result so DFAE can fail the engine without consulting the committer.
+     *
+     * @return the tragic exception, or {@code null} if the engine has not turned tragic
+     */
+    default Exception getTragicException() {
+        return null;
+    }
+
+    /**
+     * Returns the maximum number of documents this engine can index per shard.
+     * Used by {@link org.opensearch.index.engine.DocumentCountTracker} to enforce
+     * the document count limit. Defaults to {@link Long#MAX_VALUE} (unlimited).
+     */
+    default long maxIndexableDocs() {
+        return Long.MAX_VALUE;
     }
 }

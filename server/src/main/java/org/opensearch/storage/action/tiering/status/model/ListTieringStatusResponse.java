@@ -13,6 +13,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Response containing tiering status for all indices. */
@@ -39,11 +41,20 @@ public class ListTieringStatusResponse extends ActionResponse {
      * @throws IOException if error
      */
     public ListTieringStatusResponse(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+
+        int size = in.readVInt();
+        List<TieringStatus> builder = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            builder.add(TieringStatus.readFrom(in));
+        }
+        tieringStatusList = Collections.unmodifiableList(builder);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        out.writeVInt(tieringStatusList.size());
+        for (TieringStatus tieringStatus : tieringStatusList) {
+            tieringStatus.writeTo(out);
+        }
     }
 }

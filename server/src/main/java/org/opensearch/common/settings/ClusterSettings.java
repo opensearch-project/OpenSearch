@@ -143,6 +143,7 @@ import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
 import org.opensearch.monitor.jvm.JvmService;
+import org.opensearch.monitor.memory.NativeMemoryService;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
@@ -156,6 +157,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
@@ -172,6 +174,8 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.storage.common.tiering.TieringUtils;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -621,6 +625,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ProcessService.REFRESH_INTERVAL_SETTING,
                 JvmService.REFRESH_INTERVAL_SETTING,
                 FsService.REFRESH_INTERVAL_SETTING,
+                NativeMemoryService.REFRESH_INTERVAL_SETTING,
                 JvmGcMonitorService.ENABLED_SETTING,
                 JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
                 JvmGcMonitorService.GC_SETTING,
@@ -638,12 +643,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BootstrapSettings.MEMORY_LOCK_SETTING,
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                 BootstrapSettings.CTRLHANDLER_SETTING,
+                BootstrapSettings.SERIAL_FILTER_SETTING,
                 KeyStoreWrapper.SEED_SETTING,
                 IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                 IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                 IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
                 IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                IndexingMemoryController.NATIVE_INDEX_BUFFER_SIZE_SETTING,
+                IndexingMemoryController.MIN_NATIVE_INDEX_BUFFER_SIZE_SETTING,
+                IndexingMemoryController.MAX_NATIVE_INDEX_BUFFER_SIZE_SETTING,
                 ResourceWatcherService.ENABLED,
                 ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                 ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
@@ -722,6 +731,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                NodeDuressSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING,
+                NodeDuressSettings.SETTING_NATIVE_MEMORY_THRESHOLD,
                 SearchTaskSettings.SETTING_CANCELLATION_RATIO,
                 SearchTaskSettings.SETTING_CANCELLATION_RATE,
                 SearchTaskSettings.SETTING_CANCELLATION_BURST,
@@ -731,6 +742,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
                 SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchTaskSettings.SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD,
                 SearchShardTaskSettings.SETTING_CANCELLATION_RATIO,
                 SearchShardTaskSettings.SETTING_CANCELLATION_RATE,
                 SearchShardTaskSettings.SETTING_CANCELLATION_BURST,
@@ -740,6 +752,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
@@ -753,10 +766,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING,
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
+
+                // Settings related to Tiered Storage
+                TieringUtils.H2W_MAX_CONCURRENT_TIERING_REQUESTS,
+                TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS,
+                TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
+                TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
+                TieringUtils.PREPARE_TIERING_TIMEOUT,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
@@ -811,6 +834,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
                 IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+                NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT,
 
                 // Concurrent segment search settings
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
@@ -850,6 +877,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
                 CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+
+                // Pluggable dataformat cluster defaults
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING,
+                IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST,
 
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 
@@ -894,7 +927,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
-                StreamSearchTransportService.STREAM_SEARCH_ENABLED
+                StreamSearchTransportService.STREAM_SEARCH_ENABLED,
+                TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
+                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
             )
         )
     );

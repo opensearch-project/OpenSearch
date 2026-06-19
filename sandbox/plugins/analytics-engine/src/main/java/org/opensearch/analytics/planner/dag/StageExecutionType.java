@@ -1,0 +1,55 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.dag;
+
+/**
+ * Classifies a stage by its execution shape (dispatch target + response shape),
+ * used by {@code StageExecutionBuilder} to look up the scheduler for the stage.
+ *
+ * @opensearch.internal
+ */
+public enum StageExecutionType {
+    /**
+     * Fragment dispatched per-shard to data nodes; responses are row batches.
+     * Used by scans, filters, partial aggregates, and anything else that runs
+     * a shard-local fragment producing rows.
+     */
+    SHARD_FRAGMENT,
+    /**
+     * Runs at the coordinator with a backend-provided {@code ExchangeSink}
+     * (from {@code ExchangeSinkProvider}). Used for final aggregation, sort,
+     * and any residual coordinator-side reduction the backend owns. Child
+     * SHARD_FRAGMENT stage outputs are fed into the sink.
+     */
+    COORDINATOR_REDUCE,
+    /**
+     * Runs at the coordinator as a pure gather — no backend compute, no
+     * fragment dispatch. The walker attaches a {@code RowProducingSink} and
+     * accumulates child output directly. Used only for root/parent gather
+     * stages sitting above children that already produced the final rows.
+     * A single-stage query that scans shards is {@link #SHARD_FRAGMENT}, not this.
+     */
+    LOCAL_PASSTHROUGH,
+    /**
+     * Runs the fragment locally on the coordinator via the backend's in-process
+     * execution engine. No shard dispatch, no children expected. Used for
+     * literal-row sources ({@code LogicalValues}) and any future leaf operator
+     * whose data lives on the coordinator rather than on a shard.
+     */
+    LOCAL_COMPUTE,
+    /**
+     * QTF (late-materialization) Scatter-Gather stage. Drains the upstream Sort+Limit
+     * output, fans out fetch-by-rowid requests to data nodes (one per UGSI), stitches
+     * fetched columns back by row position, and emits the wrapper's output schema
+     * upstream. No Substrait fragment — the stage execution drives fetch transport
+     * directly. Marked by an {@code OpenSearchLateMaterialization} node in the
+     * stage's fragment.
+     */
+    LATE_MATERIALIZATION
+}

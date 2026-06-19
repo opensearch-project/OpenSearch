@@ -11,11 +11,11 @@
 // @description: Runs Gradle check on OpenSearch core repository for a given branch or commit.
 
 def secret_dockerhub_readonly = [
-    [envVar: 'DOCKER_USERNAME', secretRef: 'op://opensearch-infra-secrets/dockerhub-production-readonly-credentials/username'],
-    [envVar: 'DOCKER_PASSWORD', secretRef: 'op://opensearch-infra-secrets/dockerhub-production-readonly-credentials/password']
+    [envVar: 'DOCKER_USERNAME', secretRef: 'op://opensearch-release-secrets/dockerhub-production-readonly-credentials/username'],
+    [envVar: 'DOCKER_PASSWORD', secretRef: 'op://opensearch-release-secrets/dockerhub-production-readonly-credentials/password']
 ]
 
-lib = library(identifier: 'jenkins@11.6.0', retriever: modernSCM([
+lib = library(identifier: 'jenkins@12.0.0', retriever: modernSCM([
     $class: 'GitSCMSource',
     remote: 'https://github.com/opensearch-project/opensearch-build-libraries.git',
 ]))
@@ -63,7 +63,7 @@ pipeline {
         //                  https://github.com/opensearch-project/opensearch-ci/issues/321
         choice(
             name: 'AGENT_LABEL',
-            description: '<Optional> Choose which jenkins agent to run gradle check on. Defaults to Jenkins-Agent-Ubuntu2404-X64-M58xlarge-Single-Host.',
+            description: '<Optional> Choose which jenkins agent to run gradle check on. Defaults to Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host.',
             choices: ['Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host', 'Jenkins-Agent-Windows2019-X64-C524xlarge-Single-Host'],
         )
     }
@@ -85,8 +85,8 @@ pipeline {
             printPostContent: false
         )
         parameterizedCron '''
-            H */2 * * * %GIT_REFERENCE=main;AGENT_LABEL=Jenkins-Agent-Ubuntu2404-X64-M58xlarge-Single-Host
-            H 6 * * * %GIT_REFERENCE=2.19;AGENT_LABEL=Jenkins-Agent-Ubuntu2404-X64-M58xlarge-Single-Host
+            H */2 * * * %GIT_REFERENCE=main;AGENT_LABEL=Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host
+            H 6 * * * %GIT_REFERENCE=2.19;AGENT_LABEL=Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host
         '''
     }
     environment {

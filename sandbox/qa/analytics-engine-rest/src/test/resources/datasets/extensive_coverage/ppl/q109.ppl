@@ -1,0 +1,1 @@
+source=test_data | eval is_empty = isempty(tags) | fields id, tags, is_empty | head 3

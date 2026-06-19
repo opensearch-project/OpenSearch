@@ -16,15 +16,18 @@ public class DatafusionQuery {
     private final String indexName;
     private final byte[] substraitBytes;
     private boolean fetchPhase;
+    private long contextId;
 
     /**
      * Creates a query with the given index name and serialized substrait plan.
      * @param indexName the target index name
      * @param substraitBytes the serialized substrait plan bytes
+     * @param contextId the query context ID for per-query memory tracking (0 if unavailable)
      */
-    public DatafusionQuery(String indexName, byte[] substraitBytes) {
+    public DatafusionQuery(String indexName, byte[] substraitBytes, long contextId) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
+        this.contextId = contextId;
     }
 
     /** Returns the target index name. */
@@ -48,5 +51,10 @@ public class DatafusionQuery {
      */
     public void setFetchPhase(boolean fetchPhase) {
         this.fetchPhase = fetchPhase;
+    }
+
+    /** Returns the query context ID for per-query memory tracking. */
+    public long getContextId() {
+        return contextId;
     }
 }

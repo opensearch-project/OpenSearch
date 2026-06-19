@@ -10,6 +10,8 @@ package org.opensearch.storage.tiering;
 
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
@@ -20,13 +22,23 @@ import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.Set;
 
+import static org.opensearch.index.IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING;
+import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
+import static org.opensearch.index.IndexModule.IS_WARM_INDEX_SETTING;
+import static org.opensearch.index.IndexModule.TieringState.HOT;
+import static org.opensearch.index.IndexModule.TieringState.WARM;
+import static org.opensearch.index.IndexModule.TieringState.WARM_TO_HOT;
+import static org.opensearch.storage.common.tiering.TieringServiceValidator.validateWarmToHotTiering;
+import static org.opensearch.storage.common.tiering.TieringUtils.TIERED_COMPOSITE_INDEX_TYPE;
+import static org.opensearch.storage.common.tiering.TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS;
+import static org.opensearch.storage.common.tiering.TieringUtils.W2H_TIERING_START_TIME_KEY;
+
 /**
  * Service responsible for tiering indices from warm to hot.
- * validateTieringRequest, getTieringStartSettingsToAdd, getIndexTierSettingsToRestoreAfterCancellation
- * will be added in the implementation PR.
  */
 public class WarmToHotTieringService extends TieringService {
 
@@ -70,36 +82,82 @@ public class WarmToHotTieringService extends TieringService {
         Integer jvmActiveUsageThresholdPercent,
         Index index
     ) {
-        throw new UnsupportedOperationException("Not yet implemented");
+        validateWarmToHotTiering(
+            clusterState,
+            clusterInfoService.getClusterInfo(),
+            tieringEntries,
+            maxConcurrentTieringRequests,
+            jvmActiveUsageThresholdPercent,
+            index,
+            shardLimitValidator
+        );
     }
 
     @Override
-    protected Settings getTieringStartSettingsToAdd() {
-        throw new UnsupportedOperationException("Not yet implemented");
+    protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
+        Settings.Builder builder = Settings.builder()
+            .put(IS_WARM_INDEX_SETTING.getKey(), false)
+            .put(INDEX_TIERING_STATE.getKey(), WARM_TO_HOT)
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default");
+        if (TieringUtils.isDfaIndex(indexMetadata)) {
+            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
+        }
+        return builder.build();
     }
 
     @Override
-    protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
-        throw new UnsupportedOperationException("Not yet implemented");
+    protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
+        Settings.Builder builder = Settings.builder()
+            .put(IS_WARM_INDEX_SETTING.getKey(), true)
+            .put(INDEX_TIERING_STATE.getKey(), WARM)
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), TIERED_COMPOSITE_INDEX_TYPE);
+        if (TieringUtils.isDfaIndex(indexMetadata)) {
+            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true);
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
+        return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
+        return blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override
     protected String getTieringStartTimeKey() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return W2H_TIERING_START_TIME_KEY;
     }
 
     @Override
     protected Setting<Integer> getMaxConcurrentTieringRequestsSetting() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return W2H_MAX_CONCURRENT_TIERING_REQUESTS;
     }
 
     @Override
     protected IndexModule.TieringState getTargetTieringState() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return HOT;
     }
 
     @Override
     protected IndexModule.TieringState getTieringType() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return WARM_TO_HOT;
     }
 }

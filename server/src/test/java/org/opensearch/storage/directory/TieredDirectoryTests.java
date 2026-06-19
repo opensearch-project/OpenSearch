@@ -10,6 +10,7 @@ package org.opensearch.storage.directory;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -19,8 +20,10 @@ import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
+import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.storage.indexinput.SwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInputWrapper;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -29,9 +32,13 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.opensearch.storage.utils.DirectoryUtils.getFilePath;
 import static org.opensearch.storage.utils.DirectoryUtils.getFilePathSwitchable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link TieredDirectory}.
@@ -67,8 +74,24 @@ public class TieredDirectoryTests extends TieredStorageBaseTestCase {
         removeExtraFSFiles();
         int concurrencyLevel = randomIntBetween(1, 2);
         fileCache = FileCacheFactory.createConcurrentLRUFileCache(FILE_CACHE_CAPACITY, concurrencyLevel);
-        tieredDirectory = new TieredDirectory(localDirectory, remoteSegmentStoreDirectory, fileCache, threadPool);
+        tieredDirectory = new TieredDirectory(
+            localDirectory,
+            remoteSegmentStoreDirectory,
+            fileCache,
+            threadPool,
+            getMockPrefetchSettingsSupplier()
+        );
         addFilesToDirectory(LOCAL_FILES);
+    }
+
+    private Supplier<TieredStoragePrefetchSettings> getMockPrefetchSettingsSupplier() {
+        return () -> {
+            TieredStoragePrefetchSettings settings = mock(TieredStoragePrefetchSettings.class);
+            when(settings.getReadAheadBlockCount()).thenReturn(TieredStoragePrefetchSettings.DEFAULT_READ_AHEAD_BLOCK_COUNT);
+            when(settings.getReadAheadEnableFileFormats()).thenReturn(TieredStoragePrefetchSettings.READ_AHEAD_ENABLE_FILE_FORMATS);
+            when(settings.isStoredFieldsPrefetchEnabled()).thenReturn(true);
+            return settings;
+        };
     }
 
     public void testListAll() throws IOException {
@@ -220,6 +243,18 @@ public class TieredDirectoryTests extends TieredStorageBaseTestCase {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public void testTieredDirectoryFactory() throws IOException {
+        TieredDirectoryFactory factory = new TieredDirectoryFactory(getMockPrefetchSettingsSupplier());
+        FSDirectory factoryLocalDir = FSDirectory.open(createTempDir());
+        IndexStorePlugin.DirectoryFactory localDirFactory = mock(IndexStorePlugin.DirectoryFactory.class);
+        when(localDirFactory.newDirectory(any(), any())).thenReturn(factoryLocalDir);
+        FileCache factoryFileCache = FileCacheFactory.createConcurrentLRUFileCache(FILE_CACHE_CAPACITY, 1);
+
+        Directory result = factory.newDirectory(null, null, localDirFactory, remoteSegmentStoreDirectory, factoryFileCache, threadPool);
+        assertTrue(result instanceof TieredDirectory);
+        result.close();
     }
 
     private void addFilesToDirectory(String[] files) throws IOException {

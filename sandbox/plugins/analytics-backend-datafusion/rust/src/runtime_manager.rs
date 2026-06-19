@@ -10,15 +10,18 @@ use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
+use tokio_metrics::RuntimeMonitor;
 
 // RuntimeManager — owns IO runtime + CPU DedicatedExecutor.
 pub struct RuntimeManager {
     pub io_runtime: Arc<Runtime>,
     pub cpu_executor: DedicatedExecutor,
+    pub io_monitor: RuntimeMonitor,
+    pub cpu_monitor: Option<RuntimeMonitor>,
 }
 
 impl RuntimeManager {
-    pub fn new(cpu_threads: usize) -> Self {
+    pub fn new(cpu_threads: usize, datanode_multiplier: f64, _coordinator_multiplier: f64) -> Self {
         let io_threads = cpu_threads * 2;
 
         let io_runtime = Arc::new(
@@ -32,6 +35,8 @@ impl RuntimeManager {
 
         register_io_runtime(Some(io_runtime.handle().clone()));
 
+        let io_monitor = RuntimeMonitor::new(&io_runtime.handle());
+
         let io_handle = io_runtime.handle().clone();
         let mut cpu_runtime_builder = Builder::new_multi_thread();
         cpu_runtime_builder
@@ -42,11 +47,19 @@ impl RuntimeManager {
                 register_io_runtime(Some(io_handle.clone()));
             });
 
-        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder);
+        // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
+        let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
+        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
+
+        let cpu_monitor = cpu_executor
+            .handle()
+            .map(|h| RuntimeMonitor::new(&h));
 
         Self {
             io_runtime,
             cpu_executor,
+            io_monitor,
+            cpu_monitor,
         }
     }
 
@@ -71,7 +84,7 @@ mod tests {
     use super::*;
 
     fn test_mgr() -> RuntimeManager {
-        RuntimeManager::new(1)
+        RuntimeManager::new(1, 1.5, 1.5)
     }
 
     #[tokio::test]
@@ -90,7 +103,11 @@ mod tests {
     async fn test_cpu_executor_runs_on_different_thread() {
         let mgr = test_mgr();
         let io_id = std::thread::current().id();
-        let cpu_id = mgr.cpu_executor().spawn(async { std::thread::current().id() }).await.unwrap();
+        let cpu_id = mgr
+            .cpu_executor()
+            .spawn(async { std::thread::current().id() })
+            .await
+            .unwrap();
         assert_ne!(io_id, cpu_id);
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);
@@ -99,9 +116,11 @@ mod tests {
     #[tokio::test]
     async fn test_io_runtime_registered_on_cpu_threads() {
         let mgr = test_mgr();
-        let has_io = mgr.cpu_executor().spawn(async {
-            crate::io::IO_RUNTIME.with_borrow(|h| h.is_some())
-        }).await.unwrap();
+        let has_io = mgr
+            .cpu_executor()
+            .spawn(async { crate::io::IO_RUNTIME.with_borrow(|h| h.is_some()) })
+            .await
+            .unwrap();
         assert!(has_io);
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);

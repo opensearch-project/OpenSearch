@@ -8,13 +8,19 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,11 +32,12 @@ import java.util.List;
  * DatafusionReader → DatafusionContext → DatafusionSearchExecEngine → EngineResultStream → EngineResultBatch.
  * Uses sqlToSubstrait to generate plan bytes, then exercises the real plugin classes.
  */
-@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21195")
 public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
+    private long tieredStorePtr;
+    private NativeStoreHandle storeHandle;
 
     @Override
     public void setUp() throws Exception {
@@ -40,17 +47,30 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
 
+        // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle
+        tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
+        long boxPtr = NativeStoreTestHelper.getObjectStoreBoxPtr(tieredStorePtr);
+        storeHandle = new NativeStoreHandle(boxPtr, NativeStoreTestHelper::destroyObjectStoreBoxPtr);
+
         Path dataDir = createTempDir("datafusion-data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            storeHandle,
+            List.of(),
+            List.of()
+        );
     }
 
     @Override
     public void tearDown() throws Exception {
         readerHandle.close();
-        // NativeRuntimeHandle.close() calls closeGlobalRuntime
+        storeHandle.close();
+        NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
         runtimeHandle.close();
+        NativeBridge.shutdownTokioRuntimeManager();
         super.tearDown();
     }
 
@@ -62,18 +82,17 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
             runtimeHandle.get()
         );
 
-        // Build the plugin-level objects
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
 
         try (
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
-                context,
-                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
-            )
+            RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            try (EngineResultStream stream = engine.execute(null)) {
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
+            execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
+            try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(2, rows.size());
                 assertEquals(2L, rows.get(0)[0]); // message
@@ -94,15 +113,15 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
 
         try (
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
-                context,
-                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
-            )
+            RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            try (EngineResultStream stream = engine.execute(null)) {
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
+            execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
+            try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
                 assertEquals(5L, rows.get(0)[0]); // 2 + 3
@@ -120,15 +139,15 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
 
         try (
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
-                context,
-                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
-            )
+            RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            try (EngineResultStream stream = engine.execute(null)) {
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
+            execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
+            try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
                 assertEquals(3L, rows.get(0)[0]);
@@ -137,8 +156,27 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     }
 
     private DatafusionReader createReader() {
-        // Wrap the raw pointer in a ReaderHandle via the existing native pointer
         return new DatafusionReader(readerHandle.getPointer());
+    }
+
+    private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
+        ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
+        execCtx.setFragmentBytes(substrait);
+        Arena arena = Arena.ofConfined();
+        MemorySegment configSegment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
+            readerHandle.getPointer(),
+            runtimeHandle.get(),
+            tableName,
+            0L,
+            false,
+            configSegment.address(),
+            new byte[0]
+        );
+        arena.close();
+        dfContext.setSessionContextHandle(sessionCtxHandle);
+        return execCtx;
     }
 
     private List<Object[]> collectRows(EngineResultStream stream) {
@@ -146,13 +184,17 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         Iterator<EngineResultBatch> it = stream.iterator();
         while (it.hasNext()) {
             EngineResultBatch batch = it.next();
-            int cols = batch.getFieldNames().size();
-            for (int r = 0; r < batch.getRowCount(); r++) {
-                Object[] row = new Object[cols];
-                for (int c = 0; c < cols; c++) {
-                    row[c] = batch.getFieldValue(batch.getFieldNames().get(c), r);
+            try {
+                int cols = batch.getFieldNames().size();
+                for (int r = 0; r < batch.getRowCount(); r++) {
+                    Object[] row = new Object[cols];
+                    for (int c = 0; c < cols; c++) {
+                        row[c] = batch.getFieldValue(batch.getFieldNames().get(c), r);
+                    }
+                    rows.add(row);
                 }
-                rows.add(row);
+            } finally {
+                batch.getArrowRoot().close();
             }
         }
         return rows;

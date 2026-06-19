@@ -23,6 +23,29 @@ pub fn into_error_ptr(msg: String) -> i64 {
     -(ptr as i64)
 }
 
+/// Wraps a closure with `catch_unwind` and error-pointer conversion.
+/// Same contract as `#[ffm_safe]` — the canonical implementation used by both
+/// this crate's FFI functions and the `#[ffm_safe]` proc macro.
+pub fn ffm_wrap<F>(name: &str, f: F) -> i64
+where
+    F: FnOnce() -> Result<i64, String> + std::panic::UnwindSafe,
+{
+    match std::panic::catch_unwind(f) {
+        Ok(Ok(v)) => v,
+        Ok(Err(msg)) => into_error_ptr(msg),
+        Err(panic) => {
+            let msg = if let Some(s) = panic.downcast_ref::<String>() {
+                s.clone()
+            } else if let Some(s) = panic.downcast_ref::<&str>() {
+                s.to_string()
+            } else {
+                format!("unknown panic in {}", name)
+            };
+            into_error_ptr(msg)
+        }
+    }
+}
+
 /// Returns a pointer to the null-terminated error message.
 #[no_mangle]
 pub unsafe extern "C" fn native_error_message(ptr: i64) -> *const c_char {

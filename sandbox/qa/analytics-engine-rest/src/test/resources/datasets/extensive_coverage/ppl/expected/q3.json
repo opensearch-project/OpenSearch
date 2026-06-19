@@ -1,0 +1,45 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "count_val",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      100.5,
+      10
+    ],
+    [
+      "B",
+      200.75,
+      20
+    ],
+    [
+      "A",
+      150.25,
+      15
+    ],
+    [
+      "C",
+      300.0,
+      25
+    ],
+    [
+      "B",
+      250.5,
+      30
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

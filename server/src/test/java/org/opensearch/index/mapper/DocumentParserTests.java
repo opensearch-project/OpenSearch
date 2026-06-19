@@ -37,6 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -53,9 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -3511,6 +3510,118 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull("Null field should not be created", doc.rootDoc().getField("mixed_nulls.null_field"));
     }
 
+    public void testDisableObjectsArrayWithDottedFieldNameNoIntermediateObjectMapper() throws Exception {
+        // Regression test: When a nested object contains an array value under disable_objects,
+        // the flattened dotted field name (e.g., "app.payment") must NOT be split by
+        // parseNonDynamicArray's splitAndValidatePath. Splitting would cause getDynamicParentMapper
+        // to create an intermediate ObjectMapper ("app") without disable_objects=true, breaking
+        // the flat-field contract and potentially causing recursive field name expansion.
+
+        // Test at nested ObjectMapper level (like the TextBench LogAttributes case)
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("LogAttributes");
+                {
+                    b.field("type", "object");
+                    b.field("disable_objects", true);
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Nested object with array: {"LogAttributes": {"app": {"payment": ["visa", "mastercard"]}}}
+        // After flattening, field name becomes "app.payment" and the value is an array.
+        // The bug would cause "app" to become an ObjectMapper without disable_objects.
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("LogAttributes");
+            {
+                b.startObject("app");
+                {
+                    b.startArray("payment");
+                    b.value("visa");
+                    b.value("mastercard");
+                    b.endArray();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertNotNull(doc);
+        // "app.payment" should be a flat field with 2 values
+        IndexableField[] paymentFields = doc.rootDoc().getFields("LogAttributes.app.payment");
+        assertNotNull("Field 'LogAttributes.app.payment' should exist", paymentFields);
+        assertEquals("Should have 2 values for the array", 2, paymentFields.length);
+        assertEquals("visa", paymentFields[0].stringValue());
+        assertEquals("mastercard", paymentFields[1].stringValue());
+
+        // Verify no intermediate ObjectMapper "app" was created in the dynamic mapping update
+        Mapping dynamicUpdate = doc.dynamicMappingsUpdate();
+        if (dynamicUpdate != null) {
+            // The update should contain a FieldMapper for "app.payment" under LogAttributes,
+            // NOT an ObjectMapper for "app"
+            Mapper logAttrsMapper = dynamicUpdate.root().getMapper("LogAttributes");
+            if (logAttrsMapper instanceof ObjectMapper logAttrsObj) {
+                // There should be NO "app" ObjectMapper child
+                Mapper appMapper = logAttrsObj.getMapper("app");
+                assertNull("ObjectMapper 'app' should NOT exist under LogAttributes (dotted name should be kept flat)", appMapper);
+                // There SHOULD be a "app.payment" FieldMapper child
+                Mapper appPaymentMapper = logAttrsObj.getMapper("app.payment");
+                assertNotNull("FieldMapper 'app.payment' should exist as flat field under LogAttributes", appPaymentMapper);
+                assertTrue("'app.payment' should be a FieldMapper", appPaymentMapper instanceof FieldMapper);
+            }
+        }
+    }
+
+    public void testDisableObjectsRootArrayWithDottedFieldNameNoIntermediateObjectMapper() throws Exception {
+        // Same regression test but at root level with disable_objects=true
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        // Nested object with array: {"metrics": {"cpu": {"cores": [1, 2, 3, 4]}}}
+        // After flattening, field name becomes "metrics.cpu.cores" and the value is an array.
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("metrics");
+            {
+                b.startObject("cpu");
+                {
+                    b.startArray("cores");
+                    b.value(1);
+                    b.value(2);
+                    b.value(3);
+                    b.value(4);
+                    b.endArray();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertNotNull(doc);
+        // "metrics.cpu.cores" should be a flat field with 4 values
+        IndexableField[] coreFields = doc.rootDoc().getFields("metrics.cpu.cores");
+        assertNotNull("Field 'metrics.cpu.cores' should exist", coreFields);
+        assertEquals("Should have 8 fields (4 values * 2 fields each for numeric)", 8, coreFields.length);
+
+        // Verify no intermediate ObjectMapper "metrics" or "metrics.cpu" was created
+        Mapping dynamicUpdate = doc.dynamicMappingsUpdate();
+        if (dynamicUpdate != null) {
+            Mapper metricsMapper = dynamicUpdate.root().getMapper("metrics");
+            assertNull("ObjectMapper 'metrics' should NOT exist at root (dotted name should be kept flat)", metricsMapper);
+            Mapper metricsCpuMapper = dynamicUpdate.root().getMapper("metrics.cpu");
+            assertNull("ObjectMapper 'metrics.cpu' should NOT exist at root", metricsCpuMapper);
+            // The flat field "metrics.cpu.cores" should exist
+            Mapper coresMapper = dynamicUpdate.root().getMapper("metrics.cpu.cores");
+            assertNotNull("FieldMapper 'metrics.cpu.cores' should exist as flat field", coresMapper);
+            assertTrue("'metrics.cpu.cores' should be a FieldMapper", coresMapper instanceof FieldMapper);
+        }
+    }
+
     public void testGeoPointWithCopyTo() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("point");
@@ -3582,7 +3693,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testParseDocumentWithDocumentInputPropagated() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), mockInput);
 
@@ -3608,7 +3719,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testParseDocumentWithDocumentInputAndDynamicMapping() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_field", "value")), mockInput);
 
@@ -3628,7 +3739,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.startObject("obj");
@@ -3640,25 +3751,187 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("obj.inner"));
     }
 
-    private static class TestDocumentInput implements DocumentInput<Map<String, Object>> {
-        private final Map<String, Object> fields = new HashMap<>();
+    public void testDisableObjectsFieldTypeLookupWithPrefixConflict() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            b.startObject("attributes").field("type", "object").field("dynamic", true).field("disable_objects", true).endObject();
+            b.endObject();
+        }));
 
-        @Override
-        public Map<String, Object> getFinalInput() {
-            return Collections.unmodifiableMap(fields);
-        }
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address.city": "Austin", "address.state": "Texas"}}
+            """));
+        // Dynamic mapping update expected since "address.city" and "address.state" are not pre-defined
+        assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
+        assertEquals("address.city should be text", "text", mapperService.fieldType("attributes.address.city").typeName());
 
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            fields.put(fieldType != null ? fieldType.name() : "field_" + fields.size(), value);
-        }
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address": "US"}}
+            """));
+        // Dynamic mapping update expected since "address" is not pre-defined
+        assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
 
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {
-            fields.put(rowIdFieldName, rowId);
-        }
+        assertEquals("address should be text", "text", mapperService.fieldType("attributes.address").typeName());
+        assertEquals(
+            "address.city should be text after prefix conflict",
+            "text",
+            mapperService.fieldType("attributes.address.city").typeName()
+        );
+        assertEquals(
+            "address.state should be text after prefix conflict",
+            "text",
+            mapperService.fieldType("attributes.address.state").typeName()
+        );
 
-        @Override
-        public void close() {}
+        assertNull(mapperService.fieldType("attributes.address.address.city"));
+
+        MapperService ms2 = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            b.startObject("attributes").field("type", "object").field("dynamic", true).field("disable_objects", true).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument docA = ms2.documentMapper().parse(source("""
+            {"attributes": {"address": "US"}}
+            """));
+        // Dynamic mapping update expected since "address" is not pre-defined
+        assertNotNull("docA should produce dynamic mapping update", docA.dynamicMappingsUpdate());
+        merge(ms2, dynamicMapping(docA.dynamicMappingsUpdate()));
+
+        ParsedDocument docB = ms2.documentMapper().parse(source("""
+            {"attributes": {"address.city": "Austin"}}
+            """));
+        // Dynamic mapping update expected since "address.city" is not pre-defined
+        assertNotNull("docB should produce dynamic mapping update", docB.dynamicMappingsUpdate());
+        merge(ms2, dynamicMapping(docB.dynamicMappingsUpdate()));
+
+        assertEquals("address.city should be text in reverse order", "text", ms2.fieldType("attributes.address.city").typeName());
+        assertEquals("address should be text in reverse order", "text", ms2.fieldType("attributes.address").typeName());
+    }
+
+    public void testRootLevelDisableObjectsPrefixConflict() throws Exception {
+        // Root-level disable_objects with dynamic fields that have prefix conflicts
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", true);
+        }));
+
+        // Dynamically add "address.city"
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source("""
+            {"address.city": "Austin"}
+            """));
+        assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
+
+        // Dynamically add "address"
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source("""
+            {"address": "US"}
+            """));
+        assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
+
+        // Assert both fields are resolvable
+        assertEquals("address.city should be text", "text", mapperService.fieldType("address.city").typeName());
+        assertEquals("address should be text", "text", mapperService.fieldType("address").typeName());
+
+        // Assert address.city is NOT treated as a multi-field of address
+        assertFalse(
+            "address.city should not be a multi-field of address",
+            mapperService.documentMapper().mappers().isMultiField("address.city")
+        );
+    }
+
+    public void testDisableObjectsMappingRecoveryWithPrefixConflict() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("strings").field("match_mapping_type", "string");
+            b.startObject("mapping").field("type", "text").field("copy_to", "event_all");
+            b.startObject("fields")
+                .startObject("keyword")
+                .field("type", "keyword")
+                .field("ignore_above", 256)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            b.endArray();
+            b.startObject("properties");
+            b.startObject("event_all").field("type", "text").endObject();
+            b.startObject("attributes").field("type", "object").field("dynamic", true).field("disable_objects", true).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address.city": "Austin", "address.state": "Texas"}}
+            """));
+        // Dynamic mapping update expected since "address.city" and "address.state" are not pre-defined
+        assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
+
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address": "US"}}
+            """));
+        // Dynamic mapping update expected since "address" is not pre-defined
+        assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
+
+        String mappingSource = mapperService.documentMapper().mappingSource().string();
+        MapperService recoveredService = createMapperService(MapperService.SINGLE_MAPPING_NAME, mappingSource);
+
+        assertEquals(
+            "address.city should be text after round-trip",
+            "text",
+            recoveredService.fieldType("attributes.address.city").typeName()
+        );
+        assertEquals(
+            "address.state should be text after round-trip",
+            "text",
+            recoveredService.fieldType("attributes.address.state").typeName()
+        );
+        assertEquals("address should be text after round-trip", "text", recoveredService.fieldType("attributes.address").typeName());
+        assertNull("no doubled name after round-trip", recoveredService.fieldType("attributes.address.address.city"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicTextFieldWithoutKeywordMultiFieldForPluggableDataFormat() throws Exception {
+        Settings pluggableSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {}));
+        DocumentInput<?> noopInput = new CapturingDocumentInput();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")), noopInput);
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // With pluggable data format, text field should NOT have .keyword multi-field
+        assertFalse("Text field should not have keyword multi-field with pluggable dataformat", textMapper.iterator().hasNext());
+    }
+
+    public void testDynamicTextFieldWithKeywordMultiFieldForNonPluggableDataFormat() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // Without pluggable data format, text field SHOULD have .keyword multi-field
+        assertTrue("Text field should have keyword multi-field without pluggable dataformat", textMapper.iterator().hasNext());
+        Mapper keywordSubField = textMapper.iterator().next();
+        assertThat(keywordSubField, instanceOf(KeywordFieldMapper.class));
+        assertEquals("dynamic_text.keyword", keywordSubField.name());
     }
 }

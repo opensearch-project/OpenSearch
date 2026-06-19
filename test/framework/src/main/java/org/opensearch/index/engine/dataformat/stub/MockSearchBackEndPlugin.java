@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.dataformat.stub;
 
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -16,9 +15,9 @@ import org.opensearch.plugins.SearchBackEndPlugin;
 import java.util.List;
 
 public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
-    private final List<DataFormat> formats;
+    private final List<String> formats;
 
-    public MockSearchBackEndPlugin(List<DataFormat> formats) {
+    public MockSearchBackEndPlugin(List<String> formats) {
         this.formats = formats;
     }
 
@@ -28,7 +27,7 @@ public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
     }
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
+    public List<String> getSupportedFormats() {
         return formats;
     }
 

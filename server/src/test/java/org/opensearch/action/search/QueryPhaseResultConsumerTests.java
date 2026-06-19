@@ -133,7 +133,9 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
             writableRegistry(),
             10,
             e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
-                curr.addSuppressed(prev);
+                if (prev != null) {
+                    curr.addSuppressed(prev);
+                }
                 return curr;
             })
         );

@@ -1,0 +1,77 @@
+{
+  "schema": [
+    {
+      "name": "time_bucket",
+      "type": "timestamp"
+    },
+    {
+      "name": "server_name",
+      "type": "string"
+    },
+    {
+      "name": "total_events",
+      "type": "bigint"
+    },
+    {
+      "name": "avg_vals",
+      "type": "double"
+    },
+    {
+      "name": "event_rate",
+      "type": "double"
+    },
+    {
+      "name": "normalized_score",
+      "type": "double"
+    },
+    {
+      "name": "risk_level",
+      "type": "string"
+    },
+    {
+      "name": "score_band",
+      "type": "double"
+    },
+    {
+      "name": "global_total",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "2026-05-14 01:30:00",
+      "host1",
+      3,
+      8.0,
+      0.3,
+      8.0,
+      "HIGH",
+      8.0,
+      100
+    ],
+    [
+      "2026-05-14 01:20:00",
+      "host2",
+      3,
+      8.0,
+      0.3,
+      8.0,
+      "HIGH",
+      8.0,
+      100
+    ],
+    [
+      "2026-05-14 01:20:00",
+      "host3",
+      2,
+      8.0,
+      0.2,
+      8.0,
+      "HIGH",
+      8.0,
+      100
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

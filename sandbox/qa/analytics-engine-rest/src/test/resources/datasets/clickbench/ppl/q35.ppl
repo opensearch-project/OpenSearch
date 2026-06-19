@@ -1,0 +1,1 @@
+source = clickbench | eval const = 1 | stats count() as c by const, URL | sort - c | head 10

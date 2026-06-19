@@ -9,6 +9,7 @@
 package org.opensearch.dsl.executor;
 
 import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.test.OpenSearchTestCase;
@@ -28,10 +29,12 @@ public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
     public void testExecuteDelegatesEachPlanToExecutor() {
         List<Object[]> expectedRows = List.<Object[]>of(new Object[] { "laptop", 1200 });
 
-        DslQueryPlanExecutor executor = new DslQueryPlanExecutor((plan, ctx) -> expectedRows);
+        DslQueryPlanExecutor executor = new DslQueryPlanExecutor((plan, ctx, listener) -> listener.onResponse(expectedRows));
         QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, scan)).build();
 
-        List<ExecutionResult> results = executor.execute(plans);
+        PlainActionFuture<List<ExecutionResult>> future = new PlainActionFuture<>();
+        executor.execute(plans, future);
+        List<ExecutionResult> results = future.actionGet();
 
         assertEquals(1, results.size());
         ExecutionResult result = results.get(0);
@@ -39,7 +42,10 @@ public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
         assertEquals(QueryPlans.Type.HITS, result.getType());
         assertNotNull(result.getPlan());
         assertSame(scan, result.getPlan().relNode());
-        assertEquals(List.of("name", "price", "brand", "rating"), result.getFieldNames());
+        assertEquals(
+            List.of("name", "price", "brand", "rating", "created_date", "is_active", "timestamp", "location", "status", "binary_data"),
+            result.getFieldNames()
+        );
     }
 
     // TODO: add test with multiple plans (HITS + AGGREGATION) to verify iteration order

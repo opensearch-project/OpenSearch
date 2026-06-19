@@ -37,8 +37,6 @@ import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -47,6 +45,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergeStatsTracker;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.merge.OnGoingMerge;
 
@@ -67,14 +66,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final IndexSettings indexSettings;
     private final ShardId shardId;
 
-    private final MeanMetric totalMerges = new MeanMetric();
-    private final CounterMetric totalMergesNumDocs = new CounterMetric();
-    private final CounterMetric totalMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric currentMerges = new CounterMetric();
-    private final CounterMetric currentMergesNumDocs = new CounterMetric();
-    private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
-    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
+    private final MergeStatsTracker mergeStatsTracker = new MergeStatsTracker();
 
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
@@ -110,9 +102,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         long timeNS = System.nanoTime();
-        currentMerges.inc();
-        currentMergesNumDocs.inc(totalNumDocs);
-        currentMergesSizeInBytes.inc(totalSizeInBytes);
+        mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
 
         OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
         onGoingMerges.add(onGoingMerge);
@@ -136,21 +126,16 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
 
-            currentMerges.dec();
-            currentMergesNumDocs.dec(totalNumDocs);
-            currentMergesSizeInBytes.dec(totalSizeInBytes);
+            mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
 
-            totalMergesNumDocs.inc(totalNumDocs);
-            totalMergesSizeInBytes.inc(totalSizeInBytes);
-            totalMerges.inc(tookMS);
             long stoppedMS = TimeValue.nsecToMSec(
                 merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.STOPPED)
             );
             long throttledMS = TimeValue.nsecToMSec(
                 merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.PAUSED)
             );
-            totalMergeStoppedTime.inc(stoppedMS);
-            totalMergeThrottledTime.inc(throttledMS);
+            mergeStatsTracker.incStoppedTime(stoppedMS);
+            mergeStatsTracker.incThrottledTime(throttledMS);
 
             String message = String.format(
                 Locale.ROOT,
@@ -207,20 +192,10 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     }
 
     MergeStats stats() {
-        final MergeStats mergeStats = new MergeStats();
-        mergeStats.add(
-            totalMerges.count(),
-            totalMerges.sum(),
-            totalMergesNumDocs.count(),
-            totalMergesSizeInBytes.count(),
-            currentMerges.count(),
-            currentMergesNumDocs.count(),
-            currentMergesSizeInBytes.count(),
-            totalMergeStoppedTime.count(),
-            totalMergeThrottledTime.count(),
-            config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY,
-            mergedSegmentTransferTracker.stats()
+        final MergeStats mergeStats = mergeStatsTracker.toMergeStats(
+            config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
         );
+        mergeStats.add(mergedSegmentTransferTracker.stats());
         return mergeStats;
     }
 

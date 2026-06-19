@@ -9,6 +9,10 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
+
+import java.util.List;
 
 /**
  * Type-safe handle for native reader.
@@ -18,12 +22,24 @@ public final class ReaderHandle extends NativeHandle {
     private final boolean ownsPointer;
 
     /**
-     * Creates a reader handle by allocating a native DataFusion reader for the given path and files.
+     * Creates a reader handle by allocating a native DataFusion reader for the given path
+     * and {@link MonoFileWriterSet}s. Each entry represents one parquet segment — a single
+     * file paired with its writer generation (sourced from the catalog snapshot).
+     *
      * @param path the directory path containing data files
-     * @param files the array of file names to read
+     * @param segments the per-segment file sets to read
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
+     * @param sortFields index.sort.field values (or empty if no index sort). Parallel to {@code sortOrders}.
+     * @param sortOrders index.sort.order values ("asc"/"desc"), parallel to {@code sortFields}.
      */
-    public ReaderHandle(String path, String[] files) {
-        super(NativeBridge.createDatafusionReader(path, files));
+    public ReaderHandle(
+        String path,
+        List<MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
+    ) {
+        super(NativeBridge.createDatafusionReader(path, segments, dataformatAwareStoreHandle, sortFields, sortOrders));
         this.ownsPointer = true;
     }
 

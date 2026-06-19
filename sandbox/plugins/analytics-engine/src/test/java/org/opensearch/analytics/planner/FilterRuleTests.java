@@ -9,21 +9,31 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +44,17 @@ import java.util.Set;
  * delegation, and derived column handling.
  */
 public class FilterRuleTests extends BasePlannerRulesTests {
+
+    private static SqlFunction fullTextSqlFunction(String name) {
+        return new SqlFunction(
+            name,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BOOLEAN,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+    }
 
     // ---- Per-predicate annotation tests ----
 
@@ -48,10 +69,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(result.getCondition() instanceof AnnotatedPredicate);
         AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
-        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(annotated.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(annotated, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
     /** Keyword equality — both backends viable per-predicate, operator-level only child. */
@@ -64,12 +83,76 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             makeEquals(0, SqlTypeName.VARCHAR, "US")
         );
 
-        assertTrue(result.getCondition() instanceof AnnotatedPredicate);
         AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
         assertEquals(2, annotated.getViableBackends().size());
         // Operator-level: only child backend (no delegation configured)
         assertEquals(1, result.getViableBackends().size());
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+    }
+
+    /**
+     * Keyword equality is normally viable for both backends per-predicate (see
+     * {@link #testKeywordEqualsAnnotatedWithBothBackends}). Blocking EQUALS for the Lucene backend
+     * via the delegation block-list must drop Lucene from the predicate's viable set, leaving only
+     * DataFusion — so the predicate is never delegated to Lucene.
+     */
+    public void testBlockListDropsBlockedBackendFromPredicate() {
+        DelegationBlockList blockList = DelegationBlockList.fromMap(Map.of(MockLuceneBackend.NAME, List.of(ScalarFunction.EQUALS)));
+        OpenSearchFilter result = runFilterWithBlockList(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US"),
+            blockList
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertTrue("DataFusion stays viable", annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse("Lucene dropped by block-list", annotated.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertEquals(1, annotated.getViableBackends().size());
+    }
+
+    /**
+     * Safety invariant: blocking must never make a predicate unexecutable. If EVERY viable backend
+     * blocks the shape, the block-list is ignored and all backends remain (there is nowhere else to
+     * run the predicate). Here both backends block EQUALS, so the annotation keeps both.
+     */
+    public void testBlockListIgnoredWhenAllViableBackendsBlock() {
+        DelegationBlockList blockList = DelegationBlockList.fromMap(
+            Map.of(MockLuceneBackend.NAME, List.of(ScalarFunction.EQUALS), MockDataFusionBackend.NAME, List.of(ScalarFunction.EQUALS))
+        );
+        OpenSearchFilter result = runFilterWithBlockList(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US"),
+            blockList
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("both backends retained — blocking can't strand the predicate", 2, annotated.getViableBackends().size());
+    }
+
+    /**
+     * Blocking a predicate for one backend must not affect a different, non-blocked predicate shape:
+     * blocking EQUALS for Lucene leaves a keyword-equality dual-viable annotation untouched when the
+     * block targets a different backend namespace that doesn't exist.
+     */
+    public void testBlockListUnknownBackendIsNoOp() {
+        DelegationBlockList blockList = DelegationBlockList.fromMap(Map.of("not-a-backend", List.of(ScalarFunction.EQUALS)));
+        OpenSearchFilter result = runFilterWithBlockList(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US"),
+            blockList
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("both backends still viable", 2, annotated.getViableBackends().size());
     }
 
     // ---- Viable backends with delegation ----
@@ -81,7 +164,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             Map.of("message", Map.of("type", "keyword", "index", true)),
             new String[] { "message" },
             new SqlTypeName[] { SqlTypeName.VARCHAR },
-            makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world")
+            makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world")
         );
 
         // DF is viable at operator level (has doc values in parquet)
@@ -90,7 +173,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertFalse(result.getViableBackends().contains(MockLuceneBackend.NAME));
         // MATCH_PHRASE predicate has Lucene as delegation target
         AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
-        assertTrue("MATCH_PHRASE should be evaluable by Lucene", predicate.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
         assertTrue(predicate.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
@@ -101,10 +184,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true)),
             new String[] { "status", "message" },
             new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
-            makeAnd(
-                makeEquals(0, SqlTypeName.INTEGER, 200),
-                makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 1, "timeout error")
-            )
+            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 1, "timeout error"))
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -112,9 +192,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexCall andCondition = (RexCall) result.getCondition();
         AnnotatedPredicate equalsPred = (AnnotatedPredicate) andCondition.getOperands().get(0);
         AnnotatedPredicate matchPred = (AnnotatedPredicate) andCondition.getOperands().get(1);
-        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(equalsPred, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertPredicateAnnotation(matchPred, MockLuceneBackend.NAME);
         assertTrue(matchPred.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
@@ -128,7 +207,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             makeCall(
                 SqlStdOperatorTable.OR,
                 makeEquals(0, SqlTypeName.INTEGER, 200),
-                makeFullTextCall(FilterOperator.MATCH.toSqlFunction(), 1, "error")
+                makeFullTextCall(fullTextSqlFunction("MATCH"), 1, "error")
             )
         );
 
@@ -137,10 +216,40 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexCall orCondition = (RexCall) result.getCondition();
         AnnotatedPredicate equalsPred = (AnnotatedPredicate) orCondition.getOperands().get(0);
         AnnotatedPredicate matchPred = (AnnotatedPredicate) orCondition.getOperands().get(1);
-        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(equalsPred, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertPredicateAnnotation(matchPred, MockLuceneBackend.NAME);
         assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
+    }
+
+    /**
+     * Multi-index alias MATCH delegation: when a scan resolves to two backing indices, the
+     * unioned {@link org.opensearch.analytics.spi.FieldStorageInfo} must still expose the field's
+     * Lucene index format so a {@code MATCH} predicate on it delegates to the Lucene backend.
+     *
+     * <p>This pins the contract called out in the multi-index PR description: MATCH on an alias
+     * spanning multiple concrete indices must behave the same as MATCH on a single index.
+     *
+     * <p>Implementation note: with the current per-index storage helpers, both backings declare
+     * the field with identical (keyword, indexed) settings, and
+     * {@link org.opensearch.analytics.planner.FieldStorageResolver#merged} preserves Lucene index
+     * formats via {@code putIfAbsent}. A future regression that drops index formats during the
+     * union would surface as the assertion below failing.
+     */
+    public void testMatchDelegationOverMultiIndexAlias() {
+        OpenSearchFilter result = runMultiIndexFilter(
+            new String[] { "idx_a", "idx_b" },
+            "parquet",
+            Map.of("message", Map.of("type", "keyword", "index", true)),
+            new String[] { "message" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world")
+        );
+
+        assertTrue("DataFusion stays viable at the operator level", result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse("Lucene is delegation-only here", result.getViableBackends().contains(MockLuceneBackend.NAME));
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+        assertTrue(predicate.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
     /** OR of two full-text predicates — DF viable at operator, both predicates delegated to Lucene. */
@@ -152,8 +261,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.VARCHAR },
             makeCall(
                 SqlStdOperatorTable.OR,
-                makeFullTextCall(FilterOperator.MATCH.toSqlFunction(), 0, "hello"),
-                makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 1, "world")
+                makeFullTextCall(fullTextSqlFunction("MATCH"), 0, "hello"),
+                makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 1, "world")
             )
         );
 
@@ -162,9 +271,9 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexCall orCondition = (RexCall) result.getCondition();
         AnnotatedPredicate matchPred = (AnnotatedPredicate) orCondition.getOperands().get(0);
         AnnotatedPredicate phrasePred = (AnnotatedPredicate) orCondition.getOperands().get(1);
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(matchPred, MockLuceneBackend.NAME);
         assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
-        assertTrue(phrasePred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(phrasePred, MockLuceneBackend.NAME);
         assertTrue(phrasePred.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
@@ -173,10 +282,12 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     /** Full-text without delegation — errors. */
     public void testFullTextErrorsWithoutDelegation() {
         RelOptTable table = mockTable("test_index", new String[] { "message" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
-        RexNode condition = makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world");
+        RexNode condition = makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
-        PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword")));
+        // index=false strips the inverted index so no backend can satisfy the full-text predicate
+        // natively, forcing the "without delegation" code path under test.
+        PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword", "index", false)));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("No backend can evaluate filter predicate"));
@@ -204,11 +315,12 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     // ---- Derived columns ----
 
     /**
-     * HAVING on derived column must throw — marking on derived/expression columns
-     * is not yet implemented. Verifies the planner fails fast with a clear message
-     * rather than silently producing incorrect viableBackends.
+     * HAVING on a derived column (the aggregate's {@code total_size} output) plans without
+     * throwing. The filter has no per-field storage to narrow on, so its viable backends are
+     * just the upstream aggregate's. The filter runs on the same backend that produced the
+     * derived column.
      */
-    public void testFilterOnDerivedColumnsAfterAggregateThrows() {
+    public void testFilterOnDerivedColumnPlansSuccessfully() {
         PlannerContext context = buildContext("parquet", 1, Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer")));
 
         RelOptTable table = mockTable("test_index", "status", "size");
@@ -237,8 +349,341 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
         LogicalFilter having = LogicalFilter.create(aggregate, havingCondition);
 
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> runPlanner(having, context));
-        assertTrue("Expected message about derived column, got: " + ex.getMessage(), ex.getMessage().contains("derived column"));
+        RelNode result = runPlanner(having, context);
+        assertNotNull("Planner must produce a plan for HAVING on derived column", result);
+    }
+
+    // ---- Scalar-function capability narrowing ----
+
+    /**
+     * Baseline: {@code country = 'US'} has no nested scalar function, so both backends
+     * stay viable. Sets the expected shape that the next four tests narrow against.
+     */
+    public void testNoScalarFunctionsKeepsLuceneViable() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US")
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(annotated, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * {@code UPPER(country) = 'US'}: Lucene supports EQUALS on KEYWORD but does not
+     * support UPPER, so the predicate is no longer viable for Lucene.
+     */
+    public void testNestedScalarFunctionDropsLuceneFromPredicateAnnotation() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode upperCall = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, rexBuilder.makeInputRef(varchar, 0));
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, upperCall, rexBuilder.makeLiteral("US"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            predicate
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("Only DataFusion remains viable", 1, annotated.getViableBackends().size());
+        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded — no scalar capability for UPPER",
+            annotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
+     * Four-level nesting: {@code UPPER(CONCAT(UPPER(CONCAT(name, '_a')), '_b')) = 'FOO'}.
+     * Confirms the walk recurses through arbitrary depth; Lucene drops at any level it can't evaluate.
+     */
+    public void testDeeplyNestedScalarFunctionsDropLucene() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode level4 = rexBuilder.makeCall(SqlStdOperatorTable.CONCAT, rexBuilder.makeInputRef(varchar, 0), rexBuilder.makeLiteral("_a"));
+        RexNode level3 = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, level4);
+        RexNode level2 = rexBuilder.makeCall(SqlStdOperatorTable.CONCAT, level3, rexBuilder.makeLiteral("_b"));
+        RexNode level1 = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, level2);
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, level1, rexBuilder.makeLiteral("FOO"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("name", Map.of("type", "keyword", "index", true)),
+            new String[] { "name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            predicate
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("Only DataFusion remains viable", 1, annotated.getViableBackends().size());
+        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded across deeply nested scalar-function calls",
+            annotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
+     * Predicate with a nested scalar function ({@code EXP}) that NO mock backend declares
+     * scalar capability for: viableSet collapses to empty after the inner-call intersection,
+     * and the existing "no backend can evaluate filter predicate" throw fires. Verifies the
+     * error message names the outer comparator's SqlKind and the field, so the failure is
+     * pin-pointable from logs.
+     */
+    public void testInnerScalarWithNoBackendSupportThrows() {
+        SqlFunction expFn = SqlStdOperatorTable.EXP;
+        RexNode innerCall = rexBuilder.makeCall(expFn, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0));
+        RexNode predicate = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            innerCall,
+            rexBuilder.makeLiteral(1.0, typeFactory.createSqlType(SqlTypeName.DOUBLE), true)
+        );
+
+        RelOptTable table = mockTable("test_index", new String[] { "n" }, new SqlTypeName[] { SqlTypeName.INTEGER });
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), predicate);
+        PlannerContext context = buildContext("parquet", Map.of("n", Map.of("type", "integer", "index", true)));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Message must indicate no backend can evaluate the predicate, got: " + exception.getMessage(),
+            exception.getMessage().contains("No backend can evaluate filter predicate")
+        );
+        assertTrue("Message must name the outer comparator's kind", exception.getMessage().contains("GREATER_THAN"));
+        assertTrue("Message must name the field", exception.getMessage().contains("n:integer"));
+    }
+
+    /**
+     * Nested boolean tree {@code AND( $0 = 200 , OR( UPPER($s) = 'X' , >(EXP($num), 1.0) ) )}.
+     * The deepest leaf has an inner {@code EXP} no backend declares; the throw fires from
+     * that leaf and propagates up through OR and AND. Verifies (a) sibling leaves don't
+     * suppress the un-evaluable leaf's failure and (b) the error message stays per-leaf
+     * (names {@code GREATER_THAN} on {@code num:integer}, not the surrounding shape).
+     */
+    public void testNestedAndOrWithUnevaluableLeafThrows() {
+        RelDataType integer = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
+
+        // status = 200
+        RexNode goodLeaf = makeEquals(0, SqlTypeName.INTEGER, 200);
+
+        // UPPER(s) = 'X'
+        RexNode upperCall = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, rexBuilder.makeInputRef(varchar, 1));
+        RexNode upperLeaf = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, upperCall, rexBuilder.makeLiteral("X"));
+
+        // EXP(num) > 1.0 (no backend declares EXP)
+        RexNode expCall = rexBuilder.makeCall(SqlStdOperatorTable.EXP, rexBuilder.makeInputRef(integer, 2));
+        RexNode badLeaf = rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN, expCall, rexBuilder.makeLiteral(1.0, doubleType, true));
+
+        RexNode condition = makeCall(SqlStdOperatorTable.AND, goodLeaf, makeCall(SqlStdOperatorTable.OR, upperLeaf, badLeaf));
+
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "status", "s", "num" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of(
+                "status",
+                Map.of("type", "integer", "index", true),
+                "s",
+                Map.of("type", "keyword", "index", true),
+                "num",
+                Map.of("type", "integer", "index", true)
+            )
+        );
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Message must indicate no backend can evaluate the predicate, got: " + exception.getMessage(),
+            exception.getMessage().contains("No backend can evaluate filter predicate")
+        );
+        assertTrue("Message must name the offending leaf's comparator", exception.getMessage().contains("GREATER_THAN"));
+        assertTrue("Message must name the offending leaf's field", exception.getMessage().contains("num:integer"));
+        assertFalse(
+            "Message must not conflate sibling leaves' fields",
+            exception.getMessage().contains("status:") || exception.getMessage().contains("s:keyword")
+        );
+    }
+
+    /**
+     * Inter-leaf "same backend" check: {@code (MATCH(s, 'foo') OR status = 200) AND >(SIN(num), 0.5)}.
+     * Each leaf is individually viable on different single backends — P1 (MATCH) is Lucene-only,
+     * P3 (SIN inner call) is DataFusion-only — and no FILTER delegation is registered. The
+     * operator-level intersection at {@code computeFilterViableBackends} finds no backend that
+     * can evaluate every leaf, throwing the "No backend can execute filter" error. This pins
+     * the cross-leaf constraint distinct from the per-leaf throw above.
+     */
+    public void testFilterWithMixedBackendLeavesAndNoDelegationThrows() {
+        RelDataType integer = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
+
+        // P1: MATCH(s, 'foo') — full-text predicate, Lucene-only (DataFusion declares no FULL_TEXT caps).
+        RexNode p1 = makeFullTextCall(fullTextSqlFunction("MATCH"), 1, "foo");
+
+        // P2: status = 200 — dual-viable on its own, doesn't help bridge P1 and P3.
+        RexNode p2 = makeEquals(0, SqlTypeName.INTEGER, 200);
+
+        // P3: SIN(num) > 0.5 — inner SIN is DataFusion-only (Lucene declares no ProjectCapability),
+        // so the leaf narrows to [datafusion] via the new inner-call walk.
+        RexNode sinCall = rexBuilder.makeCall(SqlStdOperatorTable.SIN, rexBuilder.makeInputRef(integer, 2));
+        RexNode p3 = rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN, sinCall, rexBuilder.makeLiteral(0.5, doubleType, true));
+
+        RexNode condition = makeCall(SqlStdOperatorTable.AND, makeCall(SqlStdOperatorTable.OR, p1, p2), p3);
+
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "status", "s", "num" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of(
+                "status",
+                Map.of("type", "integer", "index", true),
+                "s",
+                Map.of("type", "keyword", "index", true),
+                "num",
+                Map.of("type", "integer", "index", true)
+            )
+        );
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Message must indicate the operator-level mismatch, got: " + exception.getMessage(),
+            exception.getMessage().contains("No backend can execute filter")
+        );
+        assertTrue("Message must mention the missing delegation path", exception.getMessage().contains("no delegation path exists"));
+    }
+
+    /**
+     * Symmetric happy path: same {@code (MATCH(s, 'foo') OR status = 200) AND >(SIN(num), 0.5)}
+     * shape, but with FILTER delegation registered (DataFusion drives, Lucene accepts).
+     * The operator-level intersection finds DataFusion as a viable driver — it evaluates
+     * P2 and P3 natively and delegates the MATCH leaf (P1) to Lucene. No throw; the filter
+     * marks {@code [datafusion]} at the operator level and P1's annotation lists Lucene as
+     * the delegation target.
+     */
+    public void testFilterWithMixedBackendLeavesAndDelegationSucceeds() {
+        RelDataType integer = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
+
+        RexNode p1 = makeFullTextCall(fullTextSqlFunction("MATCH"), 1, "foo");
+        RexNode p2 = makeEquals(0, SqlTypeName.INTEGER, 200);
+        RexNode sinCall = rexBuilder.makeCall(SqlStdOperatorTable.SIN, rexBuilder.makeInputRef(integer, 2));
+        RexNode p3 = rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN, sinCall, rexBuilder.makeLiteral(0.5, doubleType, true));
+        RexNode condition = makeCall(SqlStdOperatorTable.AND, makeCall(SqlStdOperatorTable.OR, p1, p2), p3);
+
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of(
+                "status",
+                Map.of("type", "integer", "index", true),
+                "s",
+                Map.of("type", "keyword", "index", true),
+                "num",
+                Map.of("type", "integer", "index", true)
+            ),
+            new String[] { "status", "s", "num" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR, SqlTypeName.INTEGER },
+            condition
+        );
+
+        // Operator-level: DataFusion drives. Lucene is a delegation target only, never the driver.
+        assertEquals("Operator-level viable backends must be exactly [datafusion]", 1, result.getViableBackends().size());
+        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must not appear at the operator level — it accepts delegated leaves but doesn't drive",
+            result.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+
+        RexCall andCondition = (RexCall) result.getCondition();
+        RexCall orBranch = (RexCall) andCondition.getOperands().get(0);
+        AnnotatedPredicate matchPred = (AnnotatedPredicate) orBranch.getOperands().get(0);
+        AnnotatedPredicate equalsPred = (AnnotatedPredicate) orBranch.getOperands().get(1);
+        AnnotatedPredicate sinPred = (AnnotatedPredicate) andCondition.getOperands().get(1);
+
+        // P1 (MATCH) — exactly Lucene; DataFusion will delegate it.
+        assertEquals("P1 (MATCH) viable backends must be exactly [lucene]", 1, matchPred.getViableBackends().size());
+        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+
+        // P2 (EQUALS on integer) — exactly both backends, dual-viable.
+        assertEquals("P2 (EQUALS) viable backends must be exactly [datafusion, lucene]", 2, equalsPred.getViableBackends().size());
+        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
+
+        // P3 (SIN > 0.5) — exactly DataFusion; Lucene declares no scalar capability for SIN
+        // so the inner-call walk drops it.
+        assertEquals("P3 (SIN) viable backends must be exactly [datafusion]", 1, sinPred.getViableBackends().size());
+        assertTrue(sinPred.getViableBackends().contains(MockDataFusionBackend.NAME));
+    }
+
+    /**
+     * AND of {@code status = 200} (no nested function) and {@code UPPER(country) = 'US'}
+     * (nested UPPER). Each leaf is annotated independently: Lucene stays on the first
+     * leaf and drops only on the second.
+     */
+    public void testScalarFunctionNarrowingIsPerLeaf() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode upperCall = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, rexBuilder.makeInputRef(varchar, 1));
+        RexNode upperEq = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, upperCall, rexBuilder.makeLiteral("US"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("status", Map.of("type", "integer", "index", true), "country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "status", "country_name" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
+            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), upperEq)
+        );
+
+        RexCall andCondition = (RexCall) result.getCondition();
+        AnnotatedPredicate plainEq = (AnnotatedPredicate) andCondition.getOperands().get(0);
+        AnnotatedPredicate upperEqAnnotated = (AnnotatedPredicate) andCondition.getOperands().get(1);
+
+        assertPredicateAnnotation(plainEq, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertEquals("Only DataFusion remains viable for the scalar-function leaf", 1, upperEqAnnotated.getViableBackends().size());
+        assertTrue(upperEqAnnotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded only on the scalar-function leaf",
+            upperEqAnnotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
+     * A nested scalar function that the framework doesn't know about (no entry in the
+     * {@link org.opensearch.analytics.spi.ScalarFunction} enum) makes the predicate
+     * unevaluable on every backend. Marking should fail fast and the error should name
+     * the unrecognized function.
+     */
+    public void testUnrecognizedScalarFunctionThrows() {
+        SqlFunction unknown = new SqlFunction(
+            "FAKE_UDF",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_2000,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode unknownCall = rexBuilder.makeCall(unknown, rexBuilder.makeInputRef(varchar, 0));
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, unknownCall, rexBuilder.makeLiteral("X"));
+
+        RelOptTable table = mockTable("test_index", new String[] { "name" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), predicate);
+        PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword", "index", true)));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Message must name the unrecognized scalar function",
+            exception.getMessage().contains("Unrecognized scalar function [FAKE_UDF]")
+        );
     }
 
     // ---- Helpers ----
@@ -250,7 +695,15 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         SqlTypeName[] fieldTypes,
         RexNode condition
     ) {
-        return runFilter(format, fields, fieldNames, fieldTypes, condition, List.of(DATAFUSION, LUCENE));
+        return runFilter(
+            format,
+            fields,
+            fieldNames,
+            fieldTypes,
+            condition,
+            List.of(DATAFUSION, LUCENE),
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     private OpenSearchFilter runFilterWithDelegation(
@@ -260,7 +713,58 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         SqlTypeName[] fieldTypes,
         RexNode condition
     ) {
-        return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends());
+        return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends(), Set.of(MockDataFusionBackend.NAME));
+    }
+
+    /** Mirrors {@code runFilter} but injects a {@link DelegationBlockList} into the planner context. */
+    private OpenSearchFilter runFilterWithBlockList(
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition,
+        DelegationBlockList blockList
+    ) {
+        PlannerContext context = buildContext(format, fields, List.of(DATAFUSION, LUCENE));
+        context.setPlannerSettings(PlannerSettings.of(0.0, blockList));
+        RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+        assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
+        return (OpenSearchFilter) result;
+    }
+
+    /**
+     * Variant of {@code runFilter} that resolves to {@code multipleIndexNames} concrete indices
+     * sharing identical mapping/settings, simulating an alias scan. Uses
+     * {@link BasePlannerRulesTests#buildContextPerIndex} to register all indices under the same
+     * table name. The fragment's table name is the first index in the list — that's what the
+     * scan rule looks up; since all backings have the same mapping, the unioned field storage
+     * matches single-index behavior.
+     */
+    private OpenSearchFilter runMultiIndexFilter(
+        String[] indexNames,
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition
+    ) {
+        java.util.Map<String, Integer> shardCounts = new java.util.LinkedHashMap<>();
+        for (String name : indexNames) {
+            shardCounts.put(name, 1);
+        }
+        PlannerContext context = buildContextPerIndex(format, shardCounts, fields, delegationBackends());
+        RelOptTable table = mockTable(indexNames[0], fieldNames, fieldTypes);
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+        assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchFilter.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        return (OpenSearchFilter) result;
     }
 
     private OpenSearchFilter runFilter(
@@ -269,15 +773,21 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         String[] fieldNames,
         SqlTypeName[] fieldTypes,
         RexNode condition,
-        List<AnalyticsSearchBackendPlugin> backends
+        List<AnalyticsSearchBackendPlugin> backends,
+        Set<String> expectedViable
     ) {
         PlannerContext context = buildContext(format, fields, backends);
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
-        logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
+        assertPipelineViableBackends(result, List.of(OpenSearchFilter.class, OpenSearchTableScan.class), expectedViable);
         return (OpenSearchFilter) result;
+    }
+
+    private void assertPredicateAnnotation(AnnotatedPredicate predicate, String... expectedBackends) {
+        for (String backend : expectedBackends)
+            assertTrue("Predicate annotation must contain " + backend, predicate.getViableBackends().contains(backend));
     }
 
     private List<AnalyticsSearchBackendPlugin> delegationBackends() {
@@ -294,5 +804,36 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             }
         };
         return List.of(df, lucene);
+    }
+
+    public void testBackendWithFilterDelegationButNoFactory_throws() {
+        AnalyticsSearchBackendPlugin badBackend = new AnalyticsSearchBackendPlugin() {
+            @Override
+            public String name() {
+                return "bad-backend";
+            }
+
+            @Override
+            public BackendCapabilityProvider getCapabilityProvider() {
+                return new BackendCapabilityProvider() {
+                    @Override
+                    public Set<EngineCapability> supportedEngineCapabilities() {
+                        return Set.of();
+                    }
+
+                    @Override
+                    public Set<DelegationType> supportedDelegations() {
+                        return Set.of(DelegationType.FILTER);
+                    }
+                };
+            }
+        };
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> new CapabilityRegistry(List.of(badBackend), idx -> null)
+        );
+        assertTrue(exception.getMessage().contains("bad-backend"));
+        assertTrue(exception.getMessage().contains("getInstructionHandlerFactory"));
     }
 }

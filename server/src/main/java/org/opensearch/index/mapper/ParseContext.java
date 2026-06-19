@@ -331,6 +331,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
+        Mapper lookupDynamicPropertyMapper(String fullPath) {
+            return in.lookupDynamicPropertyMapper(fullPath);
+        }
+
+        @Override
+        void rememberDynamicPropertyMapper(String fullPath, Mapper mapper) {
+            in.rememberDynamicPropertyMapper(fullPath, mapper);
+        }
+
+        @Override
         public Iterator<Document> iterator() {
             return in.iterator();
         }
@@ -416,6 +426,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private final long maxAllowedArrayDepth;
 
         private final List<Mapper> dynamicMappers;
+
+        /** Reuse mappers built from dynamic_property for the same path within one document parse. */
+        private final Map<String, Mapper> dynamicPropertyMapperCache = new HashMap<>();
 
         private boolean docsReversed = false;
 
@@ -564,6 +577,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         @Override
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
+        }
+
+        @Override
+        Mapper lookupDynamicPropertyMapper(String fullPath) {
+            return dynamicPropertyMapperCache.get(fullPath);
+        }
+
+        @Override
+        void rememberDynamicPropertyMapper(String fullPath, Mapper mapper) {
+            dynamicPropertyMapperCache.put(fullPath, mapper);
         }
 
         @Override
@@ -846,6 +869,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    /**
+     * Returns a cached mapper for a dynamic_property match, or null.
+     */
+    Mapper lookupDynamicPropertyMapper(String fullPath) {
+        return null;
+    }
+
+    /**
+     * Caches a mapper built for a dynamic_property field path for the rest of this parse.
+     */
+    void rememberDynamicPropertyMapper(String fullPath, Mapper mapper) {}
 
     public abstract void incrementFieldCurrentDepth();
 

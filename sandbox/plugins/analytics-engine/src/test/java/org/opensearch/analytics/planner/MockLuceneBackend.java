@@ -8,11 +8,10 @@
 
 package org.opensearch.analytics.planner;
 
+import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -20,10 +19,6 @@ import org.opensearch.plugins.SearchBackEndPlugin;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS;
 
 /**
  * Mock Lucene backend for tests. Supports lucene format with index structures
@@ -39,25 +34,25 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     public static final String LUCENE_DATA_FORMAT = "lucene";
     private static final Set<String> LUCENE_FORMATS = Set.of(LUCENE_DATA_FORMAT);
 
-    private static final Set<FilterOperator> STANDARD_OPS = Set.of(
-        FilterOperator.EQUALS,
-        FilterOperator.NOT_EQUALS,
-        FilterOperator.GREATER_THAN,
-        FilterOperator.GREATER_THAN_OR_EQUAL,
-        FilterOperator.LESS_THAN,
-        FilterOperator.LESS_THAN_OR_EQUAL,
-        FilterOperator.IS_NULL,
-        FilterOperator.IS_NOT_NULL,
-        FilterOperator.IN,
-        FilterOperator.LIKE
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.IN,
+        ScalarFunction.LIKE
     );
 
-    private static final Set<FilterOperator> FULL_TEXT_OPS = Set.of(
-        FilterOperator.MATCH,
-        FilterOperator.MATCH_PHRASE,
-        FilterOperator.FUZZY,
-        FilterOperator.WILDCARD,
-        FilterOperator.REGEXP
+    private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
+        ScalarFunction.MATCH,
+        ScalarFunction.MATCH_PHRASE,
+        ScalarFunction.FUZZY,
+        ScalarFunction.WILDCARD,
+        ScalarFunction.REGEXP
     );
 
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();
@@ -78,12 +73,10 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
-        for (FilterOperator op : STANDARD_OPS) {
-            for (FieldType type : STANDARD_TYPES) {
-                caps.add(new FilterCapability.Standard(op, type, LUCENE_FORMATS));
-            }
+        for (ScalarFunction op : STANDARD_OPS) {
+            caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
         }
-        for (FilterOperator op : FULL_TEXT_OPS) {
+        for (ScalarFunction op : FULL_TEXT_OPS) {
             for (FieldType type : FULL_TEXT_TYPES) {
                 caps.add(new FilterCapability.FullText(op, type, LUCENE_FORMATS, Set.of()));
             }
@@ -104,34 +97,42 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
-        return List.of(new DataFormat() {
-            @Override
-            public String name() {
-                return LUCENE_DATA_FORMAT;
-            }
-
-            @Override
-            public long priority() {
-                return 0;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of(
-                    new FieldTypeCapabilities("integer", Set.of(POINT_RANGE, STORED_FIELDS)),
-                    new FieldTypeCapabilities("long", Set.of(POINT_RANGE, STORED_FIELDS)),
-                    new FieldTypeCapabilities("keyword", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
-                    new FieldTypeCapabilities("text", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
-                    new FieldTypeCapabilities("boolean", Set.of(STORED_FIELDS)),
-                    new FieldTypeCapabilities("date", Set.of(POINT_RANGE, STORED_FIELDS))
-                );
-            }
-        });
+    public List<String> getSupportedFormats() {
+        return List.of(LUCENE_DATA_FORMAT);
     }
 
     @Override
     public EngineReaderManager<Object> createReaderManager(ReaderManagerConfig settings) {
         return null;
+    }
+
+    @Override
+    public DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return (subtree, fieldStorage) -> {
+            // Simple test convertor: walks the subtree and produces a descriptive string
+            return describeSubtree(subtree).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        };
+    }
+
+    private static String describeSubtree(org.apache.calcite.rex.RexNode node) {
+        if (node instanceof org.opensearch.analytics.planner.rel.AnnotatedPredicate ap) {
+            node = ap.unwrap();
+        }
+        if (node instanceof org.apache.calcite.rex.RexCall call) {
+            switch (call.getKind()) {
+                case AND:
+                case OR:
+                case NOT: {
+                    java.util.List<String> children = new java.util.ArrayList<>();
+                    for (org.apache.calcite.rex.RexNode child : call.getOperands()) {
+                        children.add(describeSubtree(child));
+                    }
+                    return call.getKind() + "(" + String.join(",", children) + ")";
+                }
+                default:
+                    return call.getOperator().getName();
+            }
+        }
+        return node.toString();
     }
 }

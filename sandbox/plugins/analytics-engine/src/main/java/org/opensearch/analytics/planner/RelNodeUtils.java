@@ -12,17 +12,34 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
-import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchUnion;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Copies an OpenSearch RelNode tree to a new cluster so all nodes register
@@ -66,7 +83,10 @@ public class RelNodeUtils {
                 aggregate.getGroupSets(),
                 aggregate.getAggCallList(),
                 aggregate.getMode(),
-                aggregate.getViableBackends()
+                aggregate.getViableBackends(),
+                aggregate.getCallAnnotations(),
+                aggregate.getFinalExtraLiteralArgs(),
+                aggregate.getIntermediateFields()
             );
         } else if (node instanceof OpenSearchSort sort) {
             return new OpenSearchSort(
@@ -87,6 +107,28 @@ public class RelNodeUtils {
                 project.getRowType(),
                 project.getViableBackends()
             );
+        } else if (node instanceof OpenSearchJoin join) {
+            return new OpenSearchJoin(
+                newCluster,
+                newTraits,
+                newInputs.get(0),
+                newInputs.get(1),
+                join.getCondition(),
+                join.getJoinType(),
+                join.getViableBackends()
+            );
+        } else if (node instanceof OpenSearchUnion union) {
+            return new OpenSearchUnion(newCluster, newTraits, newInputs, union.all, union.getViableBackends());
+        } else if (node instanceof OpenSearchValues values) {
+            return new OpenSearchValues(newCluster, newTraits, values.getRowType(), values.getTuples(), values.getViableBackends());
+        } else if (node instanceof OpenSearchExchangeReducer reducer) {
+            return new OpenSearchExchangeReducer(
+                newCluster,
+                newTraits,
+                newInputs.getFirst(),
+                reducer.getViableBackends(),
+                reducer.getExchangeInfo()
+            );
         }
 
         throw new UnsupportedOperationException("Cannot copy node type: " + node.getClass().getSimpleName());
@@ -98,7 +140,8 @@ public class RelNodeUtils {
         for (int index = 0; index < node.getTraitSet().size(); index++) {
             org.apache.calcite.plan.RelTrait trait = node.getTraitSet().getTrait(index);
             if (trait instanceof OpenSearchDistribution oldDist) {
-                traits = traits.replace(distTraitDef.fromType(oldDist.getType(), oldDist.getKeys()));
+                // Preserve the full distribution (kind, type, keys, tableId).
+                traits = traits.replace(distTraitDef.from(oldDist));
             }
         }
 
@@ -106,29 +149,185 @@ public class RelNodeUtils {
     }
 
     /**
-     * Extracts the single backend from the leaf operator in a resolved fragment.
-     * After resolution, every operator has exactly one viable backend. Throws if
-     * the leaf has more than one (indicates resolution didn't complete).
+     * Finds the first node of the given type in the fragment's single-input chain.
+     * Returns {@code null} if not found.
+     *
+     * <p>TODO: migrate existing findLeaf/findFilter usages in FragmentConversionDriver to use this.
      */
-    public static String extractLeafBackendFromResolvedFragment(RelNode node) {
-        if (node.getInputs().isEmpty()) {
-            if (node instanceof OpenSearchRelNode leafNode) {
-                List<String> backends = leafNode.getViableBackends();
-                if (backends.size() != 1) {
-                    throw new IllegalStateException(
-                        "Expected exactly 1 viable backend on resolved leaf [" + node.getClass().getSimpleName() + "], got " + backends
-                    );
-                }
-                return backends.getFirst();
-            }
-            throw new IllegalStateException("Leaf node [" + node.getClass().getSimpleName() + "] is not an OpenSearchRelNode");
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> T findNode(RelNode node, Class<T> type) {
+        if (type.isInstance(node)) {
+            return (T) node;
         }
-        for (RelNode input : node.getInputs()) {
-            String backend = extractLeafBackendFromResolvedFragment(input);
-            if (backend != null) {
-                return backend;
-            }
+        if (!node.getInputs().isEmpty()) {
+            return findNode(node.getInputs().getFirst(), type);
         }
         return null;
+    }
+
+    /**
+     * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
+     * searching all inputs. Returns {@code null} if none is present.
+     */
+    public static String findTableName(RelNode node) {
+        if (node == null) return null;
+        if (node instanceof TableScan scan) {
+            return scan.getTable().getQualifiedName().getLast();
+        }
+        for (RelNode input : node.getInputs()) {
+            String name = findTableName(input);
+            if (name != null) return name;
+        }
+        return null;
+    }
+
+    /** Maximum recursion depth when walking a RelNode tree to extract indices. */
+    static final int MAX_EXTRACT_INDICES_DEPTH = 15;
+
+    /**
+     * Extracts all index names referenced by {@link org.apache.calcite.rel.core.TableScan}
+     * nodes in the plan. Walks the tree up to {@link #MAX_EXTRACT_INDICES_DEPTH} levels to
+     * guard against pathologically deep plans constructed from complex user queries.
+     *
+     * @param plan the root of the RelNode tree
+     * @return array of distinct index names in encounter order
+     * @throws IllegalArgumentException if the plan exceeds the maximum depth
+     */
+    public static String[] extractIndices(RelNode plan) {
+        java.util.Set<String> indices = new java.util.LinkedHashSet<>();
+        if (!collectIndices(plan, indices, 0)) {
+            throw new IllegalArgumentException(
+                "Query plan exceeds maximum depth ("
+                    + MAX_EXTRACT_INDICES_DEPTH
+                    + ") for index extraction. Simplify the query by reducing nested joins or subqueries."
+            );
+        }
+        return indices.toArray(String[]::new);
+    }
+
+    private static boolean collectIndices(RelNode node, java.util.Set<String> indices, int depth) {
+        if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
+            return false;
+        }
+        if (node instanceof TableScan scan) {
+            java.util.List<String> names = scan.getTable().getQualifiedName();
+            indices.add(names.get(names.size() - 1));
+        }
+        for (RelNode input : node.getInputs()) {
+            if (!collectIndices(input, indices, depth + 1)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Collects every {@link RexInputRef} index appearing inside a {@link RexNode} tree. */
+    public static Set<Integer> collectInputRefs(RexNode node) {
+        Set<Integer> out = new HashSet<>();
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                out.add(ref.getIndex());
+                return ref;
+            }
+        });
+        return out;
+    }
+
+    /**
+     * Resolves a derived expression to the ordered list of physical-field names it depends on,
+     * deduped by first-appearance. Used by {@link OpenSearchProject#getOutputFieldStorage} and
+     * {@link OpenSearchAggregate#getOutputFieldStorage} to populate
+     * {@link FieldStorageInfo#getDependsOnPhysicalCols} per Invariant 1 of the QTF v2 algorithm.
+     *
+     * <p>For each {@code RexInputRef} encountered (depth-first order):
+     * <ul>
+     *   <li>If the input FSI at that index is non-derived, add its field name.</li>
+     *   <li>If the input FSI at that index is derived, recurse into its
+     *       {@code dependsOnPhysicalCols} (already resolved by the upstream operator).</li>
+     * </ul>
+     */
+    public static LinkedHashSet<String> resolvePhysicalDeps(RexNode node, List<FieldStorageInfo> inputStorage) {
+        LinkedHashSet<String> deps = new LinkedHashSet<>();
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                int idx = ref.getIndex();
+                if (idx >= inputStorage.size()) {
+                    throw new IllegalStateException(
+                        "RexInputRef["
+                            + idx
+                            + "] has no matching FieldStorageInfo entry "
+                            + "(input only declares "
+                            + inputStorage.size()
+                            + " columns) — "
+                            + "the upstream operator did not record storage for every output column"
+                    );
+                }
+                FieldStorageInfo src = inputStorage.get(idx);
+                if (src.isDerived()) {
+                    deps.addAll(src.getDependsOnPhysicalCols());
+                } else {
+                    deps.add(src.getFieldName());
+                }
+                return ref;
+            }
+        });
+        return deps;
+    }
+
+    /**
+     * Returns a copy of {@code base} with one extra field {@code (name, type)} appended.
+     * Used by rewrites that augment a rowType with synthetic helper columns.
+     */
+    public static RelDataType appendField(RelDataTypeFactory typeFactory, RelDataType base, String name, RelDataType type) {
+        RelDataTypeFactory.Builder builder = typeFactory.builder();
+        for (RelDataTypeField f : base.getFieldList()) {
+            builder.add(f.getName(), f.getType());
+        }
+        builder.add(name, type);
+        return builder.build();
+    }
+
+    /**
+     * {@link RexShuttle} that rewrites every {@link RexInputRef} via {@code remap[oldIdx]}.
+     * Throws when {@code remap[oldIdx] < 0} (referenced column was dropped). Output ref's
+     * type is sourced from {@code newRowType}.
+     */
+    public static final class IndexRemapShuttle extends RexShuttle {
+        private final int[] remap;
+        private final RelDataType newRowType;
+
+        public IndexRemapShuttle(int[] remap, RelDataType newRowType) {
+            this.remap = remap;
+            this.newRowType = newRowType;
+        }
+
+        @Override
+        public RexNode visitInputRef(RexInputRef ref) {
+            int newIdx = remap[ref.getIndex()];
+            if (newIdx < 0) {
+                throw new IllegalStateException("RexInputRef references dropped column at original idx " + ref.getIndex());
+            }
+            return new RexInputRef(newIdx, newRowType.getFieldList().get(newIdx).getType());
+        }
+    }
+
+    /**
+     * Recursively flattens nested same-operator AND/OR calls so the condition satisfies
+     * {@link RexUtil#isFlat(RexNode)} (the invariant asserted by {@link org.apache.calcite.rel.core.Filter}'s
+     * constructor). Calcite's {@code RexUtil.flatten(RexBuilder, RexNode)} only flattens the root
+     * call's direct operands; wrapping it in a {@link RexShuttle} applies it bottom-up, so each
+     * node is flattened after its children — making one pass fully recursive. Pure structural
+     * flatten: {@code flatten} splices same-op children only, with no de-duplication or
+     * simplification.
+     */
+    public static RexNode deepFlatten(RexBuilder rexBuilder, RexNode node) {
+        return node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitCall(RexCall call) {
+                return RexUtil.flatten(rexBuilder, super.visitCall(call));
+            }
+        });
     }
 }

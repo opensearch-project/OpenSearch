@@ -11,20 +11,34 @@ package org.opensearch.storage.action.tiering;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.storage.common.tiering.TieringUtils.Tier;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.storage.common.tiering.TieringUtils.isMigrationAllowed;
 
 /**
  * Represents a request to move indices between different storage tiers.
  * This class handles the validation and serialization of tiering requests.
- * Tier field (TieringUtils.Tier) will be added in the implementation PR.
- *
- * Serialization (writeTo, StreamInput constructor), validation, equals/hashCode
- * will be added in the implementation PR.
  */
 public class IndexTieringRequest extends AcknowledgedRequest<IndexTieringRequest> {
 
     private final String indexName;
+    private final Tier targetTier;
+
+    /**
+     * Constructs a new tiering request.
+     *
+     * @param targetTier the target tier for the index
+     * @param indexName the index name to be tiered
+     */
+    public IndexTieringRequest(final String targetTier, final String indexName) {
+        this.targetTier = Tier.fromString(targetTier);
+        this.indexName = indexName;
+    }
 
     /**
      * Constructs a new tiering request from a stream.
@@ -33,27 +47,68 @@ public class IndexTieringRequest extends AcknowledgedRequest<IndexTieringRequest
      */
     public IndexTieringRequest(StreamInput in) throws IOException {
         super(in);
-        throw new UnsupportedOperationException("Not yet implemented");
-    }
-
-    /**
-     * Constructs a new tiering request.
-     * @param targetTier the target tier
-     * @param indexName the index name
-     */
-    public IndexTieringRequest(final String targetTier, final String indexName) {
-        this.indexName = indexName;
+        indexName = in.readString();
+        targetTier = Tier.fromString(in.readString());
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        ActionRequestValidationException validationException = null;
+        if (indexName == null) {
+            validationException = addValidationError("Index parameter cannot be null", validationException);
+        } else if (indexName.isBlank()) {
+            validationException = addValidationError("Index parameter cannot be empty", validationException);
+        } else if (isMigrationAllowed(indexName) == false) {
+            validationException = addValidationError("Index '" + indexName + "' is blocklisted for migrations", validationException);
+        }
+        if (targetTier == null) {
+            validationException = addValidationError("Target tier cannot be null", validationException);
+        }
+        return validationException;
     }
 
-    // tier() method returning TieringUtils.Tier will be added in the implementation PR.
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(indexName);
+        out.writeString(targetTier.value());
+    }
 
-    /** Returns the index name. */
+    /**
+     * Returns the target tier for this request.
+     *
+     * @return the target Tier enum value
+     */
+    public Tier tier() {
+        return targetTier;
+    }
+
+    /**
+     * Returns the index name for this tiering request.
+     *
+     * @return the index name
+     */
     public String getIndex() {
         return indexName;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        IndexTieringRequest that = (IndexTieringRequest) o;
+        return clusterManagerNodeTimeout.equals(that.clusterManagerNodeTimeout)
+            && timeout.equals(that.timeout)
+            && indexName.equals(that.indexName)
+            && targetTier.equals(that.targetTier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clusterManagerNodeTimeout, timeout, indexName, targetTier);
     }
 }

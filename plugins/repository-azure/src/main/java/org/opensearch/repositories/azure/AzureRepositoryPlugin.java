@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.azure;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -40,6 +42,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -55,12 +59,17 @@ import java.util.Map;
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
-public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
+
+    private static final Logger logger = LogManager.getLogger(AzureRepositoryPlugin.class);
 
     public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
 
     // protected for testing
     final AzureStorageService azureStoreService;
+
+    /** Native store provider loaded via ExtensiblePlugin — null if no native plugin is present. */
+    private NativeRemoteObjectStoreProvider nativeStoreProvider;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
@@ -73,6 +82,35 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<NativeRemoteObjectStoreProvider> providers = loader.loadExtensions(NativeRemoteObjectStoreProvider.class);
+        int matchCount = 0;
+        for (NativeRemoteObjectStoreProvider provider : providers) {
+            if (AzureRepository.TYPE.equals(provider.repositoryType())) {
+                matchCount++;
+                if (this.nativeStoreProvider == null) {
+                    this.nativeStoreProvider = provider;
+                    logger.info(
+                        "Loaded native object store provider [{}] for repository type [{}]",
+                        provider.getClass().getName(),
+                        AzureRepository.TYPE
+                    );
+                }
+            }
+        }
+        if (matchCount > 1) {
+            logger.warn(
+                "Multiple native object store providers found for repository type [{}], using [{}]",
+                AzureRepository.TYPE,
+                this.nativeStoreProvider.getClass().getName()
+            );
+        }
+        if (this.nativeStoreProvider == null) {
+            logger.info("No native object store provider found for repository type [{}]", AzureRepository.TYPE);
+        }
+    }
+
+    @Override
     public Map<String, Repository.Factory> getRepositories(
         Environment env,
         NamedXContentRegistry namedXContentRegistry,
@@ -81,7 +119,14 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     ) {
         return Collections.singletonMap(
             AzureRepository.TYPE,
-            (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService, recoverySettings)
+            (metadata) -> new AzureRepository(
+                metadata,
+                namedXContentRegistry,
+                azureStoreService,
+                clusterService,
+                recoverySettings,
+                nativeStoreProvider
+            )
         );
     }
 

@@ -1,0 +1,1 @@
+source = clickbench | where like(URL, '%google%') | stats count()

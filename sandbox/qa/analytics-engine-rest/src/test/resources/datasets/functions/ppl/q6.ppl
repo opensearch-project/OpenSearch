@@ -1,0 +1,1 @@
+source=function_tests | eval category = if(amount > 0, 'positive', 'negative') | fields user, amount, category | head 10

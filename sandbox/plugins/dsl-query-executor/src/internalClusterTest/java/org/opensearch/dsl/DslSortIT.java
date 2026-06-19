@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 
@@ -15,6 +16,7 @@ import org.opensearch.search.sort.SortOrder;
  * Integration tests for DSL sort and pagination conversion.
  * Uses matchAllQuery; focus is on sort/from/size behavior.
  */
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
 public class DslSortIT extends DslIntegTestBase {
 
     public void testDefaultPagination() {

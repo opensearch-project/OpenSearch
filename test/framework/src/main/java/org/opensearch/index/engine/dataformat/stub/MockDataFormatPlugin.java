@@ -10,9 +10,10 @@ package org.opensearch.index.engine.dataformat.stub;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.plugins.Plugin;
 
 import java.util.Set;
@@ -27,7 +28,7 @@ public class MockDataFormatPlugin extends Plugin implements DataFormatPlugin {
         this(new MockDataFormat("", 100L, Set.of()));
     }
 
-    MockDataFormatPlugin(MockDataFormat mockDataFormat) {
+    protected MockDataFormatPlugin(MockDataFormat mockDataFormat) {
         this.dataFormat = mockDataFormat;
     }
 
@@ -41,7 +42,12 @@ public class MockDataFormatPlugin extends Plugin implements DataFormatPlugin {
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         return new MockIndexingExecutionEngine(dataFormat);
+    }
+
+    @Override
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        return new MockDeleteExecutionEngine(dataFormat);
     }
 }

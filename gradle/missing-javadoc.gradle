@@ -173,8 +173,15 @@ def javadocProjects = [
   project(":libs:opensearch-compress"),
   project(":server")
 ]
-// Sandbox projects — only present when -Dsandbox.enabled=true
+// Sandbox projects — only present when -Dsandbox.enabled=true.
 rootProject.allprojects.findAll { it.path.startsWith(':sandbox:') }.each { javadocProjects.add(it) }
+
+// analytics-backend-lucene: SargSerializer uses Calcite's Sarg API which exposes Guava types
+// (BoundType, Range) that forbidden-dependencies blocks from compileClasspath. Exclude until
+// Guava is available on the javadoc classpath.
+rootProject.allprojects.findAll { it.path == ':sandbox:plugins:analytics-backend-lucene' }.each {
+  it.tasks.withType(MissingJavadocTask) { isExcluded = true }
+}
 
 configure(javadocProjects) {
   project.tasks.withType(MissingJavadocTask) {
@@ -308,7 +315,9 @@ class MissingJavadocTask extends DefaultTask {
       opts << [ '--missing-method', String.join(',', javadocMissingMethod) ]
     }
     opts << [ '-quiet' ]
-    opts << [ '--release', 21 ]
+
+    // To support modules with JDK 25 and above as well
+    opts << [ '--release', Math.max(project.java.sourceCompatibility.majorVersion.toInteger(), 21) ]
     opts << '-Xdoclint:all,-missing'
 
     // Temporary file that holds all javadoc options for the current task.

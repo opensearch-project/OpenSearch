@@ -13,13 +13,12 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
-import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -29,12 +28,15 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,9 +85,10 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx) -> Collections.emptyList(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
-            resolver
+            resolver,
+            mockThreadPool()
         );
 
         TestListener listener = executeWith(action, "bogus-index");
@@ -115,25 +118,16 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx) -> Collections.emptyList(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
-            resolver
+            resolver,
+            mockThreadPool()
         );
     }
 
-    private EngineContext buildEngineContext() {
-        SchemaPlus schema = buildSchema();
-        return new EngineContext() {
-            @Override
-            public SchemaPlus getSchema() {
-                return schema;
-            }
-
-            @Override
-            public SqlOperatorTable operatorTable() {
-                return SqlOperatorTables.of();
-            }
-        };
+    private EngineContextProvider buildEngineContext() {
+        QueryRequestContext ctx = new QueryRequestContext(null, buildSchema());
+        return () -> ctx;
     }
 
     private SchemaPlus buildSchema() {
@@ -145,6 +139,17 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             }
         });
         return schema;
+    }
+
+    private static ThreadPool mockThreadPool() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        when(threadPool.executor(any())).thenReturn(executorService);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(executorService).execute(any());
+        return threadPool;
     }
 
     private static class TestListener implements ActionListener<SearchResponse> {

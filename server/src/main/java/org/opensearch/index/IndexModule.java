@@ -92,8 +92,10 @@ import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -104,6 +106,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.storage.directory.TieredDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -286,7 +289,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
-    private final FileCache fileCache;
+    private final NodeCacheService nodeCacheService;
     private final CompositeIndexSettings compositeIndexSettings;
 
     /**
@@ -310,7 +313,7 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final Map<String, IndexStorePlugin.StoreFactory> storeFactories,
-        final FileCache fileCache,
+        final NodeCacheService nodeCacheService,
         final CompositeIndexSettings compositeIndexSettings,
         final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories
     ) {
@@ -327,7 +330,7 @@ public final class IndexModule {
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
-        this.fileCache = fileCache;
+        this.nodeCacheService = nodeCacheService;
         this.compositeIndexSettings = compositeIndexSettings;
     }
 
@@ -824,6 +827,7 @@ public final class IndexModule {
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            null,
             namedWriteableRegistry,
             idFieldDataEnabled,
             valuesSourceRegistry,
@@ -843,7 +847,7 @@ public final class IndexModule {
     }
 
     /**
-     * @deprecated Use the overload that accepts a {@code dataFormatRegistry} parameter.
+     * @deprecated Use the overload that accepts {@code indicesBitsetFilterCache} and {@code dataFormatRegistry} parameters.
      */
     @Deprecated(forRemoval = true)
     public IndexService newIndexService(
@@ -881,6 +885,79 @@ public final class IndexModule {
             DataFormatAwareEngineFactory,
             IOException> dataFormatAwareEngineFactorySupplier
     ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            null,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
+        );
+    }
+
+    /**
+     * @deprecated Use the overload that accepts a {@code dataFormatRegistry} parameter.
+     */
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> dataFormatAwareEngineFactorySupplier
+    ) throws IOException {
 
         return newIndexService(
             indexCreationContext,
@@ -896,6 +973,7 @@ public final class IndexModule {
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             namedWriteableRegistry,
             idFieldDataEnabled,
             valuesSourceRegistry,
@@ -928,6 +1006,7 @@ public final class IndexModule {
         IndicesQueryCache indicesQueryCache,
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -1000,6 +1079,7 @@ public final class IndexModule {
                 readerWrapperFactory,
                 mapperRegistry,
                 indicesFieldDataCache,
+                indicesBitsetFilterCache,
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
@@ -1014,14 +1094,14 @@ public final class IndexModule {
                 shardLevelRefreshEnabled.get(),
                 recoverySettings,
                 remoteStoreSettings,
-                fileCache,
                 compositeIndexSettings,
                 replicator,
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
                 clusterMergeSchedulerConfig,
                 dataFormatRegistry,
-                dataFormatAwareStoreDirectoryFactory
+                dataFormatAwareStoreDirectoryFactory,
+                nodeCacheService
             );
             success = true;
             return indexService;
@@ -1097,6 +1177,14 @@ public final class IndexModule {
     ) {
         if (dataFormatAwareStoreDirectoryFactories.isEmpty()) {
             return null;
+        }
+        if (indexSettings.isWarmIndex() && indexSettings.isPluggableDataFormatEnabled()) {
+            DataFormatAwareStoreDirectoryFactory tiered = dataFormatAwareStoreDirectoryFactories.get(
+                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY
+            );
+            if (tiered != null) {
+                return tiered;
+            }
         }
         return dataFormatAwareStoreDirectoryFactories.get("default");
     }

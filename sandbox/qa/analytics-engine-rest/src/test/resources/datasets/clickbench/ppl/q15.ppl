@@ -1,0 +1,1 @@
+source = clickbench | where SearchPhrase != '' | stats count() as c by SearchEngineID, SearchPhrase | sort - c | head 10

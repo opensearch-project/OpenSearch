@@ -125,7 +125,9 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
-            requestUris.add(Tuple.tuple("/_cluster/settings", "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
+            requestUris.add(
+                Tuple.tuple("/_cluster/settings?cluster_manager_timeout=10s", "{ \"transient\": {\"search.default_search_timeout\": -1 } }")
+            );
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);

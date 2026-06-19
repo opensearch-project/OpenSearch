@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "total",
+      "type": "int"
+    },
+    {
+      "name": "mod_val",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      10,
+      1
+    ],
+    [
+      20,
+      2
+    ],
+    [
+      15,
+      0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

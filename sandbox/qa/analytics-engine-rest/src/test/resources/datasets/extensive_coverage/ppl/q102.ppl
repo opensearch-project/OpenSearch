@@ -1,0 +1,1 @@
+source=test_data | eval combined = mvappend(split(tags, ','), array('extra1', 'extra2')) | fields tags, combined | head 3
