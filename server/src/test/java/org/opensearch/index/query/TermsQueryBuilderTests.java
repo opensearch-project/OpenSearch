@@ -51,13 +51,11 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.transport.client.Client;
-import static org.mockito.Mockito.*;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -65,6 +63,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.transport.client.Client;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
@@ -83,6 +82,9 @@ import java.util.stream.Collectors;
 
 import org.roaringbitmap.RoaringBitmap;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;

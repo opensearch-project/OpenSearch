@@ -42,6 +42,7 @@ import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -584,8 +585,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                 if (termsLookup.store()) {
                     // getField(...) may be null when the document exists but the stored field is missing.
                     // Treat a missing stored field as an empty terms list (no matches) instead of throwing NPE.
-                    if (getResponse.getField(termsLookup.path()) != null) {
-                        List<Object> values = getResponse.getField(termsLookup.path()).getValues();
+                    DocumentField field = getResponse.getField(termsLookup.path());
+                    if (field != null) {
+                        List<Object> values = field.getValues();
                         if (values.size() != 1 && valueType == ValueType.BITMAP) {
                             throw new IllegalArgumentException(
                                 "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
