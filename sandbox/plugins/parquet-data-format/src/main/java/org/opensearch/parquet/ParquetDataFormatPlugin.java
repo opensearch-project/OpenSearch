@@ -94,6 +94,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
 
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
+
+    public static final int PARQUET_THREAD_POOL_QUEUE_SIZE = 10_000;
     private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
     public static final ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
@@ -121,6 +123,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
+        // Hand the node thread pool to the stats provider so per-node stats can read the live
+        // parquet_native_write pool (queue depth / active / rejected).
+        if (ParquetStatsProvider.getInstance() != null) {
+            ParquetStatsProvider.getInstance().setThreadPool(threadPool);
+        }
         this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class).orElse(null);
 
         // Initialize native write/merge memory pools
@@ -233,7 +240,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
                 settings,
                 PARQUET_THREAD_POOL_NAME,
                 OpenSearchExecutors.allocatedProcessors(settings),
-                -1,
+                PARQUET_THREAD_POOL_QUEUE_SIZE,
                 "thread_pool." + PARQUET_THREAD_POOL_NAME
             )
         );
