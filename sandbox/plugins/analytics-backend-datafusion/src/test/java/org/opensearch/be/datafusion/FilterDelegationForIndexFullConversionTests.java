@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -58,13 +59,16 @@ import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.be.lucene.LuceneAnalyticsBackendPlugin;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -104,6 +108,9 @@ import static org.mockito.Mockito.when;
  * and preserved AND/OR/NOT boolean structure).
  */
 public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestCase {
+
+    /** Default resolver for DAGBuilder in tests; production injects core's resolver. */
+    private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     private static final SqlFunction MATCH_FUNCTION = new SqlFunction(
         "MATCH",
@@ -169,12 +176,12 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
 
         SubstraitResult substrait = substraitResult(plan.convertedBytes());
         logger.info("Substrait plan (mixed E2E):\n{}", substrait.plan());
-        // Root: AND
+        // Root: AND — operand order: delegated first, native after (materializeCombined)
         Expression.ScalarFunction andFunc = substrait.filterRel().getCondition().getScalarFunction();
         assertEquals("and", resolveFunctionName(substrait.plan(), andFunc.getFunctionReference()));
         assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
-        // arg[1]: delegated_predicate(1) — annotation id=1 maps to MATCH 'hello world'
-        assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(1).getValue(), 1);
+        // arg[0]: delegated_predicate(1) — annotation id=1 maps to MATCH 'hello world'
+        assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(0).getValue(), 1);
         assertMatchQueryForAnnotation(plan.delegatedExpressions(), 1, "message", "hello world");
     }
 
@@ -195,33 +202,19 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         );
         StagePlan plan = runPipeline(condition);
 
-        assertEquals("should have 2 delegated queries", 2, plan.delegatedExpressions().size());
+        // OR(MATCH 'hello', NOT(MATCH 'goodbye')) is combined into a single BoolQuery
+        assertEquals("should have 1 combined delegated query", 1, plan.delegatedExpressions().size());
 
         SubstraitResult substrait = substraitResult(plan.convertedBytes());
         logger.info("Substrait plan (complex E2E):\n{}", substrait.plan());
 
-        // Root: AND
+        // Root: AND(native_equals, delegated_predicate)
         Expression.ScalarFunction andFunc = substrait.filterRel().getCondition().getScalarFunction();
         assertEquals("and", resolveFunctionName(substrait.plan(), andFunc.getFunctionReference()));
         assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
 
-        // arg[1]: OR
-        Expression orExpr = andFunc.getArguments(1).getValue();
-        assertTrue("second AND arg must be scalar function", orExpr.hasScalarFunction());
-        assertEquals("or", resolveFunctionName(substrait.plan(), orExpr.getScalarFunction().getFunctionReference()));
-        Expression.ScalarFunction orFunc = orExpr.getScalarFunction();
-        assertEquals("OR must have 2 arguments", 2, orFunc.getArgumentsCount());
-
-        // OR arg[0]: delegated_predicate(1) → MATCH 'hello'
-        assertDelegatedPredicate(substrait.plan(), orFunc.getArguments(0).getValue(), 1);
-        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 1, "message", "hello");
-
-        // OR arg[1]: NOT(delegated_predicate(2)) → MATCH 'goodbye'
-        Expression notExpr = orFunc.getArguments(1).getValue();
-        assertTrue("OR second arg must be scalar function", notExpr.hasScalarFunction());
-        assertEquals("not", resolveFunctionName(substrait.plan(), notExpr.getScalarFunction().getFunctionReference()));
-        assertDelegatedPredicate(substrait.plan(), notExpr.getScalarFunction().getArguments(0).getValue(), 2);
-        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 2, "message", "goodbye");
+        // arg[0]: delegated_predicate(1) — combined OR(MATCH 'hello', NOT(MATCH 'goodbye'))
+        assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(0).getValue(), 1);
     }
 
     // ---- Pipeline ----
@@ -249,7 +242,7 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         }, condition);
 
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
@@ -392,6 +385,8 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }
 
@@ -469,8 +464,8 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
             return new FragmentInstructionHandlerFactory() {
                 @Override
-                public Optional<InstructionNode> createShardScanNode() {
-                    return Optional.of(new ShardScanInstructionNode());
+                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+                    return Optional.of(new ShardScanInstructionNode(requestsRowIds));
                 }
 
                 @Override
@@ -483,8 +478,12 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
                 }
 
                 @Override
-                public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+                public Optional<InstructionNode> createShardScanWithDelegationNode(
+                    FilterTreeShape treeShape,
+                    int delegatedPredicateCount,
+                    boolean requestsRowIds
+                ) {
+                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
                 }
 
                 @Override

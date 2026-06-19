@@ -16,21 +16,14 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.monitor.memory.MemoryReportingService;
-import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -43,7 +36,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
-import java.util.Map;
+import java.util.List;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,31 +45,21 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for NodeService native memory stats delegation logic.
  * <p>
- * Validates that NodeService correctly delegates to the native memory stats
+ * Validates that NodeService correctly delegates to the native allocator stats
  * supplier when nativeMemory=true and the supplier is non-null,
  * and returns null otherwise.
  */
 public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
-    private NodeService createNodeService(AnalyticsBackendNativeMemoryStats nativeStats) {
+    private NodeService createNodeService(Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier) {
         TransportService transportService = mock(TransportService.class);
         DiscoveryNode localNode = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), Version.CURRENT);
         when(transportService.getLocalNode()).thenReturn(localNode);
 
-        ClusterService clusterService = mock(ClusterService.class);
-        IngestService ingestService = mock(IngestService.class);
-        SearchPipelineService searchPipelineService = mock(SearchPipelineService.class);
-
-        MemoryReportingService memoryReportingService = mock(MemoryReportingService.class);
-        when(memoryReportingService.nativeStats()).thenReturn(nativeStats);
-
-        MonitorService monitorService = mock(MonitorService.class);
-        when(monitorService.memoryReportingService()).thenReturn(memoryReportingService);
-
         return new NodeService(
             Settings.EMPTY,
             mock(ThreadPool.class),
-            monitorService,
+            mock(MonitorService.class),
             mock(Discovery.class),
             transportService,
             mock(IndicesService.class),
@@ -83,22 +67,23 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             mock(CircuitBreakerService.class),
             mock(ScriptService.class),
             null, // httpServerTransport
-            ingestService,
-            clusterService,
+            mock(IngestService.class),
+            mock(ClusterService.class),
             new SettingsFilter(Collections.emptyList()),
             null, // responseCollectorService - not needed when adaptiveSelection=false
             mock(SearchTransportService.class),
             mock(IndexingPressureService.class),
             null, // aggregationUsageService
             mock(SearchBackpressureService.class),
-            searchPipelineService,
-            null, // fileCache
+            mock(SearchPipelineService.class),
+            null, // nodeCacheService
             mock(TaskCancellationMonitoringService.class),
             null, // resourceUsageCollectorService
             mock(SegmentReplicationStatsTracker.class),
             mock(RepositoriesService.class),
             mock(AdmissionControlService.class),
-            null  // cacheService
+            null, // cacheService
+            nativeAllocatorStatsSupplier
         );
     }
 
@@ -106,10 +91,13 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      * Tests that stats() with nativeMemory=true and a non-null supplier
      * returns the stats from the supplier.
      */
-    public void testStatsWithNativeMemoryTrueAndServicePresent() {
-        AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(1024L, 2048L);
-
-        NodeService nodeService = createNodeService(expectedStats);
+    public void testStatsWithNativeMemoryTrueAndSupplierPresent() {
+        NativeAllocatorPoolStats expected = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        NodeService nodeService = createNodeService(() -> expected);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -141,21 +129,18 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
             true   // nativeMemory
         );
 
-        assertNotNull(nodeStats.getAnalyticsBackendNativeMemoryStats());
-        assertSame(expectedStats, nodeStats.getAnalyticsBackendNativeMemoryStats());
-        assertEquals(1024L, nodeStats.getAnalyticsBackendNativeMemoryStats().getAllocatedBytes());
-        assertEquals(2048L, nodeStats.getAnalyticsBackendNativeMemoryStats().getResidentBytes());
+        assertNotNull("nativeAllocatorStats should be present when supplier returns non-null", nodeStats.getNativeAllocatorStats());
+        assertSame(expected, nodeStats.getNativeAllocatorStats());
     }
 
     /**
-     * Tests that stats() with nativeMemory=true and a null supplier
-     * returns null for the nativeMemoryStats field.
+     * Tests that stats() with nativeMemory=true and no supplier
+     * returns null for the nativeAllocatorStats field.
      */
-    public void testStatsWithNativeMemoryTrueAndNullService() {
+    public void testStatsWithNativeMemoryTrueAndNoSupplier() {
         NodeService nodeService = createNodeService(null);
 
         NodeStats nodeStats = nodeService.stats(
@@ -188,21 +173,23 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
             true   // nativeMemory
         );
 
-        assertNull(nodeStats.getAnalyticsBackendNativeMemoryStats());
+        assertNull("nativeAllocatorStats should be null when no supplier registered", nodeStats.getNativeAllocatorStats());
     }
 
     /**
      * Tests that stats() with nativeMemory=false returns null for the
-     * nativeMemoryStats field regardless of whether the supplier is present.
+     * nativeAllocatorStats field regardless of whether the supplier is present.
      */
     public void testStatsWithNativeMemoryFalse() {
-        AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(4096L, 8192L);
-
-        NodeService nodeService = createNodeService(expectedStats);
+        NativeAllocatorPoolStats expected = new NativeAllocatorPoolStats(
+            4096L,
+            8192L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        NodeService nodeService = createNodeService(() -> expected);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -234,125 +221,9 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
             false  // nativeMemory
         );
 
-        assertNull(nodeStats.getAnalyticsBackendNativeMemoryStats());
-    }
-
-    /**
-     * Integration test: verifies that the _nodes/stats/native_memory response format
-     * contains the expected "native_memory" object with "allocated_bytes" and "resident_bytes" fields.
-     * This ensures the response format is unchanged after the refactor.
-     */
-    @SuppressWarnings("unchecked")
-    public void testNativeMemoryResponseFormatUnchanged() throws Exception {
-        AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(123456789L, 987654321L);
-
-        NodeService nodeService = createNodeService(expectedStats);
-
-        NodeStats nodeStats = nodeService.stats(
-            CommonStatsFlags.NONE,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false, // fileCacheDetailed
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false, // pluginStats
-            true   // nativeMemory
-        );
-
-        assertNotNull("nativeMemoryStats should be present", nodeStats.getAnalyticsBackendNativeMemoryStats());
-
-        // Render the AnalyticsBackendNativeMemoryStats to JSON and verify the format
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        nodeStats.getAnalyticsBackendNativeMemoryStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        String json = Strings.toString(MediaTypeRegistry.JSON, nodeStats.getAnalyticsBackendNativeMemoryStats());
-
-        Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
-
-        // Verify "native_memory" object is present
-        assertTrue("Response should contain 'native_memory' key", root.containsKey("native_memory"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
-        assertNotNull("native_memory object should not be null", nativeMemory);
-
-        // Verify nested "analytics_backend" with correct values
-        assertTrue("native_memory should contain 'analytics_backend'", nativeMemory.containsKey("analytics_backend"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
-        assertEquals(123456789L, ((Number) analyticsBackend.get("allocated_bytes")).longValue());
-        assertEquals(987654321L, ((Number) analyticsBackend.get("resident_bytes")).longValue());
-    }
-
-    /**
-     * Integration test: verifies that when native stats are unavailable (null supplier),
-     * the response omits the native_memory object entirely.
-     */
-    public void testNativeMemoryOmittedWhenUnavailable() throws Exception {
-        NodeService nodeService = createNodeService(null);
-
-        NodeStats nodeStats = nodeService.stats(
-            CommonStatsFlags.NONE,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false, // fileCacheDetailed
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false, // pluginStats
-            true   // nativeMemory
-        );
-
-        assertNull("nativeMemoryStats should be null when supplier is null", nodeStats.getAnalyticsBackendNativeMemoryStats());
+        assertNull("nativeAllocatorStats should be null when nativeMemory=false", nodeStats.getNativeAllocatorStats());
     }
 }

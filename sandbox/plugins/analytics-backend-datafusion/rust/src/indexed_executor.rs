@@ -26,7 +26,6 @@ use datafusion::{
     physical_plan::displayable,
     physical_plan::execute_stream,
     execution::SessionStateBuilder,
-    execution::runtime_env::RuntimeEnvBuilder,
     execution::context::SessionContext,
     common::DataFusionError,
     prelude::*,
@@ -34,7 +33,7 @@ use datafusion::{
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
     datasource::{TableProvider, TableType},
-    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
+    execution::cache::cache_manager::CachedFileList,
     execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
@@ -61,8 +60,8 @@ use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::segment_info::build_segments;
 use crate::indexed_table::substrait_to_tree::{
-    classify_filter, create_index_filter_udf, expr_to_bool_tree, extract_filter_expr,
-    ExtractionResult, FilterClass,
+    classify_filter, create_index_filter_udf, expr_to_bool_tree,
+    extract_filter_expr, ExtractionResult, FilterClass,
 };
 use crate::indexed_table::table_provider::{
     EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
@@ -75,7 +74,8 @@ use crate::api::ShardView;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
-use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics};
+use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
+
 
 /// Execute an indexed query.
 ///
@@ -95,6 +95,7 @@ pub async fn execute_indexed_query(
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn MemoryPool>>,
     query_config: Arc<DatafusionQueryConfig>,
+    context_id: i64,
 ) -> Result<i64, DataFusionError> {
     let num_partitions = query_config.target_partitions.max(1);
     // Share caches with the global runtime (same as vanilla path): list-files
@@ -107,20 +108,7 @@ pub async fn execute_indexed_query(
     };
     list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
 
-    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_metadata_cache_limit(
-                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                )
-                .with_files_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        );
+    let mut runtime_env_builder = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache);
     if let Some(pool) = query_memory_pool {
         runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
     }
@@ -174,19 +162,125 @@ pub async fn execute_indexed_query(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
-        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
+        sort_fields: shard_view.sort_fields.clone(),
+        sort_orders: shard_view.sort_orders.clone(),
+        query_context: crate::query_tracker::QueryTrackingContext::new(context_id, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: None,
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
-    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }
+
+    // NOTE: gate acquired on CPU here — acceptable for this deprecated benchmark-only path.
+    // Production uses df_execute_with_context which acquires the gate on IO for backpressure.
+    let partition_weight = num_partitions.max(1) as u32;
+    let gate = cpu_executor.concurrency_gate().clone();
+    let max_p = gate.max_permits();
+    let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
+    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor, permit).await }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
+
+/// Result of walking a logical plan looking for the leading top-of-plan ORDER BY.
+///
+/// `column` is the bare column name (no qualifier — we compare against `index.sort.field`
+/// which is also unqualified). `descending` is `true` for `ORDER BY x DESC`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TopSort {
+    pub column: String,
+    pub descending: bool,
+}
+
+/// Walk through the top of a logical plan to find the leading sort expression.
+///
+/// Descends through `Projection`, `Limit`, `SubqueryAlias`, `Distinct`, and `Filter` —
+/// nodes that don't reorder rows or rewrite sort key columns. On reaching
+/// `LogicalPlan::Sort`, returns the leading sort key's bare column name and direction.
+/// Returns `None` if the plan has no top-level Sort, or if the first Sort key is not
+/// a plain `Expr::Column` (e.g. `ORDER BY lower(x)` — we can't claim catalog monotonicity
+/// after a function).
+pub(crate) fn analyze_top_sort(plan: &datafusion::logical_expr::LogicalPlan) -> Option<TopSort> {
+    use datafusion::logical_expr::{Expr, LogicalPlan};
+    let mut current = plan;
+    loop {
+        match current {
+            LogicalPlan::Sort(s) => {
+                let leading = s.expr.first()?;
+                let col = match &leading.expr {
+                    Expr::Column(c) => c.name.clone(),
+                    _ => return None,
+                };
+                return Some(TopSort {
+                    column: col,
+                    descending: !leading.asc,
+                });
+            }
+            LogicalPlan::Projection(p) => current = p.input.as_ref(),
+            LogicalPlan::Limit(l) => current = l.input.as_ref(),
+            LogicalPlan::SubqueryAlias(a) => current = a.input.as_ref(),
+            LogicalPlan::Distinct(d) => match d {
+                datafusion::logical_expr::Distinct::All(input) => current = input.as_ref(),
+                datafusion::logical_expr::Distinct::On(on) => current = on.input.as_ref(),
+            },
+            LogicalPlan::Filter(f) => current = f.input.as_ref(),
+            _ => return None,
+        }
+    }
+}
+
+/// Decide whether to flip segment iteration order for the indexed scan.
+///
+/// Returns `true` iff the catalog has a sort declaration, the query has a top-level
+/// ORDER BY whose leading key matches the catalog's leading sort field by name, and
+/// the query's direction is the **opposite** of the catalog's. In that case the
+/// segments — laid down newest-last by the writer — are in reverse order from what
+/// the query wants, so iterating them tail-first feeds the largest values to a
+/// `TopK` first and parquet page stats prune the rest.
+///
+/// All comparisons are case-sensitive on the field name (matching PR #22041's
+/// `Column::from_name`). Direction comparison is case-insensitive on `"asc"`/`"desc"`.
+pub(crate) fn should_reverse_segments(
+    top_sort: Option<&TopSort>,
+    sort_fields: &[String],
+    sort_orders: &[String],
+) -> bool {
+    let Some(top) = top_sort else { return false };
+    let Some(catalog_field) = sort_fields.first() else { return false };
+    let Some(catalog_order) = sort_orders.first() else { return false };
+    if top.column != *catalog_field {
+        return false;
+    }
+    let catalog_descending = catalog_order.eq_ignore_ascii_case("desc");
+    top.descending != catalog_descending
+}
+
+/// Reverse the iteration order of `segments` in place. Per-segment `global_base`
+/// values are deliberately **left untouched** so each segment keeps its
+/// catalog-order shard-global row ID space.
+///
+/// Why not recompute global_base after reversing?
+///
+/// `global_base` is the additive offset used to compute the QTF `__row_id__`:
+/// `id = segment.global_base + position`. The fetch phase (`api::fetch_by_row_ids`)
+/// rebuilds segments via `build_segments` against `ShardView.object_metas` (always
+/// in catalog order) and reverses the mapping back via `partition_point` on
+/// `global_base`. For the round trip to hold, both phases must agree on each
+/// segment's `global_base` — and the only way to guarantee that without changing
+/// the fetch path is to keep query-phase `global_base` at its catalog-order value.
+///
+/// Reversing only the iteration order — i.e. the order in which chunks/RGs are
+/// scheduled by `compute_assignments` — is the *whole* point of this optimization
+/// (newest-segment-first feeds TopK earlier and lets page stats prune older
+/// segments). The `global_base` values are unrelated to that pruning win.
+pub(crate) fn reverse_segment_iteration_order(segments: &mut [SegmentFileInfo]) {
+    segments.reverse();
+}
 
 /// Collect all `Predicate(expr)` leaves in DFS order. Used by the
 /// dispatcher to build a per-leaf `PruningPredicate` cache keyed by
@@ -213,7 +307,7 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     let mut indices = BTreeSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
-            if let Some(col) = node.as_any().downcast_ref::<Column>() {
+            if let Some(col) = node.downcast_ref::<Column>() {
                 indices.insert(col.index());
             }
             Ok(TreeNodeRecursion::Continue)
@@ -279,9 +373,6 @@ impl fmt::Debug for PlaceholderProvider {
 
 #[async_trait::async_trait]
 impl TableProvider for PlaceholderProvider {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -411,6 +502,193 @@ mod tests {
         ]);
         assert!(extract_single_collector_residual(&tree).is_none());
     }
+
+    // ── analyze_top_sort / should_reverse_segments ────────────────────
+
+    fn build_logical_plan(sql: &str) -> datafusion::logical_expr::LogicalPlan {
+        use datafusion::execution::SessionStateBuilder;
+        use datafusion::execution::context::SessionContext;
+        let state = SessionStateBuilder::new().with_default_features().build();
+        let ctx = SessionContext::new_with_state(state);
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+            Field::new("ts", DataType::Int64, false),
+            Field::new("v", DataType::Int32, false),
+        ]));
+        ctx.register_batch(
+            "t",
+            datafusion::arrow::record_batch::RecordBatch::new_empty(schema),
+        )
+        .expect("register_batch");
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let df = rt.block_on(ctx.sql(sql)).expect("sql");
+        df.into_unoptimized_plan()
+    }
+
+    #[test]
+    fn analyze_top_sort_finds_leading_desc() {
+        let plan = build_logical_plan("SELECT id FROM t ORDER BY id DESC");
+        let ts = analyze_top_sort(&plan).expect("expected Sort");
+        assert_eq!(ts.column, "id");
+        assert!(ts.descending);
+    }
+
+    #[test]
+    fn analyze_top_sort_descends_through_limit() {
+        let plan = build_logical_plan("SELECT id FROM t ORDER BY id ASC LIMIT 10");
+        let ts = analyze_top_sort(&plan).expect("expected Sort");
+        assert_eq!(ts.column, "id");
+        assert!(!ts.descending);
+    }
+
+    #[test]
+    fn analyze_top_sort_descends_through_projection() {
+        let plan = build_logical_plan("SELECT v FROM t ORDER BY ts DESC");
+        let ts = analyze_top_sort(&plan).expect("expected Sort");
+        assert_eq!(ts.column, "ts");
+        assert!(ts.descending);
+    }
+
+    #[test]
+    fn analyze_top_sort_returns_none_when_no_sort() {
+        let plan = build_logical_plan("SELECT id FROM t");
+        assert!(analyze_top_sort(&plan).is_none());
+    }
+
+    #[test]
+    fn analyze_top_sort_returns_none_for_function_sort_key() {
+        // `ORDER BY abs(v)` — leading sort key isn't a plain column. Catalog monotonicity
+        // doesn't transfer through a function, so we conservatively decline to reverse.
+        let plan = build_logical_plan("SELECT id FROM t ORDER BY abs(v)");
+        assert!(analyze_top_sort(&plan).is_none());
+    }
+
+    #[test]
+    fn should_reverse_segments_matches_leading_field_opposite_direction() {
+        let top = TopSort { column: "id".to_string(), descending: true };
+        let fields = vec!["id".to_string()];
+        let orders = vec!["asc".to_string()];
+        assert!(should_reverse_segments(Some(&top), &fields, &orders));
+    }
+
+    #[test]
+    fn should_reverse_segments_matches_leading_field_same_direction() {
+        let top = TopSort { column: "id".to_string(), descending: false };
+        let fields = vec!["id".to_string()];
+        let orders = vec!["asc".to_string()];
+        assert!(!should_reverse_segments(Some(&top), &fields, &orders));
+    }
+
+    #[test]
+    fn should_reverse_segments_catalog_desc_query_asc() {
+        let top = TopSort { column: "id".to_string(), descending: false };
+        let fields = vec!["id".to_string()];
+        let orders = vec!["desc".to_string()];
+        assert!(should_reverse_segments(Some(&top), &fields, &orders));
+    }
+
+    #[test]
+    fn should_reverse_segments_no_query_sort() {
+        let fields = vec!["id".to_string()];
+        let orders = vec!["asc".to_string()];
+        assert!(!should_reverse_segments(None, &fields, &orders));
+    }
+
+    #[test]
+    fn should_reverse_segments_no_catalog_sort() {
+        let top = TopSort { column: "id".to_string(), descending: true };
+        assert!(!should_reverse_segments(Some(&top), &[], &[]));
+    }
+
+    #[test]
+    fn should_reverse_segments_query_sort_on_non_leading_catalog_field() {
+        // Catalog: [a ASC, b ASC]; query: ORDER BY b DESC. Segments are monotonic on `a`
+        // (the leading key), not `b`. Reversing won't help — decline.
+        let top = TopSort { column: "b".to_string(), descending: true };
+        let fields = vec!["a".to_string(), "b".to_string()];
+        let orders = vec!["asc".to_string(), "asc".to_string()];
+        assert!(!should_reverse_segments(Some(&top), &fields, &orders));
+    }
+
+    #[test]
+    fn should_reverse_segments_field_name_case_sensitive() {
+        // Match PR #22041 — `Column::from_name` is case-sensitive. If casing differs,
+        // we don't claim the catalog ordering applies. Safe default: no reversal.
+        let top = TopSort { column: "ID".to_string(), descending: true };
+        let fields = vec!["id".to_string()];
+        let orders = vec!["asc".to_string()];
+        assert!(!should_reverse_segments(Some(&top), &fields, &orders));
+    }
+
+    // ── reverse_segment_iteration_order ───────────────────────────────
+
+    fn dummy_segment(max_doc: i64, global_base: u64) -> SegmentFileInfo {
+        use datafusion::parquet::file::metadata::{FileMetaData, ParquetMetaData};
+        // Build a minimal ParquetMetaData. We never read it back in these tests.
+        let schema = std::sync::Arc::new(
+            datafusion::parquet::schema::types::SchemaDescriptor::new(
+                std::sync::Arc::new(
+                    datafusion::parquet::schema::types::Type::group_type_builder("schema")
+                        .build()
+                        .unwrap(),
+                ),
+            ),
+        );
+        let file_meta = FileMetaData::new(0, 0, None, None, schema, None);
+        let pq_meta = ParquetMetaData::new(file_meta, vec![]);
+        SegmentFileInfo {
+            writer_generation: global_base as i64 + 1, // arbitrary, just to vary
+            max_doc,
+            object_path: object_store::path::Path::from(format!("seg-{}.parquet", global_base)),
+            parquet_size: 0,
+            row_groups: vec![],
+            metadata: std::sync::Arc::new(pq_meta),
+            global_base,
+            sort_min: None,
+            sort_max: None,
+        }
+    }
+
+    #[test]
+    fn reverse_segments_preserves_global_base() {
+        // Original: A(max_doc=10, base=0), B(max_doc=20, base=10), C(max_doc=30, base=30).
+        // Reversal must keep each segment's original `global_base` intact so QTF row IDs
+        // emitted in query phase remain interpretable by the fetch phase (which always
+        // computes catalog-order bases).
+        let mut segs = vec![
+            dummy_segment(10, 0),
+            dummy_segment(20, 10),
+            dummy_segment(30, 30),
+        ];
+        reverse_segment_iteration_order(&mut segs);
+        assert_eq!(segs.len(), 3);
+        // New iteration order: C, B, A.
+        assert_eq!(segs[0].max_doc, 30);
+        assert_eq!(segs[0].global_base, 30); // C's catalog base, unchanged.
+        assert_eq!(segs[1].max_doc, 20);
+        assert_eq!(segs[1].global_base, 10); // B's catalog base, unchanged.
+        assert_eq!(segs[2].max_doc, 10);
+        assert_eq!(segs[2].global_base, 0);  // A's catalog base, unchanged.
+    }
+
+    #[test]
+    fn reverse_segments_empty_is_noop() {
+        let mut segs: Vec<SegmentFileInfo> = vec![];
+        reverse_segment_iteration_order(&mut segs);
+        assert!(segs.is_empty());
+    }
+
+    #[test]
+    fn reverse_segments_single_keeps_its_base() {
+        let mut segs = vec![dummy_segment(42, 7)];
+        reverse_segment_iteration_order(&mut segs);
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].global_base, 7);
+        assert_eq!(segs[0].max_doc, 42);
+    }
 }
 
 /// Instruction-based indexed execution path. Consumes a pre-configured SessionContextHandle
@@ -424,8 +702,68 @@ pub async unsafe fn execute_indexed_with_context(
     session_ctx_ptr: i64,
     substrait_bytes: Vec<u8>,
     cpu_executor: DedicatedExecutor,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
     let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+    let context_id = handle.query_context.context_id();
+    let token = crate::query_tracker::get_cancellation_token(context_id);
+
+    let query_future = execute_indexed_with_context_inner(handle, substrait_bytes, cpu_executor, permit);
+    crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
+        .await
+        .map_err(DataFusionError::Execution)
+}
+
+async unsafe fn execute_indexed_with_context_inner(
+    handle: crate::session_context::SessionContextHandle,
+    substrait_bytes: Vec<u8>,
+    cpu_executor: DedicatedExecutor,
+    permit: tokio::sync::OwnedSemaphorePermit,
+) -> Result<i64, DataFusionError> {
+
+    // Permit was acquired by the caller (ffm.rs) on the IO runtime before
+    // spawning on the CPU runtime, so the Java search thread blocks at the
+    // gate when it is full — creating backpressure at the Java threadpool level.
+
+    // Empty shard: skip build_segments (errors on zero files) and emit an
+    // empty stream. Mirrors the guard in query_executor::execute_with_context.
+    if handle.object_metas.is_empty() {
+        use datafusion::physical_plan::empty::EmptyExec;
+        use datafusion::physical_plan::ExecutionPlan;
+        let context_id_early = handle.query_context.context_id();
+        // engine-native-merge: borrow the partial-state schema from the prepared plan so the
+        // empty stream matches the populated shards' wire shape (e.g. Binary HLL for dc()).
+        let plan_schema: arrow::datatypes::SchemaRef = if let Some(prepared) = handle.prepared_plan.as_ref() {
+            Arc::new(prepared.schema().as_ref().clone())
+        } else {
+            let plan = Plan::decode(substrait_bytes.as_slice())
+                .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+            let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+            Arc::new(logical_plan.schema().as_arrow().clone())
+        };
+        let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
+        let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
+        let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
+        let (cross_rt_stream, abort_handle, _task_done) =
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        if let Some(h) = abort_handle {
+            crate::query_tracker::set_abort_handle(context_id_early, h);
+        }
+        let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+            cross_rt_stream.schema(),
+            cross_rt_stream,
+        );
+        let stream_handle = crate::api::QueryStreamHandle::with_session_context(
+            wrapped,
+            handle.query_context,
+            handle.ctx,
+            Some(permit),
+        );
+        return Ok(Box::into_raw(Box::new(stream_handle)) as i64);
+    }
+
+    // Java-side QTF signal: scan must emit __row_id__. Captured before consuming indexed_config below.
+    let requests_row_ids = handle.indexed_config.as_ref().is_some_and(|c| c.requests_row_ids);
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
@@ -437,21 +775,41 @@ pub async unsafe fn execute_indexed_with_context(
 
     let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
+    let aggregate_mode = handle.aggregate_mode;
     let ctx = handle.ctx;
     let table_name = handle.table_name;
     let table_path = handle.table_path;
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
+    let sort_fields = handle.sort_fields;
+    let sort_orders = handle.sort_orders;
     let query_context = handle.query_context;
+    let io_handle = handle.io_handle;
+    // Extract context_id early so it can be captured by the per-segment closures
+    // below. The closures pass it through every FFM upcall so Java can route each
+    // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
+    let context_id = query_context.context_id();
+
+    // The substrait scan binds to the plan's NamedTable name (the alias/pattern like "tb-1,tb-2"
+    // for multi-index queries, the concrete name otherwise), not the per-shard table_name.
+    // create_session_context registered the provider under that name, so re-register under the
+    // same name. Using table_name for a multi-index query leaves the scan unbound, so DataFusion
+    // never consults supports_filters_pushdown and keeps the delegated_predicate FilterExec —
+    // which then executes the marker UDF and errors.
+    let register_name = crate::api::first_named_table_name(substrait_bytes.as_slice())
+        .unwrap_or_else(|| table_name.clone());
 
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
     // Deregister the default ListingTable (registered by create_session_context) — will be replaced
     // with IndexedTableProvider after plan decoding.
-    ctx.deregister_table(&table_name)?;
+    ctx.deregister_table(&register_name)?;
+
+    let store = ctx
+        .state()
+        .runtime_env()
+        .object_store(&table_path)?;
 
     let state = ctx.state();
-    let store = state.runtime_env().object_store(&table_path)?;
-
     let metadata_cache = state.runtime_env().cache_manager.get_file_metadata_cache();
 
     let (segments, schema) = build_segments(
@@ -460,22 +818,43 @@ pub async unsafe fn execute_indexed_with_context(
         object_metas.as_ref(),
         writer_generations.as_ref(),
         metadata_cache,
+        &sort_fields,
     )
     .await
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
-    for (i, seg) in segments.iter().enumerate() {
-    }
+    // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
+    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &register_name, &schema);
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),
     });
-    ctx.register_table(&table_name, placeholder)?;
+    ctx.register_table(&register_name, placeholder)?;
 
     let plan = Plan::decode(substrait_bytes.as_slice())
         .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
 
+    // Sort-aware segment iteration. Mirror of `ContextIndexSearcher.shouldUseTimeSeriesDescSortOptimization`
+    // for the indexed-parquet path. When the index has `index.sort.field` and the query's leading
+    // ORDER BY runs counter to the catalog's stored direction, reverse the segment vector so a
+    // TopK above us pulls the highest-priority segment first and parquet page stats prune the rest.
+    //
+    // QTF safe: `reverse_segment_iteration_order` deliberately does NOT recompute `global_base`
+    // — each segment retains its catalog-order base, so the row IDs query phase emits are still
+    // interpretable by `api::fetch_by_row_ids` (which builds its own segments from
+    // `ShardView.object_metas` in catalog order).
+    let mut segments = segments;
+    if should_reverse_segments(analyze_top_sort(&logical_plan).as_ref(), &sort_fields, &sort_orders) {
+        log_debug!(
+            "indexed_executor: reversing segment iteration (catalog leading sort={:?} {:?}, query opposite)",
+            sort_fields.first(),
+            sort_orders.first()
+        );
+        reverse_segment_iteration_order(&mut segments);
+    }
+
+    let emit_row_ids = requests_row_ids;
     let filter_expr = extract_filter_expr(&logical_plan);
     let extraction = match filter_expr {
         None => None,
@@ -493,7 +872,6 @@ pub async unsafe fn execute_indexed_with_context(
             Some(e) => classify_filter(&e.tree),
         },
     };
-
     // Derive the parquet pushdown predicate from the BoolNode tree.
     // `scan()` ignores DataFusion's filters argument (which contains
     // the `delegated_predicate` UDF marker whose body panics) and uses this
@@ -515,16 +893,66 @@ pub async unsafe fn execute_indexed_with_context(
                 .as_ref()
                 .and_then(residual_bool_to_physical_expr)
         }),
-        FilterClass::Tree | FilterClass::None => None,
+        FilterClass::None => {
+            // Predicate-only: push the whole tree (may be an unfoldable constant);
+            // None = no filter = full scan.
+            extraction.as_ref().and_then(|e| {
+                residual_bool_to_physical_expr(&e.tree)
+            })
+        }
+        FilterClass::Tree => None,
     };
+
+    let prune_tree_config = extraction.as_ref().and_then(|e| {
+        let mut leaf_exprs: Vec<Arc<dyn PhysicalExpr>> = Vec::new();
+        collect_predicate_exprs(&e.tree, &mut leaf_exprs);
+        let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
+            .iter()
+            .filter_map(|expr| {
+                build_pruning_predicate(expr, schema.clone())
+                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+            })
+            .collect();
+        if leaf_predicates.is_empty() {
+            return None;
+        }
+        Some((e.tree.clone(), Arc::new(leaf_predicates), schema.clone()))
+    });
 
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
 
     let factory: EvaluatorFactory = match classification {
         FilterClass::None => {
-            return Err(DataFusionError::Execution(
-                "execute_indexed_query called with no index_filter(...) in plan".into(),
-            ));
+            // Predicate-only scan: page-pruned universe, residual applied in
+            // on_batch_mask. Also covers an unfoldable constant (e.g. mktime('...') >
+            // N) — no index column, but every row scanned and the constant applied as
+            // residual (pushdown is Exact, so DataFusion drops the FilterExec).
+            // Previously errored here when emit_row_ids was false (indexed path only).
+            let schema_for_pruner = schema.clone();
+            let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction.as_ref().and_then(|e| {
+                residual_bool_to_physical_expr(&e.tree)
+            });
+            let residual_pruning_predicate: Option<Arc<PruningPredicate>> = residual_expr
+                .as_ref()
+                .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
+
+            Arc::new(
+                move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                    let pruner = Arc::new(PagePruner::new(
+                        &schema_for_pruner,
+                        Arc::clone(&segment.metadata),
+                    ));
+                    let eval: Arc<dyn RowGroupBitsetSource> =
+                        Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
+                            pruner,
+                            residual_pruning_predicate.clone(),
+                            residual_expr.clone(),
+                            Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
+                            stats_prune_tree.cloned(),
+                        ));
+                    Ok(eval)
+                },
+            )
         }
         FilterClass::SingleCollector => {
             let extraction = extraction.as_ref().ok_or_else(|| {
@@ -539,7 +967,7 @@ pub async unsafe fn execute_indexed_with_context(
             let correctness_provider: Option<Arc<ProviderHandle>> =
                 match single_collector_id(&extraction.tree) {
                     Some(annotation_id) => Some(Arc::new(
-                        create_provider(annotation_id)
+                        create_provider(context_id, annotation_id)
                             .map_err(|e| DataFusionError::External(e.into()))?,
                     )),
                     None => None,
@@ -582,11 +1010,15 @@ pub async unsafe fn execute_indexed_with_context(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             let call_strategy = query_config.single_collector_strategy;
+            let bloom_store = Arc::clone(&store);
+            let bloom_schema = schema.clone();
+            let bloom_on_read = query_config.bloom_filter_on_read;
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
+                                context_id,
                                 provider.key(),
                                 segment.writer_generation,
                                 chunk.doc_min,
@@ -594,7 +1026,8 @@ pub async unsafe fn execute_indexed_with_context(
                             )
                             .map_err(|e| {
                                 format!(
-                                    "FfmSegmentCollector::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                    "FfmSegmentCollector::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                    context_id,
                                     provider.key(),
                                     segment.writer_generation,
                                     chunk.doc_min,
@@ -610,6 +1043,19 @@ pub async unsafe fn execute_indexed_with_context(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
+                    let bloom_config = if bloom_on_read {
+                        Some(crate::indexed_table::eval::single_collector::BloomConfig {
+                            store: Arc::clone(&bloom_store),
+                            object_path: segment.object_path.clone(),
+                            metadata: Arc::clone(&segment.metadata),
+                            arrow_schema: Arc::clone(&bloom_schema),
+                            io_handle: io_handle.clone(),
+                            rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
+                            bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
+                        })
+                    } else {
+                        None
+                    };
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -622,6 +1068,9 @@ pub async unsafe fn execute_indexed_with_context(
                             Arc::clone(&performance_provider_locks),
                             segment.writer_generation,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                            context_id,
+                            bloom_config,
+                            stats_prune_tree.cloned(),
                         ));
                     Ok(eval)
                 },
@@ -643,7 +1092,8 @@ pub async unsafe fn execute_indexed_with_context(
             let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
             for annotation_id in &leaf_ids {
                 providers.push(Arc::new(
-                    create_provider(*annotation_id).map_err(|e| DataFusionError::External(e.into()))?,
+                    create_provider(context_id, *annotation_id)
+                        .map_err(|e| DataFusionError::External(e.into()))?,
                 ));
             }
             let tree = Arc::new(tree);
@@ -673,12 +1123,13 @@ pub async unsafe fn execute_indexed_with_context(
             );
 
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
                     // Build one collector per Collector leaf for this chunk.
                     let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                         Vec::with_capacity(providers.len());
                     for (idx, provider) in providers.iter().enumerate() {
                         let collector = FfmSegmentCollector::create(
+                            context_id,
                             provider.key(),
                             segment.writer_generation,
                             chunk.doc_min,
@@ -716,6 +1167,7 @@ pub async unsafe fn execute_indexed_with_context(
                             stream_metrics,
                         )),
                         collector_strategy,
+                        stats_prune_tree: stats_prune_tree.cloned(),
                     });
                     Ok(eval)
                 },
@@ -723,7 +1175,7 @@ pub async unsafe fn execute_indexed_with_context(
         }
     };
 
-    ctx.deregister_table(&table_name)?;
+    ctx.deregister_table(&register_name)?;
     // Extract the scheme+authority portion of the table URL for
     // DataFusion's FileScanConfig. The full URL includes the path
     // (e.g. "file:///Users/.../parquet/"); ObjectStoreUrl wants only
@@ -732,6 +1184,7 @@ pub async unsafe fn execute_indexed_with_context(
     let parsed = url::Url::parse(url_str)
         .map_err(|e| DataFusionError::Execution(format!("parse table_path URL: {}", e)))?;
     let store_url = ObjectStoreUrl::parse(format!("{}://{}", parsed.scheme(), parsed.authority()))?;
+
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments,
@@ -741,8 +1194,12 @@ pub async unsafe fn execute_indexed_with_context(
         pushdown_predicate,
         query_config: Arc::clone(&query_config),
         predicate_columns,
+        emit_row_ids,
+        prune_tree_config,
+        sort_fields: sort_fields.clone(),
+        sort_orders: sort_orders.clone(),
     }));
-    ctx.register_table(&table_name, provider)?;
+    ctx.register_table(&register_name, provider)?;
 
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
     log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
@@ -752,22 +1209,28 @@ pub async unsafe fn execute_indexed_with_context(
     // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
     // narrowing the partition-stream registration uses, so consumer-side StreamingTable
     // and producer-side batches agree by construction (see crate::relabel_exec).
+    // Apply aggregate mode stripping when prepare_partial_plan was called (engine-native-merge).
+    // This makes the indexed executor produce Binary HLL state (Partial) instead of Int64 (Final).
+    let physical_plan = if aggregate_mode != crate::agg_mode::Mode::Default {
+        crate::agg_mode::apply_aggregate_mode(physical_plan, aggregate_mode)?
+    } else {
+        physical_plan
+    };
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
-    let df_stream = execute_stream(physical_plan, ctx.task_ctx())
+    let df_stream = execute_stream(physical_plan.clone(), ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, _task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
-    let context_id = query_context.context_id();
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
     }
 
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx);
+    let stream_handle = crate::api::QueryStreamHandle::with_physical_plan(wrapped, query_context, ctx, Some(permit), physical_plan);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

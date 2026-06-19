@@ -71,7 +71,7 @@ public class DataFormatAwareUploadIT extends RemoteStoreBaseIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
     }
 

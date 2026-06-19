@@ -251,6 +251,7 @@ public abstract class AbstractStageExecution implements StageExecution {
                 l -> l.onStageSuccess(
                     queryId,
                     sid,
+                    stageType,
                     metrics.getEndTimeMs() > 0 && metrics.getStartTimeMs() > 0
                         ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L
                         : 0,

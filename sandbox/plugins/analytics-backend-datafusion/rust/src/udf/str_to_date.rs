@@ -9,7 +9,6 @@
 //! `str_to_date(input, format)` — parse with MySQL tokens → `Timestamp(us)`. Missing date fields
 //! default to 2000-01-01, missing time → 00:00:00. Unparseable → NULL; trailing input tolerated.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -22,7 +21,7 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-use super::mysql_format::parse_mysql_format;
+use super::os_strftime::parse_os_strftime;
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(StrToDateUdf::new()));
@@ -44,9 +43,6 @@ impl StrToDateUdf {
 udf_identity!(StrToDateUdf, "str_to_date");
 
 impl ScalarUDFImpl for StrToDateUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "str_to_date"
     }
@@ -131,7 +127,7 @@ fn utf8_at(array: &ArrayRef, i: usize) -> Result<Option<String>> {
 }
 
 fn parse_to_micros(input: &str, format: &str) -> Option<i64> {
-    let parsed = parse_mysql_format(input, format)?;
+    let parsed = parse_os_strftime(input, format)?;
     let ndt = parsed.to_naive()?;
     Some(ndt.and_utc().timestamp_micros())
 }
@@ -157,5 +153,39 @@ mod tests {
     fn unparseable_input_returns_none() {
         assert!(parse_to_micros("not-a-date", "%Y-%m-%d").is_none());
         assert!(parse_to_micros("2020-13-01", "%Y-%m-%d").is_none());
+        assert!(parse_to_micros("hello", "%Y-%m-%d").is_none());
+    }
+
+    #[test]
+    fn parses_short_input_with_time_format_tokens() {
+        let want = chrono::NaiveDate::from_ymd_opt(2017, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp_micros();
+        assert_eq!(parse_to_micros("2017-10-23", "%Y-%m-%d %h:%i:%s"), Some(want));
+    }
+
+    #[test]
+    fn parses_full_iso_date_with_zero_hour_lower_h() {
+        let want = chrono::NaiveDate::from_ymd_opt(2017, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp_micros();
+        assert_eq!(parse_to_micros("2017-10-23 00:00:00", "%Y-%m-%d %h:%i:%s"), Some(want));
+    }
+
+    #[test]
+    fn parses_short_year_and_month_name_with_zero_hour() {
+        let want = chrono::NaiveDate::from_ymd_opt(2017, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp_micros();
+        assert_eq!(parse_to_micros("23-Oct-17 00:00:00", "%d-%b-%y %h:%i:%s"), Some(want));
     }
 }

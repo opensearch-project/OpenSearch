@@ -15,6 +15,8 @@ import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.SpillStats;
+import org.opensearch.be.datafusion.stats.SpillStatsCollector;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 
@@ -35,9 +37,17 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
 
     private final long memoryPoolLimit;
-    private final long spillMemoryLimit;
+    /**
+     * Mirrors the dynamic {@code datafusion.spill_memory_limit_bytes} setting and the
+     * native runtime's spill cap. Updated by {@link #setSpillMemoryLimit(long)}; surfaced
+     * as {@code spill.disk_reserved_bytes} via {@link #buildSpillStats()}. Volatile so
+     * stats readers see updates from the cluster-settings consumer thread without locking.
+     */
+    private volatile long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
+    private final double datanodeMultiplier;
+    private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
@@ -51,6 +61,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillMemoryLimit = builder.spillMemoryLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
+        this.datanodeMultiplier = builder.datanodeMultiplier;
+        this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
     }
 
@@ -59,11 +71,24 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return new Builder();
     }
 
+    /**
+     * Returns the number of available CPU threads used for the dedicated executor.
+     * This is the value used to compute concurrency gate permit counts (cpu_threads × multiplier).
+     */
+    public static int cpuThreadCount() {
+        return Runtime.getRuntime().availableProcessors();
+    }
+
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
-        NativeBridge.initTokioRuntimeManager(cpuThreads);
-        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+        NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+        logger.debug(
+            "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
+            cpuThreads,
+            datanodeMultiplier,
+            coordinatorMultiplier
+        );
 
         long cacheManagerPtr = 0L;
         NativeCacheManagerHandle cacheHandle = null;
@@ -165,10 +190,29 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /**
      * Sets the spill memory limit at runtime. Requires {@link #isSpillLimitDynamic()};
-     * otherwise throws {@link UnsupportedOperationException}.
+     * otherwise throws {@link UnsupportedOperationException}. Also updates the Java-side
+     * mirror used by {@link #buildSpillStats()} so {@code spill.disk_reserved_bytes}
+     * reflects the new value on the next stats read.
      */
     public void setSpillMemoryLimit(long newLimitBytes) {
         NativeBridge.setSpillLimit(getNativeRuntime().get(), newLimitBytes);
+        this.spillMemoryLimit = newLimitBytes;
+    }
+
+    /**
+     * Returns the spill directory this service was configured with. Empty string
+     * means spill is disabled (DataFusion built with {@code DiskManagerMode::Disabled}).
+     */
+    public String getSpillDirectory() {
+        return spillDirectory;
+    }
+
+    /**
+     * Returns the spill memory limit (in bytes) this service was configured with.
+     * Surfaced for the {@code spill.disk_reserved_bytes} stat.
+     */
+    public long getSpillMemoryLimit() {
+        return spillMemoryLimit;
     }
 
     /**
@@ -180,7 +224,25 @@ public class DataFusionService extends AbstractLifecycleComponent {
         if (runtimeHandle == null) {
             throw new IllegalStateException("DataFusionService has not been started");
         }
-        return NativeBridge.stats();
+        DataFusionStats nativeStats = NativeBridge.stats(runtimeHandle.get());
+        SpillStats spill = buildSpillStats();
+        return new DataFusionStats(
+            nativeStats.getNativeExecutorsStats(),
+            nativeStats.getFragmentExecutorGateStats(),
+            nativeStats.getAdaptiveBudgetStats(),
+            spill,
+            nativeStats.getCacheStats(),
+            nativeStats.getSearchStats()
+        );
+    }
+
+    /**
+     * Builds a {@link SpillStats} snapshot from the configured spill directory and the
+     * configured spill memory limit. Package-private so unit tests can verify the wiring
+     * without starting the native runtime.
+     */
+    SpillStats buildSpillStats() {
+        return SpillStatsCollector.collect(spillDirectory, spillMemoryLimit);
     }
     // Cache management (node-level, delegates to native runtime)
 
@@ -234,6 +296,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
+        private double datanodeMultiplier = 1.0;
+        private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
 
         private Builder() {}
@@ -271,6 +335,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
+            return this;
+        }
+
+        /** Sets the datanode concurrency gate multiplier. */
+        public Builder datanodeMultiplier(double multiplier) {
+            this.datanodeMultiplier = multiplier;
+            return this;
+        }
+
+        /** Sets the coordinator concurrency gate multiplier. */
+        public Builder coordinatorMultiplier(double multiplier) {
+            this.coordinatorMultiplier = multiplier;
             return this;
         }
 

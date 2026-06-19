@@ -19,16 +19,16 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Verifies that documents are reordered according to the sort permutation
  * from the primary data format (Parquet).
  */
-public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
+public class LuceneWriterSortedFlushTests extends LucenePluginBaseTests {
 
     private LuceneDataFormat dataFormat;
 
@@ -45,10 +45,6 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         dataFormat = new LuceneDataFormat();
-    }
-
-    private MappedFieldType mockTextField(String name) {
-        return new TextFieldMapper.TextFieldType(name);
     }
 
     /**
@@ -69,7 +65,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 4, 3, 2, 1, 0 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -123,7 +131,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -159,7 +179,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 1, 0 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             FileInfos fileInfos = writer.flush(sortedFlushInput);
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
@@ -178,7 +210,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 2, 0, 1 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(gen, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                gen,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < 3; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -209,7 +253,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -243,7 +299,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         // (matching what LuceneCommitter sets in production for the unsorted primary case).
         Sort rowIdSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), rowIdSort)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                rowIdSort,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -296,7 +364,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] ages = { 10, 20, 30, 40, 50 };
         int numDocs = 5;
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                indexSort,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
@@ -340,7 +420,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 2, 0, 1 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                generation,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                indexSort,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < oldRowIds.length; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -390,7 +482,19 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -534,17 +638,37 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
      */
     private LuceneWriter newWriterWithMaxBufferedDocs(Path baseDir, Integer maxBufferedDocsOverride) throws IOException {
         if (maxBufferedDocsOverride == null) {
-            return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
+            return new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            );
         }
         final int override = maxBufferedDocsOverride;
-        return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null) {
+        return new LuceneWriter(
+            1L,
+            0L,
+            dataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
+        ) {
             @Override
-            double ramBufferSizeMB() {
+            protected double ramBufferSizeMB() {
                 return 1024.0;
             }
 
             @Override
-            int maxBufferedDocs() {
+            protected int maxBufferedDocs() {
                 return override;
             }
         };

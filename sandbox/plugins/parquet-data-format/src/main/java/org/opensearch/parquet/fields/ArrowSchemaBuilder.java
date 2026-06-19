@@ -13,8 +13,10 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -43,15 +45,18 @@ public final class ArrowSchemaBuilder {
     public static Schema getSchema(MapperService mapperService) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
         List<Field> fields = new ArrayList<>();
-        if (mapperService.documentMapper() != null) {
-            for (Mapper mapper : mapperService.documentMapper().mappers()) {
+        DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
+        if (documentMapper != null) {
+            for (Mapper mapper : documentMapper.mappers()) {
                 if (isUnsupportedMetadataField(mapper)) {
                     logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                     continue;
                 }
+
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
                 if (parquetField != null) {
                     fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
+                    handleNormalizedField(mapper, documentMapper, fields, parquetField);
                 } else {
                     logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                 }
@@ -62,6 +67,15 @@ public final class ArrowSchemaBuilder {
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, longField.getFieldType(), null));
         fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false).getFieldType(), null));
         return new Schema(fields);
+    }
+
+    private static void handleNormalizedField(Mapper mapper, DocumentMapper documentMapper, List<Field> fields, ParquetField parquetField) {
+        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+            if (!documentMapper.mappers().isMultiField(mapper.name()) && keywordFieldMapper.getRawValueFieldType() != null) {
+                KeywordFieldMapper.KeywordFieldType rawValueField = keywordFieldMapper.getRawValueFieldType();
+                fields.add(new Field(rawValueField.name(), parquetField.getFieldType(), null));
+            }
+        }
     }
 
     private static boolean isUnsupportedMetadataField(Mapper mapper) {

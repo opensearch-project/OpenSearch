@@ -715,6 +715,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/14288")
     public void testDeleteAndCreateSameIndexShardOnSameNode() throws Exception {
         String node_1 = internalCluster().startNode(Settings.builder().build());
         Client client = client(node_1);

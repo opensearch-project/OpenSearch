@@ -345,8 +345,6 @@ lazy_static! {
     /// Holds both Parquet and IPC writers via the `WriterVariant` enum.
     static ref WRITERS: DashMap<String, WriterState> = DashMap::new();
     pub static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
-    /// Holds file handles for finalized files pending fsync. Removed after sync.
-    static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
 }
 
 pub struct NativeParquetWriter;
@@ -428,7 +426,8 @@ impl NativeParquetWriter {
         } else {
             let file = File::create(&temp_filename)?;
             let (crc_file, crc_handle) = CrcWriter::new(file);
-            let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation));
+            let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation), &schema)
+                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
             (WriterVariant::Parquet(Arc::new(Mutex::new(writer))), Some(crc_handle))
         };
@@ -523,9 +522,6 @@ impl NativeParquetWriter {
 
                             log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
 
-                            let file_for_sync = File::open(&filename)?;
-                            FILE_MANAGER.insert(filename.clone(), file_for_sync);
-
                             let file = File::open(&filename)?;
                             let reader = SerializedFileReader::new(file)?;
                             let parquet_metadata = reader.metadata().clone();
@@ -551,9 +547,6 @@ impl NativeParquetWriter {
                                     std::fs::rename(&temp_filename, &filename)?;
 
                                     log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
-
-                                    let file_for_sync = File::open(&filename)?;
-                                    FILE_MANAGER.insert(filename.clone(), file_for_sync);
 
                                     let file = File::open(&filename)?;
                                     let reader = SerializedFileReader::new(file)?;
@@ -601,7 +594,8 @@ impl NativeParquetWriter {
                 .get(index_name)
                 .map(|r| r.clone())
                 .unwrap_or_default();
-            let props = WriterPropertiesBuilder::build_with_generation(&config, Some(writer_generation));
+            let props = WriterPropertiesBuilder::build_with_generation(&config, Some(writer_generation), &schema)
+                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let file = File::create(output_filename)?;
             let writer = ArrowWriter::try_new(file, schema, Some(props))?;
             writer.close()?;
@@ -749,7 +743,8 @@ impl NativeParquetWriter {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation);
+        let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation, &schema)
+            .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
         let file = File::create(output_filename)?;
         let (crc_file, crc_handle) = CrcWriter::new(file);
         let mut writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
@@ -760,20 +755,6 @@ impl NativeParquetWriter {
         Ok(crc32)
     }
 
-    pub fn sync_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
-        log_debug!("sync_to_disk called for file: {}", filename);
-
-        if let Some(file) = FILE_MANAGER.get_mut(&filename) {
-            file.sync_all()?;
-            log_debug!("Successfully fsynced file: {}", filename);
-            drop(file);
-            FILE_MANAGER.remove(&filename);
-            Ok(())
-        } else {
-            log_error!("ERROR: File not found for fsync: {}", filename);
-            Err("File not found".into())
-        }
-    }
 
     pub fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
         let mut total_memory = 0;
@@ -796,11 +777,12 @@ impl NativeParquetWriter {
         Ok(total_memory)
     }
 
-    pub fn get_file_metadata(filename: String) -> Result<parquet::file::metadata::FileMetaData, Box<dyn std::error::Error>> {
+    pub fn get_file_metadata(filename: String) -> Result<parquet::file::metadata::ParquetMetaData, Box<dyn std::error::Error>> {
         let file = File::open(&filename)?;
         let reader = SerializedFileReader::new(file)?;
-        let file_metadata = reader.metadata().file_metadata().clone();
-        log_debug!("Metadata for {}: version={}, num_rows={}", filename, file_metadata.version(), file_metadata.num_rows());
-        Ok(file_metadata)
+        let metadata = reader.metadata().clone();
+        log_debug!("Metadata for {}: version={}, num_rows={}, num_row_groups={}",
+            filename, metadata.file_metadata().version(), metadata.file_metadata().num_rows(), metadata.num_row_groups());
+        Ok(metadata)
     }
 }

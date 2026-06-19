@@ -14,6 +14,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
@@ -340,6 +341,9 @@ public class CatalogSnapshotManager implements Closeable {
             latestCatalogSnapshot.getCommitDataFormatVersion()
         );
 
+        // Carry forward the primary's replicated SegmentInfos; same segment set, so it still applies.
+        newSnapshot.setReplicatingCommitData(latestCatalogSnapshot.getReplicatingCommitData());
+
         installSnapshot(newSnapshot);
     }
 
@@ -484,6 +488,9 @@ public class CatalogSnapshotManager implements Closeable {
     private CatalogSnapshot acquireLatestSnapshot() {
         CatalogSnapshot snapshot;
         do {
+            if (closed.get()) {
+                throw new IllegalStateException("CatalogSnapshotManager is closed");
+            }
             snapshot = latestCatalogSnapshot;
         } while (!snapshot.tryIncRef());
         return snapshot;
@@ -509,6 +516,13 @@ public class CatalogSnapshotManager implements Closeable {
                 throw new RuntimeException("Failed to release committed snapshot [gen=" + policyRef.get().getGeneration() + "]", e);
             }
         });
+    }
+
+    /**
+     * Returns information about the safe commit from the underlying deletion policy.
+     */
+    public SafeCommitInfo getSafeCommitInfo() {
+        return deletionPolicy.getSafeCommitInfo();
     }
 
     // ---- Internal ----
@@ -575,6 +589,20 @@ public class CatalogSnapshotManager implements Closeable {
     @Override
     public void close() {
         closed.compareAndSet(false, true);
+    }
+
+    /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getUnreferencedFileCleanUpsPerformed() {
+        return indexFileDeleter.getCleanUpsPerformed();
+    }
+
+    /**
+     * Increments the merge failure cleanup counter.
+     */
+    public void incrementUnreferencedFileCleanUps() {
+        indexFileDeleter.incrementCleanUpsPerformed();
     }
 
     /**

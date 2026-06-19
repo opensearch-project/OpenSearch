@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -21,7 +20,6 @@ import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.List;
@@ -103,18 +101,13 @@ public class LuceneReplicaCommitter implements Committer {
         return lastCommittedSegmentInfos.getUserData();
     }
 
+    /**
+     * Returns commit stats from the cached {@link SegmentInfos} to avoid a per-call disk read
+     * (which races with concurrent segment replication and surfaces as Store corruption).
+     */
     @Override
     public CommitStats getCommitStats() {
-        try {
-            return new CommitStats(store.readLastCommittedSegmentsInfo());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        return null;
+        return new CommitStats(lastCommittedSegmentInfos);
     }
 
     @Override

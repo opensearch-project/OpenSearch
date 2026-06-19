@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -68,6 +69,7 @@ public class IndexFileDeleter {
      * or {@link #retryPendingDeletes} call.
      */
     private final Map<String, Set<String>> pendingDeletes;
+    private final AtomicLong cleanUpsPerformed = new AtomicLong(0);
 
     /**
      * Callback invoked when a CatalogSnapshot's refCount reaches 0 via the deletion policy
@@ -294,8 +296,6 @@ public class IndexFileDeleter {
         }
     }
 
-    // ---- Listener notification (outside lock) ----
-
     private void notifyFilesAdded(Map<String, Collection<String>> newFilesByFormat) throws IOException {
         for (Map.Entry<String, Collection<String>> entry : newFilesByFormat.entrySet()) {
             FilesListener listener = filesListeners.get(entry.getKey());
@@ -331,6 +331,7 @@ public class IndexFileDeleter {
             if (firstException != null) {
                 throw new RuntimeException("Failed to clean up snapshot [gen=" + snapshot.getGeneration() + "]", firstException);
             }
+            logger.debug("Snapshot [gen={}] deleted, unreferenced file cleanup performed", snapshot.getGeneration());
         }
     }
 
@@ -438,6 +439,21 @@ public class IndexFileDeleter {
         if (orphans.isEmpty() == false) {
             executeDeletesWithRetry(orphans);
         }
+    }
+
+    /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getCleanUpsPerformed() {
+        return cleanUpsPerformed.get();
+    }
+
+    /**
+     * Increments the merge failure cleanup counter. Called when a merge fails
+     * and its output files are cleaned up.
+     */
+    public void incrementCleanUpsPerformed() {
+        cleanUpsPerformed.incrementAndGet();
     }
 
     /**

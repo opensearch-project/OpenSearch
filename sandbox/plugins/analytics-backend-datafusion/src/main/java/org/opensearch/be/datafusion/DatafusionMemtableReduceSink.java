@@ -137,6 +137,7 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
                 try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {
                     streamPtr = 0;
                     drainOutputIntoDownstream(outStream);
+                    this.executionMetrics = NativeBridge.streamGetMetrics(outStream.getPointer());
                 }
             } catch (Exception t) {
                 failure = accumulate(failure, t);

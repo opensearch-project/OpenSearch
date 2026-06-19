@@ -21,9 +21,14 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
+import org.opensearch.analytics.schema.BinaryType;
+import org.opensearch.analytics.schema.DateOnlyType;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.schema.TimeOnlyType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.test.OpenSearchTestCase;
@@ -344,11 +349,210 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
+     * Case-insensitive table resolution: Calcite uppercases unquoted identifiers. The schema
+     * must still resolve them. Verifying a SELECT against an uppercased table works.
+     */
+    /**
+     * The schema's lazy {@code get()} lower-cases incoming lookup names before consulting
+     * {@code IndexNameExpressionResolver} (OpenSearch index names must be lowercase). This lets
+     * Calcite's uppercased identifier resolution find a lower-cased index without needing eager
+     * enumeration of the cluster's index list at schema construction.
+     */
+    public void testCaseInsensitiveTableResolution() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("my_table", Map.of("name", "keyword", "age", "long")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        // Exact-case lookup must work — this is the storage truth.
+        assertNotNull("Exact-case schema lookup must work", schema.getTable("my_table"));
+
+        // Upper-cased lookup must work — exercises the lowercase-on-lookup behavior directly
+        // (bypasses the SQL parser, which would case-fold first). Pins the regression Calcite
+        // would trigger if the schema regressed to case-sensitive resolver invocation.
+        assertNotNull("Upper-case schema lookup must work", schema.getTable("MY_TABLE"));
+        assertNotNull("Mixed-case schema lookup must work", schema.getTable("My_Table"));
+
+        // End-to-end via the SQL path: validate+convert succeeds against the lower-cased index.
+        RelNode rel = parseValidateConvert(schema, "SELECT name FROM my_table");
+        assertNotNull("Query via SQL path must succeed", rel);
+    }
+
+    /**
      * Defensive: mapFieldType called with null must return null (treated as "unknown") rather
      * than NPE. Mirrors the analytics-framework FieldType.fromMappingType convention.
      */
     public void testMapFieldTypeReturnsNullOnNullInput() {
         assertNull(OpenSearchSchemaBuilder.mapFieldType(null));
+    }
+
+    /** date with date-only format produces a DateOnlyType marker (TIMESTAMP-backed). */
+    public void testDateFieldWithDateOnlyFormatProducesDateUDT() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("date_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertNotNull(field);
+        assertTrue("Expected DateOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof DateOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with time-only format produces a TimeOnlyType marker. */
+    public void testDateFieldWithTimeOnlyFormatProducesTimeUDT() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("time_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("t", true, false);
+        assertNotNull(field);
+        assertTrue("Expected TimeOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with mixed format defaults to plain TIMESTAMP. */
+    public void testDateFieldWithMixedFormatStaysTimestamp() throws Exception {
+        String mapping = "{\"properties\":{\"x\":{\"type\":\"date\",\"format\":\"yyyy-MM-dd HH:mm:ss\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("mixed_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("mixed_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("x", true, false);
+        assertNotNull(field);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof DateOnlyType);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date without an explicit format keeps default TIMESTAMP behavior. */
+    public void testDateFieldWithoutFormatStaysTimestamp() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("plain_date_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertFalse(field.getType() instanceof DateOnlyType);
+        assertFalse(field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /**
+     * Plain {@code date} with no format → {@code TIMESTAMP(3)} (millis). Pins the precision
+     * contract added by #22049 so the date-only / time-only UDT paths can mirror it.
+     */
+    public void testDateFieldWithoutFormatHasMillisPrecision() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("plain_date_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertEquals("date must carry millis precision", 3, field.getType().getPrecision());
+    }
+
+    /** Plain {@code date_nanos} with no format → {@code TIMESTAMP(9)} (nanos). */
+    public void testDateNanosFieldWithoutFormatHasNanosPrecision() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("nanos_idx", java.util.Map.of("d", "date_nanos")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("nanos_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertEquals("date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date} with date-only format produces a {@link DateOnlyType} that still carries
+     * millis precision. Without this, the parquet-read path's Timestamp(Millisecond) clashes
+     * with the schema's precision-0 default at coordinator reduce.
+     */
+    public void testDateFieldWithDateOnlyFormatHasMillisPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_ms_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("date_only_ms_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertTrue("Expected DateOnlyType marker", field.getType() instanceof DateOnlyType);
+        assertEquals("DateOnlyType over date must carry millis precision", 3, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date_nanos} with date-only format produces a {@link DateOnlyType} that carries
+     * nanos precision. This is the regression #22049 fixed for the plain-TIMESTAMP path; the
+     * UDT path must mirror it or multi-shard sort fails with
+     * {@code Timestamp(ms) got Timestamp(ns)} in the coordinator RowConverter.
+     */
+    public void testDateNanosFieldWithDateOnlyFormatHasNanosPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date_nanos\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_ns_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("date_only_ns_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertTrue("Expected DateOnlyType marker", field.getType() instanceof DateOnlyType);
+        assertEquals("DateOnlyType over date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date_nanos} with time-only format produces a {@link TimeOnlyType} that carries
+     * nanos precision — same parquet-read constraint as {@link DateOnlyType}.
+     */
+    public void testDateNanosFieldWithTimeOnlyFormatHasNanosPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date_nanos\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_ns_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("time_only_ns_idx").getRowType(nanosTypeFactory()).getField("t", true, false);
+        assertTrue("Expected TimeOnlyType marker", field.getType() instanceof TimeOnlyType);
+        assertEquals("TimeOnlyType over date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * Type factory whose {@code getMaxPrecision(TIMESTAMP)} is 9 — so a precision request from
+     * {@code buildLeafType} for {@code date_nanos} is observable rather than silently clamped to
+     * Calcite's default of 3. The production type factory mirrors this; the default
+     * {@code JavaTypeFactoryImpl} doesn't.
+     */
+    private static org.apache.calcite.jdbc.JavaTypeFactoryImpl nanosTypeFactory() {
+        return new org.apache.calcite.jdbc.JavaTypeFactoryImpl(new org.apache.calcite.rel.type.RelDataTypeSystemImpl() {
+            @Override
+            public int getMaxPrecision(SqlTypeName typeName) {
+                if (typeName == SqlTypeName.TIMESTAMP || typeName == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+                    return 9;
+                }
+                return super.getMaxPrecision(typeName);
+            }
+        });
+    }
+
+    /**
+     * IP and binary fields are wrapped in dedicated {@link IpType} / {@link BinaryType} markers
+     * so the SQL plugin can disambiguate them at the response boundary. Operator dispatch is
+     * unaffected because both extend {@link org.apache.calcite.sql.type.AbstractSqlType} with
+     * {@link SqlTypeName#VARBINARY} underneath.
+     */
+    public void testIpAndBinaryFieldsCarryLogicalTypeUdt() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("udt_index", Map.of("address", "ip", "blob", "binary")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("udt_index");
+        assertNotNull(table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        RelDataType ipType = rowType.getField("address", true, false).getType();
+        assertTrue("ip column must be IpType, got " + ipType.getClass(), ipType instanceof IpType);
+        assertEquals("IpType must still report VARBINARY for operator dispatch", SqlTypeName.VARBINARY, ipType.getSqlTypeName());
+
+        RelDataType binType = rowType.getField("blob", true, false).getType();
+        assertTrue("binary column must be BinaryType, got " + binType.getClass(), binType instanceof BinaryType);
+        assertEquals(SqlTypeName.VARBINARY, binType.getSqlTypeName());
+    }
+
+    /**
+     * Two separately constructed {@link IpType} instances must be digest-equal so plan equality
+     * / planner caching works without requiring Calcite type-factory canonicalization (we don't
+     * go through {@code typeFactory.canonize}).
+     */
+    public void testLogicalTypeEqualityIsDigestBased() {
+        RelDataType a = IpType.nullable();
+        RelDataType b = IpType.nullable();
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+
+        RelDataType c = BinaryType.nullable();
+        assertNotSame(a, c);
+        assertNotEquals(a, c);
     }
 
     // --- helpers ---
@@ -357,6 +561,118 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         RelDataTypeField field = rowType.getField(fieldName, true, false);
         assertNotNull("Field '" + fieldName + "' should exist", field);
         assertEquals("Field '" + fieldName + "' should have type " + expectedType, expectedType, field.getType().getSqlTypeName());
+    }
+
+    /**
+     * Aliases over indices show up in the schema as their own table so the Calcite validator
+     * can resolve {@code SELECT * FROM alias}. The exposed row type is the field-union of every
+     * backing index — fields absent from some indices appear as nullable columns in the alias
+     * row type, and {@code OpenSearchTableScanRule} null-fills those columns at scan time.
+     */
+    public void testBuildSchemaExposesAliasAsTable() throws Exception {
+        IndexMetadata a = IndexMetadata.builder("bank_a")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"age\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("bank_all").build())
+            .build();
+        IndexMetadata b = IndexMetadata.builder("bank_b")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"age\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("bank_all").build())
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(a, false).put(b, false).build())
+            .build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(state);
+
+        assertNotNull("alias table present", schema.getTable("bank_all"));
+        assertNotNull("backing concrete index still present", schema.getTable("bank_a"));
+        RelDataType rowType = schema.getTable("bank_all").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * A single wildcard source ({@code test*}) resolves to one table whose row type is the union
+     * of the matching concrete indices' supported fields. Mirrors the sql-plugin behavior where
+     * {@code source=test*} resolves against the cluster's index expression.
+     */
+    public void testWildcardPatternResolvesToUnionedTable() throws Exception {
+        ClusterState clusterState = buildClusterState(
+            Map.of("test", Map.of("name", "keyword", "age", "long"), "test1", Map.of("name", "keyword", "alias_field", "keyword"))
+        );
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        Table table = schema.getTable("test*");
+        assertNotNull("Wildcard 'test*' should resolve to a table", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+        assertFieldType(rowType, "alias_field", SqlTypeName.VARCHAR);
+    }
+
+    /**
+     * A comma-separated multi-source ({@code bank,test}) resolves to one table unioning both
+     * indices' fields — the shape {@code source=a, b} produces after Relation comma-joins names.
+     */
+    public void testCommaSeparatedSourcesResolveToUnionedTable() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("bank", Map.of("balance", "long"), "test", Map.of("age", "long")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        Table table = schema.getTable("bank,test");
+        assertNotNull("Comma list 'bank,test' should resolve to a table", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "balance", SqlTypeName.BIGINT);
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * Comma-separated sources with field-name conflict: first-resolved-wins semantics. The
+     * field 'age' appears as long in bank and keyword in test — whichever index the resolver
+     * returns first determines the type. Both are valid; the key invariant is that the field
+     * exists and unique-per-index fields from both indices appear in the union.
+     */
+    public void testCommaSeparatedSourcesFieldConflictPicksOne() throws Exception {
+        IndexMetadata idx1 = buildIndexMetadata("bank", Map.of("age", "long", "name", "keyword"));
+        IndexMetadata idx2 = buildIndexMetadata("test", Map.of("age", "keyword", "score", "double"));
+        Metadata metadata = Metadata.builder().put(idx1, false).put(idx2, false).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("bank,test");
+        assertNotNull("Comma-separated expression must resolve", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        // 'age' exists — could be BIGINT or VARCHAR depending on resolver order
+        RelDataTypeField ageField = rowType.getField("age", true, false);
+        assertNotNull("Conflicting field 'age' must still appear in union", ageField);
+        assertTrue(
+            "age must be one of the two types",
+            ageField.getType().getSqlTypeName() == SqlTypeName.BIGINT || ageField.getType().getSqlTypeName() == SqlTypeName.VARCHAR
+        );
+        // unique fields from each index must appear
+        assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "score", SqlTypeName.DOUBLE);
+    }
+
+    /**
+     * A pattern matching no index yields no table, so Calcite surfaces a clean "table not found"
+     * at plan time rather than an empty-row-type table.
+     */
+    public void testNonMatchingPatternYieldsNoTable() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("test", Map.of("age", "long")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        assertNull("Non-matching pattern 'nonexistent*' should resolve to no table", schema.getTable("nonexistent*"));
     }
 
     private ClusterState buildClusterState(Map<String, Map<String, String>> indices) throws Exception {
@@ -400,8 +716,14 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
 
     /** Parse + validate + convert SQL against the given Calcite schema; throws on validator error. */
     private static RelNode parseValidateConvert(SchemaPlus schema, String sql) throws Exception {
+        // Preserve the original case of unquoted identifiers so both table names and column names
+        // reach the validator as-typed. Default Calcite parsing uppercases unquoted identifiers
+        // (Lex.ORACLE), which would force a case-insensitive validator + getTableNames()
+        // enumeration — incompatible with the lazy schema (table names aren't enumerable until
+        // resolved). PPL hits the schema via RelBuilder.scan with the user-typed case directly;
+        // this config mirrors that for SQL-based unit tests.
         FrameworkConfig config = Frameworks.newConfigBuilder()
-            .parserConfig(SqlParser.config().withCaseSensitive(false))
+            .parserConfig(SqlParser.config().withUnquotedCasing(org.apache.calcite.avatica.util.Casing.UNCHANGED))
             .defaultSchema(schema)
             .operatorTable(SqlStdOperatorTable.instance())
             .build();

@@ -21,12 +21,16 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -59,6 +63,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      * constant columns below FINAL, since the StageInputScan only carries the state.
      */
     private final Map<Integer, List<RexLiteral>> finalExtraLiteralArgs;
+    /** Per-call {@link IntermediateField} classification, parallel to {@link #getAggCallList()}; null entry = no SPI decomposition; empty for SINGLE/PARTIAL. */
+    private final List<IntermediateField> perCallIntermediateField;
 
     public OpenSearchAggregate(
         RelOptCluster cluster,
@@ -71,7 +77,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         List<String> viableBackends,
         Map<Integer, AggregateCallAnnotation> callAnnotations
     ) {
-        this(cluster, traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends, callAnnotations, Map.of());
+        this(cluster, traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends, callAnnotations, Map.of(), List.of());
     }
 
     public OpenSearchAggregate(
@@ -86,11 +92,90 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         Map<Integer, AggregateCallAnnotation> callAnnotations,
         Map<Integer, List<RexLiteral>> finalExtraLiteralArgs
     ) {
-        super(cluster, traitSet, List.of(), input, groupSet, groupSets, aggCalls);
+        this(
+            cluster,
+            traitSet,
+            input,
+            groupSet,
+            groupSets,
+            aggCalls,
+            mode,
+            viableBackends,
+            callAnnotations,
+            finalExtraLiteralArgs,
+            List.of()
+        );
+    }
+
+    public OpenSearchAggregate(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelNode input,
+        ImmutableBitSet groupSet,
+        List<ImmutableBitSet> groupSets,
+        List<AggregateCall> aggCalls,
+        AggregateMode mode,
+        List<String> viableBackends,
+        Map<Integer, AggregateCallAnnotation> callAnnotations,
+        Map<Integer, List<RexLiteral>> finalExtraLiteralArgs,
+        List<IntermediateField> perCallIntermediateField
+    ) {
+        super(
+            cluster,
+            traitSet,
+            List.of(),
+            input,
+            frontGroupSetForFinal(groupSet, mode),
+            frontGroupSetsForFinal(groupSet, groupSets, mode),
+            aggCalls
+        );
         this.mode = mode;
         this.viableBackends = viableBackends;
         this.callAnnotations = Map.copyOf(callAnnotations);
         this.finalExtraLiteralArgs = Map.copyOf(finalExtraLiteralArgs);
+        // Collections.unmodifiableList — List.copyOf would NPE on the null pass-through entries.
+        this.perCallIntermediateField = Collections.unmodifiableList(new ArrayList<>(perCallIntermediateField));
+    }
+
+    /**
+     * FINAL reads PARTIAL's output, where Calcite has fronted the group keys to {@code 0..n-1}; group
+     * on the prefix range so a non-prefix key (e.g. {@code avg(x) by span(y,5)} → {@code {1}}) isn't
+     * read as an agg-state column. No-op for SINGLE/PARTIAL (raw input) and already-fronted sets.
+     */
+    private static ImmutableBitSet frontGroupSetForFinal(ImmutableBitSet groupSet, AggregateMode mode) {
+        return mode == AggregateMode.FINAL ? ImmutableBitSet.range(groupSet.cardinality()) : groupSet;
+    }
+
+    /**
+     * Keeps {@code groupSets} consistent with the fronted {@code groupSet}. PPL only emits simple
+     * (single-set) aggregates, so this collapses to one set; revisit if GROUPING SETS is ever added.
+     */
+    private static List<ImmutableBitSet> frontGroupSetsForFinal(
+        ImmutableBitSet groupSet,
+        List<ImmutableBitSet> groupSets,
+        AggregateMode mode
+    ) {
+        if (mode != AggregateMode.FINAL || groupSets == null || groupSets.isEmpty()) {
+            return groupSets;
+        }
+        return List.of(ImmutableBitSet.range(groupSet.cardinality()));
+    }
+
+    /** Builds a FINAL aggregate post-rewrite; clears both stashes so a later {@code copy()} can't replay them. */
+    public static OpenSearchAggregate finalAfterRewrite(OpenSearchAggregate prior, RelNode newInput, List<AggregateCall> rebuiltCalls) {
+        return new OpenSearchAggregate(
+            prior.getCluster(),
+            prior.getTraitSet(),
+            newInput,
+            prior.getGroupSet(),
+            prior.getGroupSets(),
+            rebuiltCalls,
+            AggregateMode.FINAL,
+            prior.viableBackends,
+            prior.callAnnotations,
+            Map.of(),
+            List.of()
+        );
     }
 
     public AggregateMode getMode() {
@@ -104,6 +189,11 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     public Map<Integer, List<RexLiteral>> getFinalExtraLiteralArgs() {
         return finalExtraLiteralArgs;
+    }
+
+    /** See {@link #perCallIntermediateField}. */
+    public List<IntermediateField> getIntermediateFields() {
+        return perCallIntermediateField;
     }
 
     @Override
@@ -131,9 +221,32 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             }
         }
 
-        // Agg results: derived columns with no physical storage
+        // Agg results: derived columns whose physical-deps are the union of arg refs' deps
+        // (preserving first-seen order across argList, then rexList).
         for (AggregateCall aggCall : getAggCallList()) {
-            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(), aggCall.getType().getSqlTypeName()));
+            LinkedHashSet<String> deps = new LinkedHashSet<>();
+            for (int argIdx : aggCall.getArgList()) {
+                if (argIdx >= inputStorage.size()) {
+                    throw new IllegalStateException(
+                        "AggregateCall arg["
+                            + argIdx
+                            + "] has no matching FieldStorageInfo entry "
+                            + "(input only declares "
+                            + inputStorage.size()
+                            + " columns)"
+                    );
+                }
+                FieldStorageInfo src = inputStorage.get(argIdx);
+                if (src.isDerived()) {
+                    deps.addAll(src.getDependsOnPhysicalCols());
+                } else {
+                    deps.add(src.getFieldName());
+                }
+            }
+            for (RexNode rex : aggCall.rexList) {
+                deps.addAll(RelNodeUtils.resolvePhysicalDeps(rex, inputStorage));
+            }
+            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(), aggCall.getType().getSqlTypeName(), deps));
         }
 
         return outputStorage;
@@ -157,7 +270,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             mode,
             viableBackends,
             callAnnotations,
-            finalExtraLiteralArgs
+            finalExtraLiteralArgs,
+            perCallIntermediateField
         );
     }
 
@@ -166,18 +280,31 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      * independently, results would never merge). Return infinite cost so Volcano picks the
      * split alternative. Allow SOURCE/EXECUTION SINGLETON (already gathered) and ANY
      * (Volcano's "still exploring" placeholder). PARTIAL/FINAL skip the gate.
+     *
+     * <p><b>DO NOT REMOVE the infinite-cost branch below.</b> It is the correctness backstop for
+     * the whole split: {@code OpenSearchAggregateSplitRule} now emits a single alternative
+     * deterministically (no cost comparison), so this gate is the ONLY thing that rejects a SINGLE
+     * aggregate placed over RANDOM (multi-shard) input. Without it, Volcano can legally land a
+     * SINGLE aggregate directly on partitioned data — each shard aggregates in isolation, the
+     * partials never merge, and queries return silently wrong results. Plan-shape tests happen to
+     * catch the current shapes, but they are not a substitute for this gate; deleting it breaks
+     * correctness, not just a test.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (mode == AggregateMode.SINGLE) {
-            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-                RelTrait trait = getInput().getTraitSet().getTrait(index);
-                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
+        for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+            RelTrait trait = getInput().getTraitSet().getTrait(index);
+            if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
+                || distribution.getType() == RelDistribution.Type.ANY;
+
+            // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
+            // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
             }
         }
         return planner.getCostFactory().makeTinyCost();
@@ -225,7 +352,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             mode,
             List.of(backend),
             rebuilt,
-            finalExtraLiteralArgs
+            finalExtraLiteralArgs,
+            perCallIntermediateField
         );
     }
 

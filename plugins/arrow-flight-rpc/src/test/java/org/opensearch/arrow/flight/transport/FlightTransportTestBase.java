@@ -42,7 +42,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -50,8 +49,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public abstract class FlightTransportTestBase extends OpenSearchTestCase {
-
-    private static final AtomicInteger portCounter = new AtomicInteger(0);
 
     protected DiscoveryNode remoteNode;
     protected Location serverLocation;
@@ -69,20 +66,17 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
+        // Configure FlightTransport with a port range rather than a single hardcoded port. The
+        // transport iterates the range via PortsRange.iterate() and binds the first available
+        // port. Using a single port made tests fail with BindTransportException whenever the
+        // chosen port was held in TIME_WAIT or contended by another process on the CI runner.
+        // The actual bound port is read from FlightTransport.boundAddress() after start() below.
         int basePort = getBasePort(9500);
-        int streamPort = basePort + portCounter.incrementAndGet();
-        int transportPort = basePort + portCounter.incrementAndGet();
-
-        TransportAddress streamAddress = new TransportAddress(InetAddress.getLoopbackAddress(), streamPort);
-        TransportAddress transportAddress = new TransportAddress(InetAddress.getLoopbackAddress(), transportPort);
-        remoteNode = new DiscoveryNode(new DiscoveryNode("test-node-id", transportAddress, Version.CURRENT), streamAddress);
-        boundAddress = new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
-        serverLocation = Location.forGrpcInsecure("localhost", streamPort);
-        headerContext = new HeaderContext();
+        String portRange = basePort + "-" + (basePort + 99);
 
         Settings settings = Settings.builder()
             .put("node.name", getTestName())
-            .put("aux.transport.transport-flight.port", streamPort)
+            .put("aux.transport.transport-flight.port", portRange)
             .build();
         ServerConfig.init(settings);
         threadPool = new ThreadPool(
@@ -93,11 +87,12 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
         );
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         statsCollector = new FlightStatsCollector();
+        headerContext = new HeaderContext();
 
         // FlightTransport sources its allocator from the framework's FLIGHT pool. Construct one
         // here so the test has a usable allocator; tearDown closes it.
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, 0L, Long.MAX_VALUE, null);
 
         flightTransport = new FlightTransport(
             settings,
@@ -113,6 +108,17 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             nativeAllocator
         );
         flightTransport.start();
+
+        // Resolve the actual bound stream port (chosen by PortsRange.iterate()) and derive the
+        // remote node's transport/stream addresses from it. The transport address is never
+        // bound by this test, so any distinct port suffices.
+        int streamPort = flightTransport.boundAddress().publishAddress().address().getPort();
+        TransportAddress streamAddress = new TransportAddress(InetAddress.getLoopbackAddress(), streamPort);
+        TransportAddress transportAddress = new TransportAddress(InetAddress.getLoopbackAddress(), streamPort + 1);
+        remoteNode = new DiscoveryNode(new DiscoveryNode("test-node-id", transportAddress, Version.CURRENT), streamAddress);
+        boundAddress = new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
+        serverLocation = Location.forGrpcInsecure("localhost", streamPort);
+
         TransportService transportService = mock(TransportService.class);
         TaskManager taskManager = mock(TaskManager.class);
         when(taskManager.taskExecutionStarted(any())).thenReturn(mock(ThreadContext.StoredContext.class));

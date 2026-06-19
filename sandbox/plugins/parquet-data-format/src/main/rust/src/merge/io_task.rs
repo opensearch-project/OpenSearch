@@ -45,7 +45,7 @@ const IO_CHANNEL_BUFFER: usize = 2;
 // Process-wide shared Rayon thread pool
 // =============================================================================
 
-static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
+pub(crate) static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
 
 pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
     MERGE_POOL.get_or_init(|| {
@@ -62,7 +62,7 @@ pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
 // Process-wide shared Tokio runtime for async IO
 // =============================================================================
 
-static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
+pub(crate) static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
 fn get_io_runtime(num_threads: Option<usize>) -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {

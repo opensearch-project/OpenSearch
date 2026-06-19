@@ -27,6 +27,8 @@ import java.util.List;
  * intermediate CAST to DOUBLE is needed because our substrait YAML declares date_part/floor as
  * fp64-only while Calcite's inference returns BIGINT for {@code part='second'}.
  *
+ * <p>VARCHAR / TIME operand handling: see {@link DatePartAdapters}.
+ *
  * @opensearch.internal
  */
 class SecondAdapter implements ScalarFunctionAdapter {
@@ -39,7 +41,8 @@ class SecondAdapter implements ScalarFunctionAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
         RexNode partLiteral = rexBuilder.makeLiteral("second", varchar, true);
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, original.getOperands().get(0));
+        RexNode operand = DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster);
+        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, operand);
         RelDataType doubleType = cluster.getTypeFactory()
             .createTypeWithNullability(cluster.getTypeFactory().createSqlType(SqlTypeName.DOUBLE), datePart.getType().isNullable());
         RexNode datePartDouble = rexBuilder.makeCast(doubleType, datePart);

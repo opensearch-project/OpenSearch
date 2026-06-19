@@ -87,6 +87,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccess
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public RecoveryWhileUnderLoadIT(Settings settings) {

@@ -59,4 +59,6 @@ public final class BootstrapSettings {
     );
     public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
 
+    public static final Setting<Boolean> SERIAL_FILTER_SETTING = Setting.boolSetting("bootstrap.serial_filter", false, Property.NodeScope);
+
 }

@@ -6,15 +6,20 @@
  * compatible open source license.
  */
 
-//! `maketime(hour, minute, second)` → `Time64(us)`. Hour/minute rounded; second passes with fraction.
+//! `maketime(hour, minute, second)` → `Time64(ns)`. Hour/minute rounded; second passes with fraction.
 //! Negative / non-finite / out-of-range (after rounding) / null → NULL.
+//!
+//! Output is `Time64(Nanosecond)` (not `Time64(Microsecond)`) so that maketime's
+//! Arrow output type harmonises with `current_time` / `to_time` / `curtime`,
+//! which all emit `Time64(Nanosecond)`. The internal `micros_of_day` helper
+//! still computes a microsecond count; the call sites multiply by 1_000 at
+//! emission to widen losslessly to nanoseconds (max value 8.64e13 ≪ i64::MAX).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
 
-use datafusion::arrow::array::{Array, ArrayRef, AsArray, Time64MicrosecondBuilder};
+use datafusion::arrow::array::{Array, ArrayRef, AsArray, Time64NanosecondBuilder};
 use datafusion::arrow::datatypes::{DataType, Float64Type, TimeUnit};
 use datafusion::common::{exec_err, plan_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
@@ -44,10 +49,6 @@ impl MaketimeUdf {
 udf_identity!(MaketimeUdf, "maketime");
 
 impl ScalarUDFImpl for MaketimeUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "maketime"
     }
@@ -60,7 +61,7 @@ impl ScalarUDFImpl for MaketimeUdf {
         if arg_types.len() != 3 {
             return plan_err!("maketime expects 3 arguments, got {}", arg_types.len());
         }
-        Ok(DataType::Time64(TimeUnit::Microsecond))
+        Ok(DataType::Time64(TimeUnit::Nanosecond))
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
@@ -83,12 +84,14 @@ impl ScalarUDFImpl for MaketimeUdf {
             ColumnarValue::Scalar(ScalarValue::Float64(s)),
         ) = (&args.args[0], &args.args[1], &args.args[2])
         {
-            let micros = match (h, m, s) {
-                (Some(h), Some(m), Some(s)) => micros_of_day(*h, *m, *s),
+            let nanos = match (h, m, s) {
+                // micros_of_day is bounded by 24h*60m*60s*1e6 = 8.64e10 µs, so
+                // *1_000 to ns yields ≤ 8.64e13 — safely within i64::MAX (≈9.2e18).
+                (Some(h), Some(m), Some(s)) => micros_of_day(*h, *m, *s).map(|us| us * 1_000),
                 _ => None,
             };
-            return Ok(ColumnarValue::Scalar(ScalarValue::Time64Microsecond(
-                micros,
+            return Ok(ColumnarValue::Scalar(ScalarValue::Time64Nanosecond(
+                nanos,
             )));
         }
 
@@ -98,14 +101,15 @@ impl ScalarUDFImpl for MaketimeUdf {
         let h = h.as_primitive::<Float64Type>();
         let m = m.as_primitive::<Float64Type>();
         let s = s.as_primitive::<Float64Type>();
-        let mut builder = Time64MicrosecondBuilder::with_capacity(n);
+        let mut builder = Time64NanosecondBuilder::with_capacity(n);
         for i in 0..n {
             if h.is_null(i) || m.is_null(i) || s.is_null(i) {
                 builder.append_null();
                 continue;
             }
             match micros_of_day(h.value(i), m.value(i), s.value(i)) {
-                Some(us) => builder.append_value(us),
+                // Lossless µs → ns scale (×1_000); see invoke_with_args scalar branch.
+                Some(us) => builder.append_value(us * 1_000),
                 None => builder.append_null(),
             }
         }

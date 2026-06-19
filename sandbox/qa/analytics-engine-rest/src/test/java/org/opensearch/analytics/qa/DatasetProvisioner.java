@@ -104,9 +104,15 @@ public final class DatasetProvisioner {
         flushRequest.addParameter("force", "true");
         client.performRequest(flushRequest);
 
-        // Wait for index health
+        // Wait for index health. wait_for_status=yellow only guarantees primaries are assigned, not
+        // that every shard copy is active and done initializing — on a multi-node cluster a search
+        // can then race ahead of the shard becoming searchable and fail with "no such shard". Wait
+        // for green + all shards active + none initializing so the first query always finds them.
         Request healthRequest = new Request("GET", "/_cluster/health/" + indexName);
-        healthRequest.addParameter("wait_for_status", "yellow");
+        healthRequest.addParameter("wait_for_status", "green");
+        healthRequest.addParameter("wait_for_active_shards", "all");
+        healthRequest.addParameter("wait_for_no_initializing_shards", "true");
+        healthRequest.addParameter("wait_for_no_relocating_shards", "true");
         healthRequest.addParameter("timeout", "60s");
         client.performRequest(healthRequest);
 
@@ -123,6 +129,12 @@ public final class DatasetProvisioner {
 
     /**
      * Inject parquet data format settings into the existing settings block.
+     *
+     * <p>Lucene is set as the secondary format so the Lucene analytics backend is available
+     * for text-search functions (match, match_phrase, query_string, ...). Without it those
+     * functions fail at planning time with
+     * {@code "No backend can evaluate filter predicate [OTHER_FUNCTION] on fields [...:text]"}
+     * because the Lucene backend never gets enrolled as a candidate.
      */
     private static String injectParquetSettings(String mappingBody) {
         return mappingBody.replace(
@@ -130,6 +142,7 @@ public final class DatasetProvisioner {
             "\"index.pluggable.dataformat.enabled\": true, "
                 + "\"index.pluggable.dataformat\": \"composite\", "
                 + "\"index.composite.primary_data_format\": \"parquet\", "
+                + "\"index.composite.secondary_data_formats\": [\"lucene\"], "
                 + "\"number_of_shards\""
         );
     }

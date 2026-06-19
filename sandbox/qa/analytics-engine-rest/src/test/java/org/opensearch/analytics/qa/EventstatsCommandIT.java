@@ -87,7 +87,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
     private static boolean dataProvisioned = false;
     private static boolean multiProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -173,7 +174,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  {@code str3} has 7 nulls (int0 non-null=[7,3,10,4,8] → cnt=7, avg=6.4, min=3, max=10)
      *  and 10 'e' rows (int0 non-null=[1,8,8,4,11,4] → cnt=10, avg=6.0, min=1, max=11). */
     public void testEventstatsByWithNull() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as mn, max(int0) as mx by str3"
@@ -206,7 +206,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  {@link #testEventstatsByWithNull} — null-key rows now show NULL aggregates instead of
      *  the (cnt=7, avg=6.4, min=3, max=10) the default mode would broadcast. */
     public void testEventstatsByWithNullBucket() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | eventstats bucket_nullable=false count() as cnt, avg(int0) as avg, min(int0) as mn, max(int0) as mx by str3"
@@ -545,7 +544,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  PPL frontend with {@code "Unexpected window function: <name>"} before reaching the
      *  analytics-engine planner. */
     public void testUnsupportedWindowFunctions() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats percentile_approx(int0)",
             "percentile_approx"
@@ -666,7 +664,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  </ul>
      */
     public void testMultipleEventstatsWithNullBucket() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | eventstats bucket_nullable=false avg(int0) as avg_int0 by str3, str0"
@@ -858,8 +855,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         double osSp = 2.160246899469287, osSs = 2.6457513110645907, osVp = 4.666666666666667, osVs = 7.0;
         double tSp  = 2.7774602993176543, tSs = 3.0, tVp = 7.714285714285714, tVs = 9.0;
         assertRowsEqual(response,
-            row("key00", "FURNITURE",       1,    0.0,  Double.NaN, 0.0,  Double.NaN),
-            row("key01", "FURNITURE",       null, 0.0,  Double.NaN, 0.0,  Double.NaN),
+            row("key00", "FURNITURE",       1,    0.0,  (Double) null, 0.0,  (Double) null),
+            row("key01", "FURNITURE",       null, 0.0,  (Double) null, 0.0,  (Double) null),
             row("key02", "OFFICE SUPPLIES", null, osSp, osSs,       osVp, osVs),
             row("key03", "OFFICE SUPPLIES", null, osSp, osSs,       osVp, osVs),
             row("key04", "OFFICE SUPPLIES", 7,    osSp, osSs,       osVp, osVs),
@@ -934,44 +931,140 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── distinct_count / dc — not in WindowFunction enum ──────────────────────
+    // ── distinct_count / dc ────────────────────────────────────────────────────
+    // BackendPlanAdapter rewrites RexOver(DISTINCT_COUNT_APPROX) → APPROX_COUNT_DISTINCT,
+    // and the DataFusion plugin's approx_count_distinct wrapper UDAF aliases that name to
+    // DataFusion's built-in approx_distinct (HyperLogLog). At calcs's scale (17 rows, low
+    // cardinality) HLL is exact, so we can assert the exact dc count.
+    //
+    // calcs.str3 is "e" on every non-null row → dc(str3)=1. calcs.str0 has three values
+    // {FURNITURE, OFFICE SUPPLIES, TECHNOLOGY} on every row → dc(str0)=3. eventstats
+    // broadcasts the global aggregate to every row.
 
-    /** sql IT: testEventstatsDistinctCount. {@code dc()} resolves to DISTINCT_COUNT_APPROX in
-     *  the PPL parser; that aggregate isn't registered in analytics-engine, so the request
-     *  fails before reaching the window-function gate with
-     *  {@code "Cannot resolve function: DISTINCT_COUNT_APPROX"}. */
+    /** sql IT: testEventstatsDistinctCount. */
     public void testEventstatsDistinctCount() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats dc(str3) as dc_str3",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        // Every row sees the same global dc(str3) = 1 (only "e" appears as a non-null value).
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
         );
     }
 
     /** sql IT: testEventstatsDistinctCountByCountry. */
     public void testEventstatsDistinctCountByCountry() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats dc(str3) as dc_str3 by str0",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
+        );
+        // Per-partition dc(str3): FURNITURE has 2 rows of "e" (dc=1); OFFICE SUPPLIES has 4 of
+        // "e" + 2 nulls (dc=1); TECHNOLOGY has 4 of "e" + 5 nulls (dc=1).
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 1L),
+            row("key03", "OFFICE SUPPLIES", 1L),
+            row("key04", "OFFICE SUPPLIES", 1L),
+            row("key05", "OFFICE SUPPLIES", 1L),
+            row("key06", "OFFICE SUPPLIES", 1L),
+            row("key07", "OFFICE SUPPLIES", 1L),
+            row("key08", "TECHNOLOGY", 1L),
+            row("key09", "TECHNOLOGY", 1L),
+            row("key10", "TECHNOLOGY", 1L),
+            row("key11", "TECHNOLOGY", 1L),
+            row("key12", "TECHNOLOGY", 1L),
+            row("key13", "TECHNOLOGY", 1L),
+            row("key14", "TECHNOLOGY", 1L),
+            row("key15", "TECHNOLOGY", 1L),
+            row("key16", "TECHNOLOGY", 1L)
         );
     }
 
     /** sql IT: testEventstatsDistinctCountFunction. {@code distinct_count()} alias for dc. */
     public void testEventstatsDistinctCountFunction() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats distinct_count(str0) as dc_str0",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats distinct_count(str0) as dc_str0 | fields key, dc_str0"
+        );
+        // dc(str0) = 3 across all 17 rows (FURNITURE, OFFICE SUPPLIES, TECHNOLOGY).
+        assertRowsEqual(response,
+            row("key00", 3L), row("key01", 3L), row("key02", 3L), row("key03", 3L),
+            row("key04", 3L), row("key05", 3L), row("key06", 3L), row("key07", 3L),
+            row("key08", 3L), row("key09", 3L), row("key10", 3L), row("key11", 3L),
+            row("key12", 3L), row("key13", 3L), row("key14", 3L), row("key15", 3L),
+            row("key16", 3L)
         );
     }
 
-    /** sql IT: testEventstatsDistinctCountWithNull. */
+    /** sql IT: testEventstatsDistinctCountWithNull. Same query as {@link #testEventstatsDistinctCount}
+     *  — sql-plugin's variant uses STATE_COUNTRY_WITH_NULL to exercise null handling, but this QA
+     *  module only ships the {@code calcs} dataset (whose {@code str3} already has 7 nulls). The
+     *  aggregate semantics are identical. */
     public void testEventstatsDistinctCountWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats dc(str3) as dc_str3",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
+        );
+    }
+
+    /** Multi-shard variant of {@link #testEventstatsDistinctCount} — exercises the
+     *  PARTIAL/FINAL split + SINGLETON-gather path for distinct-count. dc is set-based:
+     *  every shard contributes a partial HLL sketch, the coordinator merges them into a
+     *  single global sketch, then broadcasts {@code dc(str3)=1} to every row. The same
+     *  exact rows as single-shard are expected because HLL is exact at calcs's scale. */
+    public void testEventstatsDistinctCount_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
+        );
+    }
+
+    /** Multi-shard variant of {@link #testEventstatsDistinctCountByCountry} — partitioned
+     *  dc with {@code by str0}. Per-partition HLL state is built per shard, merged at the
+     *  coordinator, then broadcast. Each {@code str0} group sees the same {@code dc(str3)=1}
+     *  as single-shard. */
+    public void testEventstatsDistinctCountByCountry_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName
+                + " | sort key | eventstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
+        );
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 1L),
+            row("key03", "OFFICE SUPPLIES", 1L),
+            row("key04", "OFFICE SUPPLIES", 1L),
+            row("key05", "OFFICE SUPPLIES", 1L),
+            row("key06", "OFFICE SUPPLIES", 1L),
+            row("key07", "OFFICE SUPPLIES", 1L),
+            row("key08", "TECHNOLOGY", 1L),
+            row("key09", "TECHNOLOGY", 1L),
+            row("key10", "TECHNOLOGY", 1L),
+            row("key11", "TECHNOLOGY", 1L),
+            row("key12", "TECHNOLOGY", 1L),
+            row("key13", "TECHNOLOGY", 1L),
+            row("key14", "TECHNOLOGY", 1L),
+            row("key15", "TECHNOLOGY", 1L),
+            row("key16", "TECHNOLOGY", 1L)
         );
     }
 
@@ -981,7 +1074,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  frontend's default-{@code @timestamp}-field check (calcs has no @timestamp column).
      *  Either way, the path is not reachable on analytics-engine today — assert the failure. */
     public void testEventstatsEarliestAndLatest() throws IOException {
-        ensureDataProvisioned();
         // The actual error is "Default @timestamp field not found" because calcs has no
         // timestamp column, but the contract here is just "this PPL form is not yet supported".
         assertErrorAny(
@@ -998,7 +1090,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
     @SafeVarargs
     @SuppressWarnings({"unchecked", "varargs"})
     private final void assertRowsEqual(Map<String, Object> response, List<Object>... expected) {
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", actualRows);
         assertEquals("Row count mismatch", expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -1013,7 +1105,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertScalarRow(Map<String, Object> response, Object... expected) {
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Expected exactly one row", 1, rows.size());
         List<Object> got = rows.get(0);
@@ -1025,7 +1117,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertRowCount(Map<String, Object> response, int expected) {
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Row count mismatch", expected, rows.size());
     }
@@ -1037,8 +1129,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
             assertEquals(message, expected, actual);
             return;
         }
-        // Jackson serializes Double.NaN as the string "NaN" inside JSON arrays, so the
-        // response body delivers "NaN" not Double.NaN. Treat NaN expectation match-on-string.
+        // Jackson serializes (Double) null as the string "NaN" inside JSON arrays, so the
+        // response body delivers "NaN" not (Double) null. Treat NaN expectation match-on-string.
         if (expected instanceof Double && Double.isNaN((Double) expected)
             && (actual instanceof Double && Double.isNaN((Double) actual)
                 || "NaN".equals(actual))) {
@@ -1056,13 +1148,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         assertEquals(message, expected, actual);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     /**
      * Send a PPL query expecting an error response. Asserts the response body contains
@@ -1070,7 +1155,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      * through the analytics-engine route — the throw is the contract.
      */
     private void assertErrorContains(String ppl, String expectedSubstring) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);
@@ -1079,8 +1164,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -1096,7 +1181,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  "this PPL form is not yet supported" — if the query unexpectedly succeeds the test
      *  fails loudly, signalling that the assertion should be upgraded to assert exact rows. */
     private void assertErrorAny(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);

@@ -28,6 +28,7 @@ import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -63,15 +64,44 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
         // Empty list → base short-circuits to SUCCEEDED (nothing to dispatch).
         List<StageTask> tasks = new ArrayList<>(resolved.size());
+        List<ShardExecutionTarget> shardTargets = new ArrayList<>(resolved.size());
         for (int i = 0; i < resolved.size(); i++) {
-            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), resolved.get(i)));
+            ExecutionTarget target = resolved.get(i);
+            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), target));
+            shardTargets.add((ShardExecutionTarget) target);
         }
+        // Side-table for cross-stage routing (e.g. QTF Phase C maps ___ugsi → target).
+        // See QueryContext.resolvedTargetsByStage Javadoc for HACK rationale.
+        config.recordResolvedTargets(getStageId(), shardTargets);
         return tasks;
     }
 
-    // TODO: override retargetForRetry for replica failover — needs TargetResolver.alternateReplica
-    // and per-task attempt tracking. Scheduler-side wiring is already in place.
-    //
+    /**
+     * Replica failover: on dispatch failure, advance to the next copy of the same shard via
+     * {@link ShardExecutionTarget#nextCopy(Exception)}, which delegates to
+     * {@link org.opensearch.cluster.routing.FailAwareWeightedRouting#findNext} — same iterator
+     * walk + weighted-routing skip + fail-open semantics the search API uses in
+     * {@code AbstractSearchAsyncAction.onShardFailure}.
+     *
+     * <p>Returns empty when the iterator is exhausted; the scheduler then propagates the cause
+     * via {@code onTaskTerminal} and the stage fails. Cancellation short-circuit lives one
+     * layer up in {@code QueryScheduler.handleFor} — it applies uniformly to every stage type.
+     */
+    @Override
+    public Optional<StageTask> retargetForRetry(StageTask failed, Exception cause) {
+        if (!(failed instanceof ShardStageTask shardTask)) {
+            return Optional.empty();
+        }
+        if (!(shardTask.target() instanceof ShardExecutionTarget shardTarget)) {
+            return Optional.empty();
+        }
+        ShardExecutionTarget nextCopy = shardTarget.nextCopy(cause);
+        if (nextCopy == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new ShardStageTask(shardTask.id(), nextCopy));
+    }
+
     // FOLLOW-UP: per-stage cancel granularity. Today AbstractStageExecution.cancel cancels
     // the whole parent task (via ct.cancel) to terminate in-flight data-node Flight streams.
     // That's coarse — fine for current query shapes (one failure means the query fails) but
@@ -93,21 +123,22 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      * offload: reordering would let isLast race ahead and drop earlier batches via the
      * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
      */
-    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ActionListener<Void> listener) {
+    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ShardStageTask task, ActionListener<Void> listener) {
+        final int sourceOrdinal = ((ShardExecutionTarget) task.target()).ordinal();
         return new StreamingResponseListener<>() {
             @Override
-            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+            public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 VectorSchemaRoot vsr = response.getRoot();
                 if (getState().isTerminal()) {
                     if (vsr != null) vsr.close();
-                    return;
+                    return false; // stage already settled — stop draining, let the caller cancel the stream
                 }
                 if (vsr == null) {
                     if (isLast) listener.onResponse(null);
-                    return;
+                    return true;
                 }
                 try {
-                    outputSink.feed(vsr);
+                    outputSink.feed(vsr, sourceOrdinal);
                 } catch (Exception e) {
                     // Sink didn't take ownership — close the VSR before surfacing.
                     RuntimeException wrapped = new RuntimeException("Stage " + getStageId() + " sink feed failed", e);
@@ -117,10 +148,26 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                         wrapped.addSuppressed(closeFailure);
                     }
                     listener.onFailure(wrapped);
-                    return;
+                    return false;
                 }
                 metrics.addRowsProcessed(vsr.getRowCount());
+                // Downstream consumer satisfied (e.g. a LimitExec above the reduce finished and dropped
+                // this input's receiver). Settle this task as success and tell the caller to cancel the
+                // stream so this shard stops scanning instead of feeding batches that will be discarded.
+                // Each input reacts independently on its own stream.
+                if (outputSink.isConsumerDone()) {
+                    listener.onResponse(null);
+                    return false;
+                }
                 if (isLast) listener.onResponse(null);
+                return true;
+            }
+
+            @Override
+            public void onStreamComplete(byte[] trailingMetadata) {
+                if (trailingMetadata != null) {
+                    task.setDataNodeMetrics(trailingMetadata);
+                }
             }
 
             @Override

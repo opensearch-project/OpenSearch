@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.opensearch.be.datafusion.stats.AdaptiveBudgetStats;
+import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -20,10 +22,10 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 240 (30 × 8). */
+    /** 7.1: Layout byte size must be 600 (75 × 8). */
     public void testLayoutByteSize() {
-        assertEquals(240L, StatsLayout.LAYOUT.byteSize());
-        assertEquals(30 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+        assertEquals(600L, StatsLayout.LAYOUT.byteSize());
+        assertEquals(75 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
     }
 
     /** 7.2: readRuntimeMetrics decodes 9 known values from io_runtime group. */
@@ -48,7 +50,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
         }
     }
 
-    /** 7.3: readTaskMonitor decodes 3 known values from coordinator_reduce group. */
+    /** 7.3: readTaskMonitor decodes 5 known values from coordinator_reduce group. */
     public void testReadTaskMonitorFromSegment() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
@@ -56,11 +58,15 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             seg.setAtIndex(ValueLayout.JAVA_LONG, 18, 100L);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 19, 200L);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 20, 300L);
+            seg.setAtIndex(ValueLayout.JAVA_LONG, 21, 400L);
+            seg.setAtIndex(ValueLayout.JAVA_LONG, 22, 395L);
 
             var tm = StatsLayout.readTaskMonitor(seg, "coordinator_reduce");
             assertEquals(100L, tm.totalPollDurationMs);
             assertEquals(200L, tm.totalScheduledDurationMs);
             assertEquals(300L, tm.totalIdleDurationMs);
+            assertEquals(400L, tm.instrumentedCount);
+            assertEquals(395L, tm.droppedCount);
         }
     }
 
@@ -102,6 +108,50 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             assertNotNull(cpuRuntime);
             assertEquals(5L, cpuRuntime.workersCount);
             assertEquals(100L, cpuRuntime.totalPollsCount);
+        }
+    }
+
+    /** 7.6: readPartitionGate decodes 8 fields including pendingAcquirePermits and pendingAcquireBatches from fragment_executor_gate. */
+    public void testReadPartitionGateFromSegment() {
+        try (var arena = Arena.ofConfined()) {
+            var seg = arena.allocate(StatsLayout.LAYOUT);
+            // fragment_executor_gate starts at index:
+            // 2 runtimes × 9 = 18, + 4 task monitors × 5 = 20 → starts at index 38
+            int gateStart = 18 + 20; // = 38
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart, 12L);     // max_permits
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 1, 3L);  // active_permits
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 2, 456L);// total_wait_duration_ms
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 3, 100L);// total_batches_started
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 4, 1L);  // poison_permits
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 5, 12L); // target_max_permits
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 6, 5L);  // pending_acquire_permits
+            seg.setAtIndex(ValueLayout.JAVA_LONG, gateStart + 7, 2L);  // pending_acquire_batches
+
+            PartitionGateStats gate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate");
+            assertEquals(12L, gate.maxPermits);
+            assertEquals(3L, gate.activePermits);
+            assertEquals(456L, gate.totalWaitDurationMs);
+            assertEquals(100L, gate.totalBatchesStarted);
+            assertEquals(1L, gate.poisonPermits);
+            assertEquals(12L, gate.targetMaxPermits);
+            assertEquals(5L, gate.pendingAcquirePermits);
+            assertEquals(2L, gate.pendingAcquireBatches);
+        }
+    }
+
+    /** 7.7: readAdaptiveBudgetStats decodes 2 fields from adaptive_budget group. */
+    public void testReadAdaptiveBudgetStatsFromSegment() {
+        try (var arena = Arena.ofConfined()) {
+            var seg = arena.allocate(StatsLayout.LAYOUT);
+            // adaptive_budget starts at index:
+            // 2 runtimes × 9 = 18, + 4 task monitors × 5 = 20, + 1 gate × 8 = 8 → starts at index 46
+            int budgetStart = 18 + 20 + 8; // = 46
+            seg.setAtIndex(ValueLayout.JAVA_LONG, budgetStart, 15L);       // fallbacks
+            seg.setAtIndex(ValueLayout.JAVA_LONG, budgetStart + 1, 2L);    // rejections
+
+            AdaptiveBudgetStats bs = StatsLayout.readAdaptiveBudgetStats(seg);
+            assertEquals(15L, bs.fallbacks);
+            assertEquals(2L, bs.rejections);
         }
     }
 }

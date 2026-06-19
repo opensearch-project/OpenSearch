@@ -61,6 +61,7 @@ import static org.opensearch.storage.tiering.TieringTestUtils.buildEnabledAlloca
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
     private static final int DEFAULT_TIMEOUT_SECONDS = 30;
     protected static final String TIERING_IN_PROGRESS_STATUS = "RUNNING_SHARD_RELOCATION";

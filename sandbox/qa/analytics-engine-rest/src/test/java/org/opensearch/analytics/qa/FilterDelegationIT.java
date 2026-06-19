@@ -8,9 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Request;
-import org.opensearch.client.Response;
 
 import java.util.List;
 import java.util.Map;
@@ -31,7 +29,6 @@ import java.util.Map;
  * {@code FilterDelegationHandle} to count calls and exposes the count via REST — a
  * bigger surface than this IT warrants, so deferred.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class FilterDelegationIT extends AnalyticsRestTestCase {
 
     private static final String INDEX_NAME = "filter_delegation_e2e";
@@ -41,7 +38,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -76,7 +73,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -110,7 +107,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -136,7 +133,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // 10 docs tag='hello' value=5 + 10 docs tag='goodbye' value=3.
         // match(message,'hello') OR value > 4 → 10 hello docs ∪ 10 value=5 docs (same set) = 10.
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or value > 4 | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -157,7 +154,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         // NOT(match(message,'hello')) → 10 goodbye docs.
         String ppl = "source = " + INDEX_NAME + " | where not match(message, 'hello') | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -180,7 +177,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         // dc(value) over docs matching match(message,'hello') → all values are 5 → 1 distinct.
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats dc(value) as d";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -204,7 +201,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // 10 docs match all three: match(message,'hello') AND tag='hello' AND value=5.
         String ppl = "source = " + INDEX_NAME
             + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -224,7 +221,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // sum(value) over the 10 matching docs (value=5 each) → 50.
         String ppl = "source = " + INDEX_NAME
             + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats sum(value) as s";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -232,112 +229,193 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals(50L, ((Number) rows.get(0).get(0)).longValue());
     }
 
+    // ---- Combining delegation tests ----
+
     /**
-     * Verifies that the node-level query cache is populated by delegated MATCH queries.
-     *
-     * <p>Uses {@code /_nodes/stats/indices/query_cache} to assert that:
-     * <ol>
-     *   <li>After warming the query past the caching frequency threshold, the cache size grows.</li>
-     *   <li>Subsequent executions produce cache hits (hit_count increases).</li>
-     * </ol>
-     *
-     * <p>The test cluster must be configured with:
-     * <ul>
-     *   <li>{@code indices.queries.cache.all_segments=true} — bypasses the 10k-doc minimum segment size</li>
-     *   <li>{@code indices.queries.cache.costly_min_frequency=1} — cache multi-term queries on first use</li>
-     *   <li>{@code indices.queries.cache.min_frequency=2} — cache BooleanQuery after 1 use</li>
-     * </ul>
-     *
-     * <p>MATCH('hello world') on a text field produces a BooleanQuery(TermQuery("hello"), TermQuery("world"))
-     * which is subject to caching under the configured policy.
+     * match(message,'hello') AND tag='hello' AND value=5
+     * correctness (match) + performance (tag=) + native (value=) under AND.
+     * Both delegations combined separately; result = 50.
      */
-    /**
-     * Verifies that the node-level query cache is populated by delegated MATCH queries.
-     *
-     * <p>Uses {@code /_nodes/stats/indices/query_cache} to assert that repeated executions
-     * of the same delegated BooleanQuery produce cache hits.
-     *
-     * <p>Requirements for the cache to activate:
-     * <ul>
-     *   <li>Segment must have >= 10,000 docs (default MinSegmentSizePredicate)</li>
-     *   <li>Query must be seen minFrequency times (default 5, minus 1 for BooleanQuery = 4)</li>
-     * </ul>
-     *
-     * <p>We lower {@code indices.queries.cache.min_frequency} to 2 (dynamic setting) so a
-     * BooleanQuery is cached after just 1 use. We index 10,000+ docs to pass the segment size threshold.
-     */
-    public void testMatchDelegation_queryCacheHitOnRepeat() throws Exception {
-        configureCacheFrequency();
-        createCacheTestIndex();
-        indexBulkDocs(11000);
-
-        // Multi-term match → BooleanQuery(TermQuery("hello"), TermQuery("world"))
-        String ppl = "source = " + CACHE_INDEX_NAME + " | where match(message, 'hello world') | stats count() as c";
-
-        // Snapshot cache size before any query — should be empty for this index
-        long cacheSizeBefore = getQueryCacheCacheSize();
-
-        // First call — registers query with the caching policy but does NOT cache yet
-        // (min_frequency=2, BooleanQuery gets -1 discount → needs 1 use before caching)
-        Map<String, Object> result1 = executePPL(ppl);
+    public void testAndCorrectnessAndPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows1 = (List<List<Object>>) result1.get("rows");
-        assertNotNull(rows1);
-        assertEquals(1, rows1.size());
-        long count = ((Number) rows1.get(0).get(0)).longValue();
-        assertTrue("Should match the 'hello world' docs", count > 0);
-
-        long cacheSizeAfterFirst = getQueryCacheCacheSize();
-        assertEquals(
-            "Cache should NOT be populated before frequency threshold is met",
-            cacheSizeBefore,
-            cacheSizeAfterFirst
-        );
-
-        // Second call — policy threshold met, cache populates the DocIdSet
-        executePPL(ppl);
-
-        long cacheSizeAfterSecond = getQueryCacheCacheSize();
-        assertTrue(
-            "Cache should be populated after frequency threshold is met. Before: "
-                + cacheSizeAfterFirst + ", After: " + cacheSizeAfterSecond,
-            cacheSizeAfterSecond > cacheSizeAfterFirst
-        );
-
-        // Snapshot hit count after cache is populated
-        long hitsBefore = getQueryCacheHitCount();
-
-        // Third call — should produce a cache hit (same segment, same query, cached)
-        Map<String, Object> result3 = executePPL(ppl);
-        @SuppressWarnings("unchecked")
-        List<List<Object>> rows3 = (List<List<Object>>) result3.get("rows");
-        assertEquals(count, ((Number) rows3.get(0).get(0)).longValue());
-
-        long hitsAfter = getQueryCacheHitCount();
-        assertTrue(
-            "Query cache hit_count should increase after repeated delegated query. Before: " + hitsBefore + ", After: " + hitsAfter,
-            hitsAfter > hitsBefore
-        );
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
     }
 
-    private static final String CACHE_INDEX_NAME = "filter_delegation_cache_e2e";
-
-    private void configureCacheFrequency() throws Exception {
-        // BooleanQuery with default min_frequency=5 needs 4 uses to cache.
-        // Lower to 2 so it caches after 1 use (5-1=4 → 2-1=1).
-        Request settings = new Request("PUT", "/_cluster/settings");
-        settings.setJsonEntity("{"
-            + "\"transient\": {"
-            + "  \"indices.queries.cache.min_frequency\": 2,"
-            + "  \"indices.queries.cache.costly_min_frequency\": 1"
-            + "}"
-            + "}");
-        client().performRequest(settings);
+    /**
+     * tag='hello' AND value=5 (no correctness delegation, only performance + native under AND).
+     * Performance-delegated tag= combined; value= stays native. Result = 10.
+     */
+    public void testAndOnlyPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
     }
 
-    private void createCacheTestIndex() throws Exception {
+    /**
+     * match(message,'hello') OR tag='hello' AND value=5
+     * Precedence: match OR (tag= AND value=). Correctness under OR, perf under AND.
+     * Performance-delegated under OR stays native (not combined with correctness).
+     * Result: 10 (match 'hello') + 0 extra (tag='hello' AND value=5 is subset) = 10.
+     */
+    public void testOrCorrectnessWithPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * (match(message,'hello') AND tag='hello') OR (tag='goodbye' AND value=3)
+     * OR of two AND arms: left has correctness+perf, right has perf+native.
+     * Result: 10 (left arm) + 10 (right arm) = 20 (but overlap → 10 + 10 = 20 distinct docs).
+     */
+    public void testOrOfTwoAndArms() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME
+            + " | where (match(message, 'hello') and tag = 'hello') or (tag = 'goodbye' and value = 3) | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(20L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * OR(MATCH on text, EQUALS on keyword), oracle = 10. Both arms are Lucene-delegatable.
+     * Under {@code prefer=true} Lucene drives end-to-end (combiner skipped, no tree_shape).
+     * Under {@code prefer=false} the combiner runs: the dual-viable EQUALS can't stay
+     * performance-delegated under OR, and it has a correctness sibling (the MATCH), so both
+     * collapse into a single {@code delegated_predicate} — CONJUNCTIVE.
+     */
+    public void testOrCorrectnessAndPerf() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
         try {
-            client().performRequest(new Request("DELETE", "/" + CACHE_INDEX_NAME));
+            // prefer=true: Lucene drives end-to-end, no delegation instruction (no tree_shape).
+            assertShardStage(ppl, 10L, /* prefer */ true, "lucene", null);
+            // prefer=false: combiner runs — the dual-viable EQUALS can't stay performance-delegated
+            // under OR, and it has a correctness sibling (the MATCH), so both collapse into a single
+            // delegated_predicate — CONJUNCTIVE.
+            assertShardStage(ppl, 10L, /* prefer */ false, "datafusion", "CONJUNCTIVE");
+        } finally {
+            setPreferMetadataDriver(true);
+        }
+    }
+
+    /**
+     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The keyword EQUALS is dual-viable and,
+     * under the OR, is reclassified to correctness and shipped to Lucene; the integer EQUALS isn't
+     * Lucene-filterable and stays native. The two interleave under the OR → INTERLEAVED.
+     */
+    public void testOrTwoPerf() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
+        try {
+            // tag (keyword, dual) ships to Lucene under the OR; value (int, native) stays in
+            // DataFusion → the two interleave under the OR. Same shape both prefer modes.
+            assertShardStage(ppl, 20L, /* prefer */ true, "datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+            assertShardStage(ppl, 20L, /* prefer */ false, "datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+        } finally {
+            setPreferMetadataDriver(true);
+        }
+    }
+
+    /**
+     * Sets {@code prefer_metadata_driver}, then asserts the count oracle and the SHARD_FRAGMENT
+     * profile's {@code chosen_backend} / {@code tree_shape}. A {@code null} {@code treeShape} means
+     * the field must be absent (Lucene-as-driver, or no delegation instruction).
+     */
+    private void assertShardStage(String ppl, long oracle, boolean prefer, String chosenBackend, String treeShape)
+        throws Exception {
+        setPreferMetadataDriver(prefer);
+        String label = "prefer=" + prefer;
+        assertEquals(label + " — count", oracle, executeCount(ppl));
+        Map<String, Object> stage = shardFragmentStage(ppl);
+        assertEquals(label + " — chosen_backend", chosenBackend, stage.get("chosen_backend"));
+        assertEquals(label + " — tree_shape", treeShape, stage.get("tree_shape"));
+    }
+
+    private long executeCount(String ppl) throws Exception {
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        return ((Number) rows.get(0).get(0)).longValue();
+    }
+
+    private Map<String, Object> shardFragmentStage(String ppl) throws Exception {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Map<String, Object> explain = assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        for (Map<String, Object> stage : stages) {
+            if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
+        }
+        throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
+    }
+
+    private void setPreferMetadataDriver(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.planner.prefer_metadata_driver\": " + value + "}}");
+        client().performRequest(req);
+    }
+
+    private static final String KEYWORD_SUBFIELD_INDEX = "text_equals_keyword_subfield_e2e";
+
+    /**
+     * EQUALS on a {@code text} field that has a {@code .keyword} multifield must match the exact,
+     * case-sensitive value by routing the delegated term query to {@code <field>.keyword} — a term
+     * query does not analyze its input, so a term against the analyzed text field would compare the
+     * raw value (e.g. {@code "Engineer"}) to the lowercased indexed tokens ({@code "engineer"}) and
+     * match nothing. Before the fix this returned 0 rows; after, it matches via the keyword subfield.
+     */
+    public void testTextEqualsRoutesToKeywordSubfield() throws Exception {
+        createKeywordSubfieldIndex();
+
+        // 7 docs occupation="Engineer", 3 docs occupation="Doctor" (mixed case on purpose).
+        String exact = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'Engineer' | stats count() as c";
+        List<List<Object>> exactRows = rowsOf(executePplViaShim(exact));
+        assertEquals("scalar agg returns 1 row", 1, exactRows.size());
+        assertEquals("EQUALS on text field matches the exact (case-sensitive) keyword value", 7L,
+            ((Number) exactRows.get(0).get(0)).longValue());
+
+        // The lowercased form must NOT match: routing to .keyword is exact/case-sensitive, so
+        // 'engineer' != 'Engineer'. (A term query on the analyzed text field would wrongly match
+        // here — this asserts we are on the keyword path, not the analyzed-text path.)
+        String wrongCase = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'engineer' | stats count() as c";
+        List<List<Object>> wrongCaseRows = rowsOf(executePplViaShim(wrongCase));
+        assertEquals("lowercase value must not match the exact keyword value", 0L,
+            ((Number) wrongCaseRows.get(0).get(0)).longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rowsOf(Map<String, Object> result) {
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        return rows;
+    }
+
+    private void createKeywordSubfieldIndex() throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + KEYWORD_SUBFIELD_INDEX));
         } catch (Exception ignored) {}
 
         String body = "{"
@@ -351,67 +429,36 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
-            + "    \"message\": { \"type\": \"text\" },"
-            + "    \"tag\": { \"type\": \"keyword\" }"
+            + "    \"occupation\": { \"type\": \"text\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } },"
+            + "    \"value\": { \"type\": \"integer\" }"
             + "  }"
             + "}"
             + "}";
 
-        Request createIdx = new Request("PUT", "/" + CACHE_INDEX_NAME);
-        createIdx.setJsonEntity(body);
-        assertOkAndParse(client().performRequest(createIdx), "Create cache test index");
+        Request createIndex = new Request("PUT", "/" + KEYWORD_SUBFIELD_INDEX);
+        createIndex.setJsonEntity(body);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index");
+        assertEquals(true, response.get("acknowledged"));
 
-        Request health = new Request("GET", "/_cluster/health/" + CACHE_INDEX_NAME);
+        Request health = new Request("GET", "/_cluster/health/" + KEYWORD_SUBFIELD_INDEX);
         health.addParameter("wait_for_status", "green");
         health.addParameter("timeout", "30s");
         client().performRequest(health);
-    }
 
-    private void indexBulkDocs(int count) throws Exception {
-        int batchSize = 1000;
-        for (int batch = 0; batch < count; batch += batchSize) {
-            StringBuilder bulk = new StringBuilder();
-            int end = Math.min(batch + batchSize, count);
-            for (int i = batch; i < end; i++) {
-                bulk.append("{\"index\": {}}\n");
-                if (i % 2 == 0) {
-                    bulk.append("{\"message\": \"hello world\", \"tag\": \"hello\"}\n");
-                } else {
-                    bulk.append("{\"message\": \"goodbye world\", \"tag\": \"goodbye\"}\n");
-                }
-            }
-            Request bulkRequest = new Request("POST", "/" + CACHE_INDEX_NAME + "/_bulk");
-            bulkRequest.setJsonEntity(bulk.toString());
-            bulkRequest.addParameter("refresh", "false");
-            client().performRequest(bulkRequest);
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 7; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Engineer\", \"value\": 5}\n");
         }
-        // Single flush to get one big segment
-        client().performRequest(new Request("POST", "/" + CACHE_INDEX_NAME + "/_flush?force=true"));
-    }
-
-    @SuppressWarnings("unchecked")
-    private long getQueryCacheHitCount() throws Exception {
-        return getQueryCacheStat("hit_count");
-    }
-
-    @SuppressWarnings("unchecked")
-    private long getQueryCacheCacheSize() throws Exception {
-        return getQueryCacheStat("cache_size");
-    }
-
-    @SuppressWarnings("unchecked")
-    private long getQueryCacheStat(String statName) throws Exception {
-        Request statsRequest = new Request("GET", "/_nodes/stats/indices/query_cache");
-        Map<String, Object> stats = entityAsMap(client().performRequest(statsRequest));
-        Map<String, Object> nodes = (Map<String, Object>) stats.get("nodes");
-        long total = 0;
-        for (Object nodeObj : nodes.values()) {
-            Map<String, Object> node = (Map<String, Object>) nodeObj;
-            Map<String, Object> indices = (Map<String, Object>) node.get("indices");
-            Map<String, Object> queryCache = (Map<String, Object>) indices.get("query_cache");
-            total += ((Number) queryCache.get(statName)).longValue();
+        for (int i = 0; i < 3; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Doctor\", \"value\": 3}\n");
         }
-        return total;
+        Request bulkRequest = new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_bulk");
+        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.addParameter("refresh", "true");
+        client().performRequest(bulkRequest);
+        client().performRequest(new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_flush?force=true"));
     }
 
     private void createIndex() throws Exception {
@@ -468,10 +515,4 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 }

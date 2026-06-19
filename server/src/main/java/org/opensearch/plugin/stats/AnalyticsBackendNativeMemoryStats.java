@@ -30,16 +30,12 @@ public class AnalyticsBackendNativeMemoryStats implements Writeable, ToXContentF
 
     private final long allocatedBytes;
     private final long residentBytes;
+    private final long purgeCount;
 
-    /**
-     * Constructs a new AnalyticsBackendNativeMemoryStats with the given metric values.
-     *
-     * @param allocatedBytes live malloc'd bytes tracked by jemalloc, or -1 on error
-     * @param residentBytes  physical RSS attributed to jemalloc arenas, or -1 on error
-     */
-    public AnalyticsBackendNativeMemoryStats(long allocatedBytes, long residentBytes) {
+    public AnalyticsBackendNativeMemoryStats(long allocatedBytes, long residentBytes, long purgeCount) {
         this.allocatedBytes = allocatedBytes;
         this.residentBytes = residentBytes;
+        this.purgeCount = purgeCount;
     }
 
     /**
@@ -51,6 +47,7 @@ public class AnalyticsBackendNativeMemoryStats implements Writeable, ToXContentF
     public AnalyticsBackendNativeMemoryStats(StreamInput in) throws IOException {
         this.allocatedBytes = in.readLong();
         this.residentBytes = in.readLong();
+        this.purgeCount = in.readLong();
     }
 
     /**
@@ -67,20 +64,26 @@ public class AnalyticsBackendNativeMemoryStats implements Writeable, ToXContentF
         return residentBytes;
     }
 
+    /**
+     * Returns the number of times jemalloc arenas have been purged.
+     */
+    public long getPurgeCount() {
+        return purgeCount;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(allocatedBytes);
         out.writeLong(residentBytes);
+        out.writeLong(purgeCount);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("native_memory");
-        builder.field("total_estimated_bytes", -1);
         builder.startObject("analytics_backend");
         builder.field("allocated_bytes", allocatedBytes);
         builder.field("resident_bytes", residentBytes);
-        builder.endObject();
+        builder.field("purge_count", purgeCount);
         builder.endObject();
         return builder;
     }

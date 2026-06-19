@@ -10,7 +10,6 @@ package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
@@ -90,13 +89,6 @@ public interface Committer extends CommitFileManager, Closeable {
     CommitStats getCommitStats();
 
     /**
-     * Returns information about the safe commit point for recovery decisions.
-     *
-     * @return the safe commit info
-     */
-    SafeCommitInfo getSafeCommitInfo();
-
-    /**
      * Discovers all persisted committed catalog snapshots from the backing store.
      * Returns them ordered oldest-first (by generation).
      * Returns empty list if no catalog snapshots have been committed.
@@ -105,4 +97,13 @@ public interface Committer extends CommitFileManager, Closeable {
      * @throws IOException if reading commits fails
      */
     List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
+
+    /**
+     * Marks the underlying store as corrupted. Called by the engine on a corruption-class
+     * failure so that the next shard recovery sees the store as unhealthy. Implementations
+     * that do not back a recoverable store may no-op.
+     *
+     * @param cause the corruption cause to record
+     */
+    default void markStoreCorrupted(IOException cause) {}
 }

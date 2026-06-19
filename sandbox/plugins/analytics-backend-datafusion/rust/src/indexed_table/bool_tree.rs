@@ -183,18 +183,16 @@ impl BoolNode {
         }
     }
 
-    /// Demote every `DelegationPossible` leaf to a plain `Predicate` carrying its
-    /// `original_expr`. Called when the filter classifies as `FilterClass::Tree`
-    /// (i.e. has any OR or NOT in its shape) — the bitmap-tree evaluator currently
-    /// has `unimplemented!()` arms for `DelegationPossible`, so any disjunctive query
-    /// containing a performance-delegated leaf would otherwise crash the data node.
+    /// Demote every `DelegationPossible` leaf to a plain native `Predicate`. Called for
+    /// `FilterClass::Tree` plans (any OR/NOT), whose evaluator can't run `DelegationPossible`.
+    /// The coordinator never puts perf directly under OR/NOT, but an AND-side perf leaf can ride
+    /// in a tree that still has a surviving OR/NOT (e.g. `tag=a AND (dual OR native)`); demoting
+    /// it to native keeps results correct, just skipping the opportunistic peer consult.
     ///
-    /// Demotion is a uniform, position-blind transform: every DelegationPossible in
-    /// the tree becomes a Predicate, even ones under all-AND ancestry within the
-    /// tree. That sacrifices the AND-side perf-delegation opportunity for those
-    /// queries — acceptable v1 trade-off — in exchange for "doesn't crash."
-    /// Position-aware demotion (only OR/NOT-positioned leaves) would need
-    /// DelegationPossible support in the bitmap-tree evaluator.
+    /// FIXME: move this Tree-classification awareness into the coordinator so it never emits a
+    /// `delegation_possible` that reaches a Tree plan; then this method goes away and the
+    /// evaluator arms can throw. Pairs with implementing performance delegation under OR/NOT in
+    /// the Tree-path evaluator.
     pub fn demote_delegation_possible(self) -> BoolNode {
         match self {
             BoolNode::And(children) => {
@@ -355,7 +353,7 @@ fn try_negate_cmp_expr(
     use datafusion::logical_expr::Operator;
     use datafusion::physical_expr::expressions::BinaryExpr;
 
-    let bin = expr.as_any().downcast_ref::<BinaryExpr>()?;
+    let bin = expr.downcast_ref::<BinaryExpr>()?;
     let flipped = match *bin.op() {
         Operator::Eq => Operator::NotEq,
         Operator::NotEq => Operator::Eq,
@@ -707,7 +705,6 @@ mod tests {
         match node {
             ResolvedNode::Predicate(expr) => {
                 let bin = expr
-                    .as_any()
                     .downcast_ref::<BinaryExpr>()
                     .expect("expected BinaryExpr leaf");
                 *bin.op()

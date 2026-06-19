@@ -21,7 +21,7 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
     // ── CACHE_SIZE_SETTING ────────────────────────────────────────────────────
 
     public void testCacheSizeDefault() {
-        assertEquals("25%", FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(Settings.EMPTY));
+        assertEquals("50%", FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(Settings.EMPTY));
     }
 
     public void testCacheSizeAcceptsPercentage() {
@@ -125,7 +125,7 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
     // ── BLOCK_SIZE_SETTING ────────────────────────────────────────────────────
 
     public void testBlockSizeDefault() {
-        assertEquals(new ByteSizeValue(64, ByteSizeUnit.MB), FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(Settings.EMPTY));
+        assertEquals(new ByteSizeValue(128, ByteSizeUnit.MB), FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(Settings.EMPTY));
     }
 
     public void testBlockSizeAcceptsMinimum() {
@@ -137,8 +137,8 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
 
     public void testBlockSizeAcceptsMaximum() {
         assertEquals(
-            new ByteSizeValue(256, ByteSizeUnit.MB),
-            FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(Settings.builder().put("block_cache.foyer.block_size", "256mb").build())
+            new ByteSizeValue(512, ByteSizeUnit.MB),
+            FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(Settings.builder().put("block_cache.foyer.block_size", "512mb").build())
         );
     }
 
@@ -152,7 +152,7 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
     public void testBlockSizeRejectsAboveMaximum() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(Settings.builder().put("block_cache.foyer.block_size", "257mb").build())
+            () -> FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(Settings.builder().put("block_cache.foyer.block_size", "513mb").build())
         );
     }
 

@@ -16,31 +16,31 @@ members = [
 
 [workspace.dependencies]
 # Arrow / Parquet
-arrow = { version = "=58.2.0", features = ["ffi"] }
-arrow-array = "=58.2.0"
-arrow-ipc = "=58.2.0"
-arrow-schema = "=58.2.0"
-arrow-buffer = "=58.2.0"
-parquet = "=58.2.0"
+arrow = { version = "=58.3.0", features = ["ffi"] }
+arrow-array = "=58.3.0"
+arrow-ipc = "=58.3.0"
+arrow-schema = "=58.3.0"
+arrow-buffer = "=58.3.0"
+parquet = "=58.3.0"
 
 # DataFusion
-datafusion = "=53.1.0"
-datafusion-expr = "=53.1.0"
-datafusion-datasource = "=53.1.0"
-datafusion-common = "=53.1.0"
-datafusion-execution = "=53.1.0"
-datafusion-physical-expr = "=53.1.0"
-datafusion-substrait = "=53.1.0"
+datafusion = "=54.0.0"
+datafusion-expr = "=54.0.0"
+datafusion-datasource = "=54.0.0"
+datafusion-common = "=54.0.0"
+datafusion-execution = "=54.0.0"
+datafusion-physical-expr = "=54.0.0"
+datafusion-substrait = "=54.0.0"
 
 # Async
-tokio = { version = "=1.51.0", features = ["full"] }
+tokio = { version = "=1.52.3", features = ["full"] }
 tokio-util = "=0.7.18"
 futures = "=0.3.32"
 tokio-stream = "=0.1.18"
 
 # Serialization
 prost = "=0.14.3"
-substrait = "=0.62.2"
+substrait = "=0.63.0"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 
@@ -54,9 +54,10 @@ log = "=0.4.29"
 # The feature switches to global-dynamic TLS model, compatible with runtime loading.
 tikv-jemallocator = { version = "=0.6.1", features = ["disable_initial_exec_tls", "profiling"] }
 tikv-jemalloc-ctl = { version = "=0.6.1", features = ["stats"] }
+tikv-jemalloc-sys = { version = "=0.6.1", features = ["stats"] }
 
 # Misc
-dashmap = { version = "=5.5.3", features = ["raw-api"] }
+dashmap = { version = "=5.5.3", features = ["raw-api", "serde"] }
 num_cpus = "=1.17.0"
 object_store = "=0.13.2"
 url = "=2.5.8"

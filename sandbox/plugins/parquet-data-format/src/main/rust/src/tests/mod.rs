@@ -164,24 +164,6 @@ fn test_close_multiple_times_same_file() {
 }
 
 #[test]
-fn test_sync_to_disk_success() {
-    let (_temp_dir, filename) = get_temp_file_path("test_flush.parquet");
-    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
-    cleanup_ffi_data(array_ptr, data_schema_ptr);
-    let _ = NativeParquetWriter::finalize_writer(filename.clone());
-    let result = NativeParquetWriter::sync_to_disk(filename);
-    assert!(result.is_ok());
-    cleanup_ffi_schema(schema_ptr);
-}
-
-#[test]
-fn test_flush_nonexistent_file() {
-    let result = NativeParquetWriter::sync_to_disk("nonexistent.parquet".to_string());
-    assert!(result.is_err());
-}
-
-#[test]
 fn test_complete_writer_lifecycle() {
     let (_temp_dir, filename) = get_temp_file_path("complete_workflow.parquet");
     let file_path = Path::new(&filename);
@@ -196,7 +178,6 @@ fn test_complete_writer_lifecycle() {
     assert!(close_result.is_ok());
     assert!(close_result.unwrap().is_some());
 
-    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
     assert!(file_path.exists());
     assert!(file_path.metadata().unwrap().len() > 0);
 
@@ -490,7 +471,6 @@ fn test_ipc_staging_complete_lifecycle_with_sync() {
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
 
-    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
     assert!(file_path.exists());
     assert!(file_path.metadata().unwrap().len() > 0);
 
@@ -498,7 +478,7 @@ fn test_ipc_staging_complete_lifecycle_with_sync() {
     assert_eq!(ids, vec![10, 20, 30, 40, 50, 60]);
 
     let read_metadata = NativeParquetWriter::get_file_metadata(filename.clone()).unwrap();
-    assert_eq!(read_metadata.num_rows(), 6);
+    assert_eq!(read_metadata.file_metadata().num_rows(), 6);
 
     cleanup_ffi_schema(schema_ptr);
 }
@@ -765,8 +745,8 @@ fn test_bloom_filter_default_when_no_settings() {
 
     let stored = SETTINGS_STORE.get(index_name).unwrap();
     assert_eq!(
-        stored.get_bloom_filter_enabled(), true,
-        "Default bloom_filter_enabled should be true when no settings exist"
+        stored.get_bloom_filter_enabled(), false,
+        "Default bloom_filter_enabled should be false when no settings exist"
     );
     drop(stored);
 
@@ -3296,8 +3276,8 @@ fn test_writer_properties_defaults_single_chunk() {
         "Default compression should be LZ4_RAW, got: {:?}", compression);
 
     // Default bloom filter is enabled
-    assert!(has_bloom_filter_in_parquet(&filename),
-        "Default bloom_filter_enabled should be true");
+    assert!(!has_bloom_filter_in_parquet(&filename),
+        "Default bloom_filter_enabled should be false");
 
     // Format version always stamped
     let format_version = read_format_version_from_parquet(&filename);
@@ -3340,8 +3320,8 @@ fn test_writer_properties_defaults_multi_chunk() {
         "Default compression should be LZ4_RAW in multi-chunk path, got: {:?}", compression);
 
     // Default bloom filter is enabled
-    assert!(has_bloom_filter_in_parquet(&filename),
-        "Default bloom_filter_enabled should be true in multi-chunk path");
+    assert!(!has_bloom_filter_in_parquet(&filename),
+        "Default bloom_filter_enabled should be false in multi-chunk path");
 
     // Format version always stamped
     let format_version = read_format_version_from_parquet(&filename);

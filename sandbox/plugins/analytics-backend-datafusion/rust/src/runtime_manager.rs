@@ -21,7 +21,7 @@ pub struct RuntimeManager {
 }
 
 impl RuntimeManager {
-    pub fn new(cpu_threads: usize) -> Self {
+    pub fn new(cpu_threads: usize, datanode_multiplier: f64, _coordinator_multiplier: f64) -> Self {
         let io_threads = cpu_threads * 2;
 
         let io_runtime = Arc::new(
@@ -47,7 +47,9 @@ impl RuntimeManager {
                 register_io_runtime(Some(io_handle.clone()));
             });
 
-        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder);
+        // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
+        let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
+        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
 
         let cpu_monitor = cpu_executor
             .handle()
@@ -82,7 +84,7 @@ mod tests {
     use super::*;
 
     fn test_mgr() -> RuntimeManager {
-        RuntimeManager::new(1)
+        RuntimeManager::new(1, 1.5, 1.5)
     }
 
     #[tokio::test]

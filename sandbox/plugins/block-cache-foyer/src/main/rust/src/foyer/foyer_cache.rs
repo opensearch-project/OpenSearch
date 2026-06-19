@@ -11,8 +11,8 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 use bytes::Bytes;
 use dashmap::DashMap;
 use foyer::{BlockEngineConfig, DeviceBuilder, FsDeviceBuilder,
@@ -21,6 +21,7 @@ use tokio_util::sync::CancellationToken;
 #[cfg(target_os = "linux")]
 use foyer::UringIoEngineConfig;
 
+use crate::key_index_store;
 use crate::range_cache::{CacheKey, SEPARATOR, key_byte_size};
 use crate::stats::FoyerStatsCounter;
 use crate::traits::BlockCache;
@@ -133,9 +134,23 @@ impl Drop for ActiveBytesGuard<'_> {
 /// The key index allows removing all cached entries sharing a common prefix
 /// in O(n) without requiring Foyer to support prefix-scan semantics.
 ///
-/// Shutdown: the background sweep task is cancelled immediately via [`CancellationToken`]
-/// when the cache is dropped — the task wakes from `tokio::select!` without waiting
-/// for the current sleep interval to expire.
+/// ## Recovery
+/// On startup the key_index is bulk-loaded from `key_index.json` inside `disk_dir`
+/// (written on graceful shutdown and periodically by the persist task). The Foyer
+/// disk data is recovered via `RecoverMode::Quiet`. Stale key_index entries (keys
+/// Foyer did not recover) are cleaned up by the background sweep task.
+///
+/// ## Persistence
+/// The key_index is written:
+/// 1. By the independent periodic persist task every `persist_interval_secs` seconds
+///    (when `used_bytes` has changed since the last write — zero-write when idle).
+/// 2. Unconditionally in `Drop` (graceful shutdown).
+/// On crash (`Drop` not called), only the Foyer disk data is recovered;
+/// key_index starts empty (same as before this feature was added).
+///
+/// Shutdown: the background sweep task and persist task are cancelled immediately via
+/// [`CancellationToken`] when the cache is dropped — both tasks wake from
+/// `tokio::select!` without waiting for the current sleep interval to expire.
 ///
 /// Stats: `get()` → hit/miss counts; `put()` → `used_bytes`; `evict_prefix()` → `removed_count`;
 /// background sweeper → `eviction_count` for disk-reclaimer evictions. Thread-safe.
@@ -156,9 +171,10 @@ pub struct FoyerCache {
     _runtime: Arc<tokio::runtime::Runtime>,
     /// Atomic stats counters. Exposed for FFM read via `foyer_snapshot_stats`.
     pub(crate) stats: Arc<FoyerStatsCounter>,
-    /// Signals the background sweep task to stop immediately when `FoyerCache` is dropped.
+    /// Signals the background sweep task and persist task to stop immediately when
+    /// `FoyerCache` is dropped.
     ///
-    /// Uses [`CancellationToken`] rather than `AtomicBool` so that the sweep loop can use
+    /// Uses [`CancellationToken`] rather than `AtomicBool` so that both loops can use
     /// `tokio::select!` and wake instantly on cancellation instead of waiting for the
     /// current sleep interval to expire before checking the flag.
     ///
@@ -197,12 +213,39 @@ pub struct FoyerCache {
     /// Only accessed inside the async task closure (captured by value) and in test builds
     /// via `should_skip_sweep()`.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) sweep_threshold_ratio: f64,
+    pub(crate) sweep_threshold_ratio: Arc<AtomicU64>,
+    /// Live-updatable sweep interval in seconds. `0` = disabled (task uses this only to sleep;
+    /// if changed to 0 while running, the task sleeps 0 s and immediately checks cancellation).
+    pub(crate) sweep_interval_secs: Arc<AtomicU64>,
+    /// Live-updatable persist interval in seconds. `0` = disabled.
+    pub(crate) persist_interval_secs: Arc<AtomicU64>,
+    /// Absolute path to the Foyer cache directory.
+    /// Used to write/read `key_index.json` for persistence and recovery.
+    pub(crate) cache_dir: PathBuf,
 }
 
 impl Drop for FoyerCache {
     fn drop(&mut self) {
-        // Cancel the background sweep task so it wakes immediately from tokio::select!.
+        // Unconditional final persist — graceful shutdown path.
+        // Writes the complete current key_index as the authoritative final snapshot.
+        // This supersedes any earlier periodic persist and ensures the most
+        // up-to-date state is available on the next restart.
+        // On crash (OOM, SIGKILL) Drop is not called; the cache restarts from the
+        // last periodic snapshot, or with an empty key_index if no snapshot exists.
+        if let Err(e) = key_index_store::save(&self.cache_dir, &self.key_index) {
+            native_bridge_common::log_info!(
+                "[block-cache] key_index final persist FAILED on shutdown: {}",
+                e
+            );
+        } else {
+            native_bridge_common::log_info!(
+                "[block-cache] key_index persisted on shutdown: {} prefix buckets, dir={}",
+                self.key_index.len(),
+                self.cache_dir.display()
+            );
+        }
+        // Cancel the background sweep task and persist task so they wake immediately
+        // from tokio::select! without waiting for the current sleep to expire.
         self.shutdown.cancel();
     }
 }
@@ -224,6 +267,9 @@ impl FoyerCache {
     ///   to run the sweep. If the ratio is below this threshold the sweep tick is skipped
     ///   (no-op). `0.0` = always sweep (threshold disabled). Range: `[0.0, 1.0]`.
     ///   Configurable via `block_cache.foyer.key_index_sweep_threshold`.
+    /// - `persist_interval_secs` — how often (in seconds) the independent persist task
+    ///   flushes the key_index to disk. `0` = disabled (only `Drop` persists).
+    ///   Configurable via `block_cache.foyer.key_index_persist_interval_seconds`.
     ///
     /// # Panics
     /// Panics if the Tokio runtime cannot be created or if Foyer fails to
@@ -232,16 +278,22 @@ impl FoyerCache {
         disk_bytes: usize,
         disk_dir: impl Into<PathBuf>,
         block_size_bytes: usize,
+        buffer_pool_size_bytes: usize,
+        submit_queue_size_threshold_bytes: usize,
         io_engine: &str,
         sweep_interval_secs: u64,
         sweep_threshold_ratio: f64,
+        persist_interval_secs: u64,
     ) -> Self {
-        let disk_dir = disk_dir.into();
+        let disk_dir: PathBuf = disk_dir.into();
+
         let key_index: Arc<DashMap<String, HashSet<String>>> = Arc::new(DashMap::new());
         let stats = FoyerStatsCounter::new();
 
         let rt = tokio::runtime::Runtime::new()
             .expect("[block-cache] failed to create Tokio runtime");
+        // Clone disk_dir only for the async closure; the original is moved into cache_dir
+        // after block_on returns.
         let dir_clone = disk_dir.clone();
         let io_engine = io_engine.to_string();
         let io_engine_for_log = io_engine.clone();  // clone for use in log after the closure
@@ -254,23 +306,14 @@ impl FoyerCache {
                     // to 1 byte opts out of DRAM caching. All entries go directly to the
                     // disk tier (FsDevice) below.
                 .storage()
-                // On restart Foyer would recover disk data into its internal Indexer, but
-                // key_index is in-memory and always starts empty. get() never populates
-                // key_index — only put() does — so evict_prefix() would silently miss all
-                // recovered entries, leaving stale data on disk after shard deletion.
-                // RecoverMode::None skips recovery so disk and key_index start consistent.
-                // (Rebuilding key_index from recovered state is not possible: HybridCache
-                // exposes no iterator over recovered entries, and the internal Indexer is
-                // keyed by u64 hash so original key strings cannot be recovered from it.)
-                .with_recover_mode(RecoverMode::None)
+                // RecoverMode::Quiet recovers existing disk entries into Foyer's in-RAM
+                // index without raising an error on corrupted pages. Together with
+                // recover_key_index() this ensures disk data and key_index are consistent
+                // after a graceful restart.
+                // On a fresh directory (clean startup) Quiet behaves identically to None.
+                .with_recover_mode(RecoverMode::Quiet)
                 .with_io_engine_config(build_io_engine_config(&io_engine))
                 .with_engine_config(
-                    // block_size is the disk I/O unit and the maximum size for a single entry.
-                    // Multiple smaller entries are packed together into one block by Foyer.
-                    // If an entry is larger than block_size it is silently dropped — put()
-                    // succeeds but the entry is never stored, causing a cache miss on the next read.
-                    // Set this to the largest expected entry size (e.g. 64 MB for Parquet row groups).
-                    // Configurable via block_cache.foyer.block_size (default: 64 MB).
                     BlockEngineConfig::new(
                         FsDeviceBuilder::new(dir_clone)
                             .with_capacity(disk_bytes)
@@ -278,77 +321,34 @@ impl FoyerCache {
                             .expect("[block-cache] FsDevice build failed")
                     )
                     .with_block_size(block_size_bytes)
+                    .with_buffer_pool_size(buffer_pool_size_bytes)
+                    .with_submit_queue_size_threshold(submit_queue_size_threshold_bytes)
                 )
                 .build()
                 .await
                 .expect("[block-cache] HybridCache build failed")
         });
         native_bridge_common::log_info!(
-            "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, sweep_threshold={:.0}%, dir={}",
+            "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, sweep_threshold={:.0}%, \
+             persist_interval={}s, dir={}",
             disk_bytes, block_size_bytes, io_engine_for_log,
-            sweep_threshold_ratio * 100.0, disk_dir.display()
+            sweep_threshold_ratio * 100.0,
+            if persist_interval_secs == 0 { "disabled".to_string() } else { persist_interval_secs.to_string() },
+            disk_dir.display()
         );
-
-        // CancellationToken is Clone and Send — cheap to share with the background task.
+        // CancellationToken is Clone and Send — cheap to share with background tasks.
         let shutdown = CancellationToken::new();
 
         // Sweep cursor starts at shard 0 and advances by one per sweep call,
         // rotating through all shards over successive intervals.
         let sweep_cursor = Arc::new(AtomicUsize::new(0));
 
-        // Spawn the background key_index sweeper: removes entries silently evicted by Foyer's
-        // disk reclaimer. inner.contains() is an in-RAM index lookup (no disk I/O).
-        // sweep_interval_secs > 0 required to spawn; 0 means sweep is disabled.
-        if sweep_interval_secs > 0 {
-            let sweep_token = shutdown.clone();
-            let sweep_inner = inner.clone();
-            let sweep_key_index = Arc::clone(&key_index);
-            let sweep_stats = Arc::clone(&stats);
-            let sweep_cursor_clone = Arc::clone(&sweep_cursor);
-            let sweep_interval = Duration::from_secs(sweep_interval_secs);
-            // disk_bytes and sweep_threshold_ratio are Copy — captured by value into the closure.
-            let sweep_disk_bytes = disk_bytes;
-            let sweep_threshold = sweep_threshold_ratio;
+        // ── Construct instance ────────────────────────────────────────────────
+        let sweep_threshold_atomic = Arc::new(AtomicU64::new(sweep_threshold_ratio.to_bits()));
+        let sweep_interval_atomic   = Arc::new(AtomicU64::new(sweep_interval_secs));
+        let persist_interval_atomic = Arc::new(AtomicU64::new(persist_interval_secs));
 
-            rt.spawn(async move {
-                native_bridge_common::log_info!(
-                    "[block-cache] sweep task started: interval={}s, threshold={:.0}%",
-                    sweep_interval_secs,
-                    sweep_threshold * 100.0
-                );
-                loop {
-                    // Race sleep vs cancellation: wakes immediately on drop, not after interval.
-                    tokio::select! {
-                        _ = tokio::time::sleep(sweep_interval) => {
-                            // Usage-ratio guard: skip the sweep entirely when the cache is
-                            // below the threshold, avoiding unnecessary DashMap iteration.
-                            // sweep_threshold == 0.0 disables the guard (always sweep).
-                            if sweep_threshold > 0.0 {
-                                let used = sweep_stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
-                                let usage_ratio = used as f64 / sweep_disk_bytes as f64;
-                                if usage_ratio < sweep_threshold {
-                                    native_bridge_common::log_debug!(
-                                        "[block-cache] sweep skipped: usage={:.1}% < threshold={:.1}%",
-                                        usage_ratio * 100.0,
-                                        sweep_threshold * 100.0
-                                    );
-                                    continue;
-                                }
-                            }
-                            Self::reconcile_key_index(
-                                &sweep_key_index, &sweep_inner, &sweep_stats, &sweep_cursor_clone,
-                            );
-                        }
-                        _ = sweep_token.cancelled() => {
-                            native_bridge_common::log_info!("[block-cache] sweep task stopped");
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-
-        Self {
+        let mut instance = Self {
             inner,
             key_index,
             _runtime: Arc::new(rt),
@@ -356,8 +356,217 @@ impl FoyerCache {
             shutdown,
             sweep_cursor,
             disk_bytes,
-            sweep_threshold_ratio,
+            sweep_threshold_ratio: sweep_threshold_atomic,
+            sweep_interval_secs:   sweep_interval_atomic,
+            persist_interval_secs: persist_interval_atomic,
+            cache_dir: disk_dir,  // move: dir_clone was consumed by block_on, disk_dir is still owned
+        };
+
+        // Bulk-load key_index from disk.
+        // On clean startup or crash: load_or_empty() returns empty silently.
+        instance.recover_key_index();
+
+        // ── Spawn background sweep task ───────────────────────────────────────
+        // Spawn the background key_index sweeper: removes entries silently evicted by Foyer's
+        // disk reclaimer. inner.contains() is an in-RAM index lookup (no disk I/O).
+        // sweep_interval_secs > 0 required to spawn; 0 means sweep is disabled.
+        if sweep_interval_secs > 0 {
+            let sweep_token = instance.shutdown.clone();
+            let sweep_inner = instance.inner.clone();
+            let sweep_key_index = Arc::clone(&instance.key_index);
+            let sweep_stats = Arc::clone(&instance.stats);
+            let sweep_cursor_clone = Arc::clone(&instance.sweep_cursor);
+            let sweep_interval_atomic_clone = Arc::clone(&instance.sweep_interval_secs);
+            let sweep_threshold_atomic_clone = Arc::clone(&instance.sweep_threshold_ratio);
+            let sweep_disk_bytes = disk_bytes;
+
+            instance._runtime.spawn(async move {
+                native_bridge_common::log_info!(
+                    "[block-cache] sweep task started: interval={}s", sweep_interval_secs
+                );
+                let mut restart_count = 0u32;
+                loop {
+                    'inner: loop {
+                        // Read interval on each tick — allows live update without restart.
+                        let current_secs = sweep_interval_atomic_clone.load(Ordering::Relaxed);
+                        let interval = if current_secs == 0 {
+                            Duration::from_secs(3600) // effectively disabled: sleep 1 hour
+                        } else {
+                            Duration::from_secs(current_secs)
+                        };
+                        tokio::select! {
+                            _ = tokio::time::sleep(interval) => {
+                                if current_secs == 0 { continue 'inner; } // disabled
+                                let threshold = f64::from_bits(sweep_threshold_atomic_clone.load(Ordering::Relaxed));
+                                if threshold > 0.0 {
+                                    let used = sweep_stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
+                                    let ratio = used as f64 / sweep_disk_bytes as f64;
+                                    if ratio < threshold {
+                                        continue 'inner;
+                                    }
+                                    native_bridge_common::log_debug!(
+                                        "[block-cache] sweep running: usage={:.2}% >= threshold={:.2}%",
+                                        ratio * 100.0, threshold * 100.0
+                                    );
+                                }
+                                // Panic safety: a panic in reconcile_key_index must not kill the task.
+                                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                    Self::reconcile_key_index(
+                                        &sweep_key_index, &sweep_inner, &sweep_stats, &sweep_cursor_clone,
+                                    )
+                                }));
+                                if let Err(_panic_payload) = result {
+                                    native_bridge_common::log_error!(
+                                        "[block-cache] sweep task: reconcile_key_index panicked — sweep continuing"
+                                    );
+                                }
+                            }
+                            _ = sweep_token.cancelled() => {
+                                native_bridge_common::log_info!("[block-cache] sweep task stopped");
+                                return;
+                            }
+                        }
+                    }
+                    restart_count += 1;
+                    native_bridge_common::log_error!(
+                        "[block-cache] sweep task exited unexpectedly (restart #{})", restart_count
+                    );
+                    let backoff_secs = std::cmp::min(1u64 << restart_count.min(6), 60);
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    if sweep_token.is_cancelled() { return; }
+                }
+            });
         }
+
+        // ── Spawn independent persist task ────────────────────────────────────
+        // Persists the key_index whenever used_bytes changes, on a schedule independent
+        // of the sweep task. This allows different intervals for sweeping (expensive DashMap
+        // scan) vs persisting (cheap file write).
+        // persist_interval_secs > 0 required to spawn; 0 means disabled (Drop-only persist).
+        if persist_interval_secs > 0 {
+            let persist_token     = instance.shutdown.clone();
+            let persist_key_index = Arc::clone(&instance.key_index);
+            let persist_stats     = Arc::clone(&instance.stats);
+            let persist_dir       = instance.cache_dir.clone();
+            let persist_interval  = Duration::from_secs(persist_interval_secs);
+
+            instance._runtime.spawn(async move {
+                native_bridge_common::log_info!(
+                    "[block-cache] persist task started: interval={}s",
+                    persist_interval_secs
+                );
+                let mut restart_count = 0u32;
+                loop {
+                    // Reset sentinel on each loop entry so the first tick always persists.
+                    let mut last_persisted: i64 = i64::MIN;
+                    'inner: loop {
+                        tokio::select! {
+                            _ = tokio::time::sleep(persist_interval) => {
+                                let current = persist_stats.used_bytes.load(Ordering::Relaxed);
+                                if current != last_persisted {
+                                    // Panic safety: a panic in save must not kill the task.
+                                    let dir_clone = persist_dir.clone();
+                                    let ki_clone = Arc::clone(&persist_key_index);
+                                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        key_index_store::save(&dir_clone, &ki_clone)
+                                    }));
+                                    match result {
+                                        Ok(Ok(())) => {
+                                            last_persisted = current;
+                                        }
+                                        Ok(Err(e)) => {
+                                            // I/O error — do not update last_persisted, retry next tick.
+                                            native_bridge_common::log_info!(
+                                                "[block-cache] persist task FAILED: {}", e
+                                            );
+                                        }
+                                        Err(_panic_payload) => {
+                                            // Panic inside save — log error, continue loop.
+                                            native_bridge_common::log_error!(
+                                                "[block-cache] persist task: key_index_store::save panicked — persist continuing"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            _ = persist_token.cancelled() => {
+                                native_bridge_common::log_info!("[block-cache] persist task stopped");
+                                return;
+                            }
+                        }
+                    }
+                    restart_count += 1;
+                    native_bridge_common::log_error!(
+                        "[block-cache] persist task exited unexpectedly (restart #{})", restart_count
+                    );
+                    let backoff_secs = std::cmp::min(1u64 << restart_count.min(6), 60);
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    if persist_token.is_cancelled() { return; }
+                }
+            });
+        }
+
+        instance
+    }
+
+    /// Bulk-load the persisted key_index snapshot into the in-memory DashMap.
+    ///
+    /// # Design: no per-key validation (no `inner.contains()`)
+    /// All keys in the snapshot are inserted directly into `key_index` and
+    /// `used_bytes` is initialised to the sum of all their byte sizes.
+    ///
+    /// Rationale:
+    /// - When below `sweep_threshold_ratio`, Foyer LRU is not actively evicting →
+    ///   the snapshot is accurate. Any minor inaccuracy from entries LRU-evicted
+    ///   between the last periodic persist and shutdown is corrected by the sweep
+    ///   task within `shard_count × sweep_interval_secs` of startup.
+    /// - Skipping `contains()` avoids O(N) hash lookups at startup.
+    /// - The sweep task (already built and tested) handles stale key cleanup for
+    ///   both post-recovery and live-session stale entries uniformly.
+    ///
+    /// # `used_bytes` initialisation
+    /// Initialised to `sum(key_byte_size(k))` for ALL keys in the snapshot. May be
+    /// temporarily over-counted by keys Foyer LRU-evicted between the last periodic
+    /// persist and shutdown. Corrected by sweep.
+    ///
+    /// # Failure modes (all non-fatal)
+    /// - Missing file (clean startup or crash): silently treated as empty.
+    /// - Corrupt JSON or version mismatch: logged as WARN, treated as empty.
+    /// - I/O error: logged as WARN, treated as empty.
+    fn recover_key_index(&mut self) {
+        let t0 = Instant::now();
+        let snapshot = key_index_store::load_or_empty(&self.cache_dir);
+
+        if snapshot.is_empty() {
+            native_bridge_common::log_info!(
+                "[block-cache] key_index recovery: no snapshot (clean startup or crash), dir={}",
+                self.cache_dir.display()
+            );
+            return;
+        }
+
+        // Compute stats before moving snapshot.index into the DashMap.
+        let total_loaded: usize = snapshot.index.values().map(|s| s.len()).sum();
+        let recovered_bytes: i64 = snapshot.index.values()
+            .flat_map(|keys| keys.iter())
+            .map(|k| key_byte_size(k))
+            .sum();
+
+        // Bulk-insert each bucket: DashMap::insert only needs &self (interior mutability).
+        // No per-key inner.contains() — the sweep task corrects stale entries post-startup.
+        for (prefix, keys) in snapshot.index {
+            self.key_index.insert(prefix, keys);
+        }
+
+        // Initialise used_bytes. No put() calls have happened yet so it is 0.
+        self.stats.used_bytes.fetch_add(recovered_bytes, Ordering::Relaxed);
+
+        let elapsed_ms = t0.elapsed().as_millis() as u64;
+        native_bridge_common::log_info!(
+            "[block-cache] key_index recovered: total_keys={} recovered_bytes={} \
+             elapsed_ms={} prefix_buckets={}",
+            total_loaded, recovered_bytes, elapsed_ms, self.key_index.len()
+        );
     }
 
     /// Sweep one DashMap shard per call and advance the cursor.
@@ -445,11 +654,32 @@ impl FoyerCache {
     /// - `false` when `sweep_threshold_ratio > 0.0` AND `used_bytes / disk_bytes >= threshold`.
     #[cfg(test)]
     pub(crate) fn should_skip_sweep(&self) -> bool {
-        if self.sweep_threshold_ratio <= 0.0 {
+        let threshold = f64::from_bits(self.sweep_threshold_ratio.load(Ordering::Relaxed));
+        if threshold <= 0.0 {
             return false; // disabled: always sweep
         }
         let used = self.stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
-        (used as f64 / self.disk_bytes as f64) < self.sweep_threshold_ratio
+        (used as f64 / self.disk_bytes as f64) < threshold
+    }
+
+    /// Update the sweep threshold ratio atomically. Takes effect on next tick.
+    pub(crate) fn update_sweep_threshold(&self, new_ratio: f64) {
+        self.sweep_threshold_ratio.store(new_ratio.to_bits(), Ordering::Relaxed);
+        native_bridge_common::log_info!(
+            "[block-cache] sweep threshold updated live: {:.0}%", new_ratio * 100.0
+        );
+    }
+
+    /// Update the sweep interval live. `0` = disable sweep. Takes effect on next sleep.
+    pub(crate) fn update_sweep_interval(&self, new_secs: u64) {
+        self.sweep_interval_secs.store(new_secs, Ordering::Relaxed);
+        native_bridge_common::log_info!("[block-cache] sweep interval updated live: {}s", new_secs);
+    }
+
+    /// Update the persist interval live. `0` = disable periodic persist. Takes effect on next sleep.
+    pub(crate) fn update_persist_interval(&self, new_secs: u64) {
+        self.persist_interval_secs.store(new_secs, Ordering::Relaxed);
+        native_bridge_common::log_info!("[block-cache] persist interval updated live: {}s", new_secs);
     }
 
     /// Clear all entries synchronously. Called from the FFM layer.
@@ -576,6 +806,14 @@ impl BlockCache for FoyerCache {
             self.stats.removed_bytes.fetch_add(total_removed_bytes, Ordering::Relaxed);
         }
         let _ = self.inner.clear().await;
+
+        // Delete the persisted key_index files so the next startup does not bulk-load
+        // stale keys into a freshly-cleared cache.
+        if let Err(e) = key_index_store::delete(&self.cache_dir) {
+            native_bridge_common::log_info!(
+                "[block-cache] key_index clear: failed to delete snapshot files: {}", e
+            );
+        }
         })
     }
 }

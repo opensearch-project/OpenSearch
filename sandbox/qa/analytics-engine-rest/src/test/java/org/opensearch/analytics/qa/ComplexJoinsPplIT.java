@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Complex Joins PPL integration test (multi-index). Tests join operations across multiple indexes.
@@ -34,9 +33,14 @@ public class ComplexJoinsPplIT extends BasePplIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testComplexJoinsPplQueries() throws Exception {
         ensureAdditionalDataProvisioned();
         runPplQueries();
+    }
+
+    /** Queries that fail at 1 shard: join row-count / unsupported shapes. Skipped so the rest run and are visible. */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(1, 2, 3, 4, 7, 8, 9, 10);
     }
 }

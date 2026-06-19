@@ -18,6 +18,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -26,13 +28,19 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -43,10 +51,16 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Sandbox plugin that provides a {@link CompositeIndexingExecutionEngine} for
@@ -74,10 +88,15 @@ import java.util.function.Supplier;
  * {@code extendedPlugins = ['composite-engine']} in their {@code build.gradle}
  * and implementing {@link DataFormatPlugin}.
  *
+ * <p>Implements {@link ExtensiblePlugin} so that other data-format plugins (parquet, lucene)
+ * can declare {@code extendedPlugins=['composite-engine']} in their plugin descriptors. This
+ * makes composite-engine's bundled {@code plugin-stats-spi} classes available to those plugins'
+ * classloaders — ensuring all formats share the same {@link DataFormatStatsProviderRegistry}.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin {
+public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin, ExtensiblePlugin, MapperPlugin {
 
     private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
@@ -153,6 +172,19 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum total size of writer segments that will be merged inline during refresh.
+     * When the sum of all writer segment sizes exceeds this threshold, merge on refresh
+     * is skipped and segments are committed individually (background merge handles them later).
+     * Set to 0 to disable merge on refresh entirely.
+     */
+    public static final Setting<ByteSizeValue> MERGE_ON_REFRESH_MAX_SIZE = Setting.byteSizeSetting(
+        "index.composite.merge_on_refresh_max_size",
+        new ByteSizeValue(10, ByteSizeUnit.MB),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     public CompositeDataFormatPlugin() {}
 
     @Override
@@ -162,7 +194,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             SECONDARY_DATA_FORMATS,
             CLUSTER_PRIMARY_DATA_FORMAT,
             CLUSTER_SECONDARY_DATA_FORMATS,
-            CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+            CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING,
+            MERGE_ON_REFRESH_MAX_SIZE
         );
     }
 
@@ -299,6 +332,92 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         return Map.copyOf(descriptors);
     }
 
+    private List<DataFormat> getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        List<DataFormat> configured = new ArrayList<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            dataFormatRegistry.getRegisteredFormats()
+                .stream()
+                .filter(f -> f.name().equals(primaryFormatName))
+                .findFirst()
+                .ifPresent(configured::add);
+        }
+        secondaryFormatNames.stream()
+            .filter(name -> name != null && name.isEmpty() == false)
+            .map(name -> dataFormatRegistry.getRegisteredFormats().stream().filter(f -> f.name().equals(name)).findFirst().orElse(null))
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparingLong(DataFormat::priority))
+            .forEach(configured::add);
+        return List.copyOf(configured);
+    }
+
+    /**
+     * Assigns capabilities by delegating to primary format first, then secondaries in order.
+     * Each sub-format plugin claims the capabilities it supports; unclaimed capabilities are
+     * passed to the next format.
+     */
+    @Override
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
+        if (requested.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+
+        List<DataFormat> formats = getConfiguredFormats(indexSettings, dataFormatRegistry);
+        if (formats.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+
+        String typeName = fieldType.typeName();
+        Set<FieldTypeCapabilities.Capability> remaining = new HashSet<>(requested);
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> assigned = new HashMap<>();
+
+        for (DataFormat format : formats) {
+            if (remaining.isEmpty()) {
+                break;
+            }
+            Set<FieldTypeCapabilities.Capability> claimed = format.supportedFields()
+                .stream()
+                .filter(ftc -> ftc.fieldType().equals(typeName))
+                .findFirst()
+                .map(ftc -> {
+                    Set<FieldTypeCapabilities.Capability> intersection = EnumSet.noneOf(FieldTypeCapabilities.Capability.class);
+                    for (FieldTypeCapabilities.Capability cap : remaining) {
+                        if (ftc.capabilities().contains(cap)) {
+                            intersection.add(cap);
+                        }
+                    }
+                    return intersection;
+                })
+                .orElse(Set.of());
+            if (claimed.isEmpty() == false) {
+                assigned.put(format, Set.copyOf(claimed));
+                remaining.removeAll(claimed);
+            }
+        }
+
+        if (remaining.isEmpty() == false) {
+            throw new MapperParsingException(
+                "Field ["
+                    + fieldType.name()
+                    + "] of type ["
+                    + typeName
+                    + "] requires capabilities "
+                    + requested
+                    + " but configured data formats cannot collectively cover: "
+                    + remaining
+                    + ". Configured formats: "
+                    + formats.stream().map(DataFormat::name).collect(Collectors.toList())
+            );
+        }
+        fieldType.setCapabilityMap(Map.copyOf(assigned));
+    }
+
     /**
      * Returns the store strategies from every participating sub-format plugin
      * (primary + secondary), keyed by format name. Mirrors {@link #getFormatDescriptors}:
@@ -322,4 +441,10 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         }
         return Map.copyOf(strategies);
     }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(RowIdFieldMapper.CONTENT_TYPE, RowIdFieldMapper.PARSER);
+    }
+
 }

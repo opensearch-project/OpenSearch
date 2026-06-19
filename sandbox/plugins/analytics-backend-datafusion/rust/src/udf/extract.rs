@@ -10,14 +10,14 @@
 //! Composite units (e.g. DAY_MICROSECOND) join min-width-padded fields then parse as i64,
 //! so leading zeros on the first field collapse (`0709` → `709`). WEEK is ISO, DOW is Mon=1..Sun=7.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
 
-use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, NaiveTime, TimeZone, Timelike, Utc};
 use datafusion::arrow::array::{
-    Array, ArrayRef, AsArray, Int64Builder, TimestampMicrosecondArray,
+    Array, ArrayRef, AsArray, Int64Builder, StringArray, Time32MillisecondArray, Time32SecondArray,
+    Time64MicrosecondArray, Time64NanosecondArray, TimestampMicrosecondArray,
 };
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{exec_err, plan_err, Result, ScalarValue};
@@ -43,15 +43,11 @@ impl ExtractUdf {
     }
 }
 
-udf_identity!(ExtractUdf, "extract");
+udf_identity!(ExtractUdf, "opensearch_extract");
 
 impl ScalarUDFImpl for ExtractUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
-        "extract"
+        "opensearch_extract"
     }
 
     fn signature(&self) -> &Signature {
@@ -74,11 +70,15 @@ impl ScalarUDFImpl for ExtractUdf {
             other => return plan_err!("extract: arg 0 expected string unit, got {other:?}"),
         };
         let ts = match &arg_types[1] {
-            DataType::Timestamp(_, _) | DataType::Date32 | DataType::Date64
-            | DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
+            DataType::Timestamp(_, _) | DataType::Date32 | DataType::Date64 => {
                 DataType::Timestamp(TimeUnit::Microsecond, None)
             }
-            other => return plan_err!("extract: arg 1 expected timestamp/date/string, got {other:?}"),
+            // Keep Utf8 so we can parse both ISO datetimes and bare time-of-day
+            // strings internally (DataFusion's Utf8→Timestamp cast rejects the latter).
+            DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
+            // Time32/Time64: handle directly to avoid a Time→Timestamp cast kernel.
+            DataType::Time32(_) | DataType::Time64(_) => arg_types[1].clone(),
+            other => return plan_err!("extract: arg 1 expected timestamp/date/time/string, got {other:?}"),
         };
         Ok(vec![unit, ts])
     }
@@ -95,6 +95,12 @@ impl ScalarUDFImpl for ExtractUdf {
             let unit_str = scalar_utf8(unit)?;
             let micros = match ts {
                 ScalarValue::TimestampMicrosecond(v, _) => *v,
+                // Time-of-day → μs since 1970-01-01 so compute() reuses hour/minute/second.
+                ScalarValue::Time32Second(v) => v.map(|s| (s as i64) * 1_000_000),
+                ScalarValue::Time32Millisecond(v) => v.map(|ms| (ms as i64) * 1_000),
+                ScalarValue::Time64Microsecond(v) => *v,
+                ScalarValue::Time64Nanosecond(v) => v.map(|ns| ns / 1_000),
+                ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => v.as_deref().and_then(parse_string_to_micros),
                 other => return exec_err!("extract: unsupported ts scalar: {other:?}"),
             };
             let out = match (unit_str, micros) {
@@ -106,31 +112,124 @@ impl ScalarUDFImpl for ExtractUdf {
 
         let unit_arr = args.args[0].clone().into_array(n)?;
         let ts_arr = args.args[1].clone().into_array(n)?;
-        let ts = ts_arr
-            .as_any()
-            .downcast_ref::<TimestampMicrosecondArray>()
-            .ok_or_else(|| {
-                datafusion::common::DataFusionError::Execution(format!(
-                    "extract: expected Timestamp(Microsecond, None) after coercion, got {:?}",
-                    ts_arr.data_type()
-                ))
-            })?;
         let mut builder = Int64Builder::with_capacity(n);
-        for i in 0..n {
-            if ts.is_null(i) {
-                builder.append_null();
-                continue;
+        match ts_arr.data_type() {
+            DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                let ts = ts_arr
+                    .as_any()
+                    .downcast_ref::<TimestampMicrosecondArray>()
+                    .ok_or_else(|| time_array_downcast_err(ts_arr.data_type()))?;
+                fill_int_builder(&mut builder, &unit_arr, ts.len(), |i| {
+                    if ts.is_null(i) { None } else { Some(ts.value(i)) }
+                })?;
             }
-            match unit_at(&unit_arr, i)? {
-                None => builder.append_null(),
-                Some(u) => match compute(&u, ts.value(i)) {
-                    Some(v) => builder.append_value(v),
-                    None => builder.append_null(),
-                },
+            DataType::Time32(TimeUnit::Second) => {
+                let arr = ts_arr.as_any().downcast_ref::<Time32SecondArray>()
+                    .ok_or_else(|| time_array_downcast_err(ts_arr.data_type()))?;
+                fill_int_builder(&mut builder, &unit_arr, arr.len(), |i| {
+                    if arr.is_null(i) { None } else { Some((arr.value(i) as i64) * 1_000_000) }
+                })?;
+            }
+            DataType::Time32(TimeUnit::Millisecond) => {
+                let arr = ts_arr.as_any().downcast_ref::<Time32MillisecondArray>()
+                    .ok_or_else(|| time_array_downcast_err(ts_arr.data_type()))?;
+                fill_int_builder(&mut builder, &unit_arr, arr.len(), |i| {
+                    if arr.is_null(i) { None } else { Some((arr.value(i) as i64) * 1_000) }
+                })?;
+            }
+            DataType::Time64(TimeUnit::Microsecond) => {
+                let arr = ts_arr.as_any().downcast_ref::<Time64MicrosecondArray>()
+                    .ok_or_else(|| time_array_downcast_err(ts_arr.data_type()))?;
+                fill_int_builder(&mut builder, &unit_arr, arr.len(), |i| {
+                    if arr.is_null(i) { None } else { Some(arr.value(i)) }
+                })?;
+            }
+            DataType::Time64(TimeUnit::Nanosecond) => {
+                let arr = ts_arr.as_any().downcast_ref::<Time64NanosecondArray>()
+                    .ok_or_else(|| time_array_downcast_err(ts_arr.data_type()))?;
+                fill_int_builder(&mut builder, &unit_arr, arr.len(), |i| {
+                    if arr.is_null(i) { None } else { Some(arr.value(i) / 1_000) }
+                })?;
+            }
+            DataType::Utf8 => {
+                let arr = ts_arr.as_any().downcast_ref::<StringArray>()
+                    .ok_or_else(|| time_array_downcast_err(ts_arr.data_type()))?;
+                fill_int_builder(&mut builder, &unit_arr, arr.len(), |i| {
+                    if arr.is_null(i) { None } else { parse_string_to_micros(arr.value(i)) }
+                })?;
+            }
+            other => {
+                return exec_err!(
+                    "extract: expected Timestamp(Microsecond, None), Time32/Time64, or Utf8 after coercion, got {other:?}"
+                )
             }
         }
         Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
     }
+}
+
+fn time_array_downcast_err(dt: &DataType) -> datafusion::common::DataFusionError {
+    datafusion::common::DataFusionError::Execution(format!(
+        "extract: array downcast failed for type {dt:?}"
+    ))
+}
+
+/// Parses an ISO datetime or bare time-of-day string into μs since Unix epoch (UTC).
+/// Time-of-day is anchored at 1970-01-01. Returns None on parse failure.
+fn parse_string_to_micros(s: &str) -> Option<i64> {
+    let trimmed = s.trim();
+    for fmt in &[
+        "%Y-%m-%d %H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d",
+    ] {
+        if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(trimmed, fmt) {
+            return Some(naive.and_utc().timestamp_micros());
+        }
+        // %Y-%m-%d alone
+        if *fmt == "%Y-%m-%d" {
+            if let Ok(date) = chrono::NaiveDate::parse_from_str(trimmed, fmt) {
+                return Some(date.and_hms_opt(0, 0, 0)?.and_utc().timestamp_micros());
+            }
+        }
+    }
+    // Bare time-of-day → attach 1970-01-01.
+    for fmt in &["%H:%M:%S%.f", "%H:%M:%S", "%H:%M"] {
+        if let Ok(time) = NaiveTime::parse_from_str(trimmed, fmt) {
+            let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1)?;
+            return Some(date.and_time(time).and_utc().timestamp_micros());
+        }
+    }
+    None
+}
+
+/// Fills the int64 builder by reading per-row μs values via `value_at` and running
+/// them through `compute`. Time-of-day inputs are anchored at 1970-01-01.
+fn fill_int_builder<F>(
+    builder: &mut Int64Builder,
+    unit_arr: &ArrayRef,
+    n: usize,
+    value_at: F,
+) -> Result<()>
+where
+    F: Fn(usize) -> Option<i64>,
+{
+    for i in 0..n {
+        match value_at(i) {
+            None => builder.append_null(),
+            Some(v) => match unit_at(unit_arr, i)? {
+                None => builder.append_null(),
+                Some(u) => match compute(&u, v) {
+                    Some(out) => builder.append_value(out),
+                    None => builder.append_null(),
+                },
+            },
+        }
+    }
+    Ok(())
 }
 
 fn scalar_utf8(s: &ScalarValue) -> Result<Option<String>> {
@@ -169,6 +268,8 @@ fn extract_for_unit(unit: &str, dt: DateTime<Utc>) -> Option<i64> {
     let (dd, mo, yy) = (dt.day() as i64, dt.month() as i64, dt.year() as i64);
     match unit {
         "MICROSECOND" => Some(us),
+        // Millisecond fraction within the second (0..=999), matching SQL plugin semantics.
+        "MILLISECOND" => Some(us / 1_000),
         "SECOND" => Some(ss),
         "MINUTE" => Some(mm),
         "HOUR" => Some(hh),
@@ -238,6 +339,15 @@ mod tests {
         ] {
             assert_eq!(eval(unit), Some(want), "unit={unit}");
         }
+    }
+
+    #[test]
+    fn millisecond_returns_fraction_within_second() {
+        // Sample is 2020-03-15 10:30:45.123456 → ms fraction 123, μs fraction 123_456.
+        assert_eq!(eval("MILLISECOND"), Some(123));
+        assert_eq!(eval("millisecond"), Some(123));
+        // Boundary: a timestamp with no sub-second component → MILLISECOND = 0.
+        assert_eq!(compute("MILLISECOND", us(2024, 6, 15, 10, 30, 0)), Some(0));
     }
 
     #[test]

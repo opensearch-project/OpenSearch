@@ -54,6 +54,18 @@ pub const COLLECTOR_FUNCTION_NAME: &str = "delegated_predicate";
 /// DF's own pruning isn't selective enough for a row group).
 pub const DELEGATION_POSSIBLE_FUNCTION_NAME: &str = "delegation_possible";
 
+/// Walk the logical plan looking for `__row_id__` column in a projection.
+/// Its presence signals the executor to emit computed row IDs (query phase).
+pub fn plan_requests_row_ids(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Projection(proj) => proj.expr.iter().any(|e| match e {
+            Expr::Column(col) => col.name() == crate::ROW_ID_COLUMN_NAME,
+            _ => false,
+        }),
+        _ => plan.inputs().iter().any(|child| plan_requests_row_ids(child)),
+    }
+}
+
 /// Classification of a query's filter expression — drives the evaluator choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterClass {
@@ -76,13 +88,18 @@ pub struct ExtractionResult {
     pub tree: BoolNode,
 }
 
-/// Extract the filter expression from a DataFusion logical plan.
-///
-/// Walks down through Projection/SubqueryAlias/etc. nodes to find the first
-/// `Filter` node. Returns `None` if there's no filter.
+/// Extract the scan-level filter from a logical plan, skipping HAVING/window
+/// filters that sit above Aggregate or Window nodes (those reference derived
+/// columns that `expr_to_bool_tree` cannot resolve against the base schema).
 pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
     match plan {
-        LogicalPlan::Filter(filter) => Some(filter.predicate.clone()),
+        LogicalPlan::Filter(filter) => {
+            if has_aggregate_or_window_below(&filter.input) {
+                extract_filter_expr(&filter.input)
+            } else {
+                Some(filter.predicate.clone())
+            }
+        }
         _ => {
             for child in plan.inputs() {
                 if let Some(expr) = extract_filter_expr(child) {
@@ -91,6 +108,20 @@ pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
             }
             None
         }
+    }
+}
+
+fn has_aggregate_or_window_below(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Aggregate(_)
+        | LogicalPlan::Window(_)
+        | LogicalPlan::Join(_)
+        | LogicalPlan::Union(_) => true,
+        LogicalPlan::Projection(p) => has_aggregate_or_window_below(&p.input),
+        LogicalPlan::Sort(s) => has_aggregate_or_window_below(&s.input),
+        LogicalPlan::SubqueryAlias(s) => has_aggregate_or_window_below(&s.input),
+        LogicalPlan::Limit(l) => has_aggregate_or_window_below(&l.input),
+        _ => false,
     }
 }
 
@@ -359,9 +390,6 @@ impl PartialEq for IndexFilterUdf {
 impl Eq for IndexFilterUdf {}
 
 impl ScalarUDFImpl for IndexFilterUdf {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         COLLECTOR_FUNCTION_NAME
     }
@@ -421,9 +449,6 @@ impl PartialEq for DelegationPossibleUdf {
 impl Eq for DelegationPossibleUdf {}
 
 impl ScalarUDFImpl for DelegationPossibleUdf {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         DELEGATION_POSSIBLE_FUNCTION_NAME
     }
@@ -435,13 +460,24 @@ impl ScalarUDFImpl for DelegationPossibleUdf {
     }
     fn invoke_with_args(
         &self,
-        _args: ScalarFunctionArgs,
+        args: ScalarFunctionArgs,
     ) -> datafusion::common::Result<ColumnarValue> {
-        Err(datafusion::common::DataFusionError::Internal(format!(
-            "{} UDF body invoked — expr_to_bool_tree did not unwrap the marker; \
-                 treat as a serious correctness bug",
-            DELEGATION_POSSIBLE_FUNCTION_NAME
-        )))
+        // Pass-through: evaluate the original predicate (first arg) directly.
+        // Expected on the prepare_partial_plan path where FilterExec retains the
+        // delegation_possible wrapper. On the indexed path, expr_to_bool_tree should
+        // unwrap the marker before execution — log a warning if we reach here
+        // unexpectedly so correctness issues surface in logs without crashing.
+        log::warn!(
+            "delegation_possible UDF evaluated at runtime — expected only on \
+             prepare_partial_plan path; if this appears on a data-node indexed query, \
+             expr_to_bool_tree may have missed the marker"
+        );
+        args.args.into_iter().next().ok_or_else(|| {
+            datafusion::common::DataFusionError::Internal(format!(
+                "{} UDF invoked with no arguments",
+                DELEGATION_POSSIBLE_FUNCTION_NAME
+            ))
+        })
     }
 }
 

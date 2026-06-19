@@ -20,8 +20,21 @@ use datafusion::error::DataFusionError;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::oneshot;
 use tokio::task::AbortHandle;
 use tokio_stream::wrappers::ReceiverStream;
+
+/// Fires its `oneshot` when dropped. Held inside the spawned task body so the signal is sent on
+/// every exit path (drain, error, abort-unwind, panic).
+struct DoneGuard(Option<oneshot::Sender<()>>);
+
+impl Drop for DoneGuard {
+    fn drop(&mut self) {
+        if let Some(tx) = self.0.take() {
+            let _ = tx.send(());
+        }
+    }
+}
 
 // This is used to execute a DataFusion stream on a dedicated CPU executor but consume the results on
 // the main I/O runtime.
@@ -59,21 +72,24 @@ impl CrossRtStream {
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
     ) -> Self {
-        let (cross_rt, _abort_handle) = Self::new_with_df_error_stream_cancellable(stream, exec);
+        let (cross_rt, _abort_handle, _done_rx) = Self::new_with_df_error_stream_cancellable(stream, exec);
         cross_rt
     }
 
-    /// Like [`new_with_df_error_stream`](Self::new_with_df_error_stream), but also returns
-    /// an [`AbortHandle`] that can be used to cancel the CPU task externally.
+    /// Like [`new_with_df_error_stream`](Self::new_with_df_error_stream), but also returns an
+    /// [`AbortHandle`] and a `oneshot::Receiver` that fires once the spawned task has fully dropped
+    /// (completion or abort) — the barrier `stream_close` waits on before the allocator closes.
     pub fn new_with_df_error_stream_cancellable(
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
-    ) -> (Self, Option<AbortHandle>) {
+    ) -> (Self, Option<AbortHandle>, oneshot::Receiver<()>) {
         let schema = stream.schema();
         let (tx, rx) = channel(1);
         let tx_captured = tx.clone();
+        let (done_tx, done_rx) = oneshot::channel();
 
         let fut = async move {
+            let _done = DoneGuard(Some(done_tx));
             tokio::pin!(stream);
             while let Some(res) = stream.next().await {
                 if tx_captured.send(res).await.is_err() {
@@ -107,7 +123,7 @@ impl CrossRtStream {
             phantom_corrector: None,
         };
 
-        (cross_rt, abort_handle)
+        (cross_rt, abort_handle, done_rx)
     }
 
     pub fn schema(&self) -> SchemaRef {
@@ -175,7 +191,7 @@ mod tests {
     fn test_exec() -> DedicatedExecutor {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
         builder.worker_threads(2).enable_all();
-        DedicatedExecutor::new("test-cpu", builder)
+        DedicatedExecutor::new("test-cpu", builder, num_cpus::get())
     }
 
     fn test_schema() -> SchemaRef {
@@ -265,6 +281,48 @@ mod tests {
 
         let cross = CrossRtStream::new_with_df_error_stream(inner, exec.clone());
         assert_eq!(cross.schema(), schema);
+        exec.join_blocking();
+    }
+
+    // done_rx must fire only after the spawned task fully unwinds (its borrowed batches dropped),
+    // on both exit paths: full drain and abort.
+
+    #[tokio::test]
+    async fn done_rx_fires_after_full_drain() {
+        let exec = test_exec();
+        let schema = test_schema();
+        let inner = Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            stream::iter(vec![Ok(test_batch(&[1, 2, 3]))]),
+        ));
+
+        let (cross, _abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone());
+        let wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
+        tokio::pin!(wrapped);
+        while wrapped.next().await.is_some() {}
+
+        assert!(done_rx.await.is_ok(), "done_rx must fire once the spawned task fully drops");
+        exec.join_blocking();
+    }
+
+    #[tokio::test]
+    async fn done_rx_fires_after_abort() {
+        let exec = test_exec();
+        let schema = test_schema();
+        // Never-ending stream so the task is still live when we abort it.
+        let inner = Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            stream::pending::<Result<RecordBatch, DataFusionError>>(),
+        ));
+
+        let (cross, abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone());
+        // Hold the stream so the abort, not a drop, is what ends the task.
+        let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
+
+        abort.expect("cancellable constructor yields an abort handle").abort();
+
+        let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
+        assert!(fired.is_ok(), "done_rx must fire after the task is aborted");
         exec.join_blocking();
     }
 }

@@ -200,7 +200,7 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {
+        public void onStageSuccess(String queryId, int stageId, String stageType, long tookInNanos, long rowsProcessed) {
             events.add("onStageSuccess:" + stageId);
         }
 

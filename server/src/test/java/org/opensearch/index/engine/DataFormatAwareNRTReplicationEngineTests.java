@@ -33,6 +33,7 @@ import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -236,6 +237,163 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         // Simulate the primary having committed this snapshot (sets lastCommitGeneration).
         snapshot.setLastCommitInfo("segments_" + gen, gen, 0L);
         return snapshot;
+    }
+
+    // ---------- Constructor and stats cache initialization tests ----------
+
+    /**
+     * Verifies that the stats cache is initialized during DFANRE construction
+     * and that the cache is properly populated with committed state.
+     */
+    public void testConstructorInitializesStatsCacheWithCommittedState() throws IOException {
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
+            // Verify that the stats cache was initialized during construction
+            // by checking that it returns valid (non-null) stats
+            assertNotNull("stats cache should be initialized", engine.segmentsStats(false, false));
+            assertNotNull("docs stats should be initialized", engine.docStats());
+
+            // Verify segments are properly committed after construction
+            List<org.opensearch.index.engine.Segment> segments = engine.segments(false);
+            assertNotNull("segments list should be initialized", segments);
+
+            // For a fresh replica, segments list should be empty but cache should be committed/initialized
+            assertEquals("fresh replica should have 0 segments", 0, segments.size());
+
+            // The key test: verify that after construction, the engine is in a committed state
+            // This is verified by checking that commitStats() works (doesn't throw)
+            CommitStats commitStats = engine.commitStats();
+            assertNotNull("commit stats should be available after construction", commitStats);
+            assertTrue("commit generation should be >= 0 after construction", commitStats.getGeneration() >= 0);
+        }
+    }
+
+    /**
+     * Verifies that after replication, segments are properly committed due to
+     * the stats cache initialization during construction.
+     */
+    public void testSegmentsCommittedAfterReplicationDueToConstructorInit() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            // Apply a replication snapshot with segments
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("test.mock").addNumRows(5).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 5L, List.of(seg));
+
+            engine.updateCatalogSnapshot(incoming);
+
+            // Verify segments are committed after replication
+            List<org.opensearch.index.engine.Segment> segments = engine.segments(false);
+            assertEquals("should have 1 segment after replication", 1, segments.size());
+
+            org.opensearch.index.engine.Segment replicatedSeg = segments.get(0);
+            assertTrue("Segment should be searchable after replication", replicatedSeg.search);
+            assertTrue("Segment should be committed after replication", replicatedSeg.committed);
+
+            // Verify commit stats reflect the committed state
+            CommitStats commitStats = engine.commitStats();
+            assertNotNull("commit stats should be available after replication", commitStats);
+            assertTrue("commit generation should advance after replication", commitStats.getGeneration() > 0);
+        }
+    }
+
+    /**
+     * Verifies that flush operations result in properly committed segments,
+     * enabled by the stats cache initialization during construction.
+     */
+    public void testFlushResultsInCommittedSegmentsDueToConstructorInit() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            // Apply a replication snapshot
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("test.mock").addNumRows(3).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 3L, List.of(seg));
+
+            engine.updateCatalogSnapshot(incoming);
+
+            // Perform flush
+            engine.flush(false, true);
+
+            // Verify segments are committed after flush
+            List<org.opensearch.index.engine.Segment> segments = engine.segments(false);
+            assertEquals("should have 1 segment after flush", 1, segments.size());
+
+            org.opensearch.index.engine.Segment flushedSeg = segments.get(0);
+            assertTrue("Segment should be searchable after flush", flushedSeg.search);
+            assertTrue("Segment should be committed after flush", flushedSeg.committed);
+
+            // Verify the commit stats show committed state
+            CommitStats commitStats = engine.commitStats();
+            assertNotNull("commit stats should be available after flush", commitStats);
+            Map<String, String> userData = commitStats.getUserData();
+            assertNotNull("user data should be available in committed state", userData);
+            assertTrue("user data should contain translog UUID", userData.containsKey(Translog.TRANSLOG_UUID_KEY));
+            assertTrue("user data should contain history UUID", userData.containsKey(Engine.HISTORY_UUID_KEY));
+        }
+    }
+
+    /**
+     * Verifies that if getLastCommittedData() throws during construction,
+     * the engine constructor fails and resources are cleaned up.
+     */
+    public void testConstructorFailsWhenCommitterThrows() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        CommitterFactory failingCommitterFactory = config -> new InMemoryCommitter(store) {
+            @Override
+            public Map<String, String> getLastCommittedData() {
+                throw new RuntimeException("Simulated failure in getLastCommittedData");
+            }
+        };
+
+        EngineConfig failingConfig = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(replicaIndexSettings())
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(new TranslogConfig(shardId, translogPath, replicaIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, "", false))
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(createMockRegistry())
+            .committerFactory(failingCommitterFactory)
+            .readOnlyReplica(true)
+            .build();
+
+        expectThrows(Exception.class, () -> new DataFormatAwareNRTReplicationEngine(failingConfig));
+    }
+
+    /**
+     * Verifies that the statsCache is properly updated when catalog snapshots change
+     * via replication, ensuring the cache initialization during construction enables
+     * proper cache functionality.
+     */
+    public void testStatsCacheUpdatesAfterReplicationDueToConstructorInit() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            // Initial state - cache should be initialized with empty stats
+            assertEquals("initial segments count should be 0", 0, engine.segmentsStats(false, false).getCount());
+            assertEquals("initial docs count should be 0", 0L, engine.docStats().getCount());
+
+            // Apply a replication snapshot with segments
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("test.mock").addNumRows(5).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 5L, List.of(seg));
+
+            engine.updateCatalogSnapshot(incoming);
+
+            // Cache should be updated via refresh listeners (which were properly registered during construction)
+            SegmentsStats updatedStats = engine.segmentsStats(false, false);
+            assertEquals("segments count should be updated after replication", 1, updatedStats.getCount());
+
+            // This verifies that the statsCache was properly initialized during construction
+            // and is functioning correctly for subsequent operations
+        }
     }
 
     // ---------- Tests ----------
@@ -521,7 +679,7 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
             assertFalse("replica must never report needing a refresh", engine.refreshNeeded());
             assertFalse("replica must always report no-op for maybeRefresh", engine.maybeRefresh("noop"));
             assertFalse(engine.shouldPeriodicallyFlush());
-            assertEquals(0L, engine.getIndexBufferRAMBytesUsed());
+            assertEquals(0L, engine.getHeapBytesUsed());
             assertEquals(0L, engine.unreferencedFileCleanUpsPerformed());
 
             // Refresh / writeIndexingBuffer must be no-ops (don't throw)
@@ -706,5 +864,95 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
             assertNotNull("translogManager must be available on a fresh engine", engine.translogManager());
         }
+    }
+
+    // ---------- Stats cache (CatalogSnapshotStatsCache) ----------
+
+    public void testSegmentsStatsEmptyOnFreshReplica() throws IOException {
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
+            SegmentsStats stats = engine.segmentsStats(false, false);
+            assertNotNull(stats);
+            assertEquals(0, stats.getCount());
+            assertEquals(0L, stats.getIndexWriterMemoryInBytes());
+        }
+    }
+
+    public void testSegmentsStatsUpdatedAfterReplication() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            WriterFileSet wfs1 = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("seg1.mock").addNumRows(7).build();
+            WriterFileSet wfs2 = WriterFileSet.builder().directory(tmpDir).writerGeneration(2L).addFile("seg2.mock").addNumRows(7).build();
+            Segment seg1 = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs1).build();
+            Segment seg2 = Segment.builder(2L).addSearchableFiles(mockDataFormat, wfs2).build();
+
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 14L, List.of(seg1, seg2));
+            engine.updateCatalogSnapshot(incoming);
+
+            SegmentsStats stats = engine.segmentsStats(false, false);
+            assertNotNull(stats);
+            assertEquals(2, stats.getCount());
+        }
+    }
+
+    public void testSegmentsStatsWithFileSizesPathDoesNotThrow() throws IOException {
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
+            SegmentsStats stats = engine.segmentsStats(true, false);
+            assertNotNull(stats);
+            assertEquals(0, stats.getCount());
+        }
+    }
+
+    public void testDocStatsReflectsReplicatedSnapshot() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            assertEquals(0L, engine.docStats().getCount());
+
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("seg1.mock").addNumRows(10).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 10L, List.of(seg));
+            engine.updateCatalogSnapshot(incoming);
+
+            org.opensearch.index.shard.DocsStats docsStats = engine.docStats();
+            assertNotNull(docsStats);
+            assertEquals(0L, docsStats.getDeleted());
+        }
+    }
+
+    public void testStatsCacheReturnsCachedSegmentsStatsAfterRefresh() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            assertEquals(0, engine.segmentsStats(false, false).getCount());
+
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("seg1.mock").addNumRows(5).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 5L, List.of(seg));
+            engine.updateCatalogSnapshot(incoming);
+
+            assertEquals(1, engine.segmentsStats(false, false).getCount());
+        }
+    }
+
+    private DataformatAwareCatalogSnapshot buildSnapshotWithSegments(
+        DataFormatAwareNRTReplicationEngine engine,
+        long id,
+        long gen,
+        long maxSeqNo,
+        List<Segment> segments
+    ) {
+        Map<String, String> userData = new HashMap<>();
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
+        userData.put(Translog.TRANSLOG_UUID_KEY, UUID.randomUUID().toString());
+        userData.put(Engine.HISTORY_UUID_KEY, engine.getHistoryUUID());
+        DataformatAwareCatalogSnapshot snapshot = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+            id,
+            gen,
+            gen,
+            segments,
+            gen,
+            userData
+        );
+        snapshot.setLastCommitInfo("segments_" + gen, gen, 0L);
+        return snapshot;
     }
 }

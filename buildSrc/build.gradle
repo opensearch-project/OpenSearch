@@ -94,9 +94,22 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
-  maven { url = uri("https://ci.opensearch.org/maven2/") }
-  mavenCentral()
-  gradlePluginPortal()
+  maven {
+    url = uri("https://ci.opensearch.org/maven2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  gradlePluginPortal {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
 }
 
 dependencies {
@@ -112,18 +125,25 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.15'
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.16.0"
-  api 'com.gradleup.shadow:shadow-gradle-plugin:9.3.1'
+  api 'com.gradleup.shadow:shadow-gradle-plugin:9.4.2'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
   api 'de.thetaphi:forbiddenapis:3.10'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
-  api 'org.apache.maven:maven-model:3.9.12'
+  api 'org.apache.maven:maven-model:3.9.16'
+  api 'org.codehaus.plexus:plexus-xml:3.0.1'
   api 'com.networknt:json-schema-validator:1.2.0'
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.6'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.3.2"
+
+  constraints {
+    api('org.codehaus.plexus:plexus-utils:4.0.3') {
+      because 'fixes CVE-2025-67030'
+    }
+  }
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
@@ -147,6 +167,7 @@ dependencies {
 configurations.all {
   resolutionStrategy {
     force "com.google.guava:guava:${props.getProperty('guava')}"
+    force "org.apache.logging.log4j:log4j-core:${props.getProperty('log4j')}"
   }
 }
 

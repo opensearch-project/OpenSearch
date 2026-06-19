@@ -153,6 +153,52 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
         assertNull("success path passes null cause to onTaskTerminal", stage.lastTerminalCause.get());
     }
 
+    /**
+     * Terminal-stage short-circuit: once the stage enters ANY terminal state
+     * ({@link StageExecution.State#CANCELLED}, {@link StageExecution.State#FAILED},
+     * or {@link StageExecution.State#SUCCEEDED}), the scheduler must NOT consult
+     * {@code retargetForRetry}. Spawning new dispatch work for a stage that's done
+     * is always wrong, regardless of which terminal state it landed in. Original
+     * failure propagates to {@code onTaskTerminal} so per-attempt bookkeeping cleans up.
+     */
+    public void testTerminalStageSkipsRetryAndPropagatesOriginalCause() {
+        for (StageExecution.State terminalState : new StageExecution.State[] {
+            StageExecution.State.CANCELLED,
+            StageExecution.State.FAILED,
+            StageExecution.State.SUCCEEDED }) {
+
+            StageTask retryTask = makeTask(0);  // would be returned if retargetForRetry were called
+            FakeStage stage = new FakeStage(makeTask(0));
+            stage.retryQueue.add(Optional.of(retryTask));
+
+            scheduler.scheduleStage(stage);
+            assertEquals("initial dispatch (state=" + terminalState + ")", 1, stage.runner.dispatched.size());
+            ActionListener<Void> handle = stage.runner.dispatched.get(0).handle;
+
+            // Stage transitions terminally before the in-flight task's failure arrives.
+            stage.state = terminalState;
+
+            RuntimeException cause = new RuntimeException("dispatch failed after stage terminal=" + terminalState);
+            handle.onFailure(cause);
+
+            assertEquals(
+                "no retry dispatch when stage is " + terminalState + " — short-circuit must skip retargetForRetry",
+                1,
+                stage.runner.dispatched.size()
+            );
+            assertEquals(
+                "onTaskTerminal still fires (stage=" + terminalState + ") so per-attempt bookkeeping cleans up",
+                1,
+                stage.terminalCalls.get()
+            );
+            assertSame(
+                "original cause propagated, not wrapped or replaced (stage=" + terminalState + ")",
+                cause,
+                stage.lastTerminalCause.get()
+            );
+        }
+    }
+
     // ─── helpers ──────────────────────────────────────────────────────────
 
     private static StageTask makeTask(int partitionId) {

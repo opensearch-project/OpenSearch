@@ -33,6 +33,34 @@ public interface ExchangeSink {
     void feed(VectorSchemaRoot batch);
 
     /**
+     * Ingest an Arrow batch with a per-source ordinal — the index of the
+     * producer task within its stage's resolved target list (e.g.
+     * {@link org.opensearch.analytics.spi.ExchangeSink} consumed via
+     * {@code ShardExecutionTarget.ordinal()}).
+     *
+     * <p>Default implementation drops the ordinal and falls through to
+     * {@link #feed(VectorSchemaRoot)}. Sinks that need to discriminate
+     * batches by producer (e.g. Late Materialization, where the ordinal is
+     * stamped onto each batch as a column) override this method.
+     *
+     * <p>Producers that have a meaningful per-task ordinal call this overload;
+     * producers without one continue to call {@link #feed(VectorSchemaRoot)}.
+     */
+    default void feed(VectorSchemaRoot batch, int sourceOrdinal) {
+        feed(batch);
+    }
+
+    /**
+     * Whether the downstream consumer has finished and will read no more batches (e.g. a reduce
+     * whose LimitExec satisfied its fetch). Producers may poll this after a {@link #feed} to stop
+     * early. Default {@code false}; best-effort — a {@code true} is monotonic, a {@code false} may
+     * race a concurrent completion.
+     */
+    default boolean isConsumerDone() {
+        return false;
+    }
+
+    /**
      * Signal that no more batches will be fed. Releases resources.
      */
     void close();
