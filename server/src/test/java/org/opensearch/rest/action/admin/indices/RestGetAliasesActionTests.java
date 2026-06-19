@@ -32,17 +32,28 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
@@ -163,5 +174,44 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
         assertThat(restResponse.status(), equalTo(OK));
         assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProcessResponseForksToManagementThreadPool() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService managementExecutor = mock(ExecutorService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.executor(ThreadPool.Names.MANAGEMENT)).thenReturn(managementExecutor);
+        when(threadPool.relativeTimeInMillis()).thenReturn(0L);
+
+        // Wire up a NodeClient mock so we can capture the ActionListener
+        org.opensearch.transport.client.AdminClient adminClient = mock(org.opensearch.transport.client.AdminClient.class);
+        org.opensearch.transport.client.IndicesAdminClient indicesClient = mock(org.opensearch.transport.client.IndicesAdminClient.class);
+        org.opensearch.transport.client.node.NodeClient nodeClient = mock(org.opensearch.transport.client.node.NodeClient.class);
+        when(nodeClient.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesClient);
+        when(nodeClient.threadPool()).thenReturn(threadPool);
+
+        RestGetAliasesAction action = new RestGetAliasesAction(threadPool);
+        org.opensearch.rest.RestRequest request = new org.opensearch.test.rest.FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(org.opensearch.rest.RestRequest.Method.GET)
+            .withPath("/_aliases")
+            .build();
+        org.opensearch.rest.RestChannel channel = mock(org.opensearch.rest.RestChannel.class);
+        when(channel.newBuilder()).thenReturn(MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON));
+
+        // prepareRequest registers the listener with indicesClient.getAliases(...)
+        action.handleRequest(request, channel, nodeClient);
+
+        // Capture the listener and fire onResponse to trigger processResponse
+        org.mockito.ArgumentCaptor<org.opensearch.core.action.ActionListener> captor =
+            org.mockito.ArgumentCaptor.forClass(org.opensearch.core.action.ActionListener.class);
+        verify(indicesClient).getAliases(any(), captor.capture());
+        captor.getValue().onResponse(new GetAliasesResponse(Collections.emptyMap()));
+
+        // The key assertion: response work was forked to MANAGEMENT, not run on the transport thread
+        verify(threadPool).executor(eq(ThreadPool.Names.MANAGEMENT));
+        verify(managementExecutor).execute(any(Runnable.class));
     }
 }
