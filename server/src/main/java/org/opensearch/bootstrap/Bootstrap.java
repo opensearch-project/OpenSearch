@@ -70,6 +70,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputFilter;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
@@ -115,6 +116,27 @@ final class Bootstrap {
             }
         });
     }
+
+    /**
+     * Installs a process-wide serial filter that rejects all Java deserialization by default.
+     * Plugins that legitimately require Java serialization (e.g., security plugin's user attribute caching)
+     * can opt in by calling {@code ObjectInputStream.setObjectInputFilter()} on their specific stream,
+     * which overrides the JVM-wide filter for that stream.
+     * <p>
+     * Gated behind the {@code bootstrap.serial_filter} setting (disabled by default).
+     */
+    static void initializeSerialFilter() {
+        try {
+            ObjectInputFilter.Config.setSerialFilter(REJECT_ALL_FILTER);
+        } catch (IllegalStateException e) {
+            // Filter already set (e.g., via -Djdk.serialFilter system property or in tests)
+            LogManager.getLogger(Bootstrap.class).debug("Serial filter already initialized", e);
+        }
+    }
+
+    static final ObjectInputFilter REJECT_ALL_FILTER = filterInfo -> filterInfo.serialClass() == null
+        ? ObjectInputFilter.Status.UNDECIDED
+        : ObjectInputFilter.Status.REJECTED;
 
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
@@ -182,6 +204,10 @@ final class Bootstrap {
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
+
+        if (BootstrapSettings.SERIAL_FILTER_SETTING.get(settings)) {
+            initializeSerialFilter();
+        }
 
         try {
             spawner.spawnNativeControllers(environment, true);

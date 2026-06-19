@@ -9,7 +9,6 @@
 //! `date_format(datetime, format)` — render a timestamp via MySQL-style tokens
 //! ([`os_strftime`](super::os_strftime)). Returns Utf8; null input → null.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -45,9 +44,6 @@ impl DateFormatUdf {
 udf_identity!(DateFormatUdf, "date_format");
 
 impl ScalarUDFImpl for DateFormatUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "date_format"
     }

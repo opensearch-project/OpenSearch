@@ -16,9 +16,12 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -188,12 +191,16 @@ public class RelNodeUtils {
      *
      * @param plan the root of the RelNode tree
      * @return array of distinct index names in encounter order
-     * @throws IllegalStateException if the plan exceeds the maximum depth
+     * @throws IllegalArgumentException if the plan exceeds the maximum depth
      */
     public static String[] extractIndices(RelNode plan) {
         java.util.Set<String> indices = new java.util.LinkedHashSet<>();
         if (!collectIndices(plan, indices, 0)) {
-            throw new IllegalStateException("Query plan exceeds maximum depth (" + MAX_EXTRACT_INDICES_DEPTH + ") for index extraction");
+            throw new IllegalArgumentException(
+                "Query plan exceeds maximum depth ("
+                    + MAX_EXTRACT_INDICES_DEPTH
+                    + ") for index extraction. Simplify the query by reducing nested joins or subqueries."
+            );
         }
         return indices.toArray(String[]::new);
     }
@@ -304,5 +311,23 @@ public class RelNodeUtils {
             }
             return new RexInputRef(newIdx, newRowType.getFieldList().get(newIdx).getType());
         }
+    }
+
+    /**
+     * Recursively flattens nested same-operator AND/OR calls so the condition satisfies
+     * {@link RexUtil#isFlat(RexNode)} (the invariant asserted by {@link org.apache.calcite.rel.core.Filter}'s
+     * constructor). Calcite's {@code RexUtil.flatten(RexBuilder, RexNode)} only flattens the root
+     * call's direct operands; wrapping it in a {@link RexShuttle} applies it bottom-up, so each
+     * node is flattened after its children — making one pass fully recursive. Pure structural
+     * flatten: {@code flatten} splices same-op children only, with no de-duplication or
+     * simplification.
+     */
+    public static RexNode deepFlatten(RexBuilder rexBuilder, RexNode node) {
+        return node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitCall(RexCall call) {
+                return RexUtil.flatten(rexBuilder, super.visitCall(call));
+            }
+        });
     }
 }

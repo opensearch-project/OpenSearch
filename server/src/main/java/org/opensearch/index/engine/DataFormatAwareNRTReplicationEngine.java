@@ -645,6 +645,18 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         return new MergeStats();
     }
 
+    /** Replicas do not run merges; they consume segments via segment replication. */
+    @Override
+    public boolean hasPendingMerges() {
+        return false;
+    }
+
+    /** Replicas do not run merges; the active count is always zero. */
+    @Override
+    public int getActiveMergeCount() {
+        return 0;
+    }
+
     @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
         // No-op for replica

@@ -32,7 +32,6 @@
 //!     named group still appears in the map with `""` as its value. Mirrors
 //!     `ParseFunction.parse(null, …)` in core PPL.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, ArrayRef, MapBuilder, MapFieldNames, StringArray, StringBuilder};
@@ -84,9 +83,6 @@ fn map_return_type() -> DataType {
 }
 
 impl ScalarUDFImpl for ParseUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "parse"
     }

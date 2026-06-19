@@ -33,6 +33,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use native_bridge_common::log_debug;
 use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -389,9 +390,6 @@ impl ExecutionPlan for IndexedExec {
     fn name(&self) -> &str {
         "IndexedExec"
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -485,6 +483,8 @@ struct IndexedStream {
     mask_offset: usize,
     batch_offset: usize,
     finished: bool,
+    stream_start: Option<std::time::Instant>,
+    last_poll_end: Option<Instant>,
     metadata: Arc<ParquetMetaData>,
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     initialized: bool,
@@ -578,6 +578,8 @@ impl IndexedStream {
             mask_offset: 0,
             batch_offset: 0,
             finished: false,
+            stream_start: None,
+            last_poll_end: None,
             metadata,
             predicate,
             initialized: false,
@@ -608,6 +610,11 @@ impl IndexedStream {
             metadata: Arc::clone(&self.metadata),
             projection: self.projection.clone(),
             predicate: self.predicate.clone(),
+            io_stats: self
+                .metrics
+                .io_stats
+                .clone()
+                .unwrap_or_else(|| Arc::new(super::parquet_bridge::ReadIoStats::default())),
         }
     }
 
@@ -779,16 +786,33 @@ impl Stream for IndexedStream {
         // time downstream work.
         let poll_start = Instant::now();
 
+        if let Some(prev_end) = self.last_poll_end {
+            let gap = poll_start.saturating_duration_since(prev_end);
+            if let Some(ref t) = self.metrics.inter_poll_gap {
+                t.add_duration(gap);
+            }
+        }
+        if let Some(ref c) = self.metrics.poll_count {
+            c.add(1);
+        }
+
         if !self.initialized {
+            self.stream_start = Some(Instant::now());
+            let t0 = Instant::now();
             self.index_reader.init_prefetch();
+            if let Some(ref t) = self.metrics.init_prefetch_time {
+                t.add_duration(t0.elapsed());
+            }
             self.initialized = true;
         }
 
         let result = self.as_mut().poll_inner(cx);
 
+        let t0 = Instant::now();
         if let Some(ref t) = self.metrics.elapsed_compute {
-            t.add_duration(poll_start.elapsed());
+            t.add_duration(t0.saturating_duration_since(poll_start));
         }
+        self.last_poll_end = Some(t0);
         result
     }
 }
@@ -812,6 +836,7 @@ impl IndexedStream {
 
             // 2. If upstream is done and coalescer has drained, we're done.
             if self.coalescer_finished && self.batch_coalescer.is_empty() {
+                log_debug!("[scf-segment-done] file={} row_groups={} elapsed={:?}", self.object_path.filename().unwrap_or("?"), self.index_reader.row_groups.len(), self.stream_start.unwrap().elapsed());
                 return Poll::Ready(None);
             }
 
@@ -831,6 +856,7 @@ impl IndexedStream {
             if self.coalescer_finished {
                 // Unreachable in practice — step 1 already drained or
                 // step 2 already returned. Defensive.
+                log_debug!("[scf-segment-done] file={} row_groups={} elapsed={:?}", self.object_path.filename().unwrap_or("?"), self.index_reader.row_groups.len(), self.stream_start.unwrap().elapsed());
                 return Poll::Ready(None);
             }
 

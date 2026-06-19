@@ -22,7 +22,6 @@
 //! * `"duration"` — integer seconds → `HH:MM:SS` **wall-clock** rendering.
 //! * `"duration_millis"` — integer milliseconds → `HH:MM:SS` wall-clock rendering.
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -85,10 +84,6 @@ impl Hash for ToStringUdf {
 }
 
 impl ScalarUDFImpl for ToStringUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "tostring"
     }

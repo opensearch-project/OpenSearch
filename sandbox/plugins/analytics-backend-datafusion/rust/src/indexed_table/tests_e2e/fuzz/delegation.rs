@@ -261,17 +261,14 @@ impl DelegatedBackendCollectorFactory for MockDelegatedBackendCollectorFactory {
 /// emits — all `original_expr`s in delegation trees pass through that fn.
 fn rows_matching_predicate(corpus: &Corpus, expr: &Arc<dyn PhysicalExpr>) -> Vec<i32> {
     let bin = expr
-        .as_any()
         .downcast_ref::<BinaryExpr>()
         .expect("delegation fuzz: original_expr must be BinaryExpr");
     let col = bin
         .left()
-        .as_any()
         .downcast_ref::<Column>()
         .expect("delegation fuzz: BinaryExpr lhs must be Column");
     let lit = bin
         .right()
-        .as_any()
         .downcast_ref::<Literal>()
         .expect("delegation fuzz: BinaryExpr rhs must be Literal");
     let col_idx = *corpus
@@ -408,7 +405,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         let factory = Arc::clone(&factory);
         let provider_locks = Arc::clone(&provider_locks);
         let schema = loaded.schema.clone();
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&correctness)),
@@ -422,6 +419,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
                 segment.writer_generation,
                 Arc::clone(&factory),
                 0,
+                None,
                 None,
             ));
             Ok(eval)
@@ -452,7 +450,6 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         let mut indices = std::collections::BTreeSet::new();
         let _ = residual_physical.apply(|node| {
             if let Some(col) = node
-                .as_any()
                 .downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
@@ -472,6 +469,9 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

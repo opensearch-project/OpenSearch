@@ -86,7 +86,7 @@ impl PruningStatistics for SingleRowGroupStatistics<'_> {
             .map(|counts| Arc::new(counts) as ArrayRef)
     }
 
-    fn row_counts(&self, _column: &Column) -> Option<ArrayRef> {
+    fn row_counts(&self) -> Option<ArrayRef> {
         let counts: UInt64Array = std::iter::once(Some(self.rg_meta.num_rows() as u64)).collect();
         Some(Arc::new(counts) as ArrayRef)
     }
@@ -204,10 +204,19 @@ impl RgPruningContext {
         let Some(rg_meta) = metadata.row_groups().get(rg_idx) else {
             return false;
         };
+        // Resolve stats against the segment's OWN parquet schema, not the full table
+        // schema: StatisticsConverter maps name→parquet-column positionally, so the full
+        // schema reads the wrong/no column under dynamic-mapping schema drift.
+        let descr = metadata.file_metadata().schema_descr();
+        let seg_schema = datafusion::parquet::arrow::parquet_to_arrow_schema(
+            descr,
+            metadata.file_metadata().key_value_metadata(),
+        )
+        .unwrap_or_else(|_| self.schema.as_ref().clone());
         let stats = SingleRowGroupStatistics {
-            parquet_schema: metadata.file_metadata().schema_descr(),
+            parquet_schema: descr,
             rg_meta,
-            arrow_schema: self.schema.as_ref(),
+            arrow_schema: &seg_schema,
         };
         // `prune` returns one bool per container (we have exactly one). `false`
         // means "provably cannot match" → safe to skip. Any error => keep.
@@ -215,5 +224,67 @@ impl RgPruningContext {
             Ok(keep) => keep.first().is_some_and(|k| !*k),
             Err(_) => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::arrow::array::{Int32Array, RecordBatch};
+    use datafusion::arrow::datatypes::{DataType, Field};
+    use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+    use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+    use datafusion::logical_expr::Operator;
+    use tempfile::NamedTempFile;
+
+    // Schema drift: the table schema orders columns differently from the segment's own
+    // parquet file. StatisticsConverter maps a column name to a parquet index positionally,
+    // so resolving `severity` against the table schema lands on a DIFFERENT real file column
+    // (here `neg`, all-negative). The always-true dynamic filter `severity >= 0` then reads
+    // neg's stats (max < 0) and wrongly prunes the whole RG. Resolving against the segment's
+    // own schema reads the real `severity` stats and keeps the RG.
+    #[test]
+    fn dynamic_rg_prune_resolves_stats_against_segment_schema_under_drift() {
+        // File order: name, neg, severity.
+        let file_schema = Arc::new(Schema::new(vec![
+            Field::new("name", DataType::Int32, false),
+            Field::new("neg", DataType::Int32, false),
+            Field::new("severity", DataType::Int32, false),
+        ]));
+        // Table order puts `severity` at the position the file holds `neg`.
+        let table_schema = Arc::new(Schema::new(vec![
+            Field::new("name", DataType::Int32, false),
+            Field::new("severity", DataType::Int32, false),
+            Field::new("neg", DataType::Int32, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            file_schema.clone(),
+            vec![
+                Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
+                Arc::new(Int32Array::from(vec![-9, -8, -7, -6])),
+                Arc::new(Int32Array::from(vec![0, 5, 10, 17])),
+            ],
+        )
+        .unwrap();
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), file_schema, None).unwrap();
+        w.write(&batch).unwrap();
+        w.close().unwrap();
+        let md = ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new())
+            .unwrap()
+            .metadata()
+            .clone();
+
+        let sev: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("severity", 1));
+        let zero: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
+        let expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(sev, Operator::GtEq, zero));
+        let predicate = Arc::new(PruningPredicate::try_new(expr, table_schema.clone()).unwrap());
+        let ctx = RgPruningContext { predicate, schema: table_schema };
+
+        assert!(
+            !ctx.rg_provably_excluded(&md, 0),
+            "severity >= 0 is always true for this segment; it must not be pruned under schema drift"
+        );
     }
 }

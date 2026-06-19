@@ -13,7 +13,6 @@
 //! Multi-path: per-path results (NULL → `null` element) wrapped in a JSON array.
 //! `< 2` args / any-NULL-arg / malformed doc / malformed path → NULL.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -56,9 +55,6 @@ impl Default for JsonExtractUdf {
 }
 
 impl ScalarUDFImpl for JsonExtractUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

@@ -32,6 +32,7 @@
 //!   concurrently on the same stream pointer.
 
 use std::collections::HashMap;
+use std::fs;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,6 +53,7 @@ use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::execute_stream;
+use datafusion::physical_plan::metrics::MetricValue;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
@@ -86,6 +88,9 @@ pub struct QueryStreamHandle {
     /// Physical plan reference for post-execution metrics extraction.
     /// Available after execution completes; read via `df_stream_get_metrics`.
     physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+    /// Fires when the spawned CPU task has fully dropped; `stream_close` waits on it so borrowed
+    /// input batches are released before the per-query allocator closes. `None` outside coordinator-reduce.
+    task_done: Option<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl QueryStreamHandle {
@@ -108,6 +113,31 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
+        }
+    }
+
+    /// Attaches the task-completion signal `stream_close` joins on before the allocator closes.
+    pub fn with_task_done(mut self, task_done: tokio::sync::oneshot::Receiver<()>) -> Self {
+        self.task_done = Some(task_done);
+        self
+    }
+
+    pub fn new_with_plan(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        plan: Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+    ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: None,
+            has_views,
+            _concurrency_permit: permit,
+            physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -125,6 +155,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
         }
     }
 
@@ -143,6 +174,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -152,19 +184,47 @@ impl QueryStreamHandle {
         let plan = self.physical_plan.as_ref()?;
         let mut map = serde_json::Map::new();
         Self::collect_metrics(plan.as_ref(), &mut map);
-        if map.is_empty() {
-            return None;
-        }
+        // Include the physical plan display text
+        let plan_text = datafusion::physical_plan::displayable(plan.as_ref()).indent(true).to_string();
+        map.insert("physical_plan".to_string(), serde_json::Value::String(plan_text));
         serde_json::to_vec(&map).ok()
     }
 
     fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
         if let Some(metrics) = plan.metrics() {
             for m in metrics.iter() {
-                let name = m.value().name().to_string();
-                let value = m.value().as_usize() as i64;
-                // Later operators override earlier ones if same name — leaf (scan) metrics take priority
-                map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                let add = |map: &mut serde_json::Map<String, serde_json::Value>, key: String, delta: i64| {
+                    let prev = map.get(&key).and_then(|v| v.as_i64()).unwrap_or(0);
+                    map.insert(key, serde_json::Value::Number(serde_json::Number::from(prev + delta)));
+                };
+                match m.value() {
+                    MetricValue::PruningMetrics { name, pruning_metrics } => {
+                        add(map, format!("{}_pruned", name), pruning_metrics.pruned() as i64);
+                        add(map, format!("{}_matched", name), pruning_metrics.matched() as i64);
+                    }
+                    MetricValue::StartTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("start_timestamp").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+                        if v > 0 && v < prev {
+                            map.insert("start_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::EndTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("end_timestamp").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if v > prev {
+                            map.insert("end_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::Ratio { .. } | MetricValue::Gauge { .. } | MetricValue::CurrentMemoryUsage(_) => {
+                        let name = m.value().name().to_string();
+                        let value = m.value().as_usize() as i64;
+                        map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                    }
+                    other => {
+                        add(map, other.name().to_string(), other.as_usize() as i64);
+                    }
+                }
             }
         }
         for child in plan.children() {
@@ -333,9 +393,14 @@ pub struct ShardView {
     /// Index sort fields, in priority order. Sourced from the index's
     /// `index.sort.field` setting on the Java side. Empty when the index has
     /// no `index.sort.field` configured. Parallel to `sort_orders`.
-    /// Used to build `ListingOptions.with_file_sort_order(...)` so DataFusion
-    /// advertises `output_ordering` from the scan and enables the
-    /// `sort_prefix` optimization on TopK / SortPreservingMerge.
+    ///
+    /// Two consumers today:
+    ///   - Vanilla path: `ListingOptions.with_file_sort_order(...)` so DataFusion advertises
+    ///     `output_ordering` from the scan and the `sort_prefix` optimization fires on
+    ///     TopK / SortPreservingMerge.
+    ///   - Indexed path (`indexed_executor`): when the query's leading ORDER BY runs counter
+    ///     to catalog-snapshot order, the per-shard segment iteration is reversed so a TopK
+    ///     above us can prune via parquet page statistics.
     pub sort_fields: Vec<String>,
     /// Index sort directions per field — values: `"asc"` or `"desc"`.
     /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
@@ -346,6 +411,53 @@ pub struct ShardView {
 ///
 /// Returns a heap-allocated pointer (as i64) to `DataFusionRuntime`.
 /// Caller must call `close_global_runtime` exactly once to free it.
+///
+/// # Side effect: spill directory contents are wiped (two-phase)
+///
+/// When `spill_dir` is non-empty, every immediate child is removed:
+///   * **Phase 1 (sync, on this thread):** every immediate child (files,
+///     symlinks, and subdirectories alike) is renamed to a `<name>.stale`
+///     sibling. Renames are metadata-only — one syscall per entry, contents
+///     are not touched.
+///   * **Phase 2 (async, background thread):** every `*.stale` entry is
+///     removed off the boot path. Files and symlinks via `remove_file`
+///     (which unlinks the symlink itself without following it); directories
+///     via `remove_dir_all`.
+///
+/// The split keeps boot fast even with tens of GB of orphan spill data: the
+/// boot thread pays only the rename count (≈10s of µs per entry) and the
+/// recursive unlinks happen in parallel with cluster join. Re-scanning by
+/// suffix in phase 2 also cleans up `*.stale` leftovers from any prior boot
+/// whose cleanup thread did not finish.
+///
+/// This sweeps `datafusion-*/` orphans left by a non-graceful shutdown
+/// (kill -9, OOM-kill, container restart) which would otherwise accumulate
+/// forever — `create_local_dirs` in `datafusion-execution` only creates a
+/// fresh `datafusion-XXXXXX/` and never touches siblings. The fresh dir's
+/// name has no `.stale` suffix, so phase 2 cannot collide with it.
+///
+/// The spill directory itself is preserved. It may be a pre-existing mount
+/// point whose parent the JVM user does not own; rmdir'ing the root would
+/// fail with `EACCES` in that topology. Top-level symlinks are renamed in
+/// phase 1 (which renames the link, never the target) and unlinked in
+/// phase 2 via `remove_file`, so a stray symlink can never redirect the
+/// wipe outside the spill mount.
+///
+/// Phase 1 failure aborts boot with `DataFusionError::Configuration` — if
+/// we cannot rename orphans now, queries that need to spill would fail
+/// later mid-query anyway. Phase 2 failures (including thread-spawn) are
+/// logged only; the cluster has either joined or is about to, and
+/// stragglers are reaped on the next boot.
+///
+/// # Operator contract
+///
+/// The OpenSearch process must own `spill_dir` with `rwx`. Write on the
+/// parent is **not** required — `spill_dir` is treated as a pre-existing
+/// mount point. Callers wanting auto-creation must grant write on the parent.
+///
+/// Safe today because `datafusion.spill_directory` is `NodeScope + Final`, so
+/// this runs exactly once per JVM. A future caller invoking it mid-flight
+/// would nuke active spill state — rethink before adding one.
 pub fn create_global_runtime(
     memory_pool_limit: i64,
     cache_manager_ptr: i64,
@@ -381,6 +493,146 @@ pub fn create_global_runtime(
         } else {
             spill_limit as u64
         };
+
+        // Wipe leaked entries from a prior non-graceful shutdown.
+        //
+        // Two-phase to keep boot fast even when prior orphans hold tens of GB:
+        //  Phase 1 (sync, on boot thread): rename every immediate child to a
+        //    <name>.stale sibling. One uniform branch — files, symlinks, and
+        //    directories are all renamed identically. Renames are metadata-only
+        //    (one syscall per entry, contents not touched). Failure aborts
+        //    boot loudly with full error context.
+        //  Phase 2 (async, background thread): re-scan and remove every
+        //    *.stale entry — `remove_file` for files and symlinks (so we
+        //    never follow a symlink through to its target), `remove_dir_all`
+        //    for directories. Filtering by the .stale suffix means the fresh
+        //    datafusion-XXXXXX/ that DataFusion provisions next is never a
+        //    deletion target.
+        //
+        // The spill directory itself is never removed (mount-point safe).
+        // Phase 1 only requires write on spill_dir, never on its parent.
+        let spill_path = PathBuf::from(spill_dir);
+        if spill_path.exists() {
+            let entries = fs::read_dir(&spill_path).map_err(|e| {
+                let msg = format!(
+                    "Failed to enumerate spill directory {} (io kind={:?}): {}. \
+                     Verify the process owns the spill directory before restarting.",
+                    spill_dir, e.kind(), e
+                );
+                log::error!("{}", msg);
+                DataFusionError::Configuration(msg)
+            })?;
+            for entry in entries {
+                let entry = entry.map_err(|e| {
+                    let msg = format!(
+                        "Failed to read spill directory entry in {} (io kind={:?}): {}",
+                        spill_dir, e.kind(), e
+                    );
+                    log::error!("{}", msg);
+                    DataFusionError::Configuration(msg)
+                })?;
+                let path = entry.path();
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+
+                // Skip already-renamed leftovers from a prior boot whose async
+                // cleanup didn't finish — phase 2 below picks them up.
+                if name_str.ends_with(".stale") {
+                    continue;
+                }
+
+                // Rename to <name>.stale within the same parent. Metadata-only;
+                // contents not touched. Same parent (spill_path), so requires
+                // only write on spill_path itself. Works uniformly for files,
+                // symlinks, and directories — fs::rename does not follow
+                // symlinks (it renames the link itself).
+                let stale = spill_path.join(format!("{}.stale", name_str));
+                if let Err(e) = fs::rename(&path, &stale) {
+                    let msg = format!(
+                        "Failed to rename leaked spill entry {} -> {} (io kind={:?}): {}. \
+                         Verify the process owns the spill directory before restarting.",
+                        path.display(), stale.display(), e.kind(), e
+                    );
+                    log::error!("{}", msg);
+                    return Err(DataFusionError::Configuration(msg));
+                }
+            }
+
+            // Phase 2: spawn the recursive deletion of all *.stale entries.
+            // Re-scan inside the thread so we pick up entries from this boot
+            // AND any *.stale leftovers from prior boots whose cleanup didn't
+            // finish. Errors inside the thread are logged only — the cluster
+            // has not yet joined, but stragglers are recoverable next boot.
+            //
+            // Spawn failure itself is rare (EAGAIN/ENOMEM under extreme system
+            // pressure) and not boot-fatal: the disk is already in a valid
+            // state for DataFusion to start; the *.stale entries just persist
+            // until a future boot with a healthy thread library reaps them.
+            // Failing boot here would be more disruptive than the wasted disk.
+            let spill_path_for_gc = spill_path.clone();
+            if let Err(e) = std::thread::Builder::new()
+                .name("datafusion-spill-gc".to_string())
+                .spawn(move || {
+                    let entries = match fs::read_dir(&spill_path_for_gc) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            log::warn!(
+                                "Background spill cleanup: failed to enumerate {} (io kind={:?}): {}",
+                                spill_path_for_gc.display(), e.kind(), e
+                            );
+                            return;
+                        }
+                    };
+                    for entry in entries {
+                        let entry = match entry {
+                            Ok(e) => e,
+                            Err(e) => {
+                                log::warn!("Background spill cleanup: read_dir error: {}", e);
+                                continue;
+                            }
+                        };
+                        let name = entry.file_name();
+                        if !name.to_string_lossy().ends_with(".stale") {
+                            continue;
+                        }
+                        let path = entry.path();
+                        // Use file_type (lstat semantics, does not follow symlinks)
+                        // to dispatch: directories use remove_dir_all, everything
+                        // else (regular files, symlinks) uses remove_file. This
+                        // keeps the symlink defense — fs::remove_file on a symlink
+                        // unlinks the link itself without following it.
+                        let result = match entry.file_type() {
+                            Ok(ft) => {
+                                if ft.is_dir() && !ft.is_symlink() {
+                                    fs::remove_dir_all(&path)
+                                } else {
+                                    fs::remove_file(&path)
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Background spill cleanup: failed to stat {} (io kind={:?}): {}",
+                                    path.display(), e.kind(), e
+                                );
+                                continue;
+                            }
+                        };
+                        if let Err(e) = result {
+                            log::warn!(
+                                "Background spill cleanup: failed to remove {} (io kind={:?}): {}",
+                                path.display(), e.kind(), e
+                            );
+                        }
+                    }
+                })
+            {
+                log::warn!(
+                    "Failed to spawn background spill cleanup thread: {}. \
+                     Renamed *.stale entries will accumulate until the next successful boot.",
+                    e
+                );
+            }
+        }
 
         // Register spill directory for per-query disk pressure checks
         crate::memory_guard::set_spill_dir(spill_dir);
@@ -761,6 +1013,7 @@ pub async unsafe fn fetch_by_row_ids(
         shard_view.object_metas.as_ref(),
         shard_view.writer_generations.as_ref(),
         metadata_cache,
+        &shard_view.sort_fields,
     )
         .await
         .map_err(DataFusionError::Execution)?;
@@ -1076,8 +1329,42 @@ fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
 /// # Safety
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
-    if stream_ptr != 0 {
-        let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    if stream_ptr == 0 {
+        return;
+    }
+    let mut handle = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    let context_id = handle._query_tracking_context.context_id();
+    // Grab the CPU runtime handle BEFORE drop — drop removes the tracker from
+    // the registry, making it unreachable for flush_cpu_runtime.
+    let cpu_rt_handle = query_tracker::take_cpu_runtime_handle(context_id);
+    // Dropping the handle aborts the CPU task but does not wait for it; on the coordinator-reduce
+    // path that task still holds Java-borrowed input batches. Wait for it to fully unwind (signal
+    // fires once its batches drop) before returning, so the caller's allocator close is safe.
+    let task_done = handle.task_done.take();
+    drop(handle);
+    if let Some(rx) = task_done {
+        if let Some(mgr) = crate::ffm::try_get_rt_manager() {
+            // Already aborted, so this resolves as soon as the task unwinds; 30s is a backstop
+            // against a wedged task hanging the reduce thread. If it fires we proceed anyway and
+            // may leak the borrow — log it so a recurring timeout is visible rather than silent.
+            let timed_out = mgr
+                .io_runtime
+                .block_on(async { tokio::time::timeout(std::time::Duration::from_secs(30), rx).await })
+                .is_err();
+            if timed_out {
+                native_bridge_common::log_error!(
+                    "stream_close: timed out after 30s waiting for the reduce CPU task to release \
+                     borrowed buffers; proceeding with allocator close (possible leak)"
+                );
+            }
+        }
+    }
+    // After dropping the QueryStreamHandle (which drops CrossRtStream → JoinSet →
+    // aborts the CPU task), flush the runtime so the cascading abort of
+    // pull_from_input tasks (holding GroupValues buffers) is processed now rather
+    // than lingering in tokio's deferred drop queue on an idle runtime.
+    if let Some(rt) = cpu_rt_handle {
+        query_tracker::flush_cpu_runtime_with_handle(&rt, context_id);
     }
 }
 
@@ -1100,7 +1387,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
+    use datafusion::execution::cache::cache_manager::CachedFileList;
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -1120,21 +1407,7 @@ pub unsafe fn sql_to_substrait(
             },
             CachedFileList::new(object_metas.as_ref().clone()),
         );
-        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-            .with_cache_manager(
-                CacheManagerConfig::default()
-                    .with_list_files_cache(Some(list_file_cache))
-                    .with_file_metadata_cache(Some(
-                        runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                    ))
-                    .with_metadata_cache_limit(
-                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                    )
-                    .with_files_statistics_cache(
-                        runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                    ),
-            )
-            .build()?;
+        let runtime_env = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
 
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())
@@ -1536,7 +1809,7 @@ pub async unsafe fn execute_local_plan(
     // a `cancel_query(context_id)` call from Java interrupts even before the
     // first batch is produced (planning, from_substrait_plan, repartition
     // setup, etc. can all take non-trivial time on a wide reduce).
-    let df_stream = cancellation::cancellable(
+    let (df_stream, physical_plan) = cancellation::cancellable(
         token.as_ref(),
         context_id,
         session.execute_substrait(substrait_bytes),
@@ -1548,14 +1821,19 @@ pub async unsafe fn execute_local_plan(
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
-    let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    let cpu_exec = manager.cpu_executor();
+    let (cross_rt_stream, abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
     }
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Attach the teardown signal so stream_close releases borrowed input batches before allocator close.
+    let handle = QueryStreamHandle::new_with_plan(wrapped, query_context, permit, physical_plan).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1591,14 +1869,19 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    let cpu_exec = manager.cpu_executor();
+    let (cross_rt_stream, abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
     }
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Same teardown signal as execute_local_plan.
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1645,9 +1928,10 @@ pub unsafe fn sender_send(
     array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
-    let batch = RecordBatch::from(struct_array);
-
-    Ok(sender.send_blocking(Ok(batch), io_handle))
+    // Zero-copy: from_ffi BORROWS the Java buffers, keeping them alive until DataFusion drops the
+    // batch. stream_close's teardown barrier releases that borrow before the allocator closes.
+    let borrowed_batch = RecordBatch::from(struct_array);
+    Ok(sender.send_blocking(Ok(borrowed_batch), io_handle))
 }
 
 /// Closes a partition stream sender. Dropping the sender closes the mpsc,
@@ -1676,6 +1960,19 @@ mod tests {
     /// runs tests in parallel by default; without serialization, two runtime-construction
     /// tests would race on these globals and produce flaky assertions.
     static SPILL_GLOBALS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Test helper: poll until `predicate` returns true or `timeout_ms` elapses.
+    /// Used to wait on the background spill-cleanup thread without an arbitrary sleep.
+    fn wait_until<F: Fn() -> bool>(timeout_ms: u64, predicate: F) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+        while std::time::Instant::now() < deadline {
+            if predicate() {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        predicate()
+    }
 
     #[test]
     fn create_global_runtime_with_empty_spill_dir_disables_disk_manager() {
@@ -1709,11 +2006,29 @@ mod tests {
         // budget must NOT be Disabled — set_spill_dir flips SPILL_ENABLED on. Whether
         // it's Available or Critical depends on the test host's free disk; both prove
         // the enabled-path branch is taken.
+        //
+        // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
+        // file in the directory before the call and assert it's gone after.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        // Simulate a leaked spill file from a prior non-graceful shutdown.
+        let sentinel = tmp.path().join("leaked_from_prior_run.tmp");
+        fs::write(&sentinel, b"stale spill data").expect("seed sentinel");
+        assert!(sentinel.exists(), "sentinel must exist before runtime build");
+
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
+
+        // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
+        // synchronously; phase 2 unlinks it asynchronously. The original name
+        // is gone immediately; wait for the .stale name to disappear too.
+        assert!(!sentinel.exists(), "sentinel original name must be gone (renamed)");
+        let stale = tmp.path().join("leaked_from_prior_run.tmp.stale");
+        let cleaned = wait_until(2000, || !stale.exists());
+        assert!(cleaned, "background cleanup must remove the .stale sentinel within 2s");
+
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
         assert!(
             runtime.runtime_env.disk_manager.tmp_files_enabled(),
@@ -1724,6 +2039,286 @@ mod tests {
             crate::memory_guard::SpillBudget::Disabled,
             "spill-enabled runtime must NOT surface SpillBudget::Disabled"
         );
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_clears_leaked_spill_files_recursively() {
+        // Operator-confirmed contract: the spill directory is OpenSearch-owned and any
+        // contents present at startup are leaked from a prior non-graceful shutdown.
+        // create_global_runtime must clear the directory recursively (files AND
+        // subdirectories) before / during constructing the DiskManager.
+        //
+        // Cleanup is two-phase: phase 1 renames every immediate child to *.stale on
+        // the boot thread (uniform across files, symlinks, dirs); phase 2 removes
+        // them in a background thread (remove_file for files/symlinks, remove_dir_all
+        // for dirs). The original names are gone immediately after phase 1; wait
+        // briefly for phase 2 to clear the *.stale entries.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        // Seed both a top-level file and a nested subdirectory + file to verify
+        // recursive removal (a shallow delete would miss the nested file).
+        let top_file = tmp.path().join("top.tmp");
+        fs::write(&top_file, b"top-level leak").expect("seed top file");
+        let nested_dir = tmp.path().join("subdir/deeper");
+        fs::create_dir_all(&nested_dir).expect("seed nested subdirs");
+        let nested_file = nested_dir.join("deep.tmp");
+        fs::write(&nested_file, b"nested leak").expect("seed nested file");
+        let outer_subdir = tmp.path().join("subdir");
+        assert!(top_file.exists());
+        assert!(nested_file.exists());
+
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        // Phase 1: original names gone (renamed to *.stale).
+        assert!(!top_file.exists(), "top-level file original name must be gone (renamed)");
+        assert!(!outer_subdir.exists(), "original subdir name must be gone (renamed)");
+
+        // Phase 2: *.stale entries cleaned by the background thread.
+        let stale_top = tmp.path().join("top.tmp.stale");
+        let stale_dir = tmp.path().join("subdir.stale");
+        let cleaned = wait_until(2000, || !stale_top.exists() && !stale_dir.exists());
+        assert!(cleaned, "background cleanup must remove both .stale entries within 2s");
+        assert!(!nested_file.exists(), "nested leaked file must be removed");
+        assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
+
+        // Spill root itself must remain (cleanup wipes children only).
+        assert!(tmp.path().exists(), "spill root must be preserved across cleanup");
+        assert!(tmp.path().is_dir(), "spill root must remain a directory after cleanup");
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_with_empty_spill_dir_does_not_touch_filesystem() {
+        // The cleanup logic must live entirely inside the spill-enabled branch. With
+        // spill disabled (empty path), no filesystem operation should run — an
+        // accidental fs::remove_dir_all("") would error and break boot. This test
+        // guards against future refactors that hoist the cleanup out of the else-branch.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
+        assert!(ptr > 0);
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_fails_fast_when_cleanup_fails() {
+        // Cleanup failure is operator-actionable (permissions, RO mount, I/O) and
+        // implies the runtime would fail later mid-query anyway. Surface the failure
+        // at boot with full context. Trigger the failure path by pointing spill_dir
+        // at a regular file: spill_path.exists() returns true, but read_dir refuses
+        // to enumerate a non-directory and returns ErrorKind::NotADirectory.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let bad_path = tmp.path().join("regular_file");
+        fs::write(&bad_path, b"not a directory").expect("seed regular file");
+        let bad_path_str = bad_path.to_str().expect("utf-8 path");
+
+        let err = create_global_runtime(64 * 1024 * 1024, 0, bad_path_str, 0)
+            .expect_err("create_global_runtime must fail when cleanup fails");
+
+        // Operator-facing message must include the offending path + io kind so the
+        // logs are diagnostic without needing further investigation.
+        let msg = err.to_string();
+        assert!(msg.contains(bad_path_str), "error must reference the offending path; got: {}", msg);
+        assert!(msg.contains("io kind="), "error must include the io::ErrorKind for diagnosis; got: {}", msg);
+        assert!(
+            msg.contains("Failed to enumerate spill directory")
+                || msg.contains("Failed to clear leaked spill entry"),
+            "error must identify it as a cleanup failure; got: {}",
+            msg
+        );
+    }
+
+    /// Spill directory is owned by the JVM but its parent isn't (mount-point
+    /// topology). `fs::remove_dir_all(spill_dir)` would fail at the final
+    /// rmdir; the fix wipes contents only.
+    ///
+    /// Skipped under EUID 0 — root has CAP_DAC_OVERRIDE (or the macOS equivalent)
+    /// and bypasses the chmod 0o555 we use to simulate the locked parent, so the
+    /// pre-fix code path would silently succeed and the test would assert nothing.
+    /// CI runs as a non-root user; if you need to verify under root, run the
+    /// test in a user namespace or container that drops the capability.
+    #[test]
+    #[cfg(unix)]
+    fn create_global_runtime_succeeds_when_jvm_does_not_own_spill_parent() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // SAFETY: geteuid() is async-signal-safe and has no preconditions.
+        let euid = unsafe { libc::geteuid() };
+        if euid == 0 {
+            eprintln!(
+                "skipping create_global_runtime_succeeds_when_jvm_does_not_own_spill_parent: \
+                 EUID 0 bypasses chmod 0o555 via DAC override; the pre-fix code path \
+                 would silently succeed and the test would assert nothing"
+            );
+            return;
+        }
+
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let parent = tempfile::tempdir().expect("parent tempdir");
+        let spill_path = parent.path().join("spill");
+        fs::create_dir(&spill_path).expect("create spill mount-point dir");
+
+        // Seed leaked entries: a datafusion-* subtree (kill -9 leftover) and a loose file.
+        let leaked_dir = spill_path.join("datafusion-aB3kF7");
+        fs::create_dir(&leaked_dir).expect("create leaked subdir");
+        let leaked_file = leaked_dir.join("tmp_spill_001.arrow");
+        fs::write(&leaked_file, b"stale spill data").expect("seed leaked file");
+        let loose_file = spill_path.join("stray.txt");
+        fs::write(&loose_file, b"loose top-level file").expect("seed loose file");
+
+        // Lock parent to r+x only — simulates the mount-point parent the JVM doesn't own.
+        let original_parent_mode = fs::metadata(parent.path()).expect("stat parent").permissions().mode();
+        let mut locked = fs::metadata(parent.path()).expect("stat parent").permissions();
+        locked.set_mode(0o555);
+        fs::set_permissions(parent.path(), locked).expect("chmod parent 555");
+
+        let spill_str = spill_path.to_str().expect("utf-8 path");
+        let result = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0);
+
+        // Restore parent perms via RAII so tempdir cleanup runs even on assertion failure.
+        struct RestorePerms<'a> {
+            path: &'a std::path::Path,
+            mode: u32,
+        }
+        impl Drop for RestorePerms<'_> {
+            fn drop(&mut self) {
+                if let Ok(metadata) = fs::metadata(self.path) {
+                    let mut perms = metadata.permissions();
+                    perms.set_mode(self.mode);
+                    let _ = fs::set_permissions(self.path, perms);
+                }
+            }
+        }
+        let _restore = RestorePerms { path: parent.path(), mode: original_parent_mode };
+
+        let ptr = result.expect("runtime build must succeed when only the parent is read-only");
+        assert!(ptr > 0);
+
+        // Phase 1: both originals are renamed inline — gone immediately by the
+        // original name. Phase 2 unlinks the .stale entries asynchronously.
+        assert!(!loose_file.exists(), "loose top-level file original name must be gone (renamed)");
+        assert!(!leaked_dir.exists(), "leaked datafusion-* original name must be gone (renamed)");
+
+        let stale_loose = spill_path.join("stray.txt.stale");
+        let stale_dir = spill_path.join("datafusion-aB3kF7.stale");
+        let cleaned = wait_until(2000, || !stale_loose.exists() && !stale_dir.exists());
+        assert!(cleaned, "background cleanup must remove both .stale entries within 2s");
+        assert!(!leaked_file.exists(), "leaked file under leaked subdir must be removed");
+
+        // Spill root itself preserved.
+        assert!(spill_path.exists(), "spill mount-point dir must be preserved");
+        assert!(spill_path.is_dir(), "spill mount-point must remain a directory");
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    /// Top-level symlinks must be unlinked, not followed — otherwise the wipe
+    /// could escape the spill directory and delete files elsewhere.
+    #[test]
+    #[cfg(unix)]
+    fn create_global_runtime_unlinks_top_level_symlink_without_following() {
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().join("spill");
+        fs::create_dir(&spill_path).expect("create spill dir");
+
+        // outside_target sits next to spill/. If cleanup followed the symlink, it would be deleted.
+        let outside = tmp.path().join("outside_target.txt");
+        fs::write(&outside, b"must NOT be touched").expect("seed outside file");
+
+        let link = spill_path.join("escape_link");
+        std::os::unix::fs::symlink(&outside, &link).expect("create symlink");
+        assert!(link.is_symlink(), "precondition: link is a symlink");
+
+        let spill_str = spill_path.to_str().expect("utf-8 path");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        // Phase 1: symlink is renamed inline (fs::rename does not follow symlinks).
+        assert!(!link.exists(), "symlink original name must be gone (renamed)");
+        let stale_link = spill_path.join("escape_link.stale");
+
+        // Phase 2: remove_file on a symlink unlinks the link itself, never the target.
+        let cleaned = wait_until(2000, || !stale_link.exists());
+        assert!(cleaned, "background cleanup must remove escape_link.stale within 2s");
+
+        // Critical: the target outside spill must be intact across both phases.
+        // If phase 1 had followed the symlink during rename, or phase 2 followed
+        // it during remove, the outside file would have been clobbered.
+        assert!(
+            outside.exists(),
+            "symlink target outside spill dir must NOT be touched (cleanup must not follow symlinks)"
+        );
+        assert_eq!(
+            fs::read(&outside).expect("read outside file"),
+            b"must NOT be touched",
+            "symlink target contents must be preserved verbatim"
+        );
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    /// Phase 1 (sync rename) must observably move each orphan subdir to a
+    /// *.stale name. Phase 2 then removes the *.stale entries asynchronously.
+    /// This pins the rename behavior so a future refactor that goes back to
+    /// inline recursive removal would be flagged.
+    #[test]
+    fn create_global_runtime_renames_orphan_subdirs_to_stale_then_async_removes() {
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        let leaked_a = tmp.path().join("datafusion-aB3kF7");
+        fs::create_dir(&leaked_a).expect("create leaked a");
+        fs::write(leaked_a.join("tmp_001.arrow"), b"data a").expect("write a");
+        let leaked_b = tmp.path().join("datafusion-Xy9pQ2");
+        fs::create_dir(&leaked_b).expect("create leaked b");
+        fs::write(leaked_b.join("tmp_002.arrow"), b"data b").expect("write b");
+
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        // Originals were renamed inline — gone immediately by the original name.
+        assert!(!leaked_a.exists(), "original orphan a must be renamed away");
+        assert!(!leaked_b.exists(), "original orphan b must be renamed away");
+
+        // Phase 2 will eventually remove both *.stale entries.
+        let stale_a = tmp.path().join("datafusion-aB3kF7.stale");
+        let stale_b = tmp.path().join("datafusion-Xy9pQ2.stale");
+        let cleaned = wait_until(2000, || !stale_a.exists() && !stale_b.exists());
+        assert!(cleaned, "background cleanup must remove both *.stale entries within 2s");
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    /// Pre-existing *.stale entries from a prior boot whose phase 2 didn't finish
+    /// must be cleaned up by the next boot's phase 2, and phase 1 must not
+    /// double-suffix them (no datafusion-old.stale.stale).
+    #[test]
+    fn create_global_runtime_cleans_prior_boot_stale_entries() {
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        let leftover = tmp.path().join("datafusion-old.stale");
+        fs::create_dir(&leftover).expect("create leftover");
+        fs::write(leftover.join("residue.arrow"), b"prior boot data").expect("write residue");
+
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        let cleaned = wait_until(2000, || !leftover.exists());
+        assert!(cleaned, "prior-boot .stale leftover must be cleaned within 2s");
+        assert!(
+            !tmp.path().join("datafusion-old.stale.stale").exists(),
+            "phase 1 must NOT double-suffix existing .stale entries"
+        );
+
         unsafe { close_global_runtime(ptr) };
     }
 

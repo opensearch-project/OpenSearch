@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.avatica.util.TimeUnit;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
@@ -31,15 +32,24 @@ import java.util.List;
 
 /**
  * Rewrites PPL {@code DATE_ADD(base, INTERVAL n unit)} / {@code DATE_SUB(base, INTERVAL n unit)}
- * into {@code DATETIME_PLUS(CAST(base AS TIMESTAMP), interval)}, which lowers to Substrait's
+ * (and the alias forms {@code ADDDATE} / {@code SUBDATE}) into
+ * {@code DATETIME_PLUS(CAST(base AS TIMESTAMP), interval)}, which lowers to Substrait's
  * {@code add(timestamp, interval)} that DataFusion executes natively. The raw PPL UDFs have no
  * Substrait binding, so isthmus rejects them.
+ *
+ * <p>Also handles ADDDATE/SUBDATE's integer form: {@code ADDDATE(base, N)} is treated as
+ * {@code INTERVAL N DAY} per MySQL semantics — the integer second operand is normalized to a
+ * day-interval literal before the standard lowering proceeds.
  *
  * <p>PPL's interval literal carries the leading-field value (e.g. {@code 90} for
  * {@code INTERVAL 90 day}), but Substrait/DataFusion expect day-time intervals in milliseconds and
  * year-month intervals in months. This adapter rebuilds the interval in those base units (under a
  * {@link TimeUnit#DAY} or {@link TimeUnit#MONTH} qualifier) and folds the {@code DATE_SUB} sign in,
  * the same way {@link EarliestLatestAdapter} does.
+ *
+ * <p>{@code ADDDATE(base, n_days)} / {@code SUBDATE(base, n_days)} share the same lowering: the
+ * integer second operand is rebuilt as an {@code INTERVAL n DAY} literal before the standard
+ * interval path runs. This matches the SQL plugin's {@code AddSubDateFunction} semantics.
  *
  * <p>DATE / TIMESTAMP / TIME / character bases are all lowered. TIME anchors to today-UTC at plan
  * time, which can drift from the PPL UDF's query-start anchor across UTC midnight or cached plans
@@ -68,10 +78,16 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
         if (original.getOperands().size() != 2) {
             return original;
         }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
         RexNode base = original.getOperands().get(0);
-        RexNode intervalOperand = stripOperatorAnnotation(original.getOperands().get(1));
-        if (!(intervalOperand instanceof RexLiteral intervalLiteral)
-            || !SqlTypeName.INTERVAL_TYPES.contains(intervalLiteral.getType().getSqlTypeName())) {
+        RexNode rawSecond = stripOperatorAnnotation(original.getOperands().get(1));
+        // ADDDATE/SUBDATE accept INTEGER days; rebuild as INTERVAL n DAY so the interval path runs.
+        RexLiteral intervalLiteral = asIntervalLiteral(rawSecond, rexBuilder);
+        if (intervalLiteral == null) {
+            // Non-literal integer days (e.g. `bin span=Nday`): see adaptNonLiteralIntegerDays.
+            if (rawSecond != null && SqlTypeName.INT_TYPES.contains(rawSecond.getType().getSqlTypeName())) {
+                return adaptNonLiteralIntegerDays(original, base, rawSecond, cluster);
+            }
             return original;
         }
         SqlIntervalQualifier qualifier = intervalLiteral.getType().getIntervalQualifier();
@@ -79,8 +95,6 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
         if (qualifier == null || leadingValue == null) {
             return original;
         }
-
-        RexBuilder rexBuilder = cluster.getRexBuilder();
 
         // Character base appears post-decorrelation when the PPL DATE() wrapper is folded off a
         // literal inside EXISTS/IN/scalar subqueries — coerce back to plain Calcite TIMESTAMP (not
@@ -155,6 +169,77 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
         return rexBuilder.makeAbstractCast(original.getType(), shifted);
     }
 
+    /**
+     * Non-literal integer-days form (e.g. {@code bin span=Nday}). DataFusion can't evaluate
+     * {@code Int64 * Interval(DayTime)} at runtime, so lower to
+     * {@code from_unixtime(baseEpochSec + daysExpr * 86400.0)}; base must be a foldable literal.
+     */
+    private RexNode adaptNonLiteralIntegerDays(RexCall original, RexNode base, RexNode daysExpr, RelOptCluster cluster) {
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        Long baseEpochSeconds = tryFoldBaseToEpochSeconds(base);
+        if (baseEpochSeconds == null) {
+            // Non-literal base — leave the call unchanged so the UDF path raises a
+            // clearer error than a downstream DF planner failure.
+            return original;
+        }
+        RelDataTypeFactory typeFactory = rexBuilder.getTypeFactory();
+        // daysExpr * 86400.0 → DOUBLE epoch-seconds delta.
+        RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
+        RexNode daysAsDouble = rexBuilder.makeAbstractCast(
+            typeFactory.createTypeWithNullability(doubleType, daysExpr.getType().isNullable()),
+            daysExpr
+        );
+        long signedSecPerDay = isAdd ? 86_400L : -86_400L;
+        RexNode secPerDayLit = rexBuilder.makeApproxLiteral(BigDecimal.valueOf(signedSecPerDay), doubleType);
+        RexNode deltaSec = rexBuilder.makeCall(SqlStdOperatorTable.MULTIPLY, daysAsDouble, secPerDayLit);
+        RexNode baseSec = rexBuilder.makeApproxLiteral(BigDecimal.valueOf(baseEpochSeconds), doubleType);
+        RexNode totalSec = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, baseSec, deltaSec);
+        RexNode ts = rexBuilder.makeCall(
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3), daysExpr.getType().isNullable()),
+            RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP,
+            List.of(totalSec)
+        );
+        if (ts.getType().equals(original.getType())) {
+            return ts;
+        }
+        return rexBuilder.makeAbstractCast(original.getType(), ts);
+    }
+
+    /**
+     * Folds a CHAR ({@code YYYY-MM-DD}) / DATE / TIMESTAMP literal to epoch-seconds at midnight UTC.
+     * Returns null when {@code base} is not such a literal.
+     */
+    private static Long tryFoldBaseToEpochSeconds(RexNode base) {
+        if (!(base instanceof RexLiteral lit)) {
+            return null;
+        }
+        Object value = lit.getValue2();
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (SqlTypeFamily.CHARACTER.contains(lit.getType())) {
+                String s = value.toString().trim();
+                if (s.length() == 10) {
+                    return LocalDate.parse(s).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+                }
+                return null;
+            }
+            SqlTypeName tn = lit.getType().getSqlTypeName();
+            if (tn == SqlTypeName.DATE) {
+                int days = ((Number) value).intValue();
+                return days * 86_400L;
+            }
+            if (tn == SqlTypeName.TIMESTAMP || tn == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+                long millis = ((Number) value).longValue();
+                return millis / 1_000L;
+            }
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        return null;
+    }
+
     /** Lift the base to the call's TIMESTAMP type. TIME prepends today-UTC; character base passes through. */
     private static RexNode liftToTimestamp(
         RexNode base,
@@ -182,5 +267,26 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
             node = annotation.unwrap();
         }
         return node;
+    }
+
+    /**
+     * Returns {@code node} when it's already an interval literal; for an integer literal returns a
+     * synthetic {@code INTERVAL n DAY} literal (the ADDDATE/SUBDATE integer-days form). Anything
+     * else returns null so the caller can pass the call through to the UDF path.
+     */
+    private static RexLiteral asIntervalLiteral(RexNode node, RexBuilder rexBuilder) {
+        if (node instanceof RexLiteral lit) {
+            if (SqlTypeName.INTERVAL_TYPES.contains(lit.getType().getSqlTypeName())) {
+                return lit;
+            }
+            if (SqlTypeName.INT_TYPES.contains(lit.getType().getSqlTypeName())) {
+                BigDecimal days = lit.getValueAs(BigDecimal.class);
+                if (days == null) {
+                    return null;
+                }
+                return rexBuilder.makeIntervalLiteral(days, new SqlIntervalQualifier(TimeUnit.DAY, null, SqlParserPos.ZERO));
+            }
+        }
+        return null;
     }
 }

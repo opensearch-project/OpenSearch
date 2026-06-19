@@ -15,6 +15,7 @@ import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.SpillStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -77,14 +78,13 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         RuntimeMetrics io = new RuntimeMetrics(4, 1000, 500, 10, 5, 2, 20, 100, 8);
         RuntimeMetrics cpu = new RuntimeMetrics(8, 2000, 1000, 20, 10, 4, 40, 200, 16);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(100, 200, 300));
-        taskMonitors.put("query_execution", new TaskMonitorStats(400, 500, 600));
-        taskMonitors.put("stream_next", new TaskMonitorStats(700, 800, 900));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(1000, 1100, 1200));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(100, 200, 300, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(400, 500, 600, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(700, 800, 900, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(1000, 1100, 1200, 0, 0));
         NativeExecutorsStats nativeStats = new NativeExecutorsStats(io, cpu, taskMonitors);
-        PartitionGateStats datanodeGate = new PartitionGateStats("datanode_gate", 64, 3, 150, 500, 0, 64);
-        PartitionGateStats coordinatorGate = new PartitionGateStats("coordinator_gate", 32, 1, 75, 250, 0, 32);
-        return new DataFusionStats(nativeStats, datanodeGate, coordinatorGate);
+        PartitionGateStats fragmentExecutorGate = new PartitionGateStats("fragment_executor_gate", 64, 3, 150, 500, 0, 64, 0, 0);
+        return new DataFusionStats(nativeStats, fragmentExecutorGate, null, null);
     }
 
     // ---- Test 1: nodeOperation calls dataFusionService.getStats() ----
@@ -155,8 +155,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         // task monitors should be empty
         assertTrue(result.getNativeExecutorsStats().getTaskMonitors().isEmpty());
         // gate stats should be null
-        assertNull(result.getDatanodeGateStats());
-        assertNull(result.getCoordinatorGateStats());
+        assertNull(result.getFragmentExecutorGateStats());
     }
 
     // ---- Test 6: filteredStats with multiple sections ----
@@ -166,7 +165,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         Set<String> filter = new HashSet<>();
         filter.add("cpu_runtime");
         filter.add("query_execution");
-        filter.add("datanode_gate");
+        filter.add("fragment_executor_gate");
 
         DataFusionStats result = TransportDataFusionStatsAction.filteredStats(stats, filter);
 
@@ -182,11 +181,9 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         assertEquals(1, monitors.size());
         assertTrue(monitors.containsKey("query_execution"));
         assertEquals(stats.getNativeExecutorsStats().getTaskMonitors().get("query_execution"), monitors.get("query_execution"));
-        // datanode_gate should be present
-        assertNotNull(result.getDatanodeGateStats());
-        assertEquals(stats.getDatanodeGateStats(), result.getDatanodeGateStats());
-        // coordinator_gate should be null (not in filter)
-        assertNull(result.getCoordinatorGateStats());
+        // fragment_executor_gate should be present
+        assertNotNull(result.getFragmentExecutorGateStats());
+        assertEquals(stats.getFragmentExecutorGateStats(), result.getFragmentExecutorGateStats());
     }
 
     // ---- Test 7: filteredStats with null stats input returns null ----
@@ -210,5 +207,33 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         assertNotNull(response);
         assertEquals(localNode, response.getNode());
         assertNull(response.getStats());
+    }
+
+    // ---- Helper: build DataFusionStats with only a populated SpillStats section ----
+
+    private static DataFusionStats statsWithSpill() {
+        return new DataFusionStats(null, null, null, new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, 0L));
+    }
+
+    // ---- Test: filter with "disk_spill" includes SpillStats ----
+
+    public void testFilterIncludesSpillWhenRequested() {
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("disk_spill"));
+        assertNotNull(filtered.getSpillStats());
+        assertEquals("/mnt/spill", filtered.getSpillStats().getDirectory());
+    }
+
+    // ---- Test: filter without "disk_spill" excludes SpillStats ----
+
+    public void testFilterExcludesSpillWhenNotRequested() {
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("io_runtime"));
+        assertNull(filtered.getSpillStats());
+    }
+
+    // ---- Test: empty filter returns all sections including spill ----
+
+    public void testEmptyFilterReturnsAllSectionsIncludingSpill() {
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of());
+        assertNotNull(filtered.getSpillStats());
     }
 }

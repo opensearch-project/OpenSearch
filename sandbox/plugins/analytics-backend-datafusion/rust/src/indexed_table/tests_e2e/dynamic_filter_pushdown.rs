@@ -131,11 +131,13 @@ async fn run_indexed(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let factory: super::super::table_provider::EvaluatorFactory = {
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let collector: Arc<dyn RowGroupDocsCollector> = Arc::new(MatchAllCollector);
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
@@ -153,6 +155,7 @@ async fn run_indexed(
                         crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory,
                     ),
                     0,
+                    None,
                     None,
                 ),
             );
@@ -183,6 +186,9 @@ async fn run_indexed(
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

@@ -10,6 +10,8 @@ package org.opensearch.parquet;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocator;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -35,6 +37,7 @@ import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -91,6 +94,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
 
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
+
+    public static final int PARQUET_THREAD_POOL_QUEUE_SIZE = 10_000;
     private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
     public static final ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
@@ -118,8 +123,66 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
-        this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
-            .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
+        // Hand the node thread pool to the stats provider so per-node stats can read the live
+        // parquet_native_write pool (queue depth / active / rejected).
+        if (ParquetStatsProvider.getInstance() != null) {
+            ParquetStatsProvider.getInstance().setThreadPool(threadPool);
+        }
+        this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class).orElse(null);
+
+        // Initialize native write/merge memory pools
+        long writeMax = ParquetSettings.WRITE_POOL_MAX.get(this.settings);
+        long mergeMax = ParquetSettings.MERGE_POOL_MAX.get(this.settings);
+        RustBridge.initMemoryPools(writeMax, mergeMax);
+
+        // Register virtual pools if allocator is available (arrow-base loaded)
+        if (nativeAllocator != null) {
+            NativeAllocator.VirtualPoolHandle writePool = nativeAllocator.registerVirtualPool(
+                ParquetSettings.POOL_WRITE,
+                ParquetSettings.WRITE_POOL_MIN.get(this.settings),
+                writeMax,
+                PoolGroup.INDEXING,
+                newLimit -> RustBridge.setWritePoolLimit(newLimit)
+            );
+            NativeAllocator.VirtualPoolHandle mergePool = nativeAllocator.registerVirtualPool(
+                ParquetSettings.POOL_MERGE,
+                ParquetSettings.MERGE_POOL_MIN.get(this.settings),
+                mergeMax,
+                PoolGroup.MERGE,
+                newLimit -> RustBridge.setMergePoolLimit(newLimit)
+            );
+
+            // Wire dynamic setting consumers via allocator
+            ClusterSettings cs = clusterService.getClusterSettings();
+            cs.addSettingsUpdateConsumer(
+                ParquetSettings.WRITE_POOL_MAX,
+                newMax -> nativeAllocator.setPoolLimit(ParquetSettings.POOL_WRITE, newMax)
+            );
+            cs.addSettingsUpdateConsumer(
+                ParquetSettings.WRITE_POOL_MIN,
+                newMin -> nativeAllocator.setPoolMin(ParquetSettings.POOL_WRITE, newMin)
+            );
+            cs.addSettingsUpdateConsumer(
+                ParquetSettings.MERGE_POOL_MAX,
+                newMax -> nativeAllocator.setPoolLimit(ParquetSettings.POOL_MERGE, newMax)
+            );
+            cs.addSettingsUpdateConsumer(
+                ParquetSettings.MERGE_POOL_MIN,
+                newMin -> nativeAllocator.setPoolMin(ParquetSettings.POOL_MERGE, newMin)
+            );
+
+            nativeAllocator.addStatsRefresher(() -> {
+                long[] s = RustBridge.getPoolStats();
+                writePool.updateStats(s[1], s[2]);
+                mergePool.updateStats(s[4], s[5]);
+            });
+        } else {
+            // No allocator — wire dynamic consumers directly to Rust pools
+            ClusterSettings cs = clusterService.getClusterSettings();
+            cs.addSettingsUpdateConsumer(ParquetSettings.WRITE_POOL_MAX, newMax -> RustBridge.setWritePoolLimit(newMax));
+            cs.addSettingsUpdateConsumer(ParquetSettings.MERGE_POOL_MAX, newMax -> RustBridge.setMergePoolLimit(newMax));
+        }
+
         return Collections.emptyList();
     }
 
@@ -177,7 +240,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
                 settings,
                 PARQUET_THREAD_POOL_NAME,
                 OpenSearchExecutors.allocatedProcessors(settings),
-                -1,
+                PARQUET_THREAD_POOL_QUEUE_SIZE,
                 "thread_pool." + PARQUET_THREAD_POOL_NAME
             )
         );

@@ -52,6 +52,10 @@ pub struct ConcurrencyGate {
     max_permits: AtomicU32,
     total_wait_ms: AtomicU64,
     total_queries_admitted: AtomicU64,
+    /// Number of tasks currently waiting to acquire the semaphore.
+    pending_acquire_permits: AtomicU64,
+    /// Number of batches currently waiting to acquire permits from this gate.
+    pending_acquire_batches: AtomicU64,
     /// Serializes resize operations. Only one resize runs at a time.
     resize_mutex: AsyncMutex<ResizeState>,
 }
@@ -64,6 +68,8 @@ impl ConcurrencyGate {
             max_permits: AtomicU32::new(permits as u32),
             total_wait_ms: AtomicU64::new(0),
             total_queries_admitted: AtomicU64::new(0),
+            pending_acquire_permits: AtomicU64::new(0),
+            pending_acquire_batches: AtomicU64::new(0),
             resize_mutex: AsyncMutex::new(ResizeState {
                 poison_permits: Vec::new(),
                 target_max_permits: permits as u32,
@@ -78,13 +84,27 @@ impl ConcurrencyGate {
 
     /// Acquire N permits (partition-weighted). Held for the entire query stream lifetime.
     pub async fn acquire_many(&self, n: u32) -> OwnedSemaphorePermit {
+        self.pending_acquire_permits.fetch_add(n as u64, Ordering::Relaxed);
+        self.pending_acquire_batches.fetch_add(1, Ordering::Relaxed);
         let start = Instant::now();
-        let permit = self.semaphore.clone().acquire_many_owned(n).await
-            .expect("concurrency gate semaphore closed");
+        let result = self.semaphore.clone().acquire_many_owned(n).await;
+        self.pending_acquire_permits.fetch_sub(n as u64, Ordering::Relaxed);
+        self.pending_acquire_batches.fetch_sub(1, Ordering::Relaxed);
+        let permit = result.expect("concurrency gate semaphore closed");
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.total_wait_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
         self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
         permit
+    }
+
+    /// Returns the number of tasks currently waiting to acquire the semaphore.
+    pub fn pending_acquire_permits(&self) -> u64 {
+        self.pending_acquire_permits.load(Ordering::Relaxed)
+    }
+
+    /// Returns the number of batches currently waiting to acquire permits.
+    pub fn pending_acquire_batches(&self) -> u64 {
+        self.pending_acquire_batches.load(Ordering::Relaxed)
     }
 
     pub fn max_permits(&self) -> u32 {
@@ -753,6 +773,39 @@ mod tests {
                 Ok(())
             })?;
         }
+    }
+
+    // ─── pending_acquire_permits counter tests ─────────────────────────────────
+
+    /// Verify pending_acquire_permits increments during contention and returns to 0 after.
+    #[tokio::test]
+    async fn test_pending_acquire_permits_counter() {
+        let gate = Arc::new(ConcurrencyGate::new(1));
+
+        // Acquire the single permit so subsequent acquires will block
+        let permit = gate.acquire().await;
+        assert_eq!(gate.pending_acquire_permits(), 0);
+        assert_eq!(gate.pending_acquire_batches(), 0);
+
+        // Spawn a task that will block on acquire
+        let gate_clone = Arc::clone(&gate);
+        let handle = tokio::spawn(async move {
+            gate_clone.acquire().await
+        });
+
+        // Yield to let the spawned task start waiting
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        assert_eq!(gate.pending_acquire_permits(), 1);
+        assert_eq!(gate.pending_acquire_batches(), 1);
+
+        // Drop the first permit — spawned task should complete
+        drop(permit);
+        let _permit2 = handle.await.unwrap();
+
+        // After the spawned task completes, counters should be 0
+        assert_eq!(gate.pending_acquire_permits(), 0);
+        assert_eq!(gate.pending_acquire_batches(), 0);
     }
 
     /// **Validates: Requirements 2.5**

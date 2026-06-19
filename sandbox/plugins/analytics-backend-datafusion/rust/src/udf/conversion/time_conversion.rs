@@ -12,7 +12,6 @@
 //! * `mktime(value, format)` — formatted time string → UNIX epoch seconds as double. If the
 //!   input already parses as a number it is forwarded unchanged
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -88,10 +87,6 @@ impl Hash for TimeConversionUdf {
 }
 
 impl ScalarUDFImpl for TimeConversionUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         self.kind.name()
     }

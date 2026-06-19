@@ -8,12 +8,55 @@
 
 package org.opensearch.analytics.settings;
 
+import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.common.settings.Setting;
 
 import java.util.List;
 
 /** Cluster-level settings for analytics query execution limits. */
 public final class AnalyticsQuerySettings {
+
+    /** Affix-setting prefix; full key is {@code analytics.delegation.<backend>.blocked_predicates}. */
+    public static final String DELEGATION_BLOCKED_PREDICATES_PREFIX = "analytics.delegation.";
+
+    /**
+     * Per-backend block-list of predicate functions that must NOT be delegated to that backend. Affix
+     * (namespaced) setting: the backend name is the namespace, the value is a list of
+     * {@link ScalarFunction} names (case-insensitive). Models the operator-facing
+     * {@code Map<BackendName, List<BlockedPredicate>>} contract.
+     *
+     * <pre>
+     * analytics.delegation.lucene.blocked_predicates:  ["LIKE","EQUALS"]
+     * </pre>
+     *
+     * <p>Default empty. Enforced at the marking layer ({@code OpenSearchFilterRule}): a blocked
+     * predicate is dropped from that backend's viable set, so the planner leaves it on a non-blocked
+     * backend. Dynamic + NodeScope. Registry-derived validation (namespace must be a FILTER-delegation
+     * acceptor; predicate must have a serializer on that backend) runs in {@code DelegationBlockList}.
+     */
+    public static final Setting.AffixSetting<List<ScalarFunction>> DELEGATION_BLOCKED_PREDICATES = Setting.affixKeySetting(
+        DELEGATION_BLOCKED_PREDICATES_PREFIX,
+        "blocked_predicates",
+        key -> Setting.listSetting(
+            key,
+            key.contains("lucene")
+                ? List.of(
+                    "IS_NULL",
+                    "IS_NOT_NULL",
+                    "NOT_EQUALS",
+                    "LIKE",
+                    "GREATER_THAN",
+                    "GREATER_THAN_OR_EQUAL",
+                    "LESS_THAN",
+                    "LESS_THAN_OR_EQUAL",
+                    "SARG_PREDICATE"
+                )
+                : List.of(),
+            ScalarFunction::fromToken,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        )
+    );
 
     public static final Setting<Integer> MAX_SHARDS_PER_QUERY = Setting.intSetting(
         "analytics.query.max_shards_per_query",
@@ -38,7 +81,7 @@ public final class AnalyticsQuerySettings {
     );
 
     public static List<Setting<?>> all() {
-        return List.of(MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
     }
 
     private AnalyticsQuerySettings() {}

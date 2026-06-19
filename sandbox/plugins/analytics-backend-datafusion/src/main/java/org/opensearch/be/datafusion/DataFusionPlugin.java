@@ -13,6 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocator;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
@@ -20,6 +23,8 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -41,6 +46,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.nativebridge.spi.RustLoggerBridge;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
@@ -95,7 +101,7 @@ public class DataFusionPlugin extends Plugin
      * ({@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}), which is
      * the same off-heap budget admission control throttles against. The DataFusion Rust
      * runtime is the dominant native-memory consumer for analytics workloads (see PR #21732
-     * partitioning model), so the default takes 75% of {@code node.native_memory.limit}.
+     * partitioning model), so the default takes 74% of {@code node.native_memory.limit}.
      * If the AC limit is unset (== 0), the default is {@link Long#MAX_VALUE} — unbounded — to
      * preserve pre-AC behaviour rather than make up a number from JVM heap (which is a
      * separate, already-allocated region with no relation to native-memory sizing).
@@ -118,7 +124,7 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
-     * Computes the default for {@link #DATAFUSION_MEMORY_POOL_LIMIT} as 75% of
+     * Computes the default for {@link #DATAFUSION_MEMORY_POOL_LIMIT} as 74% of
      * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}, falling back to
      * {@link Long#MAX_VALUE} when AC is unconfigured.
      *
@@ -134,10 +140,10 @@ public class DataFusionPlugin extends Plugin
         if (nativeLimit.getBytes() <= 0) {
             return Long.toString(Long.MAX_VALUE);
         }
-        // 75% of node.native_memory.limit. DataFusion is the dominant native consumer for
+        // 74% of node.native_memory.limit. DataFusion is the dominant native consumer for
         // analytics workloads; operators tune via the dynamic setting once they characterize
         // their workload.
-        long pool = Math.max(0L, nativeLimit.getBytes() * 75 / 100);
+        long pool = Math.max(0L, nativeLimit.getBytes() * 74 / 100);
         return Long.toString(pool);
     }
 
@@ -201,10 +207,12 @@ public class DataFusionPlugin extends Plugin
 
     /**
      * Validates {@link #DATAFUSION_SPILL_DIRECTORY}. Empty (the unset sentinel) is accepted
-     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path};
-     * existence and writability are intentionally not checked because the directory may be
-     * created later by a host boot script (first-boot mount), and runtime spill writes will
-     * surface any permission issues at first spill with a clear DataFusion error.
+     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path}.
+     *
+     * <p>Existence and writability are checked at boot time by the core
+     * {@code Node.assertCanWritePluginHealthPaths} probe (which consumes the path returned
+     * by {@link #getAdditionalHealthPaths(Settings)}), and at runtime by
+     * {@code FsHealthService}. This validator only constrains the syntactic form of the setting.
      */
     static String validateSpillDirectory(String value) {
         if (value == null || value.isEmpty()) {
@@ -382,6 +390,39 @@ public class DataFusionPlugin extends Plugin
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         DataFormatRegistry dataFormatRegistry
     ) {
+        return createComponents(
+            client,
+            clusterService,
+            threadPool,
+            resourceWatcherService,
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            indexNameExpressionResolver,
+            repositoriesServiceSupplier,
+            dataFormatRegistry,
+            null
+        );
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        DataFormatRegistry dataFormatRegistry,
+        @Nullable NativeAllocator nativeAllocator
+    ) {
         this.dataFormatRegistry = dataFormatRegistry;
         this.clusterService = clusterService;
         Settings settings = environment.settings();
@@ -394,19 +435,13 @@ public class DataFusionPlugin extends Plugin
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
             .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
-            .coordinatorMultiplier(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
-        // Wire the dynamic memory pool limit setting to the native runtime so updates via the
-        // cluster settings API take effect without restarting the node. The framework's
-        // parquet.native.pool.datafusion.{min,max} controls the Java-side Arrow pool that
-        // sources the per-query allocators handed to DataFusion; this setting controls the
-        // Rust runtime's internal MemoryPool used by query execution. They're separate
-        // accounting layers — operators tune them independently.
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
+        // Wire the dynamic spill limit setting to the native runtime so updates via the
+        // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
         clusterService.getClusterSettings()
@@ -415,6 +450,11 @@ public class DataFusionPlugin extends Plugin
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
+
+        // Push Rust log level whenever any logger.* cluster setting changes, so Rust macros
+        // can short-circuit format!() for suppressed levels without polling.
+        clusterService.getClusterSettings()
+            .addAffixUpdateConsumer(Loggers.LOG_LEVEL_SETTING, (namespace, level) -> RustLoggerBridge.pushLevel(), (k, v) -> {});
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
@@ -426,11 +466,6 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
             int newMax = Math.max(1, (int) (cpuThreads * multiplier));
             NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
-        });
-
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
-            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
-            NativeBridge.updateConcurrencyGate("reduce", newMax);
         });
 
         // Apply initial values
@@ -445,18 +480,47 @@ public class DataFusionPlugin extends Plugin
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
-        // Expose per-task native-memory usage to search backpressure. The tracker calls
-        // this supplier once per refresh (invoked by the backpressure service at the top of
-        // doRun() and nodeStats()), snapshotting all live queries in one FFM call. Per-task
-        // evaluation then reads from the tracker's cached map — no FFM call per task.
-        //
-        // The OpenSearch task id is used as the DataFusion context_id at query launch
-        // (see ShardScanInstructionHandler / DatafusionSearchExecEngine), so the map is
-        // already keyed by Task#getId on the consumer side.
+        // Expose per-task native-memory usage to search backpressure.
         NativeMemoryUsageTracker.setSnapshotSupplier(this::currentBytesByTaskId);
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> DATAFUSION_MEMORY_POOL_LIMIT.get(clusterService.getSettings()));
 
         this.substraitExtensions = loadSubstraitExtensions();
+
+        // Register with the unified allocator if available
+        if (nativeAllocator != null) {
+            ClusterSettings clusterSettings = clusterService.getClusterSettings();
+            ArrowNativeAllocator arrowAllocator = (ArrowNativeAllocator) nativeAllocator;
+
+            NativeAllocator.VirtualPoolHandle dfPool = arrowAllocator.registerVirtualPool(
+                DatafusionSettings.POOL_DATAFUSION,
+                DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN.get(settings),
+                DATAFUSION_MEMORY_POOL_LIMIT.get(settings),
+                PoolGroup.SEARCH,
+                this::updateMemoryPoolLimit
+            );
+
+            arrowAllocator.addStatsRefresher(() -> {
+                if (dataFusionService != null) {
+                    long usage = dataFusionService.getMemoryPoolUsage();
+                    dfPool.updateStats(usage, usage);
+                }
+            });
+
+            arrowAllocator.setNativeMemoryStatsSupplier(() -> {
+                AnalyticsBackendNativeMemoryStats s = NativeMemoryFetcher.fetch();
+                return new long[] { s.getAllocatedBytes(), s.getResidentBytes() };
+            });
+
+            // Wire dynamic setting consumers for pool min/max
+            clusterSettings.addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, newMax -> {
+                arrowAllocator.setPoolLimit(DatafusionSettings.POOL_DATAFUSION, newMax);
+                updateMemoryPoolLimit(newMax);
+            });
+            clusterSettings.addSettingsUpdateConsumer(
+                DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN,
+                newMin -> arrowAllocator.setPoolMin(DatafusionSettings.POOL_DATAFUSION, newMin)
+            );
+        }
 
         return Collections.singletonList(dataFusionService);
     }
@@ -540,6 +604,15 @@ public class DataFusionPlugin extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return DatafusionSettings.ALL_SETTINGS;
+    }
+
+    @Override
+    public List<Path> getAdditionalHealthPaths(Settings settings) {
+        String dir = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        if (dir == null || dir.isEmpty()) {
+            return List.of();
+        }
+        return List.of(Path.of(dir));
     }
 
     /**
@@ -633,6 +706,10 @@ public class DataFusionPlugin extends Plugin
         NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
         // Pull index.sort.field / index.sort.order off IndexSettings so the native reader can declare
         // file sort order to DataFusion. Empty lists when the index has no index sort configured.
+        // Two consumers downstream:
+        // - Vanilla path: ListingOptions.with_file_sort_order so the planner can drop SortExec.
+        // - Indexed path: indexed_executor reverses segment iteration when the query's leading
+        // ORDER BY runs counter to the catalog direction.
         List<String> sortFields = List.of();
         List<String> sortOrders = List.of();
         IndexSettings indexSettings = settings.indexSettings();
@@ -728,7 +805,7 @@ public class DataFusionPlugin extends Plugin
             try {
                 return NativeMemoryFetcher.fetch();
             } catch (Exception e) {
-                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             }
         };
     }

@@ -29,7 +29,6 @@
 //! invalid patterns yield NULL for that row (per PPL spec, dynamic-pattern
 //! errors are non-fatal — bad rows just produce NULL).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -72,10 +71,6 @@ impl Default for MvfindUdf {
 }
 
 impl ScalarUDFImpl for MvfindUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "mvfind"
     }

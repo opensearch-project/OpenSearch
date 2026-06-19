@@ -13,7 +13,6 @@
 //! malformed-path → NULL. Values always store as JSON strings, matching the
 //! legacy fixture `"b":"3"` (not `"b":3`).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -55,9 +54,6 @@ impl Default for JsonSetUdf {
 }
 
 impl ScalarUDFImpl for JsonSetUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

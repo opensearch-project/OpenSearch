@@ -56,14 +56,15 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
     private static DataFusionStats createSimpleStats() {
         RuntimeMetrics io = new RuntimeMetrics(4, 100, 500, 2, 10, 5, 8, 50, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(10, 20, 30));
-        taskMonitors.put("query_execution", new TaskMonitorStats(40, 50, 60));
-        taskMonitors.put("stream_next", new TaskMonitorStats(70, 80, 90));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(100, 110, 120));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(10, 20, 30, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(40, 50, 60, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(70, 80, 90, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(100, 110, 120, 0, 0));
         return new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 3, 100, 500, 0, 12),
-            new PartitionGateStats("coordinator_gate", 8, 1, 50, 200, 0, 8)
+            new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 500, 0, 12, 0, 0),
+            null,
+            null
         );
     }
 
@@ -118,8 +119,7 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
         assertFalse(nodeEntry.containsKey("host"));
         assertFalse(nodeEntry.containsKey("transport_address"));
         assertTrue(nodeEntry.containsKey("io_runtime"));
-        assertTrue(nodeEntry.containsKey("datanode_gate"));
-        assertTrue(nodeEntry.containsKey("coordinator_gate"));
+        assertTrue(nodeEntry.containsKey("fragment_executor_gate"));
     }
 
     // ---- Test 2: Multiple nodes JSON structure ----
@@ -298,8 +298,7 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
         assertFalse(nodeEntry.containsKey("query_execution"));
         assertFalse(nodeEntry.containsKey("stream_next"));
         assertFalse(nodeEntry.containsKey("plan_setup"));
-        assertFalse(nodeEntry.containsKey("datanode_gate"));
-        assertFalse(nodeEntry.containsKey("coordinator_gate"));
+        assertFalse(nodeEntry.containsKey("fragment_executor_gate"));
     }
 
     // ---- Test 8: Empty nodes list ----

@@ -55,7 +55,7 @@ public class StatSectionFilteringPropertyTests {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** All 8 valid stat section names. */
+    /** All 7 valid stat section names. */
     private static final List<String> ALL_SECTIONS = List.of(
         "io_runtime",
         "cpu_runtime",
@@ -63,8 +63,7 @@ public class StatSectionFilteringPropertyTests {
         "query_execution",
         "stream_next",
         "plan_setup",
-        "datanode_gate",
-        "coordinator_gate"
+        "fragment_executor_gate"
     );
 
     // ---- Object generators ----
@@ -110,8 +109,9 @@ public class StatSectionFilteringPropertyTests {
             monitors.put("plan_setup", ps);
             return new DataFusionStats(
                 new NativeExecutorsStats(io, cpu, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50, 0, 12),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75, 0, 8)
+                new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 50, 0, 12, 0, 0),
+                null,
+                null
             );
         });
     }
@@ -128,8 +128,9 @@ public class StatSectionFilteringPropertyTests {
                 monitors.put("plan_setup", ps);
                 return new DataFusionStats(
                     new NativeExecutorsStats(io, null, monitors),
-                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50, 0, 12),
-                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75, 0, 8)
+                    new PartitionGateStats("fragment_executor_gate", 12, 3, 100, 50, 0, 12, 0, 0),
+                    null,
+                    null
                 );
             });
     }
@@ -140,10 +141,10 @@ public class StatSectionFilteringPropertyTests {
         return Arbitraries.oneOf(dataFusionStatsFullCpuPresent(), dataFusionStatsFullCpuAbsent());
     }
 
-    /** Generates a non-empty subset of the 8 valid stat section names. */
+    /** Generates a non-empty subset of the 7 valid stat section names. */
     @Provide
     Arbitrary<Set<String>> statSectionSubset() {
-        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(1).ofMaxSize(8);
+        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(1).ofMaxSize(7);
     }
 
     // ---- Property 3: Stat section filtering correctness ----
@@ -266,13 +267,8 @@ public class StatSectionFilteringPropertyTests {
                         expected.add(section);
                     }
                     break;
-                case "datanode_gate":
-                    if (stats.getDatanodeGateStats() != null) {
-                        expected.add(section);
-                    }
-                    break;
-                case "coordinator_gate":
-                    if (stats.getCoordinatorGateStats() != null) {
+                case "fragment_executor_gate":
+                    if (stats.getFragmentExecutorGateStats() != null) {
                         expected.add(section);
                     }
                     break;

@@ -25,7 +25,6 @@
 //! named struct-field access. The downstream `flattenParsedPattern` step in
 //! the PPL Calcite visitor consumes both fields via ITEM.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -78,9 +77,6 @@ impl PatternParserUdf {
 udf_identity!(PatternParserUdf, "pattern_parser");
 
 impl ScalarUDFImpl for PatternParserUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }
@@ -256,9 +252,6 @@ impl std::hash::Hash for PatternParserGetFieldUdf {
 }
 
 impl ScalarUDFImpl for PatternParserGetFieldUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         self.field.udf_name()
     }

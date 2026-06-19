@@ -76,6 +76,13 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         AggregateFunction.AVG
     );
 
+    // STATE_EXPANDING aggregates carrying a literal config arg — exercised by the literal-arg
+    // Project-split plan-shape tests. Registered via the stateExpanding factory (not simple()).
+    private static final Set<AggregateFunction> STATE_EXPANDING_AGG_FUNCTIONS = Set.of(
+        AggregateFunction.PERCENTILE_APPROX,
+        AggregateFunction.TAKE
+    );
+
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
@@ -90,6 +97,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         Set<AggregateCapability> caps = new HashSet<>();
         for (AggregateFunction func : AGG_FUNCTIONS) {
             caps.add(AggregateCapability.simple(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
+        }
+        for (AggregateFunction func : STATE_EXPANDING_AGG_FUNCTIONS) {
+            caps.add(AggregateCapability.stateExpanding(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         AGG_CAPS = caps;
     }

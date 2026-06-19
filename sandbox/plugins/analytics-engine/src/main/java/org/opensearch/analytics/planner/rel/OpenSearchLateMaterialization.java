@@ -67,6 +67,16 @@ public class OpenSearchLateMaterialization extends SingleRel implements OpenSear
     /** Helper columns consumed internally by the Scatter-Gather stage (not in wrapper output). */
     public static final Set<String> RESERVED_LATE_MATERIALIZATION_FIELDS = Set.of(ROW_ID_FIELD, UGSI_FIELD);
 
+    /**
+     * Trailing-helper layout contract shared by the QTF rewriter (declares these columns) and the
+     * execution side (Stitcher / LM-stage drain read them by name). Helpers always TRAIL the
+     * reduce-set in this order: {@code [..reduce-set.., ___row_id, ___ugsi]}. {@code ___row_id} is
+     * added on the narrowed Scan; {@code ___ugsi} is appended by the ExchangeReducer. Any operator
+     * between the Scan and the wrapper must preserve every trailing helper present in its input, in
+     * this order — never assume a fixed position.
+     */
+    public static final List<String> TRAILING_HELPERS_IN_ORDER = List.of(ROW_ID_FIELD, UGSI_FIELD);
+
     private final List<RelDataTypeField> aboveAnchorPhysicalFields;
     private final List<FieldStorageInfo> aboveAnchorPhysicalFieldStorage;
     private final List<String> viableBackends;
