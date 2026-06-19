@@ -218,8 +218,11 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
     }
 
     // --- Native Arrow branch in processBatchTask ---
+    // The handler delegates the native path to FlightServerChannel.sendArrowBatch, which owns the
+    // stream root (create/transfer/adopt/free). These tests verify the delegation + listener
+    // notification; root ownership is covered in FlightServerChannelTests.
 
-    public void testProcessBatchTaskNativeArrowFirstBatch() throws Exception {
+    public void testProcessBatchTaskNativeArrowDelegatesToSendArrowBatch() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
             Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
             VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
@@ -229,30 +232,19 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             vec.setValueCount(1);
             producerRoot.setRowCount(1);
 
-            // First batch: streamRoot is null, so it should be created
-            when(mockFlightChannel.getRoot()).thenReturn(null);
-
             CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<Exception> error = new AtomicReference<>();
-
             doAnswer(invocation -> {
                 latch.countDown();
                 return null;
             }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
 
+            // The channel owns the root; the mock receives the producer root and the metadata.
+            AtomicReference<VectorSchemaRoot> sent = new AtomicReference<>();
             doAnswer(invocation -> {
-                // Verify the output has a root with transferred data
-                VectorStreamOutput out = invocation.getArgument(1);
-                VectorSchemaRoot sentRoot = out.getRoot();
-                assertNotNull(sentRoot);
-                assertEquals(1, sentRoot.getRowCount());
-                assertEquals(42, ((IntVector) sentRoot.getVector("val")).get(0));
-                // Clean up the stream root created by the handler
-                sentRoot.close();
+                sent.set(invocation.getArgument(1));
                 return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            }).when(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
 
-            TestArrowResponse response = new TestArrowResponse(producerRoot);
             handler.sendResponseBatch(
                 Version.CURRENT,
                 Collections.emptySet(),
@@ -260,64 +252,46 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 mock(FlightTransportChannel.class),
                 1L,
                 "test-action",
-                response,
+                new TestArrowResponse(producerRoot),
                 false,
                 false
             );
 
             assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
-            assertNull("No error expected", error.get());
+            verify(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
+            verify(mockFlightChannel, org.mockito.Mockito.never()).sendBatch(any(), any(VectorStreamOutput.class), any());
+            assertSame("handler should pass the producer root to the channel", producerRoot, sent.get());
+            producerRoot.close();
         }
     }
 
-    public void testProcessBatchTaskNativeArrowWithExistingStreamRoot() throws Exception {
-        try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+    public void testProcessBatchTaskNonArrowResponseUsesSendBatch() throws Exception {
+        // setUp's mockFlightChannel.getRoot() returns a mock root, so the byte-serialization path
+        // reuses it instead of allocating from the mock allocator.
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
 
-            // Simulate existing stream root (second batch scenario)
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
+        doAnswer(invocation -> null).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
 
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 99);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
+        // A plain (non-Arrow) TransportResponse goes through the byte-serialization sendBatch path.
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            mock(FlightTransportChannel.class),
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
 
-            CountDownLatch latch = new CountDownLatch(1);
-
-            doAnswer(invocation -> {
-                VectorStreamOutput out = invocation.getArgument(1);
-                VectorSchemaRoot sentRoot = out.getRoot();
-                // Should reuse the existing stream root
-                assertSame(streamRoot, sentRoot);
-                assertEquals(1, sentRoot.getRowCount());
-                assertEquals(99, ((IntVector) sentRoot.getVector("val")).get(0));
-                return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
-
-            doAnswer(invocation -> {
-                latch.countDown();
-                return null;
-            }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
-
-            TestArrowResponse response = new TestArrowResponse(producerRoot);
-            handler.sendResponseBatch(
-                Version.CURRENT,
-                Collections.emptySet(),
-                mockFlightChannel,
-                mock(FlightTransportChannel.class),
-                1L,
-                "test-action",
-                response,
-                false,
-                false
-            );
-
-            assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
-            streamRoot.close();
-        }
+        assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+        verify(mockFlightChannel, org.mockito.Mockito.never()).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
     }
 
     // --- processCompleteTask error path ---
@@ -426,24 +400,15 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
      * reaching the client, whose {@code FlightStream.getRoot()} then blocks forever. Verifies the
      * batch failure (a) fails the stream via {@code sendError}, (b) releases the channel (so a
      * later {@code completeStream} cannot double-terminate the gRPC listener), and (c) fails the
-     * stream BEFORE notifying the listener. Uses an existing stream root so there is no
-     * handler-created root to leak; the test owns and closes it.
+     * stream BEFORE notifying the listener. The channel owns the stream root (sendArrowBatch frees
+     * it on failure), so the handler has nothing to clean up.
      */
     public void testProcessBatchTaskFailureSendsErrorOnStream() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(allocator, 7);
 
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 7);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            // The batch send fails (e.g. malformed batch / transport error).
-            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            // The native batch send fails (e.g. malformed batch / transport error).
+            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
 
             FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
             CountDownLatch released = new CountDownLatch(1);
@@ -473,142 +438,23 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(mockFlightChannel, mockListener);
             inOrder.verify(mockFlightChannel).sendError(any(), any(Exception.class));
             inOrder.verify(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
-            streamRoot.close();
+            producerRoot.close();
         }
     }
 
     /**
-     * First-frame failure variant: when {@code getRoot()} is null (no schema frame sent yet) and
-     * the first batch send fails, the handler must still fail the stream. This is the exact shape
-     * that hung the consumer — the gRPC client never receives a schema, so {@code getRoot()} blocks
-     * forever unless the stream is explicitly failed.
-     */
-    public void testProcessBatchTaskFirstFrameFailureSendsError() throws Exception {
-        try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 1);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            // No schema frame sent yet (first batch). The handler creates a stream root from the
-            // producer's allocator, then sendBatch fails before ownership transfers.
-            when(mockFlightChannel.getRoot()).thenReturn(null);
-            doThrow(new RuntimeException("first-frame send failed")).when(mockFlightChannel)
-                .sendBatch(any(), any(VectorStreamOutput.class), any());
-
-            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
-            CountDownLatch released = new CountDownLatch(1);
-            doAnswer(invocation -> {
-                released.countDown();
-                return null;
-            }).when(transportChannel).releaseChannel(true);
-
-            handler.sendResponseBatch(
-                Version.CURRENT,
-                Collections.emptySet(),
-                mockFlightChannel,
-                transportChannel,
-                1L,
-                "test-action",
-                new TestArrowResponse(producerRoot),
-                false,
-                false
-            );
-
-            assertTrue("first-frame failure must terminate the stream", released.await(5, TimeUnit.SECONDS));
-            verify(mockFlightChannel).sendError(any(), any(Exception.class));
-            verify(transportChannel).releaseChannel(true);
-        }
-    }
-
-    /**
-     * Adopt-then-throw: {@code FlightServerChannel.sendBatch} assigns {@code root = output.getRoot()}
-     * BEFORE {@code start()}/{@code putNext()}, so a throw after that assignment leaves the channel
-     * owning the handler-created root. {@code failStream} must NOT close it then (the channel owns it
-     * and closes it on its own close) — closing it here would free buffers out from under the
-     * channel. Simulates adoption by having {@code getRoot()} return the handler-created root once
-     * {@code sendBatch} is invoked, then throwing. Asserts via allocator accounting that the root's
-     * buffers are STILL allocated after the handler returns (i.e. {@code failStream} left them
-     * alone). Without the adoption guard, {@code failStream} would free them and this drops to 0.
-     */
-    public void testProcessBatchTaskAdoptThenThrowDoesNotCloseAdoptedRoot() throws Exception {
-        try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 3);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            // First frame: handler creates a stream root and transfers the producer buffers into it.
-            // Simulate the channel adopting that root (as the real sendBatch does at
-            // `root = output.getRoot()`) and THEN failing in start()/putNext().
-            AtomicReference<VectorSchemaRoot> adopted = new AtomicReference<>();
-            when(mockFlightChannel.getRoot()).thenAnswer(invocation -> adopted.get());
-            doAnswer(invocation -> {
-                VectorStreamOutput out = invocation.getArgument(1);
-                adopted.set(out.getRoot()); // channel now owns this root
-                throw new RuntimeException("putNext failed after adoption");
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
-
-            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
-            CountDownLatch released = new CountDownLatch(1);
-            doAnswer(invocation -> {
-                released.countDown();
-                return null;
-            }).when(transportChannel).releaseChannel(true);
-
-            handler.sendResponseBatch(
-                Version.CURRENT,
-                Collections.emptySet(),
-                mockFlightChannel,
-                transportChannel,
-                1L,
-                "test-action",
-                new TestArrowResponse(producerRoot),
-                false,
-                false
-            );
-
-            assertTrue("adopt-then-throw must terminate the stream", released.await(5, TimeUnit.SECONDS));
-            verify(mockFlightChannel).sendError(any(), any(Exception.class));
-            // The channel adopted the root, so failStream must have LEFT IT ALLOCATED (the channel
-            // owns the close). Without the adoption guard this would have been freed to 0.
-            VectorSchemaRoot channelRoot = adopted.get();
-            assertNotNull("channel should have adopted the handler-created root", channelRoot);
-            assertTrue("adopted root must stay allocated (channel owns it)", allocator.getAllocatedMemory() > 0);
-            // Now release it the way the channel would, and confirm everything is accounted for.
-            channelRoot.close();
-            assertEquals("no buffers should leak after the channel closes its root", 0, allocator.getAllocatedMemory());
-        }
-    }
-
-    /**
-     * {@code FlightRuntimeException} variant of the failure path: when {@code sendBatch} throws a
-     * Flight transport error it is caught by the dedicated {@code catch (FlightRuntimeException)}
-     * branch, which still fails the stream and then notifies the listener with the mapped
+     * {@code FlightRuntimeException} variant of the failure path: when the send throws a Flight
+     * transport error it is caught by the dedicated {@code catch (FlightRuntimeException)} branch,
+     * which still fails the stream and then notifies the listener with the mapped
      * {@code StreamException} (via {@code FlightErrorMapper.fromFlightException}) rather than the raw
      * Flight exception.
      */
     public void testProcessBatchTaskFlightRuntimeExceptionFailsStream() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
-
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 11);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(allocator, 11);
 
             FlightRuntimeException flightError = CallStatus.INTERNAL.withDescription("flight send failed").toRuntimeException();
-            doThrow(flightError).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            doThrow(flightError).when(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
 
             FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
 
@@ -639,7 +485,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             verify(transportChannel).releaseChannel(true);
             // The listener is notified with the mapped StreamException, not the raw Flight exception.
             assertTrue("listener should receive the mapped StreamException", notifiedArg.get() instanceof StreamException);
-            streamRoot.close();
+            producerRoot.close();
         }
     }
 
@@ -651,19 +497,10 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
      */
     public void testProcessBatchTaskStreamExceptionMappedToFlightError() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
-
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 13);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(allocator, 13);
 
             StreamException streamError = new StreamException(StreamErrorCode.RESOURCE_EXHAUSTED, "breaker tripped");
-            doThrow(streamError).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            doThrow(streamError).when(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
 
             FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
             CountDownLatch released = new CountDownLatch(1);
@@ -695,7 +532,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             verify(transportChannel).releaseChannel(true);
             // The StreamException is mapped to a FlightRuntimeException before being sent on the wire.
             assertTrue("StreamException should be mapped to a FlightRuntimeException", sentError.get() instanceof FlightRuntimeException);
-            streamRoot.close();
+            producerRoot.close();
         }
     }
 
@@ -707,18 +544,9 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
      */
     public void testProcessBatchTaskSendErrorFailureStillReleasesChannel() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(allocator, 17);
 
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 17);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
             // sendError also fails (consumer already gone) — must be swallowed.
             doThrow(new RuntimeException("sendError failed too")).when(mockFlightChannel).sendError(any(), any(Exception.class));
 
@@ -751,70 +579,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             assertTrue("channel must still be released after sendError fails", released.await(5, TimeUnit.SECONDS));
             assertTrue("listener must still be notified after sendError fails", notified.await(5, TimeUnit.SECONDS));
             verify(transportChannel).releaseChannel(true);
-            streamRoot.close();
-        }
-    }
-
-    /**
-     * Defensive probe path: if {@code getRoot()} throws while {@code failStream} is resolving whether
-     * the channel adopted the handler-created root, adoption is treated as unknown==adopted, so the
-     * root is left alone (a rare leak is preferred over freeing a root the channel may still own) and
-     * the channel is still released. Exercises the {@code catch (Exception probeFailed)} branch.
-     * {@code getRoot()} returns null on the first call (so the handler creates the first-frame root),
-     * then throws on the probe call inside {@code failStream}.
-     */
-    public void testProcessBatchTaskRootProbeFailureTreatsAsAdopted() throws Exception {
-        try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 19);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            // First call (in processBatchTask) returns null so the handler creates the first-frame
-            // root; the probe call inside failStream then throws.
-            when(mockFlightChannel.getRoot()).thenReturn(null).thenThrow(new RuntimeException("getRoot probe failed"));
-
-            // Capture the handler-created root so the test can close it: because the probe throws,
-            // failStream treats the root as adopted and deliberately does NOT close it.
-            AtomicReference<VectorSchemaRoot> handlerRoot = new AtomicReference<>();
-            doAnswer(invocation -> {
-                VectorStreamOutput out = invocation.getArgument(1);
-                handlerRoot.set(out.getRoot());
-                throw new RuntimeException("send failed");
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
-
-            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
-            CountDownLatch released = new CountDownLatch(1);
-            doAnswer(invocation -> {
-                released.countDown();
-                return null;
-            }).when(transportChannel).releaseChannel(true);
-
-            handler.sendResponseBatch(
-                Version.CURRENT,
-                Collections.emptySet(),
-                mockFlightChannel,
-                transportChannel,
-                1L,
-                "test-action",
-                new TestArrowResponse(producerRoot),
-                false,
-                false
-            );
-
-            assertTrue("probe failure must still terminate the stream", released.await(5, TimeUnit.SECONDS));
-            verify(mockFlightChannel).sendError(any(), any(Exception.class));
-            verify(transportChannel).releaseChannel(true);
-            // Probe threw -> treated as adopted -> root left allocated (not closed by failStream).
-            VectorSchemaRoot leftAlone = handlerRoot.get();
-            assertNotNull("handler should have created a first-frame root", leftAlone);
-            assertTrue("root must be left allocated when adoption is unknown", allocator.getAllocatedMemory() > 0);
-            // The test owns the close in this case to balance the allocator.
-            leftAlone.close();
-            assertEquals("no buffers should leak after the test closes the root", 0, allocator.getAllocatedMemory());
+            producerRoot.close();
         }
     }
 
@@ -826,18 +591,9 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
      */
     public void testProcessBatchTaskFailureWithNullTransportChannelDoesNotThrow() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(allocator, 23);
 
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 23);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendArrowBatch(any(), any(VectorSchemaRoot.class), any());
 
             CountDownLatch notified = new CountDownLatch(1);
             doAnswer(invocation -> {
@@ -860,7 +616,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
 
             assertTrue("stream must still be failed and the listener notified", notified.await(5, TimeUnit.SECONDS));
             verify(mockFlightChannel).sendError(any(), any(Exception.class));
-            streamRoot.close();
+            producerRoot.close();
         }
     }
 
@@ -887,7 +643,18 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         verify(mockTransportChannel).releaseChannel(true);
     }
 
-    // --- Test helper ---
+    // --- Test helpers ---
+
+    private static VectorSchemaRoot newSingleIntRoot(BufferAllocator allocator, int value) {
+        Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+        VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
+        IntVector vec = (IntVector) root.getVector("val");
+        vec.allocateNew();
+        vec.setSafe(0, value);
+        vec.setValueCount(1);
+        root.setRowCount(1);
+        return root;
+    }
 
     static class TestArrowResponse extends ArrowBatchResponse {
         TestArrowResponse(VectorSchemaRoot root) {

@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -309,6 +310,122 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
             verify(listener, times(1)).putNext();
             verify(listener, never()).putNext(any(ArrowBuf.class));
             root.close();
+        }
+    }
+
+    /**
+     * First-frame {@code sendArrowBatch}: the channel creates the stream root from the producer's
+     * allocator, transfers the producer's vectors in, adopts it, and {@code start()}s the stream.
+     * The producer root is consumed (its buffers move into the channel-owned stream root).
+     */
+    public void testSendArrowBatchFirstFrameCreatesAndAdoptsRoot() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(realAllocator, 7);
+
+            ch.sendArrowBatch(ByteBuffer.allocate(0), producerRoot, null);
+
+            // The channel adopted a stream root (start was called) and it carries the transferred value.
+            verify(listener, times(1)).start(any(VectorSchemaRoot.class));
+            verify(listener, times(1)).putNext();
+            VectorSchemaRoot adopted = ch.getRoot();
+            assertNotNull("channel must have adopted a stream root", adopted);
+            assertEquals(1, adopted.getRowCount());
+            assertEquals(7, ((IntVector) adopted.getVector("v")).get(0));
+            // The producer root has been drained (vectors transferred out).
+            assertEquals(0, producerRoot.getRowCount());
+
+            // The channel owns the adopted root; close() frees it and balances the allocator.
+            ch.close();
+            assertEquals("no buffers should leak after the channel closes its root", 0, realAllocator.getAllocatedMemory());
+        }
+    }
+
+    /**
+     * Second-frame {@code sendArrowBatch}: an existing stream root is reused (not recreated), and the
+     * stream is not re-{@code start()}ed.
+     */
+    public void testSendArrowBatchReusesExistingRoot() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+
+            ch.sendArrowBatch(ByteBuffer.allocate(0), newSingleIntRoot(realAllocator, 1), null);
+            VectorSchemaRoot firstRoot = ch.getRoot();
+            ch.sendArrowBatch(ByteBuffer.allocate(0), newSingleIntRoot(realAllocator, 2), null);
+
+            assertSame("second frame must reuse the adopted root", firstRoot, ch.getRoot());
+            verify(listener, times(1)).start(any(VectorSchemaRoot.class)); // start only on the first frame
+            verify(listener, times(2)).putNext();
+            assertEquals(2, ((IntVector) ch.getRoot().getVector("v")).get(0));
+
+            ch.close();
+            assertEquals(0, realAllocator.getAllocatedMemory());
+        }
+    }
+
+    /**
+     * Adopt-then-throw: when the channel has adopted the stream root (assigned {@code root} and
+     * called {@code start()}) and then {@code putNext()} throws, {@code sendArrowBatch} must NOT free
+     * the root — the channel owns it and frees it in {@code close()}. Asserts the root stays allocated
+     * after the throw, then is released exactly once by {@code close()}.
+     */
+    public void testSendArrowBatchAdoptThenThrowLeavesRootForChannelClose() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+            doThrow(new RuntimeException("putNext failed after adoption")).when(listener).putNext();
+
+            VectorSchemaRoot producerRoot = newSingleIntRoot(realAllocator, 3);
+            expectThrows(RuntimeException.class, () -> ch.sendArrowBatch(ByteBuffer.allocate(0), producerRoot, null));
+
+            // Channel adopted the root before putNext threw, so it must still hold (and not have freed) it.
+            assertNotNull("channel must have adopted the root before the throw", ch.getRoot());
+            assertTrue("adopted root must stay allocated (channel owns the close)", realAllocator.getAllocatedMemory() > 0);
+
+            ch.close();
+            assertEquals("channel close must free the adopted root with no leak/double-free", 0, realAllocator.getAllocatedMemory());
+        }
+    }
+
+    /**
+     * Pre-adoption throw via the empty-vectors guard: if {@code sendArrowBatch} fails before it even
+     * creates a stream root (a producer root with no field vectors), there is nothing to free and the
+     * channel must not have adopted anything.
+     */
+    public void testSendArrowBatchEmptyVectorsThrowsBeforeCreate() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+
+            VectorSchemaRoot emptyProducer = VectorSchemaRoot.create(new Schema(List.of()), realAllocator);
+            expectThrows(IllegalStateException.class, () -> ch.sendArrowBatch(ByteBuffer.allocate(0), emptyProducer, null));
+
+            assertNull("channel must not have adopted a root on pre-adoption failure", ch.getRoot());
+            verify(listener, never()).start(any(VectorSchemaRoot.class));
+            emptyProducer.close();
+            assertEquals("no buffers should leak after a pre-adoption failure", 0, realAllocator.getAllocatedMemory());
+            ch.close();
+        }
+    }
+
+    /**
+     * Pre-adoption throw AFTER the root is created: the channel creates the first-frame root and
+     * transfers the producer's buffers into it, but {@code sendBatch} throws at its closed-channel
+     * guard before adopting (here we close the channel first). The created root holds the transferred
+     * buffers and is never adopted, so {@code sendArrowBatch} must free it ({@code NativeArrow.close()}
+     * is a no-op, so otherwise it would leak). This is the orphan-root case the channel-owns design
+     * must handle.
+     */
+    public void testSendArrowBatchCreatedButNotAdoptedFreesRoot() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+            ch.close(); // flips open=false so sendBatch throws at its guard before adopting the root
+
+            VectorSchemaRoot producerRoot = newSingleIntRoot(realAllocator, 5);
+            expectThrows(IllegalStateException.class, () -> ch.sendArrowBatch(ByteBuffer.allocate(0), producerRoot, null));
+
+            assertNull("channel must not have adopted a root (sendBatch threw at its guard)", ch.getRoot());
+            // The created root carried the transferred buffers and was freed by sendArrowBatch's cleanup.
+            producerRoot.close();
+            assertEquals("orphaned created root must be freed (no leak)", 0, realAllocator.getAllocatedMemory());
         }
     }
 

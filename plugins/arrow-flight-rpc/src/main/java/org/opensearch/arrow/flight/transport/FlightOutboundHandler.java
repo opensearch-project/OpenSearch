@@ -9,14 +9,11 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightRuntimeException;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
-import org.opensearch.arrow.transport.VectorTransfer;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -34,7 +31,6 @@ import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -157,46 +153,27 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             return;
         }
 
-        // First-frame root the handler allocates; closed in failStream only if the channel never adopted it.
-        VectorSchemaRoot handlerCreatedRoot = null;
         try {
-            VectorStreamOutput out;
-            byte[] metadata = null;
+            ByteBuffer header = getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features());
             if (task.response() instanceof ArrowBatchResponse arrowResponse) {
-                metadata = arrowResponse.getMetadata();
-                // Native Arrow path: zero-copy transfer producer's vectors into stream root
-                VectorSchemaRoot streamRoot = flightChannel.getRoot();
-                if (streamRoot == null) {
-                    // Create stream root using the producer's allocator for same-allocator transfer.
-                    // This avoids an Arrow bug where cross-allocator transferOwnership of foreign-backed
-                    // buffers (from C data import) doesn't properly free the ArrowArray C struct.
-                    // The producer's allocator must be long-lived (not closed per-request).
-                    List<FieldVector> fieldVectors = arrowResponse.getRoot().getFieldVectors();
-                    if (fieldVectors.isEmpty()) {
-                        throw new IllegalStateException("Native Arrow batch has no field vectors");
-                    }
-                    streamRoot = VectorSchemaRoot.create(arrowResponse.getRoot().getSchema(), fieldVectors.getFirst().getAllocator());
-                    handlerCreatedRoot = streamRoot;
-                }
-                VectorTransfer.transferRoot(arrowResponse.getRoot(), streamRoot);
-                arrowResponse.getRoot().close();
-                out = VectorStreamOutput.forNativeArrow(streamRoot);
-            } else {
-                out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
-                task.response().writeTo(out);
-            }
-            try (out) {
-                flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out, metadata);
-                // Channel has adopted the root; it owns the close from here on.
-                handlerCreatedRoot = null;
+                // Native Arrow path: the channel owns the stream root end to end (create/transfer/adopt/free).
+                flightChannel.sendArrowBatch(header, arrowResponse.getRoot(), arrowResponse.getMetadata());
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
+            } else {
+                // Byte-serialization path: notify before out.close() (the close releases the serialization
+                // vector), mirroring the original ordering.
+                try (VectorStreamOutput out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot())) {
+                    task.response().writeTo(out);
+                    flightChannel.sendBatch(header, out, null);
+                    messageListener.onResponseSent(task.requestId(), task.action(), task.response());
+                }
             }
         } catch (FlightRuntimeException e) {
             // Fail the stream before notifying the listener so a throwing listener can't leave it un-terminated.
-            failStream(flightChannel, task, handlerCreatedRoot, e);
+            failStream(flightChannel, task, e);
             messageListener.onResponseSent(task.requestId(), task.action(), FlightErrorMapper.fromFlightException(e));
         } catch (Exception e) {
-            failStream(flightChannel, task, handlerCreatedRoot, e);
+            failStream(flightChannel, task, e);
             messageListener.onResponseSent(task.requestId(), task.action(), e);
         }
     }
@@ -205,11 +182,10 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
      * Fails the stream after a batch send error: sends the error so the consumer's
      * {@code FlightStream.getRoot()} surfaces an exception instead of hanging on a never-arriving first
      * frame, then releases the channel so a later {@code completeStream} can't double-terminate the gRPC
-     * listener. Closes the handler-created first-frame root only if the channel never adopted it (to avoid
-     * a leak), but never when the channel did adopt it (to avoid a double-close). Best-effort and
-     * idempotent; runs inline on the channel executor.
+     * listener. The stream root is owned by the channel (see {@link FlightServerChannel#sendArrowBatch}),
+     * so there is nothing to close here. Best-effort and idempotent; runs inline on the channel executor.
      */
-    private void failStream(FlightServerChannel flightChannel, BatchTask task, VectorSchemaRoot unownedRoot, Exception cause) {
+    private void failStream(FlightServerChannel flightChannel, BatchTask task, Exception cause) {
         try {
             Exception flightError = cause instanceof StreamException se ? FlightErrorMapper.toFlightException(se) : cause;
             flightChannel.sendError(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), flightError);
@@ -217,27 +193,6 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             // Channel already closed/cancelled, or header serialization failed — nothing left to fail.
             logger.debug(new ParameterizedMessage("failStream: could not send error for requestId [{}]", task.requestId()), suppressed);
         } finally {
-            // Close our first-frame root only if the channel never adopted it (NativeArrow.close() is a
-            // no-op, so an un-adopted root would otherwise leak); if adopted, the channel owns the close.
-            if (unownedRoot != null) {
-                // Resolve adoption defensively: on a throwing probe, treat as adopted — a rare leak on an
-                // unreachable path beats freeing a root the channel still holds.
-                boolean adopted;
-                try {
-                    adopted = flightChannel.getRoot() == unownedRoot;
-                } catch (Exception probeFailed) {
-                    adopted = true;
-                    logger.debug(
-                        new ParameterizedMessage("failStream: could not resolve root adoption for requestId [{}]", task.requestId()),
-                        probeFailed
-                    );
-                }
-                if (!adopted) {
-                    try {
-                        unownedRoot.close();
-                    } catch (Exception ignore) {}
-                }
-            }
             // Make the channel terminal so a later completeStream can't double-terminate the listener. Idempotent.
             if (task.transportChannel() != null) {
                 task.transportChannel().releaseChannel(true);

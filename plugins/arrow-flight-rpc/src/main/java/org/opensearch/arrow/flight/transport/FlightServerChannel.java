@@ -14,11 +14,13 @@ import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
+import org.opensearch.arrow.transport.VectorTransfer;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
@@ -197,6 +199,45 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
             );
         } else {
             logger.debug("Batch #{} sent for correlation ID: {}, putNext: {}ms", batchNumber, correlationId, putNextTime);
+        }
+    }
+
+    /**
+     * Native-Arrow send: the channel owns the stream root end to end. On the first frame it creates the
+     * stream root (from the producer's allocator, for same-allocator zero-copy transfer), transfers the
+     * producer's vectors in, and adopts it via {@link #sendBatch}; later frames reuse the adopted root.
+     * If anything fails before the root is adopted, the channel closes the root it created here (on this
+     * executor thread, since {@code NativeArrow.close()} is a no-op and would otherwise leak it); once
+     * adopted, {@link #close()} frees it. The caller neither sees nor owns the root.
+     */
+    public void sendArrowBatch(ByteBuffer header, VectorSchemaRoot producerRoot, byte[] metadata) {
+        VectorSchemaRoot streamRoot = root;
+        VectorSchemaRoot created = null;
+        try {
+            if (streamRoot == null) {
+                List<FieldVector> fieldVectors = producerRoot.getFieldVectors();
+                if (fieldVectors.isEmpty()) {
+                    throw new IllegalStateException("Native Arrow batch has no field vectors");
+                }
+                // Create using the producer's allocator: cross-allocator transferOwnership of
+                // foreign-backed buffers (from C data import) doesn't properly free the ArrowArray C
+                // struct. The producer's allocator must be long-lived (not closed per-request).
+                streamRoot = created = VectorSchemaRoot.create(producerRoot.getSchema(), fieldVectors.getFirst().getAllocator());
+            }
+            VectorTransfer.transferRoot(producerRoot, streamRoot);
+            producerRoot.close();
+            // forNativeArrow's output close() is a no-op (the root is owned by the channel), so no
+            // try-with-resources is needed here.
+            sendBatch(header, VectorStreamOutput.forNativeArrow(streamRoot), metadata);
+        } catch (Exception e) {
+            // Free the root we created iff the channel never adopted it (root field is still not our
+            // root). If adopted, close() owns the free — closing here too would double-close.
+            if (created != null && root != created) {
+                try {
+                    created.close();
+                } catch (Exception ignore) {}
+            }
+            throw e;
         }
     }
 
