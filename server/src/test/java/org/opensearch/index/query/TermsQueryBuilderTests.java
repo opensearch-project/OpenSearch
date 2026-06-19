@@ -51,6 +51,9 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.transport.client.Client;
+import static org.mockito.Mockito.*;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.io.IOUtils;
@@ -285,6 +288,53 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         return new GetResponse(
             new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
         );
+    }
+
+    public void testStoredFieldMissingIsTreatedAsEmpty() throws IOException {
+        // Mock the client to return a GetResponse with no stored fields for the requested path
+        Client mockClient = mock(Client.class);
+        doAnswer(invocation -> {
+            GetRequest req = invocation.getArgument(0);
+            ActionListener<GetResponse> listener = invocation.getArgument(1);
+            String json = "{}";
+            Map<String, DocumentField> documentField = new HashMap<>();
+            GetResponse getResponse = new GetResponse(
+                new GetResult(req.index(), req.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
+            );
+            listener.onResponse(getResponse);
+            return null;
+        }).when(mockClient).get(any(GetRequest.class), any(ActionListener.class));
+
+        BaseQueryRewriteContext ctx = new BaseQueryRewriteContext(xContentRegistry(), namedWriteableRegistry(), mockClient, () -> 0L);
+
+        TermsLookup lookup = new TermsLookup(getIndex().getName(), "1", termsPath).store(true);
+        TermsQueryBuilder query = new TermsQueryBuilder(TEXT_FIELD_NAME, lookup);
+        QueryBuilder rewritten = rewriteAndFetch(query, ctx);
+        // With the stored field missing, the lookup should produce no terms -> MatchNone
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testStoredFieldMissingForBitmapDoesNotThrowNPE() throws IOException {
+        Client mockClient = mock(Client.class);
+        doAnswer(invocation -> {
+            GetRequest req = invocation.getArgument(0);
+            ActionListener<GetResponse> listener = invocation.getArgument(1);
+            String json = "{}";
+            Map<String, DocumentField> documentField = new HashMap<>();
+            GetResponse getResponse = new GetResponse(
+                new GetResult(req.index(), req.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
+            );
+            listener.onResponse(getResponse);
+            return null;
+        }).when(mockClient).get(any(GetRequest.class), any(ActionListener.class));
+
+        BaseQueryRewriteContext ctx = new BaseQueryRewriteContext(xContentRegistry(), namedWriteableRegistry(), mockClient, () -> 0L);
+
+        TermsLookup lookup = new TermsLookup(getIndex().getName(), "1", termsPath).store(true);
+        TermsQueryBuilder query = new TermsQueryBuilder(INT_FIELD_NAME, lookup).valueType(TermsQueryBuilder.ValueType.BITMAP);
+        QueryBuilder rewritten = rewriteAndFetch(query, ctx);
+        // Missing stored field should be treated as empty terms -> MatchNone
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     public void testNumeric() throws IOException {
