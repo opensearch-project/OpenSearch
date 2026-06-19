@@ -1,0 +1,44 @@
+{
+  "rows": [
+    [
+      20,
+      "https://example.com/page2"
+    ],
+    [
+      18,
+      ""
+    ],
+    [
+      16,
+      "https://shop.io/product"
+    ],
+    [
+      16,
+      "https://test.org/home"
+    ],
+    [
+      15,
+      "https://news.net/article"
+    ],
+    [
+      15,
+      "https://example.com/page1"
+    ],
+    [
+      3,
+      "https://test.org/q42-page-1"
+    ],
+    [
+      3,
+      "https://test.org/q42-page-0"
+    ],
+    [
+      3,
+      "https://test.org/q41-page-1"
+    ],
+    [
+      3,
+      "https://test.org/q41-page-0"
+    ]
+  ]
+}
