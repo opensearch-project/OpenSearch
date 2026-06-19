@@ -415,6 +415,7 @@ public class MergeScheduler {
                 try {
                     activateThrottling.run();
                 } catch (Exception e) {
+                    isThrottling.set(false);
                     logger.warn("exception in activateThrottling callback", e);
                 }
             }
@@ -424,6 +425,7 @@ public class MergeScheduler {
                 try {
                     deactivateThrottling.run();
                 } catch (Exception e) {
+                    isThrottling.set(true);
                     logger.warn("exception in deactivateThrottling callback", e);
                 }
             }
