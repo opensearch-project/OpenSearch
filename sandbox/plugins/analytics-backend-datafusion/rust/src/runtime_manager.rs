@@ -24,14 +24,15 @@ impl RuntimeManager {
     pub fn new(cpu_threads: usize, datanode_multiplier: f64, _coordinator_multiplier: f64) -> Self {
         let io_threads = cpu_threads * 2;
 
-        let io_runtime = Arc::new(
-            Builder::new_multi_thread()
+        let io_runtime = Arc::new({
+            let mut io_builder = Builder::new_multi_thread();
+            io_builder
                 .worker_threads(io_threads)
                 .thread_name("datafusion-io")
-                .enable_all()
-                .build()
-                .expect("Failed to create IO runtime"),
-        );
+                .enable_all();
+            crate::task_tracker::instrument_builder(&mut io_builder, "datafusion-io");
+            io_builder.build().expect("Failed to create IO runtime")
+        });
 
         register_io_runtime(Some(io_runtime.handle().clone()));
 
@@ -46,6 +47,7 @@ impl RuntimeManager {
             .on_thread_start(move || {
                 register_io_runtime(Some(io_handle.clone()));
             });
+        crate::task_tracker::instrument_builder(&mut cpu_runtime_builder, "datafusion-cpu");
 
         // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
         let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;

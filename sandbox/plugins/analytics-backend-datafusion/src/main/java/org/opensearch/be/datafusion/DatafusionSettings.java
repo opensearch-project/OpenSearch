@@ -312,7 +312,23 @@ public final class DatafusionSettings {
         INDEXED_TREE_COLLECTOR_STRATEGY,
         INDEXED_MAX_COLLECTOR_PARALLELISM,
         INDEXED_QUERY_STRATEGY,
-        INDEXED_DYNAMIC_FILTER_PUSHDOWN
+        INDEXED_DYNAMIC_FILTER_PUSHDOWN,
+
+        // Task tracker — zombie task diagnostics
+        TASK_TRACKER_ENABLED
+    );
+
+    /**
+     * Enables the native task tracker for diagnosing tokio tasks stuck in
+     * synchronous poll loops after query cancellation. When enabled, zombie
+     * tasks (polling > 10s without returning) are logged at ERROR level.
+     * Zero overhead when disabled.
+     */
+    public static final Setting<Boolean> TASK_TRACKER_ENABLED = Setting.boolSetting(
+        "datafusion.task_tracker_enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // ── Snapshot management ──
