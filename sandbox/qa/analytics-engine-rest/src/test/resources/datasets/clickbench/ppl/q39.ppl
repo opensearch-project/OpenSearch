@@ -1,1 +1,1 @@
-source = clickbench | where CounterID = 62 and EventDate >= '2013-07-01' and EventDate <= '2013-07-31' and IsRefresh = 0 and IsLink != 0 and IsDownload = 0 | stats count() as PageViews by URL | sort - PageViews, URL | head 10 from 1000
+source = clickbench | where CounterID = 62 and EventDate >= '2013-07-01' and EventDate <= '2013-07-31' and IsRefresh = 0 and IsLink != 0 and IsDownload = 0 | stats count() as PageViews by URL | sort - PageViews, URL | head 10 from 5
