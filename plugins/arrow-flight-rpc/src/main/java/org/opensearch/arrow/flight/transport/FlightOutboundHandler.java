@@ -146,6 +146,8 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         }));
     }
 
+    private static final int TARGET_CHUNK_BYTES = 16 * 1024 * 1024;
+
     private void processBatchTask(BatchTask task) {
         if (!(task.channel() instanceof FlightServerChannel flightChannel)) {
             Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel().getClass().getName());
@@ -154,33 +156,68 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         }
 
         try {
-            VectorStreamOutput out;
-            byte[] metadata = null;
             if (task.response() instanceof ArrowBatchResponse arrowResponse) {
-                metadata = arrowResponse.getMetadata();
-                // Native Arrow path: zero-copy transfer producer's vectors into stream root
+                byte[] metadata = arrowResponse.getMetadata();
+                VectorSchemaRoot sourceRoot = arrowResponse.getRoot();
+                List<FieldVector> fieldVectors = sourceRoot.getFieldVectors();
+                if (fieldVectors.isEmpty()) {
+                    throw new IllegalStateException("Native Arrow batch has no field vectors");
+                }
+
                 VectorSchemaRoot streamRoot = flightChannel.getRoot();
                 if (streamRoot == null) {
-                    // Create stream root using the producer's allocator for same-allocator transfer.
-                    // This avoids an Arrow bug where cross-allocator transferOwnership of foreign-backed
-                    // buffers (from C data import) doesn't properly free the ArrowArray C struct.
-                    // The producer's allocator must be long-lived (not closed per-request).
-                    List<FieldVector> fieldVectors = arrowResponse.getRoot().getFieldVectors();
-                    if (fieldVectors.isEmpty()) {
-                        throw new IllegalStateException("Native Arrow batch has no field vectors");
-                    }
-                    streamRoot = VectorSchemaRoot.create(arrowResponse.getRoot().getSchema(), fieldVectors.getFirst().getAllocator());
+                    streamRoot = VectorSchemaRoot.create(sourceRoot.getSchema(), fieldVectors.getFirst().getAllocator());
                 }
-                VectorTransfer.transferRoot(arrowResponse.getRoot(), streamRoot);
-                arrowResponse.getRoot().close();
-                out = VectorStreamOutput.forNativeArrow(streamRoot);
-            } else {
-                out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
-                task.response().writeTo(out);
-            }
-            try (out) {
-                flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out, metadata);
+
+                int rowCount = sourceRoot.getRowCount();
+                long batchBytes = 0;
+                for (FieldVector v : fieldVectors) {
+                    batchBytes += v.getBufferSize();
+                }
+
+                if (batchBytes <= TARGET_CHUNK_BYTES || rowCount <= 1) {
+                    VectorTransfer.transferRoot(sourceRoot, streamRoot);
+                    sourceRoot.close();
+                    VectorStreamOutput smallOut = VectorStreamOutput.forNativeArrow(streamRoot);
+                    try (smallOut) {
+                        flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), smallOut, metadata);
+                    }
+                } else {
+                    // Large batch: split into TARGET_CHUNK_BYTES-sized pieces using
+                    // splitAndTransferTo which deep-copies each chunk into independently
+                    // allocated buffers on the streamRoot. Each putNext serializes and
+                    // sends one chunk; the coordinator can free each after reduce.
+                    long bytesPerRow = batchBytes / rowCount;
+                    int chunkRows = Math.max(1, (int) (TARGET_CHUNK_BYTES / bytesPerRow));
+                    ByteBuffer header = getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features());
+
+                    List<FieldVector> targetVectors = streamRoot.getFieldVectors();
+                    int offset = 0;
+                    while (offset < rowCount) {
+                        int len = Math.min(chunkRows, rowCount - offset);
+                        for (int i = 0; i < fieldVectors.size(); i++) {
+                            fieldVectors.get(i).makeTransferPair(targetVectors.get(i)).splitAndTransfer(offset, len);
+                        }
+                        streamRoot.setRowCount(len);
+                        VectorStreamOutput chunkOut = VectorStreamOutput.forNativeArrow(streamRoot);
+                        try (chunkOut) {
+                            flightChannel.sendBatch(header, chunkOut, offset == 0 ? metadata : null);
+                        }
+                        if (offset + len < rowCount) {
+                            flightChannel.awaitReadyOrThrow();
+                        }
+                        offset += len;
+                    }
+                    sourceRoot.close();
+                }
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
+            } else {
+                VectorStreamOutput byteOut = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
+                task.response().writeTo(byteOut);
+                try (byteOut) {
+                    flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), byteOut, null);
+                    messageListener.onResponseSent(task.requestId(), task.action(), task.response());
+                }
             }
         } catch (FlightRuntimeException e) {
             messageListener.onResponseSent(task.requestId(), task.action(), FlightErrorMapper.fromFlightException(e));
