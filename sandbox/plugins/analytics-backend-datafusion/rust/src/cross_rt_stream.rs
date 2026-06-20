@@ -118,13 +118,10 @@ impl CrossRtStream {
                     break;
                 }
             }
-            // Drop the inner stream while this future is still polled, then yield so the runtime
-            // reclaims its child producer tasks (drop-time JoinSet::abort only schedules cancel).
-            // This wakes parked sends and lets the children run to completion, freeing GroupValues.
+            // Drop the inner stream while this future is still polled — frees the aggregate's own
+            // GroupValues and schedules its child producer tasks for abort. The remaining deferred
+            // child drops are reaped by stream_close (it waits on task_done, then flush_cpu_runtime).
             drop(stream);
-            for _ in 0..2 {
-                tokio::task::yield_now().await;
-            }
         };
 
         let (abort_handle, join_fut) = exec.spawn_with_abort_handle(fut);
