@@ -87,6 +87,7 @@ impl TieredObjectStore {
         self
     }
 
+
     /// Evict all cache entries whose key starts with `path`.
     ///
     /// No-op if no cache is attached (hot nodes or cache disabled).
@@ -186,13 +187,30 @@ impl TieredObjectStore {
         match range {
             GetRange::Bounded(r) => Some((r.start, r.end)),
             GetRange::Suffix(n) => {
-                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0)?;
-                Some((file_size.saturating_sub(*n), file_size))
+                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0);
+                match file_size {
+                    Some(size) => Some((size.saturating_sub(*n), size)),
+                    None => {
+                        native_bridge_common::log_debug!(
+                            "TieredObjectStore: resolve_range Suffix({}) — file_size unavailable for '{}', cache bypassed",
+                            n, path_str
+                        );
+                        None
+                    }
+                }
             }
-            // Defensive: DataFusion never produces this variant currently.
             GetRange::Offset(o) => {
-                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0)?;
-                Some((*o, file_size))
+                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0);
+                match file_size {
+                    Some(size) => Some((*o, size)),
+                    None => {
+                        native_bridge_common::log_debug!(
+                            "TieredObjectStore: resolve_range Offset({}) — file_size unavailable for '{}', cache bypassed",
+                            o, path_str
+                        );
+                        None
+                    }
+                }
             }
         }
     }
@@ -485,43 +503,85 @@ impl ObjectStore for TieredObjectStore {
             }
         }
 
-        // Cache probe for range reads. Serves entries previously stored by
-        // warmup's put_metadata(). Does NOT auto-populate on miss — that would
-        // send column data chunks to metadata_cache (get_bytes is also used for
-        // data in CachedMetadataReader).
+        // Cache probe for range reads. Serves entries from metadata Foyer
+        // (put there by warmup) or data Foyer (populated on prior miss).
+        // On miss: fetches from S3/local, then populates data Foyer via put()
+        // so repeated reads hit cache.
         if let Some(ref get_range) = options.range {
             if let Some(result) = self.try_serve_from_cache(path_str, location, get_range).await {
                 return result;
             }
         }
 
-        // Cache miss — fetch from remote/local. No auto-populate.
-        //
-        // Why no auto-populate here:
-        // - During warmup: we don't want metadata bytes in data_cache (they go
-        //   to metadata_cache via explicit put_metadata() call afterward)
-        // - During query: metadata is served from heap file_metadata_cache (no
-        //   store I/O); column data goes through get_ranges() which has its own
-        //   probe → fetch → put() → data_cache path.
-        // - CachedMetadataReader::get_bytes for column chunks: goes through
-        //   get_opts but these are one-off reads that self-heal on the next
-        //   get_ranges call for the same data (or via a subsequent query).
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
+        // Cache miss — fetch from remote/local then populate data Foyer.
+        // This ensures single-range reads (CachedMetadataReader::get_bytes for
+        // column chunks in the IndexedExec path) are cached on first access.
+        // cache.put() always routes to data Foyer — metadata Foyer is only
+        // populated via explicit put_metadata() from warmup.
+        let get_result = if let Some((rp, store)) = self.resolve_remote(path_str) {
             native_bridge_common::log_debug!(
                 "TieredObjectStore: get_opts REMOTE path='{}'",
                 path_str
             );
-            return store.get_opts(&rp, options).await;
-        }
+            store.get_opts(&rp, options.clone()).await
+        } else {
+            let local_result = self.local.get_opts(location, options.clone()).await;
+            match local_result {
+                Ok(r) => Ok(r),
+                Err(ref e) => {
+                    if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                        store.get_opts(&rp, options.clone()).await
+                    } else {
+                        local_result
+                    }
+                }
+            }
+        }?;
 
-        let result = self.local.get_opts(location, options.clone()).await;
-
-        if let Err(ref e) = result {
-            if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
-                return store.get_opts(&rp, options).await;
+        // Populate data Foyer for bounded-range reads so repeated single-range
+        // reads (IndexedExec column chunks) hit cache on subsequent queries.
+        // TieredBlockCache::put() enforces max_data_entry_size — entries exceeding
+        // that limit are silently skipped (no buffering needed for them either).
+        if let Some(ref cache) = self.cache {
+            if let Some(ref get_range) = options.range {
+                if let Some((start, end)) = self.resolve_range(path_str, get_range) {
+                    let range_size = end - start;
+                    // Skip buffering for large ranges — TieredBlockCache::put() would
+                    // reject them anyway (max_data_entry_size). This avoids allocating
+                    // memory for entries that won't be cached.
+                    let max_size = cache.as_any()
+                        .downcast_ref::<opensearch_block_cache::tiered_block_cache::TieredBlockCache>()
+                        .map(|t| t.max_data_entry_size())
+                        .unwrap_or(32 * 1024 * 1024); // fallback for non-tiered cache
+                    if range_size > max_size {
+                        return Ok(get_result);
+                    }
+                    let bytes = get_result.bytes().await?;
+                    let key = range_cache_key(path_str, start, end);
+                    cache.put(&key, bytes.clone());
+                    let file_size = self.registry.get(path_str)
+                        .map(|g| g.size())
+                        .unwrap_or(end);
+                    let meta = ObjectMeta {
+                        location: location.clone(),
+                        last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                        size: file_size,
+                        e_tag: None,
+                        version: None,
+                    };
+                    return Ok(GetResult {
+                        payload: object_store::GetResultPayload::Stream(
+                            futures::stream::once(async { Ok(bytes) }).boxed(),
+                        ),
+                        meta,
+                        range: start..end,
+                        attributes: Default::default(),
+                    });
+                }
             }
         }
-        result
+
+        Ok(get_result)
     }
 
     /// Multi-range read with cache-first routing.
