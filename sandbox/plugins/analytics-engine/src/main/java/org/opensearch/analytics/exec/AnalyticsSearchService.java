@@ -275,7 +275,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         AnalyticsShardTask task,
         StreamingFragmentResponseHandler responseHandler
     ) {
-        if (task != null && task.isCancelled()) {
+        assert task != null : "fetch on " + shard.shardId() + " requires a non-null AnalyticsShardTask";
+        if (task.isCancelled()) {
             responseHandler.onFailure(new TaskCancelledException("Fetch task cancelled before execution: " + task.getReasonCancelled()));
             return;
         }
@@ -354,13 +355,9 @@ public class AnalyticsSearchService implements AutoCloseable {
             responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
             return;
         }
-        // On cancel, a fetch parked in the native pull must be released. The fetch path returns an
-        // opaque stream, so fire the backend's cooperative cancellation here (not stream.close(),
-        // which would race the in-flight native pull).
-        final long fetchContextId = task != null ? task.getId() : 0L;
-        if (task != null) {
-            task.setCancellationListener(() -> backend.cancelByContext(fetchContextId));
-        }
+        // On cancel, release a fetch parked in the native pull via cooperative cancellation, not
+        // stream.close() (which would race the in-flight native pull).
+        task.setCancellationListener(() -> backend.cancelByContext(task.getId()));
         try (FragmentResources ctx = resources) {
             Iterator<EngineResultBatch> it = ctx.stream().iterator();
             while (it.hasNext()) {
@@ -370,9 +367,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         } catch (Exception e) {
             responseHandler.onFailure(e);
         } finally {
-            if (task != null) {
-                task.clearCancellationListener();
-            }
+            task.clearCancellationListener();
         }
     }
 
