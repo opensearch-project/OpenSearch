@@ -54,6 +54,14 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
     private final List<String> fieldNames = new ArrayList<>();
     private final long maxRows;
     private long totalRows;
+    /**
+     * Set once {@link #close} has released the buffered batches. A late {@link #feed} (e.g. the
+     * coordinator reduce drain still running on its own thread when the query fails and closes this
+     * sink) must NOT add to {@code batches} after that — close() already ran and won't run again, so
+     * the batch would strand its Arrow buffers in the per-query allocator. Post-close feeds close the
+     * batch immediately instead.
+     */
+    private boolean closed;
 
     /**
      * Creates a sink with the default row limit.
@@ -71,6 +79,12 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
 
     @Override
     public synchronized void feed(VectorSchemaRoot batch) {
+        // Feed racing close(): the sink is already torn down, so buffering would strand the batch
+        // (close already freed+cleared the list and won't run again). Free it here instead.
+        if (closed) {
+            batch.close();
+            return;
+        }
         if (fieldNames.isEmpty() && batch.getSchema().getFields().isEmpty() == false) {
             for (Field f : batch.getSchema().getFields()) {
                 fieldNames.add(f.getName());
@@ -93,6 +107,7 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
      */
     @Override
     public synchronized void close() {
+        closed = true;
         for (VectorSchemaRoot batch : batches) {
             batch.close();
         }

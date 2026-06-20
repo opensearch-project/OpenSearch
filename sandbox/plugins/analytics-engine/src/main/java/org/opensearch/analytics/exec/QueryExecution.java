@@ -122,9 +122,29 @@ public class QueryExecution {
      */
     public void close() {
         if (closed.compareAndSet(false, true) == false) return;
+        // Tear down EVERY stage before closing the per-query allocator, not just the root sink.
+        // A non-root stage (notably the coordinator reduce) can still hold Arrow batches borrowed
+        // by native DataFusion when a sibling stage (e.g. a shard scan hitting the buffer limit)
+        // fails and drives this query terminal. Closing only the root sink leaves the reduce stage's
+        // teardown to its own async onTerminalTransition, which races — and usually loses to — the
+        // allocator close here, stranding the borrowed batches in the ledger ("Memory was leaked").
+        // Cancelling each stage runs its onTerminalTransition synchronously; the reduce stage's
+        // closeImpl then awaits its reduceDone latch so the native borrows are released first.
+        runQuietly("stage teardown", this::cancelAllStages);
         runQuietly("terminal sink close", this::closeTerminalSink);
         logAllocatorState();
         runQuietly("query context close", config::close);
+    }
+
+    /** Cancels every stage (idempotent — no-op when already terminal) so each runs its teardown. */
+    private void cancelAllStages() {
+        for (StageExecution exec : graph.allExecutions()) {
+            try {
+                exec.cancel("query closing");
+            } catch (Exception e) {
+                logger.warn(new ParameterizedMessage("[QueryExecution] stage teardown threw for stageId={}", exec.getStageId()), e);
+            }
+        }
     }
 
     private void logAllocatorState() {

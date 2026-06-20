@@ -288,6 +288,12 @@ public class AnalyticsSearchTransportService {
                 // the cursor, not claimed roots).
                 FragmentExecutionArrowResponse last = null;
                 FragmentExecutionArrowResponse next = null;
+                // True only when the stream terminated the way the producer expects (fully drained,
+                // sentinel/metadata end, or the downstream consumer was satisfied and we already
+                // cancelled). Any other exit (exception, or onStreamResponse aborting due to a stage
+                // failure) leaves it false → finally cancel()s so the data-node producer tears down
+                // its FlightServerChannel instead of leaking its streamRoot.
+                boolean terminatedCleanly = false;
                 try {
                     last = stream.nextResponse();
                     while (last != null) {
@@ -296,6 +302,7 @@ public class AnalyticsSearchTransportService {
                             listener.onStreamComplete(last.getMetadata());
                             last.getRoot().close();
                             last = null;
+                            terminatedCleanly = true;
                             return;
                         }
 
@@ -320,25 +327,43 @@ public class AnalyticsSearchTransportService {
                         FragmentExecutionArrowResponse delivering = last;
                         last = null;
                         boolean keepReading = listener.onStreamResponse(delivering, isLast);
-                        if (!keepReading || nextIsSentinel) {
+                        if (nextIsSentinel) {
+                            // Sentinel = clean end-of-stream; producer is already completing.
+                            terminatedCleanly = true;
+                            return;
+                        }
+                        if (!keepReading) {
+                            // The consumer stopped early — either satisfied (LimitExec) or the stage
+                            // failed. Either way the producer must stop: cancel undelivered batches +
+                            // the stream so the data-node tears down its channel (handled in finally).
                             if (!isLast && next != null) {
                                 if (next.getRoot() != null) next.getRoot().close();
                                 next = null;
-                                stream.cancel("reduce input satisfied (downstream consumer finished)", null);
                             }
                             return;
                         }
                         last = next;
                         next = null;
                     }
+                    // Loop exited because nextResponse() returned null — the stream drained fully.
+                    terminatedCleanly = true;
                 } catch (Exception e) {
                     listener.onFailure(e);
                 } finally {
                     // Release any batches the loop still owns and never delivered.
                     closeResponseQuietly(last);
                     closeResponseQuietly(next);
+                    // Unless the stream terminated the way the producer expects, cancel() it so the
+                    // data-node PRODUCER is notified and tears down its FlightServerChannel. close()
+                    // alone only frees this client cursor and leaves the producer's streamRoot stranded
+                    // (it never sees a cancel, never closes, and its buffers leak in the allocator
+                    // ledger). Mirrors core StreamSearchTransportService's cancel-on-abnormal-exit.
                     try {
-                        stream.close();
+                        if (terminatedCleanly) {
+                            stream.close();
+                        } else {
+                            stream.cancel("analytics stream aborted before clean end-of-stream", null);
+                        }
                     } catch (Exception ignore) {}
                     pending.finishAndRunNext();
                 }

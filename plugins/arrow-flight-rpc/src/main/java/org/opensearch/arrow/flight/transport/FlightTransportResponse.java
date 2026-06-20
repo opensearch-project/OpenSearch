@@ -105,6 +105,16 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                     future.completeExceptionally(FlightErrorMapper.fromFlightException(e));
                 } catch (Exception e) {
                     future.completeExceptionally(new StreamException(StreamErrorCode.INTERNAL, "Stream open/prefetch failed", e));
+                } finally {
+                    // close() may have run while this thread was opening the stream / prefetching the
+                    // first batch. If so it saw flightStream as it was at that instant and may have
+                    // missed the stream (or the prefetched root) we just produced — leaving the
+                    // first batch's buffers (on the 'client' flight allocator) stranded. Re-close here
+                    // once the stream is fully published so the prefetched root is always released.
+                    // FlightStream.close() is idempotent, so a double close with the close() path is safe.
+                    if (closed) {
+                        closeStreamQuietly();
+                    }
                 }
             });
         }
@@ -188,10 +198,19 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     public void close() {
         if (closed) return;
         closed = true;
+        // Set closed=true FIRST: the async prefetch thread re-checks closed in its finally and
+        // self-closes the stream it produced, covering the race where close() runs before the
+        // prefetch has published flightStream (it would otherwise be null here and the prefetched
+        // first-batch root would leak on the 'client' flight allocator).
+        closeStreamQuietly();
+    }
 
-        if (flightStream != null) {
+    /** Closes the flight stream if present, swallowing the benign already-closed error. Idempotent. */
+    private void closeStreamQuietly() {
+        FlightStream stream = flightStream;
+        if (stream != null) {
             try {
-                flightStream.close();
+                stream.close();
             } catch (IllegalStateException ignore) {} catch (Exception e) {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error closing flight stream", e);
             }

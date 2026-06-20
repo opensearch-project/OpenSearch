@@ -203,6 +203,29 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         sink.close();
     }
 
+    // ─── Feed racing close (leak fix) ────────────────────────────────────
+
+    /**
+     * A {@code feed} that arrives after {@code close} (e.g. the coordinator reduce drain still
+     * running on its own thread when the query fails and closes this sink) must close the batch
+     * immediately rather than buffer it — close() already freed and cleared the list and will not
+     * run again, so a buffered batch would strand its Arrow buffers. Verified by the allocator
+     * returning to zero outstanding bytes.
+     */
+    public void testFeedAfterCloseClosesBatchAndDoesNotBuffer() {
+        RowProducingSink sink = new RowProducingSink();
+        sink.close();
+
+        VectorSchemaRoot late = makeVsr(List.of("id"), new Object[][] { { "1" } });
+        assertTrue("batch holds buffers before the late feed", allocator.getAllocatedMemory() > 0);
+
+        sink.feed(late);
+
+        assertEquals("late batch must be closed, not buffered", 0, allocator.getAllocatedMemory());
+        assertEquals("late batch must not count toward rows", 0, sink.getRowCount());
+        assertFalse("nothing retained from a post-close feed", sink.readResult().iterator().hasNext());
+    }
+
     // ─── Helpers ────────────────────────────────────────────────────────
 
     private VectorSchemaRoot makeVsr(List<String> fieldNames, Object[][] rows) {

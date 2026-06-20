@@ -184,6 +184,59 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         assertSame("original stage failure must reach the listener even when terminal sink close throws", rootCause, onFailure.get());
     }
 
+    // ── close() tears down EVERY stage, not just the root sink (leak fix) ──
+
+    /**
+     * On close, {@link QueryExecution} must cancel every stage in the graph — not only the root —
+     * before the per-query allocator closes. A non-root stage (notably the coordinator reduce) can
+     * still hold native-borrowed Arrow batches; cancelling it runs its synchronous teardown so the
+     * borrows are released first. Here a root success drives close(); the non-root child must still
+     * see cancel().
+     */
+    public void testCloseCancelsNonRootStages() {
+        Stage rootStage = stageWithId(0);
+        Stage childStage = stageWithId(1);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        TestRootExecution child = new TestRootExecution(childStage, new CountingCloseSink());
+
+        QueryContext ctx = queryCtx(rootStage);
+        java.util.Map<Integer, StageExecution> execs = new java.util.HashMap<>();
+        execs.put(0, root);
+        execs.put(1, child);
+        ExecutionGraph graph = new ExecutionGraph("q-test", execs, root, List.of(child));
+
+        QueryExecution qe = new QueryExecution(ctx, graph, StageExecution::start, ActionListener.wrap(r -> {}, e -> {}));
+        qe.start();
+        root.succeed(); // terminal → close()
+
+        assertEquals("non-root stage cancelled exactly once on close", 1, child.cancelCalls.get());
+        assertEquals(QueryExecution.State.SUCCEEDED, qe.getState());
+    }
+
+    /** A stage whose cancel() throws during teardown must not stop the other stages being torn down. */
+    public void testCloseContinuesStageTeardownWhenOneCancelThrows() {
+        Stage rootStage = stageWithId(0);
+        Stage badStage = stageWithId(1);
+        Stage goodStage = stageWithId(2);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        TestRootExecution bad = new TestRootExecution(badStage, new CountingCloseSink());
+        bad.throwOnCancel = true;
+        TestRootExecution good = new TestRootExecution(goodStage, new CountingCloseSink());
+
+        QueryContext ctx = queryCtx(rootStage);
+        java.util.Map<Integer, StageExecution> execs = new java.util.LinkedHashMap<>();
+        execs.put(0, root);
+        execs.put(1, bad);
+        execs.put(2, good);
+        ExecutionGraph graph = new ExecutionGraph("q-test", execs, root, List.of(good));
+
+        QueryExecution qe = new QueryExecution(ctx, graph, StageExecution::start, ActionListener.wrap(r -> {}, e -> {}));
+        qe.start();
+        root.succeed();
+
+        assertEquals("teardown of the good stage still ran despite the bad stage throwing", 1, good.cancelCalls.get());
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────
 
     private QueryExecution newQueryExecution(Stage rootStage, ActionListener<Iterable<VectorSchemaRoot>> listener) {
@@ -226,6 +279,8 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final List<StageStateListener> listeners = new ArrayList<>();
         private final StageMetrics metrics = new StageMetrics();
+        final AtomicInteger cancelCalls = new AtomicInteger();
+        boolean throwOnCancel;
 
         TestRootExecution(Stage stage, ExchangeSource source) {
             this.stage = stage;
@@ -285,6 +340,10 @@ public class QueryExecutionTests extends OpenSearchTestCase {
 
         @Override
         public void cancel(String reason) {
+            cancelCalls.incrementAndGet();
+            if (throwOnCancel) {
+                throw new RuntimeException("cancel boom for stage " + getStageId());
+            }
             State prev = state.getAndSet(State.CANCELLED);
             if (prev == State.FAILED || prev == State.SUCCEEDED || prev == State.CANCELLED) {
                 return;

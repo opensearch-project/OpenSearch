@@ -23,6 +23,7 @@ use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
 use tokio::task::AbortHandle;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 
 /// Fires its `oneshot` when dropped. Held inside the spawned task body so the signal is sent on
 /// every exit path (drain, error, abort-unwind, panic).
@@ -72,16 +73,23 @@ impl CrossRtStream {
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
     ) -> Self {
-        let (cross_rt, _abort_handle, _done_rx) = Self::new_with_df_error_stream_cancellable(stream, exec);
+        let (cross_rt, _abort_handle, _done_rx) = Self::new_with_df_error_stream_cancellable(stream, exec, None);
         cross_rt
     }
 
     /// Like [`new_with_df_error_stream`](Self::new_with_df_error_stream), but also returns an
     /// [`AbortHandle`] and a `oneshot::Receiver` that fires once the spawned task has fully dropped
     /// (completion or abort) — the barrier `stream_close` waits on before the allocator closes.
+    ///
+    /// When `cancel_token` is supplied, cancellation is COOPERATIVE: the producer future selects each
+    /// await against the token and breaks on cancel, falling through to the drop(stream)+yield
+    /// cleanup below — instead of being hard-`abort()`ed mid-`send().await` (which skips cleanup and
+    /// leaks the inner aggregate's GroupValues). Reduce path passes a token + does NOT register the
+    /// abort handle; other paths pass `None` (behavior unchanged).
     pub fn new_with_df_error_stream_cancellable(
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
+        cancel_token: Option<CancellationToken>,
     ) -> (Self, Option<AbortHandle>, oneshot::Receiver<()>) {
         let schema = stream.schema();
         let (tx, rx) = channel(1);
@@ -90,11 +98,40 @@ impl CrossRtStream {
 
         let fut = async move {
             let _done = DoneGuard(Some(done_tx));
-            tokio::pin!(stream);
-            while let Some(res) = stream.next().await {
-                if tx_captured.send(res).await.is_err() {
-                    return;
+            let mut stream = Box::pin(stream);
+            // Cooperative cancellation: select each await against the token so a cancel makes the
+            // loop BREAK and fall through to the drop(stream)+drain cleanup below — instead of
+            // abort_handle.abort() force-dropping this future mid-`send().await` and skipping it.
+            loop {
+                let next = tokio::select! {
+                    biased;
+                    _ = async { match &cancel_token { Some(t) => t.cancelled().await, None => std::future::pending::<()>().await } } => break,
+                    n = stream.next() => n,
+                };
+                let res = match next {
+                    Some(r) => r,
+                    None => break,
+                };
+                let sent = tokio::select! {
+                    biased;
+                    _ = async { match &cancel_token { Some(t) => t.cancelled().await, None => std::future::pending::<()>().await } } => break,
+                    r = tx_captured.send(res) => r,
+                };
+                if sent.is_err() {
+                    break;
                 }
+            }
+            // LEAK FIX: drop the inner DataFusion stream HERE, while this future is still alive and
+            // being polled on the CPU runtime, then yield so the runtime can actually reclaim the
+            // child tasks. The inner stream owns a JoinSet of producer tasks parked on
+            // `tx.send().await`; relying on drop-time JoinSet::abort() alone leaks them (abort only
+            // schedules cancellation). Dropping the stream closes the receiver, waking every parked
+            // send with an error so each child returns; the yields hand control back so those
+            // just-woken children are polled to completion (and their GroupValues freed) before this
+            // future ends.
+            drop(stream);
+            for _ in 0..2 {
+                tokio::task::yield_now().await;
             }
         };
 
@@ -296,7 +333,7 @@ mod tests {
             stream::iter(vec![Ok(test_batch(&[1, 2, 3]))]),
         ));
 
-        let (cross, _abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone());
+        let (cross, _abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), None);
         let wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
         tokio::pin!(wrapped);
         while wrapped.next().await.is_some() {}
@@ -315,7 +352,7 @@ mod tests {
             stream::pending::<Result<RecordBatch, DataFusionError>>(),
         ));
 
-        let (cross, abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone());
+        let (cross, abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), None);
         // Hold the stream so the abort, not a drop, is what ends the task.
         let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
 
@@ -323,6 +360,80 @@ mod tests {
 
         let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
         assert!(fired.is_ok(), "done_rx must fire after the task is aborted");
+        exec.join_blocking();
+    }
+
+    // Cooperative cancellation (the reduce-path leak fix): firing the CancellationToken makes the
+    // producer loop BREAK and fall through to drop(stream)+drain, so done_rx fires WITHOUT anyone
+    // calling abort(). This is the path that lets the inner aggregate's GroupValues be freed instead
+    // of leaked by an abort()-kill mid-`send().await`.
+    #[tokio::test]
+    async fn cancellation_token_breaks_loop_and_fires_done_rx() {
+        let exec = test_exec();
+        let schema = test_schema();
+        // Never-ending stream: the only way the task ends is the cooperative cancel.
+        let inner = Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            stream::pending::<Result<RecordBatch, DataFusionError>>(),
+        ));
+
+        let token = CancellationToken::new();
+        let (cross, _abort, done_rx) =
+            CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), Some(token.clone()));
+        // Hold the stream so a consumer-side drop is NOT what ends the task — the token is.
+        let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
+
+        token.cancel();
+
+        let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
+        assert!(fired.is_ok(), "cancelling the token must break the loop and fire done_rx");
+        assert!(fired.unwrap().is_ok(), "done_rx must complete, not be dropped");
+        exec.join_blocking();
+    }
+
+    // A token that is never fired must not perturb the normal drain path: the stream completes and
+    // all its batches are delivered.
+    #[tokio::test]
+    async fn uncancelled_token_drains_normally() {
+        let exec = test_exec();
+        let schema = test_schema();
+        let batches = vec![Ok(test_batch(&[1, 2, 3])), Ok(test_batch(&[4, 5]))];
+        let inner = Box::pin(RecordBatchStreamAdapter::new(schema.clone(), stream::iter(batches)));
+
+        let token = CancellationToken::new(); // never cancelled
+        let (cross, _abort, done_rx) =
+            CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), Some(token));
+        let wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
+        tokio::pin!(wrapped);
+
+        let mut total_rows = 0;
+        while let Some(batch) = wrapped.next().await {
+            total_rows += batch.unwrap().num_rows();
+        }
+        assert_eq!(total_rows, 5, "all rows delivered when the token is never fired");
+        assert!(done_rx.await.is_ok(), "done_rx fires on normal drain even with a token present");
+        exec.join_blocking();
+    }
+
+    // Cancelling BEFORE the first poll still terminates cleanly (the biased select checks the token
+    // first), exercising the immediate-cancel race.
+    #[tokio::test]
+    async fn cancel_before_first_poll_terminates() {
+        let exec = test_exec();
+        let schema = test_schema();
+        let inner = Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            stream::pending::<Result<RecordBatch, DataFusionError>>(),
+        ));
+
+        let token = CancellationToken::new();
+        token.cancel(); // already cancelled before the task runs
+        let (cross, _abort, done_rx) =
+            CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), Some(token));
+        let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
+
+        let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
+        assert!(fired.is_ok(), "a pre-cancelled token must still terminate the task");
         exec.join_blocking();
     }
 }

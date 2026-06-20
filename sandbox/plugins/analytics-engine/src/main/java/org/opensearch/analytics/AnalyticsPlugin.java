@@ -99,9 +99,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
     private static final int REDUCE_QUEUE_SIZE = 200;
 
+    // Per-query coordinator allocator cap in bytes. 0 (default) → no per-query child allocator;
+    // queries share the coordinator allocator with no per-query cap.
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
-        256L * 1024 * 1024,
+        0L,
         0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
