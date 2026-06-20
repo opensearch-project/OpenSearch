@@ -8,14 +8,17 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Locale;
 
 /**
  * Strategy for preserving field values when reconstructing source from derived fields.
  * Controls whether to use doc values (sorted/deduplicated) or stored fields (preserves order/duplicates).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "3.8.0")
 public enum DerivedSourceKeep {
     /**
      * Use doc values (default). Values are sorted and deduplicated.
