@@ -51,6 +51,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -441,7 +442,7 @@ public class FetchPhase {
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
             if (fieldsVisitor.source() != null) {
                 profile(breakdown, FetchTimingType.LOAD_SOURCE, () -> {
-                    hitContext.sourceLookup().setSource(fieldsVisitor.source());
+                    hitContext.sourceLookup().setSource(applyMappingSourceFilters(context, fieldsVisitor.source()));
                     return null;
                 });
             }
@@ -497,7 +498,10 @@ public class FetchPhase {
 
             if (needSource) {
                 if (rootFieldsVisitor.source() != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
+                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                        applyMappingSourceFilters(context, rootFieldsVisitor.source()),
+                        false
+                    );
                     rootSourceAsMap = tuple.v2();
                     rootSourceContentType = tuple.v1();
                 } else {
@@ -587,6 +591,14 @@ public class FetchPhase {
             hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
         }
         return hitContext;
+    }
+
+    private BytesReference applyMappingSourceFilters(SearchContext context, BytesReference source) throws IOException {
+        SourceFieldMapper sourceMapper = context.mapperService().documentMapper().sourceMapper();
+        if (sourceMapper.isComplete()) {
+            return source;
+        }
+        return sourceMapper.applyFilters(source, null);
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(
