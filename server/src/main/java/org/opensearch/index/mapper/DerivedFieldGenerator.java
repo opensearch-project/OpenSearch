@@ -25,11 +25,13 @@ public class DerivedFieldGenerator {
     private final DerivedSourceKeep derivedSourceKeep;
 
     /**
-     * Legacy constructor for backward compatibility. Defaults to DerivedSourceKeep.NONE.
+     * Constructor for backward compatibility with field mappers that don't specify derived_source_keep.
+     * Defaults to DerivedSourceKeep.NONE (uses doc values when available).
      *
-     * @deprecated Use {@link #DerivedFieldGenerator(MappedFieldType, FieldValueFetcher, FieldValueFetcher, DerivedSourceKeep)} instead
+     * @param mappedFieldType the field type
+     * @param docValuesFetcher fetcher for doc values (sorted/deduplicated)
+     * @param storedFieldFetcher fetcher for stored fields (preserves order/duplicates)
      */
-    @Deprecated
     public DerivedFieldGenerator(
         MappedFieldType mappedFieldType,
         FieldValueFetcher docValuesFetcher,

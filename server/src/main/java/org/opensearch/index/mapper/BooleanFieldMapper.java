@@ -123,6 +123,14 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).nullValue
         ).acceptsNull();
 
+        private final Parameter<String> derivedSourceKeepParam = Parameter.restrictedStringParam(
+            "derived_source_keep",
+            false,
+            m -> toType(m).derivedSourceKeep.getValue(),
+            "none",
+            "arrays"
+        );
+
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -132,11 +140,26 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored);
+            return Arrays.asList(meta, boost, docValues, indexed, nullValue, derivedSourceKeepParam, stored);
         }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
+            // Auto-enable store=true when derived_source_keep="arrays"
+            DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
+            boolean storeValue = this.stored.getValue();
+            boolean storeExplicitlySet = this.stored.isConfigured();
+            
+            if (derivedSourceKeep.requiresStoredFields()) {
+                if (storeExplicitlySet && !storeValue) {
+                    throw new MapperParsingException(
+                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name() + "]"
+                    );
+                }
+                storeValue = true;
+                this.stored.setValue(storeValue);
+            }
+            
             MappedFieldType ft = new BooleanFieldType(
                 buildFullName(context),
                 indexed.getValue(),
@@ -354,6 +377,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final DerivedSourceKeep derivedSourceKeep;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -367,6 +391,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.derivedSourceKeep = DerivedSourceKeep.fromString(builder.derivedSourceKeepParam.getValue());
+        setDerivedFieldGenerator(derivedFieldGenerator());
     }
 
     @Override
@@ -450,6 +476,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedSourceKeep mode = (this.derivedSourceKeep != null) ? this.derivedSourceKeep : DerivedSourceKeep.NONE;
+        
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
@@ -459,6 +487,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                 }
                 return val == 1;
             }
-        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()), mode);
     }
 }

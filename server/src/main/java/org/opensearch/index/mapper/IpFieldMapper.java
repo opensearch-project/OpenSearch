@@ -109,6 +109,14 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
             .acceptsNull();
 
+        private final Parameter<String> derivedSourceKeepParam = Parameter.restrictedStringParam(
+            "derived_source_keep",
+            false,
+            m -> toType(m).derivedSourceKeep.getValue(),
+            "none",
+            "arrays"
+        );
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final boolean ignoreMalformedByDefault;
@@ -153,11 +161,26 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, derivedSourceKeepParam, meta);
         }
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            // Auto-enable store=true when derived_source_keep="arrays"
+            DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
+            boolean storeValue = this.stored.getValue();
+            boolean storeExplicitlySet = this.stored.isConfigured();
+            
+            if (derivedSourceKeep.requiresStoredFields()) {
+                if (storeExplicitlySet && !storeValue) {
+                    throw new MapperParsingException(
+                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name() + "]"
+                    );
+                }
+                storeValue = true;
+                this.stored.setValue(storeValue);
+            }
+            
             return new IpFieldMapper(
                 name,
                 new IpFieldType(
@@ -201,10 +224,13 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedSourceKeep mode = (this.derivedSourceKeep != null) ? this.derivedSourceKeep : DerivedSourceKeep.NONE;
+        
         return new DerivedFieldGenerator(
             mappedFieldType,
             new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
-            new StoredFieldFetcher(mappedFieldType, simpleName())
+            new StoredFieldFetcher(mappedFieldType, simpleName()),
+            mode
         );
     }
 
@@ -598,6 +624,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     private final boolean hasDocValues;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
+    private final DerivedSourceKeep derivedSourceKeep;
 
     private final InetAddress nullValue;
     private final String nullValueAsString;
@@ -614,7 +641,9 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
+        this.derivedSourceKeep = DerivedSourceKeep.fromString(builder.derivedSourceKeepParam.getValue());
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        setDerivedFieldGenerator(derivedFieldGenerator());
     }
 
     @Override
