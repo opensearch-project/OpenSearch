@@ -20,18 +20,19 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import java.util.Set;
 
 /**
- * Functional oracle for eager metadata-cache warming on warm shards.
+ * Functional oracle for eager cache warming on warm shards.
  *
  * <p>When a shard is tiered to warm it runs {@link DataFormatAwareReadOnlyEngine}, whose
  * data lives on the (here, fs-backed) remote store via {@code TieredObjectStore}. The engine
- * fires {@code onFilesAdded} for the committed snapshot at open, which warms each parquet
- * footer into the node-level DataFusion metadata cache <em>before any query runs</em> — reading
- * the footer through the per-shard remote store pointer.
+ * fires {@code onFilesAdded} for the committed snapshot at open, which warms both DataFusion
+ * caches <em>before any query runs</em> — reading each parquet footer through the per-shard
+ * remote store pointer to populate the node-level metadata cache and, from that same footer,
+ * the statistics cache.
  *
- * <p>Proof: after tiering to warm and before issuing any query, the metadata cache on the
- * primary node already holds one entry per parquet segment ({@code entry_count == N}) with no
- * hits yet ({@code hit_count == 0}). Previously (lazy population) {@code entry_count} would be 0
- * until the first query touched each segment.
+ * <p>Proof: after tiering to warm and before issuing any query, both the metadata cache and the
+ * statistics cache on the primary node already hold one entry per parquet segment
+ * ({@code entry_count == N}) with no hits yet ({@code hit_count == 0}). Previously (lazy
+ * population) {@code entry_count} would be 0 until the first query touched each segment.
  *
  * <p>This uses the fs-backed native store from {@link DataFormatAwareReadonlyEngineBaseIT}
  * (ReloadableFsRepository + FsNativeObjectStorePlugin), so no real S3 is involved while still
@@ -39,7 +40,7 @@ import java.util.Set;
  */
 public class DataFormatAwareWarmMetadataCacheIT extends DataFormatAwareReadonlyEngineBaseIT {
 
-    public void testMetadataCacheEagerlyWarmedOnWarmEngineOpen() throws Exception {
+    public void testMetadataAndStatisticsCachesEagerlyWarmedOnWarmEngineOpen() throws Exception {
         // Dedicated tiers: a hot data-only node and a warm-only node. The hot DFA index is created
         // on the data node (which warms ITS node-local cache during the hot phase). Tiering relocates
         // the shard to the warm-only node, whose DataFusion metadata cache is COLD (it never hosted
