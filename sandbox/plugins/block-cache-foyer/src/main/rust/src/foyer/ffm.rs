@@ -251,30 +251,6 @@ pub unsafe extern "C" fn foyer_update_persist_interval(ptr: i64, new_secs: u64) 
     Ok(0)
 }
 
-/// Update the max metadata entry size on a TieredBlockCache. Entries larger than
-/// this limit are routed to data_cache (evictable) instead of metadata_cache.
-///
-/// Called by Java's `addSettingsUpdateConsumer` when
-/// `block_cache.foyer.max_metadata_entry_size` is changed via cluster settings API.
-///
-/// No-op if the cache is not a TieredBlockCache (plain FoyerCache has no limit).
-///
-/// # Safety
-/// `ptr` must be a valid handle from [`foyer_create_cache`] or [`foyer_create_tiered_cache`].
-#[ffm_safe]
-#[no_mangle]
-pub unsafe extern "C" fn foyer_update_max_metadata_entry_size(ptr: i64, new_limit: u64) -> i64 {
-    if ptr <= 0 {
-        return Err(format!("foyer_update_max_metadata_entry_size: invalid ptr {}", ptr));
-    }
-    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
-    if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
-        tiered.update_max_metadata_entry_size(new_limit as usize);
-    }
-    // No-op for plain FoyerCache — it has no metadata size concept.
-    Ok(0)
-}
-
 /// Evict all cache entries whose key starts with `prefix`.
 ///
 /// Called by Java's `NodeCacheServiceCleaner` on shard/index deletion.
@@ -374,7 +350,8 @@ pub unsafe extern "C" fn foyer_create_tiered_cache(
         false, // reinsertion_admit_all = false (RejectAll)
     ));
 
-    // Build metadata cache (reinsertion = AdmitAll — never evicts)
+    // Build metadata cache (same LRU as data cache — separate SSD prevents
+    // data pressure from evicting metadata)
     let metadata_cache = Arc::new(FoyerCache::new(
         meta_disk_bytes as usize,
         meta_dir,
@@ -385,7 +362,7 @@ pub unsafe extern "C" fn foyer_create_tiered_cache(
         sweep_interval_secs,
         sweep_threshold_ratio,
         persist_interval_secs,
-        true, // reinsertion_admit_all = true (AdmitAll)
+        false, // reinsertion_admit_all = false (normal LRU, same as data)
     ));
 
     native_bridge_common::log_info!(

@@ -499,6 +499,11 @@ impl CustomCacheManager {
     /// Fetch footer only (no page indexes) from the store and put into heap cache.
     ///
     /// Returns the parsed metadata and object meta (for file size).
+    ///
+    /// # Panics
+    /// Panics if called from within a tokio async context (uses `block_on`).
+    /// Must be called from FFM entry points (Java → Rust, non-async) or from
+    /// a dedicated synchronous thread. Integration tests use a separate OnceLock runtime.
     fn fetch_footer_to_heap(
         &self,
         file_path: &str,
