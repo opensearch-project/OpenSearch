@@ -18,6 +18,44 @@ use object_store::ObjectMeta;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use log::{debug, error};
 
+/// Compute ONE global merged range for all page indexes — matching exactly
+/// what parquet crate's `range_for_page_index()` produces.
+///
+/// Folds ALL columns across ALL row groups into a single contiguous range
+/// encompassing all column_index and offset_index data. Returns an empty Vec
+/// if the file has no page index metadata, or a single-element Vec with the
+/// merged range.
+pub(crate) fn compute_page_index_range(metadata: &parquet::file::metadata::ParquetMetaData) -> Vec<std::ops::Range<u64>> {
+    let page_index_range = metadata.row_groups().iter()
+        .flat_map(|rg| rg.columns().iter())
+        .fold(None::<std::ops::Range<u64>>, |acc, col| {
+            let acc = if let (Some(offset), Some(length)) = (col.column_index_offset(), col.column_index_length()) {
+                let start = offset as u64;
+                let end = start + length as u64;
+                match acc {
+                    Some(a) => Some(a.start.min(start)..a.end.max(end)),
+                    None => Some(start..end),
+                }
+            } else {
+                acc
+            };
+            if let (Some(offset), Some(length)) = (col.offset_index_offset(), col.offset_index_length()) {
+                let start = offset as u64;
+                let end = start + length as u64;
+                match acc {
+                    Some(a) => Some(a.start.min(start)..a.end.max(end)),
+                    None => Some(start..end),
+                }
+            } else {
+                acc
+            }
+        });
+    match page_index_range {
+        Some(r) => vec![r],
+        None => vec![],
+    }
+}
+
 /// Create ObjectMeta from a local file path.
 fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, datafusion::common::DataFusionError> {
     use chrono::{DateTime, Utc};
@@ -387,6 +425,136 @@ impl CustomCacheManager {
             }
             Err(e) => Err(format!("Failed to verify cache: {}", e))
         }
+    }
+
+    /// Warmup: load footer (lightweight) into heap, fetch page/offset index bytes
+    /// through the store (for Foyer caching), and return the index byte ranges
+    /// so the caller can promote them to metadata Foyer via `ts_put_metadata`.
+    ///
+    /// Key design:
+    /// - Footer (schema + RG stats) → heap file_metadata_cache (lightweight, kept forever)
+    /// - Page/offset index bytes → fetched via store (populates data Foyer as side effect)
+    ///   → caller promotes to metadata Foyer via ts_put_metadata
+    /// - Page indexes NOT stored in heap (avoids 1GB+ memory bloat on wide schemas)
+    ///
+    /// Returns per-file: (success, Vec<(start, end, bytes)>) for the caller to pass
+    /// to `ts_put_metadata`.
+    pub fn add_files_with_store(
+        &self,
+        file_paths: &[String],
+        store: Arc<dyn object_store::ObjectStore>,
+        rt_handle: &tokio::runtime::Handle,
+    ) -> Result<Vec<(String, bool, Vec<(u64, u64, bytes::Bytes)>)>, String> {
+        let mut results = Vec::new();
+        for file_path in file_paths {
+            match self.warmup_file_with_store(file_path, &store, rt_handle) {
+                Ok((success, index_ranges)) => results.push((file_path.clone(), success, index_ranges)),
+                Err(e) => {
+                    error!("[CACHE ERROR] add_files_with_store failed for {}: {}", file_path, e);
+                    results.push((file_path.clone(), false, vec![]));
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    /// Warmup a single file:
+    /// 1. Fetch footer only (PageIndexPolicy::Skip) → heap cache (lightweight)
+    /// 2. Compute page/offset index ranges from the parsed footer
+    /// 3. Fetch those ranges through the store (populates data Foyer)
+    /// 4. Return the ranges + bytes for the caller to promote to metadata Foyer
+    fn warmup_file_with_store(
+        &self,
+        file_path: &str,
+        store: &Arc<dyn object_store::ObjectStore>,
+        rt_handle: &tokio::runtime::Handle,
+    ) -> Result<(bool, Vec<(u64, u64, bytes::Bytes)>), String> {
+        if !file_path.to_lowercase().ends_with(".parquet") {
+            return Ok((false, vec![]));
+        }
+
+        // Step 1: Fetch footer only → heap cache
+        let (parquet_metadata, object_meta) = self.fetch_footer_to_heap(file_path, store, rt_handle)?;
+
+        // Step 2: Compute page/offset index byte ranges from the parsed footer
+        let mut index_ranges = compute_page_index_range(&parquet_metadata);
+
+        // Also include the footer range itself for metadata Foyer
+        let footer_prefetch = 64 * 1024u64; // same as DataFusion's typical prefetch
+        let footer_start = object_meta.size.saturating_sub(footer_prefetch);
+        index_ranges.push(footer_start..object_meta.size);
+
+        // Step 3: Fetch index byte ranges through the store (populates data Foyer on the way)
+        let fetched_bytes = Self::fetch_ranges_via_store(store, file_path, &index_ranges, rt_handle)?;
+
+        // Step 4: Return ranges + bytes for caller to put into metadata Foyer
+        let metadata_entries: Vec<(u64, u64, bytes::Bytes)> = index_ranges.iter()
+            .zip(fetched_bytes.into_iter())
+            .map(|(r, b)| (r.start, r.end, b))
+            .collect();
+
+        Ok((true, metadata_entries))
+    }
+
+    /// Fetch footer only (no page indexes) from the store and put into heap cache.
+    ///
+    /// Returns the parsed metadata and object meta (for file size).
+    fn fetch_footer_to_heap(
+        &self,
+        file_path: &str,
+        store: &Arc<dyn object_store::ObjectStore>,
+        rt_handle: &tokio::runtime::Handle,
+    ) -> Result<(Arc<parquet::file::metadata::ParquetMetaData>, ObjectMeta), String> {
+        let path = Path::from(file_path.to_string());
+
+        // Head call to get file size (TieredObjectStore serves from registry)
+        let object_meta = rt_handle.block_on(async {
+            use object_store::ObjectStoreExt;
+            store.head(&path).await
+                .map_err(|e| format!("Failed to head {}: {}", file_path, e))
+        })?;
+
+        let cache_ref = self.file_metadata_cache.as_ref()
+            .ok_or_else(|| "No file metadata cache configured".to_string())?;
+        let metadata_cache = cache_ref.clone() as Arc<dyn FileMetadataCache>;
+
+        // Do NOT pass file_metadata_cache here — that triggers PageIndexPolicy::Optional
+        // which loads page indexes into the heap struct. Instead, load footer only
+        // and manually put into the heap cache afterward.
+        let parquet_metadata: Arc<parquet::file::metadata::ParquetMetaData> = rt_handle.block_on(async {
+            let df_metadata = DFParquetMetadata::new(store.as_ref(), &object_meta);
+            df_metadata.fetch_metadata().await
+                .map_err(|e| format!("Failed to fetch footer: {}", e))
+        })?;
+
+        // Put lightweight footer-only metadata into heap cache
+        use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
+        use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+        use datafusion::execution::cache::CacheAccessor;
+        let cached_entry = CachedFileMetadataEntry::new(
+            object_meta.clone(),
+            Arc::new(CachedParquetMetaData::new(Arc::clone(&parquet_metadata))),
+        );
+        metadata_cache.put(&path, cached_entry);
+
+        Ok((parquet_metadata, object_meta))
+    }
+
+    /// Fetch byte ranges from the store. Returns the fetched bytes in order.
+    fn fetch_ranges_via_store(
+        store: &Arc<dyn object_store::ObjectStore>,
+        file_path: &str,
+        ranges: &[std::ops::Range<u64>],
+        rt_handle: &tokio::runtime::Handle,
+    ) -> Result<Vec<bytes::Bytes>, String> {
+        if ranges.is_empty() {
+            return Ok(vec![]);
+        }
+        let path = Path::from(file_path.to_string());
+        rt_handle.block_on(async {
+            store.get_ranges(&path, ranges).await
+                .map_err(|e| format!("Failed to fetch ranges for {}: {}", file_path, e))
+        })
     }
 
     /// Compute and put statistics into cache
