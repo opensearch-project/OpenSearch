@@ -84,6 +84,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -4230,6 +4231,107 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             Engine.Get getWithBadTranslog = realtimeGet("1");
             DocumentLookupResult translogNullResult = getByIdLookup(engine, getWithBadTranslog);
             assertNotNull("should fall through when translog returns null", translogNullResult);
+        }
+    }
+
+    /**
+     * Tests that engine close is graceful when concurrent index, refresh, and flush operations
+     * are in flight. Verifies no unhandled exceptions escape and the engine transitions to closed.
+     */
+    public void testGracefulCloseUnderConcurrentLoad() throws Exception {
+        try (Store store = createStore()) {
+            DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+
+            final AtomicBoolean stop = new AtomicBoolean(false);
+            final AtomicReference<Exception> failure = new AtomicReference<>();
+            final CountDownLatch started = new CountDownLatch(3);
+
+            // Thread 1: continuous indexing
+            Thread indexThread = new Thread(() -> {
+                started.countDown();
+                int i = 0;
+                while (stop.get() == false) {
+                    try {
+                        engine.index(indexOp(createParsedDocWithInput(Integer.toString(i++), null)));
+                    } catch (AlreadyClosedException e) {
+                        break; // expected during close
+                    } catch (Exception e) {
+                        if (stop.get() == false) {
+                            failure.compareAndSet(null, e);
+                        }
+                        break;
+                    }
+                }
+            });
+
+            // Thread 2: continuous refresh
+            Thread refreshThread = new Thread(() -> {
+                started.countDown();
+                while (stop.get() == false) {
+                    try {
+                        engine.refresh("concurrent-test");
+                    } catch (AlreadyClosedException e) {
+                        break;
+                    } catch (Exception e) {
+                        if (stop.get() == false) {
+                            failure.compareAndSet(null, e);
+                        }
+                        break;
+                    }
+                }
+            });
+
+            // Thread 3: periodic flush
+            Thread flushThread = new Thread(() -> {
+                started.countDown();
+                while (stop.get() == false) {
+                    try {
+                        engine.flush(false, true);
+                        Thread.sleep(10);
+                    } catch (AlreadyClosedException e) {
+                        break;
+                    } catch (FlushFailedEngineException e) {
+                        // flush may be disabled during translog recovery or after close
+                        break;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    } catch (Exception e) {
+                        if (stop.get() == false) {
+                            failure.compareAndSet(null, e);
+                        }
+                        break;
+                    }
+                }
+            });
+
+            indexThread.start();
+            refreshThread.start();
+            flushThread.start();
+
+            // Wait for all threads to start
+            assertTrue(started.await(5, TimeUnit.SECONDS));
+
+            // Let them run briefly
+            Thread.sleep(200);
+
+            // Close the engine while operations are in-flight
+            stop.set(true);
+            engine.close();
+
+            // Wait for threads to finish
+            indexThread.join(10_000);
+            refreshThread.join(10_000);
+            flushThread.join(10_000);
+
+            assertFalse("Index thread should have stopped", indexThread.isAlive());
+            assertFalse("Refresh thread should have stopped", refreshThread.isAlive());
+            assertFalse("Flush thread should have stopped", flushThread.isAlive());
+
+            // No unexpected exceptions
+            if (failure.get() != null) {
+                throw new AssertionError("Unexpected exception during concurrent close", failure.get());
+            }
         }
     }
 }

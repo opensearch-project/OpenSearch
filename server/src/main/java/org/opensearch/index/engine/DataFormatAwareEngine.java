@@ -2132,6 +2132,8 @@ public class DataFormatAwareEngine implements Indexer {
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
                 this.versionMap.clear();
+                // Stop accepting new merges immediately
+                mergeScheduler.shutdown();
                 // Discard any pending segments not yet picked up by refresh
                 pendingSegments.clear();
                 // Close any writers queued for deferred close (their files won't reach the catalog)
