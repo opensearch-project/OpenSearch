@@ -47,6 +47,15 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MetadataStreamingIngestionStateService;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.common.Strings;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ResolvedIndices;
@@ -67,6 +76,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +98,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
     private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
     private final ClusterManagerTaskThrottler.ThrottlingKey rolloverIndexTaskKey;
+    private final MetadataStreamingIngestionStateService ingestionStateService;
 
     @Inject
     public TransportRolloverAction(
@@ -97,7 +108,8 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataRolloverService rolloverService,
-        Client client
+        Client client,
+        MetadataStreamingIngestionStateService ingestionStateService
     ) {
         super(
             RolloverAction.NAME,
@@ -113,6 +125,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ROLLOVER_INDEX, true);
+        this.ingestionStateService = ingestionStateService;
     }
 
     @Override
@@ -193,63 +206,52 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                     .filter(condition -> conditionResults.get(condition.toString()))
                     .collect(Collectors.toList());
                 if (conditionResults.size() == 0 || metConditions.size() > 0) {
-                    clusterService.submitStateUpdateTask(
-                        "rollover_index source [" + sourceIndexName + "] to target [" + rolloverIndexName + "]",
-                        new ClusterStateUpdateTask() {
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
-                                MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                                    currentState,
-                                    rolloverRequest.getRolloverTarget(),
-                                    rolloverRequest.getNewIndexName(),
-                                    rolloverRequest.getCreateIndexRequest(),
-                                    metConditions,
-                                    false,
-                                    false
-                                );
-                                if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
-                                    throw new OpenSearchException(
-                                        "Concurrent modification of alias [{}] during rollover",
-                                        rolloverRequest.getRolloverTarget()
-                                    );
+                    if (metadata.index(sourceIndexName).useIngestionSource()) {
+                        // Ingestion-aware rollover path
+                        // 1. Pause ingestion on the old write index
+                        UpdateIngestionStateRequest pauseRequest = new UpdateIngestionStateRequest(new String[]{sourceIndexName}, new int[0]);
+                        pauseRequest.setIngestionPaused(true);
+                        ingestionStateService.updateIngestionPollerState(
+                            "pause-ingestion-before-rollover",
+                            new Index[]{metadata.index(sourceIndexName).getIndex()},
+                            pauseRequest,
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(UpdateIngestionStateResponse pauseResponse) {
+                                    // 2. Fetch the current ingestion offsets from shards
+                                    GetIngestionStateRequest getRequest = new GetIngestionStateRequest(new String[]{sourceIndexName});
+                                    client.execute(GetIngestionStateAction.INSTANCE, getRequest, new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(GetIngestionStateResponse getResponse) {
+                                            Map<Integer, String> shardOffsets = new HashMap<>();
+                                            if (getResponse.getShardStates() != null) {
+                                                for (ShardIngestionState shardState : getResponse.getShardStates()) {
+                                                    if (Strings.isNullOrEmpty(shardState.getBatchStartPointer()) == false) {
+                                                        shardOffsets.put(shardState.getShardId(), shardState.getBatchStartPointer());
+                                                    }
+                                                }
+                                            }
+                                            // 3. Submit rollover cluster state update task with offsets
+                                            executeRollover(task, rolloverRequest, state, metConditions, sourceIndexName, rolloverIndexName, conditionResults, shardOffsets, listener);
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            listener.onFailure(new OpenSearchException("Failed to retrieve ingestion pointers from old index shards before rollover", e));
+                                        }
+                                    });
                                 }
-                                return rolloverResult.clusterState;
-                            }
 
-                            @Override
-                            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                                return rolloverIndexTaskKey;
-                            }
-
-                            @Override
-                            public void onFailure(String source, Exception e) {
-                                listener.onFailure(e);
-                            }
-
-                            @Override
-                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                if (newState.equals(oldState) == false) {
-                                    activeShardsObserver.waitForActiveShards(
-                                        new String[] { rolloverIndexName },
-                                        rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                        rolloverRequest.clusterManagerNodeTimeout(),
-                                        isShardsAcknowledged -> listener.onResponse(
-                                            new RolloverResponse(
-                                                sourceIndexName,
-                                                rolloverIndexName,
-                                                conditionResults,
-                                                false,
-                                                true,
-                                                true,
-                                                isShardsAcknowledged
-                                            )
-                                        ),
-                                        listener::onFailure
-                                    );
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(new OpenSearchException("Failed to pause ingestion on old index before rollover", e));
                                 }
                             }
-                        }
-                    );
+                        );
+                    } else {
+                        // Standard rollover without ingestion
+                        executeRollover(task, rolloverRequest, state, metConditions, sourceIndexName, rolloverIndexName, conditionResults, null, listener);
+                    }
                 } else {
                     // conditions not met
                     listener.onResponse(
@@ -263,6 +265,77 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void executeRollover(
+        Task task,
+        RolloverRequest rolloverRequest,
+        ClusterState state,
+        List<Condition<?>> metConditions,
+        String sourceIndexName,
+        String rolloverIndexName,
+        Map<String, Boolean> conditionResults,
+        @Nullable Map<Integer, String> shardOffsets,
+        ActionListener<RolloverResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(
+            "rollover_index source [" + sourceIndexName + "] to target [" + rolloverIndexName + "]",
+            new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
+                        currentState,
+                        rolloverRequest.getRolloverTarget(),
+                        rolloverRequest.getNewIndexName(),
+                        rolloverRequest.getCreateIndexRequest(),
+                        metConditions,
+                        false,
+                        false,
+                        shardOffsets
+                    );
+                    if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
+                        throw new OpenSearchException(
+                            "Concurrent modification of alias [{}] during rollover",
+                            rolloverRequest.getRolloverTarget()
+                        );
+                    }
+                    return rolloverResult.clusterState;
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return rolloverIndexTaskKey;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (newState.equals(oldState) == false) {
+                        activeShardsObserver.waitForActiveShards(
+                            new String[] { rolloverIndexName },
+                            rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                            rolloverRequest.clusterManagerNodeTimeout(),
+                            isShardsAcknowledged -> listener.onResponse(
+                                new RolloverResponse(
+                                    sourceIndexName,
+                                    rolloverIndexName,
+                                    conditionResults,
+                                    false,
+                                    true,
+                                    true,
+                                    isShardsAcknowledged
+                                )
+                            ),
+                            listener::onFailure
+                        );
+                    }
+                }
+            }
+        );
     }
 
     @Override

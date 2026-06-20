@@ -646,13 +646,22 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            if (event.blocksChanged() == false) {
-                return;
-            }
-
             final ClusterState state = event.state();
             isWriteBlockEnabled = state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName);
 
+            if (event.metadataChanged()) {
+                IndexMetadata indexMetadata = state.metadata().index(indexName);
+                if (indexMetadata != null && indexMetadata.getIngestionStatus() != null) {
+                    boolean targetPaused = indexMetadata.getIngestionStatus().isPaused();
+                    if (this.paused != targetPaused) {
+                        if (targetPaused) {
+                            pause();
+                        } else {
+                            resume();
+                        }
+                    }
+                }
+            }
         } catch (Exception e) {
             logger.error("Error applying cluster state in stream poller", e);
             throw e;

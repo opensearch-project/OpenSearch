@@ -51,6 +51,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.MetadataStreamingIngestionStateService;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -302,7 +303,8 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             mockActionFilters,
             mockIndexNameExpressionResolver,
             rolloverService,
-            mockClient
+            mockClient,
+            mock(MetadataStreamingIngestionStateService.class)
         );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
@@ -375,7 +377,8 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             mock(ActionFilters.class),
             indexNameExpressionResolver,
             metadataRolloverService,
-            mock(Client.class)
+            mock(Client.class),
+            mock(MetadataStreamingIngestionStateService.class)
         );
 
         {
