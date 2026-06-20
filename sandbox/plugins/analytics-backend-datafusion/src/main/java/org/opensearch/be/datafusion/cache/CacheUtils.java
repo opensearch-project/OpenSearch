@@ -117,6 +117,28 @@ public final class CacheUtils {
                 logger.debug("Cache type {} is disabled", type.getCacheTypeName());
             }
         }
+        // Push the scoped page-index cache limits to native using the percent-based model.
+        // Total = 3% of node.native_memory.limit; sub-caches split by percent settings
+        // (default: 50% metadata, 35% offset index, 15% column index).
+        // Dynamic changes are handled via settings update consumers in DataFusionPlugin.
+        long total = clusterSettings.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
+        int metaPct = clusterSettings.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
+        int oiPct = clusterSettings.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
+        int ciPct = clusterSettings.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        long oiLimit = total * oiPct / 100;
+        long ciLimit = total * ciPct / 100;
+        logger.info(
+            "Configuring metadata caches: total={} bytes (metadata={}%, offset_index={}%, column_index={}%)"
+                + " → offset_index={} bytes, column_index={} bytes",
+            total,
+            metaPct,
+            oiPct,
+            ciPct,
+            oiLimit,
+            ciLimit
+        );
+        NativeBridge.setColumnIndexCacheLimit(ciLimit);
+        NativeBridge.setOffsetIndexCacheLimit(oiLimit);
         logger.info("Cache configuration completed");
         return handle;
     }

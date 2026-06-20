@@ -1326,6 +1326,48 @@ pub unsafe extern "C" fn df_execute_local_prepared_plan(
     api::execute_local_prepared_plan(session_ptr, &mgr, context_id, None).map_err(|e| e.to_string())
 }
 
+// ── Scoped page-index cache limit setters ────────────────────────────────────
+//
+// These are wired from Java at startup (CacheUtils.createCacheConfig) and on
+// dynamic setting changes (DataFusionPlugin settings consumers). They forward
+// to the process-global caches in crate::cache::page_index.
+//
+// NOTE: On main these are stubs that do nothing — the cache module from PR 1
+// is not yet present. Once PR 1 merges the bodies replace these no-ops.
+
+/// Set the byte budget of the process-global scoped ColumnIndex cache.
+/// Zero is ignored; negative returns an error.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_set_column_index_cache_limit(size_limit: i64) -> i64 {
+    if size_limit < 0 {
+        return Err(format!("df_set_column_index_cache_limit: negative limit {}", size_limit));
+    }
+    // TODO(PR1): crate::cache::page_index::set_column_index_cache_limit(size_limit as usize);
+    Ok(0)
+}
+
+/// Set the byte budget of the process-global scoped OffsetIndex cache.
+/// Zero is ignored; negative returns an error.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_set_offset_index_cache_limit(size_limit: i64) -> i64 {
+    if size_limit < 0 {
+        return Err(format!("df_set_offset_index_cache_limit: negative limit {}", size_limit));
+    }
+    // TODO(PR1): crate::cache::page_index::set_offset_index_cache_limit(size_limit as usize);
+    Ok(0)
+}
+
+/// Clear the process-global scoped page-index cache (drop entries + reset
+/// counters, keep the budget). No-op stub until PR 1 merges.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_clear_scoped_page_index_cache() -> i64 {
+    // TODO(PR1): crate::cache::page_index::clear_scoped_cache();
+    Ok(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

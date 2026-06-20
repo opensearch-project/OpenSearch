@@ -291,13 +291,17 @@ public final class DatafusionSettings {
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD,
         DATAFUSION_MEMORY_POOL_MIN,
 
-        // Cache settings — metadata and statistics cache configuration
+        // Cache settings — metadata, statistics, and metadata-index cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,
         CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
         CacheSettings.METADATA_CACHE_EVICTION_TYPE,
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
         CacheSettings.METADATA_CACHE_ENABLED,
         CacheSettings.STATISTICS_CACHE_ENABLED,
+        CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
+        CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
+        CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
+        CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
 
         // Concurrency gate settings
         CONCURRENCY_DATANODE_MULTIPLIER,
