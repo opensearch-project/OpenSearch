@@ -195,7 +195,7 @@ pub struct IndexedTableConfig {
     /// Query-level data for building StatsPruneTree per segment.
     /// (BoolNode tree, prebuilt PruningPredicates keyed by Arc ptr, schema)
     pub prune_tree_config: Option<(
-        BoolNode,
+        Arc<BoolNode>,
         Arc<std::collections::HashMap<usize, Arc<PruningPredicate>>>,
         SchemaRef,
     )>,

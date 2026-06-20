@@ -274,6 +274,7 @@ pub trait TreeEvaluator: Send + Sync {
         pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
         page_prune_metrics: Option<&PagePruneMetrics>,
         stats_prune_tree: Option<&StatsPruneTree>,
+        rg_index_to_pos: &HashMap<usize, usize>,
     ) -> Result<TreePrefetch, String>;
 
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
@@ -352,6 +353,8 @@ pub struct TreeBitsetSource {
     pub collector_strategy: CollectorCallStrategy,
     /// Precomputed per-subtree RG match vectors. Built once at construction.
     pub stats_prune_tree: Option<StatsPruneTree>,
+    /// Reverse map: absolute RG index → position in `rg_can_match` vectors.
+    pub rg_index_to_pos: HashMap<usize, usize>,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -365,12 +368,14 @@ impl RowGroupBitsetSource for TreeBitsetSource {
 
         // RG-level early-exit: precomputed from column stats at construction.
         if let Some(ref ann) = self.stats_prune_tree {
-            if let Some(&false) = ann.rg_can_match.get(rg.index) {
-                native_bridge_common::log_debug!(
-                    "BitmapTree: skipping RG {} — pruned by RG-level stats",
-                    rg.index
-                );
-                return Ok(None);
+            if let Some(&pos) = self.rg_index_to_pos.get(&rg.index) {
+                if let Some(&false) = ann.rg_can_match.get(pos) {
+                    native_bridge_common::log_debug!(
+                        "BitmapTree: skipping RG {} — pruned by RG-level stats",
+                        rg.index
+                    );
+                    return Ok(None);
+                }
             }
         }
 
@@ -422,6 +427,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 // after the bitmap tree is fully resolved.
                 None,
                 self.stats_prune_tree.as_ref(),
+                &self.rg_index_to_pos,
             )
             .map_err(|e| format!("TreeBitsetSource::prefetch_rg(rg={}): {}", rg.index, e))?;
         if prefetch.candidates.is_empty() {
@@ -773,6 +779,7 @@ mod tests {
             _pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
             _page_prune_metrics: Option<&PagePruneMetrics>,
             _stats_prune_tree: Option<&StatsPruneTree>,
+            _rg_index_to_pos: &HashMap<usize, usize>,
         ) -> Result<TreePrefetch, String> {
             Ok(TreePrefetch {
                 candidates: roaring::RoaringBitmap::new(),
@@ -822,6 +829,7 @@ mod tests {
             page_prune_metrics: None,
             collector_strategy: CollectorCallStrategy::TightenOuterBounds,
             stats_prune_tree: None,
+            rg_index_to_pos: HashMap::new(),
         };
         assert!(!source.needs_row_mask());
     }
