@@ -36,7 +36,7 @@ pub struct PredicateOnlyEvaluator {
     pruning_predicate: Option<Arc<PruningPredicate>>,
     residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     page_prune_metrics: Option<PagePruneMetrics>,
-    stats_prune_tree: Option<StatsPruneTree>,
+    stats_prune_tree: Option<Arc<StatsPruneTree>>,
     /// Reverse map: absolute RG index → position in `rg_can_match` vectors.
     rg_index_to_pos: HashMap<usize, usize>,
 }
@@ -47,7 +47,7 @@ impl PredicateOnlyEvaluator {
         pruning_predicate: Option<Arc<PruningPredicate>>,
         residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
         page_prune_metrics: Option<PagePruneMetrics>,
-        stats_prune_tree: Option<StatsPruneTree>,
+        stats_prune_tree: Option<Arc<StatsPruneTree>>,
         rg_index_to_pos: HashMap<usize, usize>,
     ) -> Self {
         Self {
@@ -159,7 +159,7 @@ mod tests {
             rg_can_match: vec![false],
             children: vec![],
         };
-        let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, Some(spt), HashMap::from([(0, 0)]));
+        let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
     }
@@ -171,7 +171,7 @@ mod tests {
             rg_can_match: vec![true],
             children: vec![],
         };
-        let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, Some(spt), HashMap::from([(0, 0)]));
+        let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("should have candidates");
         assert_eq!(prefetched.candidates.len(), 8);

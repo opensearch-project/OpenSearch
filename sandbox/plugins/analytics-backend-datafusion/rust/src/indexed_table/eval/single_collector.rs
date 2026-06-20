@@ -177,7 +177,7 @@ pub struct SingleCollectorEvaluator {
     /// Bloom filter pruning config. None = disabled.
     bloom_config: Option<BloomConfig>,
     /// Precomputed per-RG/subtree match status from RG-level column stats.
-    stats_prune_tree: Option<StatsPruneTree>,
+    stats_prune_tree: Option<Arc<StatsPruneTree>>,
     /// Reverse map: absolute RG index → position in `rg_can_match` vectors.
     rg_index_to_pos: HashMap<usize, usize>,
 }
@@ -207,7 +207,7 @@ impl SingleCollectorEvaluator {
         delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
         context_id: i64,
         bloom_config: Option<BloomConfig>,
-        stats_prune_tree: Option<StatsPruneTree>,
+        stats_prune_tree: Option<Arc<StatsPruneTree>>,
         rg_index_to_pos: HashMap<usize, usize>,
     ) -> Self {
         Self {
@@ -804,7 +804,7 @@ mod tests {
             rg_can_match: vec![false],
             children: vec![],
         };
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(spt), HashMap::from([(0, 0)]));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -823,7 +823,7 @@ mod tests {
             rg_can_match: vec![true],
             children: vec![],
         };
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(spt), HashMap::from([(0, 0)]));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,

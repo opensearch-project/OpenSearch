@@ -1699,7 +1699,7 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         pruning_predicates: Arc::new(pruning_predicates),
         page_prune_metrics: None,
         collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-        stats_prune_tree: Some(spt_low),
+        stats_prune_tree: Some(Arc::new(spt_low)),
         rg_index_to_pos: rg_indices_low.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
     };
 
@@ -1727,7 +1727,7 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         pruning_predicates: source.pruning_predicates.clone(),
         page_prune_metrics: None,
         collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-        stats_prune_tree: Some(spt),
+        stats_prune_tree: Some(Arc::new(spt)),
         rg_index_to_pos: rg_index_to_pos,
     };
 
@@ -1832,7 +1832,7 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
         pruning_predicates: Arc::new(pruning_predicates),
         page_prune_metrics: None,
         collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-        stats_prune_tree: Some(spt),
+        stats_prune_tree: Some(Arc::new(spt)),
         rg_index_to_pos,
     };
 

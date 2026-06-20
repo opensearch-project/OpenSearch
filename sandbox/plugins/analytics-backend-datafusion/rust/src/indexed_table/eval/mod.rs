@@ -352,7 +352,7 @@ pub struct TreeBitsetSource {
     /// be expensive in multi-collector trees.
     pub collector_strategy: CollectorCallStrategy,
     /// Precomputed per-subtree RG match vectors. Built once at construction.
-    pub stats_prune_tree: Option<StatsPruneTree>,
+    pub stats_prune_tree: Option<Arc<StatsPruneTree>>,
     /// Reverse map: absolute RG index → position in `rg_can_match` vectors.
     pub rg_index_to_pos: HashMap<usize, usize>,
 }
@@ -426,7 +426,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 // inflate counts. We compute final page-level metrics below
                 // after the bitmap tree is fully resolved.
                 None,
-                self.stats_prune_tree.as_ref(),
+                self.stats_prune_tree.as_deref(),
                 &self.rg_index_to_pos,
             )
             .map_err(|e| format!("TreeBitsetSource::prefetch_rg(rg={}): {}", rg.index, e))?;

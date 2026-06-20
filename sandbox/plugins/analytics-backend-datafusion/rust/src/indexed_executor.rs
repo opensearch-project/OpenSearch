@@ -940,7 +940,7 @@ async unsafe fn execute_indexed_with_context_inner(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
@@ -1020,7 +1020,7 @@ async unsafe fn execute_indexed_with_context_inner(
             let bloom_schema = schema.clone();
             let bloom_on_read = query_config.bloom_filter_on_read;
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
@@ -1139,7 +1139,7 @@ async unsafe fn execute_indexed_with_context_inner(
             };
 
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     // Build one collector per Collector leaf for this chunk.
                     let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                         Vec::with_capacity(providers.len());
