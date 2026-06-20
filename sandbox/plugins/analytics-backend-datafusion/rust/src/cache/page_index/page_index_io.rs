@@ -16,7 +16,9 @@ use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
 
+use arrow::array::{ArrayRef, BooleanArray, UInt64Array};
 use arrow::datatypes::SchemaRef;
+use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::{
     ColumnChunkMetaData, OffsetIndexBuilder, ParquetColumnIndex, ParquetMetaData,
@@ -27,6 +29,9 @@ use datafusion::parquet::file::page_index::index_reader::{
     read_columns_indexes, read_offset_indexes,
 };
 use datafusion::parquet::file::reader::{ChunkReader, Length};
+use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
+use datafusion::physical_expr::PhysicalExpr;
+use datafusion::scalar::ScalarValue;
 use object_store::ObjectStore;
 use parquet::file::page_index::offset_index::OffsetIndexMetaData;
 use prost::bytes::{buf, Buf, Bytes};
@@ -106,13 +111,8 @@ pub async fn load_page_index_fully_scoped(
 pub fn surviving_row_groups(
     footer_meta: &ParquetMetaData,
     arrow_schema: &SchemaRef,
-    predicate: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+    predicate: &Arc<dyn PhysicalExpr>,
 ) -> Vec<usize> {
-    use arrow::array::{ArrayRef, BooleanArray, UInt64Array};
-    use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
-    use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
-    use datafusion::scalar::ScalarValue;
-    use std::collections::HashSet;
 
     let num_rgs = footer_meta.num_row_groups();
     let all: Vec<usize> = (0..num_rgs).collect();
@@ -417,14 +417,18 @@ async fn get_or_build_offset_index(
     }
     let num_cols = footer_meta.file_metadata().schema_descr().num_columns();
 
-    // Resolve which columns need a real OffsetIndex: predicate ∪ projection ∪ {0},
-    // clamped. `None` → all columns.
-    // First column {0} , is always needed as it's used in stats.
+    // Resolve which columns need a real OffsetIndex:
+    //   None   → no explicit projection, read everything → all columns get a real entry.
+    //   Some   → build {col 0} ∪ predicate_cols ∪ proj_cols, clamped to num_cols.
+    //            Col 0 is always included because the page-skip metric reads it
+    //            regardless of what the query projects or filters on.
+    //            Predicate-only queries (empty proj_cols) still get col 0 + predicate
+    //            columns; projection-only queries get col 0 + projected columns.
     let off_cols: Vec<usize> = match projection_cols {
         None => (0..num_cols).collect(),
         Some(proj_cols) => {
             let mut set: HashSet<usize> = HashSet::new();
-            set.insert(0); // metric reads column 0
+            set.insert(0); // page-skip metric always reads col 0
             for &c in predicate_cols {
                 set.insert(c);
             }

@@ -44,8 +44,7 @@
 //!   `projection_cols = predicate ∪ projection ∪ {0}`. This is the cheap, fixed-width
 //!   index (no per-page string stats). Built for **all row groups** (an empty
 //!   OffsetIndex on a row group DataFusion scans panics / breaks reads, and
-//!   DataFusion chooses the scanned set itself, after our load — see
-//!   HANDOFF_step2_rg_scoping.md §1e).
+//!   DataFusion chooses the scanned set itself, after our load).
 //!
 //! Each cache stores only its decoded vector (`ParquetColumnIndex` /
 //! `ParquetOffsetIndex`) — never a full `ParquetMetaData` (no footer
