@@ -57,6 +57,8 @@ import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     private static final String FIELD_NAME = "field";
@@ -445,5 +447,51 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 .anyMatch(e -> e.getKey().name().equals(fieldName) && expectedValue.equals(e.getValue()));
             assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
         }
+    }
+
+    public void testDerivedSourceKeep_DefaultIsNone() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "boolean")));
+        BooleanFieldMapper fieldMapper = (BooleanFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_Arrays() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "boolean").field("derived_source_keep", "arrays"))
+        );
+        BooleanFieldMapper fieldMapper = (BooleanFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_InvalidValue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(b -> b.field("type", "boolean").field("derived_source_keep", "invalid"))
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("Unknown value [invalid] for field [derived_source_keep]"));
+    }
+
+    public void testDerivedSourceKeep_ArraysWithStoreTrue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "boolean")
+                .field("derived_source_keep", "arrays")
+                .field("store", true))
+        );
+        BooleanFieldMapper fieldMapper = (BooleanFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_ArraysWithStoreFalse() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(b -> b.field("type", "boolean")
+                    .field("derived_source_keep", "arrays")
+                    .field("store", false))
+            )
+        );
+        assertThat(e.getMessage(), containsString("Cannot set derived_source_keep='arrays' with store=false"));
     }
 }
