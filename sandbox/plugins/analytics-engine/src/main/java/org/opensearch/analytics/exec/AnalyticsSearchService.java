@@ -354,6 +354,13 @@ public class AnalyticsSearchService implements AutoCloseable {
             responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
             return;
         }
+        // On cancel, a fetch parked in the native pull must be released. The fetch path returns an
+        // opaque stream, so fire the backend's cooperative cancellation here (not stream.close(),
+        // which would race the in-flight native pull).
+        final long fetchContextId = task != null ? task.getId() : 0L;
+        if (task != null) {
+            task.setCancellationListener(() -> backend.cancelByContext(fetchContextId));
+        }
         try (FragmentResources ctx = resources) {
             Iterator<EngineResultBatch> it = ctx.stream().iterator();
             while (it.hasNext()) {
@@ -362,6 +369,10 @@ public class AnalyticsSearchService implements AutoCloseable {
             responseHandler.onComplete();
         } catch (Exception e) {
             responseHandler.onFailure(e);
+        } finally {
+            if (task != null) {
+                task.clearCancellationListener();
+            }
         }
     }
 

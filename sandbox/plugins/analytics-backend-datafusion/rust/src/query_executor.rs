@@ -198,7 +198,7 @@ pub async fn execute_query(
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
     let (cross_rt_stream, abort_handle, _task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
 
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
@@ -296,7 +296,7 @@ pub async fn execute_with_context(
                 e
             })?;
             let (cross_rt_stream, abort_handle, _task_done) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
             }
@@ -336,7 +336,7 @@ pub async fn execute_with_context(
             })?;
 
             let (cross_rt_stream, abort_handle, _task_done) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
             }
@@ -365,7 +365,7 @@ pub async fn execute_with_context(
         })?;
 
         let (cross_rt_stream, abort_handle, _task_done) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone());
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
 
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id, h);
@@ -487,21 +487,34 @@ pub fn store_url_from_table_path(table_path: &ListingTableUrl) -> Result<datafus
 }
 
 /// Wrap a DataFusion stream in CrossRtStream and package as a QueryStreamHandle pointer.
+///
+/// Wires cancellation like the shard-query path so a `cancel_query` on the QTF fetch-by-rowid
+/// stream can break/abort the cross_rt task instead of stranding its pool reservation.
 pub fn wrap_stream_as_handle(
     df_stream: datafusion::execution::SendableRecordBatchStream,
     cpu_executor: DedicatedExecutor,
     runtime: &DataFusionRuntime,
     context_id: i64,
 ) -> i64 {
-    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
-    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
-        cross_rt_stream.schema(),
-        cross_rt_stream,
-    );
+    // Create the tracking context first so its cancellation token is registered before the task starts.
     let query_context = crate::query_tracker::QueryTrackingContext::new(
         context_id,
         runtime.runtime_env.memory_pool.clone(),
         crate::query_tracker::QueryType::Shard,
+    );
+
+    let (cross_rt_stream, abort_handle, _task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
+    if let Some(h) = abort_handle {
+        crate::query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_executor.handle() {
+        crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
+    }
+
+    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
     );
     let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
     Box::into_raw(Box::new(handle)) as i64
