@@ -150,8 +150,12 @@ async fn run_indexed(
                     None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
                     std::sync::Arc::new(std::collections::HashMap::new()),
+                    std::sync::Arc::new(std::collections::HashMap::new()),
+                    None,
+                    None,
                     segment.writer_generation,
-                    std::sync::Arc::new(
+                    (0, segment.max_doc as i32),
+                                        std::sync::Arc::new(
                         crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory,
                     ),
                     0,

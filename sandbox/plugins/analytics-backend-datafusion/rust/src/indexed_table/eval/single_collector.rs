@@ -45,12 +45,57 @@ use std::time::Instant;
 pub use super::CollectorCallStrategy;
 use crate::indexed_table::stream::RowGroupInfo;
 
-/// TODO(phase-99): hardcoded selectivity threshold for opportunistic peer consultation.
-/// Replaced by a cluster setting plumbed through `WireConfigSnapshot` and
-/// `DatafusionQueryConfig` in the very last phase, after Phase 7 OR/NOT support and
-/// everything else. Until then, performance-delegated leaves consult the peer when DF
-/// page-pruning kept more than 5% of an RG.
-const HARDCODED_SELECTIVITY_THRESHOLD: f64 = 0.05;
+/// One segment's drained Lucene bitmap, lazily filled exactly once and shared
+/// across every partition and chunk of that segment via `Arc`.
+///
+/// The cached value is a `Result`, not an `Option`, because a failed drain and
+/// an empty (zero-match) drain must be told apart:
+/// - `Ok(bm)` — drained successfully; an empty `bm` means the predicate
+///   genuinely matched nothing in this segment.
+/// - `Err(e)` — the FFM/Lucene drain failed. A **correctness** predicate has no
+///   DataFusion fallback, so it MUST propagate this (failing the query) rather
+///   than treat it as "no matches" and silently drop rows; a **performance
+///   peer** may ignore it and let DataFusion's `FilterExec` evaluate the
+///   predicate. Caching the error is intentional: correctness fails the query
+///   on first sight, and a peer should not re-hammer a failing upcall.
+pub type SegmentBitmapCell = Arc<OnceLock<Result<RoaringBitmap, String>>>;
+
+/// Query-scoped, segment-keyed cache of drained Lucene bitmaps. Holds one
+/// [`SegmentBitmapCell`] per key behind a cold-path `Mutex`; the hot path is
+/// lock-free via the per-cell `OnceLock`. `K` is `writer_generation` for the
+/// correctness bitmap (one per segment) and `(annotation_id, writer_generation)`
+/// for peer bitmaps (one per peer predicate per segment).
+pub struct SegmentBitmapCache<K: std::hash::Hash + Eq> {
+    cells: std::sync::Mutex<HashMap<K, SegmentBitmapCell>>,
+}
+
+impl<K: std::hash::Hash + Eq> SegmentBitmapCache<K> {
+    pub fn new() -> Self {
+        Self { cells: std::sync::Mutex::new(HashMap::new()) }
+    }
+
+    /// Get (creating if absent) the shared cell for `key`. Cheap `Arc` clone of
+    /// the cell; the bitmap itself is filled lazily on first `get_or_init`.
+    pub fn cell(&self, key: K) -> SegmentBitmapCell {
+        Arc::clone(
+            self.cells
+                .lock()
+                .unwrap()
+                .entry(key)
+                .or_insert_with(|| Arc::new(OnceLock::new())),
+        )
+    }
+}
+
+impl<K: std::hash::Hash + Eq> Default for SegmentBitmapCache<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Selectivity threshold for opportunistic peer consultation: a performance-delegated
+/// leaf consults the peer only when DF page-pruning kept more than 5% of an RG.
+const PEER_CONSULT_SELECTIVITY_THRESHOLD: f64 = 0.05;
 
 /// Builds delegated-backend collectors for performance-delegated leaves. Production impl
 /// wraps `FfmSegmentCollector::create` (Java/Lucene round-trip); fuzz tests inject a
@@ -162,14 +207,28 @@ pub struct SingleCollectorEvaluator {
     /// evaluators of a single query via `Arc::clone`), so threads racing to fill
     /// a slot do so once per (query × annotation_id) — not per chunk.
     performance_provider_locks: Arc<HashMap<i32, Arc<OnceLock<ProviderHandle>>>>,
-    /// Writer generation identifying the segment this evaluator was bound to at
-    /// factory time. Captured so `prefetch_rg` can build a per-call
-    /// `FfmSegmentCollector` lazily without re-deriving the segment from
-    /// `RowGroupInfo` (which doesn't carry it).
+    /// Pre-computed full-segment peer bitmap cache, keyed by annotation_id and
+    /// shared across all partitions of the segment. Lazily populated on first
+    /// access (when a partition's RG passes the selectivity gate). See
+    /// [`SegmentBitmapCell`] for the `Result` value's meaning.
+    peer_bitmap_cache: Arc<HashMap<i32, SegmentBitmapCell>>,
+    /// Pre-computed full-segment **correctness** bitmap cell, shared across all
+    /// partitions touching the segment. Lazily populated on the first prefetch_rg
+    /// that needs the correctness collector; once init, all chunks/partitions
+    /// slice from it with no FFM. `None` when the query has no
+    /// correctness-delegated leaf (performance-only).
+    correctness_bitmap_lock: Option<SegmentBitmapCell>,
+    /// Provider for the correctness annotation, used by the bitmap-cache initializer
+    /// to mint a single FfmSegmentCollector covering the full segment. `None` iff
+    /// `correctness_bitmap_lock` is `None`.
+    correctness_provider: Option<Arc<ProviderHandle>>,
+    /// Writer generation identifying the segment this evaluator was bound to.
     writer_generation: i64,
-    /// Builds the per-RG delegated-backend collector when the gate fires. Production
-    /// wires `FfmDelegatedBackendCollectorFactory`; fuzz tests inject a mock that
-    /// replays a pre-computed bitset without an FFM call.
+    /// Global doc range [start, end) for this segment — derived from the segment's
+    /// row_groups (first RG's first_row .. last RG's first_row + num_rows).
+    segment_doc_range: (i32, i32),
+    /// Builds the delegated-backend collector. Production wires
+    /// `FfmDelegatedBackendCollectorFactory`; fuzz tests inject a mock.
     delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
     /// Per-query context identifier passed through every FFM upcall so Java can route
     /// each callback to the correct per-query `FilterDelegationHandle` and tracker.
@@ -201,7 +260,11 @@ impl SingleCollectorEvaluator {
         ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
         call_strategy: CollectorCallStrategy,
         performance_provider_locks: Arc<HashMap<i32, Arc<OnceLock<ProviderHandle>>>>,
+        peer_bitmap_cache: Arc<HashMap<i32, SegmentBitmapCell>>,
+        correctness_bitmap_lock: Option<SegmentBitmapCell>,
+        correctness_provider: Option<Arc<ProviderHandle>>,
         writer_generation: i64,
+        segment_doc_range: (i32, i32),
         delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
         context_id: i64,
         bloom_config: Option<BloomConfig>,
@@ -216,7 +279,11 @@ impl SingleCollectorEvaluator {
             ffm_collector_calls,
             call_strategy,
             performance_provider_locks,
+            peer_bitmap_cache,
+            correctness_bitmap_lock,
+            correctness_provider,
             writer_generation,
+            segment_doc_range,
             delegated_backend_collector_factory,
             context_id,
             bloom_config,
@@ -252,7 +319,138 @@ fn should_consult_lucene(
     surviving_fraction > threshold
 }
 
+impl SingleCollectorEvaluator {
+    /// Drain `[lo, hi)` from Lucene into a range-relative `RoaringBitmap`
+    /// (bit 0 = doc `lo`). `Err` means the FFM/Lucene drain itself failed; an
+    /// empty `Ok` means the predicate genuinely matched nothing. Callers MUST
+    /// keep these apart — see [`SegmentBitmapCell`].
+    fn drain_segment_range(
+        factory: &Arc<dyn DelegatedBackendCollectorFactory>,
+        context_id: i64,
+        provider_key: i32,
+        writer_gen: i64,
+        lo: i32,
+        hi: i32,
+        ffm_calls: &Option<datafusion::physical_plan::metrics::Count>,
+    ) -> Result<RoaringBitmap, String> {
+        let collector = factory
+            .create(context_id, provider_key, writer_gen, lo, hi)
+            .map_err(|e| format!("drain_segment_range create [{},{}): {}", lo, hi, e))?;
+        let bitset = collector
+            .collect_packed_u64_bitset(lo, hi)
+            .map_err(|e| format!("drain_segment_range collectDocs [{},{}): {}", lo, hi, e))?;
+        if let Some(ref c) = ffm_calls {
+            c.add(1);
+        }
+        let span = (hi - lo) as u32;
+        let bytes: &[u8] = unsafe {
+            std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+        };
+        let mut bm = RoaringBitmap::from_lsb0_bytes(0, bytes);
+        if span < u32::MAX {
+            bm.remove_range(span..);
+        }
+        Ok(bm)
+    }
+
+    /// Get-or-drain the shared per-segment bitmap cell. The drain runs at most
+    /// once per cell (`OnceLock`); all partitions of the segment share the
+    /// result. Returns a borrow of the cached `Result` so callers decide how to
+    /// treat an `Err` (correctness propagates, peer ignores).
+    fn fill_segment_cell<'a>(
+        cell: &'a SegmentBitmapCell,
+        factory: &Arc<dyn DelegatedBackendCollectorFactory>,
+        context_id: i64,
+        provider_key: i32,
+        writer_gen: i64,
+        seg_start: i32,
+        seg_end: i32,
+        ffm_calls: &Option<datafusion::physical_plan::metrics::Count>,
+    ) -> &'a Result<RoaringBitmap, String> {
+        cell.get_or_init(|| {
+            Self::drain_segment_range(
+                factory, context_id, provider_key, writer_gen, seg_start, seg_end, ffm_calls,
+            )
+        })
+    }
+
+    /// Extract this RG's window from a segment-relative bitmap, rebased to
+    /// RG-relative coordinates. `full_bm` bit 0 = doc `seg_start`; the returned
+    /// bitmap's bit 0 = doc `rg.first_row`. The correctness path assigns this as
+    /// the candidate set; the peer path ANDs it into the existing candidates.
+    fn rg_slice(
+        full_bm: &RoaringBitmap,
+        rg: &RowGroupInfo,
+        seg_start: i32,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> RoaringBitmap {
+        let rg_offset_in_seg = (min_doc - seg_start) as u32;
+        let rg_len = (max_doc - min_doc) as u32;
+        let candidates_base = (min_doc as i64 - rg.first_row) as u32;
+        let upper = rg_offset_in_seg.saturating_add(rg_len);
+        let mut slice = RoaringBitmap::new();
+        for d in full_bm.range(rg_offset_in_seg..upper) {
+            slice.insert(candidates_base + (d - rg_offset_in_seg));
+        }
+        slice
+    }
+
+    /// Materialise the final RG-relative candidate bitmap as a `PrefetchedRg`.
+    /// Shared between the legacy collector path and the bitmap-cache path so the
+    /// downstream layout (mask buffer, RowSelection) stays identical.
+    fn finish_candidates(
+        candidates: RoaringBitmap,
+        rg: &RowGroupInfo,
+        t: Instant,
+    ) -> Result<Option<PrefetchedRg>, String> {
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        let mask_len = rg.num_rows as usize;
+        let packed_bits = bitmap_to_packed_bits(&candidates, mask_len as u32);
+        let mask_buffer = datafusion::arrow::buffer::Buffer::from_vec(packed_bits);
+        Ok(Some(PrefetchedRg {
+            candidates: candidates.clone(),
+            eval_nanos: t.elapsed().as_nanos() as u64,
+            context: Box::new(SingleCollectorState {
+                candidates,
+                mask_buffer: mask_buffer.clone(),
+                mask_len,
+            }),
+            mask_buffer: Some(mask_buffer),
+        }))
+    }
+}
+
 impl RowGroupBitsetSource for SingleCollectorEvaluator {
+    /// Pre-warm only the per-segment correctness bitmap cache. Single-shot drain:
+    /// a K-way parallel split was tried and reverted because the redundant FST walks
+    /// on the Java/Lucene side serialized through shared state and made things slower
+    /// (5s → 7s for the big segment). Skips page-pruning + per-RG metrics so it is
+    /// safe to call from `QueryShardExec.execute()` without inflating counters.
+    fn warm_cache(&self) {
+        let (Some(bitmap_lock), Some(provider)) =
+            (self.correctness_bitmap_lock.as_ref(), self.correctness_provider.as_ref())
+        else {
+            return;
+        };
+        let (seg_start, seg_end) = self.segment_doc_range;
+        // Prime the shared cell; the actual prefetch_rg later reads the cached
+        // result and decides how to treat any Err. A failure cached here is not
+        // acted on until then.
+        Self::fill_segment_cell(
+            bitmap_lock,
+            &self.delegated_backend_collector_factory,
+            self.context_id,
+            provider.key(),
+            self.writer_generation,
+            seg_start,
+            seg_end,
+            &self.ffm_collector_calls,
+        );
+    }
+
     fn prefetch_rg(
         &self,
         rg: &RowGroupInfo,
@@ -321,6 +519,47 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 }
                 return Ok(None);
             }
+        }
+
+        // Build the per-segment correctness bitmap once, shared across all chunks
+        // of the segment via Arc<OnceLock>.
+        if let (Some(bitmap_lock), Some(provider)) =
+            (self.correctness_bitmap_lock.as_ref(), self.correctness_provider.as_ref())
+        {
+            let (seg_start, seg_end) = self.segment_doc_range;
+            let drained = Self::fill_segment_cell(
+                bitmap_lock,
+                &self.delegated_backend_collector_factory,
+                self.context_id,
+                provider.key(),
+                self.writer_generation,
+                seg_start,
+                seg_end,
+                &self.ffm_collector_calls,
+            );
+
+            // A correctness predicate has NO DataFusion fallback, so a failed
+            // drain MUST fail the query — treating it as "no matches" would
+            // silently drop rows. Propagate the cached error.
+            let full_bm = drained
+                .as_ref()
+                .map_err(|e| format!("correctness bitmap drain failed: {}", e))?;
+
+            // Bitmap is segment-relative (bit 0 = doc seg_start); convert to RG-relative.
+            let mut candidates = Self::rg_slice(full_bm, rg, seg_start, min_doc, max_doc);
+            // Apply page-pruning AND for FullRange / TightenOuterBounds parity.
+            if self.call_strategy != CollectorCallStrategy::PageRangeSplit {
+                if let Some(ref ranges) = page_ranges {
+                    let mut allowed = RoaringBitmap::new();
+                    for (r_min, r_max) in ranges {
+                        let lo = (*r_min as i64 - rg.first_row) as u32;
+                        let hi = (*r_max as i64 - rg.first_row) as u32;
+                        allowed.insert_range(lo..hi);
+                    }
+                    candidates &= allowed;
+                }
+            }
+            return Self::finish_candidates(candidates, rg, t);
         }
 
         // Build candidates either from the always-call correctness collector OR, when
@@ -408,90 +647,72 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
         };
 
-        // Opportunistic peer consultation for performance-delegated leaves. Only fires
-        // when DF page-pruning kept more than the configured fraction of the RG —
-        // skipping the FFM round-trip when DF was already selective. Lazy: lock the
-        // map only if the gate fires; create the provider only once per query × leaf.
-        // TODO(d3): consult ALL performance leaves whose gate fires and AND their
-        // bitsets. Today we consult the first leaf only — sufficient for AND-only
-        // single-call demo. Multi-leaf intersection is part of D3 follow-up.
+        // Opportunistic peer consultation for performance-delegated leaves. The peer
+        // bitmap is computed ONCE per (annotation_id × segment) on first access and
+        // shared across all partitions — eliminating repeated scorer creation.
+        // TODO: consult ALL performance leaves whose gate fires and AND their bitsets;
+        // today we consult the first (lowest annotation_id) leaf only.
         if !self.performance_provider_locks.is_empty()
-            && should_consult_lucene(&page_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD)
+            && should_consult_lucene(&page_ranges, rg, PEER_CONSULT_SELECTIVITY_THRESHOLD)
         {
-            // Pick the smallest annotation_id deterministically so logs/tests are stable.
-            // Avoids the Vec/sort allocation in the common single-leaf case.
             let annotation_id = *self
                 .performance_provider_locks
                 .keys()
                 .min()
                 .expect("performance_provider_locks is non-empty (just checked)");
-            // Per-RG debug log — `format!` runs unconditionally regardless of log level
-            // (the level filter happens on the Java side). Commented out to avoid
-            // per-RG allocation. Re-enable locally for debugging.
-            // log_debug!(
-            //     "[scf-rust] consulting peer for performance leaf rg={} writer_generation={} range=[{},{}) annotation_id={}",
-            //     rg.index, self.writer_generation, min_doc, max_doc, annotation_id
-            // );
-            let lock = self
+            let provider_lock = self
                 .performance_provider_locks
                 .get(&annotation_id)
-                .expect("annotation_id was just pulled from the map's keys");
-            let context_id = self.context_id;
-            let mut just_initialized = false;
-            let provider = lock.get_or_init(|| {
-                just_initialized = true;
-                create_provider(context_id, annotation_id).expect("create_provider FFM upcall failed")
+                .expect("annotation_id in performance_provider_locks");
+            let provider = provider_lock.get_or_init(|| {
+                create_provider(self.context_id, annotation_id)
+                    .expect("create_provider FFM upcall failed")
             });
-            if just_initialized {
-                log_debug!(
-                    "[scf-rust] lazy provider initialized context_id={} annotation_id={} provider_key={}",
-                    context_id, annotation_id, provider.key()
-                );
-            }
 
-            let collector = self
-                .delegated_backend_collector_factory
-                .create(context_id, provider.key(), self.writer_generation, min_doc, max_doc)
-                .map_err(|e| {
-                    format!(
-                        "DelegatedBackendCollectorFactory::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
-                        context_id,
+            // A peer is optional pruning: on a successful drain, AND its RG-relative
+            // slice into candidates; on a failed drain, leave candidates as the
+            // page-pruned universe and let DataFusion's FilterExec evaluate the
+            // retained predicate (safe — peers keep `original`).
+            match self.peer_bitmap_cache.get(&annotation_id) {
+                // Cache ON: build the peer bitmap ONCE per segment, shared across all
+                // partitions, then slice this RG's window from it.
+                Some(bitmap_lock) => {
+                    let (seg_start, seg_end) = self.segment_doc_range;
+                    match Self::fill_segment_cell(
+                        bitmap_lock,
+                        &self.delegated_backend_collector_factory,
+                        self.context_id,
+                        provider.key(),
+                        self.writer_generation,
+                        seg_start,
+                        seg_end,
+                        &self.ffm_collector_calls,
+                    ) {
+                        Ok(full_bm) => candidates &= Self::rg_slice(full_bm, rg, seg_start, min_doc, max_doc),
+                        Err(e) => log_debug!("[scf-rust] peer segment drain failed (DF will filter): {}", e),
+                    }
+                }
+                // Cache OFF (`bitmap_cache_enabled=false`): build the peer bitmap per
+                // row group — delegation still runs, just rebuilt each RG instead of
+                // shared. This keeps the kill-switch a true fallback to the legacy
+                // path rather than silently disabling peer delegation entirely.
+                None => {
+                    match Self::drain_segment_range(
+                        &self.delegated_backend_collector_factory,
+                        self.context_id,
                         provider.key(),
                         self.writer_generation,
                         min_doc,
                         max_doc,
-                        e
-                    )
-                })?;
-            let bitset = collector
-                .collect_packed_u64_bitset(min_doc, max_doc)
-                .map_err(|e| {
-                    format!(
-                        "delegated-backend collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
-                        rg.index, min_doc, max_doc, e
-                    )
-                })?;
-            if let Some(ref c) = self.ffm_collector_calls {
-                c.add(1);
+                        &self.ffm_collector_calls,
+                    ) {
+                        // `drain_segment_range` returns a bitmap relative to `min_doc`,
+                        // so slice with `seg_start = min_doc` to rebase to RG-relative.
+                        Ok(peer_bm) => candidates &= Self::rg_slice(&peer_bm, rg, min_doc, min_doc, max_doc),
+                        Err(e) => log_debug!("[scf-rust] peer per-RG drain failed (DF will filter): {}", e),
+                    }
+                }
             }
-            let offset = (min_doc as i64 - rg.first_row) as u32;
-            let num_docs = (max_doc - min_doc) as u32;
-            let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
-            };
-            let mut peer_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
-            let upper = offset.saturating_add(num_docs);
-            if upper < u32::MAX {
-                peer_bm.remove_range(upper..);
-            }
-            // Per-RG debug log — see note above on `format!` cost. Re-enable locally for debugging.
-            // let candidates_before = candidates.len();
-            // let peer_card = peer_bm.len();
-            candidates &= peer_bm;
-            // log_debug!(
-            //     "[scf-rust] peer bitset intersected rg={} writer_generation={} candidates_before={} peer_cardinality={} candidates_after={}",
-            //     rg.index, self.writer_generation, candidates_before, peer_card, candidates.len()
-            // );
         }
 
         if candidates.is_empty() {
@@ -704,7 +925,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
 
         let rg = RowGroupInfo {
             index: 0,
@@ -720,7 +941,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -748,7 +969,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
         assert!(eval.needs_row_mask());
     }
 
@@ -756,7 +977,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -776,7 +997,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
 
         let rg = RowGroupInfo {
             index: 0,
@@ -798,7 +1019,7 @@ mod tests {
             rg_can_match: vec![false],
             children: vec![],
         };
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(spt));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(spt));
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -817,7 +1038,7 @@ mod tests {
             rg_can_match: vec![true],
             children: vec![],
         };
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(spt));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(spt));
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -834,7 +1055,7 @@ mod tests {
             docs: vec![1, 5],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), None, None, 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None);
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -848,4 +1069,330 @@ mod tests {
     // Keep the `fmt` import used
     #[allow(dead_code)]
     fn _use(_: &dyn fmt::Debug) {}
+
+    // ── correctness bitmap cache tests ───────────────────────────────────
+
+    /// Counts how many times the factory builds a collector. Used to assert
+    /// the bitmap cache hits across multiple `prefetch_rg` calls on the same
+    /// segment (factory invoked exactly once).
+    #[derive(Debug)]
+    struct CountingFactory {
+        docs: Vec<i32>,
+        builds: std::sync::atomic::AtomicUsize,
+    }
+
+    impl DelegatedBackendCollectorFactory for CountingFactory {
+        fn create(
+            &self,
+            _context_id: i64,
+            _provider_key: i32,
+            _writer_generation: i64,
+            _doc_min: i32,
+            _doc_max: i32,
+        ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
+            self.builds
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(Arc::new(StubCollector {
+                docs: self.docs.clone(),
+            }) as Arc<dyn RowGroupDocsCollector>)
+        }
+    }
+
+    /// Construct an evaluator that uses the bitmap-cache path (correctness path).
+    fn make_cache_eval(
+        factory: Arc<CountingFactory>,
+        cache_lock: SegmentBitmapCell,
+        seg_doc_range: (i32, i32),
+    ) -> SingleCollectorEvaluator {
+        // Provider with key=0 — the factory ignores it.
+        let provider = Arc::new(ProviderHandle::new_for_test(0));
+        SingleCollectorEvaluator::new(
+            None,                              // collector (legacy path disabled)
+            minimal_page_pruner(),
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            Arc::new(HashMap::new()),
+            Some(cache_lock),                  // ← bitmap-cache path enabled
+            Some(provider),
+            0,
+            seg_doc_range,
+            factory as Arc<dyn DelegatedBackendCollectorFactory>,
+            0,
+            None, // bloom_config
+            None, // stats_prune_tree
+        )
+    }
+
+    #[test]
+    fn cache_path_returns_same_docs_as_legacy_collector() {
+        let factory = Arc::new(CountingFactory {
+            docs: vec![0, 3, 7],
+            builds: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let cache_lock = Arc::new(OnceLock::new());
+        let eval = make_cache_eval(Arc::clone(&factory), Arc::clone(&cache_lock), (0, 8));
+
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, vec![0u32, 3, 7]);
+        assert_eq!(factory.builds.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn cache_path_is_built_once_across_calls() {
+        // Two evaluators share the same OnceLock (same segment, different chunks).
+        // Factory must be invoked exactly once across both prefetch_rg calls.
+        let factory = Arc::new(CountingFactory {
+            docs: vec![0, 3, 7],
+            builds: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let cache_lock = Arc::new(OnceLock::new());
+
+        let eval1 = make_cache_eval(Arc::clone(&factory), Arc::clone(&cache_lock), (0, 8));
+        let eval2 = make_cache_eval(Arc::clone(&factory), Arc::clone(&cache_lock), (0, 8));
+
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let _ = eval1.prefetch_rg(&rg, 0, 8).unwrap();
+        let _ = eval2.prefetch_rg(&rg, 0, 8).unwrap();
+
+        assert_eq!(
+            factory.builds.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "bitmap cache should mint the collector exactly once per segment"
+        );
+    }
+
+    #[test]
+    fn cache_path_slices_across_two_rgs_of_same_segment() {
+        // Segment doc range [0, 16), 2 RGs of 8 rows each. Factory inserts
+        // doc IDs 1, 9, 14 into the segment-relative bitmap; we verify
+        // each RG sees only its slice.
+        let factory = Arc::new(CountingFactory {
+            docs: vec![1, 9, 14],
+            builds: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let cache_lock = Arc::new(OnceLock::new());
+        let eval = make_cache_eval(Arc::clone(&factory), Arc::clone(&cache_lock), (0, 16));
+
+        // RG 0 covers global docs [0, 8) → expect doc 1 → RG-relative offset 1.
+        let rg0 = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let p0 = eval.prefetch_rg(&rg0, 0, 8).unwrap().expect("rg0 has matches");
+        let got0: Vec<u32> = p0.candidates.iter().collect();
+        assert_eq!(got0, vec![1u32]);
+
+        // RG 1 covers global docs [8, 16) → expect docs 9, 14 → RG-relative 1, 6.
+        // NOTE: minimal_page_pruner builds a 1-RG parquet so num_rows=8 here too.
+        let rg1 = RowGroupInfo { index: 0, first_row: 8, num_rows: 8 };
+        let p1 = eval.prefetch_rg(&rg1, 8, 16).unwrap().expect("rg1 has matches");
+        let got1: Vec<u32> = p1.candidates.iter().collect();
+        assert_eq!(got1, vec![1u32, 6]);
+
+        assert_eq!(factory.builds.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// Factory whose collector creation always fails — models a transient
+    /// FFM/Lucene error during the segment drain.
+    #[derive(Debug)]
+    struct FailingFactory;
+
+    impl DelegatedBackendCollectorFactory for FailingFactory {
+        fn create(
+            &self,
+            _context_id: i64,
+            _provider_key: i32,
+            _writer_generation: i64,
+            _doc_min: i32,
+            _doc_max: i32,
+        ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
+            Err("simulated FFM drain failure".to_string())
+        }
+    }
+
+    /// Fix #1: a failed correctness drain MUST surface as `Err` (failing the
+    /// query), never as a silently-empty RG — there is no DataFusion fallback
+    /// for a correctness predicate, so dropping the RG would lose rows.
+    #[test]
+    fn correctness_drain_failure_propagates_as_err() {
+        let provider = Arc::new(ProviderHandle::new_for_test(0));
+        let eval = SingleCollectorEvaluator::new(
+            None,
+            minimal_page_pruner(),
+            None, None, None, None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            Arc::new(HashMap::new()),
+            Some(Arc::new(OnceLock::new())), // correctness cell
+            Some(provider),
+            0,
+            (0, 8),
+            Arc::new(FailingFactory),
+            0,
+            None, // bloom_config
+            None, // stats_prune_tree
+        );
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let result = eval.prefetch_rg(&rg, 0, 8);
+        assert!(result.is_err(), "correctness drain failure must propagate as Err, got {:?}", result.is_ok());
+    }
+
+    /// Fix #1 (peer side): a failed peer drain is NOT fatal — peers keep their
+    /// `original` for DataFusion, so the RG survives with the full page-pruned
+    /// candidate set (no pruning applied) rather than being dropped or erroring.
+    #[test]
+    fn peer_drain_failure_keeps_candidates_and_does_not_err() {
+        let annotation_id = 1;
+        let provider_locks: HashMap<i32, Arc<OnceLock<ProviderHandle>>> = {
+            let mut m = HashMap::new();
+            let lock = Arc::new(OnceLock::new());
+            lock.set(ProviderHandle::new_for_test(0)).ok();
+            m.insert(annotation_id, lock);
+            m
+        };
+        let peer_cache: HashMap<i32, SegmentBitmapCell> = {
+            let mut m = HashMap::new();
+            m.insert(annotation_id, Arc::new(OnceLock::new()));
+            m
+        };
+        let eval = SingleCollectorEvaluator::new(
+            None,
+            minimal_page_pruner(),
+            None, None, None, None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(provider_locks),
+            Arc::new(peer_cache),
+            None, // no correctness leaf — performance-only
+            None,
+            0,
+            (0, 8),
+            Arc::new(FailingFactory),
+            0,
+            None, // bloom_config
+            None, // stats_prune_tree
+        );
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .expect("peer drain failure must not error")
+            .expect("RG must survive with full candidate set");
+        // No pruning applied → all 8 rows remain candidates for DataFusion.
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, (0u32..8).collect::<Vec<_>>());
+    }
+
+    /// The other half of Fix #1: a correctness drain that SUCCEEDS but matched
+    /// zero rows is `Ok(empty)`, not `Err`. It must skip the RG (`Ok(None)`),
+    /// distinct from the failure case above which errors.
+    #[test]
+    fn correctness_empty_match_skips_rg_without_error() {
+        let factory = Arc::new(CountingFactory {
+            docs: vec![], // drained fine, matched nothing
+            builds: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let eval = make_cache_eval(Arc::clone(&factory), Arc::new(OnceLock::new()), (0, 8));
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
+        assert_eq!(factory.builds.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// SegmentBitmapCache (Fix #3): the same key returns the same shared cell, so
+    /// every partition/chunk of a segment drains it at most once.
+    #[test]
+    fn segment_bitmap_cache_returns_same_cell_per_key() {
+        let cache: SegmentBitmapCache<i64> = SegmentBitmapCache::new();
+        let a = cache.cell(7);
+        let b = cache.cell(7);
+        let c = cache.cell(9);
+        assert!(Arc::ptr_eq(&a, &b), "same key must yield the same cell");
+        assert!(!Arc::ptr_eq(&a, &c), "different keys must yield different cells");
+    }
+
+    /// Build a performance-peer evaluator (no correctness leaf). `cache_on`
+    /// mirrors `bitmap_cache_enabled`: when true the peer cache is populated
+    /// (per-segment shared bitmap); when false it is empty (cache OFF → per-RG
+    /// peer build). The factory inserts `docs` as the peer match-set.
+    fn make_peer_eval(factory: Arc<CountingFactory>, cache_on: bool) -> SingleCollectorEvaluator {
+        let annotation_id = 1;
+        let provider_locks: HashMap<i32, Arc<OnceLock<ProviderHandle>>> = {
+            let mut m = HashMap::new();
+            let lock = Arc::new(OnceLock::new());
+            lock.set(ProviderHandle::new_for_test(0)).ok();
+            m.insert(annotation_id, lock);
+            m
+        };
+        let peer_cache: HashMap<i32, SegmentBitmapCell> = if cache_on {
+            let mut m = HashMap::new();
+            m.insert(annotation_id, Arc::new(OnceLock::new()));
+            m
+        } else {
+            HashMap::new()
+        };
+        SingleCollectorEvaluator::new(
+            None,
+            minimal_page_pruner(),
+            None, None, None, None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(provider_locks),
+            Arc::new(peer_cache),
+            None, // no correctness leaf — performance-only
+            None,
+            0,
+            (0, 8),
+            factory as Arc<dyn DelegatedBackendCollectorFactory>,
+            0,
+            None, // bloom_config
+            None, // stats_prune_tree
+        )
+    }
+
+    /// Kill-switch OFF (empty peer cache) must STILL delegate the peer to Lucene
+    /// — per row group — and prune, not silently fall through to "all rows".
+    /// Regression guard: a previous version skipped the peer entirely when the
+    /// cache was off, turning the flag into "disable peer delegation".
+    #[test]
+    fn peer_cache_off_still_delegates_per_rg() {
+        let factory = Arc::new(CountingFactory {
+            docs: vec![2, 5],
+            builds: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let eval = make_peer_eval(Arc::clone(&factory), /*cache_on=*/ false);
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("peer delegation should narrow to the matched rows");
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        // Pruned to exactly the peer match-set — proves Lucene ran (not the
+        // page-pruned universe of all 8 rows).
+        assert_eq!(got, vec![2u32, 5]);
+        assert_eq!(
+            factory.builds.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "cache OFF builds the peer collector per RG (one RG here = one build)"
+        );
+    }
+
+    /// Kill-switch ON narrows to the same rows via the per-segment cached path.
+    /// Pairs with `peer_cache_off_still_delegates_per_rg`: both arms delegate
+    /// and produce identical results, which is what makes a cache A/B fair.
+    #[test]
+    fn peer_cache_on_narrows_to_same_rows() {
+        let factory = Arc::new(CountingFactory {
+            docs: vec![2, 5],
+            builds: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let eval = make_peer_eval(Arc::clone(&factory), /*cache_on=*/ true);
+        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("peer delegation should narrow to the matched rows");
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, vec![2u32, 5]);
+        assert_eq!(factory.builds.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
 }

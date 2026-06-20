@@ -993,6 +993,22 @@ async unsafe fn execute_indexed_with_context_inner(
                 Arc::new(map)
             };
 
+            // Query-scoped per-segment bitmap caches, built ONCE per segment and
+            // shared across all partitions/chunks (see SegmentBitmapCache). The
+            // peer cache is keyed by (annotation_id, writer_generation); the
+            // correctness cache by writer_generation. Both replace the prior eager
+            // FfmSegmentCollector::create per (segment × chunk) that serialized
+            // scorer construction.
+            // Note: a per-chunk OnceLock variant was tried and reverted because
+            // concurrent createCollector calls for the same Lucene segment serialize
+            // on Java-side state (FST traversal, term enum). 4 × 12.5M concurrent
+            // drains end up taking ~6s each (worse than 1 × 50M serial at 5s).
+            use crate::indexed_table::eval::single_collector::SegmentBitmapCache;
+            let peer_bitmap_global: Arc<SegmentBitmapCache<(i32, i64)>> =
+                Arc::new(SegmentBitmapCache::new());
+            let correctness_bitmap_global: Arc<SegmentBitmapCache<i64>> =
+                Arc::new(SegmentBitmapCache::new());
+
             // Extract the residual (non-Collector children of top-level
             // AND) as a BoolNode and convert to PhysicalExpr. Used for:
             //   - Page-stats pruning in candidate stage (via PruningPredicate).
@@ -1016,10 +1032,24 @@ async unsafe fn execute_indexed_with_context_inner(
             let bloom_store = Arc::clone(&store);
             let bloom_schema = schema.clone();
             let bloom_on_read = query_config.bloom_filter_on_read;
+            // Dynamic kill-switch: when false, fall back to the legacy per-RG path
+            // (eager correctness collector; peers skip precompute and let
+            // DataFusion's FilterExec evaluate them). Default true.
+            let bitmap_cache_enabled = query_config.bitmap_cache_enabled;
             Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
-                    let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
-                        Some(provider) => {
+                    // collector_opt: the eager per-RG correctness collector, used ONLY on
+                    // the legacy (cache-disabled) path. On the cache path it stays None and
+                    // the correctness bitmap is built lazily inside the evaluator, shared
+                    // across chunks/partitions via the per-segment cell.
+                    let (collector_opt, correctness_bitmap_lock): (
+                        Option<Arc<dyn RowGroupDocsCollector>>,
+                        Option<crate::indexed_table::eval::single_collector::SegmentBitmapCell>,
+                    ) = match (&correctness_provider, bitmap_cache_enabled) {
+                        (Some(_), true) => {
+                            (None, Some(correctness_bitmap_global.cell(segment.writer_generation)))
+                        }
+                        (Some(provider), false) => {
                             let collector = FfmSegmentCollector::create(
                                 context_id,
                                 provider.key(),
@@ -1030,17 +1060,13 @@ async unsafe fn execute_indexed_with_context_inner(
                             .map_err(|e| {
                                 format!(
                                     "FfmSegmentCollector::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
-                                    context_id,
-                                    provider.key(),
-                                    segment.writer_generation,
-                                    chunk.doc_min,
-                                    chunk.doc_max,
-                                    e
+                                    context_id, provider.key(), segment.writer_generation,
+                                    chunk.doc_min, chunk.doc_max, e
                                 )
                             })?;
-                            Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
+                            (Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>), None)
                         }
-                        None => None,
+                        (None, _) => (None, None),
                     };
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
@@ -1059,6 +1085,26 @@ async unsafe fn execute_indexed_with_context_inner(
                     } else {
                         None
                     };
+                    // Per-segment peer bitmap cache view (shared across partitions).
+                    // Left empty when the cache is disabled → peers skip precompute and
+                    // DataFusion's FilterExec evaluates them.
+                    let per_seg_cache: Arc<std::collections::HashMap<i32, crate::indexed_table::eval::single_collector::SegmentBitmapCell>> = {
+                        let mut local = std::collections::HashMap::new();
+                        if bitmap_cache_enabled {
+                            for ann_id in performance_provider_locks.keys().copied() {
+                                local.insert(
+                                    ann_id,
+                                    peer_bitmap_global.cell((ann_id, segment.writer_generation)),
+                                );
+                            }
+                        }
+                        Arc::new(local)
+                    };
+                    // Segment's global doc range from its row_groups.
+                    let seg_doc_range = match (segment.row_groups.first(), segment.row_groups.last()) {
+                        (Some(first), Some(last)) => (first.first_row as i32, (last.first_row + last.num_rows) as i32),
+                        _ => (0, 0),
+                    };
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -1069,7 +1115,11 @@ async unsafe fn execute_indexed_with_context_inner(
                             stream_metrics.ffm_collector_calls.clone(),
                             call_strategy,
                             Arc::clone(&performance_provider_locks),
+                            per_seg_cache,
+                            correctness_bitmap_lock,
+                            correctness_provider.clone(),
                             segment.writer_generation,
+                            seg_doc_range,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                             context_id,
                             bloom_config,

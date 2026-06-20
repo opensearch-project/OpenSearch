@@ -26,7 +26,7 @@ import java.lang.foreign.ValueLayout;
 public final class WireConfigSnapshot {
 
     /** Total byte size of the wire struct ({@code WireDatafusionQueryConfig}). */
-    public static final long BYTE_SIZE = 80;
+    public static final long BYTE_SIZE = 84;
 
     private final int batchSize;
     private final int targetPartitions;
@@ -39,6 +39,7 @@ public final class WireConfigSnapshot {
     private final int treeCollectorStrategy;
     private final int queryStrategy;
     private final boolean indexedDynamicFilterPushdown;
+    private final boolean bitmapCacheEnabled;
 
     private WireConfigSnapshot(Builder builder) {
         this.batchSize = builder.batchSize;
@@ -52,6 +53,7 @@ public final class WireConfigSnapshot {
         this.treeCollectorStrategy = builder.treeCollectorStrategy;
         this.queryStrategy = builder.queryStrategy;
         this.indexedDynamicFilterPushdown = builder.indexedDynamicFilterPushdown;
+        this.bitmapCacheEnabled = builder.bitmapCacheEnabled;
     }
 
     public static Builder builder() {
@@ -73,7 +75,8 @@ public final class WireConfigSnapshot {
             .singleCollectorStrategy(current.singleCollectorStrategy)
             .treeCollectorStrategy(current.treeCollectorStrategy)
             .queryStrategy(current.queryStrategy)
-            .indexedDynamicFilterPushdown(current.indexedDynamicFilterPushdown);
+            .indexedDynamicFilterPushdown(current.indexedDynamicFilterPushdown)
+            .bitmapCacheEnabled(current.bitmapCacheEnabled);
     }
 
     public int batchSize() {
@@ -120,6 +123,10 @@ public final class WireConfigSnapshot {
         return indexedDynamicFilterPushdown;
     }
 
+    public boolean bitmapCacheEnabled() {
+        return bitmapCacheEnabled;
+    }
+
     /**
      * Writes this snapshot into a {@code MemorySegment} matching the
      * {@code WireDatafusionQueryConfig} {@code #[repr(C)]} layout.
@@ -145,8 +152,10 @@ public final class WireConfigSnapshot {
      * 64      4     tree_collector_strategy              i32      from snapshot
      * 68      4     query_strategy                       i32      from snapshot (0/1/2)
      * 72      4     bloom_filter_on_read                 i32      from snapshot (0/1)
+     * 76      4     indexed_dynamic_filter_pushdown      i32      from snapshot (0/1)
+     * 80      4     bitmap_cache_enabled                 i32      from snapshot (0/1)
      * ──────  ────
-     * Total: 76 bytes
+     * Total: 84 bytes
      * </pre>
      *
      * @param segment the target memory segment (at least {@link #BYTE_SIZE} bytes)
@@ -184,6 +193,8 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_INT, 72, bloomFilterOnRead ? 1 : 0);
         // Offset 76: indexed_dynamic_filter_pushdown (i32) — 0 = false, 1 = true
         segment.set(ValueLayout.JAVA_INT, 76, indexedDynamicFilterPushdown ? 1 : 0);
+        // Offset 80: bitmap_cache_enabled (i32) — 0 = false, 1 = true
+        segment.set(ValueLayout.JAVA_INT, 80, bitmapCacheEnabled ? 1 : 0);
     }
 
     /**
@@ -202,6 +213,7 @@ public final class WireConfigSnapshot {
         private int treeCollectorStrategy = 1;   // TightenOuterBounds
         private int queryStrategy = 2;           // IndexedPredicateOnly (matches DatafusionSettings default "indexed")
         private boolean indexedDynamicFilterPushdown = true; // runtime TopK/join RG pruning on by default
+        private boolean bitmapCacheEnabled = true;           // per-segment Lucene bitmap cache on by default
 
         private Builder() {}
 
@@ -257,6 +269,11 @@ public final class WireConfigSnapshot {
 
         public Builder indexedDynamicFilterPushdown(boolean indexedDynamicFilterPushdown) {
             this.indexedDynamicFilterPushdown = indexedDynamicFilterPushdown;
+            return this;
+        }
+
+        public Builder bitmapCacheEnabled(boolean bitmapCacheEnabled) {
+            this.bitmapCacheEnabled = bitmapCacheEnabled;
             return this;
         }
 

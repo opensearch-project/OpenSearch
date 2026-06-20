@@ -165,6 +165,14 @@ pub trait RowGroupBitsetSource: Send + Sync {
     fn forbid_parquet_pushdown(&self) -> bool {
         false
     }
+
+    /// Pre-warm any per-segment caches (e.g. correctness bitmap) that would
+    /// otherwise be built lazily on the first `prefetch_rg`. Default no-op.
+    /// Implementors should NOT touch per-RG metric counters here — pre-warm
+    /// runs in addition to the actual prefetch_rg, and double-counting metrics
+    /// would break test assertions. Side effects MUST be limited to caches
+    /// (e.g. `OnceLock::get_or_init`) that are idempotent across callers.
+    fn warm_cache(&self) {}
 }
 
 /// Output of `prefetch_rg`.
