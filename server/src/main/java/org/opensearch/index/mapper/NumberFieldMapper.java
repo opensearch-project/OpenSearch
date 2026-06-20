@@ -136,6 +136,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<Number> nullValue;
 
+        private final Parameter<String> derivedSourceKeepParam = Parameter.restrictedStringParam(
+            "derived_source_keep",
+            false,
+            m -> toType(m).derivedSourceKeep.getValue(),
+            "none",
+            "arrays"
+        );
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
@@ -181,11 +189,26 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, derivedSourceKeepParam, meta);
         }
 
         @Override
         public NumberFieldMapper build(BuilderContext context) {
+            // Auto-enable store=true when derived_source_keep="arrays"
+            DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
+            boolean storeValue = this.stored.getValue();
+            boolean storeExplicitlySet = this.stored.isConfigured();
+            
+            if (derivedSourceKeep.requiresStoredFields()) {
+                if (storeExplicitlySet && !storeValue) {
+                    throw new MapperParsingException(
+                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]"
+                    );
+                }
+                storeValue = true;  // Auto-enable store
+                this.stored.setValue(storeValue);
+            }
+            
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -214,6 +237,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedSourceKeep mode = (this.derivedSourceKeep != null) ? this.derivedSourceKeep : DerivedSourceKeep.NONE;
+        
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
@@ -252,12 +277,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     builder.array(simpleName, displayValues);
                 }
             }
-        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()), mode);
     }
 
     @Override
     protected void canDeriveSourceInternal() {
-        checkStoredAndDocValuesForDerivedSource();
+        if (derivedSourceKeep.requiresStoredFields()) {
+            checkStoredForDerivedSource();
+        } else {
+            checkStoredAndDocValuesForDerivedSource();
+        }
     }
 
     /**
@@ -2124,6 +2153,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
+    private final DerivedSourceKeep derivedSourceKeep;
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
@@ -2138,8 +2168,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
         this.nullValue = builder.nullValue.getValue();
+        this.derivedSourceKeep = DerivedSourceKeep.fromString(builder.derivedSourceKeepParam.getValue());
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        setDerivedFieldGenerator(derivedFieldGenerator());
     }
 
     boolean coerce() {

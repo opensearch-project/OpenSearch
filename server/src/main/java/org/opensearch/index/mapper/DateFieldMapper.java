@@ -232,7 +232,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        checkStoredAndDocValuesForDerivedSource();
+        if (derivedSourceKeep.requiresStoredFields()) {
+            checkStoredForDerivedSource();
+        } else {
+            checkStoredAndDocValuesForDerivedSource();
+        }
     }
 
     /**
@@ -250,6 +254,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedSourceKeep mode = (this.derivedSourceKeep != null) ? this.derivedSourceKeep : DerivedSourceKeep.NONE;
+        
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
@@ -259,7 +265,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 }
                 return fieldType().dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
             }
-        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()), mode);
     }
 
     /**
@@ -278,6 +284,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             () -> false,
             (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
             m -> toType(m).skiplist
+        );
+
+        private final Parameter<String> derivedSourceKeepParam = Parameter.restrictedStringParam(
+            "derived_source_keep",
+            false,
+            m -> toType(m).derivedSourceKeep.getValue(),
+            "none",
+            "arrays"
         );
 
         private final Parameter<Float> boost = Parameter.boostParam();
@@ -347,7 +361,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, derivedSourceKeepParam, boost, meta);
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -371,6 +385,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
+            // Auto-enable store=true when derived_source_keep="arrays"
+            DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
+            boolean storeValue = this.store.getValue();
+            boolean storeExplicitlySet = this.store.isConfigured();
+            
+            if (derivedSourceKeep.requiresStoredFields()) {
+                if (storeExplicitlySet && !storeValue) {
+                    throw new MapperParsingException(
+                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name() + "]"
+                    );
+                }
+                storeValue = true;
+                this.store.setValue(storeValue);
+            }
+            
             DateFieldType ft = new DateFieldType(
                 buildFullName(context),
                 index.getValue(),
@@ -768,6 +797,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final Long nullValue;
     private final String nullValueAsString;
     private final Resolution resolution;
+    private final DerivedSourceKeep derivedSourceKeep;
 
     private final boolean ignoreMalformedByDefault;
     private final Version indexCreatedVersion;
@@ -794,8 +824,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
+        this.derivedSourceKeep = DerivedSourceKeep.fromString(builder.derivedSourceKeepParam.getValue());
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        setDerivedFieldGenerator(derivedFieldGenerator());
     }
 
     @Override
