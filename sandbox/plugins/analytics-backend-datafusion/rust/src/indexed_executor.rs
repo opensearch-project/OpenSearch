@@ -906,7 +906,7 @@ async unsafe fn execute_indexed_with_context_inner(
         FilterClass::Tree => None,
     };
 
-    let prune_tree_config = extraction.as_ref().and_then(|e| {
+    let mut prune_tree_config = extraction.as_ref().and_then(|e| {
         let mut leaf_exprs: Vec<Arc<dyn PhysicalExpr>> = Vec::new();
         collect_predicate_exprs(&e.tree, &mut leaf_exprs);
         let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
@@ -919,7 +919,7 @@ async unsafe fn execute_indexed_with_context_inner(
         if leaf_predicates.is_empty() {
             return None;
         }
-        Some((e.tree.clone(), Arc::new(leaf_predicates), schema.clone()))
+        Some((Arc::new(e.tree.clone()), Arc::new(leaf_predicates), schema.clone()))
     });
 
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
@@ -940,11 +940,13 @@ async unsafe fn execute_indexed_with_context_inner(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             Arc::new(
-                move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
+                    let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
+                        .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
                             pruner,
@@ -952,6 +954,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             residual_expr.clone(),
                             Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
                             stats_prune_tree.cloned(),
+                            rg_index_to_pos,
                         ));
                     Ok(eval)
                 },
@@ -1017,7 +1020,7 @@ async unsafe fn execute_indexed_with_context_inner(
             let bloom_schema = schema.clone();
             let bloom_on_read = query_config.bloom_filter_on_read;
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
@@ -1074,6 +1077,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             context_id,
                             bloom_config,
                             stats_prune_tree.cloned(),
+                            chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
                         ));
                     Ok(eval)
                 },
@@ -1125,8 +1129,17 @@ async unsafe fn execute_indexed_with_context_inner(
                     .collect(),
             );
 
+            // Build prune_tree_config from the normalized tree. This ensures
+            // StatsPruneTree children indices align with ResolvedNode children
+            // (same push_not_down + flatten normalization applied above).
+            prune_tree_config = if pruning_predicates.is_empty() {
+                None
+            } else {
+                Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema_for_pruner.clone()))
+            };
+
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     // Build one collector per Collector leaf for this chunk.
                     let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                         Vec::with_capacity(providers.len());
@@ -1171,6 +1184,7 @@ async unsafe fn execute_indexed_with_context_inner(
                         )),
                         collector_strategy,
                         stats_prune_tree: stats_prune_tree.cloned(),
+                        rg_index_to_pos: chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
                     });
                     Ok(eval)
                 },
