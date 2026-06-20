@@ -39,6 +39,9 @@ import java.util.List;
  * {@code QueryPhaseResultConsumer} for coordinator-reduce in the core
  * search path.
  */
+// TODO: refactor this push-based flow — it's brittle with multiple failure points (feed racing
+// close, partial buffering on early exit). Revisit the locking as part of that (e.g. tryLock with
+// timeout); the current single-monitor synchronization is correct but worth reconsidering then.
 public class RowProducingSink implements ExchangeSink, ExchangeSource {
 
     /**
