@@ -1030,9 +1030,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testDerivedSourceKeep_Arrays() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays")));
         DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
         assertNotNull(fieldMapper);
     }
@@ -1040,18 +1038,14 @@ public class DateFieldMapperTests extends MapperTestCase {
     public void testDerivedSourceKeep_InvalidValue() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "invalid"))
-            )
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "invalid")))
         );
         assertThat(e.getCause().getMessage(), containsString("Unknown value [invalid] for field [derived_source_keep]"));
     }
 
     public void testDerivedSourceKeep_ArraysWithStoreTrue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date")
-                .field("derived_source_keep", "arrays")
-                .field("store", true))
+            fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays").field("store", true))
         );
         DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
         assertNotNull(fieldMapper);
@@ -1061,9 +1055,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "date")
-                    .field("derived_source_keep", "arrays")
-                    .field("store", false))
+                fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays").field("store", false))
             )
         );
         assertThat(e.getMessage(), containsString("Cannot set derived_source_keep='arrays' with store=false"));

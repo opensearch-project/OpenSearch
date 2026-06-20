@@ -255,7 +255,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
         DerivedSourceKeep mode = (this.derivedSourceKeep != null) ? this.derivedSourceKeep : DerivedSourceKeep.NONE;
-        
+
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
@@ -361,7 +361,20 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, derivedSourceKeepParam, boost, meta);
+            return Arrays.asList(
+                index,
+                docValues,
+                store,
+                skiplist,
+                format,
+                printFormat,
+                locale,
+                nullValue,
+                ignoreMalformed,
+                derivedSourceKeepParam,
+                boost,
+                meta
+            );
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -388,18 +401,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             // Auto-enable store=true when derived_source_keep="arrays"
             DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
             boolean storeValue = this.store.getValue();
-            
+
             if (derivedSourceKeep.requiresStoredFields()) {
                 // Check if store was explicitly set to false
                 if (this.store.isSet() && !storeValue) {
-                    throw new MapperParsingException(
-                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name() + "]"
-                    );
+                    throw new MapperParsingException("Cannot set derived_source_keep='arrays' with store=false for field [" + name() + "]");
                 }
                 storeValue = true;
                 this.store.setValue(storeValue);
             }
-            
+
             DateFieldType ft = new DateFieldType(
                 buildFullName(context),
                 index.getValue(),

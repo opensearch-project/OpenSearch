@@ -55,9 +55,7 @@ public enum DerivedSourceKeep {
             }
         }
 
-        throw new IllegalArgumentException(
-            "Invalid value for derived_source_keep: [" + value + "]. Valid values are: [none, arrays]"
-        );
+        throw new IllegalArgumentException("Invalid value for derived_source_keep: [" + value + "]. Valid values are: [none, arrays]");
     }
 
     /**

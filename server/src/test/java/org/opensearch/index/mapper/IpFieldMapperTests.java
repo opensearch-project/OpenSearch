@@ -407,9 +407,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testDerivedSourceKeep_Arrays() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays")));
         IpFieldMapper fieldMapper = (IpFieldMapper) mapper.mappers().getMapper("field");
         assertNotNull(fieldMapper);
     }
@@ -417,18 +415,14 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testDerivedSourceKeep_InvalidValue() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "invalid"))
-            )
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "invalid")))
         );
         assertThat(e.getCause().getMessage(), containsString("Unknown value [invalid] for field [derived_source_keep]"));
     }
 
     public void testDerivedSourceKeep_ArraysWithStoreTrue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip")
-                .field("derived_source_keep", "arrays")
-                .field("store", true))
+            fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays").field("store", true))
         );
         IpFieldMapper fieldMapper = (IpFieldMapper) mapper.mappers().getMapper("field");
         assertNotNull(fieldMapper);
@@ -438,9 +432,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "ip")
-                    .field("derived_source_keep", "arrays")
-                    .field("store", false))
+                fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays").field("store", false))
             )
         );
         assertThat(e.getMessage(), containsString("Cannot set derived_source_keep='arrays' with store=false"));

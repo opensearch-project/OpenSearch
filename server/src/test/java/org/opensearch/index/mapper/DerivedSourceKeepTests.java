@@ -19,17 +19,14 @@ public class DerivedSourceKeepTests extends OpenSearchTestCase {
         assertEquals(DerivedSourceKeep.NONE, DerivedSourceKeep.fromString("none"));
         assertEquals(DerivedSourceKeep.NONE, DerivedSourceKeep.fromString("NONE"));
         assertEquals(DerivedSourceKeep.NONE, DerivedSourceKeep.fromString("None"));
-        
+
         assertEquals(DerivedSourceKeep.ARRAYS, DerivedSourceKeep.fromString("arrays"));
         assertEquals(DerivedSourceKeep.ARRAYS, DerivedSourceKeep.fromString("ARRAYS"));
         assertEquals(DerivedSourceKeep.ARRAYS, DerivedSourceKeep.fromString("Arrays"));
     }
 
     public void testFromString_InvalidValue() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DerivedSourceKeep.fromString("invalid")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DerivedSourceKeep.fromString("invalid"));
         assertTrue(e.getMessage().contains("Invalid value for derived_source_keep"));
         assertTrue(e.getMessage().contains("invalid"));
     }

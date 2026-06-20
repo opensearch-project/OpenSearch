@@ -197,18 +197,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             // Auto-enable store=true when derived_source_keep="arrays"
             DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
             boolean storeValue = this.stored.getValue();
-            
+
             if (derivedSourceKeep.requiresStoredFields()) {
                 // Check if store was explicitly set to false
                 if (this.stored.isSet() && !storeValue) {
-                    throw new MapperParsingException(
-                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]"
-                    );
+                    throw new MapperParsingException("Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]");
                 }
                 storeValue = true;
                 this.stored.setValue(storeValue);
             }
-            
+
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -238,7 +236,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
         DerivedSourceKeep mode = (this.derivedSourceKeep != null) ? this.derivedSourceKeep : DerivedSourceKeep.NONE;
-        
+
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {

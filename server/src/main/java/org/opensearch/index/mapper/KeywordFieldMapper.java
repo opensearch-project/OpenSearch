@@ -263,21 +263,19 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
-            
+
             // Auto-enable store=true when derived_source_keep="arrays"
             DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
             boolean storeValue = this.stored.getValue();
-            
+
             if (derivedSourceKeep.requiresStoredFields()) {
                 // Check if store was explicitly set to false
                 if (this.stored.isSet() && !storeValue) {
-                    throw new MapperParsingException(
-                        "Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]"
-                    );
+                    throw new MapperParsingException("Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]");
                 }
                 storeValue = true;
             }
-            
+
             fieldtype.setStored(storeValue);
             return new KeywordFieldMapper(
                 name,
@@ -313,7 +311,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
-        
+
         if (derivedSourceKeep.requiresStoredFields()) {
             // Arrays mode requires stored fields
             checkStoredForDerivedSource();
@@ -345,7 +343,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
         DerivedSourceKeep mode = derivedSourceKeep != null ? derivedSourceKeep : DerivedSourceKeep.NONE;
-        
+
         return new DerivedFieldGenerator(
             mappedFieldType,
             new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
