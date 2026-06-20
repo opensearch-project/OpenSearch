@@ -67,7 +67,7 @@ use crate::indexed_table::table_provider::{
     EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
 };
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::api::ShardView;
@@ -304,7 +304,7 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     let Some(e) = extraction else { return vec![] };
     let mut exprs = Vec::new();
     collect_predicate_exprs(&e.tree, &mut exprs);
-    let mut indices = BTreeSet::new();
+    let mut indices = HashSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node.downcast_ref::<Column>() {
@@ -315,6 +315,45 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     }
     indices.into_iter().collect()
 }
+
+fn collect_predicate_column_names(
+    extraction: Option<&ExtractionResult>,
+    schema: &SchemaRef,
+) -> Vec<String> {
+    let Some(e) = extraction else { return vec![] };
+    let mut exprs = Vec::new();
+    collect_predicate_exprs(&e.tree, &mut exprs);
+    let mut names = HashSet::new();
+    for expr in &exprs {
+        let _ = expr.apply(|node| {
+            if let Some(col) = node.downcast_ref::<Column>() {
+                if let Some(field) = schema.fields().get(col.index()) {
+                    names.insert(field.name().to_string());
+                }
+            }
+            Ok(TreeNodeRecursion::Continue)
+        });
+    }
+    names.into_iter().collect()
+}
+
+fn collect_plan_column_names(plan: &datafusion::logical_expr::LogicalPlan) -> Vec<String> {
+    let mut names = HashSet::new();
+    let _ = plan.apply(|node| {
+        let _ = node.apply_expressions(|expr| {
+            let _ = expr.apply(|e| {
+                if let Expr::Column(col) = e {
+                    names.insert(col.name().to_string());
+                }
+                Ok(TreeNodeRecursion::Continue)
+            });
+            Ok(TreeNodeRecursion::Continue)
+        });
+        Ok(TreeNodeRecursion::Continue)
+    });
+    names.into_iter().collect()
+}
+
 /// For a tree classified as `SingleCollector`, walk it to find the single
 /// Collector leaf and return its query bytes.
 fn single_collector_id(tree: &BoolNode) -> Option<i32> {
@@ -923,6 +962,38 @@ async unsafe fn execute_indexed_with_context_inner(
     });
 
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
+
+    // Augment each segment's footer-only metadata with a scoped page index so
+    // the indexed PagePruner can page-prune. Both predicate (→ ColumnIndex) and
+    // projection (→ OffsetIndex) are wired — a match()-only query still needs a
+    // scoped OffsetIndex so the reader fetches only matched pages.
+    let predicate_column_names = collect_predicate_column_names(extraction.as_ref(), &schema);
+    let projection_column_names = collect_plan_column_names(&logical_plan);
+    if !predicate_column_names.is_empty() || !projection_column_names.is_empty() {
+        for segment in segments.iter_mut() {
+            let (parquet_cols, offset_cols) =
+                crate::parquet_page_cache::resolve_predicate_parquet_columns_pair(
+                    &schema,
+                    &segment.metadata,
+                    &predicate_column_names,
+                    &projection_column_names,
+                );
+            if parquet_cols.is_empty() && offset_cols.is_empty() {
+                continue;
+            }
+            if let Some(augmented) = crate::parquet_page_cache::load_scoped_page_index_cols(
+                &store,
+                &segment.object_path,
+                &segment.metadata,
+                &parquet_cols,
+                &offset_cols,
+            )
+            .await
+            {
+                segment.metadata = augmented;
+            }
+        }
+    }
 
     let factory: EvaluatorFactory = match classification {
         FilterClass::None => {

@@ -24,10 +24,13 @@ use std::time::{Duration, Instant};
 
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::Result;
-use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
 use datafusion::datasource::physical_plan::parquet::{
     ParquetAccessPlan, ParquetFileMetrics, ParquetFileReaderFactory, RowGroupAccess,
 };
+use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
+use datafusion::parquet::arrow::async_reader::ParquetObjectReader;
+use datafusion::parquet::file::metadata::{PageIndexPolicy, ParquetMetaDataReader};
 use datafusion::datasource::physical_plan::ParquetSource;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::execution::object_store::ObjectStoreUrl;
@@ -48,8 +51,11 @@ use prost::bytes::Bytes;
 
 // ── Parquet Metadata Loading ─────────────────────────────────────────
 
-/// Load parquet metadata via DataFusion's `DFParquetMetadata`, consulting the
-/// caller-supplied `FileMetadataCache`.
+/// Load footer-only parquet metadata, consulting the caller-supplied cache.
+///
+/// On a cache hit the cached (footer-only) metadata is returned with no IO.
+/// On a cache miss we fetch with `PageIndexPolicy::Skip` — never fetching page
+/// index bytes — then store the footer in the cache for future hits.
 pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
@@ -58,18 +64,50 @@ pub async fn load_parquet_metadata(
     let meta = store
         .head(location)
         .await
-        .map_err(|e| format!("object-store head {}: {}", location, e))?;
+        .map_err(|e| format!("object-store head {location}: {e}"))?;
     let size = meta.size;
 
-    let pq_meta = DFParquetMetadata::new(&*store, &meta)
-        .with_file_metadata_cache(Some(metadata_cache))
-        .fetch_metadata()
-        .await
-        .map_err(|e| format!("load parquet metadata {}: {}", location, e))?;
+    // Cache hit — return footer-only metadata without any IO.
+    let pq_meta = if let Some(entry) = metadata_cache.get(location) {
+        if entry.is_valid_for(&meta) {
+            entry
+                .file_metadata
+                .as_any()
+                .downcast_ref::<CachedParquetMetaData>()
+                .map(|cached| Arc::clone(cached.parquet_metadata()))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Cache miss — fetch footer only, no page index bytes.
+    let pq_meta = match pq_meta {
+        Some(m) => m,
+        None => {
+            let mut reader = ParquetObjectReader::new(Arc::clone(&store), location.clone());
+            let fetched = Arc::new(
+                ParquetMetaDataReader::new()
+                    .with_page_index_policy(PageIndexPolicy::Skip)
+                    .load_and_finish(&mut reader, size)
+                    .await
+                    .map_err(|e| format!("load parquet metadata {location}: {e}"))?,
+            );
+            metadata_cache.put(
+                location,
+                CachedFileMetadataEntry::new(
+                    meta,
+                    Arc::new(CachedParquetMetaData::new(Arc::clone(&fetched))),
+                ),
+            );
+            fetched
+        }
+    };
 
     let file_meta = pq_meta.file_metadata();
     let schema = parquet_to_arrow_schema(file_meta.schema_descr(), file_meta.key_value_metadata())
-        .map_err(|e| format!("parquet_to_arrow_schema {}: {}", location, e))?;
+        .map_err(|e| format!("parquet_to_arrow_schema {location}: {e}"))?;
 
     Ok((Arc::new(schema), size, pq_meta))
 }
