@@ -184,16 +184,16 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
     public void testNativeBridgeCreateCacheOnManager() {
         ensureTokioInit();
         long ptr = NativeBridge.createCustomCacheManager();
-        NativeBridge.createCache(ptr, "METADATA", 250 * 1024 * 1024, "LRU");
-        NativeBridge.createCache(ptr, "STATISTICS", 100 * 1024 * 1024, "LRU");
+        NativeBridge.createCache(ptr, "METADATA", 250 * 1024 * 1024, "LRU", true);
+        NativeBridge.createCache(ptr, "STATISTICS", 100 * 1024 * 1024, "LRU", true);
         NativeBridge.destroyCustomCacheManager(ptr);
     }
 
     public void testRuntimeWithCacheManagerPointer() {
         ensureTokioInit();
         long cachePtr = NativeBridge.createCustomCacheManager();
-        NativeBridge.createCache(cachePtr, "METADATA", 250 * 1024 * 1024, "LRU");
-        NativeBridge.createCache(cachePtr, "STATISTICS", 100 * 1024 * 1024, "LRU");
+        NativeBridge.createCache(cachePtr, "METADATA", 250 * 1024 * 1024, "LRU", true);
+        NativeBridge.createCache(cachePtr, "STATISTICS", 100 * 1024 * 1024, "LRU", true);
 
         Path spillDir = createTempDir("spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, cachePtr, spillDir.toString(), 32 * 1024 * 1024);
@@ -205,7 +205,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
     public void testCacheManagerHandleConsumedAfterRuntimeCreation() {
         ensureTokioInit();
         var handle = new org.opensearch.be.datafusion.cache.NativeCacheManagerHandle(NativeBridge.createCustomCacheManager());
-        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024, "LRU");
+        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024, "LRU", true);
 
         long ptrBefore = handle.getPointer();
         assertTrue(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));

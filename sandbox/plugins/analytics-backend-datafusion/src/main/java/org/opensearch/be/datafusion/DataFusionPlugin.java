@@ -19,6 +19,9 @@ import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
+import org.opensearch.be.datafusion.cache.CacheManager;
+import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -473,6 +476,26 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
 
+        // Wire the dynamic cache size-limit settings to the native cache manager so updates via the
+        // cluster settings API resize the metadata/statistics caches without restarting the node.
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.METADATA_CACHE_SIZE_LIMIT,
+                v -> updateCacheSizeLimit(CacheUtils.CacheType.METADATA, v)
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
+                v -> updateCacheSizeLimit(CacheUtils.CacheType.STATISTICS, v)
+            );
+
+        // Wire the dynamic cache enable/disable settings. Disabling clears the cache so its
+        // memory is freed immediately; re-enabling starts caching again from cold.
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CacheSettings.METADATA_CACHE_ENABLED, v -> updateCacheEnabled(CacheUtils.CacheType.METADATA, v));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CacheSettings.STATISTICS_CACHE_ENABLED, v -> updateCacheEnabled(CacheUtils.CacheType.STATISTICS, v));
+
         // Wire dynamic concurrency gate multiplier settings
         int cpuThreads = DataFusionService.cpuThreadCount();
 
@@ -686,6 +709,75 @@ public class DataFusionPlugin extends Plugin
             // isSpillLimitDynamic() guard above should make this unreachable, but defend
             // against a race between probe and call.
             logger.warn("Ignoring spill memory limit update to {}B; native runtime does not support live updates", newLimitBytes);
+        }
+    }
+
+    /**
+     * Resizes a native DataFusion cache (metadata or statistics) in response to a dynamic update of
+     * {@code datafusion.metadata/statistics.cache.size.limit}. Takes effect immediately when the
+     * loaded native library supports live cache resize; otherwise the {@link CacheManager} logs a
+     * warning and the value applies only after the next node restart.
+     * <p>
+     * The cluster-settings update is accepted unconditionally because the value is also read at node
+     * startup by {@link CacheUtils#createCacheConfig}. Tolerates startup/shutdown races (service or
+     * cache manager not yet/no longer available). Package-private for testing.
+     */
+    void updateCacheSizeLimit(CacheUtils.CacheType cacheType, ByteSizeValue newLimit) {
+        DataFusionService service = dataFusionService;
+        if (service == null) {
+            logger.debug(
+                "DataFusion service not yet initialized; ignoring {} cache size limit update to {}B",
+                cacheType.getCacheTypeName(),
+                newLimit.getBytes()
+            );
+            return;
+        }
+        try {
+            CacheManager cacheManager = service.getCacheManager();
+            if (cacheManager == null) {
+                logger.debug(
+                    "Cache manager not configured; ignoring {} cache size limit update to {}B",
+                    cacheType.getCacheTypeName(),
+                    newLimit.getBytes()
+                );
+                return;
+            }
+            cacheManager.updateSizeLimit(cacheType, newLimit.getBytes());
+        } catch (IllegalStateException e) {
+            logger.warn(
+                "Ignoring {} cache size limit update to {}B; service is not running",
+                cacheType.getCacheTypeName(),
+                newLimit.getBytes()
+            );
+        }
+    }
+
+    /**
+     * Enables or disables a native DataFusion cache (metadata or statistics) in response to a
+     * dynamic update of {@code datafusion.metadata/statistics.cache.enabled}. Disabling clears the
+     * cache so its memory is freed immediately; re-enabling starts caching again from cold.
+     * Tolerates startup/shutdown races (service or cache manager not yet/no longer available).
+     * Package-private for testing.
+     */
+    void updateCacheEnabled(CacheUtils.CacheType cacheType, boolean enabled) {
+        DataFusionService service = dataFusionService;
+        if (service == null) {
+            logger.debug(
+                "DataFusion service not yet initialized; ignoring {} cache enabled update to {}",
+                cacheType.getCacheTypeName(),
+                enabled
+            );
+            return;
+        }
+        try {
+            CacheManager cacheManager = service.getCacheManager();
+            if (cacheManager == null) {
+                logger.debug("Cache manager not configured; ignoring {} cache enabled update to {}", cacheType.getCacheTypeName(), enabled);
+                return;
+            }
+            cacheManager.setEnabled(cacheType, enabled);
+        } catch (IllegalStateException e) {
+            logger.warn("Ignoring {} cache enabled update to {}; service is not running", cacheType.getCacheTypeName(), enabled);
         }
     }
 

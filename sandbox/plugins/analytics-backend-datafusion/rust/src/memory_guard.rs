@@ -44,7 +44,11 @@ pub fn cached_resident_bytes() -> i64 {
         let spill_x1000 = EXECUTION_SPILL_X1000.load(Ordering::Relaxed);
         let limit = pool_limit_for_guard();
         if limit > 0 {
-            let threshold = (limit as u64 * spill_x1000 / 1000) as i64;
+            // saturating_mul: limit can legitimately be i64::MAX (unset
+            // node.native_memory.limit => DataFusion memory pool defaults to MAX), and a
+            // plain * overflows u64 — panicking in debug builds. Matches is_memory_pressured /
+            // should_override below.
+            let threshold = ((limit as u64).saturating_mul(spill_x1000) / 1000) as i64;
             if cached >= threshold {
                 let fresh = native_bridge_common::allocator::resident_bytes();
                 CACHED_RESIDENT.store(fresh, Ordering::Relaxed);

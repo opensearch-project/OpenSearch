@@ -92,9 +92,17 @@ impl CustomCacheManager {
                 .with_metadata_cache_limit(cache.cache_limit());
         }
 
-        // Add statistics cache if available - use CustomStatisticsCache directly
+        // Add statistics cache if available - use CustomStatisticsCache directly.
+        // We MUST also set the limit explicitly: CacheManager::try_new calls
+        // fsc.update_cache_limit(config.file_statistics_cache_limit), which defaults to
+        // DEFAULT_FILE_STATISTICS_MEMORY_LIMIT (20MiB). Without this, our configured
+        // datafusion.statistics.cache.size.limit (100MB default) would be clobbered to
+        // 20MiB at runtime startup, mirroring with_metadata_cache_limit above.
         if let Some(stats_cache) = &self.statistics_cache {
-            config = config.with_file_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>));
+            let stats_limit = stats_cache.current_size_limit();
+            config = config
+                .with_file_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>))
+                .with_file_statistics_cache_limit(stats_limit);
         } else {
             // Default statistics cache if none set
             let default_stats = Arc::new(DefaultFileStatisticsCache::default());
@@ -164,17 +172,10 @@ impl CustomCacheManager {
             {
                 let path = Path::from(file_path.clone());
                 if let Some(cache) = &self.file_metadata_cache {
-                    match cache.inner.lock() {
-                        Ok(cache_guard) => {
-                            if cache_guard.remove(&path).is_some() {
-                                any_removed = true;
-                            } else {
-                                debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
-                            }
-                        }
-                        Err(e) => {
-                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
-                        }
+                    if CacheAccessor::remove(cache.as_ref(), &path).is_some() {
+                        any_removed = true;
+                    } else {
+                        debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                     }
                 } else {
                     errors.push("No metadata cache configured".to_string());
@@ -262,15 +263,62 @@ impl CustomCacheManager {
         }
     }
 
+    /// Enable or disable a specific cache type at runtime.
+    ///
+    /// Dispatches by the same cache-type strings as [`update_size_limit_by_type`].
+    /// Disabling also clears the cache (see `MutexFileMetadataCache::set_enabled` /
+    /// `CustomStatisticsCache::set_enabled`) so memory is freed immediately. Returns an
+    /// error when the named cache is not configured or the type is unknown.
+    pub fn set_enabled_by_type(&self, cache_type: &str, enabled: bool) -> Result<(), String> {
+        match cache_type {
+            crate::cache::CACHE_TYPE_METADATA => {
+                if let Some(cache) = &self.file_metadata_cache {
+                    cache.set_enabled(enabled);
+                    Ok(())
+                } else {
+                    Err("No metadata cache configured".to_string())
+                }
+            }
+            crate::cache::CACHE_TYPE_STATS => {
+                if let Some(cache) = &self.statistics_cache {
+                    cache.set_enabled(enabled);
+                    Ok(())
+                } else {
+                    Err("No statistics cache configured".to_string())
+                }
+            }
+            _ => Err(format!("Unknown cache type: {}", cache_type)),
+        }
+    }
+
+    /// Update the size limit of a specific cache type at runtime.
+    ///
+    /// Dispatches to [`update_metadata_cache_limit`] / [`update_statistics_cache_limit`]
+    /// keyed on the same cache-type strings used by [`clear_cache_type`]. Returns an
+    /// error when the named cache is not configured or the type is unknown so the FFM
+    /// layer can surface it to the Java caller.
+    pub fn update_size_limit_by_type(&self, cache_type: &str, new_limit: usize) -> Result<(), String> {
+        match cache_type {
+            crate::cache::CACHE_TYPE_METADATA => {
+                if self.file_metadata_cache.is_some() {
+                    self.update_metadata_cache_limit(new_limit);
+                    Ok(())
+                } else {
+                    Err("No metadata cache configured".to_string())
+                }
+            }
+            crate::cache::CACHE_TYPE_STATS => self.update_statistics_cache_limit(new_limit),
+            _ => Err(format!("Unknown cache type: {}", cache_type)),
+        }
+    }
+
     /// Get total memory consumed by all caches
     pub fn get_total_memory_consumed(&self) -> usize {
         let mut total = 0;
 
         // Add metadata cache memory
         if let Some(cache) = &self.file_metadata_cache {
-            if let Ok(cache_guard) = cache.inner.lock() {
-                total += cache_guard.memory_used();
-            }
+            total += cache.memory_used();
         }
 
         // Add statistics cache memory
@@ -319,11 +367,7 @@ impl CustomCacheManager {
         match cache_type {
             crate::cache::CACHE_TYPE_METADATA => {
                 if let Some(cache) = &self.file_metadata_cache {
-                    if let Ok(cache_guard) = cache.inner.lock() {
-                        Ok(cache_guard.memory_used())
-                    } else {
-                        Err("Failed to lock metadata cache".to_string())
-                    }
+                    Ok(cache.memory_used())
                 } else {
                     Err("No metadata cache configured".to_string())
                 }
@@ -375,17 +419,12 @@ impl CustomCacheManager {
         })?;
 
         // Verify the metadata was cached properly
-        match cache_ref.inner.lock() {
-            Ok(cache_guard) => {
-                let path = Path::from(file_path.to_string());
-                if cache_guard.contains_key(&path) {
-                    Ok(true)
-                } else {
-                    debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
-                    Ok(false)
-                }
-            }
-            Err(e) => Err(format!("Failed to verify cache: {}", e))
+        let path = Path::from(file_path.to_string());
+        if CacheAccessor::contains_key(cache_ref.as_ref(), &path) {
+            Ok(true)
+        } else {
+            debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
+            Ok(false)
         }
     }
 
@@ -558,5 +597,110 @@ impl CustomCacheManager {
         if let Some(cache) = &self.file_metadata_cache {
             cache.reset_stats();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::MutexFileMetadataCache;
+    use crate::eviction_policy::PolicyType;
+    use datafusion::execution::cache::DefaultFilesMetadataCache;
+
+    fn manager_with_both_caches(metadata_limit: usize, stats_limit: usize) -> CustomCacheManager {
+        let mut mgr = CustomCacheManager::new();
+        let metadata = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, metadata_limit));
+        mgr.set_file_metadata_cache(metadata);
+        let stats = Arc::new(CustomStatisticsCache::new(PolicyType::Lru, stats_limit, 0.8));
+        mgr.set_statistics_cache(stats);
+        mgr
+    }
+
+    #[test]
+    fn test_update_size_limit_by_type_metadata_changes_limit() {
+        let mgr = manager_with_both_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+        // Default boot value, then a runtime "PUT 2gb".
+        mgr.update_size_limit_by_type(crate::cache::CACHE_TYPE_METADATA, 2 * 1024 * 1024 * 1024)
+            .expect("metadata resize should succeed");
+        assert_eq!(mgr.metadata_cache_size_limit(), 2 * 1024 * 1024 * 1024);
+        // The statistics cache must be untouched by a METADATA-typed resize.
+        assert_eq!(
+            mgr.get_statistics_cache().unwrap().current_size_limit(),
+            100 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn test_update_size_limit_by_type_statistics_changes_limit() {
+        let mgr = manager_with_both_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+        mgr.update_size_limit_by_type(crate::cache::CACHE_TYPE_STATS, 256 * 1024 * 1024)
+            .expect("statistics resize should succeed");
+        assert_eq!(
+            mgr.get_statistics_cache().unwrap().current_size_limit(),
+            256 * 1024 * 1024
+        );
+        // METADATA limit unchanged by a STATISTICS-typed resize.
+        assert_eq!(mgr.metadata_cache_size_limit(), 250 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_set_enabled_by_type_toggles_correct_cache() {
+        let mgr = manager_with_both_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+
+        mgr.set_enabled_by_type(crate::cache::CACHE_TYPE_STATS, false)
+            .expect("disable statistics should succeed");
+        assert!(!mgr.get_statistics_cache().unwrap().is_enabled(), "statistics cache should be disabled");
+
+        // Re-enable.
+        mgr.set_enabled_by_type(crate::cache::CACHE_TYPE_STATS, true)
+            .expect("enable statistics should succeed");
+        assert!(mgr.get_statistics_cache().unwrap().is_enabled());
+
+        // METADATA toggling resolves too.
+        mgr.set_enabled_by_type(crate::cache::CACHE_TYPE_METADATA, false)
+            .expect("disable metadata should succeed");
+    }
+
+    #[test]
+    fn test_set_enabled_by_type_unknown_and_unconfigured_error() {
+        let mut mgr = CustomCacheManager::new();
+        let metadata = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, 250 * 1024 * 1024));
+        mgr.set_file_metadata_cache(metadata);
+
+        let unknown = mgr.set_enabled_by_type("BOGUS", false).expect_err("unknown type must error");
+        assert!(unknown.contains("Unknown cache type"), "got: {}", unknown);
+
+        let unconfigured = mgr
+            .set_enabled_by_type(crate::cache::CACHE_TYPE_STATS, false)
+            .expect_err("toggling an unconfigured cache must error");
+        assert!(unconfigured.contains("No statistics cache configured"), "got: {}", unconfigured);
+    }
+
+    #[test]
+    fn test_update_size_limit_by_type_unknown_type_errors() {
+        let mgr = manager_with_both_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+        let err = mgr
+            .update_size_limit_by_type("BOGUS", 1024)
+            .expect_err("unknown cache type must error");
+        assert!(err.contains("Unknown cache type"), "got: {}", err);
+    }
+
+    #[test]
+    fn test_update_size_limit_by_type_unconfigured_cache_errors() {
+        // Manager with only the metadata cache set — resizing STATISTICS must error,
+        // not panic, so the FFM layer can surface it to Java.
+        let mut mgr = CustomCacheManager::new();
+        let metadata = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, 250 * 1024 * 1024));
+        mgr.set_file_metadata_cache(metadata);
+
+        let err = mgr
+            .update_size_limit_by_type(crate::cache::CACHE_TYPE_STATS, 1024)
+            .expect_err("resizing an unconfigured cache must error");
+        assert!(err.contains("No statistics cache configured"), "got: {}", err);
+
+        // And metadata still resizes fine on the same manager.
+        mgr.update_size_limit_by_type(crate::cache::CACHE_TYPE_METADATA, 512 * 1024 * 1024)
+            .expect("metadata resize should still succeed");
+        assert_eq!(mgr.metadata_cache_size_limit(), 512 * 1024 * 1024);
     }
 }

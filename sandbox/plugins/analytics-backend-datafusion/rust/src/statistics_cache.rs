@@ -21,7 +21,7 @@ use datafusion::physical_plan::Statistics;
 use object_store::{path::Path, ObjectMeta};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use std::fs::File;
 
@@ -137,11 +137,20 @@ pub struct CustomStatisticsCache {
     hit_count: AtomicUsize,
     /// Cache miss count (thread-safe)
     miss_count: AtomicUsize,
+    /// When false, the cache serves every lookup as a miss and drops all writes.
+    /// Toggled at runtime via datafusion.statistics.cache.enabled; disabling also clears
+    /// existing entries (see `set_enabled`) so memory is freed.
+    enabled: AtomicBool,
 }
 
 impl CustomStatisticsCache {
     /// Create a new custom statistics cache
     pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
+        Self::with_enabled(policy_type, size_limit, eviction_threshold, true)
+    }
+
+    /// Create a new custom statistics cache with an explicit initial enabled state.
+    pub fn with_enabled(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64, enabled: bool) -> Self {
         Self {
             inner_cache: DashMap::new(),
             policy: Arc::new(Mutex::new(create_policy(policy_type))),
@@ -153,6 +162,21 @@ impl CustomStatisticsCache {
             })),
             hit_count: AtomicUsize::new(0),
             miss_count: AtomicUsize::new(0),
+            enabled: AtomicBool::new(enabled),
+        }
+    }
+
+    /// Returns whether the cache is currently enabled.
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.load(Ordering::Relaxed)
+    }
+
+    /// Enable or disable the cache at runtime. Disabling also clears existing entries
+    /// so the memory is released immediately; enabling starts caching again from cold.
+    pub fn set_enabled(&self, enabled: bool) {
+        self.enabled.store(enabled, Ordering::Relaxed);
+        if !enabled {
+            self.clear();
         }
     }
 
@@ -338,6 +362,11 @@ impl CustomStatisticsCache {
 // trait's `&TableScopedPath` methods, so existing callers keep working unchanged.
 impl CustomStatisticsCache {
     pub fn get(&self, k: &Path) -> Option<CachedFileMetadata> {
+        // Disabled cache holds nothing (put drops writes); skip hit/miss accounting since
+        // the cache isn't participating.
+        if !self.is_enabled() {
+            return None;
+        }
         let result = self.inner_cache.get(k);
 
         if result.is_some() {
@@ -358,6 +387,10 @@ impl CustomStatisticsCache {
     }
 
     pub fn put(&self, k: &Path, v: CachedFileMetadata) -> Option<CachedFileMetadata> {
+        // Drop writes while disabled so the cache stays empty.
+        if !self.is_enabled() {
+            return None;
+        }
         let key = k.to_string();
         let memory_size = v.statistics.memory_size();
 
@@ -770,5 +803,246 @@ mod tests {
 
         for handle in handles { handle.join().unwrap(); }
         assert!(cache.len() > 0);
+    }
+
+    // ── Dynamic size-limit change behavior (runtime resize path) ──
+    //
+    // These exercise update_size_limit, the function the new FFM resize hook
+    // (df_cache_manager_update_size_limit -> update_statistics_cache_limit)
+    // ultimately drives. They document how the statistics cache behaves when the
+    // limit is raised or lowered on a populated cache.
+
+    #[test]
+    fn test_update_size_limit_grow_keeps_all_entries() {
+        // Start with a generous limit so nothing is evicted on insert.
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
+        for i in 0..5 {
+            let path = create_test_path(&format!("file{}", i));
+            let meta = create_test_meta(&path);
+            cache.put_statistics(&path, Arc::new(create_test_statistics()), &meta);
+        }
+        let len_before = cache.len();
+        let mem_before = cache.memory_consumed();
+        assert_eq!(len_before, 5);
+
+        // Growing the limit must never evict.
+        cache.update_size_limit(8 * 1024 * 1024).unwrap();
+        assert_eq!(cache.current_size_limit(), 8 * 1024 * 1024);
+        assert_eq!(cache.len(), len_before, "growing the limit must not drop entries");
+        assert_eq!(cache.memory_consumed(), mem_before);
+    }
+
+    #[test]
+    fn test_update_size_limit_shrink_below_usage_triggers_eviction() {
+        // Big limit first so all entries land, then shrink hard.
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
+        for i in 0..20 {
+            let path = create_test_path(&format!("file{}", i));
+            let meta = create_test_meta(&path);
+            cache.put_statistics(&path, Arc::new(create_test_statistics()), &meta);
+        }
+        let mem_before = cache.memory_consumed();
+        assert!(mem_before > 0);
+        let per_entry = mem_before / cache.len();
+
+        // Shrink to ~3 entries' worth. update_size_limit evicts down toward
+        // new_limit * eviction_threshold, so usage must end up <= the new limit.
+        let new_limit = per_entry * 3;
+        cache.update_size_limit(new_limit).unwrap();
+
+        assert_eq!(cache.current_size_limit(), new_limit);
+        assert!(
+            cache.memory_consumed() <= new_limit,
+            "after shrink, usage {} must be within new limit {}",
+            cache.memory_consumed(),
+            new_limit
+        );
+        assert!(cache.len() < 20, "shrink should have evicted some entries");
+        assert!(cache.len() > 0, "shrink should not clear the whole cache");
+    }
+
+    #[test]
+    fn test_update_size_limit_shrink_then_grow_then_refill() {
+        // A resize-down followed by resize-up should leave the cache fully usable:
+        // it can hold new entries up to the larger limit again.
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
+        for i in 0..10 {
+            let path = create_test_path(&format!("file{}", i));
+            let meta = create_test_meta(&path);
+            cache.put_statistics(&path, Arc::new(create_test_statistics()), &meta);
+        }
+        let per_entry = cache.memory_consumed() / cache.len();
+
+        cache.update_size_limit(per_entry * 2).unwrap();
+        assert!(cache.len() <= 3, "tight limit should keep only a couple entries");
+
+        // Grow back and refill — no entries should be rejected by a stale limit.
+        cache.update_size_limit(1024 * 1024).unwrap();
+        for i in 10..30 {
+            let path = create_test_path(&format!("file{}", i));
+            let meta = create_test_meta(&path);
+            cache.put_statistics(&path, Arc::new(create_test_statistics()), &meta);
+        }
+        assert!(
+            cache.len() > 5,
+            "after growing the limit the cache must accept new entries again, got {}",
+            cache.len()
+        );
+        assert!(cache.memory_consumed() <= cache.current_size_limit());
+    }
+
+    // ── Enable / disable behavior ──
+
+    #[test]
+    fn test_disable_clears_and_drops_writes() {
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
+        for i in 0..5 {
+            let path = create_test_path(&format!("file{}", i));
+            let meta = create_test_meta(&path);
+            cache.put_statistics(&path, Arc::new(create_test_statistics()), &meta);
+        }
+        assert!(cache.memory_consumed() > 0);
+        assert_eq!(cache.len(), 5);
+
+        // Disable: existing entries cleared, memory freed.
+        cache.set_enabled(false);
+        assert!(!cache.is_enabled());
+        assert_eq!(cache.memory_consumed(), 0, "disable must clear and free memory");
+        assert_eq!(cache.len(), 0);
+
+        // Writes are dropped while disabled.
+        let p = create_test_path("after_disable");
+        let m = create_test_meta(&p);
+        cache.put_statistics(&p, Arc::new(create_test_statistics()), &m);
+        assert_eq!(cache.len(), 0, "writes must be dropped while disabled");
+        assert!(cache.get(&p).is_none(), "lookups must return nothing while disabled");
+        // A disabled cache isn't participating, so lookups don't count as misses.
+        assert_eq!(cache.miss_count(), 0, "disabled lookups must not bump miss_count");
+    }
+
+    #[test]
+    fn test_reenable_starts_caching_again() {
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
+        cache.set_enabled(false);
+
+        // Re-enable: cache works again from cold.
+        cache.set_enabled(true);
+        assert!(cache.is_enabled());
+        let p = create_test_path("after_reenable");
+        let m = create_test_meta(&p);
+        cache.put_statistics(&p, Arc::new(create_test_statistics()), &m);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get(&p).is_some(), "cache should serve hits again after re-enable");
+    }
+
+    #[test]
+    fn test_update_size_limit_to_zero_evicts_everything() {
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
+        for i in 0..5 {
+            let path = create_test_path(&format!("file{}", i));
+            let meta = create_test_meta(&path);
+            cache.put_statistics(&path, Arc::new(create_test_statistics()), &meta);
+        }
+        assert!(cache.memory_consumed() > 0);
+
+        cache.update_size_limit(0).unwrap();
+        assert_eq!(cache.current_size_limit(), 0);
+        assert_eq!(cache.memory_consumed(), 0, "a 0-byte limit must evict everything");
+        assert_eq!(cache.len(), 0);
+    }
+
+    // ── End-to-end: S3-FIFO scan resistance through the real cache ──
+    //
+    // These drive CustomStatisticsCache configured with PolicyType::S3Fifo via its
+    // public put/get path (not the policy in isolation), exercising the same flow a
+    // query takes, and assert the headline property: a one-off wide scan does not
+    // evict the repeatedly-queried hot working set.
+
+    /// Per-entry byte size as charged by the cache (statistics.memory_size()).
+    fn stat_entry_bytes() -> usize {
+        Arc::new(create_test_statistics()).memory_size()
+    }
+
+    #[test]
+    fn test_e2e_s3fifo_hot_set_survives_scan() {
+        // Size the cache so the hot set comfortably fits but a scan would, under LRU,
+        // churn the whole thing: ~10 entries' worth of bytes.
+        let per = stat_entry_bytes();
+        let cache = CustomStatisticsCache::new(PolicyType::S3Fifo, per * 10, 0.8);
+
+        // Warm a small hot set and query each entry repeatedly (earns frequency).
+        let hot: Vec<Path> = (0..3).map(|i| create_test_path(&format!("hot{i}"))).collect();
+        for p in &hot {
+            cache.put_statistics(p, Arc::new(create_test_statistics()), &create_test_meta(p));
+        }
+        for _ in 0..5 {
+            for p in &hot {
+                assert!(cache.get(p).is_some(), "hot entry should be present during warmup");
+            }
+        }
+
+        // A wide one-off scan streams many cold keys, each touched once.
+        for i in 0..100 {
+            let p = create_test_path(&format!("scan{i}"));
+            cache.put_statistics(&p, Arc::new(create_test_statistics()), &create_test_meta(&p));
+        }
+
+        // The hot set must largely survive the scan — the headline scan-resistance
+        // property. With the SLRU-like 50% probation default, a hot entry that has not
+        // yet been promoted to `main` is more exposed than at the paper's ~10%, so we
+        // assert the *majority* survive rather than all (still far better than LRU,
+        // which would evict the entire hot set under this workload). The larger
+        // probation is the recency-vs-scan-resistance tradeoff of the 50% split.
+        let survivors = hot.iter().filter(|p| cache.get(p).is_some()).count();
+        assert!(
+            survivors >= 2,
+            "S3-FIFO must keep most of the {} hot entries after a 100-key scan; survived {}",
+            hot.len(), survivors
+        );
+        // And the cache stayed within its byte budget.
+        assert!(cache.memory_consumed() <= per * 10, "cache must honor its byte limit");
+    }
+
+    #[test]
+    fn test_e2e_lru_pollutes_baseline_contrast() {
+        // Contrast control: with LRU and the same workload, the hot set is NOT
+        // guaranteed to survive (LRU has no scan resistance). We only assert the cache
+        // stays within budget — this documents the difference rather than over-claiming
+        // a deterministic LRU eviction of a specific key.
+        let per = stat_entry_bytes();
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, per * 10, 0.8);
+        let hot = create_test_path("hot");
+        cache.put_statistics(&hot, Arc::new(create_test_statistics()), &create_test_meta(&hot));
+        for _ in 0..5 {
+            cache.get(&hot);
+        }
+        for i in 0..100 {
+            let p = create_test_path(&format!("scan{i}"));
+            cache.put_statistics(&p, Arc::new(create_test_statistics()), &create_test_meta(&p));
+        }
+        assert!(cache.memory_consumed() <= per * 10, "LRU cache must also honor its byte limit");
+    }
+
+    #[test]
+    fn test_e2e_s3fifo_set_policy_switch() {
+        // Switching an existing cache to S3-FIFO at runtime preserves entries and the
+        // policy then governs subsequent eviction.
+        let per = stat_entry_bytes();
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, per * 10, 0.8);
+        let hot = create_test_path("hot");
+        cache.put_statistics(&hot, Arc::new(create_test_statistics()), &create_test_meta(&hot));
+        for _ in 0..5 {
+            cache.get(&hot);
+        }
+
+        cache.set_policy(PolicyType::S3Fifo).unwrap();
+        assert_eq!(cache.policy_name().unwrap(), "s3fifo");
+        assert!(cache.get(&hot).is_some(), "switching policy must not drop existing entries");
+
+        for i in 0..100 {
+            let p = create_test_path(&format!("scan{i}"));
+            cache.put_statistics(&p, Arc::new(create_test_statistics()), &create_test_meta(&p));
+        }
+        assert!(cache.memory_consumed() <= per * 10);
     }
 }

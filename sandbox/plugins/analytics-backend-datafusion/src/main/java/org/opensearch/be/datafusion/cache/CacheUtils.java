@@ -97,25 +97,26 @@ public final class CacheUtils {
         long cacheManagerPtr = NativeBridge.createCustomCacheManager();
         NativeCacheManagerHandle handle = new NativeCacheManagerHandle(cacheManagerPtr);
 
-        // Configure each enabled cache type
+        // Always create each cache so it can be toggled on later via the dynamic
+        // datafusion.<type>.cache.enabled setting; the initial enabled flag seeds its
+        // state (a disabled cache serves misses and drops writes, holding no memory).
         for (CacheType type : CacheType.values()) {
-            if (type.isEnabled(clusterSettings)) {
-                logger.info(
-                    "Configuring {} cache: size={} bytes, eviction={}",
-                    type.getCacheTypeName(),
-                    type.getSizeLimit(clusterSettings).getBytes(),
-                    type.getEvictionType(clusterSettings)
-                );
+            boolean enabled = type.isEnabled(clusterSettings);
+            logger.info(
+                "Configuring {} cache: enabled={}, size={} bytes, eviction={}",
+                type.getCacheTypeName(),
+                enabled,
+                type.getSizeLimit(clusterSettings).getBytes(),
+                type.getEvictionType(clusterSettings)
+            );
 
-                NativeBridge.createCache(
-                    handle.getPointer(),
-                    type.cacheTypeName,
-                    type.getSizeLimit(clusterSettings).getBytes(),
-                    type.getEvictionType(clusterSettings)
-                );
-            } else {
-                logger.debug("Cache type {} is disabled", type.getCacheTypeName());
-            }
+            NativeBridge.createCache(
+                handle.getPointer(),
+                type.cacheTypeName,
+                type.getSizeLimit(clusterSettings).getBytes(),
+                type.getEvictionType(clusterSettings),
+                enabled
+            );
         }
         logger.info("Cache configuration completed");
         return handle;
