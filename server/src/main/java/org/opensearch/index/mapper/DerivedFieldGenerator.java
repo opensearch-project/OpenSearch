@@ -22,19 +22,56 @@ public class DerivedFieldGenerator {
 
     private final MappedFieldType mappedFieldType;
     private final FieldValueFetcher fieldValueFetcher;
+    private final DerivedSourceKeep derivedSourceKeep;
 
+    /**
+     * Legacy constructor for backward compatibility. Defaults to DerivedSourceKeep.NONE.
+     *
+     * @deprecated Use {@link #DerivedFieldGenerator(MappedFieldType, FieldValueFetcher, FieldValueFetcher, DerivedSourceKeep)} instead
+     */
+    @Deprecated
     public DerivedFieldGenerator(
         MappedFieldType mappedFieldType,
         FieldValueFetcher docValuesFetcher,
         FieldValueFetcher storedFieldFetcher
     ) {
+        this(mappedFieldType, docValuesFetcher, storedFieldFetcher, DerivedSourceKeep.NONE);
+    }
+
+    /**
+     * Creates a DerivedFieldGenerator with the specified fetchers and derived source keep mode.
+     *
+     * @param mappedFieldType the field type
+     * @param docValuesFetcher fetcher for doc values (sorted/deduplicated)
+     * @param storedFieldFetcher fetcher for stored fields (preserves order/duplicates)
+     * @param derivedSourceKeep the mode for source reconstruction (NONE or ARRAYS)
+     */
+    public DerivedFieldGenerator(
+        MappedFieldType mappedFieldType,
+        FieldValueFetcher docValuesFetcher,
+        FieldValueFetcher storedFieldFetcher,
+        DerivedSourceKeep derivedSourceKeep
+    ) {
         this.mappedFieldType = mappedFieldType;
-        if (Objects.requireNonNull(getDerivedFieldPreference()) == FieldValueType.DOC_VALUES) {
-            assert docValuesFetcher != null;
-            this.fieldValueFetcher = docValuesFetcher;
-        } else {
-            assert storedFieldFetcher != null;
+        this.derivedSourceKeep = Objects.requireNonNull(derivedSourceKeep, "derivedSourceKeep cannot be null");
+
+        if (derivedSourceKeep.requiresStoredFields()) {
+            // User explicitly requested array preservation via stored fields
+            if (storedFieldFetcher == null) {
+                throw new IllegalArgumentException(
+                    "derived_source_keep='arrays' requires stored fields to be enabled for field [" + mappedFieldType.name() + "]"
+                );
+            }
             this.fieldValueFetcher = storedFieldFetcher;
+        } else {
+            // Default behavior: prefer doc values if available, otherwise use stored fields
+            if (Objects.requireNonNull(getDerivedFieldPreference()) == FieldValueType.DOC_VALUES) {
+                assert docValuesFetcher != null;
+                this.fieldValueFetcher = docValuesFetcher;
+            } else {
+                assert storedFieldFetcher != null;
+                this.fieldValueFetcher = storedFieldFetcher;
+            }
         }
     }
 
@@ -47,6 +84,13 @@ public class DerivedFieldGenerator {
             return FieldValueType.DOC_VALUES;
         }
         return FieldValueType.STORED;
+    }
+
+    /**
+     * Returns the derived source keep mode for this generator.
+     */
+    public DerivedSourceKeep getDerivedSourceKeep() {
+        return derivedSourceKeep;
     }
 
     /**
