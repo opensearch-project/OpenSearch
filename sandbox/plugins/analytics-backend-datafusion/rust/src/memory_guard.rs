@@ -93,6 +93,22 @@ static ADMISSION_REJECT_X1000: AtomicU64 = AtomicU64::new(850);
 static EXECUTION_SPILL_X1000: AtomicU64 = AtomicU64::new(850);
 static EXECUTION_CRITICAL_X1000: AtomicU64 = AtomicU64::new(950);
 
+// Total byte budget for the spill-gate exemption (see
+// `DynamicLimitPool::try_grow`). Limits how much memory spillable consumers can
+// be allowed through the 85% check at the same time, so several spills together
+// stay below the 95% limit. Default 512MB.
+static SPILL_EXEMPT_CAP_BYTES: AtomicU64 = AtomicU64::new(512 * 1024 * 1024);
+
+/// Set the spill-gate exemption byte cap at runtime.
+pub fn set_spill_exempt_cap_bytes(bytes: u64) {
+    SPILL_EXEMPT_CAP_BYTES.store(bytes, Ordering::Release);
+}
+
+/// Current spill-gate exemption byte cap.
+pub fn spill_exempt_cap_bytes() -> usize {
+    SPILL_EXEMPT_CAP_BYTES.load(Ordering::Acquire) as usize
+}
+
 /// Which layer is asking for the override check.
 #[derive(Debug, Clone, Copy)]
 pub enum OverrideContext {
@@ -370,6 +386,33 @@ mod tests {
         assert!((t.execution_critical - 0.97).abs() < 0.001);
         // Restore defaults
         set_thresholds(MemoryThresholds::default());
+    }
+
+    #[test]
+    fn set_and_get_spill_exempt_cap() {
+        // Default is 512MB.
+        assert_eq!(spill_exempt_cap_bytes(), 512 * 1024 * 1024);
+        // Round-trips an arbitrary value.
+        set_spill_exempt_cap_bytes(64 * 1024 * 1024);
+        assert_eq!(spill_exempt_cap_bytes(), 64 * 1024 * 1024);
+        // Zero is valid (disables the exemption budget).
+        set_spill_exempt_cap_bytes(0);
+        assert_eq!(spill_exempt_cap_bytes(), 0);
+        // Restore default.
+        set_spill_exempt_cap_bytes(512 * 1024 * 1024);
+    }
+
+    #[test]
+    fn ffi_spill_exempt_cap_clamps_negative_to_zero() {
+        // The FFI export takes a signed i64 (Java long); negative inputs must clamp
+        // to 0 rather than wrap to a huge u64.
+        crate::ffm::df_set_spill_exempt_cap_bytes(-1);
+        assert_eq!(spill_exempt_cap_bytes(), 0);
+        // A positive value passes through unchanged.
+        crate::ffm::df_set_spill_exempt_cap_bytes(256 * 1024 * 1024);
+        assert_eq!(spill_exempt_cap_bytes(), 256 * 1024 * 1024);
+        // Restore default.
+        set_spill_exempt_cap_bytes(512 * 1024 * 1024);
     }
 
     #[test]

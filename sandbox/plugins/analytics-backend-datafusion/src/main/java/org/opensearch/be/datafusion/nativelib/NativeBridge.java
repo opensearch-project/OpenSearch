@@ -102,6 +102,7 @@ public final class NativeBridge {
     private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
     private static final MethodHandle SET_REDUCE_TARGET_PARTITIONS;
+    private static final MethodHandle SET_SPILL_EXEMPT_CAP_BYTES;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -216,6 +217,11 @@ public final class NativeBridge {
 
         SET_REDUCE_TARGET_PARTITIONS = linker.downcallHandle(
             lib.find("df_set_reduce_target_partitions").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_SPILL_EXEMPT_CAP_BYTES = linker.downcallHandle(
+            lib.find("df_set_spill_exempt_cap_bytes").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
@@ -806,6 +812,19 @@ public final class NativeBridge {
             SET_REDUCE_TARGET_PARTITIONS.invokeExact((long) value);
         } catch (Throwable t) {
             logger.debug("Failed to set reduce target partitions", t);
+        }
+    }
+
+    /**
+     * Sets the spill-exemption cap in bytes — the total in-flight allocation allowed through the
+     * 85% spill gate by spillable consumers so they can finish spilling. Live-tunable; takes effect
+     * on the next try_grow.
+     */
+    public static void setSpillExemptCapBytes(long bytes) {
+        try {
+            SET_SPILL_EXEMPT_CAP_BYTES.invokeExact(bytes);
+        } catch (Throwable t) {
+            logger.debug("Failed to set spill exempt cap bytes", t);
         }
     }
 
