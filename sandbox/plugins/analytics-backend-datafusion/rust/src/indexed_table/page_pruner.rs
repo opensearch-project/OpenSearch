@@ -1583,7 +1583,7 @@ mod tests {
                 Arc::new(Int32Array::from(vec![0, 5, 10, 17])),
             ],
         )
-        .unwrap();
+            .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), file_schema, None).unwrap();
         w.write(&batch).unwrap();
@@ -1600,5 +1600,79 @@ mod tests {
             vec![true],
             "severity >= 0 is always true; eval_leaf must not prune under schema drift"
         );
+    }
+
+    /// Verifies that `build_from_bool_node` works correctly when
+    /// `rg_indices` is a subset that doesn't start at 0 (e.g. chunk
+    /// contains RGs [2,3,4] out of a 5-RG file). The `rg_can_match`
+    /// vector should be 3 elements long, indexed 0..2 mapping to
+    /// absolute RGs 2,3,4. Consumers use a reverse map to translate.
+    #[test]
+    fn stats_prune_tree_offset_rg_indices() {
+        use crate::indexed_table::bool_tree::BoolNode;
+
+        // 5 RGs: price [0..9], [10..19], [20..29], [30..39], [40..49]
+        let schema = Arc::new(Schema::new(vec![Field::new("price", DataType::Int32, false)]));
+        let tmp = NamedTempFile::new().unwrap();
+        let props = WriterProperties::builder()
+            .set_max_row_group_size(10)
+            .set_statistics_enabled(EnabledStatistics::Chunk)
+            .build();
+        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        for i in 0..5i32 {
+            let vals: Vec<i32> = (i * 10..(i + 1) * 10).collect();
+            let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))]).unwrap();
+            w.write(&batch).unwrap();
+        }
+        w.close().unwrap();
+        let meta = ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
+        let arc_meta = meta.metadata().clone();
+        assert_eq!(arc_meta.num_row_groups(), 5);
+
+        // Chunk only has RGs [2, 3, 4] (prices [20..49])
+        let rg_indices: Vec<usize> = vec![2, 3, 4];
+
+        // price < 35 → full file would be [T,T,T,T,F]; subset [2,3,4] → [T,T,F]
+        let p1 = pred_leaf("price", Operator::Lt, 35, &schema);
+        // price >= 30 → full file would be [F,F,F,T,T]; subset [2,3,4] → [F,T,T]
+        let p2 = pred_leaf("price", Operator::GtEq, 30, &schema);
+
+        // AND(p1, p2) on subset → [T,T,F] & [F,T,T] = [F,T,F]
+        let tree = BoolNode::And(vec![p1.clone(), p2.clone()]);
+
+        let mut leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = HashMap::new();
+        for node in [&p1, &p2] {
+            if let BoolNode::Predicate(expr) = node {
+                let key = Arc::as_ptr(expr) as *const () as usize;
+                let pp = build_pruning_predicate(expr, schema.clone()).unwrap();
+                leaf_predicates.insert(key, pp);
+            }
+        }
+
+        let spt = StatsPruneTree::build_from_bool_node(
+            &tree, &leaf_predicates, &arc_meta, &schema, &rg_indices,
+        );
+
+        // rg_can_match is 3 elements (one per chunk RG), relative indexing.
+        assert_eq!(spt.rg_can_match.len(), 3);
+        // Position 0 → absolute RG 2 (price [20..29]): p1=T, p2=F → AND=F
+        // Position 1 → absolute RG 3 (price [30..39]): p1=T, p2=T → AND=T
+        // Position 2 → absolute RG 4 (price [40..49]): p1=F, p2=T → AND=F
+        assert_eq!(spt.rg_can_match, vec![false, true, false]);
+
+        // Verify consumer-side reverse map lookup works correctly:
+        let rg_index_to_pos: HashMap<usize, usize> = rg_indices.iter()
+            .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
+
+        // Absolute RG 3 should map to position 1 → can_match = true
+        let pos = rg_index_to_pos.get(&3).unwrap();
+        assert_eq!(spt.rg_can_match[*pos], true);
+
+        // Absolute RG 2 should map to position 0 → can_match = false
+        let pos = rg_index_to_pos.get(&2).unwrap();
+        assert_eq!(spt.rg_can_match[*pos], false);
+
+        // Absolute RG 0 (not in chunk) should have no entry
+        assert!(rg_index_to_pos.get(&0).is_none());
     }
 }
