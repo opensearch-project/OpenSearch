@@ -2838,6 +2838,7 @@ dependencies = [
  "arrow-schema",
  "async-trait",
  "base64",
+ "bytes",
  "chrono",
  "chrono-tz",
  "crc32fast",
@@ -2958,17 +2959,23 @@ dependencies = [
 name = "opensearch-tiered-storage"
 version = "0.1.0"
 dependencies = [
+ "arrow",
+ "arrow-array",
+ "arrow-schema",
  "async-trait",
  "bytes",
  "chrono",
  "dashmap 5.5.3",
+ "datafusion",
  "futures",
  "native-bridge-common",
  "object_store",
  "opensearch-block-cache",
+ "parquet",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "url",
 ]
 
 [[package]]

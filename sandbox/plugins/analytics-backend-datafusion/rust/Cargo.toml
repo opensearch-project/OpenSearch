@@ -25,6 +25,7 @@ arrow-schema = { workspace = true }
 
 parquet = { workspace = true }
 object_store = { workspace = true }
+bytes = { workspace = true }
 url = { workspace = true }
 
 prost = { workspace = true }
