@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use datafusion::execution::cache::cache_manager::{
     CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
@@ -33,10 +33,14 @@ fn entry_size(entry: &CachedFileMetadataEntry) -> usize {
     entry.file_metadata.memory_size()
 }
 
-/// Inner store for [`MutexFileMetadataCache`]: the keyed entries plus running byte total.
+/// Inner store for [`MutexFileMetadataCache`]: the keyed entries.
+///
+/// Held behind an `RwLock` so concurrent reads (`get`/`contains_key`/`len`/`list_entries`) run in
+/// parallel; only mutations (`put`/`remove`/`clear`/eviction) take the write lock. The running
+/// byte total is tracked separately in the lock-free `memory_used` atomic (see the struct field),
+/// so size queries never touch this lock at all.
 struct MetaState {
     map: HashMap<Path, CachedFileMetadataEntry>,
-    memory_used: usize,
 }
 
 /// Metadata cache for parquet footers, keyed by file path.
@@ -48,10 +52,16 @@ struct MetaState {
 /// of metadata entries (and a one-off wide scan no longer pollutes the hot footer set
 /// under S3-FIFO). Staleness is still the caller's job via `CachedFileMetadataEntry::is_valid_for`.
 pub struct MutexFileMetadataCache {
-    state: Mutex<MetaState>,
+    state: RwLock<MetaState>,
     /// Pluggable eviction policy (interior-mutable; shared shape with the statistics cache).
     policy: Arc<Mutex<Box<dyn CachePolicy>>>,
     size_limit: AtomicUsize,
+    /// Running byte total of resident entries, tracked lock-free alongside the map. Updated on
+    /// every mutation while the `state` write lock is held (so it stays consistent with the map),
+    /// but read without any lock — size queries (`memory_used`, eviction's budget check) never
+    /// contend on `state`. Reads may momentarily trail an in-flight mutation; that's fine, the
+    /// total need not be exact (eviction re-checks in a loop).
+    memory_used: AtomicUsize,
     hit_count: AtomicUsize,
     miss_count: AtomicUsize,
     /// When false, the cache serves every lookup as a miss and drops all writes.
@@ -64,9 +74,10 @@ impl MutexFileMetadataCache {
     /// Create with an explicit eviction policy, byte limit, and initial enabled state.
     pub fn with_enabled(policy_type: PolicyType, size_limit: usize, enabled: bool) -> Self {
         Self {
-            state: Mutex::new(MetaState { map: HashMap::new(), memory_used: 0 }),
+            state: RwLock::new(MetaState { map: HashMap::new() }),
             policy: Arc::new(Mutex::new(create_policy(policy_type))),
             size_limit: AtomicUsize::new(size_limit),
+            memory_used: AtomicUsize::new(0),
             hit_count: AtomicUsize::new(0),
             miss_count: AtomicUsize::new(0),
             enabled: AtomicBool::new(enabled),
@@ -105,9 +116,9 @@ impl MutexFileMetadataCache {
     }
 
     pub fn clear_cache(&self) {
-        if let Ok(mut s) = self.state.lock() {
+        if let Ok(mut s) = self.state.write() {
             s.map.clear();
-            s.memory_used = 0;
+            self.memory_used.store(0, Ordering::Relaxed);
         }
         if let Ok(mut p) = self.policy.lock() {
             p.clear();
@@ -115,9 +126,10 @@ impl MutexFileMetadataCache {
         self.reset_stats();
     }
 
-    /// Current bytes held by metadata entries.
+    /// Current bytes held by metadata entries. Lock-free read of the running atomic total — may
+    /// momentarily trail an in-flight `put`/`remove`, which is fine (callers tolerate inexactness).
     pub fn memory_used(&self) -> usize {
-        self.state.lock().map(|s| s.memory_used).unwrap_or(0)
+        self.memory_used.load(Ordering::Relaxed)
     }
 
     pub fn update_cache_limit(&self, new_limit: usize) {
@@ -150,12 +162,12 @@ impl MutexFileMetadataCache {
             }
             let mut freed = 0usize;
             {
-                let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
+                let mut s = self.state.write().unwrap_or_else(|e| e.into_inner());
                 for key in &victims {
                     let path = Path::from(key.clone());
                     if let Some(entry) = s.map.remove(&path) {
                         let sz = entry_size(&entry);
-                        s.memory_used = s.memory_used.saturating_sub(sz);
+                        self.memory_used.fetch_sub(sz, Ordering::Relaxed);
                         freed += sz;
                     }
                 }
@@ -184,7 +196,8 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
             return None;
         }
         let hit = {
-            let s = match self.state.lock() {
+            // Read lock: concurrent gets proceed in parallel; only mutations block readers.
+            let s = match self.state.read() {
                 Ok(s) => s,
                 Err(e) => {
                     log_cache_error("get", &e.to_string());
@@ -215,7 +228,7 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
         let size = entry_size(&v);
         let key = k.to_string();
         let prev = {
-            let mut s = match self.state.lock() {
+            let mut s = match self.state.write() {
                 Ok(s) => s,
                 Err(e) => {
                     log_cache_error("put", &e.to_string());
@@ -223,10 +236,12 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
                 }
             };
             let prev = s.map.insert(k.clone(), v);
+            // Update the byte total while the write lock is held so it stays consistent with the
+            // map: net add of `size`, minus the displaced entry's size if we replaced one.
             if let Some(old) = &prev {
-                s.memory_used = s.memory_used.saturating_sub(entry_size(old));
+                self.memory_used.fetch_sub(entry_size(old), Ordering::Relaxed);
             }
-            s.memory_used += size;
+            self.memory_used.fetch_add(size, Ordering::Relaxed);
             prev
         };
         if let Ok(mut p) = self.policy.lock() {
@@ -238,7 +253,7 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
 
     fn remove(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
         let removed = {
-            let mut s = match self.state.lock() {
+            let mut s = match self.state.write() {
                 Ok(s) => s,
                 Err(e) => {
                     log_cache_error("remove", &e.to_string());
@@ -247,7 +262,7 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
             };
             let removed = s.map.remove(k);
             if let Some(entry) = &removed {
-                s.memory_used = s.memory_used.saturating_sub(entry_size(entry));
+                self.memory_used.fetch_sub(entry_size(entry), Ordering::Relaxed);
             }
             removed
         };
@@ -260,11 +275,11 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     }
 
     fn contains_key(&self, k: &Path) -> bool {
-        self.state.lock().map(|s| s.map.contains_key(k)).unwrap_or(false)
+        self.state.read().map(|s| s.map.contains_key(k)).unwrap_or(false)
     }
 
     fn len(&self) -> usize {
-        self.state.lock().map(|s| s.map.len()).unwrap_or(0)
+        self.state.read().map(|s| s.map.len()).unwrap_or(0)
     }
 
     fn clear(&self) {
@@ -287,7 +302,7 @@ impl FileMetadataCache for MutexFileMetadataCache {
     }
 
     fn list_entries(&self) -> HashMap<Path, FileMetadataCacheEntry> {
-        let s = match self.state.lock() {
+        let s = match self.state.read() {
             Ok(s) => s,
             Err(e) => {
                 log_cache_error("list_entries", &e.to_string());
