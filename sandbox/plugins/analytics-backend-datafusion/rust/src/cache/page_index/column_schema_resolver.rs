@@ -56,9 +56,10 @@ pub fn resolve_predicate_parquet_columns(
         metadata.file_metadata().key_value_metadata(),
     ) {
         Ok(s) => Arc::new(s),
-        // If we can't derive the file schema, fall back to the union schema; the
-        // caller still falls back to footer-only on any downstream mismatch.
-        Err(_) => return resolve_with_schema(_arrow_schema, metadata, predicate_column_names),
+        // If we can't derive the file schema (malformed footer, unsupported type),
+        // return empty. Empty is the safe conservative choice:  the caller skips the
+        // scoped load and falls back to footer-only.
+        Err(_) => return vec![],
     };
     resolve_with_schema(&file_arrow_schema, metadata, predicate_column_names)
 }
@@ -71,10 +72,10 @@ pub fn resolve_predicate_parquet_columns(
 /// full schema reconstruction per file per query. Pure refactor — each returned
 /// Vec is identical to calling `resolve_predicate_parquet_columns` separately.
 pub fn resolve_predicate_parquet_columns_pair(
-    union_schema: &SchemaRef,
+    _union_schema: &SchemaRef,
     metadata: &ParquetMetaData,
-    names_a: &[String],
-    names_b: &[String],
+    predicate_col_names: &[String],
+    projection_col_names: &[String],
 ) -> (Vec<usize>, Vec<usize>) {
     let parquet_schema = metadata.file_metadata().schema_descr();
     match parquet_to_arrow_schema(
@@ -84,15 +85,12 @@ pub fn resolve_predicate_parquet_columns_pair(
         Ok(s) => {
             let file_arrow_schema = Arc::new(s);
             (
-                resolve_with_schema(&file_arrow_schema, metadata, names_a),
-                resolve_with_schema(&file_arrow_schema, metadata, names_b),
+                resolve_with_schema(&file_arrow_schema, metadata, predicate_col_names),
+                resolve_with_schema(&file_arrow_schema, metadata, projection_col_names),
             )
         }
-        // Same fallback as the single-name path: resolve against the union schema.
-        Err(_) => (
-            resolve_with_schema(union_schema, metadata, names_a),
-            resolve_with_schema(union_schema, metadata, names_b),
-        ),
+        // Can't derive the file schema — return empty for both sets.
+        Err(_) => (vec![], vec![]),
     }
 }
 
