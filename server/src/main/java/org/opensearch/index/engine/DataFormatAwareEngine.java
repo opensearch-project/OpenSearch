@@ -1681,7 +1681,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public Closeable acquireHistoryRetentionLock() {
-        return () -> {};
+        return translogManager.acquireHistoryRetentionLock();
     }
 
     /**
