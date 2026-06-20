@@ -91,7 +91,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -261,7 +261,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -529,7 +529,7 @@ async fn test_row_id_with_data_columns() {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -784,7 +784,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

@@ -11,6 +11,7 @@
 //! `no index_filter(...) in plan`. Asserts constant-true keeps every row and
 //! constant-false drops every row (the residual is evaluated, not ignored).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, Int32Array, StringArray};
@@ -90,6 +91,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
                 Some(Arc::clone(&residual)),
                 Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
                 None,
+                HashMap::new(),
             ));
             Ok(eval)
         })
