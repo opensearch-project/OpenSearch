@@ -11,6 +11,7 @@
 use std::sync::Arc;
 use native_bridge_common::ffm_safe;
 use crate::foyer::foyer_cache::FoyerCache;
+use crate::tiered_block_cache::TieredBlockCache;
 
 /// Create a [`FoyerCache`] and return an opaque `Box<Arc<dyn BlockCache>>` fat pointer as `i64`.
 ///
@@ -70,6 +71,7 @@ pub unsafe extern "C" fn foyer_create_cache(
         sweep_interval_secs,
         sweep_threshold_ratio,
         persist_interval_secs,
+        false, // reinsertion_admit_all: default RejectAll for standard data cache
     ));
     Ok(Box::into_raw(Box::new(cache)) as i64)
 }
@@ -126,18 +128,24 @@ pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
     }
     // Borrow the Box<Arc<dyn BlockCache>> without consuming it.
     let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
-    // Downcast to FoyerCache to access Foyer-specific stats.
-    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
-        Some(f) => f,
-        None => return -1,
-    };
-    let single = foyer.stats.snapshot();
 
-    // Foyer is currently single-tier (disk only): overall and block_level are identical.
-    // 10 fields × 2 sections = 20 longs total.
     let mut flat = [0i64; 20];
-    flat[..10].copy_from_slice(&single);
-    flat[10..].copy_from_slice(&single);
+
+    if let Some(foyer) = boxed.as_any().downcast_ref::<FoyerCache>() {
+        // Single-tier: overall and block_level are identical.
+        let single = foyer.stats.snapshot();
+        flat[..10].copy_from_slice(&single);
+        flat[10..].copy_from_slice(&single);
+    } else if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
+        // Tiered: indices 0-9 = data cache stats, indices 10-19 = metadata cache stats.
+        let data_stats = tiered.data_cache().stats.snapshot();
+        let meta_stats = tiered.metadata_cache().stats.snapshot();
+        flat[..10].copy_from_slice(&data_stats);
+        flat[10..].copy_from_slice(&meta_stats);
+    } else {
+        return -1;
+    }
+
     for (i, &v) in flat.iter().enumerate() {
         *out.add(i) = v;
     }
@@ -161,11 +169,13 @@ pub unsafe extern "C" fn foyer_clear_cache(ptr: i64) -> i64 {
         return Err(format!("foyer_clear_cache: invalid ptr {}", ptr));
     }
     let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
-    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
-        Some(f) => f,
-        None => return Err("foyer_clear_cache: downcast to FoyerCache failed".to_string()),
-    };
-    foyer.clear_sync();
+    if let Some(foyer) = boxed.as_any().downcast_ref::<FoyerCache>() {
+        foyer.clear_sync();
+    } else if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
+        tiered.clear_sync();
+    } else {
+        return Err("foyer_clear_cache: downcast to FoyerCache or TieredBlockCache failed".to_string());
+    }
     native_bridge_common::log_info!("ffm: foyer_clear_cache completed");
     Ok(0)
 }
@@ -192,11 +202,14 @@ pub unsafe extern "C" fn foyer_update_sweep_threshold(ptr: i64, new_ratio: f64) 
         return Err(format!("foyer_update_sweep_threshold: invalid ptr {}", ptr));
     }
     let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
-    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
-        Some(f) => f,
-        None => return Err("foyer_update_sweep_threshold: downcast to FoyerCache failed".to_string()),
-    };
-    foyer.update_sweep_threshold(new_ratio);
+    if let Some(foyer) = boxed.as_any().downcast_ref::<FoyerCache>() {
+        foyer.update_sweep_threshold(new_ratio);
+    } else if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
+        tiered.data_cache().update_sweep_threshold(new_ratio);
+        tiered.metadata_cache().update_sweep_threshold(new_ratio);
+    } else {
+        return Err("foyer_update_sweep_threshold: downcast failed".to_string());
+    }
     Ok(0)
 }
 
@@ -208,11 +221,14 @@ pub unsafe extern "C" fn foyer_update_sweep_interval(ptr: i64, new_secs: u64) ->
         return Err(format!("foyer_update_sweep_interval: invalid ptr {}", ptr));
     }
     let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
-    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
-        Some(f) => f,
-        None => return Err("foyer_update_sweep_interval: downcast failed".to_string()),
-    };
-    foyer.update_sweep_interval(new_secs);
+    if let Some(foyer) = boxed.as_any().downcast_ref::<FoyerCache>() {
+        foyer.update_sweep_interval(new_secs);
+    } else if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
+        tiered.data_cache().update_sweep_interval(new_secs);
+        tiered.metadata_cache().update_sweep_interval(new_secs);
+    } else {
+        return Err("foyer_update_sweep_interval: downcast failed".to_string());
+    }
     Ok(0)
 }
 
@@ -224,11 +240,38 @@ pub unsafe extern "C" fn foyer_update_persist_interval(ptr: i64, new_secs: u64) 
         return Err(format!("foyer_update_persist_interval: invalid ptr {}", ptr));
     }
     let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
-    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
-        Some(f) => f,
-        None => return Err("foyer_update_persist_interval: downcast failed".to_string()),
-    };
-    foyer.update_persist_interval(new_secs);
+    if let Some(foyer) = boxed.as_any().downcast_ref::<FoyerCache>() {
+        foyer.update_persist_interval(new_secs);
+    } else if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
+        tiered.data_cache().update_persist_interval(new_secs);
+        tiered.metadata_cache().update_persist_interval(new_secs);
+    } else {
+        return Err("foyer_update_persist_interval: downcast failed".to_string());
+    }
+    Ok(0)
+}
+
+/// Update the max metadata entry size on a TieredBlockCache. Entries larger than
+/// this limit are routed to data_cache (evictable) instead of metadata_cache.
+///
+/// Called by Java's `addSettingsUpdateConsumer` when
+/// `block_cache.foyer.max_metadata_entry_size` is changed via cluster settings API.
+///
+/// No-op if the cache is not a TieredBlockCache (plain FoyerCache has no limit).
+///
+/// # Safety
+/// `ptr` must be a valid handle from [`foyer_create_cache`] or [`foyer_create_tiered_cache`].
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_max_metadata_entry_size(ptr: i64, new_limit: u64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_max_metadata_entry_size: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
+        tiered.update_max_metadata_entry_size(new_limit as usize);
+    }
+    // No-op for plain FoyerCache — it has no metadata size concept.
     Ok(0)
 }
 
@@ -256,4 +299,103 @@ pub extern "C" fn foyer_evict_prefix(ptr: i64, prefix_ptr: *const u8, prefix_len
     boxed.evict_prefix(prefix);
     native_bridge_common::log_debug!("ffm: foyer_evict_prefix prefix='{}'", prefix);
     Ok(0)
+}
+
+/// Create a [`TieredBlockCache`] with separate data and metadata caches.
+///
+/// Returns an opaque `Box<Arc<dyn BlockCache>>` fat pointer as `i64`.
+/// The data cache uses default reinsertion (RejectAll) and the metadata cache
+/// uses AdmitAll reinsertion so that metadata entries are never evicted.
+///
+/// # Parameters
+/// - `data_*` — parameters for the data cache (large SSD, normal eviction).
+/// - `meta_*` — parameters for the metadata cache (small SSD, never-evict).
+/// - Shared parameters (`io_engine_*`, `sweep_*`, `persist_*`) apply to both caches.
+///
+/// # Safety
+/// All `*_ptr` parameters must point to `*_len` consecutive valid UTF-8 bytes.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_create_tiered_cache(
+    // Data cache params
+    data_disk_bytes: u64,
+    data_dir_ptr: *const u8,
+    data_dir_len: u64,
+    data_block_size_bytes: u64,
+    data_buffer_pool_size_bytes: u64,
+    data_submit_queue_size_threshold_bytes: u64,
+    // Metadata cache params
+    meta_disk_bytes: u64,
+    meta_dir_ptr: *const u8,
+    meta_dir_len: u64,
+    meta_block_size_bytes: u64,
+    meta_buffer_pool_size_bytes: u64,
+    meta_submit_queue_size_threshold_bytes: u64,
+    // Shared params
+    io_engine_ptr: *const u8,
+    io_engine_len: u64,
+    sweep_interval_secs: u64,
+    sweep_threshold_ratio: f64,
+    persist_interval_secs: u64,
+) -> i64 {
+    // Parse data dir
+    if data_dir_ptr.is_null() {
+        return Err("data_dir_ptr is null".to_string());
+    }
+    let data_dir = std::str::from_utf8(std::slice::from_raw_parts(data_dir_ptr, data_dir_len as usize))
+        .map_err(|e| format!("invalid UTF-8 in data_dir path: {}", e))?;
+
+    // Parse metadata dir
+    if meta_dir_ptr.is_null() {
+        return Err("meta_dir_ptr is null".to_string());
+    }
+    let meta_dir = std::str::from_utf8(std::slice::from_raw_parts(meta_dir_ptr, meta_dir_len as usize))
+        .map_err(|e| format!("invalid UTF-8 in meta_dir path: {}", e))?;
+
+    // Parse io_engine
+    let io_engine = if io_engine_ptr.is_null() {
+        "auto"
+    } else {
+        std::str::from_utf8(std::slice::from_raw_parts(io_engine_ptr, io_engine_len as usize))
+            .unwrap_or("auto")
+    };
+
+    // Build data cache (default reinsertion = RejectAll)
+    let data_cache = Arc::new(FoyerCache::new(
+        data_disk_bytes as usize,
+        data_dir,
+        data_block_size_bytes as usize,
+        data_buffer_pool_size_bytes as usize,
+        data_submit_queue_size_threshold_bytes as usize,
+        io_engine,
+        sweep_interval_secs,
+        sweep_threshold_ratio,
+        persist_interval_secs,
+        false, // reinsertion_admit_all = false (RejectAll)
+    ));
+
+    // Build metadata cache (reinsertion = AdmitAll — never evicts)
+    let metadata_cache = Arc::new(FoyerCache::new(
+        meta_disk_bytes as usize,
+        meta_dir,
+        meta_block_size_bytes as usize,
+        meta_buffer_pool_size_bytes as usize,
+        meta_submit_queue_size_threshold_bytes as usize,
+        io_engine,
+        sweep_interval_secs,
+        sweep_threshold_ratio,
+        persist_interval_secs,
+        true, // reinsertion_admit_all = true (AdmitAll)
+    ));
+
+    native_bridge_common::log_info!(
+        "[tiered-block-cache] ffm: created tiered cache: data_dir={}, meta_dir={}, \
+         data_disk={}B, meta_disk={}B",
+        data_dir, meta_dir, data_disk_bytes, meta_disk_bytes
+    );
+
+    let cache: Arc<dyn crate::traits::BlockCache> = Arc::new(
+        TieredBlockCache::new(data_cache, metadata_cache)
+    );
+    Ok(Box::into_raw(Box::new(cache)) as i64)
 }
