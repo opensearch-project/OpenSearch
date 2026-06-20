@@ -197,15 +197,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             // Auto-enable store=true when derived_source_keep="arrays"
             DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
             boolean storeValue = this.stored.getValue();
-            boolean storeExplicitlySet = this.stored.isConfigured();
             
             if (derivedSourceKeep.requiresStoredFields()) {
-                if (storeExplicitlySet && !storeValue) {
+                // Check if store was explicitly set to false
+                if (this.stored.isSet() && !storeValue) {
                     throw new MapperParsingException(
                         "Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]"
                     );
                 }
-                storeValue = true;  // Auto-enable store
+                storeValue = true;
                 this.stored.setValue(storeValue);
             }
             

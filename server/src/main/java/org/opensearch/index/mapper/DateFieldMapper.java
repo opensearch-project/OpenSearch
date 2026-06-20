@@ -388,10 +388,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             // Auto-enable store=true when derived_source_keep="arrays"
             DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
             boolean storeValue = this.store.getValue();
-            boolean storeExplicitlySet = this.store.isConfigured();
             
             if (derivedSourceKeep.requiresStoredFields()) {
-                if (storeExplicitlySet && !storeValue) {
+                // Check if store was explicitly set to false
+                if (this.store.isSet() && !storeValue) {
                     throw new MapperParsingException(
                         "Cannot set derived_source_keep='arrays' with store=false for field [" + name() + "]"
                     );

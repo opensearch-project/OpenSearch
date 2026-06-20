@@ -258,6 +258,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
+         * Returns true if the parameter was explicitly set (even if set to the default value)
+         */
+        public boolean isSet() {
+            return isSet;
+        }
+
+        /**
          * Allows the parameter to accept a {@code null} value
          */
         public Parameter<T> acceptsNull() {
