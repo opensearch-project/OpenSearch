@@ -26,7 +26,7 @@
 //! and finds the recovered entries — zero S3 calls for metadata.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use bytes::Bytes;
 
@@ -34,83 +34,96 @@ use crate::foyer::foyer_cache::FoyerCache;
 use crate::range_cache::CacheKey;
 use crate::traits::BlockCache;
 
-/// Default max metadata entry size: 10MB.
-/// Entries larger than this are routed to data_cache (evictable) instead of
-/// metadata_cache (never-evict) to prevent one pathological file from filling
-/// the metadata SSD.
-const DEFAULT_MAX_METADATA_ENTRY_SIZE: usize = 10 * 1024 * 1024;
+/// Default max metadata entry size: 8MB.
+/// Covers up to ~1000-column schemas with page indexes.
+const DEFAULT_MAX_METADATA_ENTRY_SIZE: u64 = 8 * 1024 * 1024;
 
-/// A two-tier block cache: metadata cache (never evicts) + data cache (LRU eviction).
+/// Default max data entry size: 32MB.
+/// Covers individual column chunks for most schemas. Skips full-RG fetches.
+const DEFAULT_MAX_DATA_ENTRY_SIZE: u64 = 32 * 1024 * 1024;
+
+/// A two-tier block cache: metadata cache + data cache on separate SSDs.
 ///
 /// ## Lookup order
 ///
 /// `get()` always probes metadata cache first (small, fast), then data cache.
-/// This ensures metadata is found on warm restart without any routing state.
 ///
 /// ## Write routing
 ///
-/// - `put()` → data cache (called by TieredObjectStore::populate_cache after S3 fetch)
-/// - `put_metadata()` → metadata cache if entry ≤ max_metadata_entry_size,
-///   otherwise falls back to data cache (evictable).
+/// - `put()` → data cache if entry ≤ max_data_entry_size, else skip.
+/// - `put_metadata()` → metadata cache if entry ≤ max_metadata_entry_size, else skip.
 ///
-/// This guarantees data blocks never pollute the metadata cache, and metadata
-/// never competes with data for LRU eviction.
+/// Entries exceeding their respective limits are not cached (returned to caller
+/// without caching). This bounds memory usage for large entries.
 pub struct TieredBlockCache {
     data_cache: Arc<FoyerCache>,
     metadata_cache: Arc<FoyerCache>,
-    /// Max entry size for metadata cache. Entries larger than this are routed
-    /// to data_cache instead. Dynamically updatable via `update_max_metadata_entry_size`.
-    max_metadata_entry_size: AtomicUsize,
+    /// Max entry size for metadata cache. Entries larger than this are not cached.
+    max_metadata_entry_size: AtomicU64,
+    /// Max entry size for data cache. Entries larger than this are not cached.
+    max_data_entry_size: AtomicU64,
 }
 
 impl TieredBlockCache {
     pub fn new(data_cache: Arc<FoyerCache>, metadata_cache: Arc<FoyerCache>) -> Self {
         native_bridge_common::log_info!(
-            "[tiered-block-cache] created: data_disk={}B, metadata_disk={}B, max_metadata_entry={}B",
+            "[tiered-block-cache] created: data_disk={}B, metadata_disk={}B, \
+             max_metadata_entry={}B, max_data_entry={}B",
             data_cache.disk_bytes,
             metadata_cache.disk_bytes,
-            DEFAULT_MAX_METADATA_ENTRY_SIZE
+            DEFAULT_MAX_METADATA_ENTRY_SIZE,
+            DEFAULT_MAX_DATA_ENTRY_SIZE
         );
         Self {
             data_cache,
             metadata_cache,
-            max_metadata_entry_size: AtomicUsize::new(DEFAULT_MAX_METADATA_ENTRY_SIZE),
+            max_metadata_entry_size: AtomicU64::new(DEFAULT_MAX_METADATA_ENTRY_SIZE),
+            max_data_entry_size: AtomicU64::new(DEFAULT_MAX_DATA_ENTRY_SIZE),
         }
     }
 
     /// Put bytes into the metadata cache. Called during shard warmup only.
     ///
-    /// Entries in the metadata cache are never evicted (AdmitAll reinsertion)
-    /// and survive node restarts (Foyer disk recovery).
-    ///
-    /// If the entry exceeds `max_metadata_entry_size`, it's routed to the data
-    /// cache instead (evictable by LRU). This prevents pathological wide-schema
-    /// files (1000+ columns, 50MB+ page indexes) from filling the metadata SSD.
+    /// Entries exceeding max_metadata_entry_size are skipped (not cached).
+    /// Metadata cache uses LRU eviction on a separate SSD.
     pub fn put_metadata(&self, key: &CacheKey, data: Bytes) {
         let limit = self.max_metadata_entry_size.load(Ordering::Relaxed);
-        if data.len() > limit {
+        if data.len() as u64 > limit {
             native_bridge_common::log_info!(
-                "[tiered-block-cache] metadata entry {}B exceeds limit {}B — routing to data cache",
+                "[tiered-block-cache] metadata entry {}B exceeds limit {}B — skipping cache",
                 data.len(), limit
             );
-            self.data_cache.put(key, data);
-        } else {
-            self.metadata_cache.put(key, data);
+            return;
         }
+        self.metadata_cache.put(key, data);
     }
 
-    /// Update the max metadata entry size dynamically. Takes effect immediately.
-    /// Called from the FFM layer when the Java setting is changed via cluster settings API.
-    pub fn update_max_metadata_entry_size(&self, new_limit: usize) {
-        self.max_metadata_entry_size.store(new_limit, Ordering::Relaxed);
+    /// Update max metadata entry size dynamically. Takes effect immediately.
+    pub fn update_max_metadata_entry_size(&self, size: u64) {
+        self.max_metadata_entry_size.store(size, Ordering::Relaxed);
         native_bridge_common::log_info!(
-            "[tiered-block-cache] max_metadata_entry_size updated to {}B", new_limit
+            "[tiered-block-cache] max_metadata_entry_size updated to {}B", size
         );
     }
 
-    /// Current max metadata entry size.
-    pub fn max_metadata_entry_size(&self) -> usize {
-        self.max_metadata_entry_size.load(Ordering::Relaxed)
+    /// Update max data entry size dynamically. Takes effect immediately.
+    pub fn update_max_data_entry_size(&self, size: u64) {
+        self.max_data_entry_size.store(size, Ordering::Relaxed);
+        native_bridge_common::log_info!(
+            "[tiered-block-cache] max_data_entry_size updated to {}B", size
+        );
+    }
+
+    /// Current max data entry size (used by TieredObjectStore for get_opts threshold).
+    pub fn max_data_entry_size(&self) -> u64 {
+        self.max_data_entry_size.load(Ordering::Relaxed)
+    }
+
+    /// Wait for both caches' flushers to drain. After this, all entries are on
+    /// SSD and findable via get(). Used in tests and warmup to ensure durability.
+    pub async fn wait_for_flush(&self) {
+        self.metadata_cache.wait_for_flush().await;
+        self.data_cache.wait_for_flush().await;
     }
 
     /// Access the underlying data cache (e.g. for stats).
@@ -151,8 +164,11 @@ impl BlockCache for TieredBlockCache {
     }
 
     fn put(&self, key: &CacheKey, data: Bytes) {
-        // Normal put (called by TieredObjectStore::populate_cache after S3 fetch)
-        // always goes to data cache. Metadata is populated only via put_metadata().
+        // Data cache put — entries exceeding max_data_entry_size are skipped.
+        let limit = self.max_data_entry_size.load(Ordering::Relaxed);
+        if data.len() as u64 > limit {
+            return;
+        }
         self.data_cache.put(key, data);
     }
 

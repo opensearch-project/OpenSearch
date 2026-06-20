@@ -227,14 +227,27 @@ pub struct FoyerCache {
 
 impl Drop for FoyerCache {
     fn drop(&mut self) {
-        // Flush partial blocks to SSD before shutdown. Without this, entries
-        // smaller than block_size that haven't accumulated a full block in the
-        // flusher are lost — they exist only in the flusher's memory buffer.
-        // close() drains the flusher and writes any partial block to disk.
-        if let Err(e) = self._runtime.block_on(self.inner.close()) {
-            native_bridge_common::log_info!(
-                "[block-cache] HybridCache close FAILED on shutdown: {}", e
-            );
+        // Flush partial blocks to SSD before shutdown with a timeout.
+        // Without close(), entries smaller than block_size are lost on restart.
+        // Timeout prevents indefinite blocking if the flusher is stuck.
+        let close_result = self._runtime.block_on(async {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                self.inner.close()
+            ).await
+        });
+        match close_result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                native_bridge_common::log_info!(
+                    "[block-cache] HybridCache close FAILED on shutdown: {}", e
+                );
+            }
+            Err(_) => {
+                native_bridge_common::log_info!(
+                    "[block-cache] HybridCache close TIMED OUT (5s) on shutdown — partial blocks may be lost"
+                );
+            }
         }
 
         // Unconditional final persist — graceful shutdown path.
@@ -700,6 +713,12 @@ impl FoyerCache {
     /// Clear all entries synchronously. Called from the FFM layer.
     pub(crate) fn clear_sync(&self) {
         self._runtime.block_on(self.clear());
+    }
+
+    /// Wait for the storage flusher to drain its write queue.
+    /// After this returns, all previously put() entries are on SSD and findable via get().
+    pub async fn wait_for_flush(&self) {
+        self.inner.storage().wait().await;
     }
 
     /// Derive the normalized index key from a cache key.
