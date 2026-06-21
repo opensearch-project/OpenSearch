@@ -136,9 +136,14 @@ impl TieredObjectStore {
     ///
     /// No-op if no cache is attached.
     pub fn put_metadata(&self, path: &str, ranges: &[std::ops::Range<u64>], data: &[Bytes]) {
+        // Normalize path by stripping leading '/' to match `object_store::Path` semantics
+        // (read paths through ObjectStore::get_opts/get_ranges arrive with the leading '/'
+        // already stripped). Without this, warmup writes under "/Volumes/..." while query
+        // reads probe under "Volumes/..." — silent cache miss on every read.
+        let path_str = path.strip_prefix('/').unwrap_or(path);
         if let Some(ref cache) = self.cache {
             for (r, bytes) in ranges.iter().zip(data.iter()) {
-                let key = range_cache_key(path, r.start, r.end);
+                let key = range_cache_key(path_str, r.start, r.end);
                 cache.put_metadata(&key, bytes.clone());
             }
         }
