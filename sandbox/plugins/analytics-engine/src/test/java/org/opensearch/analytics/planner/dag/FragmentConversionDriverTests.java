@@ -1279,6 +1279,76 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             .orElseThrow()).getTreeShape();
     }
 
+    // ---- HAVING regression: delegated WHERE under an Aggregate with a HAVING filter above ----
+
+    /**
+     * HAVING produces two stacked filters that don't merge across the Aggregate: a native HAVING
+     * (count=1) above and the delegated WHERE (match_phrase) below. The derived FilterTreeShape
+     * (which the data node reads as its classification) must reflect the WHERE's delegation
+     * (CONJUNCTIVE), not the topmost HAVING (NO_DELEGATION). Regression: picking the topmost filter
+     * yielded NO_DELEGATION → data node skipped the Lucene collector → full scan / over-count.
+     */
+    public void testHavingFilterAboveDelegatedWhere_derivesConjunctive() {
+        StagePlan plan = runHaving(matchPhrase("hello"));
+        assertEquals("delegated WHERE under HAVING must still ship one expression", 1, plan.delegatedExpressions().size());
+        assertEquals("treeShape must come from the WHERE (CONJUNCTIVE), not the HAVING (NO_DELEGATION)",
+            FilterTreeShape.CONJUNCTIVE, treeShapeOf(plan));
+    }
+
+    /** Builds Filter(count=1)[HAVING] over Aggregate(group=message, count(*)) over Filter(where)[scan]. */
+    private StagePlan runHaving(RexNode whereCondition) {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return dfConvertor;
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+                Map<ScalarFunction, DelegatedPredicateSerializer> map = new HashMap<>(super.delegatedPredicateSerializers());
+                map.put(ScalarFunction.MATCH_PHRASE, serializer);
+                return map;
+            }
+        };
+        List<AnalyticsSearchBackendPlugin> backends = List.of(df, lucene);
+        Map<String, Map<String, Object>> fields = Map.of(
+            "message", Map.of("type", "keyword", "index", true),
+            "amount", Map.of("type", "integer", "index", false),
+            "count", Map.of("type", "integer", "index", false)
+        );
+        // Single shard: no exchange split, so HAVING + Aggregate + WHERE stay in ONE fragment — the
+        // shape the bug needs (multi-shard forks HAVING into a separate reduce stage, hiding it).
+        PlannerContext context = buildContext("parquet", 1, fields, backends);
+        RelNode scan = stubScan(
+            mockTable(
+                "test_index",
+                new String[] { "message", "amount", "count" },
+                new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER, SqlTypeName.INTEGER }
+            )
+        );
+        LogicalFilter where = LogicalFilter.create(scan, whereCondition);
+        LogicalAggregate aggregate = makeAggregate(where, ImmutableBitSet.of(0), countStarCall(where));
+        LogicalFilter having = LogicalFilter.create(aggregate, makeEquals(1, SqlTypeName.BIGINT, 1));
+        RelNode cboOutput = runPlanner(having, context);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        return leafStage(dag).getPlanAlternatives().getFirst();
+    }
+
     // ---- Combining tests (OR/NOT/mixed) ----
 
     /** match_phrase AND fuzzy OR amount=200 → OR(AND(lucene,lucene), native) — combined, INTERLEAVED. */
