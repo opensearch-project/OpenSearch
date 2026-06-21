@@ -47,11 +47,7 @@ public class DerivedFieldGeneratorTests extends OpenSearchTestCase {
     public void testConstructorWithDefaultDerivedSourceKeep() {
         when(mockFieldType.hasDocValues()).thenReturn(true);
 
-        DerivedFieldGenerator generator = new DerivedFieldGenerator(
-            mockFieldType,
-            mockDocValuesFetcher,
-            mockStoredFieldFetcher
-        );
+        DerivedFieldGenerator generator = new DerivedFieldGenerator(mockFieldType, mockDocValuesFetcher, mockStoredFieldFetcher);
 
         assertEquals(DerivedSourceKeep.NONE, generator.getDerivedSourceKeep());
     }
@@ -142,11 +138,7 @@ public class DerivedFieldGeneratorTests extends OpenSearchTestCase {
     public void testGetDerivedFieldPreferenceWithDocValues() {
         when(mockFieldType.hasDocValues()).thenReturn(true);
 
-        DerivedFieldGenerator generator = new DerivedFieldGenerator(
-            mockFieldType,
-            mockDocValuesFetcher,
-            mockStoredFieldFetcher
-        );
+        DerivedFieldGenerator generator = new DerivedFieldGenerator(mockFieldType, mockDocValuesFetcher, mockStoredFieldFetcher);
 
         assertEquals(FieldValueType.DOC_VALUES, generator.getDerivedFieldPreference());
     }
@@ -154,11 +146,7 @@ public class DerivedFieldGeneratorTests extends OpenSearchTestCase {
     public void testGetDerivedFieldPreferenceWithoutDocValues() {
         when(mockFieldType.hasDocValues()).thenReturn(false);
 
-        DerivedFieldGenerator generator = new DerivedFieldGenerator(
-            mockFieldType,
-            mockDocValuesFetcher,
-            mockStoredFieldFetcher
-        );
+        DerivedFieldGenerator generator = new DerivedFieldGenerator(mockFieldType, mockDocValuesFetcher, mockStoredFieldFetcher);
 
         assertEquals(FieldValueType.STORED, generator.getDerivedFieldPreference());
     }
@@ -186,12 +174,7 @@ public class DerivedFieldGeneratorTests extends OpenSearchTestCase {
     public void testNullDocValuesFetcherWhenDocValuesPreferred() {
         when(mockFieldType.hasDocValues()).thenReturn(true);
         AssertionError error = expectThrows(AssertionError.class, () -> {
-            new DerivedFieldGenerator(
-                mockFieldType,
-                null,
-                mockStoredFieldFetcher,
-                DerivedSourceKeep.NONE
-            );
+            new DerivedFieldGenerator(mockFieldType, null, mockStoredFieldFetcher, DerivedSourceKeep.NONE);
         });
         assertNotNull(error);
     }
@@ -199,12 +182,7 @@ public class DerivedFieldGeneratorTests extends OpenSearchTestCase {
     public void testNullStoredFieldFetcherWhenStoredFieldsPreferred() {
         when(mockFieldType.hasDocValues()).thenReturn(false);
         AssertionError error = expectThrows(AssertionError.class, () -> {
-            new DerivedFieldGenerator(
-                mockFieldType,
-                mockDocValuesFetcher,
-                null,
-                DerivedSourceKeep.NONE
-            );
+            new DerivedFieldGenerator(mockFieldType, mockDocValuesFetcher, null, DerivedSourceKeep.NONE);
         });
         assertNotNull(error);
     }

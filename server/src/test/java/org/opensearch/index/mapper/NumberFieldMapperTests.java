@@ -915,9 +915,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testCanDeriveSource_WithArraysMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "arrays"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "arrays")));
         NumberFieldMapper fieldMapper = (NumberFieldMapper) mapper.mappers().getMapper("field");
         fieldMapper.canDeriveSource();
     }

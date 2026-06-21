@@ -438,9 +438,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testCanDeriveSource_WithArraysMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays")));
         IpFieldMapper fieldMapper = (IpFieldMapper) mapper.mappers().getMapper("field");
         fieldMapper.canDeriveSource();
     }

@@ -1061,9 +1061,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testCanDeriveSource_WithArraysMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays")));
         DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
         fieldMapper.canDeriveSource();
     }

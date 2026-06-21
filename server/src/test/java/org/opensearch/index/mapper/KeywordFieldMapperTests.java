@@ -852,9 +852,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testCanDeriveSource_WithArraysMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").field("derived_source_keep", "arrays"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("derived_source_keep", "arrays")));
         KeywordFieldMapper fieldMapper = (KeywordFieldMapper) mapper.mappers().getMapper("field");
         fieldMapper.canDeriveSource();
     }
