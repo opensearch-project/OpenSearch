@@ -21,7 +21,6 @@ import org.apache.calcite.rel.RelShuttle;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
-import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
@@ -431,7 +430,10 @@ public class PlannerImpl {
         }
         try {
             RelOptCluster volcanoCluster = RelOptCluster.create(volcanoPlanner, rawRelNode.getCluster().getRexBuilder());
-            volcanoCluster.setMetadataQuerySupplier(RelMetadataQuery::instance);
+            // Use our metadata query so OpenSearchJoin gets a PK-FK row-count estimate instead of
+            // Calcite's no-stats cartesian × 0.15 over-estimate. The subclass overrides only
+            // getRowCount; every other metadata def falls through to the default handler chain.
+            volcanoCluster.setMetadataQuerySupplier(OpenSearchRelMetadataQuery::new);
 
             // TODO: eliminate this copy
             RelNode copied = RelNodeUtils.copyToCluster(marked, volcanoCluster, distTraitDef);

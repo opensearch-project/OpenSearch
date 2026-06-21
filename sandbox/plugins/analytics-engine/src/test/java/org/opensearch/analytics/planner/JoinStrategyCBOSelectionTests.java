@@ -221,6 +221,97 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertDoesNotContainShuffleExchange("theta join must NOT shuffle (only coord-centric is legal)", result);
     }
 
+    // ── Outer joins (TPC-H q13 shape) ──────────────────────────────────────
+
+    /**
+     * A LEFT OUTER equi-join over two large sides must hash-shuffle, NOT gather to the coordinator
+     * (TPC-H q13: customer LEFT JOIN orders → ReduceSizeExceeded when coord-centric at scale). The
+     * split rules carry no INNER-only gate, and hash-partitioning a LEFT equi-join on the join key is
+     * correct: each preserved-side row and its matches land in one partition, so null-fill is
+     * partition-local (standard Spark/Presto behavior). The worker join keeps joinType=LEFT verbatim;
+     * DataFusion's HashJoinExec does the partition-local null-fill.
+     */
+    public void testLeftOuterJoinLargeLargeShuffles() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.LEFT, /* equi */ true), context);
+
+        assertContainsShuffleExchange("large LEFT OUTER equi-join must hash-shuffle, not gather to coordinator", result);
+    }
+
+    // ── Aggregate ABOVE a join (TPC-H q2/q11 shape) ───────────────────────
+
+    /**
+     * DIAGNOSTIC (#32): a large-fact × small-dim INNER equi-join FEEDING an aggregate
+     * ({@code … join … | stats sum(x) by key}) — the TPC-H q11 bottom-join shape. At sf=10 this
+     * gathers the 8M-row fact to the coordinator (ReduceSizeExceeded). The bare join (no agg) picks
+     * BROADCAST; this test checks whether the aggregate ABOVE the join suppresses that.
+     */
+    public void testAggregateOverLargeSmallJoin_strategy() {
+        PlannerContext context = buildMppContext(
+            Map.of("fact_large", 3, "dim_small", 3),
+            Map.of("fact_large", LARGE, "dim_small", SMALL),
+            /* mppEnabled */ true
+        );
+        RelNode join = makeJoin(context, "fact_large", "dim_small", JoinRelType.INNER, /* equi */ true);
+        RelNode aggOverJoin = makeAggregate(join, sumCall(join));
+        RelNode result = runPlanner(aggOverJoin, context);
+
+        boolean broadcast = containsNodeOfType(result, OpenSearchBroadcastExchange.class);
+        boolean shuffle = containsNodeOfType(result, OpenSearchShuffleExchange.class);
+        // Diagnostic assertion: an agg over a large×small join should STILL distribute the join
+        // (broadcast the dim, or shuffle) — not gather the 8M fact to the coordinator.
+        assertTrue(
+            "agg over large×small join must distribute the join (broadcast or shuffle), not gather the fact:\n"
+                + org.apache.calcite.plan.RelOptUtil.toString(result),
+            broadcast || shuffle
+        );
+    }
+
+    /**
+     * DIAGNOSTIC (#32): a 3-way fact ⋈ dim1 ⋈ dim2 INNER join feeding an aggregate — the TPC-H q11
+     * structure (partsupp ⋈ supplier ⋈ nation | stats sum by key). Checks whether the multi-way shape
+     * (vs the 2-way above) is what stops the bottom join distributing on the cluster.
+     */
+    public void testAggregateOverThreeWayJoin_strategy() {
+        PlannerContext context = buildMppContext(
+            Map.of("fact_large", 3, "dim_a", 3, "dim_b", 3),
+            Map.of("fact_large", LARGE, "dim_a", SMALL, "dim_b", SMALL),
+            /* mppEnabled */ true
+        );
+        RelNode fact = stubScan(mockTable("fact_large", "status", "size"));
+        RelNode dimA = stubScan(mockTable("dim_a", "status", "size"));
+        RelNode dimB = stubScan(mockTable("dim_b", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        int factCols = fact.getRowType().getFieldCount();
+        RexNode cond1 = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, factCols)
+        );
+        RelNode j1 = LogicalJoin.create(fact, dimA, List.of(), cond1, Set.of(), JoinRelType.INNER);
+        int j1Cols = j1.getRowType().getFieldCount();
+        RexNode cond2 = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, j1Cols)
+        );
+        RelNode j2 = LogicalJoin.create(j1, dimB, List.of(), cond2, Set.of(), JoinRelType.INNER);
+        RelNode aggOverJoin = makeAggregate(j2, sumCall(j2));
+        RelNode result = runPlanner(aggOverJoin, context);
+
+        boolean broadcast = containsNodeOfType(result, OpenSearchBroadcastExchange.class);
+        boolean shuffle = containsNodeOfType(result, OpenSearchShuffleExchange.class);
+        assertTrue(
+            "agg over 3-way (fact×dim×dim) join must distribute, not gather the fact to coordinator:\n"
+                + org.apache.calcite.plan.RelOptUtil.toString(result),
+            broadcast || shuffle
+        );
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     /** Build a planner context with explicit row counts + multi-data-node cluster + custom

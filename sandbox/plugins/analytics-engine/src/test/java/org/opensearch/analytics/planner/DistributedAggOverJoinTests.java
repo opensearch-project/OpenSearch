@@ -330,10 +330,13 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
         );
     }
 
-    public void testEmptyGroupAggregateOverJoin_staysCoordinatorCentric() {
-        // `stats sum(x)` with NO `by` produces exactly one row → the coordinator gather is already
-        // bounded (≤ N partial rows), so there is no OOM motivation to distribute, and it sidesteps
-        // the empty-group COUNT→SUM nullability gap. The rewriter must decline.
+    public void testEmptyGroupAggregateOverJoin_distributes() {
+        // `stats sum(x)` with NO `by` (the TPC-H q2/q11 scalar-subquery shape: an empty-group SUM/MIN
+        // over partsupp⋈supplier⋈nation). The aggregate OUTPUT is one row, but the JOIN OUTPUT feeding
+        // it is huge — an 8M-row join gathers to the coordinator before the SINGLE aggregate runs
+        // (ReduceSizeExceeded at sf=10). So empty-group over a large join MUST distribute: PARTIAL on the
+        // worker (dimension broadcast in), FINAL on the coordinator, mirroring how
+        // OpenSearchAggregateSplitRule already distributes empty-group PARTIAL/FINAL.
         PlannerContext context = buildMppContext();
         RelNode fourWay = fourWayDimTop(context);
         // Empty group → SUM infers a NULLABLE result (no rows → null), unlike the grouped case.
@@ -348,10 +351,26 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
         );
         RelNode logical = LogicalAggregate.create(fourWay, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
         QueryDAG dag = toCboDag(logical, context);
-        assertFalse(
-            "an empty-group aggregate (no `by`) over a join must NOT be distributed (gather already bounded to one row)",
+        assertTrue(
+            "empty-group aggregate over a large join must distribute (PARTIAL on worker, FINAL on coord) — "
+                + "the join output gather is what OOMs, not the one-row aggregate output",
             DistributedAggOverJoinRewriter.canPushPartial(dag)
         );
+
+        DistributedAggOverJoinRewriter.Structure structure = DistributedAggOverJoinRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+        OpenSearchAggregate partial = findAggregate(topWorker(structure).getFragment());
+        assertNotNull("worker fragment carries an Aggregate", partial);
+        assertEquals("worker aggregate is PARTIAL", AggregateMode.PARTIAL, partial.getMode());
+        assertTrue("PARTIAL keeps the empty group set", partial.getGroupSet().isEmpty());
+        OpenSearchAggregate finalAgg = findAggregate(structure.dag().rootStage().getFragment());
+        assertNotNull("coordinator fragment carries an Aggregate", finalAgg);
+        assertEquals("coordinator aggregate is FINAL", AggregateMode.FINAL, finalAgg.getMode());
+        // Storage-completeness invariant for the empty-group FINAL (possibly wrapped in a cast Project).
+        assertStorageComplete("empty-group coordinator fragment", structure.dag().rootStage().getFragment());
     }
 
     public void testAggregateBetweenJoins_notDistributed() {
@@ -365,6 +384,108 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
             "Join(Aggregate(Join)) must not be a distributable agg-over-cascade shape",
             DistributedAggOverJoinRewriter.canPushPartial(dag)
         );
+    }
+
+    // ── Seed: agg over a LARGE×SMALL bottom join (TPC-H q2/q11 shape) ────────────────────────
+
+    /**
+     * The q2/q11 shape: {@code Aggregate(SINGLE) by g → dimension-Join → Join_bottom(LARGE fact, SMALL
+     * dim)}. Unlike q5 (LARGE×LARGE bottom that CBO already shuffles), CBO keeps this large×small bottom
+     * join COORDINATOR-CENTRIC (both inputs are reducers) — even with a corrected join cardinality,
+     * broadcasting the small side still gathers the large join output to SINGLETON for the parent
+     * dimension join, so coord-centric wins the cost race. WITHOUT the seed the bottom join is not
+     * shuffle-shaped, so it is not a cascade and {@code canPushPartial} is false → the 8M fact gathers
+     * to the coordinator → ReduceSizeExceeded at scale.
+     *
+     * <p>{@link CascadeShufflePlanRewriter#seedAggOverJoinBottomShuffle} converts the bottom join's
+     * reducer inputs to shuffles when a decomposable aggregate sits above the INNER chain, so the join
+     * becomes a liftable cascade level and the proven q5/q10 machinery distributes it: PARTIAL on the
+     * worker, FINAL on the coordinator, dimension broadcast in.
+     */
+    public void testSeed_aggOverLargeSmallBottomJoin_becomesDistributable() {
+        // a_idx = LARGE fact (partsupp), b_idx = SMALL build (supplier), d_idx = SMALL dimension (nation).
+        // c_idx is part of fourWayDimTop's a⋈b⋈c bottom cascade; keep it SMALL too so the bottom JOIN
+        // (a⋈b) is the large×small one CBO keeps coord-centric.
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", 100_000L, "c_idx", 100_000L, "d_idx", 25L);
+        PlannerContext context = buildMppContext(rowCounts);
+        RelNode logical = sumByGroupOverDimJoinOverCascade(context);
+
+        // Baseline: without the seed, CBO keeps the large×small bottom join coord-centric, so it is not a
+        // cascade and cannot push a PARTIAL.
+        QueryDAG baselineDag = toCboDag(logical, context);
+        assertFalse(
+            "without the seed, a large×small bottom join stays coord-centric (not a cascade)",
+            DistributedAggOverJoinRewriter.canPushPartial(baselineDag)
+        );
+
+        // With the seed: the bottom join is shuffled, so the shape becomes the distributable cascade.
+        RelNode cbo = runPlanner(logical, context);
+        RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(cbo, CLUSTER_DATA_NODES, /* minRows */ 1L);
+        assertNotSame("seed must rewrite the plan (bottom join → shuffle)", cbo, seeded);
+        RelNode extended = CascadeShufflePlanRewriter.rewrite(seeded, CLUSTER_DATA_NODES);
+        QueryDAG dag = DAGBuilder.build(extended, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        assertTrue("seeded q2/q11 shape must be a cascade", CascadeShuffleDAGRewriter.isCascade(dag));
+        assertTrue("seeded q2/q11 shape must be distributable (push PARTIAL)", DistributedAggOverJoinRewriter.canPushPartial(dag));
+
+        DistributedAggOverJoinRewriter.Structure structure = DistributedAggOverJoinRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+        Stage worker = topWorker(structure);
+        OpenSearchAggregate partial = findAggregate(worker.getFragment());
+        assertNotNull("worker fragment must carry an Aggregate", partial);
+        assertEquals("worker aggregate is PARTIAL", AggregateMode.PARTIAL, partial.getMode());
+        OpenSearchAggregate finalAgg = findAggregate(structure.dag().rootStage().getFragment());
+        assertNotNull("coordinator fragment must carry an Aggregate", finalAgg);
+        assertEquals("coordinator aggregate is FINAL", AggregateMode.FINAL, finalAgg.getMode());
+        // Storage-completeness invariant (the RexInputRef[N] gap): every node reports per-column storage.
+        assertStorageComplete("seeded worker fragment", worker.getFragment());
+        assertStorageComplete("seeded coordinator fragment", structure.dag().rootStage().getFragment());
+    }
+
+    /**
+     * The seed's row floor must keep a SMALL×SMALL bottom join coordinator-centric: when nothing exceeds
+     * the floor, gathering the join is bounded and there is no OOM motivation to distribute. The seed
+     * must be a no-op (return the same plan) so CBO's coord-centric choice stands.
+     */
+    public void testSeed_smallBottomJoinBelowFloor_isNoOp() {
+        Map<String, Long> rowCounts = Map.of("a_idx", 1_000L, "b_idx", 1_000L, "c_idx", 1_000L, "d_idx", 25L);
+        PlannerContext context = buildMppContext(rowCounts);
+        RelNode logical = sumByGroupOverDimJoinOverCascade(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(cbo, CLUSTER_DATA_NODES, /* minRows */ 1_000_000L);
+        assertSame("seed must be a no-op when the bottom join is below the row floor", cbo, seeded);
+    }
+
+    /**
+     * Path-safety (codex review finding #1): a non-INNER (LEFT) dimension join ON THE PATH between the
+     * aggregate and the bottom INNER join must NOT be seeded. Seeding only validated the bottom join
+     * itself, not the path — so it would shuffle the bottom INNER join under a LEFT join, which
+     * canPushPartial then rejects, leaving an orphaned shuffle the generic dispatch could mis-lift. The
+     * seed must be a no-op (the whole shape stays coord-centric).
+     */
+    public void testSeed_leftJoinOnPathAboveBottomJoin_isNoOp() {
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", 100_000L, "c_idx", 100_000L, "d_idx", 25L);
+        PlannerContext context = buildMppContext(rowCounts);
+        // Aggregate over a LEFT top dimension join over the a⋈b⋈c INNER cascade.
+        RelNode fourWayLeftTop = fourWayDimTopWithLeftDimJoin(context);
+        AggregateCall sumCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            fourWayLeftTop,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total"
+        );
+        RelNode logical = LogicalAggregate.create(fourWayLeftTop, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
+        RelNode cbo = runPlanner(logical, context);
+        RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(cbo, CLUSTER_DATA_NODES, /* minRows */ 1L);
+        assertSame("seed must be a no-op when a non-INNER join sits on the path above the bottom join", cbo, seeded);
     }
 
     // ── Harness ─────────────────────────────────────────────────────────────────────────────
@@ -519,6 +640,42 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
         return LogicalJoin.create(abc, dScan, List.of(), abcdCond, Set.of(), JoinRelType.INNER);
     }
 
+    /** Like {@link #fourWayDimTop} but the TOP dimension join (over d) is LEFT OUTER. The a⋈b⋈c bottom
+     *  cascade is still all-INNER; the seed must refuse because a non-INNER join sits ON THE PATH between
+     *  the aggregate and the bottom join (running the lifted bottom join per-partition under a LEFT join
+     *  is unsafe). */
+    private RelNode fourWayDimTopWithLeftDimJoin(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelNode dScan = stubScan(mockTable("d_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+
+        int abCols = ab.getRowType().getFieldCount();
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        RelNode abc = LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+
+        int abcCols = abc.getRowType().getFieldCount();
+        RexNode abcdCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 1),
+            rexBuilder.makeInputRef(intType, abcCols + 1)
+        );
+        return LogicalJoin.create(abc, dScan, List.of(), abcdCond, Set.of(), JoinRelType.LEFT);
+    }
+
     /** Join(Join(a,b) on col0, c) on col0 — three-way cascade, no dimension join. */
     private RelNode threeWayCascade(PlannerContext context) {
         RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
@@ -584,11 +741,16 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
     }
 
     private PlannerContext buildMppContext() {
-        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
         Map<String, Long> rowCounts = new HashMap<>();
         for (String t : List.of("a_idx", "b_idx", "c_idx", "d_idx")) {
             rowCounts.put(t, LARGE);
         }
+        return buildMppContext(rowCounts);
+    }
+
+    /** Context with explicit per-index row counts — lets a test pin a LARGE×SMALL bottom join (q2/q11). */
+    private PlannerContext buildMppContext(Map<String, Long> rowCounts) {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
         ClusterState state = mockClusterStateWithDataNodes(shardCounts);
         Settings settings = Settings.builder().put("analytics.mpp.enabled", true).build();
         ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);

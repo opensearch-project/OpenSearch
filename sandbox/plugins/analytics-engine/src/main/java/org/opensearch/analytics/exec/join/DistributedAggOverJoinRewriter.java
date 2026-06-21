@@ -167,15 +167,15 @@ public final class DistributedAggOverJoinRewriter {
         if (OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(aggregate)) {
             return null;
         }
-        // Empty-group aggregate (`stats sum(x)` with no `by`) produces exactly ONE row, so the
-        // coordinator gather of the partials is already bounded (≤ N partial rows, one per partition)
-        // — there is NO OOM motivation to distribute it. Declining empty-group also sidesteps the
-        // empty-group COUNT→SUM nullability gap that OpenSearchAggregateSplitRule.onMatch handles with
-        // wrapWithCastIfNeeded (a coord-side Volcano-only fixup this rewriter does not replicate). q5/q10
-        // both group `by` a non-empty key set, so this never excludes them. (correctness gate #1b)
-        if (aggregate.getGroupSet().isEmpty()) {
-            return null;
-        }
+        // NOTE on empty-group (`stats sum(x)` with no `by`, e.g. the q2/q11 scalar subquery): the
+        // aggregate OUTPUT is one row, but the JOIN OUTPUT feeding it is not — an 8M-row join still
+        // gathers to the coordinator before an empty-group SINGLE aggregate runs (the q2/q11 subquery
+        // ReduceSizeExceeded). So empty-group over a large join DOES need distributing. It is decomposed
+        // the same way OpenSearchAggregateSplitRule already distributes empty-group PARTIAL/FINAL splits
+        // (buildFinalCalls takes the isEmpty flag; the COUNT→SUM nullability gap is closed by
+        // wrapWithCastIfNeeded on FINAL — see coordinatorFragment below). Only the SHUFFLE-key agg path
+        // declines empty-group, for a different reason (no group key to hash-partition on). So we do NOT
+        // decline empty-group here.
         // Walk the coordinator path from the aggregate's child down to the liftable join, collecting
         // dimension (reducer-fed) child-stage ids to broadcast. The path must be partition-preserving
         // (INNER joins / Project-without-window / Filter) and bottom out at exactly one liftable join.
@@ -439,13 +439,18 @@ public final class DistributedAggOverJoinRewriter {
                     finalExtraLiterals,
                     intermediateFields
                 );
+                // Empty-group nullability gap (COUNT→SUM swap on no-`by` aggregates): FINAL's re-merge
+                // type can drift from the original SINGLE's (e.g. COUNT's NOT-NULL BIGINT vs SUM's
+                // nullable). Wrap FINAL in a CAST-projection so its row type matches SINGLE's, mirroring
+                // OpenSearchAggregateSplitRule.onMatch. No-op when types already agree (the grouped q5/q10
+                // case). The aboveAgg replay below then binds onto the (possibly wrapped) result.
+                RelNode coord = OpenSearchAggregateSplitRule.wrapWithCastIfNeeded(finalAgg, aggregate);
                 // Replay the coordinator op-chain that sat ABOVE the original SINGLE aggregate, now
                 // above FINAL (q5: [Sort]; q10: [Project, Sort, Sort, Sort]). aboveAgg is top-down, so
                 // rebuild bottom-up: start from FINAL and copy() each op onto the running child. copy()
                 // rebinds an op onto a new input; its collation / project indexes reference the
                 // aggregate output positions, unchanged by the SINGLE→FINAL rewrite (FINAL's row type
                 // equals SINGLE's group-keys-then-agg-results layout).
-                RelNode coord = finalAgg;
                 List<RelNode> aboveAgg = a.aboveAgg();
                 for (int i = aboveAgg.size() - 1; i >= 0; i--) {
                     RelNode op = aboveAgg.get(i);

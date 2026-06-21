@@ -117,6 +117,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
 
+    // Per-row byte estimate for converting the coordinator buffer limit into a bottom-join row floor for
+    // the agg-over-join shuffle seed. Deliberately a HIGH estimate of the gathered row width: a higher
+    // bytes/row yields a LOWER row threshold, so we seed earlier and never miss a join whose gather would
+    // overflow (e.g. TPC-H partsupp's 8M rows gather to ~270MB ≈ 34 B/row — a 32 B estimate put the
+    // threshold just ABOVE 8M and missed it). 64 B/row → ~4.2M-row floor at the 256 MiB default, catching
+    // q2/q11 with margin while leaving genuinely small joins coordinator-centric. The seed is
+    // correctness-safe at any size; the floor only avoids needless shuffles of joins that gather safely.
+    private static final long ASSUMED_BYTES_PER_GATHERED_ROW = 64L;
+
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -425,6 +434,36 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 capabilityRegistry,
                 ((OpenSearchRelNode) plan).getViableBackends()
             );
+            // Seed the agg-over-join shape (q2/q11) FIRST: when a decomposable aggregate sits above a
+            // multi-way INNER join whose large×small bottom join CBO kept coordinator-centric, shuffle
+            // that bottom join so the cascade extend + DistributedAggOverJoinRewriter can push a PARTIAL
+            // below the coordinator gather (the proven q5/q10 path). CBO won't shuffle a large×small
+            // bottom join itself — broadcasting the small side still gathers the large join output to
+            // SINGLETON for the parent dimension join — so the PARTIAL push is the only thing that caps
+            // the gather. Gated additionally on the aggregate-over-join toggle (the seed is pointless
+            // without that rewriter) and a row floor tied to the coordinator buffer (don't shuffle a
+            // bottom join small enough to gather safely).
+            //
+            // SELF-VALIDATING: the seed shuffles a bottom join the RelNode-level shape check accepts, but
+            // canPushPartial also applies DAG-level gates (each dimension must be a reducer-fed
+            // StageInputScan) the seed can't fully replicate pre-DAG. Keep the seeded plan ONLY if it
+            // yields a dispatchable distributed-agg-over-join DAG; otherwise revert to the un-seeded plan
+            // so an un-acceptable seed can't leave an orphaned shuffle that the generic HashShuffleDispatch
+            // would mis-lift (the "No table named input-N" failure). Then the existing extend runs on the
+            // chosen plan.
+            if (AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)) {
+                long minBottomJoinRows = perQueryBufferLimit / ASSUMED_BYTES_PER_GATHERED_ROW;
+                RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(plan, cascadePartitions, minBottomJoinRows);
+                if (seeded != plan) {
+                    RelNode seededExtended = CascadeShufflePlanRewriter.rewrite(seeded, cascadePartitions);
+                    QueryDAG trialDag = DAGBuilder.build(seededExtended, capabilityRegistry, clusterService, indexNameExpressionResolver);
+                    if (DistributedAggOverJoinRewriter.canPushPartial(trialDag)) {
+                        plan = seeded;
+                    } else {
+                        logger.debug("agg-over-join seed produced a non-distributable DAG; reverting to un-seeded plan");
+                    }
+                }
+            }
             plan = CascadeShufflePlanRewriter.rewrite(plan, cascadePartitions);
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
@@ -465,12 +504,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // every level into its own worker tier. Detected structurally so a plain 2-way shuffle join
         // keeps the simpler path.
         final boolean dispatchCascadeShuffle = dispatchHashShuffle && CascadeShuffleDAGRewriter.isCascade(dag);
-        // Distributed aggregation over a cascade join (q5/q10): the cascade root holds an
-        // Aggregate(SINGLE) over the dimension joins over the bottom hash-shuffle join. Push a
-        // PARTIAL onto the cascade top worker (dimensions broadcast in) and keep FINAL on the
-        // coordinator. Gated on the toggle + the structural shape; takes precedence over the plain
-        // cascade dispatch (it is a more specific cascade case). See DistributedAggOverJoinRewriter.
-        final boolean dispatchDistributedAggOverJoin = dispatchCascadeShuffle
+        // Distributed aggregation over a join (q5/q10 multi-way cascade; q2/q11 single bottom join with
+        // dimension joins above): an Aggregate(SINGLE) over dimension joins over a hash-shuffle bottom
+        // join. Push a PARTIAL onto the top worker (dimensions broadcast in) and keep FINAL on the
+        // coordinator. canPushPartial validates the FULL shape itself (decomposable agg, partition-
+        // preserving path, exactly one liftable join-over-two-shuffles, broadcastable dims) — it needs a
+        // single liftable join, NOT a multi-LEVEL cascade — so it is gated on dispatchHashShuffle (a
+        // shuffle join exists), NOT dispatchCascadeShuffle (>1 shuffle level). A q5/q10 multi-way cascade
+        // and a q2/q11 single bottom join both satisfy it; takes precedence over both the plain cascade
+        // and the single-level HashShuffleDispatch (which can't lift the dimension joins). See
+        // DistributedAggOverJoinRewriter.
+        final boolean dispatchDistributedAggOverJoin = dispatchHashShuffle
             && AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
             && DistributedAggOverJoinRewriter.canPushPartial(dag);
         final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;

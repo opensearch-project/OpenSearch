@@ -315,7 +315,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */
-    private static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
+    public static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
         RelDataType actualType = finalAggregate.getRowType();
         RelDataType expectedType = expected.getRowType();
         RexBuilder rexBuilder = finalAggregate.getCluster().getRexBuilder();
