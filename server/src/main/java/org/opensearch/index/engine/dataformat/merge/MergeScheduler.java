@@ -155,8 +155,16 @@ public class MergeScheduler {
             : "forceMerge must be called on FORCE_MERGE thread but was: " + Thread.currentThread().getName();
         forceMergeLock.acquireUninterruptibly();
         try {
+            if (isShutdown.get()) {
+                logger.debug("MergeScheduler is shutdown, skipping force merge");
+                return;
+            }
             Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
             for (OneMerge oneMerge : oneMerges) {
+                if (isShutdown.get()) {
+                    logger.debug("MergeScheduler shutdown during force merge, aborting remaining merges");
+                    break;
+                }
                 runMerge(oneMerge);
             }
         } finally {

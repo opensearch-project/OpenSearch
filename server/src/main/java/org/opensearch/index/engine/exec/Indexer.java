@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.LifecycleAware;
@@ -22,6 +23,7 @@ import org.opensearch.index.translog.TranslogManager;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
  * Unified interface for indexing operations in OpenSearch.
@@ -198,6 +200,13 @@ public interface Indexer
      * Caller MUST close the returned handle to release the refcount.
      */
     GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException;
+
+    /**
+     * Resolves a document by id. Engine-backed indexers delegate to
+     * {@link Engine#get(Engine.Get, java.util.function.BiFunction)} with {@code searcherFactory};
+     * row-store indexers acquire their own reader and ignore the factory.
+     */
+    Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory) throws IOException;
 
     /**
      * Returns {@code true} if there are merges queued but not yet started.
