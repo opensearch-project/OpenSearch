@@ -88,7 +88,17 @@ class OpenSearch extends EnvironmentAwareCommand {
 
         LogConfigurator.registerErrorListener();
         final OpenSearch opensearch = new OpenSearch();
-        int status = main(args, opensearch, Terminal.DEFAULT);
+        int status;
+        try {
+            status = main(args, opensearch, Terminal.DEFAULT);
+        } catch (StartupException e) {
+            // StartupException has custom printStackTrace formatting (truncates guice frames, etc.).
+            // Catch it here so the process exits rather than hanging, while preserving that output.
+            e.printStackTrace(System.err);
+            exit(ExitCodes.CODE_ERROR);
+            return;
+        }
+
         if (status != ExitCodes.OK) {
             final String basePath = System.getProperty("opensearch.logs.base_path");
             // It's possible to fail before logging has been configured, in which case there's no point
@@ -159,8 +169,6 @@ class OpenSearch extends EnvironmentAwareCommand {
             init(daemonize, pidFile, quiet, env);
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
-        } catch (StartupException e) {
-            throw new UserException(ExitCodes.CODE_ERROR, e.getMessage(), e);
         }
     }
 

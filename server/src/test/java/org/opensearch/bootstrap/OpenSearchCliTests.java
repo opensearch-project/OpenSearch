@@ -227,15 +227,17 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
     }
 
     public void testStartupExceptionExitsWithCodeError() throws Exception {
-        // Verify that a StartupException thrown during bootstrap causes a non-OK exit rather than
-        // leaving the process hanging (the exception must be caught and converted to UserException).
+        // StartupException must escape execute() and propagate to main(String[]) where it is caught,
+        // printed via its custom formatter, and exit(CODE_ERROR) is called.
+        // Via the test harness (3-arg main), it surfaces as an uncaught StartupException.
         final RuntimeException cause = new RuntimeException("dummy startup failure");
-        runTest(
-            ExitCodes.CODE_ERROR,
-            true,
-            (output, error) -> assertThat(error, containsString("dummy startup failure")),
-            (foreground, pidFile, quiet, env) -> { throw new StartupException(cause); }
+        StartupException thrown = expectThrows(
+            StartupException.class,
+            () -> runTest(ExitCodes.OK, true, (output, error) -> {}, (foreground, pidFile, quiet, env) -> {
+                throw new StartupException(cause);
+            })
         );
+        assertSame(cause, thrown.getCause());
     }
 
 }
