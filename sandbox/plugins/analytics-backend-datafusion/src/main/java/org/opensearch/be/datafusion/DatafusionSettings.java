@@ -302,6 +302,7 @@ public final class DatafusionSettings {
         CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
         CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
         CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
+        CacheSettings.STATISTICS_CACHE_PERCENT,
 
         // Concurrency gate settings
         CONCURRENCY_DATANODE_MULTIPLIER,

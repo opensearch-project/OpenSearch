@@ -120,4 +120,81 @@ public class CacheSettingsPercentValidationTests extends OpenSearchTestCase {
         // Due to integer division, sum may be up to 2 bytes less than total
         assertTrue("sum should be close to total", sum <= total && sum >= total - 2);
     }
+
+    // ── 4-arg validatePercentSum (with statistics) ────────────────────────────
+
+    public void testFourArgDefaultsSumTo100() {
+        // New defaults: 48 + 34 + 13 + 5 = 100
+        CacheSettings.validatePercentSum(48, 34, 13, 5);
+    }
+
+    public void testFourArgSumOver100Throws() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> CacheSettings.validatePercentSum(48, 34, 13, 10)  // 105
+        );
+        assertTrue("error must mention sum", ex.getMessage().contains("sum=105"));
+        assertTrue("error must name statistics key", ex.getMessage().contains("statistics_percent"));
+    }
+
+    public void testFourArgSumUnder100PassesHeadroomAccepted() {
+        CacheSettings.validatePercentSum(40, 30, 10, 5);   // 85% — headroom OK
+        CacheSettings.validatePercentSum(1, 1, 1, 1);      // 4% — valid
+    }
+
+    public void testFourArgRaisingStatisticsAloneBreaks() {
+        // Raising statistics alone: 48+34+13+15=110 → rejected
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> CacheSettings.validatePercentSum(48, 34, 13, 15));
+        assertTrue(ex.getMessage().contains("sum=110"));
+    }
+
+    public void testFourArgAtomicUpdateAllFourPasses() {
+        // User sends all four in one PUT: 45+33+12+5=95 — headroom allowed
+        CacheSettings.validatePercentSum(45, 33, 12, 5);
+    }
+
+    // ── 4-arg computeCacheSizes ───────────────────────────────────────────────
+
+    public void testFourArgComputeSizesDefaultSplit() {
+        long total = 1_150_000_000L; // ~1.15 GB (3% of 38.4 GB native limit on r6g.2xlarge)
+        long[] sizes = CacheSettings.computeCacheSizes(48, 34, 13, 5, total);
+        assertEquals(4, sizes.length);
+        assertEquals(total * 48 / 100, sizes[0]); // footer ~552 MB
+        assertEquals(total * 34 / 100, sizes[1]); // offset index ~391 MB
+        assertEquals(total * 13 / 100, sizes[2]); // column index ~150 MB
+        assertEquals(total * 5 / 100, sizes[3]); // statistics ~58 MB
+    }
+
+    public void testFourArgComputeSizesStatisticsNotZero() {
+        // Statistics cache must get a non-zero allocation with default 5%
+        long total = 1_000_000L;
+        long[] sizes = CacheSettings.computeCacheSizes(48, 34, 13, 5, total);
+        assertTrue("statistics cache must get non-zero bytes", sizes[3] > 0);
+        assertEquals(50_000L, sizes[3]); // 5% of 1_000_000
+    }
+
+    public void testFourArgComputeSizesZeroTotalGivesZeros() {
+        long[] sizes = CacheSettings.computeCacheSizes(48, 34, 13, 5, 0L);
+        for (long s : sizes)
+            assertEquals(0L, s);
+    }
+
+    public void testFourArgComputeSizesSumWithinBudget() {
+        long total = 1_000_000L;
+        long[] sizes = CacheSettings.computeCacheSizes(48, 34, 13, 5, total);
+        long sum = sizes[0] + sizes[1] + sizes[2] + sizes[3];
+        assertTrue("sum must not exceed total", sum <= total);
+        // 48+34+13+5=100, integer division may lose up to 3 bytes
+        assertTrue("sum must be close to total", sum >= total - 3);
+    }
+
+    public void testStatisticsWasNotWiredPreviouslyNowItIs() {
+        // Previously statistics cache used STATISTICS_CACHE_SIZE_LIMIT (standalone 100MB).
+        // Now it derives from STATISTICS_CACHE_PERCENT × METADATA_INDEX_CACHE_TOTAL_SIZE.
+        // This test documents the new behavior: statistics bytes come from the unified budget.
+        long total = 1_000_000L;
+        long[] sizes = CacheSettings.computeCacheSizes(48, 34, 13, 5, total);
+        // With 5% of 1MB budget = 50KB. The old standalone 100MB default is no longer used.
+        assertEquals("statistics cache must use percent-derived limit, not standalone 100MB default", 50_000L, sizes[3]);
+    }
 }

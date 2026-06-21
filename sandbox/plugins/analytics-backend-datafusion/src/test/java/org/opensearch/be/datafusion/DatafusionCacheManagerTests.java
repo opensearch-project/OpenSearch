@@ -45,6 +45,7 @@ public class DatafusionCacheManagerTests extends OpenSearchTestCase {
         clusterSettingsToAdd.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         clusterSettingsToAdd.add(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
         clusterSettingsToAdd.add(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_PERCENT);
         clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT);
         clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT);
 

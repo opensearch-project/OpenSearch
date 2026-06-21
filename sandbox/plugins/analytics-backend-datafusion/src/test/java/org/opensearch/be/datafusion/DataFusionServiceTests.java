@@ -176,6 +176,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         assertTrue(settings.contains(CacheSettings.FOOTER_METADATA_CACHE_PERCENT));
         assertTrue(settings.contains(CacheSettings.OFFSET_INDEX_CACHE_PERCENT));
         assertTrue(settings.contains(CacheSettings.COLUMN_INDEX_CACHE_PERCENT));
+        assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_PERCENT));
     }
 
     public void testNativeBridgeCacheManagerLifecycle() {
@@ -236,6 +237,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         all.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         all.add(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
         all.add(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        all.add(CacheSettings.STATISTICS_CACHE_PERCENT);
         all.add(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT);
         all.add(DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT);
         return new ClusterSettings(settings, all);

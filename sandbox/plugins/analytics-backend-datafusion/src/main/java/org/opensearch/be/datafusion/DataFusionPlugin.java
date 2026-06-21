@@ -473,6 +473,11 @@ public class DataFusionPlugin extends Plugin
                 v -> recomputePageCacheLimits(clusterService.getClusterSettings())
             );
         clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.STATISTICS_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
@@ -719,10 +724,24 @@ public class DataFusionPlugin extends Plugin
         int metaPct = cs.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         int oiPct = cs.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
         int ciPct = cs.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
-        CacheSettings.validatePercentSum(metaPct, oiPct, ciPct);
+        int statsPct = cs.get(CacheSettings.STATISTICS_CACHE_PERCENT);
+        CacheSettings.validatePercentSum(metaPct, oiPct, ciPct, statsPct);
+        long metaLimit = total * metaPct / 100;
         long ciLimit = total * ciPct / 100;
         long oiLimit = total * oiPct / 100;
-        logger.info("Updating page-index cache limits: column_index={} bytes, offset_index={} bytes", ciLimit, oiLimit);
+        long statsLimit = total * statsPct / 100;
+        logger.info(
+            "Updating cache limits: footer_metadata={} bytes (node restart required), "
+                + "column_index={} bytes, offset_index={} bytes, statistics={} bytes (node restart required)",
+            metaLimit,
+            ciLimit,
+            oiLimit,
+            statsLimit
+        );
+        // CI and OI limits take effect immediately via FFI.
+        // Footer metadata and statistics cache limits require a node restart
+        // (no runtime FFI to update the Java-side DefaultFilesMetadataCache limits).
+        // TODO: add df_update_metadata_cache_limit FFI to make them dynamic.
         NativeBridge.setColumnIndexCacheLimit(ciLimit);
         NativeBridge.setOffsetIndexCacheLimit(oiLimit);
     }

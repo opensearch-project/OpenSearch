@@ -97,46 +97,52 @@ public final class CacheUtils {
         long cacheManagerPtr = NativeBridge.createCustomCacheManager();
         NativeCacheManagerHandle handle = new NativeCacheManagerHandle(cacheManagerPtr);
 
-        // Configure each enabled cache type
-        for (CacheType type : CacheType.values()) {
-            if (type.isEnabled(clusterSettings)) {
-                logger.info(
-                    "Configuring {} cache: size={} bytes, eviction={}",
-                    type.getCacheTypeName(),
-                    type.getSizeLimit(clusterSettings).getBytes(),
-                    type.getEvictionType(clusterSettings)
-                );
-
-                NativeBridge.createCache(
-                    handle.getPointer(),
-                    type.cacheTypeName,
-                    type.getSizeLimit(clusterSettings).getBytes(),
-                    type.getEvictionType(clusterSettings)
-                );
-            } else {
-                logger.debug("Cache type {} is disabled", type.getCacheTypeName());
-            }
-        }
-        // Push the scoped page-index cache limits to native using the percent-based model.
-        // Total = 3% of node.native_memory.limit; sub-caches split by percent settings
-        // (default: 50% metadata, 35% offset index, 15% column index).
-        // Dynamic changes are handled via settings update consumers in DataFusionPlugin.
+        // All three caches share the unified METADATA_INDEX_CACHE_TOTAL_SIZE budget.
+        // Compute absolute sizes from the percent model BEFORE creating the caches so
+        // the footer metadata cache (created in the loop below) gets the correct limit
+        // rather than the old standalone METADATA_CACHE_SIZE_LIMIT (hardcoded 250 MB).
         long total = clusterSettings.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
         int metaPct = clusterSettings.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         int oiPct = clusterSettings.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
         int ciPct = clusterSettings.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        int statsPct = clusterSettings.get(CacheSettings.STATISTICS_CACHE_PERCENT);
+        long metaLimit = total * metaPct / 100;
         long oiLimit = total * oiPct / 100;
         long ciLimit = total * ciPct / 100;
+        long statsLimit = total * statsPct / 100;
         logger.info(
-            "Configuring metadata caches: total={} bytes (metadata={}%, offset_index={}%, column_index={}%)"
-                + " → offset_index={} bytes, column_index={} bytes",
+            "Configuring metadata caches: total={} bytes "
+                + "(footer={}% → {} bytes, offset_index={}% → {} bytes, column_index={}% → {} bytes, statistics={}% → {} bytes)",
             total,
             metaPct,
+            metaLimit,
             oiPct,
-            ciPct,
             oiLimit,
-            ciLimit
+            ciPct,
+            ciLimit,
+            statsPct,
+            statsLimit
         );
+
+        // Configure each enabled cache type using the percent-derived limit.
+        for (CacheType type : CacheType.values()) {
+            if (type.isEnabled(clusterSettings)) {
+                // Both METADATA and STATISTICS now use the unified budget split.
+                long sizeLimit = (type == CacheType.METADATA) ? metaLimit
+                    : (type == CacheType.STATISTICS) ? statsLimit
+                    : type.getSizeLimit(clusterSettings).getBytes();
+                logger.info(
+                    "Configuring {} cache: size={} bytes, eviction={}",
+                    type.getCacheTypeName(),
+                    sizeLimit,
+                    type.getEvictionType(clusterSettings)
+                );
+                NativeBridge.createCache(handle.getPointer(), type.cacheTypeName, sizeLimit, type.getEvictionType(clusterSettings));
+            } else {
+                logger.debug("Cache type {} is disabled", type.getCacheTypeName());
+            }
+        }
+
         NativeBridge.setColumnIndexCacheLimit(ciLimit);
         NativeBridge.setOffsetIndexCacheLimit(oiLimit);
         logger.info("Cache configuration completed");

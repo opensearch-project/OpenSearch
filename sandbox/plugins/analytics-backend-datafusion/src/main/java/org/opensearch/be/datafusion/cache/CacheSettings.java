@@ -128,11 +128,12 @@ public class CacheSettings {
     public static final String FOOTER_METADATA_CACHE_PERCENT_KEY = "datafusion.cache.footer_metadata_percent";
     public static final String OFFSET_INDEX_CACHE_PERCENT_KEY = "datafusion.cache.offset_index_percent";
     public static final String COLUMN_INDEX_CACHE_PERCENT_KEY = "datafusion.cache.column_index_percent";
+    public static final String STATISTICS_CACHE_PERCENT_KEY = "datafusion.cache.statistics_percent";
 
-    /** Percentage of {@link #METADATA_INDEX_CACHE_TOTAL_SIZE} allocated to the footer metadata cache. Default 50%. */
+    /** Percentage of {@link #METADATA_INDEX_CACHE_TOTAL_SIZE} allocated to the footer metadata cache. Default 48%. */
     public static final Setting<Integer> FOOTER_METADATA_CACHE_PERCENT = Setting.intSetting(
         FOOTER_METADATA_CACHE_PERCENT_KEY,
-        50,
+        48,
         1,
         98,
         Setting.Property.NodeScope,
@@ -142,21 +143,21 @@ public class CacheSettings {
     /**
      * Percentage of {@link #METADATA_INDEX_CACHE_TOTAL_SIZE} allocated to the OffsetIndex cache.
      * Larger than ColumnIndex because it covers predicate ∪ projection ∪ {col 0}.
-     * Default 35%.
+     * Default 34%.
      */
     public static final Setting<Integer> OFFSET_INDEX_CACHE_PERCENT = Setting.intSetting(
         OFFSET_INDEX_CACHE_PERCENT_KEY,
-        35,
+        34,
         1,
         98,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    /** Percentage of {@link #METADATA_INDEX_CACHE_TOTAL_SIZE} allocated to the ColumnIndex cache. Default 15%. */
+    /** Percentage of {@link #METADATA_INDEX_CACHE_TOTAL_SIZE} allocated to the ColumnIndex cache. Default 13%. */
     public static final Setting<Integer> COLUMN_INDEX_CACHE_PERCENT = Setting.intSetting(
         COLUMN_INDEX_CACHE_PERCENT_KEY,
-        15,
+        13,
         1,
         98,
         Setting.Property.NodeScope,
@@ -164,12 +165,53 @@ public class CacheSettings {
     );
 
     /**
-     * Validate that the three sub-cache percentages sum to &lt;= 100. Unused headroom (sum &lt; 100) is accepted — mirrors Arrow's pool model where sum(max) &lt;= budget.
-     *
-     * @param metaPct  metadata cache percent
-     * @param oiPct    offset index cache percent
-     * @param ciPct    column index cache percent
+     * Percentage of {@link #METADATA_INDEX_CACHE_TOTAL_SIZE} allocated to the file-level statistics cache
+     * (row-group min/max/null-count). Default 5%.
      */
+    public static final Setting<Integer> STATISTICS_CACHE_PERCENT = Setting.intSetting(
+        STATISTICS_CACHE_PERCENT_KEY,
+        5,
+        1,
+        98,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Validate that the four sub-cache percentages sum to &lt;= 100. Unused headroom (sum &lt; 100) is accepted — mirrors Arrow's pool model where sum(max) &lt;= budget.
+     *
+     * @param metaPct    footer metadata cache percent
+     * @param oiPct      offset index cache percent
+     * @param ciPct      column index cache percent
+     * @param statsPct   statistics cache percent
+     */
+    public static void validatePercentSum(int metaPct, int oiPct, int ciPct, int statsPct) {
+        if (metaPct + oiPct + ciPct + statsPct > 100) {
+            throw new IllegalArgumentException(
+                "datafusion cache percentages must sum to &lt;= 100, got: "
+                    + FOOTER_METADATA_CACHE_PERCENT_KEY
+                    + "="
+                    + metaPct
+                    + ", "
+                    + OFFSET_INDEX_CACHE_PERCENT_KEY
+                    + "="
+                    + oiPct
+                    + ", "
+                    + COLUMN_INDEX_CACHE_PERCENT_KEY
+                    + "="
+                    + ciPct
+                    + ", "
+                    + STATISTICS_CACHE_PERCENT_KEY
+                    + "="
+                    + statsPct
+                    + " (sum="
+                    + (metaPct + oiPct + ciPct + statsPct)
+                    + ")"
+            );
+        }
+    }
+
+    // Keep 3-arg overload for backward compat with existing callers
     public static void validatePercentSum(int metaPct, int oiPct, int ciPct) {
         if (metaPct + oiPct + ciPct > 100) {
             throw new IllegalArgumentException(
@@ -194,9 +236,14 @@ public class CacheSettings {
 
     /**
      * Compute absolute cache sizes from explicit percent values and a total budget.
-     * Returns {@code long[]{footerMetadataBytes, offsetIndexBytes, columnIndexBytes}}.
+     * Returns {@code long[]{footerMetadataBytes, offsetIndexBytes, columnIndexBytes, statisticsBytes}}.
      * Does NOT validate that percents sum to &lt;= 100 — call {@link #validatePercentSum} first.
      */
+    public static long[] computeCacheSizes(int metaPct, int oiPct, int ciPct, int statsPct, long totalBytes) {
+        return new long[] { totalBytes * metaPct / 100, totalBytes * oiPct / 100, totalBytes * ciPct / 100, totalBytes * statsPct / 100 };
+    }
+
+    // Keep 3-arg overload for backward compat
     public static long[] computeCacheSizes(int metaPct, int oiPct, int ciPct, long totalBytes) {
         return new long[] { totalBytes * metaPct / 100, totalBytes * oiPct / 100, totalBytes * ciPct / 100 };
     }
@@ -216,7 +263,8 @@ public class CacheSettings {
         METADATA_INDEX_CACHE_TOTAL_SIZE,
         FOOTER_METADATA_CACHE_PERCENT,
         OFFSET_INDEX_CACHE_PERCENT,
-        COLUMN_INDEX_CACHE_PERCENT
+        COLUMN_INDEX_CACHE_PERCENT,
+        STATISTICS_CACHE_PERCENT
     );
 
     // ── Helpers ──────────────────────────────────────────────────────────────
