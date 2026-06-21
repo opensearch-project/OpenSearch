@@ -40,6 +40,34 @@ use crate::registry::TieredStorageRegistry;
 use crate::types::{FileLocation, TieredFileEntry};
 
 // ---------------------------------------------------------------------------
+// MetadataCachingStore — extension trait
+// ---------------------------------------------------------------------------
+
+/// An [`ObjectStore`] that supports promoting reads into a sticky metadata tier
+/// (the never-evict Foyer SSD instance in production).
+///
+/// The default implementation is a no-op so callers can invoke `put_metadata`
+/// uniformly through any `Arc<dyn MetadataCachingStore>` without checking the
+/// concrete type. [`TieredObjectStore`] overrides it to actually route the
+/// bytes into the metadata cache; plain stores (e.g. `LocalFileSystem` in
+/// tests) just inherit the no-op.
+///
+/// Used by warmup paths (e.g. `analytics-backend-datafusion`'s
+/// `add_files_with_store`) that need to populate the metadata tier after
+/// fetching bytes through the store.
+pub trait MetadataCachingStore: ObjectStore {
+    /// Promote `data` ranges to the never-evict metadata tier.
+    ///
+    /// Default: no-op.
+    fn put_metadata(
+        &self,
+        _path: &str,
+        _ranges: &[std::ops::Range<u64>],
+        _data: &[Bytes],
+    ) {}
+}
+
+// ---------------------------------------------------------------------------
 // TieredObjectStore
 // ---------------------------------------------------------------------------
 
@@ -440,6 +468,16 @@ impl fmt::Debug for TieredObjectStore {
 impl fmt::Display for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TieredObjectStore(files={}, cache={})", self.registry.len(), self.cache.is_some())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MetadataCachingStore impl — delegates to the inherent put_metadata above.
+// ---------------------------------------------------------------------------
+
+impl MetadataCachingStore for TieredObjectStore {
+    fn put_metadata(&self, path: &str, ranges: &[std::ops::Range<u64>], data: &[Bytes]) {
+        TieredObjectStore::put_metadata(self, path, ranges, data);
     }
 }
 

@@ -899,7 +899,8 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
 ///
 /// # Safety
 /// - `runtime_ptr` must be a valid pointer from `df_create_global_runtime`.
-/// - `store_ptr` must be a valid `Box<Arc<dyn ObjectStore>>` pointer.
+/// - `store_ptr` must be a valid `Box<Arc<dyn MetadataCachingStore>>` pointer (produced by
+///   `ts_get_object_store_box_ptr`).
 /// - `files_ptr[i]` must point to `files_len_ptr[i]` valid UTF-8 bytes.
 #[ffm_safe]
 #[no_mangle]
@@ -923,7 +924,10 @@ pub unsafe extern "C" fn df_cache_manager_add_files_with_store(
         .as_ref()
         .ok_or_else(|| "df_cache_manager_add_files_with_store: no cache manager".to_string())?;
 
-    let store_box = &*(store_ptr as *const std::sync::Arc<dyn object_store::ObjectStore>);
+    // Pointer type is `Arc<dyn MetadataCachingStore>`; the manager calls `put_metadata`
+    // directly via the trait, no downcast needed.
+    let store_box = &*(store_ptr
+        as *const std::sync::Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>);
     let store = std::sync::Arc::clone(store_box);
 
     let mut file_paths = Vec::with_capacity(files_count as usize);
@@ -945,10 +949,10 @@ pub unsafe extern "C" fn df_cache_manager_add_files_with_store(
         .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?;
 
     // Log summary
-    let total_indexed: usize = results.iter().map(|(_, _, entries)| entries.len()).sum();
+    let success_count = results.iter().filter(|(_, ok)| *ok).count();
     native_bridge_common::log_info!(
-        "df_cache_manager_add_files_with_store: {} files, {} index ranges fetched",
-        files_count, total_indexed
+        "df_cache_manager_add_files_with_store: {} files, {} warmed (page-index promoted to metadata Foyer)",
+        files_count, success_count
     );
 
     Ok(0)
