@@ -1238,7 +1238,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             String newIndexName = indexPrefix + "2";
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
             assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-            
+
             Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
             IndexMetadata newIndexMeta = rolloverMetadata.index(newIndexName);
             assertNotNull(newIndexMeta.getIngestionStatus());

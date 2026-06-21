@@ -41,9 +41,9 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
@@ -121,7 +121,16 @@ public class MetadataRolloverService {
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
-        return rolloverClusterState(currentState, rolloverTarget, newIndexName, createIndexRequest, metConditions, silent, onlyValidate, null);
+        return rolloverClusterState(
+            currentState,
+            rolloverTarget,
+            newIndexName,
+            createIndexRequest,
+            metConditions,
+            silent,
+            onlyValidate,
+            null
+        );
     }
 
     public RolloverResult rolloverClusterState(
@@ -209,9 +218,7 @@ public class MetadataRolloverService {
         if (newIndexMetadata != null && shardOffsets != null && !shardOffsets.isEmpty()) {
             IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(newIndexMetadata)
                 .ingestionStatus(new IngestionStatus(false, shardOffsets));
-            newState = ClusterState.builder(newState)
-                .metadata(Metadata.builder(newState.metadata()).put(updatedMetadata))
-                .build();
+            newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedMetadata)).build();
         }
 
         // Ensure old index is marked as paused if it uses ingestion
@@ -220,9 +227,7 @@ public class MetadataRolloverService {
             if (oldIndexMetadata != null) {
                 IndexMetadata.Builder updatedOldMetadata = IndexMetadata.builder(oldIndexMetadata)
                     .ingestionStatus(new IngestionStatus(true));
-                newState = ClusterState.builder(newState)
-                    .metadata(Metadata.builder(newState.metadata()).put(updatedOldMetadata))
-                    .build();
+                newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedOldMetadata)).build();
             }
         }
 
@@ -279,9 +284,7 @@ public class MetadataRolloverService {
         if (newIndexMetadata != null && shardOffsets != null && !shardOffsets.isEmpty()) {
             IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(newIndexMetadata)
                 .ingestionStatus(new IngestionStatus(false, shardOffsets));
-            newState = ClusterState.builder(newState)
-                .metadata(Metadata.builder(newState.metadata()).put(updatedMetadata))
-                .build();
+            newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedMetadata)).build();
         }
 
         // Ensure old index is marked as paused if it uses ingestion
@@ -290,9 +293,7 @@ public class MetadataRolloverService {
             if (oldIndexMetadata != null) {
                 IndexMetadata.Builder updatedOldMetadata = IndexMetadata.builder(oldIndexMetadata)
                     .ingestionStatus(new IngestionStatus(true));
-                newState = ClusterState.builder(newState)
-                    .metadata(Metadata.builder(newState.metadata()).put(updatedOldMetadata))
-                    .build();
+                newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedOldMetadata)).build();
             }
         }
 

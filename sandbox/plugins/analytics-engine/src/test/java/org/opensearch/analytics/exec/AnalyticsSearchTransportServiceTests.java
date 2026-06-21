@@ -40,9 +40,11 @@ import org.mockito.ArgumentCaptor;
 import static java.util.Collections.singletonList;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -111,7 +113,11 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
             if (!isClosed(lastRoot)) {
                 lastRoot.close();
             }
-            verify(stream).close();
+            // Consumer threw mid-stream → abnormal exit → cancel() (not plain close()) so the data-node
+            // producer is notified and tears down its FlightServerChannel; close() alone would strand
+            // the producer's streamRoot in the allocator ledger.
+            verify(stream).cancel(anyString(), any());
+            verify(stream, never()).close();
         }
     }
 

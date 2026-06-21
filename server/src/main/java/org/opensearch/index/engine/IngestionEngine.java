@@ -125,12 +125,12 @@ public class IngestionEngine extends InternalEngine {
             && indexMetadata.getIngestionStatus().shardOffsets() != null
             && indexMetadata.getIngestionStatus().shardOffsets().containsKey(engineConfig.getShardId().getId())) {
 
-            String offsetStr = indexMetadata.getIngestionStatus().shardOffsets().get(engineConfig.getShardId().getId());
-            if (Strings.isNullOrEmpty(offsetStr) == false) {
-                startPointer = this.ingestionConsumerFactory.parsePointerFromString(offsetStr);
-                resetState = StreamPoller.ResetState.NONE;
+                String offsetStr = indexMetadata.getIngestionStatus().shardOffsets().get(engineConfig.getShardId().getId());
+                if (Strings.isNullOrEmpty(offsetStr) == false) {
+                    startPointer = this.ingestionConsumerFactory.parsePointerFromString(offsetStr);
+                    resetState = StreamPoller.ResetState.NONE;
+                }
             }
-        }
 
         if (forceResetPoller) {
             resetState = resetStateOverride;

@@ -37,6 +37,12 @@ import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
@@ -47,25 +53,19 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.MetadataStreamingIngestionStateService;
-import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateRequest;
-import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateResponse;
-import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
-import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
-import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
-import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.common.Strings;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataStreamingIngestionStateService;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -209,17 +209,20 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                     if (metadata.index(sourceIndexName).useIngestionSource()) {
                         // Ingestion-aware rollover path
                         // 1. Pause ingestion on the old write index
-                        UpdateIngestionStateRequest pauseRequest = new UpdateIngestionStateRequest(new String[]{sourceIndexName}, new int[0]);
+                        UpdateIngestionStateRequest pauseRequest = new UpdateIngestionStateRequest(
+                            new String[] { sourceIndexName },
+                            new int[0]
+                        );
                         pauseRequest.setIngestionPaused(true);
                         ingestionStateService.updateIngestionPollerState(
                             "pause-ingestion-before-rollover",
-                            new Index[]{metadata.index(sourceIndexName).getIndex()},
+                            new Index[] { metadata.index(sourceIndexName).getIndex() },
                             pauseRequest,
                             new ActionListener<>() {
                                 @Override
                                 public void onResponse(UpdateIngestionStateResponse pauseResponse) {
                                     // 2. Fetch the current ingestion offsets from shards
-                                    GetIngestionStateRequest getRequest = new GetIngestionStateRequest(new String[]{sourceIndexName});
+                                    GetIngestionStateRequest getRequest = new GetIngestionStateRequest(new String[] { sourceIndexName });
                                     client.execute(GetIngestionStateAction.INSTANCE, getRequest, new ActionListener<>() {
                                         @Override
                                         public void onResponse(GetIngestionStateResponse getResponse) {
@@ -232,25 +235,52 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                                                 }
                                             }
                                             // 3. Submit rollover cluster state update task with offsets
-                                            executeRollover(task, rolloverRequest, state, metConditions, sourceIndexName, rolloverIndexName, conditionResults, shardOffsets, listener);
+                                            executeRollover(
+                                                task,
+                                                rolloverRequest,
+                                                state,
+                                                metConditions,
+                                                sourceIndexName,
+                                                rolloverIndexName,
+                                                conditionResults,
+                                                shardOffsets,
+                                                listener
+                                            );
                                         }
 
                                         @Override
                                         public void onFailure(Exception e) {
-                                            listener.onFailure(new OpenSearchException("Failed to retrieve ingestion pointers from old index shards before rollover", e));
+                                            listener.onFailure(
+                                                new OpenSearchException(
+                                                    "Failed to retrieve ingestion pointers from old index shards before rollover",
+                                                    e
+                                                )
+                                            );
                                         }
                                     });
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    listener.onFailure(new OpenSearchException("Failed to pause ingestion on old index before rollover", e));
+                                    listener.onFailure(
+                                        new OpenSearchException("Failed to pause ingestion on old index before rollover", e)
+                                    );
                                 }
                             }
                         );
                     } else {
                         // Standard rollover without ingestion
-                        executeRollover(task, rolloverRequest, state, metConditions, sourceIndexName, rolloverIndexName, conditionResults, null, listener);
+                        executeRollover(
+                            task,
+                            rolloverRequest,
+                            state,
+                            metConditions,
+                            sourceIndexName,
+                            rolloverIndexName,
+                            conditionResults,
+                            null,
+                            listener
+                        );
                     }
                 } else {
                     // conditions not met

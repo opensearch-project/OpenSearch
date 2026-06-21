@@ -39,6 +39,9 @@ import java.util.List;
  * {@code QueryPhaseResultConsumer} for coordinator-reduce in the core
  * search path.
  */
+// TODO: refactor this push-based flow — it's brittle with multiple failure points (feed racing
+// close, partial buffering on early exit). Revisit the locking as part of that (e.g. tryLock with
+// timeout); the current single-monitor synchronization is correct but worth reconsidering then.
 public class RowProducingSink implements ExchangeSink, ExchangeSource {
 
     /**
@@ -54,6 +57,8 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
     private final List<String> fieldNames = new ArrayList<>();
     private final long maxRows;
     private long totalRows;
+    /** Set by {@link #close}; a {@link #feed} after this frees the batch instead of buffering it. */
+    private boolean closed;
 
     /**
      * Creates a sink with the default row limit.
@@ -71,6 +76,11 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
 
     @Override
     public synchronized void feed(VectorSchemaRoot batch) {
+        // Feed racing close(): buffering now would strand the batch, so free it here instead.
+        if (closed) {
+            batch.close();
+            return;
+        }
         if (fieldNames.isEmpty() && batch.getSchema().getFields().isEmpty() == false) {
             for (Field f : batch.getSchema().getFields()) {
                 fieldNames.add(f.getName());
@@ -93,6 +103,7 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
      */
     @Override
     public synchronized void close() {
+        closed = true;
         for (VectorSchemaRoot batch : batches) {
             batch.close();
         }

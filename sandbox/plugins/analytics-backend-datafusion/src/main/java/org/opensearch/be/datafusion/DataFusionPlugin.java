@@ -34,15 +34,20 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
@@ -52,6 +57,7 @@ import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -90,7 +96,8 @@ public class DataFusionPlugin extends Plugin
         SearchBackEndPlugin<DatafusionReader>,
         AnalyticsSearchBackendPlugin,
         ActionPlugin,
-        CircuitBreakerPlugin {
+        CircuitBreakerPlugin,
+        DocumentLookupProvider {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -368,6 +375,8 @@ public class DataFusionPlugin extends Plugin
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
+    // DocumentLookupProvider implementation. Construction deferred until the DataFusion service is live.
+    private volatile GetService getService;
     private volatile CircuitBreaker datafusionBreaker;
 
     /**
@@ -439,6 +448,10 @@ public class DataFusionPlugin extends Plugin
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+
+        // Build the get-by-id service now that the DataFusion runtime is live. The
+        // DocumentMetadataResolver is supplied per-call by the engine, so it is not needed here.
+        this.getService = new GetService(this);
 
         // Wire the dynamic spill limit setting to the native runtime so updates via the
         // cluster settings API take effect without restarting the node.
@@ -812,6 +825,9 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public void close() throws IOException {
+        if (getService != null) {
+            getService.close();
+        }
         if (dataFusionService != null) {
             dataFusionService.close();
         }
@@ -838,5 +854,49 @@ public class DataFusionPlugin extends Plugin
             logger.debug("getTopQueriesByMemory: {} entries from native registry", result.size());
         }
         return result;
+    }
+
+    /**
+     * Get-by-id entry point. Delegates to {@link GetService}, which fetches the row through the native runtime.
+     */
+    @Override
+    public DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader, Index index, DocumentMetadataResolver resolver)
+        throws IOException {
+        GetService getService = getServiceOrThrow();
+        return getService.documentLookupService(resolver).getById(get.id(), reader, index);
+    }
+
+    @Override
+    public DocumentLookupResult getVersionMetadata(
+        String id,
+        IndexReaderProvider.Reader reader,
+        Index index,
+        DocumentMetadataResolver resolver
+    ) throws IOException {
+        GetService svc = getServiceOrThrow();
+        return svc.documentLookupService(resolver).getVersionMetadata(id, reader, index);
+    }
+
+    @Override
+    public List<DocumentLookupResult> getDocsAboveSeqNo(
+        long fromSeqNoExclusive,
+        IndexReaderProvider.Reader reader,
+        Index index,
+        DocumentMetadataResolver resolver
+    ) throws IOException {
+        GetService svc = getService;
+        if (svc == null) return List.of();
+        return svc.documentLookupService(resolver).getDocsAboveSeqNo(fromSeqNoExclusive, reader, index);
+    }
+
+    /**
+     * Returns the {@link GetService} , throwing IllegalStateException if not initialized.
+     */
+    private GetService getServiceOrThrow() {
+        GetService svc = getService;
+        if (svc == null) {
+            throw new IllegalStateException("GetService is not initialized. ");
+        }
+        return svc;
     }
 }

@@ -36,9 +36,7 @@ public record IngestionStatus(boolean isPaused, Map<Integer, String> shardOffset
     public IngestionStatus(StreamInput in) throws IOException {
         this(
             in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_3_8_0)
-                ? in.readMap(StreamInput::readVInt, StreamInput::readString)
-                : Map.of()
+            in.getVersion().onOrAfter(Version.V_3_8_0) ? in.readMap(StreamInput::readVInt, StreamInput::readString) : Map.of()
         );
     }
 
