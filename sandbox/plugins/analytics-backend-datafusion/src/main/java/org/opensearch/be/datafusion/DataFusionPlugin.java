@@ -49,7 +49,6 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.indices.breaker.BreakerSettings;
-import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
 import org.opensearch.nativebridge.spi.RustLoggerBridge;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
@@ -72,10 +71,12 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -100,6 +101,67 @@ public class DataFusionPlugin extends Plugin
         DocumentLookupProvider {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
+
+    /** Fraction of the spill volume's total capacity used as the default cap. */
+    static final double SPILL_LIMIT_FRACTION = 0.80;
+
+    /** Fallback when the spill volume's capacity cannot be probed. 8 GiB. */
+    static final long SPILL_LIMIT_FALLBACK_BYTES = 8L * 1024 * 1024 * 1024;
+
+    /**
+     * Validates {@link #DATAFUSION_SPILL_MEMORY_LIMIT} against {@link #DATAFUSION_SPILL_DIRECTORY}:
+     * <ul>
+     *   <li>If spill is disabled (empty directory), only {@code 0} is accepted.</li>
+     *   <li>If spill is enabled, the value must not exceed the spill volume's total capacity
+     *       (probed live via {@link FileStore#getTotalSpace()}).</li>
+     * </ul>
+     * Probes the filesystem on each validate call. Cluster-settings updates are infrequent and
+     * the probe is a single syscall (~µs), so caching is not worth the bookkeeping cost.
+     * If the probe fails ({@link IOException}) the capacity check is skipped — operators retain
+     * the ability to set the cap; only the safety-net validation is disabled.
+     */
+    static final class SpillLimitValidator implements Setting.Validator<Long> {
+        @Override
+        public void validate(Long value) {
+            // Range check (>= 0) lives in the parser; nothing to do here without dependencies.
+        }
+
+        @Override
+        public void validate(Long value, Map<Setting<?>, Object> dependencies) {
+            String dir = (String) dependencies.get(DATAFUSION_SPILL_DIRECTORY);
+            if (dir == null) {
+                dir = "";
+            }
+            if (dir.isEmpty()) {
+                if (value != 0L) {
+                    throw new IllegalArgumentException(
+                        "Setting [datafusion.spill_memory_limit_bytes]="
+                            + value
+                            + " is non-zero but datafusion.spill_directory is unset (spill disabled)"
+                    );
+                }
+                return;
+            }
+            long total;
+            try {
+                total = Environment.getFileStore(Path.of(dir)).getTotalSpace();
+            } catch (IOException e) {
+                // Probe failed — skip the capacity check. Same fail-open behavior as the
+                // boot-time default derivation.
+                return;
+            }
+            if (total > 0 && value > total) {
+                throw new IllegalArgumentException(
+                    "Setting [datafusion.spill_memory_limit_bytes]=" + value + " exceeds spill volume capacity (" + total + " bytes)"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(DATAFUSION_SPILL_DIRECTORY).iterator();
+        }
+    }
 
     /**
      * Memory pool limit for the DataFusion runtime.
@@ -155,42 +217,6 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
-     * Disk-staging budget for DataFusion spill. When in-memory operations (HashAggregate, Sort,
-     * TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}, DataFusion writes working state to disk;
-     * this setting caps how much disk space that staging can consume.
-     *
-     * <p><strong>Default: 50% of physical RAM.</strong> Spill is a disk budget, not a memory budget,
-     * so it is intentionally <em>not</em> derived from {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}
-     * — the operator-declared off-heap budget bounds working memory, but the spill ceiling needs
-     * to scale with how much state could plausibly need to spill across all concurrent queries,
-     * which tracks physical RAM rather than the off-heap carve-out. 50% is a conservative upper
-     * bound that leaves room for page cache, JVM heap, and OS overhead.
-     *
-     * <p>Falls back to {@link Long#MAX_VALUE} when {@link OsProbe#getTotalPhysicalMemorySize()}
-     * returns 0 (containerized environments where {@code /proc/meminfo} is restricted), preserving
-     * pre-AC unbounded behaviour.
-     *
-     * <p>Dynamic only when the loaded native library exports {@code df_set_spill_limit}
-     * (see {@link org.opensearch.be.datafusion.nativelib.NativeBridge#isSpillLimitDynamic()}).
-     * When the symbol is absent the setting can still be updated at the cluster level,
-     * but the new value only takes effect after a node restart — the live update consumer
-     * logs a warning in that case.
-     */
-    public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = new Setting<>(
-        "datafusion.spill_memory_limit_bytes",
-        s -> deriveSpillLimitDefault(),
-        s -> {
-            long v = Long.parseLong(s);
-            if (v < 0) {
-                throw new IllegalArgumentException("Setting [datafusion.spill_memory_limit_bytes] must be >= 0, got " + v);
-            }
-            return v;
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Spill directory used by DataFusion's {@code DiskManager} for intermediate state when
      * operators (HashAggregate, Sort, TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}.
      *
@@ -202,6 +228,10 @@ public class DataFusionPlugin extends Plugin
      *
      * <p>{@code Final} because DataFusion's {@code DiskManager} is built once at runtime
      * startup; changing the directory mid-flight would orphan in-progress spill files.
+     *
+     * <p>Declared before {@link #DATAFUSION_SPILL_MEMORY_LIMIT} because the {@code Setting}
+     * constructor evaluates the default-value supplier eagerly (under {@code -ea}); the
+     * spill-limit default reads this setting, so it must be initialized first.
      */
     public static final Setting<String> DATAFUSION_SPILL_DIRECTORY = new Setting<>(
         "datafusion.spill_directory",
@@ -210,6 +240,42 @@ public class DataFusionPlugin extends Plugin
         DataFusionPlugin::validateSpillDirectory,
         Setting.Property.NodeScope,
         Setting.Property.Final
+    );
+
+    /**
+     * Disk-staging budget for DataFusion spill. When in-memory operations (HashAggregate, Sort,
+     * TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}, DataFusion writes working state to disk;
+     * this setting caps how much disk space that staging can consume.
+     *
+     * <p><strong>Default: 80% of the spill volume's total disk capacity.</strong> Spill is a disk
+     * budget, not a memory budget, so the default is derived from the disk volume itself rather
+     * than from physical RAM or the off-heap carve-out. This sizes correctly on both supported
+     * deployment patterns: a dedicated EBS volume mounted at the spill directory, or the spill
+     * directory on the same disk as the OpenSearch process.
+     *
+     * <p>When {@link #DATAFUSION_SPILL_DIRECTORY} is unset (empty), returns {@code 0} — spill is
+     * disabled and the cap is irrelevant. Falls back to {@link #SPILL_LIMIT_FALLBACK_BYTES}
+     * (8 GiB) when the spill volume cannot be probed.
+     *
+     * <p>Dynamic only when the loaded native library exports {@code df_set_spill_limit}
+     * (see {@link org.opensearch.be.datafusion.nativelib.NativeBridge#isSpillLimitDynamic()}).
+     * When the symbol is absent the setting can still be updated at the cluster level,
+     * but the new value only takes effect after a node restart — the live update consumer
+     * logs a warning in that case.
+     */
+    public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = new Setting<>(
+        new Setting.SimpleKey("datafusion.spill_memory_limit_bytes"),
+        DataFusionPlugin::deriveSpillLimitDefault,
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [datafusion.spill_memory_limit_bytes] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        new SpillLimitValidator(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -234,20 +300,36 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
-     * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT} as 50% of physical RAM.
-     * Returns the bytes-as-string representation expected by the {@link Setting} parser.
+     * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT}.
      *
-     * <p>Falls back to {@link Long#MAX_VALUE} when the OS probe cannot read total physical memory
-     * (returns 0 or negative), which happens in some containerized environments. Preserving the
-     * unbounded fallback matches the pattern used by {@link #DATAFUSION_MEMORY_POOL_LIMIT} and
-     * {@code ArrowBasePlugin}'s pool-max defaults when AC is unconfigured.
+     * <ul>
+     *   <li>When {@link #DATAFUSION_SPILL_DIRECTORY} is unset (empty), returns {@code "0"} —
+     *       spill is disabled and the cap is irrelevant.</li>
+     *   <li>When set, returns {@link #SPILL_LIMIT_FRACTION} of the spill volume's
+     *       {@link FileStore#getTotalSpace() total space}.</li>
+     *   <li>When the file store cannot be probed (transient FS hiccup after boot probe),
+     *       returns {@link #SPILL_LIMIT_FALLBACK_BYTES} — a conservative 8 GiB.</li>
+     * </ul>
+     *
+     * <p>Spill is a disk budget, so the default is derived from the disk volume itself
+     * rather than from physical RAM. This sizes correctly on both supported deployment
+     * patterns: a dedicated EBS volume mounted at the spill directory, or the spill
+     * directory on the same disk as the OpenSearch process.
      */
-    static String deriveSpillLimitDefault() {
-        long totalRam = OsProbe.getInstance().getTotalPhysicalMemorySize();
-        if (totalRam <= 0) {
-            return Long.toString(Long.MAX_VALUE);
+    static String deriveSpillLimitDefault(Settings settings) {
+        String dir = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        if (dir == null || dir.isEmpty()) {
+            return "0";
         }
-        return Long.toString(totalRam / 2);
+        try {
+            long total = Environment.getFileStore(Path.of(dir)).getTotalSpace();
+            if (total <= 0) {
+                return Long.toString(SPILL_LIMIT_FALLBACK_BYTES);
+            }
+            return Long.toString((long) (total * SPILL_LIMIT_FRACTION));
+        } catch (IOException e) {
+            return Long.toString(SPILL_LIMIT_FALLBACK_BYTES);
+        }
     }
 
     /**
