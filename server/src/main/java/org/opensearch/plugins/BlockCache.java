@@ -110,4 +110,17 @@ public interface BlockCache extends Closeable {
      * @return {@code true} if the cache was cleared successfully, {@code false} on failure
      */
     boolean clear();
+
+    /**
+     * Returns optional per-tier stats for tiered caches (e.g. separate data and metadata caches).
+     *
+     * <p>The default implementation returns {@code null}, indicating a single-tier cache.
+     * Tiered implementations override to provide a breakdown that gets rendered as
+     * {@code data_cache_stats} and {@code metadata_cache_stats} in the REST response.
+     *
+     * @return tiered stats breakdown, or {@code null} if not applicable
+     */
+    default BlockCacheTieredStats tieredStats() {
+        return null;
+    }
 }
