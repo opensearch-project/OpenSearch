@@ -60,6 +60,7 @@ import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
+import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
@@ -577,6 +578,10 @@ public class Node implements Closeable {
             );
 
             final Settings settings = pluginsService.updatedSettings();
+
+            if (BootstrapSettings.SERIAL_FILTER_SETTING.get(settings)) {
+                BootstrapSettings.initializeSerialFilter();
+            }
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));

@@ -36,6 +36,7 @@ import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
@@ -43,6 +44,7 @@ import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.DummyShardLock;
@@ -69,6 +71,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -843,5 +846,139 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
         // Empty input should also work
         assertTrue("onInit with empty list should return empty", policy.onInit(List.of()).isEmpty());
         assertTrue("onCommit with empty list should return empty", policy.onCommit(List.of()).isEmpty());
+    }
+
+    // ---------- getById Tests ----------
+
+    private Engine.Get realtimeGet(String id) {
+        return new Engine.Get(true, true, id, new org.apache.lucene.index.Term("_id", org.opensearch.index.mapper.Uid.encodeId(id)));
+    }
+
+    private DataFormatAwareReadOnlyEngine createReadOnlyEngineWithProvider(org.opensearch.plugins.DocumentLookupProvider provider)
+        throws IOException {
+        String translogUUID = UUID.randomUUID().toString();
+        String historyUUID = UUID.randomUUID().toString();
+        bootstrapStoreWithMetadata(store, translogUUID, historyUUID);
+        Path translogPath = createTempDir().resolve("translog");
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            warmIndexSettings(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        DataFormatRegistry registry = createMockRegistry();
+        CommitterFactory committerFactory = config -> new InMemoryCommitter(store) {
+            @Override
+            public List<CatalogSnapshot> listCommittedSnapshots() {
+                Map<String, String> userData = new HashMap<>();
+                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+                userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+                userData.put(Translog.TRANSLOG_UUID_KEY, UUID.randomUUID().toString());
+                userData.put(Engine.HISTORY_UUID_KEY, UUID.randomUUID().toString());
+                DataformatAwareCatalogSnapshot snapshot = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+                    0L,
+                    0L,
+                    0L,
+                    List.of(new Segment(1L, Map.of())),
+                    -1L,
+                    userData
+                );
+                snapshot.setLastCommitInfo("segments_1", 1L, 0L);
+                return List.of(snapshot);
+            }
+        };
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(warmIndexSettings())
+            .store(store)
+            .mergePolicy(org.apache.lucene.index.NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(committerFactory)
+            .readOnlyReplica(false)
+            .build();
+        return new DataFormatAwareReadOnlyEngine(config, provider);
+    }
+
+    /** Calls the new getById(Engine.Get, searcherFactory) and unwraps the pre-materialized lookup.
+     *  DFA engines ignore the searcher factory, so a no-op factory is supplied. */
+    private static DocumentLookupResult getByIdLookup(DataFormatAwareReadOnlyEngine engine, Engine.Get get) throws IOException {
+        Engine.GetResult result = engine.getById(get, (source, scope) -> null);
+        return result.exists() ? ((DocumentLookupResult.PreMaterialized) result).lookup() : DocumentLookupResult.notFound(get.id());
+    }
+
+    public void testGetByIdThrowsWhenNoProvider() throws IOException {
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            Engine.Get get = realtimeGet("1");
+            expectThrows(UnsupportedOperationException.class, () -> getByIdLookup(engine, get));
+        }
+    }
+
+    public void testGetByIdReturnsNotFoundOnEmptyCatalog() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        String translogUUID = UUID.randomUUID().toString();
+        String historyUUID = UUID.randomUUID().toString();
+        bootstrapStoreWithMetadata(store, translogUUID, historyUUID);
+        EngineConfig config = buildConfig(store, warmIndexSettings(), null);
+        try (DataFormatAwareReadOnlyEngine engine = new DataFormatAwareReadOnlyEngine(config, provider)) {
+            Engine.Get get = realtimeGet("1");
+            DocumentLookupResult result = getByIdLookup(engine, get);
+            assertFalse("should return not found when catalog has no segments", result.exists());
+        }
+    }
+
+    public void testGetByIdReturnsDocWhenNoConflict() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
+            Engine.Get get = realtimeGet("1");
+            DocumentLookupResult result = getByIdLookup(engine, get);
+            assertTrue("doc should be found", result.exists());
+            assertEquals(1L, result.version());
+        }
+    }
+
+    public void testGetByIdThrowsVersionConflictForReads() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 5L, true, null, 0L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
+            Engine.Get get = realtimeGet("1").version(3L).versionType(org.opensearch.index.VersionType.EXTERNAL);
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));
+        }
+    }
+
+    public void testGetByIdThrowsOnSeqNoMismatch() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 1L, true, null, 5L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
+            Engine.Get get = realtimeGet("1").setIfSeqNo(99L).setIfPrimaryTerm(1L);
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));
+        }
+    }
+
+    public void testGetByIdThrowsOnPrimaryTermMismatch() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 1L, true, null, 5L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
+            Engine.Get get = realtimeGet("1").setIfSeqNo(5L).setIfPrimaryTerm(99L);
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));
+        }
     }
 }

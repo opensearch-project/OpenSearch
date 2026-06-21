@@ -105,6 +105,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                     future.completeExceptionally(FlightErrorMapper.fromFlightException(e));
                 } catch (Exception e) {
                     future.completeExceptionally(new StreamException(StreamErrorCode.INTERNAL, "Stream open/prefetch failed", e));
+                } finally {
+                    // If close() ran while we were opening/prefetching, it may have missed the stream
+                    // we just published. Re-close here so the prefetched first-batch root is released
+                    // (FlightStream.close() is idempotent).
+                    if (closed) {
+                        closeStreamQuietly();
+                    }
                 }
             });
         }
@@ -187,11 +194,18 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     @Override
     public void close() {
         if (closed) return;
+        // Set closed=true before closing so a prefetch still in flight re-checks it and self-closes
+        // the stream it publishes (covers close() racing ahead of flightStream being set).
         closed = true;
+        closeStreamQuietly();
+    }
 
-        if (flightStream != null) {
+    /** Closes the flight stream if present, swallowing the benign already-closed error. Idempotent. */
+    private void closeStreamQuietly() {
+        FlightStream stream = flightStream;
+        if (stream != null) {
             try {
-                flightStream.close();
+                stream.close();
             } catch (IllegalStateException ignore) {} catch (Exception e) {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error closing flight stream", e);
             }

@@ -248,15 +248,17 @@ public final class NativeBridge {
         EXECUTE_QUERY = linker.downcallHandle(
             lib.find("df_execute_query").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,   // returns stream_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // table_name_ptr
+                ValueLayout.JAVA_LONG,   // table_name_len
+                ValueLayout.ADDRESS,     // plan_ptr
+                ValueLayout.JAVA_LONG,   // plan_len
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // context_id
+                ValueLayout.JAVA_LONG,   // query_config_ptr
+                ValueLayout.JAVA_LONG,   // internal_search_mode
+                ValueLayout.JAVA_LONG    // internal_search_bound
             )
         );
 
@@ -901,6 +903,13 @@ public final class NativeBridge {
 
     // ---- Query execution (confined Arena for tableName + plan bytes) ----
 
+    /** {@code internal_search_mode}: normal query — decode {@code substraitPlan} as Substrait. */
+    public static final long INTERNAL_SEARCH_OFF = 0L;
+    /** {@code internal_search_mode}: get-by-row-id — native plan filters {@code __row_id__ = bound}, {@code substraitPlan} ignored. */
+    public static final long INTERNAL_SEARCH_BY_ROW_ID = 1L;
+    /** {@code internal_search_mode}: seq-no scan — native plan filters {@code _seq_no > bound}, {@code substraitPlan} ignored. */
+    public static final long INTERNAL_SEARCH_SEQ_NO_ABOVE = 2L;
+
     public static void executeQueryAsync(
         long readerPtr,
         String tableName,
@@ -908,6 +917,30 @@ public final class NativeBridge {
         long runtimePtr,
         long contextId,
         long queryConfigPtr,
+        ActionListener<Long> listener
+    ) {
+        executeQueryAsync(readerPtr, tableName, substraitPlan, runtimePtr, contextId, queryConfigPtr, INTERNAL_SEARCH_OFF, 0L, listener);
+    }
+
+    /**
+     * Executes a query and returns an opaque stream pointer via {@code listener}.
+     * <p>
+     * When {@code internalSearchMode} is {@link #INTERNAL_SEARCH_OFF}, {@code substraitPlan} is
+     * decoded as a Substrait plan (normal search). When it is {@link #INTERNAL_SEARCH_BY_ROW_ID}
+     * or {@link #INTERNAL_SEARCH_SEQ_NO_ABOVE}, the native side ignores {@code substraitPlan} and
+     * builds a single pushed-down filter plan via the DataFusion DataFrame API, using
+     * {@code internalSearchBound} as the {@code __row_id__} value or the {@code _seq_no} floor.
+     * The returned stream is drained identically in all modes.
+     */
+    public static void executeQueryAsync(
+        long readerPtr,
+        String tableName,
+        byte[] substraitPlan,
+        long runtimePtr,
+        long contextId,
+        long queryConfigPtr,
+        long internalSearchMode,
+        long internalSearchBound,
         ActionListener<Long> listener
     ) {
         try {
@@ -928,7 +961,9 @@ public final class NativeBridge {
                 (long) substraitPlan.length,
                 runtimePtr,
                 contextId,
-                queryConfigPtr
+                queryConfigPtr,
+                internalSearchMode,
+                internalSearchBound
             );
             listener.onResponse(result);
         } catch (Throwable t) {

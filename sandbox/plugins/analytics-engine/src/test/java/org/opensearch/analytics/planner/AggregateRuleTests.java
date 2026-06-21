@@ -103,8 +103,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             }
         };
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(noAggFunctions));
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(makeAggregate(sumCall()), context));
-        assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
+        UnsupportedFunctionException exception = expectThrows(
+            UnsupportedFunctionException.class,
+            () -> runPlanner(makeAggregate(sumCall()), context)
+        );
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     public void testAggregateViableBackendsIntersection() {
@@ -270,11 +273,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             // No acceptedDelegations() override → delegation is refused.
         };
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(dfNoSum, luceneWithSum));
-        IllegalStateException exception = expectThrows(
-            IllegalStateException.class,
+        UnsupportedFunctionException exception = expectThrows(
+            UnsupportedFunctionException.class,
             () -> runPlanner(makeMultiCallAggregate(sumCall(), stddevCall()), context)
         );
-        assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     // ---- Helpers ----

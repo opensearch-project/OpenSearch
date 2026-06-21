@@ -967,7 +967,9 @@ mod tests {
         }
 
         let global = make_global_pool(10_000);
-        let ctx_id = 70_001;
+        // Unique id: the QUERY_REGISTRY is process-wide and tests run in parallel, so this must not
+        // collide with any other test's id (70_001 collides with test_top_n_picks_highest_current_bytes).
+        let ctx_id = 80_001;
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         // Build a dedicated executor with its own tokio runtime.
