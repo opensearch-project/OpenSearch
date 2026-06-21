@@ -19,6 +19,7 @@ import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
+import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -170,7 +171,8 @@ public class DataFusionPlugin extends Plugin
      * ({@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}), which is
      * the same off-heap budget admission control throttles against. The DataFusion Rust
      * runtime is the dominant native-memory consumer for analytics workloads (see PR #21732
-     * partitioning model), so the default takes 74% of {@code node.native_memory.limit}.
+     * partitioning model), so the default takes 71% of {@code node.native_memory.limit}
+     * (reduced from 74% to fund the 3% parquet cache budget).
      * If the AC limit is unset (== 0), the default is {@link Long#MAX_VALUE} — unbounded — to
      * preserve pre-AC behaviour rather than make up a number from JVM heap (which is a
      * separate, already-allocated region with no relation to native-memory sizing).
@@ -193,9 +195,15 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
-     * Computes the default for {@link #DATAFUSION_MEMORY_POOL_LIMIT} as 74% of
+     * Computes the default for {@link #DATAFUSION_MEMORY_POOL_LIMIT} as 71% of
      * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}, falling back to
      * {@link Long#MAX_VALUE} when AC is unconfigured.
+     *
+     * <p>Reduced from 74% to 71%: 3% of {@code node.native_memory.limit} is now reserved for
+     * the DataFusion parquet caches (footer metadata, ColumnIndex, OffsetIndex). That 3% is
+     * funded by 2% from the operator pool and 1% from the unmanaged headroom (which expanded
+     * from 21% to 20% of off-heap via the 79→80% change to
+     * {@code ResourceTrackerSettings.deriveNativeMemoryLimitDefault}).
      *
      * <p>The fraction is taken straight from {@code node.native_memory.limit}, not from
      * {@code limit - buffer_percent}. {@code buffer_percent} is an admission-control throttle
@@ -209,10 +217,10 @@ public class DataFusionPlugin extends Plugin
         if (nativeLimit.getBytes() <= 0) {
             return Long.toString(Long.MAX_VALUE);
         }
-        // 74% of node.native_memory.limit. DataFusion is the dominant native consumer for
+        // 71% of node.native_memory.limit. DataFusion is the dominant native consumer for
         // analytics workloads; operators tune via the dynamic setting once they characterize
         // their workload.
-        long pool = Math.max(0L, nativeLimit.getBytes() * 74 / 100);
+        long pool = Math.max(0L, nativeLimit.getBytes() * 71 / 100);
         return Long.toString(pool);
     }
 
@@ -554,6 +562,33 @@ public class DataFusionPlugin extends Plugin
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
+        // Recompute and push absolute cache limits whenever the total budget or any
+        // sub-cache percentage changes. Validates that percentages sum to 100 first.
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.STATISTICS_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
         clusterService.getClusterSettings()
@@ -805,6 +840,38 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
+     * Recompute absolute ColumnIndex and OffsetIndex cache limits from the current
+     * {@link CacheSettings#METADATA_INDEX_CACHE_TOTAL_SIZE} and percent settings, then push them
+     * to native. Validates that percentages sum to 100 before applying.
+     */
+    private void recomputePageCacheLimits(org.opensearch.common.settings.ClusterSettings cs) {
+        long total = cs.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE).getBytes();
+        int metaPct = cs.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
+        int oiPct = cs.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
+        int ciPct = cs.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        int statsPct = cs.get(CacheSettings.STATISTICS_CACHE_PERCENT);
+        CacheSettings.validatePercentSum(metaPct, oiPct, ciPct, statsPct);
+        long metaLimit = total * metaPct / 100;
+        long ciLimit = total * ciPct / 100;
+        long oiLimit = total * oiPct / 100;
+        long statsLimit = total * statsPct / 100;
+        logger.info(
+            "Updating cache limits: footer_metadata={} bytes (node restart required), "
+                + "column_index={} bytes, offset_index={} bytes, statistics={} bytes (node restart required)",
+            metaLimit,
+            ciLimit,
+            oiLimit,
+            statsLimit
+        );
+        // CI and OI limits take effect immediately via FFI.
+        // Footer metadata and statistics cache limits require a node restart
+        // (no runtime FFI to update the Java-side DefaultFilesMetadataCache limits).
+        // TODO: add df_update_metadata_cache_limit FFI to make them dynamic.
+        NativeBridge.setColumnIndexCacheLimit(ciLimit);
+        NativeBridge.setOffsetIndexCacheLimit(oiLimit);
+    }
+
+    /**
      * Pushes the four memory-guard thresholds to the native pool. Reads each value from the
      * `updated` Settings supplied by the grouped settings-update consumer — which the framework
      * builds from the cycle's new settings — rather than re-reading via
@@ -881,7 +948,13 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class));
+        return List.of(
+            new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class),
+            new ActionHandler<>(
+                org.opensearch.be.datafusion.action.stats.ClearCacheActionType.INSTANCE,
+                org.opensearch.be.datafusion.action.stats.TransportClearCacheAction.class
+            )
+        );
     }
 
     @Override
@@ -897,7 +970,7 @@ public class DataFusionPlugin extends Plugin
         if (dataFusionService == null) {
             return Collections.emptyList();
         }
-        return List.of(new RestDataFusionStatsAction());
+        return List.of(new RestDataFusionStatsAction(), new org.opensearch.be.datafusion.action.stats.RestClearCacheAction());
     }
 
     @Override
