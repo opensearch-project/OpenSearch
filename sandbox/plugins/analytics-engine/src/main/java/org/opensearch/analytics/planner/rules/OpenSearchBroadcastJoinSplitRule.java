@@ -86,11 +86,13 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
         }
         OpenSearchJoin join = call.rel(0);
         JoinInfo info = join.analyzeCondition();
-        // isEqui() returns true for `condition=true` (cross / 1=1) too, since the test is
-        // "no non-equi conditions". For broadcast we additionally need at least one equi key
-        // — pure cross joins must route through the coord-centric path so the build-side
-        // doesn't carry no-key broadcast data the probe Substrait can't consume.
-        if (!info.isEqui() || info.leftKeys.isEmpty()) {
+        // Require at least one EQUI key, but do NOT require info.isEqui(): a join may carry equi keys
+        // AND a residual non-equi predicate (e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate
+        // BETWEEN …). emitBroadcastAlternative copies the FULL join condition (equi + residual) onto
+        // the worker join, so the probe-side HashJoinExec applies the residual as a join filter after
+        // the equi match. A PURE-theta / cross join (no equi key) still bails (empty leftKeys) and
+        // routes coord-centric, matching the existing policy that pure-theta joins are not broadcast.
+        if (info.leftKeys.isEmpty()) {
             return false;
         }
         // Refuse to fire on already-resolved alternatives. Both inputs must be vanilla

@@ -117,7 +117,8 @@ public final class HashShuffleDispatch {
         Stage rightProducer,
         Stage consumer,
         java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
+        ActionListener<Iterable<VectorSchemaRoot>> terminal,
+        boolean preferMetadataDriver
     ) {
         assert leftProducer.getRole() == Stage.StageRole.SHUFFLE_SCAN_LEFT
             : "HashShuffleDispatch: leftProducer role must be SHUFFLE_SCAN_LEFT";
@@ -161,7 +162,8 @@ public final class HashShuffleDispatch {
             leftProducer,
             rightProducer,
             targetWorkerNodeIds,
-            capabilityRegistry
+            capabilityRegistry,
+            preferMetadataDriver
         );
         Stage workerStage = rewritten.worker();
 

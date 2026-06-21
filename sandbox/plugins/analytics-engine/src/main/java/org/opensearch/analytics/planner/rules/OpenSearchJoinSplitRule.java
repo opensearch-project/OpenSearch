@@ -106,11 +106,13 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
             return false;
         }
         JoinInfo info = join.analyzeCondition();
-        // isEqui() returns true for `condition=true` (cross / 1=1) too, since the test is
-        // "no non-equi conditions". The MPP rules now also require non-empty leftKeys, so
-        // mirror that: if there are no equi keys, neither MPP rule can fire and coord must
-        // stay enabled or Volcano can't plan.
-        if (!info.isEqui() || info.leftKeys.isEmpty()) {
+        // Mirror the MPP rules' eligibility EXACTLY: they require at least one equi key (non-empty
+        // leftKeys) but tolerate a residual non-equi predicate (they no longer require info.isEqui()
+        // — e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate BETWEEN …). So coord suppresses itself
+        // whenever there is ≥1 equi key (then a broadcast/hash alternative will be produced). With NO
+        // equi key (pure theta / cross), neither MPP rule fires, so coord must stay enabled or Volcano
+        // can't satisfy the root SINGLETON demand.
+        if (info.leftKeys.isEmpty()) {
             return false;
         }
         // Both MPP rules need multi-shard SHARD scans on both sides. Single-shard or non-

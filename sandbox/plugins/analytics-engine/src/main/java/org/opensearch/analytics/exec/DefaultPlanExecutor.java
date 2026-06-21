@@ -787,7 +787,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             rightProducer,
             consumer,
             execRef::set,
-            terminal
+            terminal,
+            preferMetadataDriver
         );
     }
 

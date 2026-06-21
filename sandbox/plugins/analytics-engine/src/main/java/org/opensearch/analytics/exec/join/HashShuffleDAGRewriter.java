@@ -10,8 +10,10 @@ package org.opensearch.analytics.exec.join;
 
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.ExchangeInfo;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -71,7 +73,8 @@ public final class HashShuffleDAGRewriter {
         Stage leftProducer,
         Stage rightProducer,
         List<String> targetWorkerNodeIds,
-        CapabilityRegistry registry
+        CapabilityRegistry registry,
+        boolean preferMetadataDriver
     ) {
         // 1) Find the OpenSearchJoin inside the consumer fragment. Its children carry the
         // OpenSearchShuffleExchange wrappers around StageInputScans that the convertor will
@@ -141,16 +144,17 @@ public final class HashShuffleDAGRewriter {
 
         QueryDAG rewrittenDag = new QueryDAG(dag.queryId(), newRoot);
 
-        // 7) Re-fork plan alternatives. The worker stage was just constructed with empty
-        // alternatives; forkAll resolves each fragment's per-backend alternatives so
-        // convertAll has something to convert. The consumer's fragment also changed, so
-        // re-forking refreshes its alternatives too. Producer stages are unchanged but
-        // re-forking is idempotent — safe to run on the whole DAG.
+        // 7) Re-run the FULL fork → adapt → select → convert pipeline, mirroring DefaultPlanExecutor
+        // and CascadeShuffleDAGRewriter. forkAll re-expands each stage's per-backend alternatives FROM
+        // ITS FRAGMENT — which discards the scalar-function adaptation BackendPlanAdapter.adaptAll
+        // already applied (e.g. DATE(string) → to_date, the q14 join-residual case). So adaptAll MUST
+        // re-run here, else convertAll hands isthmus the un-adapted RexCall and it throws "Unable to
+        // convert call DATE(string)". selectAll re-applies the parent-backend correctness constraint
+        // (a child stage restricted to the backends its consumer declares) that forkAll likewise wiped.
+        // Skipping either is the bug class documented for HashShuffleAggregateDAGRewriter / the q15 hang.
         PlanForker.forkAll(rewrittenDag, registry);
-
-        // 8) Re-run fragment conversion. The worker stage hasn't been converted yet, and the
-        // consumer's fragment changed, so its conversion needs refresh too. convertAll
-        // re-converts the entire DAG; cheap on the JVM side and avoids partial-update bugs.
+        BackendPlanAdapter.adaptAll(rewrittenDag, registry);
+        PlanAlternativeSelector.selectAll(rewrittenDag, registry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(rewrittenDag, registry);
 
         return new Rewritten(rewrittenDag, newRoot, worker, rewrittenConsumer);

@@ -144,6 +144,50 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertDoesNotContainShuffleExchange("modest asymmetry must not shuffle a tiny dim", result);
     }
 
+    // ── Mixed equi + residual non-equi (TPC-H q14 shape) ───────────────────
+
+    /**
+     * A join with an equi key AND a residual non-equi predicate (q14: l_partkey=p_partkey AND
+     * l_shipdate BETWEEN …) must STILL route through an MPP strategy on its equi key — NOT fall back
+     * to coordinator-centric. Before the fix the split rules gated on {@code !info.isEqui()}, so the
+     * residual predicate forced the whole (large) join to gather to the coordinator → ReduceSizeExceeded
+     * at scale. small × large picks BROADCAST; the equi key partitions, the residual rides as a join
+     * filter.
+     */
+    public void testMixedEquiResidualJoinStillUsesMpp() {
+        PlannerContext context = buildMppContext(
+            Map.of("small_idx", 3, "large_idx", 3),
+            Map.of("small_idx", SMALL, "large_idx", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode result = runPlanner(makeMixedEquiResidualJoin(context, "small_idx", "large_idx"), context);
+
+        boolean broadcast = containsNodeOfType(result, OpenSearchBroadcastExchange.class);
+        boolean shuffle = containsNodeOfType(result, OpenSearchShuffleExchange.class);
+        assertTrue(
+            "mixed equi+residual join must route via an MPP strategy (broadcast or shuffle), not coord-centric:\n"
+                + org.apache.calcite.plan.RelOptUtil.toString(result),
+            broadcast || shuffle
+        );
+    }
+
+    /**
+     * Symmetric guard: a PURE-theta join (no equi key at all) must still route COORDINATOR-CENTRIC —
+     * the relaxation only admits joins that HAVE an equi key. Without an equi key there is nothing to
+     * hash-partition / no key for the broadcast probe, so neither MPP rule may fire.
+     */
+    public void testPureThetaStillCoordCentricAfterRelax() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ false), context);
+
+        assertDoesNotContainBroadcastExchange("pure theta must NOT broadcast (no equi key)", result);
+        assertDoesNotContainShuffleExchange("pure theta must NOT shuffle (no equi key)", result);
+    }
+
     // ── Contract: mpp.enabled=false ────────────────────────────────────────
 
     public void testMppDisabledForcesCoordCentric() {
@@ -218,6 +262,29 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
                 rexBuilder.makeInputRef(intType, leftCols)
             );
         return LogicalJoin.create(leftScan, rightScan, List.of(), condition, Set.of(), joinType);
+    }
+
+    /** Build an INNER join whose condition is an equi key AND a residual non-equi predicate:
+     *  {@code AND(left.col0 = right.col0, left.col1 < right.col1)}. This is the TPC-H q14 shape
+     *  (l_partkey=p_partkey AND l_shipdate BETWEEN …). JoinInfo.analyzeCondition() yields non-empty
+     *  leftKeys but isEqui()=false; the MPP split rules must still fire on the equi key. */
+    private RelNode makeMixedEquiResidualJoin(PlannerContext context, String leftIdx, String rightIdx) {
+        RelNode leftScan = stubScan(mockTable(leftIdx, "status", "size"));
+        RelNode rightScan = stubScan(mockTable(rightIdx, "status", "size"));
+        int leftCols = leftScan.getRowType().getFieldCount();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode equi = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        RexNode residual = rexBuilder.makeCall(
+            SqlStdOperatorTable.LESS_THAN,
+            rexBuilder.makeInputRef(intType, 1),
+            rexBuilder.makeInputRef(intType, leftCols + 1)
+        );
+        RexNode condition = rexBuilder.makeCall(SqlStdOperatorTable.AND, equi, residual);
+        return LogicalJoin.create(leftScan, rightScan, List.of(), condition, Set.of(), JoinRelType.INNER);
     }
 
     /** Build a ClusterState with multiple stubbed data nodes (so probeNodes > 1) and per-index
