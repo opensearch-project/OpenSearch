@@ -25,7 +25,9 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -173,5 +175,192 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
 
         verify(mergeHandler).doMerge(merge1);
         verify(mergeHandler, never()).doMerge(merge2);
+    }
+
+    public void testForceMergeUnfreezesOnSuccess() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        Segment s1 = new Segment(1L, Map.of());
+        OneMerge merge = new OneMerge(List.of(s1));
+
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of(merge));
+        when(mergeHandler.doMerge(merge)).thenReturn(new MergeResult(Map.of()));
+
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+        assertFalse("Should not be frozen before force merge", scheduler.isFrozen());
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        assertFalse("Must be unfrozen after successful force merge", scheduler.isFrozen());
+    }
+
+    public void testForceMergeUnfreezesOnFailure() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        Segment s1 = new Segment(1L, Map.of());
+        OneMerge merge = new OneMerge(List.of(s1));
+
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of(merge));
+        when(mergeHandler.doMerge(merge)).thenThrow(new IOException("simulated merge failure"));
+
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            expectThrows(IOException.class, () -> scheduler.forceMerge(1));
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        assertFalse("Must be unfrozen even after force merge failure", scheduler.isFrozen());
+    }
+
+    public void testForceMergePreservesExternalFreezeState() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of());
+
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        // Externally frozen (e.g., by tiering)
+        scheduler.freeze();
+        assertTrue("Should be frozen", scheduler.isFrozen());
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        // Must remain frozen — force merge should NOT unfreeze externally-frozen state
+        assertTrue("Must remain frozen when externally frozen before force merge", scheduler.isFrozen());
+    }
+
+    public void testForceMergeCleansUpRemainingMergesOnException() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        Segment s1 = new Segment(1L, Map.of());
+        Segment s2 = new Segment(2L, Map.of());
+        Segment s3 = new Segment(3L, Map.of());
+        OneMerge merge1 = new OneMerge(List.of(s1));
+        OneMerge merge2 = new OneMerge(List.of(s2));
+        OneMerge merge3 = new OneMerge(List.of(s3));
+
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of(merge1, merge2, merge3));
+        when(mergeHandler.doMerge(merge1)).thenReturn(new MergeResult(Map.of()));
+        when(mergeHandler.doMerge(merge2)).thenThrow(new IOException("merge2 failed"));
+
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            expectThrows(IOException.class, () -> scheduler.forceMerge(1));
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        // merge1 executed, merge2 failed (onMergeFailure called by runMerge),
+        // merge3 should be cleaned up via onMergeFailure
+        verify(mergeHandler).doMerge(merge1);
+        verify(mergeHandler).doMerge(merge2);
+        verify(mergeHandler, never()).doMerge(merge3);
+        verify(mergeHandler).onMergeFailure(merge3); // cleanup of unexecuted merge
+        assertFalse("Must be unfrozen after failed force merge", scheduler.isFrozen());
+    }
+
+    public void testForceMergeReleasesReservationAfterCompletion() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of());
+        when(mergeHandler.hasPendingMerges()).thenReturn(false);
+        when(mergeHandler.hasOverlappingMerges(any())).thenReturn(false);
+        when(mergeHandler.reserveSegmentsForForceMerge()).thenReturn(Set.of());
+
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        // Reservation must be released (at least twice: start cleanup + finally)
+        verify(mergeHandler, times(3)).releaseReservation();
+    }
+
+    public void testForceMergeThrowsOnInvalidMaxSegments() {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            expectThrows(IllegalArgumentException.class, () -> scheduler.forceMerge(0));
+            expectThrows(IllegalArgumentException.class, () -> scheduler.forceMerge(-1));
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+    }
+
+    public void testForceMergeWaitsForActiveMergesToDrain() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        Segment s1 = new Segment(1L, Map.of());
+        OneMerge bgMerge = new OneMerge(List.of(s1));
+
+        // Background merge is pending
+        when(mergeHandler.hasPendingMerges()).thenReturn(true, true, false);
+        when(mergeHandler.getNextMerge()).thenReturn(bgMerge, (OneMerge) null);
+        when(mergeHandler.doMerge(bgMerge)).thenAnswer(inv -> {
+            Thread.sleep(200);
+            return new MergeResult(Map.of());
+        });
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of());
+        when(mergeHandler.reserveSegmentsForForceMerge()).thenReturn(Set.of(s1));
+        // Overlapping while bg merge runs, then not overlapping after it completes
+        when(mergeHandler.hasOverlappingMerges(Set.of(s1))).thenReturn(true, true, false);
+
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        // Start a background merge
+        scheduler.triggerMerges();
+
+        // Force merge should wait for the overlapping background merge to finish
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        // The background merge should have completed
+        verify(mergeHandler).doMerge(bgMerge);
+        assertFalse("Should be unfrozen after force merge", scheduler.isFrozen());
+    }
+
+    public void testForceMergeSkipsWhenAlreadyFrozen() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        scheduler.freeze();
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        // Should not even attempt to find merges
+        verify(mergeHandler, never()).findForceMerges(anyInt());
+        assertTrue("Should remain frozen", scheduler.isFrozen());
     }
 }

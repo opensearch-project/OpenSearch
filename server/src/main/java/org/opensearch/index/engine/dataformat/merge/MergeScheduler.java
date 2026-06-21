@@ -18,13 +18,16 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergeStatsTracker;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,6 +56,8 @@ public class MergeScheduler {
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final Semaphore forceMergeLock = new Semaphore(1);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
+    private final java.util.concurrent.locks.ReentrantLock drainLock = new java.util.concurrent.locks.ReentrantLock();
+    private final java.util.concurrent.locks.Condition drainCondition = drainLock.newCondition();
     private final List<Runnable> onDrainedListeners = new CopyOnWriteArrayList<>();
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
@@ -148,7 +153,35 @@ public class MergeScheduler {
      * may execute per shard at a time — concurrent callers block until
      * the ongoing force merge completes.
      *
+     * <p><b>Algorithm:</b>
+     * <ol>
+     *   <li><b>Reserve</b> — snapshots current segment generations into a reservation set.
+     *       Background merges continue on new (non-reserved) segments but cannot pick reserved ones.</li>
+     *   <li><b>Wait</b> — waits only for in-flight background merges that overlap reserved segments.
+     *       As each completes, its output generation replaces the consumed inputs in the reservation
+     *       (via {@link MergeHandler#reserveMergeOutputIfNeeded}).</li>
+     *   <li><b>Find &amp; register</b> — calls {@link MergeHandler#findForceMerges} which reads the
+     *       current catalog and selects merge groups to achieve the target segment count.
+     *       Selected segments are registered in {@code currentlyMergingSegments}.</li>
+     *   <li><b>Release reservation</b> — background merges can now freely merge all segments.
+     *       Force merge segments are protected by {@code currentlyMergingSegments}.</li>
+     *   <li><b>Execute</b> — runs each merge group sequentially.</li>
+     * </ol>
+     *
+     * <p><b>Convergence guarantee:</b>
+     * <ul>
+     *   <li>The wait loop terminates because in-flight overlapping merges are finite work
+     *       and no new merges can start on reserved segments (filtered out in {@code findMerges}).</li>
+     *   <li>The force merge itself terminates because the merge groups are bounded and each
+     *       {@code runMerge} is finite.</li>
+     *   <li>After completion, the segment count is at most {@code maxNumSegment} for all segments
+     *       that existed at the start plus any merge outputs. Segments created by concurrent flushes
+     *       during execution are not included — this matches Lucene's best-effort semantics for
+     *       {@code IndexWriter.forceMerge} against concurrent changes.</li>
+     * </ul>
+     *
      * @param maxNumSegment the maximum number of segments after the force merge
+     * @throws IOException if any merge operation fails
      */
     public void forceMerge(int maxNumSegment) throws IOException {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.FORCE_MERGE)
@@ -159,13 +192,74 @@ public class MergeScheduler {
                 logger.debug("MergeScheduler is shutdown, skipping force merge");
                 return;
             }
-            Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
-            for (OneMerge oneMerge : oneMerges) {
-                if (isShutdown.get()) {
-                    logger.debug("MergeScheduler shutdown during force merge, aborting remaining merges");
-                    break;
+
+            if (frozen.get()) {
+                logger.info("MergeScheduler is already frozen, skipping force merge");
+                return;
+            }
+
+            if (maxNumSegment < 1) {
+                throw new IllegalArgumentException("Cannot force merge to max number of segments = " + maxNumSegment);
+            }
+
+            // 1. Clear any stale reservation from a previous interrupted call
+            mergeHandler.releaseReservation();
+
+            // 2. Reserve current segments — background merges won't pick them for new merges
+            Set<Segment> reservedSegments = mergeHandler.reserveSegmentsForForceMerge();
+
+            try {
+                // 3. Wait only for in-flight merges that overlap reserved segments
+                while (mergeHandler.hasOverlappingMerges(reservedSegments)) {
+                    if (isShutdown.get()) {
+                        logger.debug("MergeScheduler shutdown while waiting for overlapping merges");
+                        return;
+                    }
+                    try {
+                        drainLock.lock();
+                        try {
+                            drainCondition.await(1, java.util.concurrent.TimeUnit.SECONDS);
+                        } finally {
+                            drainLock.unlock();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        logger.warn("Force merge interrupted while waiting for overlapping merges");
+                        return;
+                    }
                 }
-                runMerge(oneMerge);
+
+                // 4. Find and register force merge candidates (protected by currentlyMergingSegments)
+                Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
+                List<OneMerge> pending = new ArrayList<>(oneMerges);
+
+                // 5. Release reservation — background merges on new segments can proceed freely
+                mergeHandler.releaseReservation();
+
+                // 6. Execute force merges
+                int executed = 0;
+                for (int i = 0; i < pending.size(); i++) {
+                    if (isShutdown.get()) {
+                        logger.warn("MergeScheduler shutdown during force merge, cleaning up remaining {} merges", pending.size() - i);
+                        for (int j = i; j < pending.size(); j++) {
+                            mergeHandler.onMergeFailure(pending.get(j));
+                        }
+                        break;
+                    }
+                    try {
+                        runMerge(pending.get(i));
+                        executed++;
+                    } catch (Exception e) {
+                        for (int j = i + 1; j < pending.size(); j++) {
+                            mergeHandler.onMergeFailure(pending.get(j));
+                        }
+                        throw e;
+                    }
+                }
+                logger.debug("Force merge completed: executed {} of {} merge groups", executed, pending.size());
+            } finally {
+                // Defensive: ensure reservation is always cleared on any exit path
+                mergeHandler.releaseReservation();
             }
         } finally {
             forceMergeLock.release();
@@ -310,6 +404,9 @@ public class MergeScheduler {
      * submitting each merge as a task to the thread pool.
      */
     private void executeMerge() {
+        if (isShutdown.get()) {
+            return;
+        }
         while (activeMerges.get() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
@@ -335,6 +432,7 @@ public class MergeScheduler {
             try {
                 if (isShutdown.get()) {
                     logger.debug("MergeScheduler is shutdown, skipping merge");
+                    mergeHandler.onMergeFailure(oneMerge);
                     return;
                 }
                 runMerge(oneMerge);
@@ -343,6 +441,13 @@ public class MergeScheduler {
                 // uncaught exception on the merge thread pool.
             } finally {
                 activeMerges.decrementAndGet();
+                // Wake up forceMerge if it's waiting for background merges to drain
+                drainLock.lock();
+                try {
+                    drainCondition.signalAll();
+                } finally {
+                    drainLock.unlock();
+                }
                 // Fire all drain listeners if all merges completed and none pending
                 if (isFrozen() && activeMerges.get() == 0 && !mergeHandler.hasPendingMerges() && !onDrainedListeners.isEmpty()) {
                     List<Runnable> listeners = List.copyOf(onDrainedListeners);
@@ -381,6 +486,7 @@ public class MergeScheduler {
         try {
             mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
             MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+            mergeHandler.reserveMergeOutputIfNeeded(oneMerge, mergeResult);
             applyMergeChanges.accept(mergeResult, oneMerge);
             mergeHandler.onMergeFinished(oneMerge, isFrozen());
             tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
