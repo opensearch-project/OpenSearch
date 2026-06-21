@@ -45,27 +45,6 @@ import java.util.Locale;
  */
 public class CacheSettings {
 
-    // ── Statistics + metadata (independent of the 3% page-cache budget) ─────
-
-    public static final String METADATA_CACHE_SIZE_LIMIT_KEY = "datafusion.metadata.cache.size.limit";
-    public static final String STATISTICS_CACHE_SIZE_LIMIT_KEY = "datafusion.statistics.cache.size.limit";
-
-    public static final Setting<ByteSizeValue> METADATA_CACHE_SIZE_LIMIT = new Setting<>(
-        METADATA_CACHE_SIZE_LIMIT_KEY,
-        "250mb",
-        (s) -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(1000, ByteSizeUnit.KB), METADATA_CACHE_SIZE_LIMIT_KEY),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<ByteSizeValue> STATISTICS_CACHE_SIZE_LIMIT = new Setting<>(
-        STATISTICS_CACHE_SIZE_LIMIT_KEY,
-        "100mb",
-        (s) -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(0, ByteSizeUnit.KB), STATISTICS_CACHE_SIZE_LIMIT_KEY),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<>(
         "datafusion.metadata.cache.eviction.type",
         "LRU",
@@ -115,7 +94,7 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
-    // ── Sub-cache percentages (must sum to &lt;= 100) ───────────────────────────────
+    // ── Sub-cache percentages (must sum to <= 100) ───────────────────────────────
 
     public static final String FOOTER_METADATA_CACHE_PERCENT_KEY = "datafusion.cache.footer_metadata_percent";
     public static final String OFFSET_INDEX_CACHE_PERCENT_KEY = "datafusion.cache.offset_index_percent";
@@ -203,41 +182,13 @@ public class CacheSettings {
         }
     }
 
-    // Keep 3-arg overload for backward compat with existing callers
-    public static void validatePercentSum(int metaPct, int oiPct, int ciPct) {
-        if (metaPct + oiPct + ciPct > 100) {
-            throw new IllegalArgumentException(
-                "datafusion cache percentages must sum to &lt;= 100, got: "
-                    + FOOTER_METADATA_CACHE_PERCENT_KEY
-                    + "="
-                    + metaPct
-                    + ", "
-                    + OFFSET_INDEX_CACHE_PERCENT_KEY
-                    + "="
-                    + oiPct
-                    + ", "
-                    + COLUMN_INDEX_CACHE_PERCENT_KEY
-                    + "="
-                    + ciPct
-                    + " (sum="
-                    + (metaPct + oiPct + ciPct)
-                    + ")"
-            );
-        }
-    }
-
     /**
-     * Compute absolute cache sizes from explicit percent values and a total budget.
+     * Compute absolute cache sizes from percent values and a total budget.
      * Returns {@code long[]{footerMetadataBytes, offsetIndexBytes, columnIndexBytes, statisticsBytes}}.
      * Does NOT validate that percents sum to &lt;= 100 — call {@link #validatePercentSum} first.
      */
     public static long[] computeCacheSizes(int metaPct, int oiPct, int ciPct, int statsPct, long totalBytes) {
         return new long[] { totalBytes * metaPct / 100, totalBytes * oiPct / 100, totalBytes * ciPct / 100, totalBytes * statsPct / 100 };
-    }
-
-    // Keep 3-arg overload for backward compat
-    public static long[] computeCacheSizes(int metaPct, int oiPct, int ciPct, long totalBytes) {
-        return new long[] { totalBytes * metaPct / 100, totalBytes * oiPct / 100, totalBytes * ciPct / 100 };
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -249,10 +200,10 @@ public class CacheSettings {
     static String deriveMetadataIndexCacheTotalDefault(Settings settings) {
         ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
         if (nativeLimit.getBytes() <= 0) {
-            return Long.toString(500L * 1024 * 1024); // 500 MB fallback
+            return (500L * 1024 * 1024) + "b";
         }
-        long total = nativeLimit.getBytes() * 3 / 100;
-        return Long.toString(Math.max(total, 0L));
+        long total = Math.max(nativeLimit.getBytes() * 3 / 100, 0L);
+        return total + "b";
     }
 
     private static String validateEvictionType(String value) {

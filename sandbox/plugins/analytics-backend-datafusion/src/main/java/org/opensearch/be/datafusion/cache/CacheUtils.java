@@ -13,14 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.core.common.unit.ByteSizeValue;
 
 import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_ENABLED;
 import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
-import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
 import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_ENABLED;
 import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_EVICTION_TYPE;
-import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_SIZE_LIMIT;
 
 /**
  * Utility class for cache initialization and configuration.
@@ -36,26 +33,30 @@ public final class CacheUtils {
      * Cache type enumeration with associated settings.
      */
     public enum CacheType {
-        METADATA("METADATA", METADATA_CACHE_ENABLED, METADATA_CACHE_SIZE_LIMIT, METADATA_CACHE_EVICTION_TYPE),
-
-        STATISTICS("STATISTICS", STATISTICS_CACHE_ENABLED, STATISTICS_CACHE_SIZE_LIMIT, STATISTICS_CACHE_EVICTION_TYPE);
+        METADATA("METADATA", METADATA_CACHE_ENABLED, METADATA_CACHE_EVICTION_TYPE) {
+            @Override
+            public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
+                return metaLimit;
+            }
+        },
+        STATISTICS("STATISTICS", STATISTICS_CACHE_ENABLED, STATISTICS_CACHE_EVICTION_TYPE) {
+            @Override
+            public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
+                return statsLimit;
+            }
+        };
 
         private final String cacheTypeName;
         private final Setting<Boolean> enabledSetting;
-        private final Setting<ByteSizeValue> sizeLimitSetting;
         private final Setting<String> evictionTypeSetting;
 
-        CacheType(
-            String cacheTypeName,
-            Setting<Boolean> enabledSetting,
-            Setting<ByteSizeValue> sizeLimitSetting,
-            Setting<String> evictionTypeSetting
-        ) {
+        CacheType(String cacheTypeName, Setting<Boolean> enabledSetting, Setting<String> evictionTypeSetting) {
             this.cacheTypeName = cacheTypeName;
             this.enabledSetting = enabledSetting;
-            this.sizeLimitSetting = sizeLimitSetting;
             this.evictionTypeSetting = evictionTypeSetting;
         }
+
+        public abstract long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit);
 
         public boolean isEnabled(ClusterSettings clusterSettings) {
             return clusterSettings.get(enabledSetting);
@@ -65,16 +66,8 @@ public final class CacheUtils {
             return enabledSetting;
         }
 
-        public Setting<ByteSizeValue> getSizeLimitSetting() {
-            return sizeLimitSetting;
-        }
-
         public Setting<String> getEvictionTypeSetting() {
             return evictionTypeSetting;
-        }
-
-        public ByteSizeValue getSizeLimit(ClusterSettings clusterSettings) {
-            return clusterSettings.get(sizeLimitSetting);
         }
 
         public String getEvictionType(ClusterSettings clusterSettings) {
@@ -127,10 +120,7 @@ public final class CacheUtils {
         // Configure each enabled cache type using the percent-derived limit.
         for (CacheType type : CacheType.values()) {
             if (type.isEnabled(clusterSettings)) {
-                // Both METADATA and STATISTICS now use the unified budget split.
-                long sizeLimit = (type == CacheType.METADATA) ? metaLimit
-                    : (type == CacheType.STATISTICS) ? statsLimit
-                    : type.getSizeLimit(clusterSettings).getBytes();
+                long sizeLimit = type.sizeBytes(metaLimit, oiLimit, ciLimit, statsLimit);
                 logger.info(
                     "Configuring {} cache: size={} bytes, eviction={}",
                     type.getCacheTypeName(),

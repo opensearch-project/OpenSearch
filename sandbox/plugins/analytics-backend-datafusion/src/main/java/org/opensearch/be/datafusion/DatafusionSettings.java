@@ -292,8 +292,6 @@ public final class DatafusionSettings {
         DATAFUSION_MEMORY_POOL_MIN,
 
         // Cache settings — metadata, statistics, and metadata-index cache configuration
-        CacheSettings.METADATA_CACHE_SIZE_LIMIT,
-        CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
         CacheSettings.METADATA_CACHE_EVICTION_TYPE,
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
         CacheSettings.METADATA_CACHE_ENABLED,
