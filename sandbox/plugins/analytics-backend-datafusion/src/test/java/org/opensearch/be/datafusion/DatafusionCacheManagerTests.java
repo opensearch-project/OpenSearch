@@ -37,6 +37,7 @@ public class DatafusionCacheManagerTests extends OpenSearchTestCase {
         Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_ENABLED);
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_SIZE_LIMIT);
+        clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_WARM_SIZE_MULTIPLIER);
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_ENABLED);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT);

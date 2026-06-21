@@ -36,6 +36,23 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
+    public static final String METADATA_CACHE_WARM_SIZE_MULTIPLIER_KEY = "datafusion.metadata.cache.size.warm_multiplier";
+
+    /**
+     * Multiplier applied to {@link #METADATA_CACHE_SIZE_LIMIT} on warm nodes, which must hold more
+     * metadata than hot nodes. Defaults to {@code 1.0} (no change). The minimum is {@code 1.0} since
+     * the multiplier is only intended to grow the cache. The effective limit is computed once at
+     * service startup; like the base size limit, runtime updates do not yet take effect until the
+     * node restarts (see {@code CacheManager#updateSizeLimit}).
+     */
+    public static final Setting<Double> METADATA_CACHE_WARM_SIZE_MULTIPLIER = Setting.doubleSetting(
+        METADATA_CACHE_WARM_SIZE_MULTIPLIER_KEY,
+        1.25,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<String>(
         "datafusion.metadata.cache.eviction.type",
         "LRU",
@@ -71,6 +88,7 @@ public class CacheSettings {
     public static final List<Setting<?>> CACHE_SETTINGS = Arrays.asList(
         METADATA_CACHE_ENABLED,
         METADATA_CACHE_SIZE_LIMIT,
+        METADATA_CACHE_WARM_SIZE_MULTIPLIER,
         METADATA_CACHE_EVICTION_TYPE,
         STATISTICS_CACHE_ENABLED,
         STATISTICS_CACHE_SIZE_LIMIT,

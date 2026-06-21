@@ -293,6 +293,7 @@ public final class DatafusionSettings {
 
         // Cache settings — metadata and statistics cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,
+        CacheSettings.METADATA_CACHE_WARM_SIZE_MULTIPLIER,
         CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
         CacheSettings.METADATA_CACHE_EVICTION_TYPE,
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,

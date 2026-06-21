@@ -49,6 +49,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final double datanodeMultiplier;
     private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
+    private final boolean warmNode;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
@@ -64,6 +65,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.datanodeMultiplier = builder.datanodeMultiplier;
         this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
+        this.warmNode = builder.warmNode;
     }
 
     /** Creates a new builder. */
@@ -93,7 +95,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         long cacheManagerPtr = 0L;
         NativeCacheManagerHandle cacheHandle = null;
         if (clusterSettings != null) {
-            cacheHandle = CacheUtils.createCacheConfig(clusterSettings);
+            cacheHandle = CacheUtils.createCacheConfig(clusterSettings, warmNode);
             cacheManagerPtr = cacheHandle.getPointer();
         }
 
@@ -299,6 +301,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private double datanodeMultiplier = 1.0;
         private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
+        private boolean warmNode = false;
 
         private Builder() {}
 
@@ -356,6 +359,16 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder clusterSettings(ClusterSettings clusterSettings) {
             this.clusterSettings = clusterSettings;
+            return this;
+        }
+
+        /**
+         * Sets whether the current node holds the warm role. When true, cache types with a
+         * warm-size multiplier (currently the metadata cache) are scaled up at startup.
+         * @param warmNode true if the node is a warm node
+         */
+        public Builder warmNode(boolean warmNode) {
+            this.warmNode = warmNode;
             return this;
         }
 

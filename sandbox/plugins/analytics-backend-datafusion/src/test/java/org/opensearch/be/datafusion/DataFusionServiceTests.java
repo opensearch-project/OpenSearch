@@ -167,6 +167,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
     public void testPluginRegistersAllCacheSettings() {
         List<Setting<?>> settings = new DataFusionPlugin().getSettings();
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_SIZE_LIMIT));
+        assertTrue(settings.contains(CacheSettings.METADATA_CACHE_WARM_SIZE_MULTIPLIER));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT));
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_EVICTION_TYPE));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE));
@@ -224,6 +225,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         Set<Setting<?>> all = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         all.add(CacheSettings.METADATA_CACHE_ENABLED);
         all.add(CacheSettings.METADATA_CACHE_SIZE_LIMIT);
+        all.add(CacheSettings.METADATA_CACHE_WARM_SIZE_MULTIPLIER);
         all.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         all.add(CacheSettings.STATISTICS_CACHE_ENABLED);
         all.add(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT);
