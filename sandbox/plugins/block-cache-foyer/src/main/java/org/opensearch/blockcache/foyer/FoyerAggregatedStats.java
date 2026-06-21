@@ -58,9 +58,29 @@ public final class FoyerAggregatedStats {
     /** Disk-tier only — section 1 of the FFM buffer. */
     private final BlockCacheStats blockLevelStats;
 
+    /** Data cache capacity — used to report per-tier capacity in tiered mode. */
+    private final long dataCapacityBytes;
+
+    /** Metadata cache capacity — used to report per-tier capacity in tiered mode. */
+    private final long metadataCapacityBytes;
+
     private FoyerAggregatedStats(BlockCacheStats overallStats, BlockCacheStats blockLevelStats) {
         this.overallStats = overallStats;
         this.blockLevelStats = blockLevelStats;
+        this.dataCapacityBytes = 0L;
+        this.metadataCapacityBytes = 0L;
+    }
+
+    private FoyerAggregatedStats(
+        BlockCacheStats overallStats,
+        BlockCacheStats blockLevelStats,
+        long dataCapacityBytes,
+        long metadataCapacityBytes
+    ) {
+        this.overallStats = overallStats;
+        this.blockLevelStats = blockLevelStats;
+        this.dataCapacityBytes = dataCapacityBytes;
+        this.metadataCapacityBytes = metadataCapacityBytes;
     }
 
     /**
@@ -72,6 +92,29 @@ public final class FoyerAggregatedStats {
      */
     public static FoyerAggregatedStats snapshot(long[] raw, long capacityBytes) {
         return new FoyerAggregatedStats(readSection(raw, 0, capacityBytes), readSection(raw, Field.COUNT, capacityBytes));
+    }
+
+    /**
+     * Parses the FFM stats buffer for a tiered cache (data + metadata on separate SSDs).
+     *
+     * <p>The Rust FFM writes:
+     * <ul>
+     *   <li>Indices 0–9: data cache stats</li>
+     *   <li>Indices 10–19: metadata cache stats</li>
+     * </ul>
+     *
+     * <p>The {@code overallStats()} method returns a merged view (summed counters).
+     * Use {@link #dataCacheStats()} and {@link #metadataCacheStats()} for per-tier breakdown.
+     *
+     * @param raw                 stats buffer; length must be {@code >= 2 * Field.COUNT}
+     * @param dataCapacityBytes   data cache disk capacity
+     * @param metaCapacityBytes   metadata cache disk capacity
+     */
+    public static FoyerAggregatedStats snapshotTiered(long[] raw, long dataCapacityBytes, long metaCapacityBytes) {
+        BlockCacheStats dataStats = readSection(raw, 0, dataCapacityBytes);
+        BlockCacheStats metaStats = readSection(raw, Field.COUNT, metaCapacityBytes);
+        BlockCacheStats merged = merge(dataStats, metaStats);
+        return new FoyerAggregatedStats(merged, dataStats, dataCapacityBytes, metaCapacityBytes);
     }
 
     private static BlockCacheStats readSection(long[] raw, int offset, long capacityBytes) {
@@ -102,5 +145,71 @@ public final class FoyerAggregatedStats {
     /** Disk-tier-only stats — SSD I/O and eviction pressure breakdown. */
     public BlockCacheStats blockLevelStats() {
         return blockLevelStats;
+    }
+
+    /**
+     * Data cache stats (section 0 of the FFM buffer).
+     * In tiered mode, this is the large data SSD cache.
+     * In single-cache mode, equivalent to {@link #overallStats()}.
+     */
+    public BlockCacheStats dataCacheStats() {
+        return blockLevelStats;
+    }
+
+    /**
+     * Metadata cache stats (section 1 in tiered mode).
+     * Returns the metadata-specific counters from the second Foyer instance.
+     * In single-cache mode, returns the same as {@link #blockLevelStats()} (duplicate section).
+     */
+    public BlockCacheStats metadataCacheStats() {
+        if (metadataCapacityBytes > 0) {
+            return new BlockCacheStats(
+                overallStats.hits() - blockLevelStats.hits(),
+                overallStats.misses() - blockLevelStats.misses(),
+                overallStats.hitBytes() - blockLevelStats.hitBytes(),
+                overallStats.missBytes() - blockLevelStats.missBytes(),
+                overallStats.evictions() - blockLevelStats.evictions(),
+                overallStats.evictionBytes() - blockLevelStats.evictionBytes(),
+                overallStats.removed() - blockLevelStats.removed(),
+                overallStats.removedBytes() - blockLevelStats.removedBytes(),
+                0L,
+                overallStats.diskBytesUsed() - blockLevelStats.diskBytesUsed(),
+                metadataCapacityBytes,
+                Math.max(0L, overallStats.activeInBytes() - blockLevelStats.activeInBytes())
+            );
+        }
+        return blockLevelStats;
+    }
+
+    /** Data cache configured capacity. 0 if not in tiered mode. */
+    public long dataCapacityBytes() {
+        return dataCapacityBytes;
+    }
+
+    /** Metadata cache configured capacity. 0 if not in tiered mode. */
+    public long metadataCapacityBytes() {
+        return metadataCapacityBytes;
+    }
+
+    /** Whether this snapshot represents a tiered cache (data + metadata). */
+    public boolean isTiered() {
+        return metadataCapacityBytes > 0;
+    }
+
+    private static BlockCacheStats merge(BlockCacheStats data, BlockCacheStats meta) {
+        return new BlockCacheStats(
+            data.hits() + meta.hits(),
+            data.misses() + meta.misses(),
+            data.hitBytes() + meta.hitBytes(),
+            data.missBytes() + meta.missBytes(),
+            data.evictions() + meta.evictions(),
+            data.evictionBytes() + meta.evictionBytes(),
+            data.removed() + meta.removed(),
+            data.removedBytes() + meta.removedBytes(),
+            0L,
+            data.diskBytesUsed() + meta.diskBytesUsed(),
+            data.totalBytes() + meta.totalBytes(),
+            data.activeInBytes() + meta.activeInBytes()
+        );
     }
 }
