@@ -509,12 +509,13 @@ impl CustomCacheManager {
         Ok(results)
     }
 
-    /// Warmup a single file:
+    /// Warmup a single file
     /// 1. Fetch footer only (PageIndexPolicy::Skip) → heap cache (lightweight parsed metadata)
-    /// 2. Compute page/offset index byte ranges from the parsed footer; append the footer
+    /// 2. Derive statistics from the same parsed metadata → statistics cache
+    /// 3. Compute page/offset index byte ranges from the parsed footer; append the footer
     ///    range so it's also covered by the metadata Foyer promotion below
-    /// 3. Fetch those ranges through the store (populates **data Foyer** as a side effect of get_ranges)
-    /// 4. Promote those ranges to **metadata Foyer** (never-evict tier) via `store.put_metadata`
+    /// 4. Fetch those ranges through the store (populates **data Foyer** as a side effect of get_ranges)
+    /// 5. Promote those ranges to **metadata Foyer** (never-evict tier) via `store.put_metadata`
     fn warmup_file_with_store(
         &self,
         file_path: &str,
@@ -528,7 +529,17 @@ impl CustomCacheManager {
         // Step 1: Fetch footer only → heap cache (parsed ParquetMetaData)
         let (parquet_metadata, object_meta) = self.fetch_footer_to_heap(file_path, store, rt_handle)?;
 
-        // Step 2: Compute page/offset index byte ranges from the parsed footer.
+        // Step 2: Derive statistics from the same parsed metadata → statistics cache.
+        // Reuses `parquet_metadata` so we don't re-fetch through the store. Failures
+        // here are non-fatal — they only mean the first query will recompute statistics.
+        if let Err(e) = self.statistics_cache_put_from_parsed(file_path, &parquet_metadata, &object_meta) {
+            error!(
+                "[warmup::warmup_file_with_store] statistics_cache_put failed for {}: {} (non-fatal)",
+                file_path, e
+            );
+        }
+
+        // Step 3: Compute page/offset index byte ranges from the parsed footer.
         let mut index_ranges = compute_page_index_range(&parquet_metadata);
 
         // Also promote the footer (last 64 KB) to metadata Foyer — heap-eviction safety net.
@@ -538,10 +549,10 @@ impl CustomCacheManager {
         let footer_start = object_meta.size.saturating_sub(footer_prefetch);
         index_ranges.push(footer_start..object_meta.size);
 
-        // Step 3: Fetch the ranges through the store (populates data Foyer on the way).
+        // Step 4: Fetch the ranges through the store (populates data Foyer on the way).
         let fetched_bytes = Self::fetch_ranges_via_store(store, file_path, &index_ranges, rt_handle)?;
 
-        // Step 4: Promote bytes to metadata Foyer (never-evict tier).
+        // Step 5: Promote bytes to metadata Foyer (never-evict tier).
         // No-op when `store` is not a TieredObjectStore (default trait impl is no-op).
         store.put_metadata(file_path, &index_ranges, &fetched_bytes);
 
@@ -614,7 +625,12 @@ impl CustomCacheManager {
         })
     }
 
-    /// Compute and put statistics into cache
+    /// Compute and put statistics into cache (hot path — reads the local file)
+    ///
+    /// Used by [`Self::add_files`] (no-store flow) when the parquet lives on local fs
+    /// For warm shards (data on the per-shard remote store) the equivalent helper is
+    /// [`Self::statistics_cache_put_from_parsed`], which reuses already-parsed
+    /// `ParquetMetaData` from the warmup pass instead of opening the file locally
     pub fn statistics_cache_compute_and_put(&self, file_path: &str) -> Result<bool, String> {
         let cache = self.statistics_cache.as_ref()
             .ok_or_else(|| "No statistics cache configured".to_string())?;
@@ -646,6 +662,47 @@ impl CustomCacheManager {
                 Err(format!("Failed to compute statistics for {}: {}", file_path, e))
             }
         }
+    }
+
+    /// Warm-tier statistics warmer: derive statistics from already-parsed
+    /// [`parquet::file::metadata::ParquetMetaData`] and put them into the statistics
+    /// cache, reusing the same [`ObjectMeta`] the heap metadata cache used so
+    /// subsequent query lookups validate cleanly via `is_valid_for`.
+    ///
+    /// Called from [`Self::warmup_file_with_store`] right after the heap metadata
+    /// cache is warmed, so we avoid re-fetching the footer through the store
+    /// (which is a remote-IO call on warm shards). Returns `Ok(true)` on insert,
+    /// `Ok(false)` if the statistics cache is not configured or the file is
+    /// already cached, `Err(_)` on schema/derivation failure.
+    fn statistics_cache_put_from_parsed(
+        &self,
+        file_path: &str,
+        parquet_metadata: &Arc<parquet::file::metadata::ParquetMetaData>,
+        object_meta: &ObjectMeta,
+    ) -> Result<bool, String> {
+        use datafusion::parquet::arrow::parquet_to_arrow_schema;
+
+        let cache = match self.statistics_cache.as_ref() {
+            Some(c) => c,
+            None => return Ok(false),
+        };
+
+        let path = Path::from(file_path.to_string());
+        if cache.contains_key(&path) {
+            return Ok(false);
+        }
+
+        let file_metadata = parquet_metadata.file_metadata();
+        let schema = Arc::new(
+            parquet_to_arrow_schema(file_metadata.schema_descr(), file_metadata.key_value_metadata())
+                .map_err(|e| format!("failed to derive arrow schema for {}: {}", file_path, e))?,
+        );
+
+        let stats = DFParquetMetadata::statistics_from_parquet_metadata(parquet_metadata, &schema)
+            .map_err(|e| format!("failed to compute statistics for {}: {}", file_path, e))?;
+
+        cache.put_statistics(&path, Arc::new(stats), object_meta);
+        Ok(true)
     }
 
     /// Batch compute and cache statistics for multiple files
