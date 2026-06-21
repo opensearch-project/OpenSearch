@@ -15,6 +15,7 @@ use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
 use object_store::ObjectMeta;
+use opensearch_tiered_storage::tiered_object_store::MetadataCachingStore;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use log::{debug, error};
 
@@ -432,26 +433,25 @@ impl CustomCacheManager {
     /// so the caller can promote them to metadata Foyer via `ts_put_metadata`.
     ///
     /// Key design:
-    /// - Footer (schema + RG stats) → heap file_metadata_cache (lightweight, kept forever)
-    /// - Page/offset index bytes → fetched via store (populates data Foyer as side effect)
-    ///   → caller promotes to metadata Foyer via ts_put_metadata
-    /// - Page indexes NOT stored in heap (avoids 1GB+ memory bloat on wide schemas)
-    ///
-    /// Returns per-file: (success, Vec<(start, end, bytes)>) for the caller to pass
-    /// to `ts_put_metadata`.
+    /// - Footer (schema + RG stats) → heap file_metadata_cache (parsed `ParquetMetaData`, fast path)
+    /// - Footer raw bytes (last 64 KB) + page-index bytes → **promoted to metadata Foyer**
+    ///   (never-evict SSD tier) via `store.put_metadata(...)`. The parsed footer in heap is
+    ///   the fast path; the metadata-Foyer footer is the heap-eviction safety net (served from
+    ///   SSD instead of S3 on cold-path re-parse).
+    /// - Page indexes NOT stored in heap (avoids 1GB+ memory bloat on wide schemas).
     pub fn add_files_with_store(
         &self,
         file_paths: &[String],
-        store: Arc<dyn object_store::ObjectStore>,
+        store: Arc<dyn MetadataCachingStore>,
         rt_handle: &tokio::runtime::Handle,
-    ) -> Result<Vec<(String, bool, Vec<(u64, u64, bytes::Bytes)>)>, String> {
-        let mut results = Vec::new();
+    ) -> Result<Vec<(String, bool)>, String> {
+        let mut results = Vec::with_capacity(file_paths.len());
         for file_path in file_paths {
             match self.warmup_file_with_store(file_path, &store, rt_handle) {
-                Ok((success, index_ranges)) => results.push((file_path.clone(), success, index_ranges)),
+                Ok(success) => results.push((file_path.clone(), success)),
                 Err(e) => {
                     error!("[CACHE ERROR] add_files_with_store failed for {}: {}", file_path, e);
-                    results.push((file_path.clone(), false, vec![]));
+                    results.push((file_path.clone(), false));
                 }
             }
         }
@@ -459,41 +459,42 @@ impl CustomCacheManager {
     }
 
     /// Warmup a single file:
-    /// 1. Fetch footer only (PageIndexPolicy::Skip) → heap cache (lightweight)
-    /// 2. Compute page/offset index ranges from the parsed footer
-    /// 3. Fetch those ranges through the store (populates data Foyer)
-    /// 4. Return the ranges + bytes for the caller to promote to metadata Foyer
+    /// 1. Fetch footer only (PageIndexPolicy::Skip) → heap cache (lightweight parsed metadata)
+    /// 2. Compute page/offset index byte ranges from the parsed footer; append the footer
+    ///    range so it's also covered by the metadata Foyer promotion below
+    /// 3. Fetch those ranges through the store (populates **data Foyer** as a side effect of get_ranges)
+    /// 4. Promote those ranges to **metadata Foyer** (never-evict tier) via `store.put_metadata`
     fn warmup_file_with_store(
         &self,
         file_path: &str,
-        store: &Arc<dyn object_store::ObjectStore>,
+        store: &Arc<dyn MetadataCachingStore>,
         rt_handle: &tokio::runtime::Handle,
-    ) -> Result<(bool, Vec<(u64, u64, bytes::Bytes)>), String> {
+    ) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
-            return Ok((false, vec![]));
+            return Ok(false);
         }
 
-        // Step 1: Fetch footer only → heap cache
+        // Step 1: Fetch footer only → heap cache (parsed ParquetMetaData)
         let (parquet_metadata, object_meta) = self.fetch_footer_to_heap(file_path, store, rt_handle)?;
 
-        // Step 2: Compute page/offset index byte ranges from the parsed footer
+        // Step 2: Compute page/offset index byte ranges from the parsed footer.
         let mut index_ranges = compute_page_index_range(&parquet_metadata);
 
-        // Also include the footer range itself for metadata Foyer
-        let footer_prefetch = 64 * 1024u64; // same as DataFusion's typical prefetch
+        // Also promote the footer (last 64 KB) to metadata Foyer — heap-eviction safety net.
+        // Heap holds the parsed `ParquetMetaData` for fast lookups; the metadata Foyer entry
+        // is the SSD-served re-parse path when the heap evicts under memory pressure.
+        let footer_prefetch = 64 * 1024u64; // matches DataFusion's DEFAULT_FOOTER_READ_SIZE
         let footer_start = object_meta.size.saturating_sub(footer_prefetch);
         index_ranges.push(footer_start..object_meta.size);
 
-        // Step 3: Fetch index byte ranges through the store (populates data Foyer on the way)
+        // Step 3: Fetch the ranges through the store (populates data Foyer on the way).
         let fetched_bytes = Self::fetch_ranges_via_store(store, file_path, &index_ranges, rt_handle)?;
 
-        // Step 4: Return ranges + bytes for caller to put into metadata Foyer
-        let metadata_entries: Vec<(u64, u64, bytes::Bytes)> = index_ranges.iter()
-            .zip(fetched_bytes.into_iter())
-            .map(|(r, b)| (r.start, r.end, b))
-            .collect();
+        // Step 4: Promote bytes to metadata Foyer (never-evict tier).
+        // No-op when `store` is not a TieredObjectStore (default trait impl is no-op).
+        store.put_metadata(file_path, &index_ranges, &fetched_bytes);
 
-        Ok((true, metadata_entries))
+        Ok(true)
     }
 
     /// Fetch footer only (no page indexes) from the store and put into heap cache.
@@ -507,7 +508,7 @@ impl CustomCacheManager {
     fn fetch_footer_to_heap(
         &self,
         file_path: &str,
-        store: &Arc<dyn object_store::ObjectStore>,
+        store: &Arc<dyn MetadataCachingStore>,
         rt_handle: &tokio::runtime::Handle,
     ) -> Result<(Arc<parquet::file::metadata::ParquetMetaData>, ObjectMeta), String> {
         let path = Path::from(file_path.to_string());
@@ -547,7 +548,7 @@ impl CustomCacheManager {
 
     /// Fetch byte ranges from the store. Returns the fetched bytes in order.
     fn fetch_ranges_via_store(
-        store: &Arc<dyn object_store::ObjectStore>,
+        store: &Arc<dyn MetadataCachingStore>,
         file_path: &str,
         ranges: &[std::ops::Range<u64>],
         rt_handle: &tokio::runtime::Handle,
