@@ -1826,11 +1826,10 @@ pub async unsafe fn execute_local_plan(
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
     let cpu_exec = manager.cpu_executor();
-    let (cross_rt_stream, abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
-    }
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Reduce path: cancel via the token only, do NOT register the abort handle — an abort() mid-send
+    // would skip the cross_rt drop+drain cleanup and leak the aggregate's in-flight GroupValues.
     if let Some(rt) = cpu_exec.handle() {
         query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
@@ -1866,6 +1865,7 @@ pub unsafe fn execute_local_prepared_plan(
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    let token = query_tracker::get_cancellation_token(context_id);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
     // stream channels that require a Tokio reactor. Enter the IO runtime's
@@ -1874,11 +1874,9 @@ pub unsafe fn execute_local_prepared_plan(
     let df_stream = session.execute_prepared()?;
 
     let cpu_exec = manager.cpu_executor();
-    let (cross_rt_stream, abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
-    }
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Prepared-reduce path: same as execute_local_plan — token-only cancel, no abort handle.
     if let Some(rt) = cpu_exec.handle() {
         query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
