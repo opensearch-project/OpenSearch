@@ -31,6 +31,8 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
+import org.opensearch.index.engine.exec.DocumentLookupSupport;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
@@ -39,6 +41,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
@@ -52,6 +55,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -68,6 +72,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -119,12 +124,25 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     // Stats cache — populated once at construction (snapshot is permanent for this engine).
     private final CatalogSnapshotStatsCache statsCache;
 
+    private final DocumentLookupSupport documentLookup;
+
     public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig) {
+        this(engineConfig, null);
+    }
+
+    public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig, @Nullable DocumentLookupProvider documentLookupProvider) {
         this.logger = Loggers.getLogger(DataFormatAwareReadOnlyEngine.class, engineConfig.getShardId());
         assert engineConfig.isReadOnlyReplica() == false : "DataFormatAwareReadOnlyEngine must only be created for primary shards; shard "
             + engineConfig.getShardId();
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
+        DocumentLookupProvider provider = documentLookupProvider != null
+            ? documentLookupProvider
+            : engineConfig.getDocumentLookupProvider();
+        DocumentMetadataResolver resolver = engineConfig.getDocumentMetadataResolver() != null
+            ? engineConfig.getDocumentMetadataResolver()
+            : DocumentMetadataResolver.NOOP;
+        this.documentLookup = new DocumentLookupSupport(shardId, provider, resolver);
         this.store = engineConfig.getStore();
 
         store.incRef();
@@ -303,6 +321,13 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException {
         throw new UnsupportedOperationException("DataFormatAwareReadOnlyEngine does not support no-ops");
+    }
+
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        DocumentLookupResult result = documentLookup.getById(get, reader);
+        return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
     }
 
     @Override

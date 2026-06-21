@@ -1532,7 +1532,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
-        return applyOnEngine(getIndexer(), engine -> engine.get(get, this::acquireSearcher));
+        try {
+            return getIndexer().getById(get, this::acquireSearcher);
+        } catch (IOException e) {
+            throw new OpenSearchException("get-by-id failed for id [" + get.id() + "]", e);
+        }
     }
 
     /**

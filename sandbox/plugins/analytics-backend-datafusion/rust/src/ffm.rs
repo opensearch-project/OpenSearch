@@ -46,6 +46,7 @@ fn timed_block_on<F: std::future::Future>(
 use crate::api;
 use crate::api::DataFusionRuntime;
 use crate::cache;
+use crate::datafusion_query_config::InternalSearch;
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::eviction_policy::PolicyType;
 use crate::runtime_manager::RuntimeManager;
@@ -312,6 +313,12 @@ pub unsafe extern "C" fn df_execute_query(
     context_id: i64,
     // Pointer to a `WireDatafusionQueryConfig`
     query_config_ptr: i64,
+    // Engine-internal point lookup. 0 = normal query (decode `plan_ptr` as Substrait);
+    // 1 = get-by-row-id (`__row_id__ = internal_search_bound`); 2 = seq-no scan
+    // (`_seq_no > internal_search_bound`). When non-zero, `plan_ptr`/`plan_len` are
+    // ignored and the plan is built natively via the DataFrame API — no Substrait.
+    internal_search_mode: i64,
+    internal_search_bound: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len)
@@ -319,6 +326,7 @@ pub unsafe extern "C" fn df_execute_query(
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let internal_search = InternalSearch::from_wire(internal_search_mode, internal_search_bound);
     // Copy the plan bytes so the spawned future can own them (`cpu_executor.spawn`
     // requires `'static`). The `shard_view_ptr`, `runtime_ptr` are raw pointers
     // held live by the caller for the duration of the FFM downcall — safe to
@@ -346,6 +354,7 @@ pub unsafe extern "C" fn df_execute_query(
                 &mgr_for_inner,
                 context_id,
                 query_config,
+                internal_search,
             )
             .await
         });

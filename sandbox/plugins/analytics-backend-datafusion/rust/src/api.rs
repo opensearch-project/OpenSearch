@@ -841,6 +841,7 @@ pub async unsafe fn execute_query(
     manager: &RuntimeManager,
     context_id: i64,
     query_config: crate::datafusion_query_config::DatafusionQueryConfig,
+    internal_search: crate::datafusion_query_config::InternalSearch,
 ) -> Result<i64, DataFusionError> {
     let shard_view = &*(shard_view_ptr as *const ShardView);
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
@@ -911,6 +912,8 @@ pub async unsafe fn execute_query(
         //    - IndexedPredicateOnly → indexed path (position-based row IDs)
         //    - None → vanilla path (no row ID computation)
         // 3. Neither → vanilla path
+        // Engine-internal point lookups pass an empty plan, so is_indexed/has_row_id are both
+        // false and this naturally resolves to the vanilla ListingTable path.
         let use_indexed = is_indexed
             || (has_row_id && effective_config.query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
 
@@ -941,6 +944,7 @@ pub async unsafe fn execute_query(
                 phantom_corrector,
                 &shard_view.sort_fields,
                 &shard_view.sort_orders,
+                internal_search,
             ).await
         }
     };
