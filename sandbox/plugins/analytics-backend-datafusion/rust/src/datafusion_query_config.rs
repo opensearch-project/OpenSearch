@@ -28,6 +28,41 @@ pub enum QueryStrategy {
     IndexedPredicateOnly,
 }
 
+/// Engine-internal point lookup driven through the normal `df_execute_query`
+/// entry point. When active, the Substrait `plan_ptr` is ignored and the plan
+/// is built natively via the DataFrame API with a single pushed-down filter on
+/// a stored reserved column — no Substrait, no planner round-trip. Used by the
+/// pluggable-dataformat get-by-id path (`GetService`), not by user search.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InternalSearch {
+    /// Not an internal lookup — decode `plan_ptr` as Substrait as usual.
+    Off,
+    /// Get-by-row-id: `__row_id__ = bound`, single row. `bound` is the physical
+    /// row position resolved from the secondary (Lucene) index.
+    ByRowId(i64),
+    /// Seq-no scan: `_seq_no > bound`, projecting only id/seq/term/version.
+    /// Used by version-map restore on crash recovery.
+    SeqNoAbove(i64),
+}
+
+impl InternalSearch {
+    /// Decodes the FFM wire pair `(mode, bound)`. `mode`: 0 = Off, 1 = ByRowId,
+    /// 2 = SeqNoAbove. Any other value is treated as Off (forward-compatible).
+    pub fn from_wire(mode: i64, bound: i64) -> Self {
+        match mode {
+            1 => InternalSearch::ByRowId(bound),
+            2 => InternalSearch::SeqNoAbove(bound),
+            _ => InternalSearch::Off,
+        }
+    }
+
+    /// Whether this is an engine-internal point lookup (i.e. not [`InternalSearch::Off`],
+    /// the normal user-search path).
+    pub fn is_internal_search(self) -> bool {
+        !matches!(self, InternalSearch::Off)
+    }
+}
+
 /// Query-scoped configuration. Owned by value after FFM decode.
 #[derive(Debug, Clone)]
 pub struct DatafusionQueryConfig {
@@ -314,6 +349,18 @@ mod tests {
     #[should_panic(expected = "null query config pointer")]
     fn wire_decode_null_pointer_panics() {
         unsafe { DatafusionQueryConfig::from_ffm_ptr(0) };
+    }
+
+    #[test]
+    fn internal_search_from_wire_decodes_modes() {
+        assert_eq!(InternalSearch::from_wire(0, 99), InternalSearch::Off);
+        assert_eq!(InternalSearch::from_wire(1, 42), InternalSearch::ByRowId(42));
+        assert_eq!(InternalSearch::from_wire(2, 7), InternalSearch::SeqNoAbove(7));
+        // Unknown modes are forward-compatible: treated as Off, bound ignored.
+        assert_eq!(InternalSearch::from_wire(3, 5), InternalSearch::Off);
+        assert!(!InternalSearch::Off.is_internal_search());
+        assert!(InternalSearch::ByRowId(0).is_internal_search());
+        assert!(InternalSearch::SeqNoAbove(0).is_internal_search());
     }
 
     #[test]
