@@ -457,7 +457,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        checkStoredAndDocValuesForDerivedSource();
+        if (derivedSourceKeep.requiresStoredFields()) {
+            checkStoredForDerivedSource();
+        } else {
+            checkStoredAndDocValuesForDerivedSource();
+        }
     }
 
     /**

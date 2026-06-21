@@ -274,6 +274,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     throw new MapperParsingException("Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]");
                 }
                 storeValue = true;
+                this.stored.setValue(storeValue);
             }
 
             fieldtype.setStored(storeValue);

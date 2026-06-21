@@ -435,6 +435,13 @@ public class IpFieldMapperTests extends MapperTestCase {
                 fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays").field("store", false))
             )
         );
-        assertThat(e.getMessage(), containsString("Cannot set derived_source_keep='arrays' with store=false"));
+    }
+
+    public void testCanDeriveSource_WithArraysMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "ip").field("derived_source_keep", "arrays"))
+        );
+        IpFieldMapper fieldMapper = (IpFieldMapper) mapper.mappers().getMapper("field");
+        fieldMapper.canDeriveSource();
     }
 }

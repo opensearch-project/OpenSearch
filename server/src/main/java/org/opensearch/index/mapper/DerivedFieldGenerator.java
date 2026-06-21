@@ -25,7 +25,7 @@ public class DerivedFieldGenerator {
     private final DerivedSourceKeep derivedSourceKeep;
 
     /**
-     * Constructor for backward compatibility with field mappers that don't specify derived_source_keep.
+     * Creates a DerivedFieldGenerator with the specified fetchers that don't specify derived_source_keep.
      * Defaults to DerivedSourceKeep.NONE (uses doc values when available).
      *
      * @param mappedFieldType the field type

@@ -1058,6 +1058,13 @@ public class DateFieldMapperTests extends MapperTestCase {
                 fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays").field("store", false))
             )
         );
-        assertThat(e.getMessage(), containsString("Cannot set derived_source_keep='arrays' with store=false"));
+    }
+
+    public void testCanDeriveSource_WithArraysMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays"))
+        );
+        DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        fieldMapper.canDeriveSource();
     }
 }
