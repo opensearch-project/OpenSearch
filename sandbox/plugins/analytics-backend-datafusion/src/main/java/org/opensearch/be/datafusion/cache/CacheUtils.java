@@ -101,7 +101,7 @@ public final class CacheUtils {
         // Compute absolute sizes from the percent model BEFORE creating the caches so
         // the footer metadata cache (created in the loop below) gets the correct limit
         // rather than the old standalone METADATA_CACHE_SIZE_LIMIT (hardcoded 250 MB).
-        long total = clusterSettings.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
+        long total = clusterSettings.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE).getBytes();
         int metaPct = clusterSettings.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         int oiPct = clusterSettings.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
         int ciPct = clusterSettings.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);

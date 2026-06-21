@@ -720,7 +720,7 @@ public class DataFusionPlugin extends Plugin
      * to native. Validates that percentages sum to 100 before applying.
      */
     private void recomputePageCacheLimits(org.opensearch.common.settings.ClusterSettings cs) {
-        long total = cs.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
+        long total = cs.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE).getBytes();
         int metaPct = cs.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         int oiPct = cs.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
         int ciPct = cs.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);

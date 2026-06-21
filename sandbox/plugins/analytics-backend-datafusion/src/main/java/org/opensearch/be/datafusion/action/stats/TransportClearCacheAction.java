@@ -75,15 +75,14 @@ public class TransportClearCacheAction extends TransportNodesAction<
     @Override
     protected ClearCacheNodeResponse nodeOperation(ClearCacheNodeRequest request) {
         if (request.isClearAll()) {
-            NativeBridge.clearFooterCache();
             NativeBridge.clearColumnIndexCache();
             NativeBridge.clearOffsetIndexCache();
+            NativeBridge.clearFooterCache();
         } else {
-            if (request.isFooter()) NativeBridge.clearFooterCache();
             if (request.isColumn()) NativeBridge.clearColumnIndexCache();
             if (request.isOffset()) NativeBridge.clearOffsetIndexCache();
+            if (request.isFooter()) NativeBridge.clearFooterCache();
         }
-        ;
         return new ClearCacheNodeResponse(clusterService.localNode());
     }
 }

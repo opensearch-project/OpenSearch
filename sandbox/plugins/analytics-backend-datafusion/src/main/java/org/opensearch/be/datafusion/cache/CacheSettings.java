@@ -14,8 +14,6 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -26,7 +24,7 @@ import java.util.Locale;
  * <pre>
  * node.native_memory.limit = 80% of off-heap
  *   ├── 71% → datafusion.memory_pool_limit_bytes  (operator pool)
- *   ├──  3% → datafusion.metadata_index_cache.total_size_bytes   (all metadata caches (footer + page indexes), this class)
+ *   ├──  3% → datafusion.metadata_index_cache.total_size   (all metadata caches (footer + page indexes), this class)
  *   │     ├── 50% → metadata cache   (footer metadata, Rust jemalloc)
  *   │     ├── 35% → offset index     (projection-driven, Rust jemalloc)
  *   │     └── 15% → column index     (predicate-driven, Rust jemalloc)
@@ -102,23 +100,17 @@ public class CacheSettings {
 
     // Page-cache total budget (3% of node.native_memory.limit)
 
-    public static final String METADATA_INDEX_CACHE_TOTAL_SIZE_KEY = "datafusion.metadata_index_cache.total_size_bytes";
+    public static final String METADATA_INDEX_CACHE_TOTAL_SIZE_KEY = "datafusion.metadata_index_cache.total_size";
 
     /**
      * Total byte budget for all three metadata caches (footer metadata, ColumnIndex,
      * OffsetIndex). Defaults to 3% of {@code node.native_memory.limit}; falls back to
      * 500 MB when AC is unconfigured.
      */
-    public static final Setting<Long> METADATA_INDEX_CACHE_TOTAL_SIZE = new Setting<>(
+    public static final Setting<ByteSizeValue> METADATA_INDEX_CACHE_TOTAL_SIZE = new Setting<>(
         METADATA_INDEX_CACHE_TOTAL_SIZE_KEY,
         CacheSettings::deriveMetadataIndexCacheTotalDefault,
-        s -> {
-            long v = Long.parseLong(s);
-            if (v < 0) {
-                throw new IllegalArgumentException("Setting [" + METADATA_INDEX_CACHE_TOTAL_SIZE_KEY + "] must be >= 0, got " + v);
-            }
-            return v;
-        },
+        s -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(0, ByteSizeUnit.BYTES), METADATA_INDEX_CACHE_TOTAL_SIZE_KEY),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -188,7 +180,7 @@ public class CacheSettings {
     public static void validatePercentSum(int metaPct, int oiPct, int ciPct, int statsPct) {
         if (metaPct + oiPct + ciPct + statsPct > 100) {
             throw new IllegalArgumentException(
-                "datafusion cache percentages must sum to &lt;= 100, got: "
+                "Datafusion cache percentages must sum to <= 100, got: "
                     + FOOTER_METADATA_CACHE_PERCENT_KEY
                     + "="
                     + metaPct
@@ -247,25 +239,6 @@ public class CacheSettings {
     public static long[] computeCacheSizes(int metaPct, int oiPct, int ciPct, long totalBytes) {
         return new long[] { totalBytes * metaPct / 100, totalBytes * oiPct / 100, totalBytes * ciPct / 100 };
     }
-
-    // ── Legacy per-cache keys (kept for BWC; prefer percent-based settings) ──
-
-    public static final String COLUMN_INDEX_CACHE_SIZE_LIMIT_KEY = "datafusion.column_index.cache.size.limit";
-    public static final String OFFSET_INDEX_CACHE_SIZE_LIMIT_KEY = "datafusion.offset_index.cache.size.limit";
-
-    public static final List<Setting<?>> CACHE_SETTINGS = Arrays.asList(
-        METADATA_CACHE_ENABLED,
-        METADATA_CACHE_SIZE_LIMIT,
-        METADATA_CACHE_EVICTION_TYPE,
-        STATISTICS_CACHE_ENABLED,
-        STATISTICS_CACHE_SIZE_LIMIT,
-        STATISTICS_CACHE_EVICTION_TYPE,
-        METADATA_INDEX_CACHE_TOTAL_SIZE,
-        FOOTER_METADATA_CACHE_PERCENT,
-        OFFSET_INDEX_CACHE_PERCENT,
-        COLUMN_INDEX_CACHE_PERCENT,
-        STATISTICS_CACHE_PERCENT
-    );
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
