@@ -1291,8 +1291,11 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     public void testHavingFilterAboveDelegatedWhere_derivesConjunctive() {
         StagePlan plan = runHaving(matchPhrase("hello"));
         assertEquals("delegated WHERE under HAVING must still ship one expression", 1, plan.delegatedExpressions().size());
-        assertEquals("treeShape must come from the WHERE (CONJUNCTIVE), not the HAVING (NO_DELEGATION)",
-            FilterTreeShape.CONJUNCTIVE, treeShapeOf(plan));
+        assertEquals(
+            "treeShape must come from the WHERE (CONJUNCTIVE), not the HAVING (NO_DELEGATION)",
+            FilterTreeShape.CONJUNCTIVE,
+            treeShapeOf(plan)
+        );
     }
 
     /** Builds Filter(count=1)[HAVING] over Aggregate(group=message, count(*)) over Filter(where)[scan]. */
@@ -1325,9 +1328,12 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         };
         List<AnalyticsSearchBackendPlugin> backends = List.of(df, lucene);
         Map<String, Map<String, Object>> fields = Map.of(
-            "message", Map.of("type", "keyword", "index", true),
-            "amount", Map.of("type", "integer", "index", false),
-            "count", Map.of("type", "integer", "index", false)
+            "message",
+            Map.of("type", "keyword", "index", true),
+            "amount",
+            Map.of("type", "integer", "index", false),
+            "count",
+            Map.of("type", "integer", "index", false)
         );
         // Single shard: no exchange split, so HAVING + Aggregate + WHERE stay in ONE fragment — the
         // shape the bug needs (multi-shard forks HAVING into a separate reduce stage, hiding it).
