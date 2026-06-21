@@ -226,4 +226,16 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
         );
     }
 
+    public void testStartupExceptionExitsWithCodeError() throws Exception {
+        // Verify that a StartupException thrown during bootstrap causes a non-OK exit rather than
+        // leaving the process hanging (the exception must be caught and converted to UserException).
+        final RuntimeException cause = new RuntimeException("dummy startup failure");
+        runTest(
+            ExitCodes.CODE_ERROR,
+            true,
+            (output, error) -> assertThat(error, containsString("dummy startup failure")),
+            (foreground, pidFile, quiet, env) -> { throw new StartupException(cause); }
+        );
+    }
+
 }

@@ -159,6 +159,8 @@ class OpenSearch extends EnvironmentAwareCommand {
             init(daemonize, pidFile, quiet, env);
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
+        } catch (StartupException e) {
+            throw new UserException(ExitCodes.CODE_ERROR, e.getMessage());
         }
     }
 
