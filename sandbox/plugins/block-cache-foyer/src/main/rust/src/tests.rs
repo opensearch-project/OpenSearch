@@ -2577,3 +2577,148 @@ fn recovery_stale_snapshot_keys_cleaned_by_sweep() {
     assert!(!cache.key_index.contains_key("data/stale.parquet"),
         "stale key must be gone after sweep");
 }
+
+// ── Range containment + stitching tests ───────────────────────────────────────
+
+#[test]
+fn get_subrange_hits_from_cached_superset() {
+    let (cache, _dir) = test_cache();
+
+    // Cache bytes 0..1000
+    let data: Vec<u8> = (0..1000u16).map(|i| (i % 256) as u8).collect();
+    put_range(&cache, "/data/file.parquet", 0, 1000, &data);
+
+    // Request bytes 0..500 — should hit via containment
+    let key = range_cache_key("/data/file.parquet", 0, 500);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_some(), "subrange 0..500 should hit from cached 0..1000");
+    assert_eq!(result.unwrap().as_ref(), &data[0..500]);
+}
+
+#[test]
+fn get_middle_subrange_hits_from_cached_superset() {
+    let (cache, _dir) = test_cache();
+
+    let data: Vec<u8> = (0..1000u16).map(|i| (i % 256) as u8).collect();
+    put_range(&cache, "/data/file.parquet", 0, 1000, &data);
+
+    // Request bytes 200..700 — middle slice
+    let key = range_cache_key("/data/file.parquet", 200, 700);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_some(), "subrange 200..700 should hit from cached 0..1000");
+    assert_eq!(result.unwrap().as_ref(), &data[200..700]);
+}
+
+#[test]
+fn get_exact_range_still_works() {
+    let (cache, _dir) = test_cache();
+
+    let data = b"hello world";
+    put_range(&cache, "/data/file.parquet", 100, 111, data);
+
+    // Exact match should still use the fast path
+    let key = range_cache_key("/data/file.parquet", 100, 111);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_some());
+    assert_eq!(result.unwrap().as_ref(), b"hello world");
+}
+
+#[test]
+fn get_miss_when_no_superset_exists() {
+    let (cache, _dir) = test_cache();
+
+    // Cache 0..500
+    let data = vec![0u8; 500];
+    put_range(&cache, "/data/file.parquet", 0, 500, &data);
+
+    // Request 0..1000 — not fully contained
+    let key = range_cache_key("/data/file.parquet", 0, 1000);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_none(), "0..1000 is not contained in 0..500");
+}
+
+#[test]
+fn get_stitches_from_two_adjacent_ranges() {
+    let (cache, _dir) = test_cache();
+
+    // Cache two adjacent ranges: 0..500 and 500..1000
+    let data1: Vec<u8> = (0..500u16).map(|i| (i % 256) as u8).collect();
+    let data2: Vec<u8> = (500..1000u16).map(|i| (i % 256) as u8).collect();
+    put_range(&cache, "/data/file.parquet", 0, 500, &data1);
+    put_range(&cache, "/data/file.parquet", 500, 1000, &data2);
+
+    // Request 0..1000 — should stitch from both
+    let key = range_cache_key("/data/file.parquet", 0, 1000);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_some(), "0..1000 should be stitchable from 0..500 + 500..1000");
+    let expected: Vec<u8> = (0..1000u16).map(|i| (i % 256) as u8).collect();
+    assert_eq!(result.unwrap().as_ref(), expected.as_slice());
+}
+
+#[test]
+fn get_stitches_from_overlapping_ranges() {
+    let (cache, _dir) = test_cache();
+
+    // Cache overlapping ranges: 0..600 and 400..1000
+    let data1: Vec<u8> = (0..600u16).map(|i| (i % 256) as u8).collect();
+    let data2: Vec<u8> = (400..1000u16).map(|i| (i % 256) as u8).collect();
+    put_range(&cache, "/data/file.parquet", 0, 600, &data1);
+    put_range(&cache, "/data/file.parquet", 400, 1000, &data2);
+
+    // Request 0..1000 — should stitch (first covers 0..600, second covers 600..1000)
+    let key = range_cache_key("/data/file.parquet", 0, 1000);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_some(), "0..1000 should be stitchable from 0..600 + 400..1000");
+    let bytes = result.unwrap();
+    assert_eq!(bytes.len(), 1000);
+    // First 600 bytes come from data1
+    let expected_first: Vec<u8> = (0..600u16).map(|i| (i % 256) as u8).collect();
+    assert_eq!(&bytes[0..600], expected_first.as_slice());
+    // Last 400 bytes come from data2 (offset 200..600 within data2)
+    let expected_last: Vec<u8> = (600..1000u16).map(|i| (i % 256) as u8).collect();
+    assert_eq!(&bytes[600..1000], expected_last.as_slice());
+}
+
+#[test]
+fn get_fails_with_gap_between_ranges() {
+    let (cache, _dir) = test_cache();
+
+    // Cache 0..400 and 600..1000 — gap at 400..600
+    let data1 = vec![1u8; 400];
+    let data2 = vec![2u8; 400];
+    put_range(&cache, "/data/file.parquet", 0, 400, &data1);
+    put_range(&cache, "/data/file.parquet", 600, 1000, &data2);
+
+    // Request 0..1000 — gap means miss
+    let key = range_cache_key("/data/file.parquet", 0, 1000);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_none(), "0..1000 cannot be served with gap at 400..600");
+}
+
+#[test]
+fn get_subrange_from_different_file_does_not_hit() {
+    let (cache, _dir) = test_cache();
+
+    let data = vec![0u8; 1000];
+    put_range(&cache, "/data/a.parquet", 0, 1000, &data);
+
+    // Request same range but different file
+    let key = range_cache_key("/data/b.parquet", 0, 500);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_none(), "different file path should not hit");
+}
+
+#[test]
+fn get_containment_works_with_non_zero_start() {
+    let (cache, _dir) = test_cache();
+
+    // Cache 1000..2000
+    let data: Vec<u8> = (0..1000u16).map(|i| (i % 256) as u8).collect();
+    put_range(&cache, "/data/file.parquet", 1000, 2000, &data);
+
+    // Request 1200..1800 — subrange of 1000..2000
+    let key = range_cache_key("/data/file.parquet", 1200, 1800);
+    let result = block_on(cache.get(&key));
+    assert!(result.is_some(), "1200..1800 should hit from 1000..2000");
+    assert_eq!(result.unwrap().as_ref(), &data[200..800]);
+}

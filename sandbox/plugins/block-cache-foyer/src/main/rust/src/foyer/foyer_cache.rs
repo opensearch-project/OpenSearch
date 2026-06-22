@@ -697,6 +697,135 @@ impl FoyerCache {
         let raw = if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key };
         raw.trim_start_matches('/')
     }
+
+    /// Attempt to serve a range request from cached superset entries.
+    ///
+    /// Scans the key_index for the same file path and looks for:
+    /// 1. A single cached entry that fully contains the requested range (containment).
+    /// 2. Multiple cached entries that together cover the requested range (stitching).
+    ///
+    /// Returns `Some(Bytes)` on success, `None` if the range cannot be served from cache.
+    async fn try_range_containment(&self, key: &CacheKey) -> Option<Bytes> {
+        use crate::range_cache::parse_range;
+
+        let (req_start, req_end) = parse_range(key.as_str())?;
+        if req_start >= req_end {
+            return None;
+        }
+        let idx_key = Self::index_key(key.as_str()).to_string();
+
+        // Get the set of cached keys for this file path.
+        let entry = self.key_index.get(&idx_key)?;
+        let cached_keys: &std::collections::HashSet<String> = entry.value();
+        if cached_keys.is_empty() {
+            return None;
+        }
+
+        // Collect all cached ranges for this file, sorted by start.
+        let mut ranges: Vec<(u64, u64, &String)> = Vec::new();
+        for k in cached_keys.iter() {
+            if let Some((s, e)) = parse_range(k) {
+                if e > req_start && s < req_end {
+                    // This range overlaps with the requested range.
+                    ranges.push((s, e, k));
+                }
+            }
+        }
+
+        if ranges.is_empty() {
+            native_bridge_common::log_debug!(
+                "[block-cache] get containment: key='{}' no overlapping ranges in key_index for path='{}'",
+                key.as_str(), idx_key
+            );
+            return None;
+        }
+
+        // Sort by start offset for stitching.
+        ranges.sort_by_key(|&(s, _, _)| s);
+
+        native_bridge_common::log_debug!(
+            "[block-cache] get containment: key='{}' needed={}..{} found {} candidate(s): [{}]",
+            key.as_str(), req_start, req_end, ranges.len(),
+            ranges.iter().map(|(s, e, _)| format!("{}..{}", s, e)).collect::<Vec<_>>().join(", ")
+        );
+
+        // Check if we can cover [req_start, req_end) with these ranges (no gaps).
+        let mut coverage = req_start;
+        let mut covering: Vec<(u64, u64, &String)> = Vec::new();
+        for &(s, e, k) in &ranges {
+            if s > coverage {
+                // Gap — can't stitch.
+                native_bridge_common::log_debug!(
+                    "[block-cache] get containment FAIL (gap at {}): key='{}' needed={}..{} found {} candidate(s)",
+                    coverage, key.as_str(), req_start, req_end, ranges.len()
+                );
+                return None;
+            }
+            covering.push((s, e, k));
+            if e >= coverage {
+                coverage = e;
+            }
+            if coverage >= req_end {
+                break;
+            }
+        }
+
+        if coverage < req_end {
+            native_bridge_common::log_debug!(
+                "[block-cache] get containment FAIL (short): key='{}' needed={}..{} covered_to={}",
+                key.as_str(), req_start, req_end, coverage
+            );
+            return None;
+        }
+
+        // We have full coverage. Fetch data from each covering entry and assemble.
+        let needed_len = (req_end - req_start) as usize;
+        let mut buf = Vec::with_capacity(needed_len);
+        let mut pos = req_start;
+
+        for (s, e, k) in &covering {
+            if pos >= req_end {
+                break;
+            }
+            match self.inner.get(&k.to_string()).await {
+                Ok(Some(entry)) => {
+                    let data = entry.value();
+                    // Slice: we need bytes [pos..min(req_end, e)] from this entry.
+                    // The entry covers [s..e], so offset within entry = pos - s.
+                    let slice_start = (pos - s) as usize;
+                    let slice_end = ((req_end.min(*e)) - s) as usize;
+                    if slice_end <= data.len() && slice_start < slice_end {
+                        buf.extend_from_slice(&data[slice_start..slice_end]);
+                        pos = req_end.min(*e);
+                    } else {
+                        // Data size mismatch (entry was evicted and re-cached with different size?).
+                        native_bridge_common::log_debug!(
+                            "[block-cache] get containment FAIL (data mismatch): cached_key='{}' data_len={} slice={}..{}",
+                            k, data.len(), slice_start, slice_end
+                        );
+                        return None;
+                    }
+                }
+                _ => {
+                    // Entry was evicted between key_index check and disk read.
+                    native_bridge_common::log_debug!(
+                        "[block-cache] get containment FAIL (evicted): cached_key='{}'", k
+                    );
+                    return None;
+                }
+            }
+        }
+
+        if buf.len() == needed_len {
+            native_bridge_common::log_debug!(
+                "[block-cache] get HIT (containment): key='{}' served from {} cached range(s)",
+                key.as_str(), covering.len()
+            );
+            Some(Bytes::from(buf))
+        } else {
+            None
+        }
+    }
 }
 
 impl BlockCache for FoyerCache {
@@ -712,20 +841,28 @@ impl BlockCache for FoyerCache {
         // completes). Without the guard, a cancelled future would leave active_in_bytes elevated.
         let _active_guard = ActiveBytesGuard::new(&self.stats.active_in_bytes, range_len);
 
+        // Fast path: exact key lookup.
         match self.inner.get(&key.as_str().to_string()).await {
             Ok(Some(e)) => {
                 let size = e.value().len() as i64;
                 self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
                 self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
-                Some(Bytes::copy_from_slice(e.value()))
+                return Some(Bytes::copy_from_slice(e.value()));
             }
-            _ => {
-                self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
-                self.stats.miss_bytes.fetch_add(range_len, Ordering::Relaxed);
-                None
-            }
+            _ => {}
         }
-        // _active_guard dropped here — fetch_sub runs regardless of hit/miss/cancellation
+
+        // Slow path: check if any cached range(s) for this file contain/cover the requested range.
+        if let Some(result) = self.try_range_containment(key).await {
+            let size = result.len() as i64;
+            self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
+            self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
+            return Some(result);
+        }
+
+        self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
+        self.stats.miss_bytes.fetch_add(range_len, Ordering::Relaxed);
+        None
         })
     }
 
