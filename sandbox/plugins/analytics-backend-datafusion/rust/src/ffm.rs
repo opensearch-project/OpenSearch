@@ -53,6 +53,7 @@ use crate::runtime_manager::RuntimeManager;
 use crate::statistics_cache::CustomStatisticsCache;
 
 use datafusion::execution::cache::DefaultFilesMetadataCache;
+use crate::cache::page_index;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
@@ -810,6 +811,12 @@ pub unsafe extern "C" fn df_create_cache(
             ));
             manager.set_statistics_cache(stats_cache);
         }
+        cache::CACHE_TYPE_COLUMN_INDEX => {
+            manager.set_column_index_cache(size_limit as usize, policy_type);
+        }
+        cache::CACHE_TYPE_OFFSET_INDEX => {
+            manager.set_offset_index_cache(size_limit as usize, policy_type);
+        }
         _ => {
             return Err(format!(
                 "df_create_cache: invalid cache type: {}",
@@ -1360,7 +1367,7 @@ pub extern "C" fn df_set_column_index_cache_limit(size_limit: i64) -> i64 {
     if size_limit < 0 {
         return Err(format!("df_set_column_index_cache_limit: negative limit {}", size_limit));
     }
-    // TODO(PR1): crate::cache::page_index::set_column_index_cache_limit(size_limit as usize);
+    page_index::set_column_index_cache_limit(size_limit as usize);
     Ok(0)
 }
 
@@ -1372,16 +1379,25 @@ pub extern "C" fn df_set_offset_index_cache_limit(size_limit: i64) -> i64 {
     if size_limit < 0 {
         return Err(format!("df_set_offset_index_cache_limit: negative limit {}", size_limit));
     }
-    // TODO(PR1): crate::cache::page_index::set_offset_index_cache_limit(size_limit as usize);
+    page_index::set_offset_index_cache_limit(size_limit as usize);
     Ok(0)
 }
 
-/// Clear the process-global scoped page-index cache (drop entries + reset
-/// counters, keep the budget). No-op stub until PR 1 merges.
+/// Clear the process-global scoped page-index caches (drop entries + reset counters).
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn df_clear_scoped_page_index_cache() -> i64 {
-    // TODO(PR1): crate::cache::page_index::clear_scoped_cache();
+    page_index::clear_scoped_cache();
+    Ok(0)
+}
+
+/// Enable or disable the scoped page-index feature.
+/// When disabled: metadata cache retains full page index (fallback mode).
+/// When enabled (default): metadata cache strips page index; scoped caches handle it.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
+    page_index::set_scoped_page_index_enabled(enabled != 0);
     Ok(0)
 }
 

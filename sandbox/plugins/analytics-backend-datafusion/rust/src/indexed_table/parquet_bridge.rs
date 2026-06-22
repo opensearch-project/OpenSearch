@@ -82,14 +82,25 @@ pub async fn load_parquet_metadata(
         None
     };
 
-    // Cache miss — fetch footer only, no page index bytes.
+    // Cache miss — fetch metadata. When the scoped page-index cache is enabled,
+    // skip page index bytes (they are loaded lazily per-column by the scoped cache).
+    // When disabled (fallback mode), fetch the full page index so the metadata cache
+    // retains it and DataFusion's default page pruning path continues to work.
+    // Scoped enabled: skip page index bytes entirely (scoped cache handles it lazily).
+    // Scoped disabled (fallback): use Optional — reads page index if it falls within
+    // the same footer fetch range, without issuing a separate IO request for it.
+    let policy = if crate::cache::page_index::is_scoped_page_index_enabled() {
+        PageIndexPolicy::Skip
+    } else {
+        PageIndexPolicy::Optional
+    };
     let pq_meta = match pq_meta {
         Some(m) => m,
         None => {
             let mut reader = ParquetObjectReader::new(Arc::clone(&store), location.clone());
             let fetched = Arc::new(
                 ParquetMetaDataReader::new()
-                    .with_page_index_policy(PageIndexPolicy::Skip)
+                    .with_page_index_policy(policy)
                     .load_and_finish(&mut reader, size)
                     .await
                     .map_err(|e| format!("load parquet metadata {location}: {e}"))?,

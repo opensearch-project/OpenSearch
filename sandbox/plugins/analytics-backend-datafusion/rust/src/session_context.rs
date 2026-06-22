@@ -232,6 +232,7 @@ pub async unsafe fn create_session_context(
 
     // Install the scoped page-index reader factory on every parquet scan.
     // Registered AFTER ProjectRowIdOptimizer so it sees the final DataSourceExec.
+    // Also, this SHOULD be the last optimizer to see all projections / predicates
     state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
         ScopedPageIndexOptimizer::new(
             Arc::clone(&shard_view.store),

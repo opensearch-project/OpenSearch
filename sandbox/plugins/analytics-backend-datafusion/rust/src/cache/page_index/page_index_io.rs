@@ -306,19 +306,23 @@ async fn get_or_build_column_index(
     }
     // Phase 2: decode the missing cells (vectored fetch grouped by RG), place
     // them in the matrix, and populate the cache.
+    // Use insert_batch so all cells from this query are inserted under a single
+    // write-lock acquisition — avoids per-cell lock overhead and runs eviction
+    // exactly once after the batch rather than once per cell.
     if !missing_col_rg_matrix.is_empty() {
         let built = build_column_index_cells(store, location, footer_meta, &missing_col_rg_matrix).await?;
-        for cell in built {
+
+        let batch = built.iter().map(|cell| {
             debug_assert!(
                 cell.rg < col_index_matrix.len() && cell.col < col_index_matrix[cell.rg].len(),
                 "cell ({}, {}) out of matrix bounds ({num_rgs} rgs, {num_cols} cols)",
                 cell.col, cell.rg,
             );
-            COLUMN_INDEX_CACHE.insert(
-                CiCellKey { path: path.clone(), col: cell.col, rg: cell.rg },
-                cell.data.clone(),
-                cell.size,
-            );
+            (CiCellKey { path: path.clone(), col: cell.col, rg: cell.rg }, cell.data.clone(), cell.size)
+        });
+        COLUMN_INDEX_CACHE.insert_batch(batch);
+
+        for cell in built {
             col_index_matrix[cell.rg][cell.col] = cell.data;
         }
     }
@@ -488,10 +492,16 @@ async fn get_or_build_offset_index(
 
     // Phase 2: decode the missing columns (each spanning all RGs), scatter into
     // the matrix, and populate the cache.
+    // Use insert_batch: all missing OI columns for this query in one lock acquisition.
     if !missing.is_empty() {
         let built = build_offset_index_columns(store, location, footer_meta, &missing, num_rgs).await?;
+
+        let batch = built.iter().map(|cell| {
+            (OiCellKey { path: path.clone(), col: cell.col }, cell.data.clone(), cell.size)
+        });
+        OFFSET_INDEX_CACHE.insert_batch(batch);
+
         for cell in built {
-            OFFSET_INDEX_CACHE.insert(OiCellKey { path: path.clone(), col: cell.col }, cell.data.clone(), cell.size);
             scatter_offset_column_owned(&mut matrix, cell.col, cell.data);
         }
     }
