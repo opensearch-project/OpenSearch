@@ -133,6 +133,14 @@ public final class DistributedAggOverJoinRewriter {
         return analyze(dag.rootStage()) != null;
     }
 
+    /** Same gate as {@link #canPushPartial(QueryDAG)}, scoped to a child-stage sub-DAG root. */
+    public static boolean canPushPartial(QueryDAG dag, Stage subRoot) {
+        if (dag == null || subRoot == null) {
+            return false;
+        }
+        return analyze(subRoot) != null;
+    }
+
     /**
      * Structural analysis of the root stage: locates the {@code Sort?}, the {@code Aggregate(SINGLE)},
      * the coordinator path operators (each rebuilt above the worker StageInputScan on the FINAL side),
@@ -337,6 +345,47 @@ public final class DistributedAggOverJoinRewriter {
     }
 
     /**
+     * Child-stage variant of {@link #rewrite(QueryDAG, org.opensearch.analytics.planner.CapabilityRegistry, boolean,
+     * CascadeShuffleDAGRewriter.NodeListResolver)}. The supplied {@code subRoot} is treated as the
+     * root of an independent sub-DAG so {@link CascadeShuffleDAGRewriter}'s topStage==root agg-lift
+     * contract remains unchanged per cut theta input.
+     */
+    public static Structure rewrite(
+        QueryDAG dag,
+        org.opensearch.analytics.planner.CapabilityRegistry registry,
+        boolean preferMetadataDriver,
+        CascadeShuffleDAGRewriter.NodeListResolver nodeResolver,
+        Stage subRoot
+    ) {
+        return rewrite(dag, registry, preferMetadataDriver, nodeResolver, subRoot, null);
+    }
+
+    /**
+     * Child-stage variant threading a caller-supplied stage-id counter (multi-subtree q2/q11 path). See
+     * {@link #rewriteStructure(QueryDAG, org.opensearch.analytics.planner.CapabilityRegistry,
+     * CascadeShuffleDAGRewriter.NodeListResolver, Stage, int[])}.
+     */
+    public static Structure rewrite(
+        QueryDAG dag,
+        org.opensearch.analytics.planner.CapabilityRegistry registry,
+        boolean preferMetadataDriver,
+        CascadeShuffleDAGRewriter.NodeListResolver nodeResolver,
+        Stage subRoot,
+        int[] sharedIdCounter
+    ) {
+        Structure structure = rewriteStructure(dag, registry, nodeResolver, subRoot, sharedIdCounter);
+        QueryDAG rewrittenDag = structure.dag();
+        // Mandatory full pipeline (see class javadoc): forkAll re-expands alternatives from fragments,
+        // adaptAll re-applies DistributedAggregateRewriter to the lifted FINAL aggregate, selectAll
+        // re-applies the parent-backend correctness constraint, convertAll converts each fragment.
+        PlanForker.forkAll(rewrittenDag, registry);
+        BackendPlanAdapter.adaptAll(rewrittenDag, registry);
+        PlanAlternativeSelector.selectAll(rewrittenDag, registry, preferMetadataDriver);
+        FragmentConversionDriver.convertAll(rewrittenDag, registry);
+        return structure;
+    }
+
+    /**
      * The structural half of {@link #rewrite} — no convert pipeline. Split out so unit tests validate
      * the rewritten DAG shape against a mock backend that has no fragment convertor.
      */
@@ -345,7 +394,40 @@ public final class DistributedAggOverJoinRewriter {
         org.opensearch.analytics.planner.CapabilityRegistry registry,
         CascadeShuffleDAGRewriter.NodeListResolver nodeResolver
     ) {
-        Stage root = dag.rootStage();
+        return rewriteStructure(dag, registry, nodeResolver, dag.rootStage());
+    }
+
+    /**
+     * Child-stage variant of {@link #rewriteStructure(QueryDAG, org.opensearch.analytics.planner.CapabilityRegistry,
+     * CascadeShuffleDAGRewriter.NodeListResolver)}. It returns a rewritten sub-DAG rooted at
+     * {@code subRoot}; callers that need a full query DAG can graft {@link Structure#dag()}'s root
+     * back into the parent tree.
+     */
+    public static Structure rewriteStructure(
+        QueryDAG dag,
+        org.opensearch.analytics.planner.CapabilityRegistry registry,
+        CascadeShuffleDAGRewriter.NodeListResolver nodeResolver,
+        Stage subRoot
+    ) {
+        return rewriteStructure(dag, registry, nodeResolver, subRoot, null);
+    }
+
+    /**
+     * Child-stage variant threading a caller-supplied stage-id counter. The multi-subtree scalar-subquery
+     * path (q2/q11) passes ONE counter across both child rewrites so their new top-worker ids are globally
+     * unique once grafted under the shared coordinator root (see
+     * {@link CascadeShuffleDAGRewriter#rewriteStructure(QueryDAG, org.opensearch.analytics.planner.CapabilityRegistry,
+     * CascadeShuffleDAGRewriter.NodeListResolver, CascadeShuffleDAGRewriter.AggLift, int[])}). Null
+     * preserves the single-DAG behaviour.
+     */
+    public static Structure rewriteStructure(
+        QueryDAG dag,
+        org.opensearch.analytics.planner.CapabilityRegistry registry,
+        CascadeShuffleDAGRewriter.NodeListResolver nodeResolver,
+        Stage subRoot,
+        int[] sharedIdCounter
+    ) {
+        Stage root = subRoot;
         Analysis a = analyze(root);
         if (a == null) {
             throw new IllegalStateException(
@@ -465,11 +547,13 @@ public final class DistributedAggOverJoinRewriter {
             }
         };
 
+        QueryDAG subDag = root == dag.rootStage() ? dag : new QueryDAG(dag.queryId(), root);
         CascadeShuffleDAGRewriter.Structure cascadeStructure = CascadeShuffleDAGRewriter.rewriteStructure(
-            dag,
+            subDag,
             registry,
             nodeResolver,
-            aggLift
+            aggLift,
+            sharedIdCounter
         );
 
         return new Structure(cascadeStructure.dag(), List.copyOf(broadcastBuilds), cascadeStructure);

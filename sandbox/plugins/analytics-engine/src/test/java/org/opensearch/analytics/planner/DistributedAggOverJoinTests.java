@@ -31,6 +31,8 @@ import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -488,6 +490,71 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
         assertSame("seed must be a no-op when a non-INNER join sits on the path above the bottom join", cbo, seeded);
     }
 
+    /**
+     * Full TPC-H q2/q11 planner shape: a coordinator-only theta join over TWO independent
+     * aggregate-over-join subtrees. The theta join has no equi key and must not be shuffled; instead
+     * each aggregate input is cut into a child stage, and each child is independently rewritten into
+     * the proven distributed-agg-over-cascade shape (PARTIAL worker + FINAL reduce).
+     */
+    public void testThetaJoinOverTwoAggOverJoinSubtrees_eachChildDistributes() {
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", 100_000L, "c_idx", 100_000L, "d_idx", 25L);
+        PlannerContext context = buildMppContext(rowCounts);
+        RelNode logical = thetaJoinOverTwoAggOverJoinSubtrees(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(cbo, CLUSTER_DATA_NODES, /* minRows */ 1L);
+        assertNotSame("recursive seed must shuffle both agg-over-join input subtrees", cbo, seeded);
+        RelNode split = CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs(seeded);
+        assertNotSame("theta splitter must cut both aggregate inputs before DAGBuilder", seeded, split);
+        RelNode extended = CascadeShufflePlanRewriter.rewrite(split, CLUSTER_DATA_NODES);
+
+        QueryDAG dag = DAGBuilder.build(extended, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        Stage root = dag.rootStage();
+        assertEquals("coordinator root has one child stage per theta input", 2, root.getChildStages().size());
+        OpenSearchJoin theta = RelNodeUtils.findNode(root.getFragment(), OpenSearchJoin.class);
+        assertNotNull("coordinator root keeps the theta join", theta);
+        assertTrue("theta join must have no equi keys", theta.analyzeCondition().leftKeys.isEmpty());
+        assertTrue("left theta input is a reducer over a StageInputScan", theta.getLeft() instanceof OpenSearchExchangeReducer);
+        assertTrue("right theta input is a reducer over a StageInputScan", theta.getRight() instanceof OpenSearchExchangeReducer);
+        assertTrue(
+            "left reducer input is a StageInputScan",
+            ((OpenSearchExchangeReducer) theta.getLeft()).getInput() instanceof OpenSearchStageInputScan
+        );
+        assertTrue(
+            "right reducer input is a StageInputScan",
+            ((OpenSearchExchangeReducer) theta.getRight()).getInput() instanceof OpenSearchStageInputScan
+        );
+        assertStorageComplete("theta coordinator root", root.getFragment());
+
+        for (Stage child : root.getChildStages()) {
+            assertTrue(
+                "each cut theta input child must be independently distributable: stage " + child.getStageId(),
+                DistributedAggOverJoinRewriter.canPushPartial(dag, child)
+            );
+            DistributedAggOverJoinRewriter.Structure structure = DistributedAggOverJoinRewriter.rewriteStructure(
+                dag,
+                context.getCapabilityRegistry(),
+                (levelIndex, partitionCount) -> nodeIds(partitionCount),
+                child
+            );
+            Stage worker = topWorker(structure);
+            OpenSearchAggregate partial = findAggregate(worker.getFragment());
+            assertNotNull("child worker fragment must carry an Aggregate", partial);
+            assertEquals("child worker aggregate is PARTIAL", AggregateMode.PARTIAL, partial.getMode());
+            assertEquals("child worker runs as WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, worker.getExecutionType());
+
+            OpenSearchAggregate finalAgg = findAggregate(structure.dag().rootStage().getFragment());
+            assertNotNull("child reduce fragment must carry an Aggregate", finalAgg);
+            assertEquals("child reduce aggregate is FINAL", AggregateMode.FINAL, finalAgg.getMode());
+            assertStorageComplete("theta child rewritten DAG", structure.dag().rootStage().getFragment());
+            for (Stage rewrittenStage : allStages(structure.dag().rootStage())) {
+                assertStorageComplete("theta child rewritten stage " + rewrittenStage.getStageId(), rewrittenStage.getFragment());
+            }
+        }
+    }
+
     // ── Harness ─────────────────────────────────────────────────────────────────────────────
 
     private record Structure(boolean canPush, DistributedAggOverJoinRewriter.Structure structure) {
@@ -530,6 +597,22 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
         return aggs.isEmpty() ? null : aggs.get(0);
     }
 
+    private static List<Stage> allStages(Stage root) {
+        List<Stage> stages = new ArrayList<>();
+        collectStages(root, stages);
+        return stages;
+    }
+
+    private static void collectStages(Stage stage, List<Stage> out) {
+        if (stage == null) {
+            return;
+        }
+        out.add(stage);
+        for (Stage child : stage.getChildStages()) {
+            collectStages(child, out);
+        }
+    }
+
     /** sum(size) by status, over Join_dim( Join_bottom(a⋈b via cascade ⋈ c), reducer→d ). */
     private RelNode sumByGroupOverDimJoinOverCascade(PlannerContext context) {
         RelNode fourWay = fourWayDimTop(context);
@@ -544,6 +627,30 @@ public class DistributedAggOverJoinTests extends BasePlannerRulesTests {
         );
         // GROUP BY col0 (status) — the group key is available in the dim-join output.
         return LogicalAggregate.create(fourWay, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
+    }
+
+    /** Theta join over a grouped SUM subtree and an empty-group SUM threshold subtree. */
+    private RelNode thetaJoinOverTwoAggOverJoinSubtrees(PlannerContext context) {
+        RelNode left = sumByGroupOverDimJoinOverCascade(context);
+        RelNode rightInput = fourWayDimTop(context);
+        AggregateCall thresholdCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            rightInput,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            "threshold"
+        );
+        RelNode right = LogicalAggregate.create(rightInput, List.of(), ImmutableBitSet.of(), null, List.of(thresholdCall));
+        RelDataType leftValueType = left.getRowType().getFieldList().get(1).getType();
+        RelDataType rightValueType = right.getRowType().getFieldList().get(0).getType();
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(leftValueType, 1),
+            rexBuilder.makeInputRef(rightValueType, left.getRowType().getFieldCount())
+        );
+        return LogicalJoin.create(left, right, List.of(), condition, Set.of(), JoinRelType.INNER);
     }
 
     /** Sort(sum(size) by status descending, ...) — models q5's `... | stats sum(...) by n_name | sort

@@ -63,7 +63,11 @@ import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.BroadcastSizeExceededException;
@@ -117,14 +121,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
 
-    // Per-row byte estimate for converting the coordinator buffer limit into a bottom-join row floor for
-    // the agg-over-join shuffle seed. Deliberately a HIGH estimate of the gathered row width: a higher
-    // bytes/row yields a LOWER row threshold, so we seed earlier and never miss a join whose gather would
-    // overflow (e.g. TPC-H partsupp's 8M rows gather to ~270MB ≈ 34 B/row — a 32 B estimate put the
-    // threshold just ABOVE 8M and missed it). 64 B/row → ~4.2M-row floor at the 256 MiB default, catching
-    // q2/q11 with margin while leaving genuinely small joins coordinator-centric. The seed is
-    // correctness-safe at any size; the floor only avoids needless shuffles of joins that gather safely.
-    private static final long ASSUMED_BYTES_PER_GATHERED_ROW = 64L;
+    // ABSOLUTE bottom-join row floor for the agg-over-join shuffle seed: only seed a join whose larger
+    // input exceeds this many rows. Deliberately NOT derived from the coordinator buffer limit — the
+    // decision "this join is big enough that pushing a PARTIAL below the gather helps" depends on the
+    // join's own size, not on how large the coordinator buffer happens to be (raising the buffer to 1 GiB
+    // for distributed-agg FINAL gathers must NOT suppress the seed: 8M fact rows still benefit from
+    // distribution). 1M rows is well below any fact table that needs distributing (TPC-H partsupp = 8M,
+    // lineitem = 60M) and well above trivial joins that gather cheaply. The seed is correctness-safe at
+    // any size; the floor only avoids needless shuffles of small joins.
+    private static final long MIN_AGG_OVER_JOIN_BOTTOM_ROWS = 1_000_000L;
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
@@ -452,15 +457,51 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             // would mis-lift (the "No table named input-N" failure). Then the existing extend runs on the
             // chosen plan.
             if (AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)) {
-                long minBottomJoinRows = perQueryBufferLimit / ASSUMED_BYTES_PER_GATHERED_ROW;
+                long minBottomJoinRows = MIN_AGG_OVER_JOIN_BOTTOM_ROWS;
                 RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(plan, cascadePartitions, minBottomJoinRows);
                 if (seeded != plan) {
-                    RelNode seededExtended = CascadeShufflePlanRewriter.rewrite(seeded, cascadePartitions);
-                    QueryDAG trialDag = DAGBuilder.build(seededExtended, capabilityRegistry, clusterService, indexNameExpressionResolver);
-                    if (DistributedAggOverJoinRewriter.canPushPartial(trialDag)) {
-                        plan = seeded;
-                    } else {
-                        logger.debug("agg-over-join seed produced a non-distributable DAG; reverting to un-seeded plan");
+                    // First try the scalar-subquery theta-split (q2/q11): when the root is a theta join over
+                    // TWO agg-over-join subtrees, cut each into its own child stage so each distributes
+                    // independently. SELF-VALIDATING: keep the split plan only if BOTH cut children are
+                    // distributable (canPushPartial per child); else fall through to the single-subtree path.
+                    RelNode split = CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs(seeded);
+                    boolean tookSplit = false;
+                    if (split != seeded) {
+                        RelNode splitExtended = CascadeShufflePlanRewriter.rewrite(split, cascadePartitions);
+                        QueryDAG trialDag = DAGBuilder.build(
+                            splitExtended,
+                            capabilityRegistry,
+                            clusterService,
+                            indexNameExpressionResolver
+                        );
+                        List<Stage> distributableChildren = trialDag.rootStage()
+                            .getChildStages()
+                            .stream()
+                            .filter(child -> DistributedAggOverJoinRewriter.canPushPartial(trialDag, child))
+                            .toList();
+                        if (distributableChildren.size() >= 2) {
+                            plan = split;
+                            tookSplit = true;
+                        } else {
+                            logger.debug("theta agg-over-join split produced <2 distributable children; trying single-subtree path");
+                        }
+                    }
+                    // Single-subtree path (q11-main / q5 / q10): keep the seeded plan only if it yields a
+                    // dispatchable distributed-agg-over-join DAG; else revert to un-seeded (so an
+                    // un-acceptable seed can't orphan a shuffle the generic HashShuffleDispatch mis-lifts).
+                    if (!tookSplit) {
+                        RelNode seededExtended = CascadeShufflePlanRewriter.rewrite(seeded, cascadePartitions);
+                        QueryDAG trialDag = DAGBuilder.build(
+                            seededExtended,
+                            capabilityRegistry,
+                            clusterService,
+                            indexNameExpressionResolver
+                        );
+                        if (DistributedAggOverJoinRewriter.canPushPartial(trialDag)) {
+                            plan = seeded;
+                        } else {
+                            logger.debug("agg-over-join seed produced a non-distributable DAG; reverting to un-seeded plan");
+                        }
                     }
                 }
             }
@@ -517,6 +558,23 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         final boolean dispatchDistributedAggOverJoin = dispatchHashShuffle
             && AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
             && DistributedAggOverJoinRewriter.canPushPartial(dag);
+        // Multi-subtree distributed agg over a scalar-subquery theta join (q2/q11): the coordinator root
+        // is a theta join (NO equi key, so dispatchHashShuffle is false for the root) over TWO child
+        // stages that were each cut by splitThetaJoinOverAggInputs and are each independently a
+        // distributable agg-over-join subtree. Detected by ≥2 root children passing canPushPartial; each
+        // child is dispatched as its own distributed-agg phase, then the coordinator runs the theta join
+        // over the two FINAL outputs. Gated on the same toggle.
+        // Shape gate: only take this multi-subtree path when the coordinator root fragment IS a
+        // no-equi-key theta OpenSearchJoin (the q2/q11 scalar-subquery shape that
+        // splitThetaJoinOverAggInputs cut) — NOT merely "≥2 distributable children". Without this, an
+        // unrelated coordinator plan with two distributable children (e.g. a UNION of two aggregates)
+        // would be wrongly stolen from its proper hash-shuffle/cascade dispatch.
+        final List<Stage> distributableThetaChildren = AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
+            && isQueryScheduler
+            && isThetaJoinRoot(dag.rootStage())
+                ? dag.rootStage().getChildStages().stream().filter(c -> DistributedAggOverJoinRewriter.canPushPartial(dag, c)).toList()
+                : List.of();
+        final boolean dispatchMultiSubtreeDistributedAgg = distributableThetaChildren.size() >= 2;
         final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;
         // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
         // buffers may be populated on data nodes (join shuffle, cascade, or shuffle-aggregate all cut
@@ -716,6 +774,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         try {
             if (dispatchBroadcast) {
                 dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
+            } else if (dispatchMultiSubtreeDistributedAgg) {
+                dispatchMultiSubtreeDistributedAgg(dag, distributableThetaChildren, context, execRef, batchesListener);
             } else if (dispatchDistributedAggOverJoin) {
                 dispatchDistributedAggOverJoin(dag, context, execRef, batchesListener);
             } else if (dispatchCascadeShuffle) {
@@ -893,6 +953,68 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ).run(
             context,
             dag,
+            buildStage -> capabilityRegistry.getBackend(captureBackendId)
+                .getExchangeSinkProvider()
+                .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),
+            execRef::set,
+            terminal
+        );
+    }
+
+    /**
+     * True iff {@code rootStage}'s fragment is a no-equi-key (theta) {@link OpenSearchJoin} after peeling
+     * the coordinator post-join ops ({@code Sort}/{@code Project}/{@code Filter}) — the q2/q11
+     * scalar-subquery shape that {@code splitThetaJoinOverAggInputs} cuts. Gates the multi-subtree
+     * distributed-agg route so an unrelated two-distributable-child plan (e.g. a coordinator UNION of two
+     * aggregates) is NOT preempted from its proper dispatch path.
+     */
+    private static boolean isThetaJoinRoot(Stage rootStage) {
+        RelNode n = RelNodeUtils.unwrapHep(rootStage.getFragment());
+        while (n instanceof OpenSearchSort || n instanceof OpenSearchProject || n instanceof OpenSearchFilter) {
+            if (n.getInputs().size() != 1) {
+                return false;
+            }
+            n = RelNodeUtils.unwrapHep(n.getInput(0));
+        }
+        return n instanceof OpenSearchJoin join && join.analyzeCondition().leftKeys.isEmpty();
+    }
+
+    /**
+     * Runs the MULTI-SUBTREE distributed-aggregation path (TPC-H q2/q11 scalar subquery): the coordinator
+     * root is a theta join over {@code distributableThetaChildren} (two agg-over-join subtrees cut by
+     * {@code CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs}). Each child is rewritten + dispatched
+     * as its own distributed-agg phase; the coordinator then runs the theta join over the two FINAL
+     * outputs. Same backend capture-sink factory as the single-subtree path.
+     */
+    private void dispatchMultiSubtreeDistributedAgg(
+        QueryDAG dag,
+        List<Stage> distributableThetaChildren,
+        QueryContext context,
+        AtomicReference<QueryExecution> execRef,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        Stage root = dag.rootStage();
+        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
+            capabilityRegistry,
+            ((OpenSearchRelNode) root.getFragment()).getViableBackends()
+        );
+        if (reduceViable.isEmpty()) {
+            throw new IllegalStateException("No reduce-capable backend for multi-subtree distributed-agg dimension capture sink");
+        }
+        final String captureBackendId = reduceViable.get(0);
+        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
+        QueryScheduler qscheduler = (QueryScheduler) scheduler;
+        new DistributedAggOverJoinDispatch(
+            qscheduler.getStageExecutionBuilder(),
+            qscheduler,
+            clusterService,
+            shuffleBufferManager,
+            capabilityRegistry,
+            preferMetadataDriver
+        ).runMultiSubtree(
+            context,
+            dag,
+            distributableThetaChildren,
             buildStage -> capabilityRegistry.getBackend(captureBackendId)
                 .getExchangeSinkProvider()
                 .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),

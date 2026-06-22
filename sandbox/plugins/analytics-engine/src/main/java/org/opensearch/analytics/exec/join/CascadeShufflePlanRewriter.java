@@ -106,9 +106,25 @@ public final class CascadeShufflePlanRewriter {
         if (partitionCount <= 1) {
             return plan;
         }
-        OpenSearchJoin bottom = findDecomposableAggOverInnerChainBottomJoin(plan, minBottomJoinRows);
+        return seedAggOverJoinBottomShuffleNode(plan, partitionCount, minBottomJoinRows);
+    }
+
+    private static RelNode seedAggOverJoinBottomShuffleNode(RelNode node, int partitionCount, long minBottomJoinRows) {
+        RelNode n = RelNodeUtils.unwrapHep(node);
+        List<RelNode> newInputs = new ArrayList<>(n.getInputs().size());
+        boolean changed = false;
+        for (RelNode input : n.getInputs()) {
+            RelNode rewritten = seedAggOverJoinBottomShuffleNode(input, partitionCount, minBottomJoinRows);
+            newInputs.add(rewritten);
+            if (rewritten != RelNodeUtils.unwrapHep(input) && rewritten != input) {
+                changed = true;
+            }
+        }
+        RelNode rebuilt = changed ? n.copy(n.getTraitSet(), newInputs) : n;
+
+        OpenSearchJoin bottom = findDecomposableAggOverInnerChainBottomJoin(rebuilt, minBottomJoinRows);
         if (bottom == null) {
-            return plan;
+            return rebuilt;
         }
         JoinInfo info = bottom.analyzeCondition();
         // Force BOTH inputs to a hash shuffle on this join's per-side equi keys, unwrapping whatever
@@ -124,11 +140,106 @@ public final class CascadeShufflePlanRewriter {
                 newLeft != null,
                 newRight != null
             );
-            return plan;
+            return rebuilt;
+        }
+        if (newLeft == bottom.getLeft() && newRight == bottom.getRight()) {
+            return rebuilt;
         }
         LOGGER.debug("agg-over-join seed: shuffling bottom join {} (both sides) for PARTIAL push", bottom.getId());
         OpenSearchJoin seeded = (OpenSearchJoin) bottom.copy(bottom.getTraitSet(), List.of(newLeft, newRight));
-        return replaceNode(plan, bottom, seeded);
+        return replaceNode(rebuilt, bottom, seeded);
+    }
+
+    /**
+     * TPC-H q2/q11 scalar-subquery split: when the coordinator root is
+     * {@code Sort?/Project?/Filter? → theta Join → [agg-over-join, agg-over-join]}, wrap both
+     * aggregate inputs in SINGLETON {@link OpenSearchExchangeReducer}s. {@code DAGBuilder} then cuts
+     * each aggregate subtree into its own child stage while the theta join remains coordinator-only
+     * over two {@code StageInputScan} leaves.
+     *
+     * <p>The qualification of each theta input intentionally reuses
+     * {@link #findDecomposableAggOverInnerChainBottomJoin}: the same decomposable aggregate gate and
+     * deepest INNER equi-join path validation used by the q2/q11 seed must hold before we introduce a
+     * synthetic cut. Pure theta joins without two qualifying aggregate inputs are left unchanged, so
+     * the generic theta-join contract stays coordinator-centric and never shuffled.
+     */
+    public static RelNode splitThetaJoinOverAggInputs(RelNode plan) {
+        return splitThetaJoinOverAggInputsNode(plan);
+    }
+
+    private static RelNode splitThetaJoinOverAggInputsNode(RelNode node) {
+        RelNode n = RelNodeUtils.unwrapHep(node);
+        RelNode splitAtRoot = splitThetaJoinOverAggInputsAtRoot(n);
+        if (splitAtRoot != n) {
+            return splitAtRoot;
+        }
+
+        List<RelNode> newInputs = new ArrayList<>(n.getInputs().size());
+        boolean changed = false;
+        for (RelNode input : n.getInputs()) {
+            RelNode rewritten = splitThetaJoinOverAggInputsNode(input);
+            newInputs.add(rewritten);
+            if (rewritten != RelNodeUtils.unwrapHep(input) && rewritten != input) {
+                changed = true;
+            }
+        }
+        return changed ? n.copy(n.getTraitSet(), newInputs) : n;
+    }
+
+    private static RelNode splitThetaJoinOverAggInputsAtRoot(RelNode root) {
+        List<RelNode> aboveJoin = new ArrayList<>();
+        RelNode n = root;
+        while (n instanceof OpenSearchSort
+            || (n instanceof OpenSearchProject p && !RexOver.containsOver(p.getProjects(), null))
+            || n instanceof OpenSearchFilter) {
+            if (n.getInputs().size() != 1) {
+                return root;
+            }
+            aboveJoin.add(n);
+            n = RelNodeUtils.unwrapHep(n.getInput(0));
+        }
+        if (!(n instanceof OpenSearchJoin join) || join.getJoinType() != JoinRelType.INNER) {
+            return root;
+        }
+        JoinInfo info = join.analyzeCondition();
+        if (info.leftKeys.isEmpty() == false) {
+            return root;
+        }
+        RelNode left = RelNodeUtils.unwrapHep(join.getLeft());
+        RelNode right = RelNodeUtils.unwrapHep(join.getRight());
+        if (!isSplittableAggOverJoinInput(left) || !isSplittableAggOverJoinInput(right)) {
+            return root;
+        }
+
+        RelNode newLeft = wrapSingletonReducerIfNeeded(left);
+        RelNode newRight = wrapSingletonReducerIfNeeded(right);
+        if (newLeft == left && newRight == right) {
+            return root;
+        }
+        RelNode rebuilt = join.copy(join.getTraitSet(), List.of(newLeft, newRight));
+        for (int i = aboveJoin.size() - 1; i >= 0; i--) {
+            RelNode op = aboveJoin.get(i);
+            rebuilt = op.copy(op.getTraitSet(), List.of(rebuilt));
+        }
+        LOGGER.debug("theta agg-over-join split: cut both inputs of theta join {}", join.getId());
+        return rebuilt;
+    }
+
+    private static boolean isSplittableAggOverJoinInput(RelNode input) {
+        RelNode n = RelNodeUtils.unwrapHep(input);
+        if (n instanceof OpenSearchExchangeReducer reducer) {
+            n = RelNodeUtils.unwrapHep(reducer.getInput());
+        }
+        return findDecomposableAggOverInnerChainBottomJoin(n, /* minRows */ 0L) != null;
+    }
+
+    private static RelNode wrapSingletonReducerIfNeeded(RelNode input) {
+        RelNode n = RelNodeUtils.unwrapHep(input);
+        if (n instanceof OpenSearchExchangeReducer) {
+            return n;
+        }
+        List<String> viableBackends = ((OpenSearchRelNode) n).getViableBackends();
+        return new OpenSearchExchangeReducer(n.getCluster(), n.getTraitSet(), n, viableBackends);
     }
 
     /**

@@ -122,21 +122,7 @@ public final class DistributedAggOverJoinDispatch {
         // terminal — without this, terminal.onFailure/onResponse could be invoked more than once.
         // (codex review SHOULD-FIX: no once-only terminal guard across build listeners.)
         AtomicBoolean done = new AtomicBoolean(false);
-        ActionListener<Iterable<VectorSchemaRoot>> terminal = new ActionListener<>() {
-            @Override
-            public void onResponse(Iterable<VectorSchemaRoot> result) {
-                if (done.compareAndSet(false, true)) {
-                    rawTerminal.onResponse(result);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (done.compareAndSet(false, true)) {
-                    rawTerminal.onFailure(e);
-                }
-            }
-        };
+        ActionListener<Iterable<VectorSchemaRoot>> terminal = onceOnly(done, rawTerminal);
         try {
             // 1. Rewrite into the distributed-agg shape (PARTIAL on the top worker, FINAL on the
             // coordinator, dims → broadcast scans) and run the full convert pipeline. The cascade
@@ -159,10 +145,135 @@ public final class DistributedAggOverJoinDispatch {
             Stage topWorker = levels.get(levels.size() - 1).worker();
 
             // 2. Phase 1: build each dimension in isolation + capture IPC, then phase 2.
-            buildDimensionsThenRun(ctx, rewrittenDag, topWorker, levels, builds, captureSinkFactory, queryExecutionSink, terminal);
+            List<WorkerEnrichment> enrichments = List.of(new WorkerEnrichment(topWorker, levels));
+            buildDimensionsThenRun(ctx, rewrittenDag, enrichments, builds, captureSinkFactory, queryExecutionSink, terminal);
         } catch (Exception e) {
             terminal.onFailure(e);
         }
+    }
+
+    /**
+     * Drives the MULTI-SUBTREE distributed-agg query (TPC-H q2/q11): the coordinator root is a theta
+     * join over TWO independent agg-over-join child stages (cut by
+     * {@code CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs}). Each child is independently
+     * rewritten into the proven distributed-agg-over-cascade shape (PARTIAL worker + FINAL reduce, dims
+     * broadcast in); the rewritten child roots are grafted back under the coordinator theta-join root,
+     * which then runs the theta join over the two FINAL outputs.
+     *
+     * <p>Reuses the SAME phase-1 dimension-build loop and phase-2 inject/enrich as {@link #run}; the only
+     * generalization is N worker tiers + N level-sets + a combined build list. Stage ids across the two
+     * child rewrites are kept unique by threading ONE shared id counter.
+     *
+     * @param distributableChildren the coordinator root's child stages that pass
+     *     {@link DistributedAggOverJoinRewriter#canPushPartial(QueryDAG, Stage)} (exactly the theta-join
+     *     inputs that are agg-over-join subtrees).
+     */
+    public void runMultiSubtree(
+        QueryContext ctx,
+        QueryDAG dag,
+        List<Stage> distributableChildren,
+        Function<Stage, ExchangeSink> captureSinkFactory,
+        Consumer<QueryExecution> queryExecutionSink,
+        ActionListener<Iterable<VectorSchemaRoot>> rawTerminal
+    ) {
+        AtomicBoolean done = new AtomicBoolean(false);
+        ActionListener<Iterable<VectorSchemaRoot>> terminal = onceOnly(done, rawTerminal);
+        try {
+            // One shared id counter across both child rewrites so new worker ids never collide once
+            // grafted under the shared coordinator root. Seed it above the whole DAG's current max.
+            int[] sharedIdCounter = { maxStageId(dag.rootStage()) + 1 };
+
+            // Rewrite each distributable child into its own distributed-agg sub-DAG (PARTIAL worker +
+            // FINAL reduce, dims → broadcast). Each rewritten child keeps the child's ORIGINAL stage id
+            // at its root, so the coordinator theta join's StageInputScan(childId) still resolves.
+            Map<Integer, Stage> rewrittenChildRoots = new LinkedHashMap<>();
+            List<DistributedAggOverJoinRewriter.BroadcastBuild> allBuilds = new ArrayList<>();
+            List<WorkerEnrichment> enrichments = new ArrayList<>();
+            for (Stage child : distributableChildren) {
+                DistributedAggOverJoinRewriter.Structure structure = DistributedAggOverJoinRewriter.rewrite(
+                    dag,
+                    capabilityRegistry,
+                    preferMetadataDriver,
+                    (levelIndex, partitionCount) -> resolveTargetWorkerNodeIds(partitionCount),
+                    child,
+                    sharedIdCounter
+                );
+                List<DistributedAggOverJoinRewriter.BroadcastBuild> builds = structure.broadcastBuilds();
+                if (builds.isEmpty()) {
+                    throw new IllegalStateException(
+                        "DistributedAggOverJoinDispatch: child subtree " + child.getStageId() + " produced no dimension builds"
+                    );
+                }
+                List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.cascade().buildLevels();
+                Stage topWorker = levels.get(levels.size() - 1).worker();
+                rewrittenChildRoots.put(child.getStageId(), structure.dag().rootStage());
+                allBuilds.addAll(builds);
+                enrichments.add(new WorkerEnrichment(topWorker, levels));
+            }
+
+            // Graft the rewritten child roots back under the coordinator theta-join root (by stage id).
+            Stage graftedRoot = graftChildren(dag.rootStage(), rewrittenChildRoots);
+            QueryDAG graftedDag = new QueryDAG(dag.queryId(), graftedRoot);
+
+            buildDimensionsThenRun(ctx, graftedDag, enrichments, allBuilds, captureSinkFactory, queryExecutionSink, terminal);
+        } catch (Exception e) {
+            terminal.onFailure(e);
+        }
+    }
+
+    /** Once-only terminal wrapper (multiple build listeners + phase 2 can each fire). */
+    private static ActionListener<Iterable<VectorSchemaRoot>> onceOnly(AtomicBoolean done, ActionListener<Iterable<VectorSchemaRoot>> raw) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Iterable<VectorSchemaRoot> result) {
+                if (done.compareAndSet(false, true)) {
+                    raw.onResponse(result);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (done.compareAndSet(false, true)) {
+                    raw.onFailure(e);
+                }
+            }
+        };
+    }
+
+    /** Rebuilds {@code root} replacing each child stage whose id is in {@code replacements} with the
+     *  rewritten sub-DAG root (same id). Non-replaced children are kept as-is (they are not distributed). */
+    private static Stage graftChildren(Stage root, Map<Integer, Stage> replacements) {
+        List<Stage> newChildren = new ArrayList<>(root.getChildStages().size());
+        for (Stage child : root.getChildStages()) {
+            Stage replacement = replacements.get(child.getStageId());
+            newChildren.add(replacement != null ? replacement : child);
+        }
+        Stage copy = new Stage(
+            root.getStageId(),
+            root.getFragment(),
+            newChildren,
+            root.getExchangeInfo(),
+            root.getExchangeSinkProvider(),
+            root.getTargetResolver()
+        );
+        copy.setRole(root.getRole());
+        copy.setPlanAlternatives(root.getPlanAlternatives());
+        if (root.getInstructionHandlerFactory() != null) {
+            copy.setInstructionHandlerFactory(root.getInstructionHandlerFactory());
+        }
+        return copy;
+    }
+
+    private static int maxStageId(Stage stage) {
+        int max = stage.getStageId();
+        for (Stage child : stage.getChildStages()) {
+            max = Math.max(max, maxStageId(child));
+        }
+        return max;
+    }
+
+    /** A worker stage to enrich with broadcasts + the cascade levels to enrich for shuffle, per subtree. */
+    private record WorkerEnrichment(Stage topWorker, List<CascadeShuffleDAGRewriter.WorkerLevel> levels) {
     }
 
     /**
@@ -173,8 +284,7 @@ public final class DistributedAggOverJoinDispatch {
     private void buildDimensionsThenRun(
         QueryContext ctx,
         QueryDAG rewrittenDag,
-        Stage topWorker,
-        List<CascadeShuffleDAGRewriter.WorkerLevel> levels,
+        List<WorkerEnrichment> enrichments,
         List<DistributedAggOverJoinRewriter.BroadcastBuild> builds,
         Function<Stage, ExchangeSink> captureSinkFactory,
         Consumer<QueryExecution> queryExecutionSink,
@@ -217,6 +327,12 @@ public final class DistributedAggOverJoinDispatch {
                                 ),
                                 t
                             );
+                            // Cancel sibling builds BEFORE firing the terminal (the terminal closes the
+                            // shared per-query allocator; a still-running sibling capture would otherwise
+                            // serialize Arrow IPC against the freed allocator — use-after-free). With two
+                            // subtrees' builds running concurrently this path is reachable; mirror the
+                            // FAILED/CANCELLED branches.
+                            cancelOtherBuilds(buildRoots, buildExec, "sibling dimension build capture failed");
                             terminal.onFailure(new RuntimeException("DistributedAggOverJoinDispatch: dimension build capture failed", t));
                             return;
                         }
@@ -236,7 +352,7 @@ public final class DistributedAggOverJoinDispatch {
                             }
                             // All dimensions captured — proceed to phase 2.
                             try {
-                                startPhase2(ctx, rewrittenDag, topWorker, levels, capturedByName, queryExecutionSink, terminal);
+                                startPhase2(ctx, rewrittenDag, enrichments, capturedByName, queryExecutionSink, terminal);
                             } catch (Exception e) {
                                 terminal.onFailure(e);
                             }
@@ -339,31 +455,33 @@ public final class DistributedAggOverJoinDispatch {
     private void startPhase2(
         QueryContext ctx,
         QueryDAG rewrittenDag,
-        Stage topWorker,
-        List<CascadeShuffleDAGRewriter.WorkerLevel> levels,
+        List<WorkerEnrichment> enrichments,
         Map<String, byte[]> capturedByName,
         Consumer<QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
-        // Inject one broadcast instruction per dimension onto the top worker's plan alternatives. The
-        // data-node worker handler runs the instruction chain before executing the fragment, so each
-        // broadcast-<id> NamedScan in the worker fragment resolves to the registered memtable. The
-        // buildSideIndex is informational (the join's NamedScan is looked up by name, not index).
-        enrichWorkerWithBroadcasts(topWorker, capturedByName);
+        // Inject one broadcast instruction per dimension onto EACH top worker's plan alternatives, and
+        // enrich EACH subtree's cascade levels. The data-node worker handler runs the instruction chain
+        // before executing the fragment, so each broadcast-<id> NamedScan resolves to the registered
+        // memtable. Injecting the full captured set into every worker is safe — NamedScans resolve by
+        // (unique) name, so a worker simply ignores registrations its fragment does not reference.
+        java.util.Set<Integer> workerStageIds = new java.util.HashSet<>();
+        for (WorkerEnrichment e : enrichments) {
+            enrichWorkerWithBroadcasts(e.topWorker(), capturedByName);
+            // Reuse the cascade's per-level shuffle enrichment for every join level (the top worker also
+            // holds the PARTIAL aggregate — its join still consumes two shuffles).
+            CascadeShuffleDispatch.enrichLevels(e.levels(), ctx, clusterService, capabilityRegistry);
+            workerStageIds.add(e.topWorker().getStageId());
+        }
 
-        // Reuse the cascade's per-level shuffle enrichment for every join level (including the top
-        // worker that now also holds the PARTIAL aggregate — its join still consumes two shuffles).
-        CascadeShuffleDispatch.enrichLevels(levels, ctx, clusterService, capabilityRegistry);
-
-        // Strip the already-run dimension build stages from the worker's children so the scheduler
-        // does not re-run them (their output is already captured + injected). Mirrors BroadcastDispatch
-        // pass 2 dropping the build child. The shuffle producer children stay.
-        QueryDAG dispatchDag = new QueryDAG(rewrittenDag.queryId(), stripBuildChildren(rewrittenDag.rootStage(), topWorker.getStageId()));
+        // Strip the already-run dimension build stages from EVERY worker's children so the scheduler does
+        // not re-run them (their output is already captured + injected). The shuffle producer children stay.
+        QueryDAG dispatchDag = new QueryDAG(rewrittenDag.queryId(), stripBuildChildren(rewrittenDag.rootStage(), workerStageIds));
 
         LOGGER.debug(
-            "[DistributedAggOverJoinDispatch] phase 2: {} dimension broadcast(s) injected into worker {}, dispatching cascade",
+            "[DistributedAggOverJoinDispatch] phase 2: {} dimension broadcast(s) injected across {} worker(s), dispatching",
             capturedByName.size(),
-            topWorker.getStageId()
+            enrichments.size()
         );
         QueryExecution exec = scheduler.execute(ctx.withDag(dispatchDag), terminal);
         if (queryExecutionSink != null) {
@@ -386,18 +504,18 @@ public final class DistributedAggOverJoinDispatch {
         worker.setPlanAlternatives(enriched);
     }
 
-    /** Rebuilds the DAG dropping the BROADCAST_BUILD children of the worker stage (id {@code workerStageId}).
+    /** Rebuilds the DAG dropping the BROADCAST_BUILD children of any worker stage in {@code workerStageIds}.
      *  Every other stage is copied with its children rebuilt so siblings are preserved. */
-    private static Stage stripBuildChildren(Stage stage, int workerStageId) {
+    private static Stage stripBuildChildren(Stage stage, java.util.Set<Integer> workerStageIds) {
         List<Stage> children = stage.getChildStages();
         List<Stage> rebuilt = new ArrayList<>(children.size());
         boolean changed = false;
         for (Stage child : children) {
-            if (stage.getStageId() == workerStageId && child.getRole() == Stage.StageRole.BROADCAST_BUILD) {
+            if (workerStageIds.contains(stage.getStageId()) && child.getRole() == Stage.StageRole.BROADCAST_BUILD) {
                 changed = true; // drop this build child — already captured
                 continue;
             }
-            Stage rebuiltChild = stripBuildChildren(child, workerStageId);
+            Stage rebuiltChild = stripBuildChildren(child, workerStageIds);
             rebuilt.add(rebuiltChild);
             if (rebuiltChild != child) {
                 changed = true;

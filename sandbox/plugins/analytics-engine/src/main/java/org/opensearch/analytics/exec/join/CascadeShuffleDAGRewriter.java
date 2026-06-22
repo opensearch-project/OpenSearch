@@ -160,6 +160,25 @@ public final class CascadeShuffleDAGRewriter {
      * {@link DistributedAggOverJoinRewriter}.
      */
     public static Structure rewriteStructure(QueryDAG dag, CapabilityRegistry registry, NodeListResolver nodeResolver, AggLift aggLift) {
+        return rewriteStructure(dag, registry, nodeResolver, aggLift, null);
+    }
+
+    /**
+     * Overload taking a caller-supplied stage-id counter. When {@code sharedIdCounter} is non-null it is
+     * used (and advanced) instead of {@code nextStageId(dag)} for minting the new top-worker id. The
+     * multi-subtree scalar-subquery path (TPC-H q2/q11) threads ONE counter across BOTH child-subtree
+     * rewrites so the new top-worker ids never collide — each child computes its own {@code nextStageId}
+     * from its local subtree max, which would otherwise overlap once both are grafted under the shared
+     * coordinator root, and {@code OpenSearchStageInputScan} references stage ids BY VALUE in the
+     * fragment (no safe post-graft renumber). Null preserves the single-DAG behaviour (q5/q10/q11-main).
+     */
+    public static Structure rewriteStructure(
+        QueryDAG dag,
+        CapabilityRegistry registry,
+        NodeListResolver nodeResolver,
+        AggLift aggLift,
+        int[] sharedIdCounter
+    ) {
         Stage root = dag.rootStage();
         // Collect every join-shuffle stage (fragment has a join sitting over shuffle inputs),
         // top-down. The first is the topmost join; the rest are intermediate.
@@ -178,7 +197,9 @@ public final class CascadeShuffleDAGRewriter {
         // All other join-shuffle stages are intermediate → converted in place to workers.
         // Build worker versions for the intermediates first so the rebuild references them.
         Map<Integer, Stage> intermediateWorkers = new HashMap<>();
-        int[] nextId = { nextStageId(dag) };
+        // Use the caller's shared counter when supplied (multi-subtree graft, q2/q11) so new worker ids
+        // are globally unique across sibling rewrites; otherwise derive from this DAG's max (q5/q10).
+        int[] nextId = sharedIdCounter != null ? sharedIdCounter : new int[] { nextStageId(dag) };
 
         // Resolve the join descriptor for every join-shuffle stage up front (keys + child ids).
         Map<Integer, JoinShuffle> descriptors = new HashMap<>();
