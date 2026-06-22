@@ -153,19 +153,12 @@ impl BlockCache for TieredBlockCache {
         -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
     {
         Box::pin(async move {
-            // Metadata cache first — small SSD, fast probe, never evicts. On warm
-            // restart, Foyer recovers these from disk so the probe is an instant hit.
-            //
-            // Use `try_get` (not `get`) for the metadata-tier probe so a miss does
-            // NOT bump `metadata_cache.miss_count`. Column-chunk reads dominate
-            // normal traffic and would otherwise inflate metadata miss stats with
-            // entries that were never going to live in the metadata tier in the
-            // first place. Hits still update `metadata_cache.hit_count` and
-            // `hit_bytes` — those numbers stay meaningful.
-            if let Some(bytes) = self.metadata_cache.try_get(key).await {
+            // Metadata cache first — small SSD, fast probe, never evicts.
+            // On warm restart, Foyer recovers these from disk — instant hit.
+            if let Some(bytes) = self.metadata_cache.get(key).await {
                 return Some(bytes);
             }
-            // Fall through to data cache (real hit/miss tracking happens here).
+            // Fall through to data cache.
             self.data_cache.get(key).await
         })
     }

@@ -240,6 +240,8 @@ public final class FoyerBlockCache implements BlockCache {
             data.missBytes(),
             data.evictions(),
             data.evictionBytes(),
+            data.removed(),
+            data.removedBytes(),
             data.diskBytesUsed(),
             data.totalBytes(),
             data.activeInBytes(),
@@ -249,6 +251,8 @@ public final class FoyerBlockCache implements BlockCache {
             meta.missBytes(),
             meta.evictions(),
             meta.evictionBytes(),
+            meta.removed(),
+            meta.removedBytes(),
             meta.diskBytesUsed(),
             meta.totalBytes(),
             meta.activeInBytes()

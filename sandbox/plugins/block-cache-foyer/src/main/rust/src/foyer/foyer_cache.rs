@@ -731,35 +731,6 @@ impl FoyerCache {
         let raw = if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key };
         raw.trim_start_matches('/')
     }
-
-    /// Stats-aware peek: returns `Some(bytes)` on hit and updates `hit_count` +
-    /// `hit_bytes`; returns `None` on miss WITHOUT bumping `miss_count` or
-    /// `miss_bytes`. Designed for the metadata-tier shortcut probe in
-    /// [`crate::tiered_block_cache::TieredBlockCache::get`] — a miss there means
-    /// "this key wasn't a metadata entry to begin with" (column-chunk reads
-    /// dominate normal traffic), not a real cache failure, so counting it would
-    /// pollute the metadata-tier miss stats.
-    ///
-    /// `active_in_bytes` accounting is preserved (it's a backpressure metric for
-    /// concurrent in-flight reads, not a hit/miss metric, and a shortcut probe
-    /// still reads from disk).
-    pub fn try_get<'a>(&'a self, key: &'a CacheKey)
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
-    {
-        Box::pin(async {
-            let range_len = key.range_len() as i64;
-            let _active_guard = ActiveBytesGuard::new(&self.stats.active_in_bytes, range_len);
-            match self.inner.get(&key.as_str().to_string()).await {
-                Ok(Some(e)) => {
-                    let size = e.value().len() as i64;
-                    self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
-                    self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
-                    Some(Bytes::copy_from_slice(e.value()))
-                }
-                _ => None, // intentionally NO miss tracking — see doc above
-            }
-        })
-    }
 }
 
 impl BlockCache for FoyerCache {

@@ -68,6 +68,8 @@ public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockC
             500,
             2,
             200,
+            3,
+            300,
             8000,
             10000,
             64,
@@ -77,6 +79,8 @@ public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockC
             250,
             1,
             100,
+            2,
+            150,
             4000,
             5000,
             32
@@ -99,6 +103,10 @@ public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockC
 
     private BlockCacheTieredStats randomTieredStats() {
         return new BlockCacheTieredStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
