@@ -219,6 +219,14 @@ pub extern "C" fn df_set_reduce_target_partitions(value: i64) {
     api::set_reduce_target_partitions(value);
 }
 
+/// Sets the spill-exemption cap in bytes (the total in-flight allocation allowed
+/// through the 85% spill gate by spillable consumers so they can finish spilling).
+/// Live-tunable; takes effect on the next try_grow. Java: NativeBridge.setSpillExemptCapBytes(long).
+#[no_mangle]
+pub extern "C" fn df_set_spill_exempt_cap_bytes(value: i64) {
+    crate::memory_guard::set_spill_exempt_cap_bytes(value.max(0) as u64);
+}
+
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
 /// (e.g., 700 = 0.70, 850 = 0.85, 950 = 0.95).
 #[no_mangle]

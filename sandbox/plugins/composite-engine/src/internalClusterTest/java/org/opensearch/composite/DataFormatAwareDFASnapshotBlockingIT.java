@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -43,6 +44,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Together these guarantee: hot DFA + non-DFA flow normally through V2 snapshots; warm DFA never
  * appears in any snapshot.
  */
+@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/22011")
 public class DataFormatAwareDFASnapshotBlockingIT extends DataFormatAwareReadonlyEngineBaseIT {
 
     private static final String V2_REPO = "v2-block-test-repo";
