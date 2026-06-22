@@ -67,6 +67,10 @@ pub enum CacheEvictionPolicy {
     Lru,
     Lfu,
     Fifo,
+    /// Scan-resistant S3-FIFO. Not implemented via the hand-written [`CachePolicy`]
+    /// trait — it is provided natively by foyer (`FoyerBackedCache`), so `create_policy`
+    /// returns `None` for it and callers route to the foyer-backed cache instead.
+    S3Fifo,
 }
 
 /// Backward-compatible alias — will be removed once all call sites are migrated.
@@ -304,7 +308,9 @@ pub fn create_policy(policy_type: CacheEvictionPolicy) -> Option<Arc<dyn CachePo
     match policy_type {
         CacheEvictionPolicy::Lru  => Some(Arc::new(LruPolicy::new())),
         CacheEvictionPolicy::Lfu  => Some(Arc::new(LfuPolicy::new())),
-        CacheEvictionPolicy::Fifo => None,
+        // FIFO routes to BoundedCache's ScopedEvictionPolicy; S3-FIFO routes to
+        // the foyer-backed cache. Neither uses the hand-written CachePolicy trait.
+        CacheEvictionPolicy::Fifo | CacheEvictionPolicy::S3Fifo => None,
     }
 }
 
