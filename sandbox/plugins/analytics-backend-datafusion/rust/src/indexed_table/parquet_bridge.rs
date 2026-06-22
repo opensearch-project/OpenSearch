@@ -56,6 +56,13 @@ use prost::bytes::Bytes;
 /// On a cache hit the cached (footer-only) metadata is returned with no IO.
 /// On a cache miss we fetch with `PageIndexPolicy::Skip` — never fetching page
 /// index bytes — then store the footer in the cache for future hits.
+///
+/// Issues a `head()` to learn the file's size + last-modified. Callers that
+/// already hold an authoritative [`ObjectMeta`] (e.g. from the listing snapshot
+/// passed into a `ParquetFileReaderFactory`) should call
+/// [`load_parquet_metadata_with_meta`] instead — the `head()` is a `File::open`
+/// + `fstat` syscall per call on local stores, which adds up under repeated
+/// per-file reader creation.
 pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
@@ -65,6 +72,20 @@ pub async fn load_parquet_metadata(
         .head(location)
         .await
         .map_err(|e| format!("object-store head {location}: {e}"))?;
+    load_parquet_metadata_with_meta(store, location, meta, metadata_cache).await
+}
+
+/// Like [`load_parquet_metadata`] but uses a caller-supplied [`ObjectMeta`]
+/// (size + last_modified) instead of issuing a `head()`. The cache validity
+/// check ([`CachedFileMetadataEntry::is_valid_for`]) only consults `size` and
+/// `last_modified`, both present in the listing's `ObjectMeta`, so no `head()`
+/// is needed when the caller already has it.
+pub async fn load_parquet_metadata_with_meta(
+    store: Arc<dyn ObjectStore>,
+    location: &object_store::path::Path,
+    meta: object_store::ObjectMeta,
+    metadata_cache: Arc<dyn FileMetadataCache>,
+) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let size = meta.size;
 
     // Cache hit — return footer-only metadata without any IO.

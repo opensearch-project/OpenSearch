@@ -30,6 +30,7 @@ use log::error;
 use object_store::ObjectMeta;
 
 use crate::api::{DataFusionRuntime, ShardView};
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::query_tracker::QueryTrackingContext;
 use crate::scoped_index_optimizer::ScopedPageIndexOptimizer;
@@ -233,12 +234,14 @@ pub async unsafe fn create_session_context(
     // Install the scoped page-index reader factory on every parquet scan.
     // Registered AFTER ProjectRowIdOptimizer so it sees the final DataSourceExec.
     // Also, this SHOULD be the last optimizer to see all projections / predicates
-    state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
-        ScopedPageIndexOptimizer::new(
-            Arc::clone(&shard_view.store),
-            runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-        ),
-    ));
+    if page_index::is_scoped_page_index_enabled() {
+        state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
+            ScopedPageIndexOptimizer::new(
+                Arc::clone(&shard_view.store),
+                runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+            ),
+        ));
+    }
 
     let state = state_builder.build();
 
@@ -291,9 +294,10 @@ pub async unsafe fn create_session_context(
     {
         let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
         for meta in shard_view.object_metas.as_ref() {
-            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata(
+            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
                 Arc::clone(&shard_view.store),
                 &meta.location,
+                meta.clone(),
                 Arc::clone(&metadata_cache),
             )
             .await;

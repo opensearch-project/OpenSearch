@@ -71,11 +71,12 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::api::ShardView;
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
-
+use crate::parquet_page_cache::{load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair};
 
 /// Execute an indexed query.
 ///
@@ -1015,30 +1016,32 @@ async unsafe fn execute_indexed_with_context_inner(
     // the indexed PagePruner can page-prune. Both predicate (→ ColumnIndex) and
     // projection (→ OffsetIndex) are wired — a match()-only query still needs a
     // scoped OffsetIndex so the reader fetches only matched pages.
-    let predicate_column_names = collect_predicate_column_names(extraction.as_ref(), &schema);
-    let projection_column_names = collect_plan_column_names(&logical_plan);
-    if !predicate_column_names.is_empty() || !projection_column_names.is_empty() {
-        for segment in segments.iter_mut() {
-            let (parquet_cols, offset_cols) =
-                crate::parquet_page_cache::resolve_predicate_parquet_columns_pair(
-                    &schema,
+    if page_index::is_scoped_page_index_enabled() {
+        let predicate_column_names = collect_predicate_column_names(extraction.as_ref(), &schema);
+        let projection_column_names = collect_plan_column_names(&logical_plan);
+        if !predicate_column_names.is_empty() || !projection_column_names.is_empty() {
+            for segment in segments.iter_mut() {
+                let (parquet_cols, offset_cols) =
+                    resolve_predicate_parquet_columns_pair(
+                        &schema,
+                        &segment.metadata,
+                        &predicate_column_names,
+                        &projection_column_names,
+                    );
+                if parquet_cols.is_empty() && offset_cols.is_empty() {
+                    continue;
+                }
+                if let Some(augmented) = load_scoped_page_index_cols(
+                    &store,
+                    &segment.object_path,
                     &segment.metadata,
-                    &predicate_column_names,
-                    &projection_column_names,
-                );
-            if parquet_cols.is_empty() && offset_cols.is_empty() {
-                continue;
-            }
-            if let Some(augmented) = crate::parquet_page_cache::load_scoped_page_index_cols(
-                &store,
-                &segment.object_path,
-                &segment.metadata,
-                &parquet_cols,
-                &offset_cols,
-            )
-            .await
-            {
-                segment.metadata = augmented;
+                    &parquet_cols,
+                    &offset_cols,
+                )
+                .await
+                {
+                    segment.metadata = augmented;
+                }
             }
         }
     }

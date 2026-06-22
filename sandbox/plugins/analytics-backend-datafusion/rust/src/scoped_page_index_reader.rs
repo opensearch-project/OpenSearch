@@ -75,7 +75,7 @@ use object_store::{ObjectStore, ObjectStoreExt};
 use prost::bytes::Bytes;
 
 use crate::cache::page_index::{load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair};
-use crate::indexed_table::parquet_bridge::load_parquet_metadata;
+use crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta;
 
 /// A [`ParquetFileReaderFactory`] that, on `get_metadata`, returns metadata whose
 /// page index is scoped to the query's predicate columns. Data reads go straight
@@ -143,6 +143,10 @@ impl ParquetFileReaderFactory for ScopedPageIndexReaderFactory {
             projection_column_names: Arc::clone(&self.projection_column_names),
             file_schema: Arc::clone(&self.file_schema),
             location: file.object_meta.location.clone(),
+            // Carry the listing's ObjectMeta so `get_metadata` resolves the footer
+            // from cache without a per-read `head()` syscall (see
+            // `load_parquet_metadata_with_meta`).
+            object_meta: file.object_meta.clone(),
             metrics: file_metrics,
         }))
     }
@@ -155,6 +159,9 @@ struct ScopedPageIndexReader {
     projection_column_names: Arc<Vec<String>>,
     file_schema: SchemaRef,
     location: object_store::path::Path,
+    /// Listing-snapshot metadata (size + last_modified) for `location`. Used to
+    /// resolve footer metadata from cache without a `head()` syscall per read.
+    object_meta: object_store::ObjectMeta,
     metrics: ParquetFileMetrics,
 }
 
@@ -204,12 +211,19 @@ impl AsyncFileReader for ScopedPageIndexReader {
         let projection_names = Arc::clone(&self.projection_column_names);
         let file_schema = Arc::clone(&self.file_schema);
         let location = self.location.clone();
+        let object_meta = self.object_meta.clone();
         async move {
             // 1. Footer-only metadata (shared metadata-cache hit if pre-seeded).
-            let (_schema, _size, footer) =
-                load_parquet_metadata(Arc::clone(&store), &location, Arc::clone(&metadata_cache))
-                    .await
-                    .map_err(|e| ParquetError::General(format!("footer metadata {location}: {e}")))?;
+            //    Use the listing's ObjectMeta rather than a `head()` — the cache
+            //    validity check only needs size + last_modified, both already known.
+            let (_schema, _size, footer) = load_parquet_metadata_with_meta(
+                Arc::clone(&store),
+                &location,
+                object_meta,
+                Arc::clone(&metadata_cache),
+            )
+            .await
+            .map_err(|e| ParquetError::General(format!("footer metadata {location}: {e}")))?;
 
             // 2. Resolve predicate + projection names → parquet leaf indices, then
             //    augment with a column-scoped page index. Gated on either being
@@ -283,11 +297,12 @@ mod tests {
         (Bytes::from(buf), schema)
     }
 
-    async fn stage(bytes: Bytes) -> (Arc<dyn ObjectStore>, ObjPath) {
+    async fn stage(bytes: Bytes) -> (Arc<dyn ObjectStore>, ObjPath, u64) {
+        let size = bytes.len() as u64;
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let loc = ObjPath::from("data.parquet");
         store.put(&loc, PutPayload::from_bytes(bytes)).await.unwrap();
-        (store, loc)
+        (store, loc, size)
     }
 
     fn fresh_cache() -> Arc<dyn FileMetadataCache> {
@@ -310,7 +325,7 @@ mod tests {
         crate::cache::page_index::clear_scoped_cache_for_test();
 
         let (bytes, schema) = two_col_parquet();
-        let (store, loc) = stage(bytes).await;
+        let (store, loc, size) = stage(bytes).await;
         let factory = ScopedPageIndexReaderFactory::new(
             Arc::clone(&store),
             fresh_cache(),
@@ -321,7 +336,7 @@ mod tests {
             None,
             schema,
         );
-        let pf = PartitionedFile::new(loc.as_ref().to_string(), 0);
+        let pf = PartitionedFile::new(loc.as_ref().to_string(), size);
         let m = metrics();
         let mut reader = factory.create_reader(0, pf, None, &m).unwrap();
 
@@ -362,7 +377,7 @@ mod tests {
         crate::cache::page_index::clear_scoped_cache_for_test();
 
         let (bytes, schema) = two_col_parquet();
-        let (store, loc) = stage(bytes).await;
+        let (store, loc, size) = stage(bytes).await;
         let factory = ScopedPageIndexReaderFactory::new(
             Arc::clone(&store),
             fresh_cache(),
@@ -371,7 +386,7 @@ mod tests {
             None,
             schema,
         );
-        let pf = PartitionedFile::new(loc.as_ref().to_string(), 0);
+        let pf = PartitionedFile::new(loc.as_ref().to_string(), size);
         let m = metrics();
         let mut reader = factory.create_reader(0, pf, None, &m).unwrap();
 
