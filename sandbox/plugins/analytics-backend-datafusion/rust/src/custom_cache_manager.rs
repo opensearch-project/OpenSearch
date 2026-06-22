@@ -15,6 +15,8 @@ use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
 use object_store::ObjectMeta;
+use object_store::ObjectStore;
+use object_store::ObjectStoreExt;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use log::{debug, error};
 
@@ -41,6 +43,38 @@ fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, data
     };
 
     Ok(vec![object_meta])
+}
+
+/// Resolve the object store and ObjectMeta for a file the same way the query/reader path does
+/// (api::create_reader). Warm shard (store_ptr > 0): decode the SAME boxed-fat
+/// Box<Arc<dyn ObjectStore>> pointer the reader uses and derive ObjectMeta via store.head() so
+/// size/last_modified match the query path (else is_valid_for fails and every query re-reads).
+/// Hot (store_ptr == 0): use the cheap local std::fs path over LocalFileSystem.
+fn resolve_store_and_meta(
+    file_path: &str,
+    rt_handle: &tokio::runtime::Handle,
+    store_ptr: i64,
+) -> Result<(Arc<dyn ObjectStore>, ObjectMeta), String> {
+    if store_ptr > 0 {
+        // Safety: store_ptr is a Box<Arc<dyn ObjectStore>> pointer from ts_get_object_store_box_ptr
+        // (the same form df_create_reader decodes). Passing the raw thin *const TieredObjectStore
+        // form would read garbage as the vtable -> SIGSEGV.
+        let boxed = unsafe { &*(store_ptr as *const Arc<dyn ObjectStore>) };
+        let store = Arc::clone(boxed);
+        let location = Path::from(file_path);
+        let meta = rt_handle
+            .block_on(async { store.head(&location).await })
+            .map_err(|e| format!("Failed to head {} on remote store: {}", file_path, e))?;
+        Ok((store, meta))
+    } else {
+        let object_meta = create_object_meta_from_file(file_path)
+            .map_err(|e| format!("Failed to get object metadata: {}", e))?
+            .into_iter()
+            .next()
+            .ok_or_else(|| "No object metadata returned".to_string())?;
+        let store: Arc<dyn ObjectStore> = Arc::new(object_store::local::LocalFileSystem::new());
+        Ok((store, object_meta))
+    }
 }
 
 /// Custom CacheManager that holds cache references directly
@@ -105,7 +139,7 @@ impl CustomCacheManager {
     }
 
     /// Add multiple files to all applicable caches
-    pub fn add_files(&self, file_paths: &[String], rt_handle: &tokio::runtime::Handle) -> Result<Vec<(String, bool)>, String> {
+    pub fn add_files(&self, file_paths: &[String], rt_handle: &tokio::runtime::Handle, store_ptr: i64) -> Result<Vec<(String, bool)>, String> {
         let mut results = Vec::new();
 
         for file_path in file_paths {
@@ -113,7 +147,7 @@ impl CustomCacheManager {
             let mut errors = Vec::new();
 
             // Add to metadata cache
-            match self.metadata_cache_put(file_path, rt_handle) {
+            match self.metadata_cache_put(file_path, rt_handle, store_ptr) {
                 Ok(true) => {
                     any_success = true;
                 }
@@ -125,9 +159,10 @@ impl CustomCacheManager {
                 }
             }
 
-            // Add to statistics cache
-            if let Some(_) = &self.statistics_cache {
-                match self.statistics_cache_compute_and_put(file_path) {
+            // Add to statistics cache. The footer is read through the resolved store (warm: remote
+            // per-shard store; hot: local std::fs), so the same call serves both tiers.
+            if self.statistics_cache.is_some() {
+                match self.statistics_cache_compute_and_put(file_path, rt_handle, store_ptr) {
                     Ok(true) => {
                         any_success = true;
                     }
@@ -340,18 +375,15 @@ impl CustomCacheManager {
     }
 
     /// Internal method to put metadata into cache
-    fn metadata_cache_put(&self, file_path: &str, rt_handle: &tokio::runtime::Handle) -> Result<bool, String> {
+    fn metadata_cache_put(&self, file_path: &str, rt_handle: &tokio::runtime::Handle, store_ptr: i64) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
             return Ok(false); // Skip unsupported formats
         }
 
-        let object_metas = create_object_meta_from_file(file_path)
-            .map_err(|e| format!("Failed to get object metadata: {}", e))?;
-
-        let object_meta = object_metas.first()
-            .ok_or_else(|| "No object metadata returned".to_string())?;
-
-        let store = Arc::new(object_store::local::LocalFileSystem::new());
+        // Resolve the object store + ObjectMeta exactly as the query/reader path does
+        // (api::create_reader): warm shards read through the per-shard remote store, hot shards
+        // use local std::fs.
+        let (store, object_meta) = resolve_store_and_meta(file_path, rt_handle, store_ptr)?;
 
         // Get cache reference for DataFusion metadata loading
         let cache_ref = self.file_metadata_cache.as_ref()
@@ -366,7 +398,7 @@ impl CustomCacheManager {
         // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
         // This ensures we cache exactly what DataFusion would cache during query execution
         let _parquet_metadata = rt_handle.block_on(async {
-            let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
+            let df_metadata = DFParquetMetadata::new(store.as_ref(), &object_meta)
                 .with_file_metadata_cache(Some(metadata_cache));
 
             // fetch_metadata() performs the cache put operation internally
@@ -389,73 +421,92 @@ impl CustomCacheManager {
         }
     }
 
-    /// Compute and put statistics into cache
-    pub fn statistics_cache_compute_and_put(&self, file_path: &str) -> Result<bool, String> {
-        let cache = self.statistics_cache.as_ref()
+    /// Compute and put statistics into cache. Warm shard (store_ptr > 0): read the footer through
+    /// the per-shard remote store (async). Hot (store_ptr == 0): read the local file synchronously
+    /// via compute_parquet_statistics (unchanged original path). The two derivations are kept
+    /// separate on purpose; only the warm branch needs the object store.
+    pub fn statistics_cache_compute_and_put(
+        &self,
+        file_path: &str,
+        rt_handle: &tokio::runtime::Handle,
+        store_ptr: i64,
+    ) -> Result<bool, String> {
+        if !file_path.to_lowercase().ends_with(".parquet") {
+            return Ok(false); // Skip unsupported formats
+        }
+
+        let cache = self
+            .statistics_cache
+            .as_ref()
             .ok_or_else(|| "No statistics cache configured".to_string())?;
 
         let path = Path::from(file_path.to_string());
-
-        // Check if already cached
         if cache.contains_key(&path) {
             return Ok(true);
         }
 
-        // Compute statistics
-        match compute_parquet_statistics(file_path) {
-            Ok(stats) => {
-                let meta = ObjectMeta {
-                    location: path.clone(),
-                    last_modified: chrono::Utc::now(),
-                    size: std::fs::metadata(file_path)
-                        .map(|m| m.len())
-                        .unwrap_or(0),
-                    e_tag: None,
-                    version: None,
-                };
+        if store_ptr > 0 {
+            // Warm: the file lives on the per-shard remote store, so read its footer through that
+            // store (async) and derive statistics from it.
+            use datafusion::parquet::arrow::parquet_to_arrow_schema;
 
-                cache.put_statistics(&path, Arc::new(stats), &meta);
-                Ok(true)
+            let (store, object_meta) = resolve_store_and_meta(file_path, rt_handle, store_ptr)?;
+            let stats = rt_handle.block_on(async {
+                let parquet_metadata = DFParquetMetadata::new(store.as_ref(), &object_meta)
+                    .fetch_metadata()
+                    .await
+                    .map_err(|e| format!("failed to fetch parquet metadata: {}", e))?;
+                let file_metadata = parquet_metadata.file_metadata();
+                let schema = Arc::new(
+                    parquet_to_arrow_schema(file_metadata.schema_descr(), file_metadata.key_value_metadata())
+                        .map_err(|e| format!("failed to derive arrow schema: {}", e))?,
+                );
+                DFParquetMetadata::statistics_from_parquet_metadata(&parquet_metadata, &schema)
+                    .map_err(|e| format!("failed to compute statistics: {}", e))
+            });
+            match stats {
+                Ok(stats) => {
+                    cache.put_statistics(&path, Arc::new(stats), &object_meta);
+                    Ok(true)
+                }
+                Err(e) => Err(format!("Failed to compute statistics for {}: {}", file_path, e)),
             }
-            Err(e) => {
-                Err(format!("Failed to compute statistics for {}: {}", file_path, e))
-            }
-        }
-    }
-
-    /// Batch compute and cache statistics for multiple files
-    pub fn statistics_cache_batch_compute_and_put(&self, file_paths: &[String]) -> Result<usize, String> {
-        let cache = self.statistics_cache.as_ref()
-            .ok_or_else(|| "No statistics cache configured".to_string())?;
-
-        let mut success_count = 0;
-        let mut failed_files = Vec::new();
-
-        for file_path in file_paths {
-            let path = Path::from(file_path.clone());
-
-            if cache.contains_key(&path) {
-                success_count += 1;
-                continue;
-            }
-
+        } else {
             match compute_parquet_statistics(file_path) {
                 Ok(stats) => {
                     let meta = ObjectMeta {
                         location: path.clone(),
                         last_modified: chrono::Utc::now(),
-                        size: std::fs::metadata(file_path)
-                            .map(|m| m.len())
-                            .unwrap_or(0),
+                        size: std::fs::metadata(file_path).map(|m| m.len()).unwrap_or(0),
                         e_tag: None,
                         version: None,
                     };
-
                     cache.put_statistics(&path, Arc::new(stats), &meta);
+                    Ok(true)
+                }
+                Err(e) => Err(format!("Failed to compute statistics for {}: {}", file_path, e)),
+            }
+        }
+    }
+
+    /// Batch compute and cache statistics for multiple files. Forwards store_ptr so each file is
+    /// warmed for the correct tier (warm: per-shard remote store; hot: local std::fs).
+    pub fn statistics_cache_batch_compute_and_put(
+        &self,
+        file_paths: &[String],
+        rt_handle: &tokio::runtime::Handle,
+        store_ptr: i64,
+    ) -> Result<usize, String> {
+        let mut success_count = 0;
+        let mut failed_files = Vec::new();
+
+        for file_path in file_paths {
+            match self.statistics_cache_compute_and_put(file_path, rt_handle, store_ptr) {
+                Ok(_) => {
                     success_count += 1;
                 }
                 Err(e) => {
-                    debug!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
+                    debug!("[STATS CACHE ERROR] {}", e);
                     failed_files.push(file_path.clone());
                 }
             }
@@ -470,7 +521,12 @@ impl CustomCacheManager {
     }
 
     /// Get or compute statistics
-    pub fn statistics_cache_get_or_compute(&self, file_path: &str) -> Result<bool, String> {
+    pub fn statistics_cache_get_or_compute(
+        &self,
+        file_path: &str,
+        rt_handle: &tokio::runtime::Handle,
+        store_ptr: i64,
+    ) -> Result<bool, String> {
         let cache = self.statistics_cache.as_ref()
             .ok_or_else(|| "No statistics cache configured".to_string())?;
 
@@ -480,7 +536,7 @@ impl CustomCacheManager {
             return Ok(true);
         }
 
-        self.statistics_cache_compute_and_put(file_path)
+        self.statistics_cache_compute_and_put(file_path, rt_handle, store_ptr)
     }
 
     /// Get statistics cache hit count
@@ -557,6 +613,139 @@ impl CustomCacheManager {
     pub fn metadata_cache_reset_stats(&self) {
         if let Some(cache) = &self.file_metadata_cache {
             cache.reset_stats();
+        }
+    }
+}
+
+#[cfg(test)]
+mod store_aware_warm_tests {
+    use super::*;
+    use crate::cache::MutexFileMetadataCache;
+    use datafusion::arrow::array::Int64Array;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::arrow::record_batch::RecordBatch;
+    use datafusion::execution::cache::CacheAccessor;
+    use datafusion::execution::cache::DefaultFilesMetadataCache;
+    use datafusion::parquet::arrow::ArrowWriter;
+    use object_store::local::LocalFileSystem;
+
+    fn write_parquet(path: &std::path::Path) {
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
+        let batch =
+            RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(Int64Array::from(vec![1i64, 2, 3]))]).unwrap();
+        let file = std::fs::File::create(path).unwrap();
+        let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+    }
+
+    fn manager_with_metadata_cache() -> (CustomCacheManager, Arc<MutexFileMetadataCache>) {
+        let metadata_cache = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(50 * 1024 * 1024)));
+        let mut mgr = CustomCacheManager::new();
+        mgr.set_file_metadata_cache(metadata_cache.clone());
+        (mgr, metadata_cache)
+    }
+
+    // store_ptr > 0 (warm): resolve the boxed object store, read ObjectMeta via store.head, cache
+    // the footer, and verify a query-path fetch reuses it (is_valid_for passes => no re-read).
+    #[test]
+    fn warm_store_ptr_caches_and_validates() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("seg_0.parquet");
+        write_parquet(&file_path);
+        let abs = file_path.to_str().unwrap().to_string();
+
+        let (mgr, metadata_cache) = manager_with_metadata_cache();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let handle = rt.handle();
+
+        // Simulate the per-shard remote store handle: a Box<Arc<dyn ObjectStore>> raw pointer,
+        // the same boxed-fat form df_create_reader / df_cache_manager_add_files decode.
+        let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
+        let store_ptr = Box::into_raw(Box::new(Arc::clone(&store))) as i64;
+
+        let results = mgr.add_files(&[abs.clone()], handle, store_ptr).unwrap();
+        assert_eq!(results, vec![(abs.clone(), true)], "warm add_files should cache the footer");
+
+        let key = Path::from(abs.as_str());
+        assert!(metadata_cache.contains_key(&key), "entry must be present under the file path key");
+        assert_eq!(metadata_cache.len(), 1, "exactly one entry cached");
+
+        // A query-path fetch with a freshly headed ObjectMeta must HIT the warmed entry
+        // (is_valid_for passes); otherwise a stale/fabricated meta would force a re-read.
+        let head = handle.block_on(async { store.head(&key).await }).unwrap();
+        let hits_before = metadata_cache.hit_count();
+        handle
+            .block_on(async {
+                DFParquetMetadata::new(store.as_ref(), &head)
+                    .with_file_metadata_cache(Some(metadata_cache.clone() as Arc<dyn FileMetadataCache>))
+                    .fetch_metadata()
+                    .await
+            })
+            .unwrap();
+        assert!(
+            metadata_cache.hit_count() > hits_before,
+            "warm-cached entry should be reused by a query-path fetch"
+        );
+        assert_eq!(metadata_cache.len(), 1, "is_valid_for passed => no duplicate entry");
+
+        // Reclaim the boxed store pointer.
+        unsafe {
+            drop(Box::from_raw(store_ptr as *mut Arc<dyn ObjectStore>));
+        }
+    }
+
+    // store_ptr == 0 (hot): the existing local std::fs / LocalFileSystem path still caches.
+    #[test]
+    fn hot_store_ptr_zero_caches_locally() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("seg_0.parquet");
+        write_parquet(&file_path);
+        let abs = file_path.to_str().unwrap().to_string();
+
+        let (mgr, metadata_cache) = manager_with_metadata_cache();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let handle = rt.handle();
+
+        let results = mgr.add_files(&[abs.clone()], handle, 0).unwrap();
+        assert_eq!(results, vec![(abs.clone(), true)], "hot add_files should cache the footer");
+        assert!(metadata_cache.contains_key(&Path::from(abs.as_str())));
+        assert_eq!(metadata_cache.len(), 1);
+    }
+
+    // store_ptr > 0 (warm): when both caches are configured, add_files warms the metadata cache
+    // and the statistics cache, pulling each from the footer through the boxed object store.
+    #[test]
+    fn warm_store_ptr_warms_metadata_and_statistics_caches() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("seg_0.parquet");
+        write_parquet(&file_path);
+        let abs = file_path.to_str().unwrap().to_string();
+
+        let metadata_cache = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(50 * 1024 * 1024)));
+        let stats_cache = Arc::new(crate::statistics_cache::CustomStatisticsCache::new(
+            crate::eviction_policy::PolicyType::Lru,
+            10 * 1024 * 1024,
+            0.8,
+        ));
+        let mut mgr = CustomCacheManager::new();
+        mgr.set_file_metadata_cache(metadata_cache.clone());
+        mgr.set_statistics_cache(stats_cache.clone());
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let handle = rt.handle();
+        let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
+        let store_ptr = Box::into_raw(Box::new(Arc::clone(&store))) as i64;
+
+        let results = mgr.add_files(&[abs.clone()], handle, store_ptr).unwrap();
+        assert_eq!(results, vec![(abs.clone(), true)], "warm add_files should warm both caches");
+
+        let key = Path::from(abs.as_str());
+        assert!(metadata_cache.contains_key(&key), "metadata footer must be cached on warm");
+        assert!(stats_cache.contains_key(&key), "statistics must be cached via the store on warm");
+
+        unsafe {
+            drop(Box::from_raw(store_ptr as *mut Arc<dyn ObjectStore>));
         }
     }
 }

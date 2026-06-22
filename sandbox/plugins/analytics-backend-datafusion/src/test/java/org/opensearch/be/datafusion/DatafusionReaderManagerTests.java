@@ -189,8 +189,35 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
 
         String expectedDir = shardPath.getDataPath().resolve("parquet").toString();
         Collection<String> expectedPaths = List.of(expectedDir + "/seg_0.parquet");
-        verify(mockService).onFilesAdded(expectedPaths);
+        verify(mockService).onFilesAdded(expectedPaths, 0L);
         manager.close();
+    }
+
+    /**
+     * onFilesAdded with a live store handle should forward that handle's boxed object-store
+     * pointer to the service so warm footers are read through the per-shard remote store.
+     */
+    public void testOnFilesAddedForwardsLiveStorePointer() throws IOException {
+        ShardPath shardPath = createTestShardPath();
+        DataFusionService mockService = mock(DataFusionService.class);
+        NativeStoreHandle handle = new NativeStoreHandle(4242L, ptr -> {});
+        try {
+            DatafusionReaderManager manager = new DatafusionReaderManager(
+                TEST_FORMAT,
+                shardPath,
+                mockService,
+                handle,
+                List.of(),
+                List.of()
+            );
+            manager.onFilesAdded(List.of("seg_0.parquet"));
+
+            String expectedDir = shardPath.getDataPath().resolve("parquet").toString();
+            verify(mockService).onFilesAdded(List.of(expectedDir + "/seg_0.parquet"), 4242L);
+            manager.close();
+        } finally {
+            handle.close();
+        }
     }
 
     /**

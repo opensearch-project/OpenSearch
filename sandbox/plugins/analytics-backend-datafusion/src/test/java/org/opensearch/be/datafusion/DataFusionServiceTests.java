@@ -119,8 +119,10 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
         // These are no-ops in the current Rust impl but should not throw
         service.onFilesAdded(java.util.List.of("/tmp/test1.parquet", "/tmp/test2.parquet"));
+        service.onFilesAdded(java.util.List.of("/tmp/test3.parquet"), 0L);
         service.onFilesDeleted(java.util.List.of("/tmp/test1.parquet"));
         service.onFilesAdded(null);
+        service.onFilesAdded(null, 0L);
         service.onFilesDeleted(java.util.List.of());
 
         service.stop();

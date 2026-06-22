@@ -258,9 +258,20 @@ public class DataFusionService extends AbstractLifecycleComponent {
      * @param filePaths absolute paths of the new files
      */
     public void onFilesAdded(Collection<String> filePaths) {
+        onFilesAdded(filePaths, 0L);
+    }
+
+    /**
+     * Notifies the native cache that new files are available for caching, reading footers through
+     * the given per-shard object store.
+     * @param filePaths absolute paths of the new files
+     * @param storePtr per-shard native object-store pointer ({@code 0} = local file system / hot;
+     *                 {@code >0} = remote store / warm, read footers via TieredObjectStore)
+     */
+    public void onFilesAdded(Collection<String> filePaths, long storePtr) {
         if (filePaths == null || filePaths.isEmpty()) return;
         try {
-            NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filePaths.toArray(new String[0]));
+            NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filePaths.toArray(new String[0]), storePtr);
         } catch (Exception e) {
             logger.warn("Failed to register new files with native cache", e);
         }
