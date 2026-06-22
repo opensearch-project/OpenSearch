@@ -134,6 +134,9 @@ public final class NativeBridge {
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
+    private static final MethodHandle SET_COLUMN_INDEX_CACHE_LIMIT;
+    private static final MethodHandle SET_OFFSET_INDEX_CACHE_LIMIT;
+    private static final MethodHandle CLEAR_SCOPED_PAGE_INDEX_CACHE;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
@@ -503,6 +506,18 @@ public final class NativeBridge {
             )
         );
 
+        SET_COLUMN_INDEX_CACHE_LIMIT = linker.downcallHandle(
+            lib.find("df_set_column_index_cache_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        SET_OFFSET_INDEX_CACHE_LIMIT = linker.downcallHandle(
+            lib.find("df_set_offset_index_cache_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        CLEAR_SCOPED_PAGE_INDEX_CACHE = linker.downcallHandle(
+            lib.find("df_clear_scoped_page_index_cache").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
         SET_CANCEL_STATS_THRESHOLD_MS = linker.downcallHandle(
@@ -1622,6 +1637,60 @@ public final class NativeBridge {
             var file = call.str(filePath);
             long result = call.invoke(CACHE_MANAGER_CONTAINS_BY_TYPE, runtimePtr, type.segment(), type.len(), file.segment(), file.len());
             return result != 0;
+        }
+    }
+
+    /**
+     * Sets the byte budget of the process-global scoped ColumnIndex cache.
+     * Shrinking evicts LRU entries immediately. Zero is ignored.
+     */
+    public static void setColumnIndexCacheLimit(long sizeLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_COLUMN_INDEX_CACHE_LIMIT, sizeLimitBytes);
+        }
+    }
+
+    /**
+     * Sets the byte budget of the process-global scoped OffsetIndex cache.
+     * Shrinking evicts LRU entries immediately. Zero is ignored.
+     */
+    public static void setOffsetIndexCacheLimit(long sizeLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_OFFSET_INDEX_CACHE_LIMIT, sizeLimitBytes);
+        }
+    }
+
+    /**
+     * Clears the process-global scoped page-index cache (drops entries + resets
+     * counters, keeps the budget). For operational testing.
+     */
+    public static void clearScopedPageIndexCache() {
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the footer metadata cache. */
+    public static void clearFooterCache() {
+        // TODO(PR1): wire to df_clear_footer_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the scoped ColumnIndex (predicate) cache. */
+    public static void clearColumnIndexCache() {
+        // TODO(PR1): wire to df_clear_column_index_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the scoped OffsetIndex (projection) cache. */
+    public static void clearOffsetIndexCache() {
+        // TODO(PR1): wire to df_clear_offset_index_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
         }
     }
 
