@@ -15,6 +15,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
@@ -412,6 +414,72 @@ public class MergeTests extends OpenSearchTestCase {
         );
         scheduler.enableAutoIOThrottle();
         assertNotNull(scheduler.stats());
+    }
+
+    public void testMergeIORateLimitDefaultsToInfinity() {
+        MergeScheduler scheduler = createMergeScheduler();
+        assertEquals(Double.POSITIVE_INFINITY, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeIORateLimitFromClusterSetting() {
+        Settings nodeSettings = Settings.builder()
+            .put(ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.getKey(), "50.0")
+            .build();
+        Settings indexSettings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
+            .build();
+        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", indexSettings), nodeSettings);
+        MergeScheduler scheduler = new MergeScheduler(
+            createNoopHandler(emptySnapshotSupplier()),
+            (mr, om) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            SHARD_ID,
+            idxSettings,
+            mockThreadPool()
+        );
+        assertEquals(50.0, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeIORateLimitDynamicUpdate() {
+        Settings indexSettings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
+            .build();
+        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", indexSettings), Settings.EMPTY);
+        MergeScheduler scheduler = new MergeScheduler(
+            createNoopHandler(emptySnapshotSupplier()),
+            (mr, om) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            SHARD_ID,
+            idxSettings,
+            mockThreadPool()
+        );
+        assertEquals(Double.POSITIVE_INFINITY, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+
+        idxSettings.getMergeSchedulerConfig().setIORateLimitMBPerSec(25.0);
+        assertEquals(25.0, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeInputCarriesRateLimit() {
+        MergeInput input = MergeInput.builder()
+            .segments(List.of())
+            .newWriterGeneration(1L)
+            .rateLimitMBPerSec(42.0)
+            .build();
+        assertEquals(42.0, input.rateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeInputDefaultRateLimitIsInfinity() {
+        MergeInput input = MergeInput.builder()
+            .segments(List.of())
+            .newWriterGeneration(1L)
+            .build();
+        assertEquals(Double.POSITIVE_INFINITY, input.rateLimitMBPerSec(), 0.0);
     }
 
     // ---- MergeScheduler: integration with real merge execution ----
