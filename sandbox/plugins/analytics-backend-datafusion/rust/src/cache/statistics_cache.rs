@@ -148,7 +148,7 @@ impl CustomStatisticsCache {
     pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
         Self {
             inner_cache: DashMap::new(),
-            policy: Mutex::new(create_policy(policy_type)),
+            policy: Mutex::new(create_policy(policy_type).expect("statistics cache requires Lru or Lfu")),
             size_limit: AtomicUsize::new(size_limit),
             eviction_threshold,
             memory_state: Arc::new(Mutex::new(MemoryState {
@@ -229,7 +229,7 @@ impl CustomStatisticsCache {
             })?;
             state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
         };
-        let new_policy = create_policy(policy_type);
+        let new_policy = create_policy(policy_type).expect("statistics cache requires Lru or Lfu");
         for (key, size) in entries {
             new_policy.on_insert(&key, size);
         }
