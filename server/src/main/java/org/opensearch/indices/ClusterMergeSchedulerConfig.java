@@ -175,6 +175,7 @@ public class ClusterMergeSchedulerConfig {
 
     private void onClusterIORateLimitUpdate(Double value) {
         clusterIORateLimitMBPerSec = value;
+        MergeSchedulerConfig.setDefaultIORateLimitMBPerSec(value);
         for (IndexService indexService : indicesService) {
             indexService.onClusterLevelIORateLimitUpdate(clusterIORateLimitMBPerSec);
         }

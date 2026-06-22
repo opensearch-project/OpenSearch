@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.NODE_PROCESSORS_SETTING;
 import static org.opensearch.indices.ClusterMergeSchedulerConfig.CLUSTER_AUTO_THROTTLE_SETTING;
+import static org.opensearch.indices.ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING;
 import static org.opensearch.indices.ClusterMergeSchedulerConfig.CLUSTER_MAX_MERGE_COUNT_SETTING;
 import static org.opensearch.indices.ClusterMergeSchedulerConfig.CLUSTER_MAX_THREAD_COUNT_SETTING;
 
@@ -1039,6 +1040,76 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         assertEquals(60, indexService.getIndexSettings().getMergeSchedulerConfig().getMaxThreadCount());
         assertEquals("80", clusterSettings.get(CLUSTER_MAX_MERGE_COUNT_SETTING).toString());
         assertEquals("60", clusterSettings.get(CLUSTER_MAX_THREAD_COUNT_SETTING).toString());
+    }
+
+    public void testClusterIORateLimitPropagates() throws Exception {
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
+
+        String indexName = "test-io-rate-limit";
+        createIndex(indexName, indexSettings());
+        ensureYellowAndNoInitializingShards(indexName);
+        ensureGreen(indexName);
+
+        GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, randomFrom(dataNodes));
+        String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService = getIndexService(indicesService, new Index(indexName, uuid));
+
+        // default is infinity (no cap)
+        assertEquals(
+            Double.POSITIVE_INFINITY,
+            indexService.getIndexSettings().getMergeSchedulerConfig().getIORateLimitMBPerSec(),
+            0.0
+        );
+
+        // set cluster-level IO rate limit
+        client(clusterManagerName).admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.getKey(), 50.0))
+            .get();
+
+        assertEquals(50.0, indexService.getIndexSettings().getMergeSchedulerConfig().getIORateLimitMBPerSec(), 0.0);
+
+        // update to a different value
+        client(clusterManagerName).admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.getKey(), 100.0))
+            .get();
+
+        assertEquals(100.0, indexService.getIndexSettings().getMergeSchedulerConfig().getIORateLimitMBPerSec(), 0.0);
+
+        // create a second index and verify it also picks up the rate limit
+        String indexName2 = "test-io-rate-limit-2";
+        createIndex(indexName2, indexSettings());
+        ensureYellowAndNoInitializingShards(indexName2);
+        ensureGreen(indexName2);
+
+        getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        uuid = getIndexResponse.getSettings().get(indexName2).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService2 = getIndexService(indicesService, new Index(indexName2, uuid));
+
+        assertEquals(100.0, indexService2.getIndexSettings().getMergeSchedulerConfig().getIORateLimitMBPerSec(), 0.0);
+
+        // remove the setting (reset to default infinity)
+        client(clusterManagerName).admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.getKey()))
+            .get();
+
+        assertEquals(
+            Double.POSITIVE_INFINITY,
+            indexService.getIndexSettings().getMergeSchedulerConfig().getIORateLimitMBPerSec(),
+            0.0
+        );
+        assertEquals(
+            Double.POSITIVE_INFINITY,
+            indexService2.getIndexSettings().getMergeSchedulerConfig().getIORateLimitMBPerSec(),
+            0.0
+        );
     }
 
     private IndexService getIndexService(IndicesService indicesService, Index index) throws Exception {

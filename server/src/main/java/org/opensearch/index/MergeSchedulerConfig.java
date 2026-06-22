@@ -147,6 +147,7 @@ public final class MergeSchedulerConfig {
     private static volatile Boolean clusterAutoThrottleEnabledDefault;
     private static volatile Integer clusterMaxThreadCountDefault;
     private static volatile Integer clusterMaxMergeCountDefault;
+    private static volatile Double clusterIORateLimitDefault;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
         indexName = indexSettings.getIndex().getName();
@@ -236,9 +237,9 @@ public final class MergeSchedulerConfig {
 
         setAutoThrottle(autoThrottleEnabled);
         setMaxThreadAndMergeCount(maxThread, maxMerge);
-        this.ioRateLimitMBPerSec = ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.get(
-            indexSettings.getNodeSettings()
-        );
+        this.ioRateLimitMBPerSec = clusterIORateLimitDefault != null
+            ? clusterIORateLimitDefault
+            : ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.get(indexSettings.getNodeSettings());
         logger.info(
             new ParameterizedMessage(
                 "Initialized index {} with maxMergeCount={}, maxThreadCount={}, autoThrottleEnabled={}",
@@ -353,6 +354,13 @@ public final class MergeSchedulerConfig {
      */
     public void setIORateLimitMBPerSec(double ioRateLimitMBPerSec) {
         this.ioRateLimitMBPerSec = ioRateLimitMBPerSec;
+    }
+
+    /**
+     * Updates the cluster-level default IO rate limit so newly created indices inherit the value.
+     */
+    public static void setDefaultIORateLimitMBPerSec(double rateLimitMBPerSec) {
+        clusterIORateLimitDefault = rateLimitMBPerSec;
     }
 
     /**
