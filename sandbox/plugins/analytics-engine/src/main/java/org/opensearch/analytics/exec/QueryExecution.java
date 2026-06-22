@@ -13,10 +13,12 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.tasks.CancellableTask;
 
@@ -170,12 +172,24 @@ public class QueryExecution {
     }
 
     /**
-     * Live parent-task cancellation wins — keeps the user-facing message accurate over the
-     * downstream FAILED cause. Otherwise propagate the captured stage failure (synthetic
-     * fallback for CANCELLED with no upstream cause).
+     * Determines the exception to report for a non-SUCCEEDED terminal.
+     *
+     * <p>Live parent-task cancellation still wins — the user-facing "query cancelled" message stays
+     * accurate for genuine top-down cancels. The one exception is a breaker masquerading as a cancel:
+     * a memory-gate trip ({@link CircuitBreakingException}) fails the (reduce) stage and then cancels
+     * the parent task via the sibling/child cancel sweep, so {@code isCancelled()} is already true by
+     * the time we report. Returning {@link TaskCancelledException} there would mask the real cause as
+     * HTTP 500; instead we peek at the captured root failure and, if a breaker is hiding in its cause
+     * chain, surface it unwrapped so {@code status()} yields 429. A genuine cancel records no stage
+     * failure ({@code getFailure()} is {@code null}), so the peek finds nothing and behavior is
+     * unchanged. The non-cancel path is byte-for-byte the original: captured failure, else synthetic.
      */
     private Exception terminalCause(State terminal) {
         if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
+            Throwable breaker = ExceptionsHelper.unwrap(graph.rootExecution().getFailure(), CircuitBreakingException.class);
+            if (breaker != null) {
+                return (CircuitBreakingException) breaker;
+            }
             return new TaskCancelledException("query cancelled");
         }
         StageExecution rootExec = graph.rootExecution();
