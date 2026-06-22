@@ -71,6 +71,7 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         try {
             setScopedPageIndexEnabled(true);
             restoreCacheDefaults();
+            restoreLuceneBlockedPredicates();
             clearAllCaches();
         } catch (Exception ignored) {
             // best-effort: don't mask the test failure
@@ -238,6 +239,9 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
      * Cold query fills CI with misses; warm repeat hits from cache.
      */
     public void testStringFieldFilterFillsColumnIndex() throws Exception {
+        // city is a keyword field; equality would normally be delegated to Lucene and never
+        // touch parquet. Block EQUALS so the predicate scans parquet and fills the ColumnIndex.
+        setLuceneBlockedPredicates("EQUALS");
         String ppl = "source=" + INDEX_NAME + " | where city = 'seattle' | stats count()";
         clearAllCaches();
         assertCacheEmpty();
@@ -284,8 +288,11 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         assertCacheEmpty();
 
         assertOnlyOiFills(ppl);
-        // OI: 1 file × {name(col 0), score(col 2)} = 2 entries. name IS col_0, so union = {name,score} = 2
-        assertExactOiEntries("projection-only: OI entries = 2 (file×{name,score})", 2L);
+        // OI key = (file, col); the column set is {col 0} ∪ predicate ∪ projection. The
+        // page-skip metric always reads col 0, so it is included even when not projected.
+        // Here name/score are distinct keyword/double leaves (neither is col 0), so the set
+        // is {col 0, name, score} = 3 entries over 1 file.
+        assertExactOiEntries("projection-only: OI entries = 3 (file×{col 0,name,score})", 3L);
         assertExactCiEntries("projection-only: CI entries = 0 (no predicate)", 0L);
     }
 
@@ -327,6 +334,11 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
      * schema is defined — the mapping is inferred from each batch.
      */
     public void testDynamicMappingNewFieldInSecondSegmentFillsCI() throws Exception {
+        // region/city are keyword fields; block EQUALS so the keyword-equality predicate
+        // (region = 'west') scans parquet and fills the ColumnIndex instead of being
+        // delegated to Lucene.
+        setLuceneBlockedPredicates("EQUALS");
+
         // Clean up any leftovers from a prior run.
         try { client().performRequest(new Request("DELETE", "/" + DYNAMIC_INDEX_NAME)); } catch (Exception ignored) {}
 
@@ -857,22 +869,62 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         assertZero("pure Lucene count: OI entries must be 0", oiEntries(s));
     }
 
+    /**
+     * Delegated keyword-equality predicate produces NO scoped cache activity.
+     *
+     * <p>This is the converse of {@link #testStringFieldFilterFillsColumnIndex}: with the default
+     * delegation block-list (EQUALS is NOT blocked), {@code city = 'seattle'} on a keyword field is
+     * answered by Lucene's inverted index. The parquet file is never scanned for that predicate, so
+     * neither the ColumnIndex nor the OffsetIndex scoped cache should record any hit, miss, or entry.
+     *
+     * <p>Guards against a regression where a delegated string predicate still triggers a parquet
+     * page-index load (which would defeat the point of delegation and waste cache budget).
+     */
+    public void testDelegatedStringPredicateProducesNoOffsetIndexActivity() throws Exception {
+        // Be explicit that EQUALS is delegated to Lucene (this is also the cluster default).
+        setLuceneBlockedPredicates();
+        clearAllCaches();
+        assertCacheEmpty();
+
+        String ppl = "source=" + INDEX_NAME + " | where city = 'seattle' | stats count()";
+        executePpl(ppl);
+        executePpl(ppl);
+
+        JsonNode s = stats();
+        // The predicate went to Lucene; parquet pages were never read.
+        assertZero("delegated EQUALS: OI hits must be 0", oiHits(s));
+        assertZero("delegated EQUALS: OI misses must be 0", oiMisses(s));
+        assertZero("delegated EQUALS: OI entries must be 0", oiEntries(s));
+        assertZero("delegated EQUALS: CI hits must be 0", ciHits(s));
+        assertZero("delegated EQUALS: CI misses must be 0", ciMisses(s));
+        assertZero("delegated EQUALS: CI entries must be 0", ciEntries(s));
+    }
+
     // ── tiny cache limits — correctness under eviction pressure ──────────────
 
     /**
-     * Set the total metadata-index cache budget to 1 byte so every entry is guaranteed
-     * to be rejected on insert (CI entry size = column_index_length bytes from parquet footer,
-     * which is always ≥ tens of bytes; OI entry size = offset_index_length, also ≥ tens of
-     * bytes). With a 1-byte limit {@code size > limit} fires in the Rust cache and the insert
-     * is skipped — every access is a miss, {@code used_bytes} stays 0, {@code entry_count} stays 0.
+     * Set the total metadata-index cache budget to a handful of bytes so every entry is
+     * guaranteed to be rejected on insert (CI entry size = column_index_length bytes from the
+     * parquet footer, always ≥ tens of bytes; OI entry size = offset_index_length, likewise).
+     * When an entry's {@code size > limit} the Rust cache skips the insert — every access is a
+     * miss, {@code used_bytes} stays 0, {@code entry_count} stays 0.
+     *
+     * <p>The budget is split across the sub-caches by fixed percentages (CI 13%, OI 34%) with
+     * integer truncation, and the native limit setters IGNORE a zero limit (treating it as
+     * "unset" and keeping the default multi-MB budget). So a 1-byte total would truncate both
+     * shares to 0 and leave the real caches huge. We use 8 bytes instead: CI → 8×13/100 = 1 byte,
+     * OI → 8×34/100 = 2 bytes — both non-zero (honored) yet far below any real entry, which is
+     * exactly the "reject everything" regime this test needs.
      *
      * <p>Queries must still return correct results — the cache is a performance
      * optimisation, not a correctness dependency. The parquet reader falls back to
      * loading page-index bytes fresh from the object store on every query.
      */
     public void testQueriesCorrectWithTinyCacheLimits() throws Exception {
-        // 1b guarantees every entry is larger than the limit → all inserts rejected.
-        setCacheTotalSize("1b");
+        // 8b → CI limit 1b, OI limit 2b: tiny but non-zero, so every entry is larger and rejected.
+        // The cluster-settings PUT is acknowledged only after every node has applied the update and
+        // run the cache-limit consumer, so the scoped limits are already live when this returns.
+        setCacheTotalSize("8b");
         try {
             clearAllCaches();
 
@@ -880,11 +932,12 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
             String listing = "source=" + INDEX_NAME + " | where age > 90 | stats count()";
             executePpl(listing);
             JsonNode s1 = stats();
-            // size_limit_bytes must reflect the configured tiny limit (derived as % of 1b)
-            assertTrue("CI size_limit_bytes must be <= 1 under 1b budget",
-                s1.get("column_index_cache").get("size_limit_bytes").asLong() <= 1L);
-            assertTrue("OI size_limit_bytes must be <= 1 under 1b budget",
-                s1.get("offset_index_cache").get("size_limit_bytes").asLong() <= 1L);
+            // size_limit_bytes must reflect the configured tiny per-cache limit (% of 8b),
+            // small enough that no entry can ever fit.
+            assertTrue("CI size_limit_bytes must be tiny (<= 8) under 8b budget",
+                s1.get("column_index_cache").get("size_limit_bytes").asLong() <= 8L);
+            assertTrue("OI size_limit_bytes must be tiny (<= 8) under 8b budget",
+                s1.get("offset_index_cache").get("size_limit_bytes").asLong() <= 8L);
             // Entries must be 0 — entries are too large to fit, so nothing is stored.
             assertEquals("CI entry_count must be 0 (entries too large for 1b limit)",
                 0L, ciEntries(s1));
@@ -1089,10 +1142,42 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         client().performRequest(req);
     }
 
-    /** Restore the total metadata-index cache budget to the cluster default (null = derive from AC). */
+    /**
+     * Restore the total metadata-index cache budget to the cluster default (null = derive from AC).
+     * The cluster-settings PUT is acknowledged only after every node has applied the update and run
+     * the cache-limit consumer, so the large default scoped limits are live again on return.
+     */
     private void restoreCacheDefaults() throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         req.setJsonEntity("{\"persistent\":{\"datafusion.metadata_index_cache.total_size\":null}}");
+        client().performRequest(req);
+    }
+
+    /**
+     * Block the given predicate functions from being delegated to the Lucene backend.
+     *
+     * <p>String fields (keyword/text) route their predicates to Lucene's inverted index by
+     * default, so a predicate like {@code city = 'seattle'} is answered by Lucene and never
+     * scans the parquet file — meaning it never loads the parquet ColumnIndex. Blocking the
+     * predicate (e.g. {@code EQUALS}) forces the planner to leave it on the DataFusion/parquet
+     * backend, which is what fills the scoped ColumnIndex cache. Pass an empty list to clear.
+     */
+    private void setLuceneBlockedPredicates(String... predicates) throws IOException {
+        StringBuilder arr = new StringBuilder("[");
+        for (int i = 0; i < predicates.length; i++) {
+            if (i > 0) arr.append(',');
+            arr.append('"').append(predicates[i]).append('"');
+        }
+        arr.append(']');
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.lucene.blocked_predicates\":" + arr + "}}");
+        client().performRequest(req);
+    }
+
+    /** Restore the Lucene delegation block-list to the cluster default (null clears the override). */
+    private void restoreLuceneBlockedPredicates() throws IOException {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.lucene.blocked_predicates\":null}}");
         client().performRequest(req);
     }
 
@@ -1110,14 +1195,64 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", CLEAR_ENDPOINT + "?column=true"));
     }
 
+    /**
+     * Fetches DataFusion cache stats aggregated across <em>all</em> nodes in the cluster.
+     *
+     * <p>The test cluster runs with multiple nodes but the test index has a single shard,
+     * so the parquet scan that fills the scoped CI/OI caches (process-global per JVM) and
+     * the per-runtime metadata cache only happens on the node that hosts that shard. The
+     * caches therefore live on one specific node, while the round-robin REST client may
+     * route a {@code _local} stats request to any node. Reading a single node's stats would
+     * intermittently observe an empty cache simply because the request landed on a node that
+     * never ran the scan.
+     *
+     * <p>To make the measurements deterministic we query the cluster-wide stats endpoint
+     * (all nodes) and sum each cache counter across every node. Cluster-wide sums are exactly
+     * what the assertions want: cache activity is non-zero iff <em>some</em> node did the work,
+     * and {@code clearAllCaches()} broadcasts to every node so cleared sums are zero everywhere.
+     */
     private JsonNode stats() throws Exception {
         Response response = client().performRequest(
-            new Request("GET", "/_plugins/_analytics_backend_datafusion/_local/stats")
+            new Request("GET", "/_plugins/_analytics_backend_datafusion/stats")
         );
         JsonNode root = MAPPER.readTree(EntityUtils.toString(response.getEntity()));
-        JsonNode cacheStats = root.get("nodes").elements().next().get("cache_stats");
-        assertNotNull("cache_stats block missing", cacheStats);
-        return cacheStats;
+        JsonNode nodes = root.get("nodes");
+        assertNotNull("nodes block missing", nodes);
+
+        // Combine each cache group's fields across all nodes into a synthetic cache_stats
+        // object with the same shape the accessor helpers expect. Counters (hit_count,
+        // miss_count, entry_count, memory_bytes) accumulate across the cluster, so they are
+        // SUMMED. size_limit_bytes is a per-node capacity (every node configures the same
+        // budget), so it is taken as the MAX rather than summed — otherwise an N-node cluster
+        // would report N× the configured limit.
+        com.fasterxml.jackson.databind.node.ObjectNode aggregate = MAPPER.createObjectNode();
+        for (JsonNode node : nodes) {
+            JsonNode cacheStats = node.get("cache_stats");
+            if (cacheStats == null) {
+                continue;
+            }
+            cacheStats.fieldNames().forEachRemaining(group -> {
+                JsonNode groupNode = cacheStats.get(group);
+                if (groupNode == null || !groupNode.isObject()) {
+                    return;
+                }
+                com.fasterxml.jackson.databind.node.ObjectNode aggGroup = aggregate.has(group)
+                    ? (com.fasterxml.jackson.databind.node.ObjectNode) aggregate.get(group)
+                    : aggregate.putObject(group);
+                groupNode.fieldNames().forEachRemaining(field -> {
+                    JsonNode value = groupNode.get(field);
+                    if (value != null && value.isNumber()) {
+                        long prev = aggGroup.path(field).asLong(0L);
+                        long combined = "size_limit_bytes".equals(field)
+                            ? Math.max(prev, value.asLong())
+                            : prev + value.asLong();
+                        aggGroup.put(field, combined);
+                    }
+                });
+            });
+        }
+        assertTrue("cache_stats block missing on every node", aggregate.size() > 0);
+        return aggregate;
     }
 
     // ── low-level assertion utilities ─────────────────────────────────────────

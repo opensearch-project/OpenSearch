@@ -1694,14 +1694,6 @@ public final class NativeBridge {
         }
     }
 
-    /** Clears the footer metadata cache. */
-    public static void clearFooterCache() {
-        // TODO(PR1): wire to df_clear_footer_cache when available
-        try (var call = new NativeCall()) {
-            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
-        }
-    }
-
     /** Clears the scoped ColumnIndex (predicate) cache. */
     public static void clearColumnIndexCache() {
         // TODO(PR1): wire to df_clear_column_index_cache when available
