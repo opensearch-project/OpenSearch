@@ -399,4 +399,71 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
         assertEquals(150L, blockLevel.removedBytes());
         assertEquals(20L, blockLevel.activeInBytes());
     }
+
+    // ── Post-refactor: per-tier accessors return their sections directly ─────
+
+    /**
+     * After the refactor that stores {@code dataCacheStats} and {@code metadataCacheStats}
+     * directly (no subtraction-from-overall), each accessor must return exactly what the
+     * native side wrote into its respective FFM section. Independent values per field per
+     * tier guard against any latent regression that re-introduces subtraction-based math.
+     */
+    public void testTieredPerTierAccessorsReturnSectionsDirectly() {
+        // Section 0 (data): hits=10, hitBytes=100, misses=3, missBytes=300, evictions=1,
+        // evictionBytes=50, used=500, removed=5, removedBytes=50, active=0
+        // Section 1 (meta): hits=20, hitBytes=200, misses=4, missBytes=400, evictions=2,
+        // evictionBytes=80, used=100, removed=11, removedBytes=110, active=0
+        long[] raw = buf(10, 100, 3, 300, 1, 50, 500, 5, 50, 0, 20, 200, 4, 400, 2, 80, 100, 11, 110, 0);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(raw, 1000L, 200L);
+
+        assertTrue("snapshotTiered must be flagged tiered", s.isTiered());
+        assertNotNull("dataCacheStats must be non-null in tiered mode", s.dataCacheStats());
+        assertNotNull("metadataCacheStats must be non-null in tiered mode", s.metadataCacheStats());
+
+        // Data tier — section 0 verbatim.
+        BlockCacheStats data = s.dataCacheStats();
+        assertEquals(10L, data.hits());
+        assertEquals(100L, data.hitBytes());
+        assertEquals(3L, data.misses());
+        assertEquals(300L, data.missBytes());
+        assertEquals(1L, data.evictions());
+        assertEquals(50L, data.evictionBytes());
+        assertEquals(5L, data.removed());
+        assertEquals(50L, data.removedBytes());
+        assertEquals(500L, data.diskBytesUsed());
+        assertEquals(1000L, data.totalBytes());
+
+        // Metadata tier — section 1 verbatim, NOT (overall - data).
+        BlockCacheStats meta = s.metadataCacheStats();
+        assertEquals(20L, meta.hits());
+        assertEquals(200L, meta.hitBytes());
+        assertEquals(4L, meta.misses());
+        assertEquals(400L, meta.missBytes());
+        assertEquals(2L, meta.evictions());
+        assertEquals(80L, meta.evictionBytes());
+        assertEquals(11L, meta.removed());
+        assertEquals(110L, meta.removedBytes());
+        assertEquals(100L, meta.diskBytesUsed());
+        assertEquals(200L, meta.totalBytes());
+
+        // Overall is the eager merge of both tiers.
+        BlockCacheStats overall = s.overallStats();
+        assertEquals(30L, overall.hits());
+        assertEquals(7L, overall.misses());
+        assertEquals(16L, overall.removed());
+        assertEquals(160L, overall.removedBytes());
+        assertEquals(600L, overall.diskBytesUsed());
+        assertEquals(1200L, overall.totalBytes());
+    }
+
+    /**
+     * In single-cache mode the per-tier accessors return {@code null}. Callers asking for
+     * per-tier breakdown are expected to gate on {@link FoyerAggregatedStats#isTiered()}.
+     */
+    public void testSinglePerTierAccessorsReturnNull() {
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshot(new long[20], 1024L);
+        assertFalse("snapshot must not be flagged tiered", s.isTiered());
+        assertNull("dataCacheStats must be null in single-cache mode", s.dataCacheStats());
+        assertNull("metadataCacheStats must be null in single-cache mode", s.metadataCacheStats());
+    }
 }

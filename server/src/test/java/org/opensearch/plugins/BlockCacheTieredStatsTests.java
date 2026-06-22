@@ -38,6 +38,10 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -48,6 +52,8 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testToXContentRendersDataAndMetadataSections() throws IOException {
+        // Field order: data hits, misses, hitBytes, missBytes, evictions, evictionBytes,
+        // removed, removedBytes, used, capacity, active, then same 11 for metadata.
         BlockCacheTieredStats stats = new BlockCacheTieredStats(
             100,
             10,
@@ -55,6 +61,8 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
             500,
             2,
             200,
+            3,
+            300,
             8000,
             10000,
             64,
@@ -64,6 +72,8 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
             250,
             1,
             100,
+            2,
+            150,
             4000,
             5000,
             32
@@ -77,7 +87,30 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testDataCacheFields() throws IOException {
-        BlockCacheTieredStats stats = new BlockCacheTieredStats(100, 10, 5000, 500, 2, 200, 8000, 10000, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        BlockCacheTieredStats stats = new BlockCacheTieredStats(
+            100,
+            10,
+            5000,
+            500,
+            2,
+            200,
+            3,
+            300,
+            8000,
+            10000,
+            64,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        );
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -88,13 +121,38 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
         assertTrue(json.contains("\"miss_bytes\":500"));
         assertTrue(json.contains("\"eviction_count\":2"));
         assertTrue(json.contains("\"evictions_in_bytes\":200"));
+        assertTrue(json.contains("\"removed_count\":3"));
+        assertTrue(json.contains("\"removed_in_bytes\":300"));
         assertTrue(json.contains("\"used_in_bytes\":8000"));
         assertTrue(json.contains("\"capacity_in_bytes\":10000"));
         assertTrue(json.contains("\"active_in_bytes\":64"));
     }
 
     public void testMetadataCacheFields() throws IOException {
-        BlockCacheTieredStats stats = new BlockCacheTieredStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 5, 2500, 250, 1, 100, 4000, 5000, 32);
+        BlockCacheTieredStats stats = new BlockCacheTieredStats(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            50,
+            5,
+            2500,
+            250,
+            1,
+            100,
+            2,
+            150,
+            4000,
+            5000,
+            32
+        );
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -102,5 +160,7 @@ public class BlockCacheTieredStatsTests extends AbstractWireSerializingTestCase<
         assertTrue(json.contains("\"metadata_cache_stats\""));
         assertTrue("metadata hit_count", json.contains("\"hit_count\":50"));
         assertTrue("metadata capacity", json.contains("\"capacity_in_bytes\":5000"));
+        assertTrue("metadata removed_count", json.contains("\"removed_count\":2"));
+        assertTrue("metadata removed_in_bytes", json.contains("\"removed_in_bytes\":150"));
     }
 }
