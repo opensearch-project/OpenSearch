@@ -55,6 +55,7 @@ pub async fn execute_query(
     phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
     sort_fields: &[String],
     sort_orders: &[String],
+    internal_search: crate::datafusion_query_config::InternalSearch,
 ) -> Result<i64, DataFusionError> {
     // Build per-query RuntimeEnv with list-files cache pre-populated.
     let runtime_env = build_query_runtime_env(runtime, &table_path, object_metas.as_ref())?;
@@ -161,13 +162,9 @@ pub async fn execute_query(
         }
     }
 
-    // Decode substrait → logical plan → physical plan → stream
-    let substrait_plan = Plan::decode(plan_bytes.as_slice()).map_err(|e| {
-        DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
-    })?;
-
-    let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
-    let dataframe = ctx.execute_logical_plan(logical_plan).await?;
+    // Planning: build the query DataFrame (Substrait decode for normal search, native filter for an
+    // engine-internal point lookup). Physical planning + execution below is shared by both.
+    let dataframe = build_dataframe(&ctx, &table_name, &plan_bytes, internal_search).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
 
     // Retag any physical-plan output columns whose type tags differ from what Substrait
@@ -198,10 +195,13 @@ pub async fn execute_query(
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
     let (cross_rt_stream, abort_handle, _task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
 
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_executor.handle() {
+        crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
 
     // Attach phantom corrector for self-correcting budget (if provided)
@@ -216,6 +216,65 @@ pub async fn execute_query(
     );
 
     Ok(Box::into_raw(Box::new(wrapped)) as i64)
+}
+
+/// Build the query DataFrame against the table already registered in `ctx`.
+///
+/// An engine-internal point lookup (get-by-id / seq-no scan) returns early with a small native
+/// filter DataFrame; otherwise this is the standard user-search flow: decode the Substrait plan
+/// into a logical plan and execute it.
+///
+/// Internal-search filters:
+/// - [`InternalSearch::ByRowId`]: `SELECT * WHERE __row_id__ = n LIMIT 1`. `__row_id__` is the
+///   physical row position the writer stamps at flush, so equality is order-independent and prunes
+///   row-groups/pages via min/max stats.
+/// - [`InternalSearch::SeqNoAbove`]: `SELECT _id,_seq_no,_primary_term,_version WHERE _seq_no > f`
+///   (version-map restore on recovery; metadata columns only).
+async fn build_dataframe(
+    ctx: &SessionContext,
+    table_name: &str,
+    plan_bytes: &[u8],
+    internal_search: crate::datafusion_query_config::InternalSearch,
+) -> Result<datafusion::dataframe::DataFrame, DataFusionError> {
+    // Engine-internal point lookup — build a native filter DataFrame and return early.
+    if internal_search.is_internal_search() {
+        return internal_search_dataframe(ctx, table_name, internal_search).await;
+    }
+
+    // Standard user-search flow: Substrait → logical plan → DataFrame.
+    let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
+        DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
+    })?;
+    let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
+    ctx.execute_logical_plan(logical_plan).await
+}
+
+/// Build the native filter DataFrame for an engine-internal point lookup against the table already
+/// registered in `ctx`. Not user search — those go through the Substrait flow in [`build_dataframe`].
+///
+/// - [`InternalSearch::ByRowId`]: `SELECT * WHERE __row_id__ = n LIMIT 1`. `__row_id__` is the
+///   physical row position the writer stamps at flush, so equality is order-independent and prunes
+///   row-groups/pages via min/max stats.
+/// - [`InternalSearch::SeqNoAbove`]: `SELECT _id,_seq_no,_primary_term,_version WHERE _seq_no > f`
+///   (version-map restore on recovery; metadata columns only).
+///
+/// Panics on [`InternalSearch::Off`] — callers gate on `is_internal_search()` first.
+async fn internal_search_dataframe(
+    ctx: &SessionContext,
+    table_name: &str,
+    internal_search: crate::datafusion_query_config::InternalSearch,
+) -> Result<datafusion::dataframe::DataFrame, DataFusionError> {
+    use crate::datafusion_query_config::InternalSearch;
+    let df = ctx.table(table_name).await?;
+    match internal_search {
+        InternalSearch::ByRowId(row_id) => df
+            .filter(col(crate::ROW_ID_COLUMN_NAME).eq(lit(row_id)))?
+            .limit(0, Some(1)),
+        InternalSearch::SeqNoAbove(seq_no_floor) => df
+            .filter(col("_seq_no").gt(lit(seq_no_floor)))?
+            .select_columns(&["_id", "_seq_no", "_primary_term", "_version"]),
+        InternalSearch::Off => unreachable!("internal_search_dataframe called with Off"),
+    }
 }
 
 /// Executes a Substrait plan against a pre-configured SessionContext.
@@ -293,9 +352,12 @@ pub async fn execute_with_context(
                 e
             })?;
             let (cross_rt_stream, abort_handle, _task_done) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            if let Some(rt) = cpu_executor.handle() {
+                crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
             }
             let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
                 cross_rt_stream.schema(),
@@ -330,9 +392,12 @@ pub async fn execute_with_context(
             })?;
 
             let (cross_rt_stream, abort_handle, _task_done) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            if let Some(rt) = cpu_executor.handle() {
+                crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
             }
             let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
                 cross_rt_stream.schema(),
@@ -356,10 +421,13 @@ pub async fn execute_with_context(
         })?;
 
         let (cross_rt_stream, abort_handle, _task_done) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
 
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id, h);
+        }
+        if let Some(rt) = cpu_executor.handle() {
+            crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
         }
 
         let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
@@ -475,21 +543,34 @@ pub fn store_url_from_table_path(table_path: &ListingTableUrl) -> Result<datafus
 }
 
 /// Wrap a DataFusion stream in CrossRtStream and package as a QueryStreamHandle pointer.
+///
+/// Wires cancellation like the shard-query path so a `cancel_query` on the QTF fetch-by-rowid
+/// stream can break/abort the cross_rt task instead of stranding its pool reservation.
 pub fn wrap_stream_as_handle(
     df_stream: datafusion::execution::SendableRecordBatchStream,
     cpu_executor: DedicatedExecutor,
     runtime: &DataFusionRuntime,
     context_id: i64,
 ) -> i64 {
-    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
-    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
-        cross_rt_stream.schema(),
-        cross_rt_stream,
-    );
+    // Create the tracking context first so its cancellation token is registered before the task starts.
     let query_context = crate::query_tracker::QueryTrackingContext::new(
         context_id,
         runtime.runtime_env.memory_pool.clone(),
         crate::query_tracker::QueryType::Shard,
+    );
+
+    let (cross_rt_stream, abort_handle, _task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
+    if let Some(h) = abort_handle {
+        crate::query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_executor.handle() {
+        crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
+    }
+
+    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
     );
     let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
     Box::into_raw(Box::new(handle)) as i64

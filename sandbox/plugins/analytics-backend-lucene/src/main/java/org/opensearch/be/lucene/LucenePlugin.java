@@ -36,7 +36,9 @@ import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.store.checksum.LuceneChecksumHandler;
@@ -69,9 +71,16 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin, ActionPlugin {
+public class LucenePlugin extends Plugin
+    implements
+        DataFormatPlugin,
+        SearchBackEndPlugin<LuceneReader>,
+        EnginePlugin,
+        ActionPlugin,
+        DocumentMetadataResolver {
 
     public static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+    private final LuceneDocumentResolver documentResolver = new LuceneDocumentResolver();
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
@@ -194,5 +203,13 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new LuceneStatsRestAction(), new LuceneNodeStatsRestAction());
+    }
+
+    // --- DocumentMetadataResolver ---
+
+    /** {@inheritDoc} Resolves a document id to its row location via Lucene. */
+    @Override
+    public DocumentMetadata resolveMetadata(IndexReaderProvider.Reader reader, String id) throws IOException {
+        return documentResolver.resolveMetadata(reader, id);
     }
 }

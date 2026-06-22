@@ -266,7 +266,12 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
             throw new AssertionError("No 'profile' block in response — request must set profile=true");
         }
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        Map<String, Object> plan = (Map<String, Object>) profile.get("plan");
+        if (plan == null) {
+            throw new AssertionError("No 'plan' block in profile: " + profile);
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
         for (Map<String, Object> stage : stages) {
             if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
         }

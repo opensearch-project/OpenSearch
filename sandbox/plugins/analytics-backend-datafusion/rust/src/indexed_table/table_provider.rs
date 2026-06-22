@@ -113,7 +113,7 @@ pub type EvaluatorFactory = Arc<
             &SegmentFileInfo,
             &SegmentChunk,
             &StreamMetrics,
-            Option<&StatsPruneTree>,
+            Option<&Arc<StatsPruneTree>>,
         ) -> Result<Arc<dyn RowGroupBitsetSource>, String>
         + Send
         + Sync,
@@ -195,7 +195,7 @@ pub struct IndexedTableConfig {
     /// Query-level data for building StatsPruneTree per segment.
     /// (BoolNode tree, prebuilt PruningPredicates keyed by Arc ptr, schema)
     pub prune_tree_config: Option<(
-        BoolNode,
+        Arc<BoolNode>,
         Arc<std::collections::HashMap<usize, Arc<PruningPredicate>>>,
         SchemaRef,
     )>,
@@ -650,9 +650,9 @@ impl ExecutionPlan for QueryShardExec {
             // Build stats prune tree for segment/RG/subtree-level pruning.
             let stats_prune_tree = self.config.prune_tree_config.as_ref().map(|(tree, preds, schema)| {
                 let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
-                StatsPruneTree::build_from_bool_node(
+                Arc::new(StatsPruneTree::build_from_bool_node(
                     tree, preds, &segment.metadata, schema, &rg_indices,
-                )
+                ))
             });
 
             // Segment-level skip: if no RG in the chunk can match, skip entirely.

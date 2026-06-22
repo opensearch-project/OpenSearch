@@ -435,7 +435,7 @@ async fn run_large(
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                    stats_prune_tree: None,
+                    stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -894,7 +894,7 @@ async fn run_large_partitioned(
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                    stats_prune_tree: None,
+                    stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

@@ -22,7 +22,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
-use log::debug;
+use log::{debug, warn};
 use once_cell::sync::Lazy;
 use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
@@ -172,6 +172,10 @@ pub struct QueryTracker {
     pub cancellation_token: CancellationToken,
     /// CPU task abort handle, set after the stream is created.
     pub abort_handle: OnceLock<AbortHandle>,
+    /// Handle to the DedicatedExecutor's tokio runtime. Used by `cancel_query`
+    /// to flush pending deferred drops (pull_from_input tasks holding GroupValues
+    /// buffers) after aborting the outer CrossRtStream task.
+    pub cpu_runtime_handle: OnceLock<tokio::runtime::Handle>,
     /// Nanos since PROCESS_START when cancellation was signalled, or 0 if not cancelled.
     /// Set atomically via CAS in cancel_query — no lock needed.
     pub cancelled_at_nanos: AtomicU64,
@@ -351,8 +355,32 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     written
 }
 
-/// Fire the cancellation token for the given context_id.
+/// Maximum time the flush will block waiting for the CPU runtime to process
+/// deferred drops (pull_from_input tasks holding GroupValues buffers).
+const CANCEL_FLUSH_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Yields per flush worker. The abort cascade has 3 scheduling levels:
+///   Level 1: CrossRtStream CPU task abort → drops CoalescePartitions receiver
+///   Level 2: CoalescePartitions' run_input tasks see closed channel → exit →
+///            drop PerPartitionStream → Arc<SpawnedTask> refcount hits 0
+///   Level 3: SpawnedTask::drop aborts pull_from_input → drops GroupValues
+/// Each level needs at least one scheduling round per task. With
+/// target_partitions = N, levels 2 and 3 each have N tasks.
+/// 32 yields per worker covers up to 32 partitions per level on a single worker.
+const FLUSH_YIELDS_PER_WORKER: usize = 32;
+
+/// Number of flush tasks to spawn. Spawning across multiple workers ensures
+/// the woken tasks (which may land on different workers' queues) are processed
+/// in parallel rather than serialized through one worker's yields.
+const FLUSH_WORKER_COUNT: usize = 4;
+
+/// Fire the cancellation token for the given context_id and abort the CPU task.
 /// No-op for unknown or already-completed queries.
+///
+/// Note: this does NOT flush the runtime — the abort cascade only completes
+/// after the `QueryStreamHandle` is dropped (via `stream_close`). Call
+/// [`flush_cpu_runtime`] after `stream_close` to ensure deferred drops are
+/// processed and GroupValues buffers are freed.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.cancellation_token.cancel();
@@ -364,6 +392,60 @@ pub fn cancel_query(context_id: i64) {
     }
 }
 
+/// Flush the CPU runtime for the given context_id, giving tokio workers
+/// scheduling opportunities to process deferred drops from the abort cascade.
+///
+/// Call this AFTER `stream_close` has dropped the `QueryStreamHandle` (which
+/// drops the JoinSet, releasing aborted task futures for collection). The flush
+/// spawns lightweight tasks that yield repeatedly, ensuring workers wake up and
+/// process the pending drops (pull_from_input futures → GroupValues buffers).
+///
+/// No-op if no runtime handle is registered or the query is unknown.
+pub fn flush_cpu_runtime(context_id: i64) {
+    let rt_handle = QUERY_REGISTRY
+        .get(&context_id)
+        .and_then(|tracker| tracker.cpu_runtime_handle.get().cloned());
+
+    if let Some(handle) = rt_handle {
+        flush_cpu_runtime_with_handle(&handle, context_id);
+    }
+}
+
+/// Flush variant that takes the runtime handle directly — used by `stream_close`
+/// which must extract the handle before dropping the tracker (drop removes it
+/// from the registry).
+pub fn flush_cpu_runtime_with_handle(handle: &tokio::runtime::Handle, context_id: i64) {
+    let (tx, rx) = std::sync::mpsc::sync_channel(FLUSH_WORKER_COUNT);
+    for _ in 0..FLUSH_WORKER_COUNT {
+        let tx = tx.clone();
+        handle.spawn(async move {
+            for _ in 0..FLUSH_YIELDS_PER_WORKER {
+                tokio::task::yield_now().await;
+            }
+            let _ = tx.send(());
+        });
+    }
+    drop(tx);
+    for _ in 0..FLUSH_WORKER_COUNT {
+        if rx.recv_timeout(CANCEL_FLUSH_TIMEOUT).is_err() {
+            warn!(
+                "flush_cpu_runtime({}): timed out after {}ms",
+                context_id, CANCEL_FLUSH_TIMEOUT.as_millis()
+            );
+            break;
+        }
+    }
+}
+
+/// Extract the CPU runtime handle from the tracker, removing it. Used by
+/// `stream_close` to grab the handle before the tracker is dropped (which
+/// removes it from the registry).
+pub fn take_cpu_runtime_handle(context_id: i64) -> Option<tokio::runtime::Handle> {
+    QUERY_REGISTRY
+        .get(&context_id)
+        .and_then(|tracker| tracker.cpu_runtime_handle.get().cloned())
+}
+
 /// Clone the cancellation token for the given context_id, if registered.
 pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
     QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
@@ -373,6 +455,14 @@ pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
 pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.abort_handle.set(handle).ok();
+    }
+}
+
+/// Store the CPU runtime handle for the given context_id so that
+/// `cancel_query` can flush deferred drops on that runtime.
+pub fn set_cpu_runtime_handle(context_id: i64, handle: tokio::runtime::Handle) {
+    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        tracker.cpu_runtime_handle.set(handle).ok();
     }
 }
 
@@ -430,6 +520,7 @@ impl QueryTrackingContext {
             memory_pool: query_pool,
             cancellation_token: CancellationToken::new(),
             abort_handle: OnceLock::new(),
+            cpu_runtime_handle: OnceLock::new(),
             cancelled_at_nanos: AtomicU64::new(0),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
@@ -858,6 +949,76 @@ mod tests {
         drop(coord_ctx);
     }
 
+
+    // -----------------------------------------------------------------------
+    // Flush-on-cancel tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_query_flushes_deferred_drops() {
+        use std::sync::atomic::AtomicBool;
+
+        // Tracks whether the captured state inside the spawned future was dropped.
+        struct DropSentinel(Arc<AtomicBool>);
+        impl Drop for DropSentinel {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+
+        let global = make_global_pool(10_000);
+        // Unique id: the QUERY_REGISTRY is process-wide and tests run in parallel, so this must not
+        // collide with any other test's id (70_001 collides with test_top_n_picks_highest_current_bytes).
+        let ctx_id = 80_001;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Build a dedicated executor with its own tokio runtime.
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder.worker_threads(2).enable_all();
+        let exec = crate::executor::DedicatedExecutor::new("test-flush", builder, 2);
+
+        // Store the runtime handle in the tracker (mirrors production path).
+        if let Some(rt) = exec.handle() {
+            set_cpu_runtime_handle(ctx_id, rt);
+        }
+
+        // Spawn a task that holds the sentinel and blocks forever at an await.
+        let dropped = Arc::new(AtomicBool::new(false));
+        let sentinel = DropSentinel(Arc::clone(&dropped));
+
+        let (abort_handle, _join_fut) = exec.spawn_with_abort_handle(async move {
+            let _hold = sentinel; // captured in the future's state
+            // Block forever — only abort can end this.
+            futures::future::pending::<()>().await;
+        });
+
+        if let Some(h) = abort_handle {
+            set_abort_handle(ctx_id, h);
+        }
+
+        // Small delay to let the task actually park at the pending().await
+        thread::sleep(Duration::from_millis(10));
+
+        // Verify not yet dropped
+        assert!(!dropped.load(Ordering::Acquire), "sentinel should be alive before cancel");
+
+        // cancel_query aborts the task (marks it cancelled in the runtime)
+        cancel_query(ctx_id);
+
+        // The abort is async — the task future may not be dropped yet.
+        // flush_cpu_runtime gives the runtime scheduling opportunities to
+        // process the abort and drop the future (freeing the sentinel).
+        flush_cpu_runtime(ctx_id);
+
+        // After flush, the sentinel should have been dropped.
+        assert!(
+            dropped.load(Ordering::Acquire),
+            "sentinel must be dropped after flush — deferred drop was not processed"
+        );
+
+        drop(ctx);
+        exec.join_blocking();
+    }
 
     // -----------------------------------------------------------------------
     // Top-N snapshot tests

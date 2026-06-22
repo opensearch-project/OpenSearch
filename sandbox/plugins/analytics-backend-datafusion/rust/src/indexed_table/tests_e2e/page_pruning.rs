@@ -328,7 +328,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -367,6 +367,7 @@ async fn run_single_collector(
                 0,
                 None,
                     None,
+                    std::collections::HashMap::new(),
             ));
             Ok(eval)
         })

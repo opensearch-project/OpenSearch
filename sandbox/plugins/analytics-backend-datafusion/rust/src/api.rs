@@ -841,6 +841,7 @@ pub async unsafe fn execute_query(
     manager: &RuntimeManager,
     context_id: i64,
     query_config: crate::datafusion_query_config::DatafusionQueryConfig,
+    internal_search: crate::datafusion_query_config::InternalSearch,
 ) -> Result<i64, DataFusionError> {
     let shard_view = &*(shard_view_ptr as *const ShardView);
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
@@ -911,6 +912,8 @@ pub async unsafe fn execute_query(
         //    - IndexedPredicateOnly → indexed path (position-based row IDs)
         //    - None → vanilla path (no row ID computation)
         // 3. Neither → vanilla path
+        // Engine-internal point lookups pass an empty plan, so is_indexed/has_row_id are both
+        // false and this naturally resolves to the vanilla ListingTable path.
         let use_indexed = is_indexed
             || (has_row_id && effective_config.query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
 
@@ -941,6 +944,7 @@ pub async unsafe fn execute_query(
                 phantom_corrector,
                 &shard_view.sort_fields,
                 &shard_view.sort_orders,
+                internal_search,
             ).await
         }
     };
@@ -1333,6 +1337,10 @@ pub unsafe fn stream_close(stream_ptr: i64) {
         return;
     }
     let mut handle = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    let context_id = handle._query_tracking_context.context_id();
+    // Grab the CPU runtime handle BEFORE drop — drop removes the tracker from
+    // the registry, making it unreachable for flush_cpu_runtime.
+    let cpu_rt_handle = query_tracker::take_cpu_runtime_handle(context_id);
     // Dropping the handle aborts the CPU task but does not wait for it; on the coordinator-reduce
     // path that task still holds Java-borrowed input batches. Wait for it to fully unwind (signal
     // fires once its batches drop) before returning, so the caller's allocator close is safe.
@@ -1354,6 +1362,13 @@ pub unsafe fn stream_close(stream_ptr: i64) {
                 );
             }
         }
+    }
+    // After dropping the QueryStreamHandle (which drops CrossRtStream → JoinSet →
+    // aborts the CPU task), flush the runtime so the cascading abort of
+    // pull_from_input tasks (holding GroupValues buffers) is processed now rather
+    // than lingering in tokio's deferred drop queue on an idle runtime.
+    if let Some(rt) = cpu_rt_handle {
+        query_tracker::flush_cpu_runtime_with_handle(&rt, context_id);
     }
 }
 
@@ -1810,10 +1825,13 @@ pub async unsafe fn execute_local_plan(
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
-    let (cross_rt_stream, abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
+    let cpu_exec = manager.cpu_executor();
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Reduce path: cancel via the token only, do NOT register the abort handle — an abort() mid-send
+    // would skip the cross_rt drop+drain cleanup and leak the aggregate's in-flight GroupValues.
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
@@ -1847,6 +1865,7 @@ pub unsafe fn execute_local_prepared_plan(
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    let token = query_tracker::get_cancellation_token(context_id);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
     // stream channels that require a Tokio reactor. Enter the IO runtime's
@@ -1854,10 +1873,12 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let (cross_rt_stream, abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
+    let cpu_exec = manager.cpu_executor();
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Prepared-reduce path: same as execute_local_plan — token-only cancel, no abort handle.
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 

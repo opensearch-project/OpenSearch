@@ -288,6 +288,9 @@ public class AnalyticsSearchTransportService {
                 // the cursor, not claimed roots).
                 FragmentExecutionArrowResponse last = null;
                 FragmentExecutionArrowResponse next = null;
+                // Set true only on an expected end (full drain or sentinel). Any other exit leaves it
+                // false so the finally cancel()s the stream rather than just closing the cursor.
+                boolean terminatedCleanly = false;
                 try {
                     last = stream.nextResponse();
                     while (last != null) {
@@ -296,6 +299,7 @@ public class AnalyticsSearchTransportService {
                             listener.onStreamComplete(last.getMetadata());
                             last.getRoot().close();
                             last = null;
+                            terminatedCleanly = true;
                             return;
                         }
 
@@ -320,25 +324,40 @@ public class AnalyticsSearchTransportService {
                         FragmentExecutionArrowResponse delivering = last;
                         last = null;
                         boolean keepReading = listener.onStreamResponse(delivering, isLast);
-                        if (!keepReading || nextIsSentinel) {
+                        if (nextIsSentinel) {
+                            // Sentinel = clean end-of-stream; producer is already completing.
+                            terminatedCleanly = true;
+                            return;
+                        }
+                        if (!keepReading) {
+                            // Consumer stopped early (satisfied or stage failed); the finally cancels
+                            // the stream. Release any undelivered prefetch first.
                             if (!isLast && next != null) {
                                 if (next.getRoot() != null) next.getRoot().close();
                                 next = null;
-                                stream.cancel("reduce input satisfied (downstream consumer finished)", null);
                             }
                             return;
                         }
                         last = next;
                         next = null;
                     }
+                    // Loop exited because nextResponse() returned null — the stream drained fully.
+                    terminatedCleanly = true;
                 } catch (Exception e) {
                     listener.onFailure(e);
                 } finally {
                     // Release any batches the loop still owns and never delivered.
                     closeResponseQuietly(last);
                     closeResponseQuietly(next);
+                    // On an abnormal exit, cancel() (not close()) so the data-node producer tears down
+                    // its FlightServerChannel; close() alone frees only this cursor and strands the
+                    // producer's streamRoot. Mirrors core StreamSearchTransportService.
                     try {
-                        stream.close();
+                        if (terminatedCleanly) {
+                            stream.close();
+                        } else {
+                            stream.cancel("analytics stream aborted before clean end-of-stream", null);
+                        }
                     } catch (Exception ignore) {}
                     pending.finishAndRunNext();
                 }

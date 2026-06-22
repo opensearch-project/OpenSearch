@@ -119,7 +119,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -433,7 +433,7 @@ async fn query_with_mismatched_schema(
                 page_prune_metrics: None,
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

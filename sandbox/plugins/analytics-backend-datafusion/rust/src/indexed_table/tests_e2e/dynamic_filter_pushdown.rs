@@ -157,6 +157,7 @@ async fn run_indexed(
                     0,
                     None,
                     None,
+                    std::collections::HashMap::new(),
                 ),
             );
             Ok(eval)

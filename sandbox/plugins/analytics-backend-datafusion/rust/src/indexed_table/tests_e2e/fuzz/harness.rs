@@ -13,6 +13,7 @@
 //! is paid once per test, then many iterations run cheap tree
 //! generation + execution against the same file.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, Int32Array};
@@ -213,32 +214,36 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let cfg_target_partitions = _corpus.config.target_partitions;
     let cfg_min_skip_run = _corpus.config.min_skip_run_override;
 
+    // Build per-leaf PruningPredicates the same way indexed_executor.rs
+    // does in production, so our harness exercises real page-pruning
+    // behavior instead of silently falling back to universe bitmaps.
+    let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+    collect_predicate_exprs_harness(&bool_tree, &mut leaf_exprs);
+    let pruning_predicates: Arc<
+        std::collections::HashMap<
+            usize,
+            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+        >,
+    > = Arc::new(
+        leaf_exprs
+            .iter()
+            .filter_map(|expr| {
+                crate::indexed_table::page_pruner::build_pruning_predicate(expr, loaded.schema.clone())
+                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+            })
+            .collect(),
+    );
+
     let factory: EvaluatorFactory = {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&bool_tree);
         let schema = loaded.schema.clone();
-        // Build per-leaf PruningPredicates the same way indexed_executor.rs
-        // does in production, so our harness exercises real page-pruning
-        // behavior instead of silently falling back to universe bitmaps.
-        let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
-        collect_predicate_exprs_harness(&bool_tree, &mut leaf_exprs);
-        let pruning_predicates: Arc<
-            std::collections::HashMap<
-                usize,
-                Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-            >,
-        > = Arc::new(
-            leaf_exprs
-                .iter()
-                .filter_map(|expr| {
-                    crate::indexed_table::page_pruner::build_pruning_predicate(expr, schema.clone())
-                        .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
-                })
-                .collect(),
-        );
-        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
+        let pruning_predicates = Arc::clone(&pruning_predicates);
+        Arc::new(move |segment, chunk, stream_metrics, stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
+                .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -266,7 +271,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                     crate::indexed_table::eval::CollectorCallStrategy::FullRange,
                     crate::indexed_table::eval::CollectorCallStrategy::PageRangeSplit,
                 ][seed as usize % 3],
-                stats_prune_tree: None,
+                stats_prune_tree: stats_prune_tree.cloned(), rg_index_to_pos,
             });
             Ok(eval)
         })
@@ -294,7 +299,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
         emit_row_ids: false,
-        prune_tree_config: None,
+        prune_tree_config: Some((
+            Arc::clone(&bool_tree),
+            Arc::clone(&pruning_predicates),
+            loaded.schema.clone(),
+        )),
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
@@ -411,6 +420,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 0,
                 None,
                     None,
+                    std::collections::HashMap::new(),
             ));
             let _ = segment;
             Ok(eval)

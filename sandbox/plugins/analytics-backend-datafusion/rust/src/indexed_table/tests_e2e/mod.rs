@@ -15,6 +15,7 @@
 
 #![cfg(test)]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -273,7 +274,7 @@ async fn run_tree_and_plan(
                     ),
                 ),
                 collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
