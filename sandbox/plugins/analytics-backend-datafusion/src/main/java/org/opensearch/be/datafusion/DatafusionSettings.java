@@ -289,6 +289,7 @@ public final class DatafusionSettings {
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD,
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD,
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP,
         DATAFUSION_MEMORY_POOL_MIN,
 
         // Cache settings — metadata, statistics, and metadata-index cache configuration

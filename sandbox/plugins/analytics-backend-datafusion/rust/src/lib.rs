@@ -58,3 +58,6 @@ pub mod native_node_stats;
 pub mod search_stats;
 pub mod stats;
 pub mod task_monitors;
+
+#[cfg(test)]
+mod spill_e2e_test;
