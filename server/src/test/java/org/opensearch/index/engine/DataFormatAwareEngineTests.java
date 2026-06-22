@@ -96,6 +96,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -4332,6 +4333,155 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             if (failure.get() != null) {
                 throw new AssertionError("Unexpected exception during concurrent close", failure.get());
             }
+        }
+    }
+
+    /**
+     * Reproduces the composite checkpoint-inflation data-loss bug (the one behind the
+     * doc-count gap observed after a primary relocation under sustained ingest).
+     *
+     * <p>Mechanism: {@code flush()} calls {@code refresh("flush")} — which snapshots the
+     * writers frozen at {@code checkoutAll} — and then commits
+     * {@code LOCAL_CHECKPOINT = getProcessedCheckpoint()} read <b>after</b> that refresh. If a
+     * document is processed <b>during</b> the flush (after the snapshot is frozen but before the
+     * checkpoint is read) it lands in a NEW writer that is not in the snapshot, yet it advances
+     * the processed checkpoint. The commit therefore records a checkpoint that is AHEAD of what
+     * the durable snapshot actually contains. On recovery, replay starts at {@code committed+1}
+     * and the band in between is seeded as "already processed", so it is never replayed — the
+     * acknowledged docs are silently lost.
+     *
+     * <p>We inject the in-window document via an {@code afterRefresh} listener (it fires
+     * synchronously at the end of {@code refresh()}, i.e. after the snapshot is built but, when
+     * called from inside {@code flush()}, before {@code flush()} reads the checkpoint). We then
+     * assert the engine-level invariant the fix must restore: the committed
+     * {@code LOCAL_CHECKPOINT} must NOT exceed the highest seqno durably persisted in the
+     * snapshot.
+     */
+    public void testFlushMustNotCommitCheckpointAheadOfPersistedSnapshot() throws Exception {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        InMemoryCommitter committer = new InMemoryCommitter(store);
+
+        final AtomicReference<DataFormatAwareEngine> engineRef = new AtomicReference<>();
+        final AtomicBoolean armed = new AtomicBoolean(false);
+        final AtomicBoolean fired = new AtomicBoolean(false);
+        final List<Long> injectedSeqNos = new ArrayList<>();
+
+        // Fires at the END of refresh() — after the catalog snapshot has been built, but
+        // (when called from inside flush()) before flush() reads getProcessedCheckpoint().
+        ReferenceManager.RefreshListener injector = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (armed.get() && fired.compareAndSet(false, true)) {
+                    DataFormatAwareEngine eng = engineRef.get();
+                    try {
+                        for (int i = 10; i <= 12; i++) {
+                            Engine.IndexResult r = eng.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                            injectedSeqNos.add(r.getSeqNo());
+                        }
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of(injector))
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(createMockRegistry())
+            .committerFactory(c -> committer)
+            .eventListener(new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {}
+            })
+            .mapperService(mapperService)
+            .build();
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engineRef.set(engine);
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            // Pre-flush docs: seqnos 0..9 — captured by the flush's refresh snapshot.
+            for (int i = 0; i < 10; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            assertThat("processed checkpoint before flush", engine.getProcessedLocalCheckpoint(), equalTo(9L));
+
+            // Arm the injector: during flush()'s refresh, seqnos 10,11,12 get indexed into a NEW
+            // writer (after the snapshot is frozen) but before the commit reads the checkpoint.
+            armed.set(true);
+            engine.flush(false, true);
+
+            assertThat("injector ran inside the flush window", injectedSeqNos, equalTo(List.of(10L, 11L, 12L)));
+            assertThat("all 13 ops were processed/acked", engine.getProcessedLocalCheckpoint(), equalTo(12L));
+
+            // What the commit DURABLY persisted: only seqnos 0..9 made it into the snapshot.
+            long persistedRows;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                persistedRows = ref.get()
+                    .getSegments()
+                    .stream()
+                    .mapToLong(s -> s.dfGroupedSearchableFiles().get(mockDataFormat.name()).numRows())
+                    .sum();
+            }
+            assertThat("snapshot durably persisted only the pre-flush docs [0..9]", persistedRows, equalTo(10L));
+            final long persistedMaxSeqNo = persistedRows - 1; // contiguous 0..9 -> max seqno 9
+
+            // What the commit CLAIMS is durable.
+            long committedCheckpoint = Long.parseLong(committer.getLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
+            // INVARIANT the fix must restore: committed LOCAL_CHECKPOINT must not exceed the max
+            // seqno actually present in the committed snapshot. Otherwise recovery replays from
+            // committedCheckpoint+1 and silently drops (persistedMaxSeqNo, committedCheckpoint].
+            assertThat(
+                "committed LOCAL_CHECKPOINT ("
+                    + committedCheckpoint
+                    + ") must not exceed the max seqno durably persisted in the snapshot ("
+                    + persistedMaxSeqNo
+                    + "); recovery would otherwise skip and lose seqnos "
+                    + (persistedMaxSeqNo + 1)
+                    + ".."
+                    + committedCheckpoint,
+                committedCheckpoint,
+                lessThanOrEqualTo(persistedMaxSeqNo)
+            );
         }
     }
 }
