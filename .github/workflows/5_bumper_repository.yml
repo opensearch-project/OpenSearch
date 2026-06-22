@@ -37,6 +37,10 @@ on:
         default: false
         required: false
         type: boolean
+      bump-issue-link:
+        description: 'Issue link used in the original bump (required for revert if different from issue-link)'
+        required: false
+        type: string
 
 jobs:
   bump:
@@ -155,8 +159,18 @@ jobs:
         id: revert_step
         if: inputs.revert == true
         run: |
+          # 1. Get the current issue number (for the new revert branch/PR)
           ISSUE_NUMBER=$(echo "${{ inputs.issue-link }}" | awk -F'/' '{print $NF}')
-          BUMP_BRANCH="enhancement/wqa${ISSUE_NUMBER}-bump-${{ github.ref_name }}"
+
+          # 2. Get the issue number from the original bump (if provided; otherwise, defaults to the current one)
+          if [ -n "${{ inputs.bump-issue-link }}" ]; then
+            BUMP_ISSUE_NUMBER=$(echo "${{ inputs.bump-issue-link }}" | awk -F'/' '{print $NF}')
+          else
+            BUMP_ISSUE_NUMBER=$ISSUE_NUMBER
+          fi
+
+          # 3. Search for the original bump branch using the obtained BUMP ISSUE number
+          BUMP_BRANCH="enhancement/wqa${BUMP_ISSUE_NUMBER}-bump-${{ github.ref_name }}"
 
           PR_NUMBER=$(gh pr list --head "$BUMP_BRANCH" --base "${{ github.ref_name }}" --state merged --json number --jq '.[0].number')
 
