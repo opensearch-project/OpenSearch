@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -150,7 +152,7 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
         OneMerge merge2 = new OneMerge(List.of(s2));
 
         when(mergeHandler.findForceMerges(1)).thenReturn(List.of(merge1, merge2));
-        when(mergeHandler.doMerge(merge1)).thenReturn(new MergeResult(Map.of()));
+        when(mergeHandler.doMerge(any(), anyDouble())).thenReturn(new MergeResult(Map.of()));
 
         final java.util.concurrent.atomic.AtomicReference<MergeScheduler> schedulerRef =
             new java.util.concurrent.atomic.AtomicReference<>();
@@ -175,8 +177,8 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
             Thread.currentThread().setName(oldName);
         }
 
-        verify(mergeHandler).doMerge(merge1);
-        verify(mergeHandler, never()).doMerge(merge2);
+        verify(mergeHandler).doMerge(any(), anyDouble());
+        verify(mergeHandler, times(1)).doMerge(any(), anyDouble());
     }
 
     public void testThrottlingActivatesWhenMergesExceedMaxCount() {

@@ -143,6 +143,7 @@ public final class MergeSchedulerConfig {
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
     private volatile double maxForceMergeMBPerSec;
+    private volatile double ioRateLimitMBPerSec = Double.POSITIVE_INFINITY;
     private static volatile Boolean clusterAutoThrottleEnabledDefault;
     private static volatile Integer clusterMaxThreadCountDefault;
     private static volatile Integer clusterMaxMergeCountDefault;
@@ -235,6 +236,9 @@ public final class MergeSchedulerConfig {
 
         setAutoThrottle(autoThrottleEnabled);
         setMaxThreadAndMergeCount(maxThread, maxMerge);
+        this.ioRateLimitMBPerSec = ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.get(
+            indexSettings.getNodeSettings()
+        );
         logger.info(
             new ParameterizedMessage(
                 "Initialized index {} with maxMergeCount={}, maxThreadCount={}, autoThrottleEnabled={}",
@@ -333,6 +337,22 @@ public final class MergeSchedulerConfig {
      */
     void setMaxForceMergeMBPerSec(double maxForceMergeMBPerSec) {
         this.maxForceMergeMBPerSec = maxForceMergeMBPerSec;
+    }
+
+    /**
+     * Returns the IO rate limit for background merges in MB per second.
+     * A value of Double.POSITIVE_INFINITY indicates no rate limiting.
+     */
+    public double getIORateLimitMBPerSec() {
+        return ioRateLimitMBPerSec;
+    }
+
+    /**
+     * Sets the IO rate limit for background merges in MB per second.
+     * A value of Double.POSITIVE_INFINITY disables rate limiting.
+     */
+    public void setIORateLimitMBPerSec(double ioRateLimitMBPerSec) {
+        this.ioRateLimitMBPerSec = ioRateLimitMBPerSec;
     }
 
     /**

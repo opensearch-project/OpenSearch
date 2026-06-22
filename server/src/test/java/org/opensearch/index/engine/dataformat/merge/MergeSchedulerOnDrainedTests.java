@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -332,7 +334,7 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
         // getNextMerge: return oneMerge first, then null
         when(mockHandler.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
         // doMerge returns the mock result
-        when(mockHandler.doMerge(oneMerge)).thenReturn(mockMergeResult);
+        when(mockHandler.doMerge(any(), anyDouble())).thenReturn(mockMergeResult);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
@@ -356,7 +358,7 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
         // allowing us to freeze the scheduler while the merge is in-flight.
         CountDownLatch mergeStarted = new CountDownLatch(1);
         CountDownLatch mergeCanProceed = new CountDownLatch(1);
-        when(mockHandler.doMerge(oneMerge)).thenAnswer(invocation -> {
+        when(mockHandler.doMerge(any(), anyDouble())).thenAnswer(invocation -> {
             mergeStarted.countDown(); // Signal that merge has started
             mergeCanProceed.await();  // Wait until test allows merge to proceed
             return mockMergeResult;

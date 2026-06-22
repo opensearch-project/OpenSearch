@@ -347,7 +347,7 @@ public class MergeTests extends OpenSearchTestCase {
             NOOP_MERGE_LISTENER,
             () -> 1L
         );
-        MergeResult result = handler.doMerge(new OneMerge(List.of(seg)));
+        MergeResult result = handler.doMerge(new OneMerge(List.of(seg)), Double.POSITIVE_INFINITY);
 
         assertSame(expectedResult, result);
     }

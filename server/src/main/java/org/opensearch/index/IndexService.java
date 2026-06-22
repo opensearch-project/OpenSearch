@@ -1359,6 +1359,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    public void onClusterLevelIORateLimitUpdate(double ioRateLimitMBPerSec) {
+        indexSettings.getMergeSchedulerConfig().setIORateLimitMBPerSec(ioRateLimitMBPerSec);
+    }
+
     /**
      * Called whenever the refresh interval changes. This can happen in 2 cases -
      * 1. {@code cluster.default.index.refresh_interval} cluster setting changes. The change would only happen for

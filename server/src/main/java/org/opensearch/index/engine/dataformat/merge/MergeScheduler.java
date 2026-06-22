@@ -59,6 +59,7 @@ public class MergeScheduler {
     private final List<Runnable> onDrainedListeners = new CopyOnWriteArrayList<>();
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
+    private volatile double ioRateLimitMBPerSec;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final IndexSettings indexSettings;
     private final MergeStatsTracker mergeStatsTracker = new MergeStatsTracker();
@@ -113,23 +114,29 @@ public class MergeScheduler {
     public synchronized void refreshConfig() {
         int newMaxThreadCount = mergeSchedulerConfig.getMaxThreadCount();
         int newMaxMergeCount = mergeSchedulerConfig.getMaxMergeCount();
+        double newIORateLimit = mergeSchedulerConfig.getIORateLimitMBPerSec();
 
-        if (newMaxThreadCount == this.maxConcurrentMerges && newMaxMergeCount == this.maxMergeCount) {
+        if (newMaxThreadCount == this.maxConcurrentMerges && newMaxMergeCount == this.maxMergeCount
+            && newIORateLimit == this.ioRateLimitMBPerSec) {
             return;
         }
 
         logger.info(
             () -> new ParameterizedMessage(
-                "Updating from merge scheduler config: maxThreadCount {} -> {}, " + "maxMergeCount {} -> {}",
+                "Updating from merge scheduler config: maxThreadCount {} -> {}, "
+                    + "maxMergeCount {} -> {}, ioRateLimitMBPerSec {} -> {}",
                 this.maxConcurrentMerges,
                 newMaxThreadCount,
                 this.maxMergeCount,
-                newMaxMergeCount
+                newMaxMergeCount,
+                this.ioRateLimitMBPerSec,
+                newIORateLimit
             )
         );
 
         this.maxConcurrentMerges = newMaxThreadCount;
         this.maxMergeCount = newMaxMergeCount;
+        this.ioRateLimitMBPerSec = newIORateLimit;
     }
 
     /**
@@ -307,6 +314,14 @@ public class MergeScheduler {
     }
 
     /**
+     * Returns the cluster-level IO rate limit for background merges in MB per second.
+     * A value of Double.POSITIVE_INFINITY indicates no rate limiting.
+     */
+    public double getMergeIORateLimitMBPerSec() {
+        return mergeSchedulerConfig.getIORateLimitMBPerSec();
+    }
+
+    /**
      * Returns the current merge statistics for this scheduler.
      *
      * @return the merge stats
@@ -392,7 +407,7 @@ public class MergeScheduler {
         long tookMS = 0;
         try {
             mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
-            MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+            MergeResult mergeResult = mergeHandler.doMerge(oneMerge, mergeSchedulerConfig.getIORateLimitMBPerSec());
             applyMergeChanges.accept(mergeResult, oneMerge);
             mergeHandler.onMergeFinished(oneMerge, isFrozen());
             tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));

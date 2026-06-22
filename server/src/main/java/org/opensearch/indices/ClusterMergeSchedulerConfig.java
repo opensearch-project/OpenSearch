@@ -109,10 +109,20 @@ public class ClusterMergeSchedulerConfig {
         Property.NodeScope
     );
 
+    public static final Setting<Double> CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING = Setting.doubleSetting(
+        "cluster.index.merge.scheduler.io_rate_limit_mb_per_sec",
+        Double.POSITIVE_INFINITY,
+        0.0d,
+        Double.POSITIVE_INFINITY,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile static String clusterMaxThreadCountDefault;
     private volatile int clusterMaxThreadCount;
     private volatile int clusterMaxMergeCount;
     private volatile boolean clusterAutoThrottleEnabled;
+    private volatile double clusterIORateLimitMBPerSec;
     private final IndicesService indicesService;
 
     public ClusterMergeSchedulerConfig(IndicesService indicesService) {
@@ -123,6 +133,7 @@ public class ClusterMergeSchedulerConfig {
         clusterMaxThreadCount = CLUSTER_MAX_THREAD_COUNT_SETTING.get(clusterSettings);
         clusterMaxMergeCount = CLUSTER_MAX_MERGE_COUNT_SETTING.get(clusterSettings);
         clusterAutoThrottleEnabled = CLUSTER_AUTO_THROTTLE_SETTING.get(clusterSettings);
+        clusterIORateLimitMBPerSec = CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.get(clusterSettings);
 
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
@@ -132,6 +143,8 @@ public class ClusterMergeSchedulerConfig {
             );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_AUTO_THROTTLE_SETTING, this::onClusterMergeAutoThrottleUpdate);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING, this::onClusterIORateLimitUpdate);
     }
 
     private void validateMaxThreadAndMergeCount(Settings settings) {
@@ -160,6 +173,13 @@ public class ClusterMergeSchedulerConfig {
         }
     }
 
+    private void onClusterIORateLimitUpdate(Double value) {
+        clusterIORateLimitMBPerSec = value;
+        for (IndexService indexService : indicesService) {
+            indexService.onClusterLevelIORateLimitUpdate(clusterIORateLimitMBPerSec);
+        }
+    }
+
     public Integer getClusterMaxMergeCount() {
         return this.clusterMaxMergeCount;
     }
@@ -170,6 +190,10 @@ public class ClusterMergeSchedulerConfig {
 
     public Boolean getClusterMergeAutoThrottleEnabled() {
         return this.clusterAutoThrottleEnabled;
+    }
+
+    public Double getClusterIORateLimitMBPerSec() {
+        return this.clusterIORateLimitMBPerSec;
     }
 
     /**
