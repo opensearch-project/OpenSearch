@@ -25,13 +25,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add `--set-as-main` flag support to repository bumper [(#1396)](https://github.com/wazuh/wazuh-indexer/pull/1396)
 - Add Alerting fork to Wazuh Indexer packages [(#1402)](https://github.com/wazuh/wazuh-indexer/pull/1402)
 - Add nightly Docker image build workflow [(#1442)](https://github.com/wazuh/wazuh-indexer/pull/1442)
+- Bundle the `opensearch-custom-codecs` plugin to provide the zstd index codec [(#1636)](https://github.com/wazuh/wazuh-indexer/issues/1636)
 
 ### Fixed
 - Set secure permissions (750) for engine sockets directory [(#1330)](https://github.com/wazuh/wazuh-indexer/pull/1330)
 - Resolve dependency mismatch between Alerting and Notifications plugins [(#1379)](https://github.com/wazuh/wazuh-indexer/pull/1379)
 - Fix `/etc/default/wazuh-indexer` ownership and permissions in deb [(#1533)](https://github.com/wazuh/wazuh-indexer/pull/1533)
 - Fix Java warnings by updating JVM options for native access [(#1574)](https://github.com/wazuh/wazuh-indexer/pull/1574)
-- Fix SLF4J startup warning in reindex module by adding Log4j2 provider [(#1617)](https://github.com/wazuh/wazuh-indexer/pull/1617)
+- Fix SLF4J startup warning in reindex module by adding Log4j2 provider [(#1650)](https://github.com/wazuh/wazuh-indexer/pull/1650)
 
 ### Dependencies
 -

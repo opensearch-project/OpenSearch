@@ -23,7 +23,8 @@ else
         "opensearch-anomaly-detection" # Requires "opensearch-job-scheduler"
         "asynchronous-search"          # "opensearch-asynchronous-search"
         "opensearch-cross-cluster-replication"
-        "geospatial" # "opensearch-geospatial"
+        "opensearch-custom-codecs" # Provides the zstd/zstd_no_dict index codecs
+        "geospatial"               # "opensearch-geospatial"
         "opensearch-index-management"
         "opensearch-observability"
         "opensearch-security"
