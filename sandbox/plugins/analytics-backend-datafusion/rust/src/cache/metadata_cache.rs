@@ -121,8 +121,14 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
                 let result = cache.get(k);
                 if result.is_some() {
                     self.hit_count.fetch_add(1, Ordering::Relaxed);
+                    native_bridge_common::log_info!(
+                        "[query::heap-cache] HIT path='{}'", k.as_ref()
+                    );
                 } else {
                     self.miss_count.fetch_add(1, Ordering::Relaxed);
+                    native_bridge_common::log_info!(
+                        "[query::heap-cache] MISS path='{}'", k.as_ref()
+                    );
                 }
                 result
             }
@@ -142,11 +148,25 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
         // including page indexes so DataFusion's default page pruning path continues
         // to function. In this mode `load_parquet_metadata` fetches with
         // `PageIndexPolicy::ReadAll`, so the full index is present to retain.
-        let v = if is_scoped_page_index_enabled() {
+        let scoped = is_scoped_page_index_enabled();
+        let had_ci_or_oi = if let Some(cached) = v.file_metadata
+            .as_any()
+            .downcast_ref::<datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData>()
+        {
+            let m = cached.parquet_metadata();
+            m.column_index().is_some() || m.offset_index().is_some()
+        } else {
+            false
+        };
+        let v = if scoped {
             strip_page_index(v)
         } else {
             v
         };
+        native_bridge_common::log_info!(
+            "[query::heap-cache] PUT path='{}' size={} scoped_enabled={} stripped_page_index={}",
+            k.as_ref(), v.meta.size, scoped, scoped && had_ci_or_oi
+        );
         match self.inner.lock() {
             Ok(cache) => cache.put(k, v),
             Err(e) => {
