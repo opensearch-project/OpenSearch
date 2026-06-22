@@ -295,19 +295,15 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    public void testValidateSpillLimitRejectsNonZeroWhenSpillDirUnset() {
+    public void testValidateSpillLimitAcceptsNonZeroWhenSpillDirUnset() {
+        // Spill disabled (empty directory): a non-zero limit is inert, so it must be accepted rather
+        // than failing node startup. Mirrors a node configured with a spill cap but no spill volume.
         Settings settings = Settings.builder()
             .put("datafusion.spill_directory", "")
             .put("datafusion.spill_memory_limit_bytes", 1024L * 1024 * 1024)
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings)
-        );
-        assertTrue(
-            "expected message to mention spill_directory unset, got: " + e.getMessage(),
-            e.getMessage().contains("datafusion.spill_directory is unset")
-        );
+        long parsed = DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        assertEquals("non-zero limit with spill disabled must be accepted as a no-op", 1024L * 1024 * 1024, parsed);
     }
 
     public void testValidateSpillLimitAcceptsZeroWhenSpillDirUnset() {
