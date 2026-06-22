@@ -34,10 +34,8 @@ public class ClickBenchPlanShapeIT extends PlanShapeGoldenTestBase {
         ClickBenchTestHelper.DATASET,
         "datasets/clickbench/ppl",
         "planshape/clickbench",
-        // FIXME [RemoveBeforeMerge]: bring-up allowlist = only queries with an authored golden.
-        // Full rows>0 allowlist (regenerate goldens then restore):
-        //   q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q16 q17 q18 q19 q21 q30 q33 q34 q35 q36
-        List.of("q1", "q5", "q8", "q16", "q21")
+        // q7 excluded: multi-shard produces per-shard constant-folded min/max values that diverge across tasks.
+        List.of("q1", "q2", "q3", "q4", "q5", "q6", "q8", "q9", "q10", "q16", "q17", "q18", "q19", "q21", "q30", "q33", "q34", "q35", "q36")
     );
 
     @ParametersFactory(shuffle = false)
