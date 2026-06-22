@@ -49,17 +49,32 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
     private static final String CLEAR_ENDPOINT = "/_plugins/_analytics_backend_datafusion/cache/_clear";
     private static final int DOC_COUNT = 2000;
 
+    /**
+     * Per-test setup via {@link AnalyticsRestTestCase#onBeforeQuery()} — this fires
+     * inside the test body lifecycle where {@link #client()} is guaranteed non-null.
+     * Using {@code setUp()} is unsafe here because {@code client()} may not yet be
+     * initialized when setUp() runs (see existing IT comments in this package).
+     */
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    protected void onBeforeQuery() throws IOException {
         setScopedPageIndexEnabled(true);
-        recreateIndex();
-        clearAllCaches();
+        try {
+            recreateIndex();
+            clearAllCaches();
+        } catch (Exception e) {
+            throw new IOException("ScopedPageIndexCacheIT setup failed", e);
+        }
     }
 
     @Override
     public void tearDown() throws Exception {
-        setScopedPageIndexEnabled(true);
+        try {
+            setScopedPageIndexEnabled(true);
+            restoreCacheDefaults();
+            clearAllCaches();
+        } catch (Exception ignored) {
+            // best-effort: don't mask the test failure
+        }
         super.tearDown();
     }
 

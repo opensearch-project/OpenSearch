@@ -340,6 +340,17 @@ fn collect_predicate_column_names(
 fn collect_plan_column_names(plan: &datafusion::logical_expr::LogicalPlan) -> Vec<String> {
     let mut names = HashSet::new();
     let _ = plan.apply(|node| {
+        // Output-schema columns of every node: this is what each node actually
+        // emits / reads. Critically this captures `SELECT *` (and any projection
+        // pushed into the scan), where no Projection expression lists the columns
+        // but every column is still read. Expression-only collection misses them,
+        // and a read column that gets only a placeholder OffsetIndex (instead of
+        // its real multi-page one) corrupts the page read: arrow decodes the whole
+        // column chunk as a single page → "output too small for decompressed data"
+        // (or, upstream, the (0,0)-page byte-range subtract underflow).
+        for field in node.schema().fields() {
+            names.insert(field.name().to_string());
+        }
         let _ = node.apply_expressions(|expr| {
             let _ = expr.apply(|e| {
                 if let Expr::Column(col) = e {
@@ -595,6 +606,43 @@ mod tests {
     fn analyze_top_sort_returns_none_when_no_sort() {
         let plan = build_logical_plan("SELECT id FROM t");
         assert!(analyze_top_sort(&plan).is_none());
+    }
+
+    // ── collect_plan_column_names ─────────────────────────────────────
+
+    /// Regression: `SELECT *` (and any scan that reads columns no Projection
+    /// expression names) must yield ALL output columns. The scoped page-index
+    /// load gives only these columns a REAL multi-page OffsetIndex; columns left
+    /// out get a single-page placeholder, which is fine for pruning but CORRUPTS
+    /// a real read — arrow decodes the whole chunk as one page ("output too small
+    /// for decompressed data"), or underflows the read byte range. The
+    /// `match() | sort | head` shape (q23) hit this: it reads every column but no
+    /// expression lists them. Collecting each plan node's OUTPUT SCHEMA fixes it.
+    #[test]
+    fn collect_plan_column_names_includes_select_star_columns() {
+        // No projection expressions name id/ts/v, but `SELECT *` reads all three.
+        let plan = build_logical_plan("SELECT * FROM t WHERE v = 0 ORDER BY ts");
+        let mut names = collect_plan_column_names(&plan);
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["id".to_string(), "ts".to_string(), "v".to_string()],
+            "every read column (full output schema) must be collected, not just expression columns"
+        );
+    }
+
+    /// A narrow projection still collects exactly the columns the query touches
+    /// (projected `v` + filter `id` + sort `ts`) — the scoping benefit is retained.
+    #[test]
+    fn collect_plan_column_names_collects_projected_and_referenced() {
+        let plan = build_logical_plan("SELECT v FROM t WHERE id = 1 ORDER BY ts");
+        let names = collect_plan_column_names(&plan);
+        for expected in ["v", "id", "ts"] {
+            assert!(
+                names.iter().any(|n| n == expected),
+                "expected column `{expected}` in collected names {names:?}"
+            );
+        }
     }
 
     #[test]

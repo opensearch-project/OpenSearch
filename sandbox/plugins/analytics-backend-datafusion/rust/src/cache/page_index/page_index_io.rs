@@ -312,23 +312,34 @@ async fn get_or_build_offset_index(
     // (count/agg, SingleCollector prefetch, schema-evolved files). A one-page
     // placeholder is always safe to dereference and makes pruning conservatively
     // keep the whole RG (1 page = all rows → can't prune), never a wrong result.
-    let placeholder_for = |rg_idx: usize| -> OffsetIndexMetaData {
+    //
+    // The single page MUST carry the column chunk's REAL byte offset+size, not
+    // (0, 0). When a row selection actually READS a placeholdered column (e.g. a
+    // `match() | sort | head` that page-selects the projected columns), arrow
+    // derives the fetch byte range from this page location. A (0, 0) page makes
+    // arrow compute a range whose `end < start`, and the read path's
+    // `range.end - range.start` then underflows (`parquet_bridge.rs` get_byte_ranges
+    // → "subtract with overflow" / release "capacity overflow"). Spanning the real
+    // chunk extent (`byte_range()` = dictionary/data page start + compressed size)
+    // makes any derived range a valid full-chunk read — the one-page semantics are
+    // preserved (still "can't prune"), just with coordinates arrow can subtract.
+    let placeholder_for = |rg_idx: usize, col_idx: usize| -> OffsetIndexMetaData {
+        let rg = footer_meta.row_group(rg_idx);
+        let (col_start, col_len) = rg.column(col_idx).byte_range();
         let mut b = OffsetIndexBuilder::new();
-        b.append_offset_and_size(0, 0);
-        b.append_row_count(footer_meta.row_group(rg_idx).num_rows());
+        // compressed_page_size is i32; clamp the (already-bounded) chunk length so a
+        // pathologically large column can't wrap the cast.
+        let size = i32::try_from(col_len).unwrap_or(i32::MAX);
+        b.append_offset_and_size(col_start as i64, size);
+        b.append_row_count(rg.num_rows());
         b.build()
     };
-    // The placeholder is identical for every column within a row group (it only
-    // depends on the RG's row count). Build it ONCE per RG and clone it across the
-    // columns, instead of constructing `num_cols` identical OffsetIndexMetaData
-    // (each a heap alloc) per RG. On wide schemas (clickbench ~105 cols) this is the
-    // bulk of the per-file warm scoped-load cost — only the few scoped columns get
-    // real data scattered in afterward; the rest stay as clones of this placeholder.
+    // Each column chunk has its OWN byte offset, so the placeholder is per-(rg, col):
+    // unlike the earlier (0, 0) placeholder it cannot be shared across columns. The
+    // scoped columns get their real OffsetIndex scattered in afterward, overwriting
+    // these placeholders.
     let mut matrix: ParquetOffsetIndex = (0..num_rgs)
-        .map(|rg| {
-            let ph = placeholder_for(rg);
-            vec![ph; num_cols]
-        })
+        .map(|rg| (0..num_cols).map(|col| placeholder_for(rg, col)).collect())
         .collect();
 
     // Phase 1: serve cached columns; collect misses.
@@ -1251,6 +1262,51 @@ mod tests {
             1,
             "col 3 (scoped out) OI is a single-page placeholder, not real and not empty"
         );
+    }
+
+    /// Regression: the single-page placeholder for a scoped-OUT column must carry
+    /// the column chunk's REAL byte offset + size — not (0, 0). A (0, 0) placeholder
+    /// makes arrow derive a fetch byte range with `end < start` when a row selection
+    /// actually reads that column (e.g. `match() | sort | head`), and the read path's
+    /// `range.end - range.start` then underflows ("subtract with overflow" in debug /
+    /// "capacity overflow" in release; see indexed_table/parquet_bridge.rs get_byte_ranges).
+    /// The placeholder page must span `[col_start, col_start + col_len)` so any range
+    /// derived from it is a valid full-chunk read.
+    #[tokio::test]
+    async fn placeholder_offset_index_spans_real_chunk_byte_range() {
+        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+        let (bytes, schema) = wide4_parquet(); // n0,n1,s0,s1 — 1 RG, multi-page columns
+        let (store, loc) = stage(bytes.clone()).await;
+        let fo = footer_only(&bytes);
+        // Scope to n1 (pred) + s0 (proj). Col 3 (s1) is scoped out → placeholder.
+        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[2]).await.unwrap();
+        let o = aug.offset_index().unwrap();
+
+        // The scoped-out column's placeholder is a single page...
+        let ph_pages = o[0][3].page_locations();
+        assert_eq!(ph_pages.len(), 1, "scoped-out col 3 must have a single placeholder page");
+        let ph = &ph_pages[0];
+
+        // ...whose coordinates equal the real column chunk byte range from the footer.
+        let (col_start, col_len) = fo.row_group(0).column(3).byte_range();
+        assert_eq!(
+            ph.offset as u64, col_start,
+            "placeholder page offset must be the real chunk start (not 0)"
+        );
+        assert_eq!(
+            ph.compressed_page_size as u64, col_len,
+            "placeholder page size must be the real chunk compressed size (not 0)"
+        );
+        assert!(col_start > 0 && col_len > 0, "fixture sanity: real chunk has non-zero offset+size");
+
+        // The byte range a reader derives from this page must NOT underflow:
+        // end (offset+size) >= start (offset).
+        let end = ph.offset as u64 + ph.compressed_page_size as u64;
+        assert!(end >= ph.offset as u64, "derived range must not underflow (end >= start)");
+        assert_eq!(ph.first_row_index, 0, "single placeholder page starts at row 0");
+        clear_scoped_cache_for_test();
     }
 
     #[tokio::test]
