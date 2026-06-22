@@ -252,9 +252,9 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("datafusion.spill_directory", spillDir.toString()).build();
         long total = Environment.getFileStore(spillDir).getTotalSpace();
         assertTrue("test host must report a non-zero total space for the temp dir", total > 0);
-        long expected = (long) (total * 0.80);
+        long expected = (long) (total * 0.90);
         long actual = Long.parseLong(DataFusionPlugin.deriveSpillLimitDefault(settings));
-        assertEquals("Default must be 80% of the spill volume's total space", expected, actual);
+        assertEquals("Default must be 90% of the spill volume's total space", expected, actual);
     }
 
     public void testDeriveSpillLimitDefaultWithMissingSpillDirReturnsFallback() {

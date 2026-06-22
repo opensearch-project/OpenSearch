@@ -104,7 +104,7 @@ public class DataFusionPlugin extends Plugin
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
     /** Fraction of the spill volume's total capacity used as the default cap. */
-    static final double SPILL_LIMIT_FRACTION = 0.80;
+    static final double SPILL_LIMIT_FRACTION = 0.90;
 
     /** Fallback when the spill volume's capacity cannot be probed. 8 GiB. */
     static final long SPILL_LIMIT_FALLBACK_BYTES = 8L * 1024 * 1024 * 1024;
