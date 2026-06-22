@@ -33,20 +33,14 @@
 //! removal, clear) foyer calls `on_leave`, and we drop that key from the side index. Without the
 //! listener the side index would accumulate keys foyer had already evicted.
 
-use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::Relaxed};
 
-use dashmap::DashMap;
+use dashmap::DashSet;
 use foyer::{Cache, CacheBuilder, Event, EventListener, FifoConfig, LfuConfig, LruConfig, S3FifoConfig};
 
 use crate::cache::eviction_policy::CacheEvictionPolicy;
-
-/// Extracts the eviction-prefix (e.g. a segment base path) from a key, or `None` for caches
-/// that don't use prefix eviction (metadata / statistics). Held behind `Arc` so the cache and
-/// its event-listener share the same closure.
-pub type PrefixFn<K> = Arc<dyn Fn(&K) -> Option<String> + Send + Sync>;
 
 /// Per-entry byte cost. Shared (`Arc`) between foyer's own weighter, the cache's `insert`
 /// (adds the new entry's bytes) and the event-listener (subtracts a leaving entry's bytes),
@@ -59,6 +53,7 @@ pub type WeighterFn<K, V> = Arc<dyn Fn(&K, &V) -> usize + Send + Sync>;
 pub struct FoyerCacheStats {
     pub hits: u64,
     pub misses: u64,
+    pub evictions: u64,
     pub entries: usize,
     pub used_bytes: usize,
     pub limit_bytes: usize,
@@ -80,32 +75,49 @@ fn eviction_config(policy: CacheEvictionPolicy) -> foyer::EvictionConfig {
     }
 }
 
-/// Number of shards for the foyer cache. Sharding is what removes global-lock contention;
-/// scale modestly with cores but cap so tiny caches aren't over-sharded.
-fn default_shards() -> usize {
-    num_cpus::get().clamp(1, 16)
+/// Each shard should own a meaningful slice of the byte budget. foyer splits capacity evenly
+/// across shards (`shard_cap = capacity / shards`); if `shards` exceeds `capacity` the per-shard
+/// cap rounds toward zero and the *global* byte bound degrades (a tiny cache spread over many
+/// shards can hold one entry per shard, overshooting the limit). We therefore never give a shard
+/// less than this many bytes.
+const MIN_BYTES_PER_SHARD: usize = 1 << 20; // 1 MiB
+
+/// Number of shards for the foyer cache. Sharding removes global-lock contention; we scale with
+/// cores but never over-shard relative to capacity (see [`MIN_BYTES_PER_SHARD`]) so the byte
+/// bound stays tight for small caches (and unit tests with tiny caps).
+fn shards_for(capacity_bytes: usize) -> usize {
+    let by_capacity = (capacity_bytes / MIN_BYTES_PER_SHARD).max(1);
+    num_cpus::get().clamp(1, 16).min(by_capacity)
 }
 
-/// State shared between the cache and its event-listener: the prefix side index, a live entry
-/// count, and our own byte counter. `K` only — the listener carries `V`.
+/// State shared between the cache and its event-listener: an optional live-key index, a live
+/// entry count, our own byte counter, and the eviction counter. `K` only — the listener
+/// carries `V`.
 ///
 /// **Why we track `used_bytes` ourselves instead of calling `foyer::Cache::usage()`:** foyer
 /// 0.22.3's `clear()` resets per-shard entry counts but does NOT decrement the per-shard `usage`
 /// accumulator, so `usage()` reports stale bytes after a clear. We therefore maintain an exact
 /// `AtomicUsize` updated from `insert` (+weight) and `on_leave` (−weight) — the same lock-free
 /// `memory_used` accounting approach as PR #22146.
+///
+/// **Prefix eviction:** caches that need [`evict_by_prefix`](FoyerBackedCache::evict_by_prefix)
+/// (the page-index caches) opt in with `track_keys = true`. We then maintain a `DashSet` of live
+/// keys, kept leak-free by the event-listener (a key is removed from the set the moment it leaves
+/// the cache for any reason). `evict_by_prefix` scans that set with `Display`+`starts_with` — the
+/// same O(n)-cold-path semantics as the prior `BoundedCache`. Metadata/statistics caches set
+/// `track_keys = false` and pay nothing.
 struct CacheState<K>
 where
     K: Eq + Hash + Send + Sync + Clone + 'static,
 {
-    /// prefix (segment base path) → keys cached under it. Empty for non-prefix caches.
-    by_prefix: DashMap<String, HashSet<K>>,
+    /// Live keys, for prefix eviction. `None` when the cache opts out of key tracking.
+    live_keys: Option<DashSet<K>>,
     /// Live entry count (advisory — like `memory_used`, exactness isn't required).
     entries: AtomicUsize,
     /// Exact byte usage (see struct doc for why this is not foyer's `usage()`).
     used_bytes: AtomicUsize,
-    /// Derives a key's prefix; returns `None` to opt a cache out of prefix tracking.
-    prefix_of: PrefixFn<K>,
+    /// Cumulative count of capacity-driven evictions (NOT explicit removes/clears).
+    evictions: AtomicU64,
 }
 
 impl<K> CacheState<K>
@@ -126,12 +138,10 @@ where
             .fetch_update(Relaxed, Relaxed, |n| Some(n.saturating_sub(weight)));
     }
 
-    /// Drop a key from the prefix side index when it leaves the cache.
+    /// Drop a key from the live-key index when it leaves the cache (no-op if untracked).
     fn forget_key(&self, key: &K) {
-        if let Some(prefix) = (self.prefix_of)(key) {
-            if let Some(mut set) = self.by_prefix.get_mut(&prefix) {
-                set.remove(key);
-            }
+        if let Some(keys) = &self.live_keys {
+            keys.remove(key);
         }
     }
 }
@@ -158,8 +168,15 @@ where
     fn on_leave(&self, reason: Event, key: &K, value: &V) {
         let weight = (self.weighter)(key, value).max(1);
         match reason {
-            // Entry genuinely left the cache → drop all bookkeeping for it.
-            Event::Evict | Event::Remove | Event::Clear => {
+            // Capacity-driven eviction → also bump the eviction counter.
+            Event::Evict => {
+                self.state.evictions.fetch_add(1, Relaxed);
+                self.state.dec_entries();
+                self.state.sub_bytes(weight);
+                self.state.forget_key(key);
+            }
+            // Explicit departure (remove / clear) → bookkeeping only, not an eviction.
+            Event::Remove | Event::Clear => {
                 self.state.dec_entries();
                 self.state.sub_bytes(weight);
                 self.state.forget_key(key);
@@ -198,32 +215,40 @@ where
     K: Eq + Hash + Send + Sync + Clone + 'static,
     V: Send + Sync + Clone + 'static,
 {
-    /// Build a cache that does not use prefix eviction (metadata / statistics caches).
+    /// Build a cache WITHOUT prefix-eviction support (metadata / statistics caches). No live-key
+    /// index is kept, so inserts/reads pay nothing extra.
     pub fn new(
         limit_bytes: usize,
         policy: CacheEvictionPolicy,
         weighter: impl Fn(&K, &V) -> usize + Send + Sync + 'static,
     ) -> Self {
-        Self::with_prefix_fn(limit_bytes, policy, weighter, Arc::new(|_| None))
+        Self::build(limit_bytes, policy, weighter, false)
     }
 
-    /// Build a cache with `limit_bytes` capacity, the given eviction policy, a byte `weighter`,
-    /// and a `prefix_of` extractor enabling [`evict_by_prefix`](Self::evict_by_prefix)
-    /// (page-index caches).
-    pub fn with_prefix_fn(
+    /// Build a cache WITH a live-key index so [`evict_by_prefix`](Self::evict_by_prefix) can
+    /// scan keys by their `Display` form (page-index caches).
+    pub fn with_key_tracking(
         limit_bytes: usize,
         policy: CacheEvictionPolicy,
         weighter: impl Fn(&K, &V) -> usize + Send + Sync + 'static,
-        prefix_of: PrefixFn<K>,
+    ) -> Self {
+        Self::build(limit_bytes, policy, weighter, true)
+    }
+
+    fn build(
+        limit_bytes: usize,
+        policy: CacheEvictionPolicy,
+        weighter: impl Fn(&K, &V) -> usize + Send + Sync + 'static,
+        track_keys: bool,
     ) -> Self {
         // One shared weighter used by foyer (for capacity), the listener (subtract on leave),
         // and `insert` (add on insert) — so all three agree on each entry's byte cost.
         let weighter: WeighterFn<K, V> = Arc::new(weighter);
         let state = Arc::new(CacheState {
-            by_prefix: DashMap::new(),
+            live_keys: if track_keys { Some(DashSet::new()) } else { None },
             entries: AtomicUsize::new(0),
             used_bytes: AtomicUsize::new(0),
-            prefix_of,
+            evictions: AtomicU64::new(0),
         });
         let listener: Arc<dyn EventListener<Key = K, Value = V>> = Arc::new(StateListener {
             state: Arc::clone(&state),
@@ -231,7 +256,7 @@ where
         });
         let foyer_weighter = Arc::clone(&weighter);
         let inner: Cache<K, V> = CacheBuilder::new(limit_bytes)
-            .with_shards(default_shards())
+            .with_shards(shards_for(limit_bytes))
             .with_eviction_config(eviction_config(policy))
             .with_weighter(move |k: &K, v: &V| foyer_weighter(k, v).max(1))
             .with_event_listener(listener)
@@ -270,16 +295,13 @@ where
         let weight = (self.weighter)(&key, &value).max(1);
         self.state.used_bytes.fetch_add(weight, Relaxed);
 
-        // Fresh vs. replace decides whether the entry count grows and whether we track the
-        // key in the prefix index. `contains` is a cheap per-shard check.
+        // Fresh vs. replace decides whether the entry count grows. `contains` is a cheap
+        // per-shard check. (A fresh key is recorded in the live-key index too, when tracked.)
         let fresh = self.inner.contains(&key) == false;
         if fresh {
             self.state.entries.fetch_add(1, Relaxed);
-            if let Some(prefix) = (self.state.prefix_of)(&key) {
-                // Scope the DashMap guard so it is dropped BEFORE `inner.insert` — that insert
-                // may evict, firing `on_leave` which touches `by_prefix`; holding the guard
-                // across it could deadlock on the same shard.
-                self.state.by_prefix.entry(prefix).or_default().insert(key.clone());
+            if let Some(keys) = &self.state.live_keys {
+                keys.insert(key.clone());
             }
         }
         self.inner.insert(key, value);
@@ -302,17 +324,6 @@ where
         self.inner.remove(key);
     }
 
-    /// Evict every key recorded under `prefix` (a replaced/deleted segment). The side index
-    /// entry is taken first, so the `on_leave(Remove)` callbacks triggered by `inner.remove`
-    /// find nothing left to clean and cannot re-enter the prefix we are draining.
-    pub fn evict_by_prefix(&self, prefix: &str) {
-        if let Some((_, keys)) = self.state.by_prefix.remove(prefix) {
-            for key in keys {
-                self.inner.remove(&key);
-            }
-        }
-    }
-
     /// Resize the byte cap at runtime (dynamic `datafusion.*.cache.size.limit`). foyer evicts
     /// down to the new capacity as needed.
     pub fn set_limit(&self, limit_bytes: usize) {
@@ -329,7 +340,9 @@ where
         // post-clear `used_bytes`/`len` reports 0 regardless of foyer's internal drift.
         self.state.entries.store(0, Relaxed);
         self.state.used_bytes.store(0, Relaxed);
-        self.state.by_prefix.clear();
+        if let Some(keys) = &self.state.live_keys {
+            keys.clear();
+        }
     }
 
     /// Current byte usage (our own exact counter — NOT foyer's `usage()`, which is stale after
@@ -352,16 +365,55 @@ where
         FoyerCacheStats {
             hits: self.hits.load(Relaxed),
             misses: self.misses.load(Relaxed),
+            evictions: self.state.evictions.load(Relaxed),
             entries: self.state.entries.load(Relaxed),
             used_bytes: self.state.used_bytes.load(Relaxed),
             limit_bytes: self.limit_bytes.load(Relaxed),
         }
     }
 
-    /// Reset hit/miss counters (stats baselining for benchmarks).
+    /// Cumulative capacity-driven eviction count.
+    pub fn evictions(&self) -> u64 {
+        self.state.evictions.load(Relaxed)
+    }
+
+    /// Reset hit/miss/eviction counters (stats baselining for benchmarks / `clear_keep_limit`).
     pub fn reset_stats(&self) {
         self.hits.store(0, Relaxed);
         self.misses.store(0, Relaxed);
+        self.state.evictions.store(0, Relaxed);
+    }
+
+    /// Drop all entries AND reset all counters, keeping the configured limit. Matches the prior
+    /// `BoundedCache::clear_keep_limit` semantics (used by the page-index reset path).
+    pub fn clear_keep_limit(&self) {
+        self.clear();
+        self.reset_stats();
+    }
+}
+
+impl<K, V> FoyerBackedCache<K, V>
+where
+    K: Eq + Hash + Send + Sync + Clone + std::fmt::Display + 'static,
+    V: Send + Sync + Clone + 'static,
+{
+    /// Evict every cached entry whose key's `Display` form starts with `prefix` (a deleted or
+    /// replaced file). Scans the live-key index (kept leak-free by the event-listener), then
+    /// removes each match from foyer — the same O(n)-cold-path contract as the prior
+    /// `BoundedCache::evict_by_prefix`. Requires the cache to have been built with
+    /// [`with_key_tracking`](Self::with_key_tracking); a no-op otherwise.
+    pub fn evict_by_prefix(&self, prefix: &str) {
+        let Some(keys) = &self.state.live_keys else { return };
+        // Snapshot matching keys first (don't hold DashSet shard guards across `inner.remove`,
+        // which fires `on_leave(Remove)` → `forget_key` → DashSet write on the same shard).
+        let victims: Vec<K> = keys
+            .iter()
+            .filter(|k| k.to_string().starts_with(prefix))
+            .map(|k| k.clone())
+            .collect();
+        for key in victims {
+            self.inner.remove(&key);
+        }
     }
 }
 
@@ -407,11 +459,9 @@ mod tests {
 
     #[test]
     fn evict_by_prefix_drops_segment_cells() {
-        // prefix = everything before the last ':'
-        let prefix_of: PrefixFn<String> =
-            Arc::new(|k: &String| k.rsplit_once(':').map(|(p, _)| p.to_string()));
+        // Keys are "<file>:<col>"; evict_by_prefix matches on the Display form via starts_with.
         let c: FoyerBackedCache<String, Vec<u8>> =
-            FoyerBackedCache::with_prefix_fn(10_000, CacheEvictionPolicy::Fifo, |_k, v: &Vec<u8>| v.len(), prefix_of);
+            FoyerBackedCache::with_key_tracking(10_000, CacheEvictionPolicy::Fifo, |_k, v: &Vec<u8>| v.len());
         c.insert("seg1:col0".to_string(), vec![0; 4]);
         c.insert("seg1:col1".to_string(), vec![0; 4]);
         c.insert("seg2:col0".to_string(), vec![0; 4]);
@@ -421,6 +471,16 @@ mod tests {
         assert!(c.get(&"seg1:col0".to_string()).is_none());
         assert!(c.get(&"seg1:col1".to_string()).is_none());
         assert_eq!(c.get(&"seg2:col0".to_string()), Some(vec![0; 4]));
+        assert_eq!(c.len(), 1);
+    }
+
+    #[test]
+    fn evict_by_prefix_noop_without_tracking() {
+        // A cache built without key tracking ignores evict_by_prefix (keeps the entry).
+        let c = byte_cache(1024, CacheEvictionPolicy::Fifo);
+        c.insert("seg1:col0".to_string(), vec![0; 4]);
+        c.evict_by_prefix("seg1");
+        assert_eq!(c.get(&"seg1:col0".to_string()), Some(vec![0; 4]));
     }
 
     #[test]
