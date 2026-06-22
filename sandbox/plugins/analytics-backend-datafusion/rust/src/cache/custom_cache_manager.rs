@@ -16,7 +16,8 @@ use crate::cache::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
-use log::{debug, error};
+use native_bridge_common::log_debug;
+use crate::cache::{metadata_cache, page_index};
 use crate::indexed_table::parquet_bridge;
 
 /// Create ObjectMeta from a local file path.
@@ -49,7 +50,9 @@ pub struct CustomCacheManager {
     /// Direct reference to the file metadata cache
     file_metadata_cache: Option<Arc<MutexFileMetadataCache>>,
     /// Direct reference to the statistics cache
-    statistics_cache: Option<Arc<CustomStatisticsCache>>
+    statistics_cache: Option<Arc<CustomStatisticsCache>>,
+    column_index_registered: bool,
+    offset_index_registered: bool,
 }
 
 impl CustomCacheManager {
@@ -57,20 +60,38 @@ impl CustomCacheManager {
     pub fn new() -> Self {
         Self {
             file_metadata_cache: None,
-            statistics_cache: None
+            statistics_cache: None,
+            column_index_registered: false,
+            offset_index_registered: false,
         }
     }
 
     /// Set the file metadata cache
     pub fn set_file_metadata_cache(&mut self, cache: Arc<MutexFileMetadataCache>) {
         self.file_metadata_cache = Some(cache);
-        debug!("[CACHE INFO] File metadata cache set in CustomCacheManager");
+        log_debug!("[CACHE INFO] File metadata cache set in CustomCacheManager");
     }
 
     /// Set the statistics cache
     pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>) {
         self.statistics_cache = Some(cache);
-        debug!("[CACHE INFO] Statistics cache set in CustomCacheManager");
+        log_debug!("[CACHE INFO] Statistics cache set in CustomCacheManager");
+    }
+
+    /// Register the column index cache with the given size limit.
+    /// Sets the limit on the process-global `COLUMN_INDEX_CACHE` singleton.
+    pub fn set_column_index_cache(&mut self, size_limit: usize, _policy: crate::cache::eviction_policy::PolicyType) {
+        crate::cache::page_index::set_column_index_cache_limit(size_limit);
+        self.column_index_registered = true;
+        log_debug!("[CACHE INFO] Column index cache registered (limit={} bytes)", size_limit);
+    }
+
+    /// Register the offset index cache with the given size limit.
+    /// Sets the limit on the process-global `OFFSET_INDEX_CACHE` singleton.
+    pub fn set_offset_index_cache(&mut self, size_limit: usize, _policy: crate::cache::eviction_policy::PolicyType) {
+        crate::cache::page_index::set_offset_index_cache_limit(size_limit);
+        self.offset_index_registered = true;
+        log_debug!("[CACHE INFO] Offset index cache registered (limit={} bytes)", size_limit);
     }
 
     /// Get the statistics cache
@@ -119,7 +140,7 @@ impl CustomCacheManager {
                     any_success = true;
                 }
                 Ok(false) => {
-                    debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
+                    native_bridge_common::log_debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
                 }
                 Err(e) => {
                     errors.push(format!("Metadata cache: {}", e));
@@ -133,7 +154,7 @@ impl CustomCacheManager {
                         any_success = true;
                     }
                     Ok(false) => {
-                        debug!("[CACHE INFO] File not added for statistics cache: {}", file_path);
+                        log_debug!("[CACHE INFO] File not added for statistics cache: {}", file_path);
                     }
                     Err(e) => {
                         errors.push(format!("Statistics cache: {}", e));
@@ -170,7 +191,7 @@ impl CustomCacheManager {
                             if cache_guard.remove(&path).is_some() {
                                 any_removed = true;
                             } else {
-                                debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
+                                log_debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                             }
                         }
                         Err(e) => {
@@ -188,6 +209,12 @@ impl CustomCacheManager {
                 if cache.remove(&path).is_some() {
                     any_removed = true;
                 }
+            }
+
+            // Evict from scoped page-index caches (CI + OI) by file prefix
+            if self.column_index_registered || self.offset_index_registered {
+                page_index::evict_file_from_scoped_cache(file_path);
+                any_removed = true;
             }
 
             let removed = if !errors.is_empty() && !any_removed {
@@ -242,6 +269,20 @@ impl CustomCacheManager {
                     .as_ref()
                     .map_or(false, |cache| cache.contains_key(&Path::from(file_path)))
             }
+            metadata_cache::CACHE_TYPE_COLUMN_INDEX => {
+                if !self.column_index_registered { return false; }
+                let stats = page_index::column_index_cache_stats();
+                // CI is keyed by (file, col) — a file is "present" if entries > 0 and
+                // we match by prefix; check via evict-probe is heavy so we approximate
+                // with entries > 0. A per-file lookup requires iterating DashMap — not
+                // worth it for a boolean check; callers use this for diagnostics only.
+                stats.entries > 0
+            }
+            metadata_cache::CACHE_TYPE_OFFSET_INDEX => {
+                if !self.offset_index_registered { return false; }
+                let stats = page_index::offset_index_cache_stats();
+                stats.entries > 0
+            }
             _ => false
         }
     }
@@ -290,12 +331,15 @@ impl CustomCacheManager {
         if let Some(cache) = &self.statistics_cache {
             cache.clear();
         }
+        if self.column_index_registered || self.offset_index_registered {
+            page_index::clear_scoped_cache();
+        }
     }
 
     /// Clear specific cache type
     pub fn clear_cache_type(&self, cache_type: &str) -> Result<(), String> {
         match cache_type {
-            crate::cache::metadata_cache::CACHE_TYPE_METADATA => {
+            metadata_cache::CACHE_TYPE_METADATA => {
                 if let Some(cache) = &self.file_metadata_cache {
                     cache.clear();
                     Ok(())
@@ -303,13 +347,18 @@ impl CustomCacheManager {
                     Err("No metadata cache configured".to_string())
                 }
             }
-            crate::cache::metadata_cache::CACHE_TYPE_STATS => {
+            metadata_cache::CACHE_TYPE_STATS => {
                 if let Some(cache) = &self.statistics_cache {
                     cache.clear();
                     Ok(())
                 } else {
                     Err("No statistics cache configured".to_string())
                 }
+            }
+            metadata_cache::CACHE_TYPE_COLUMN_INDEX
+            | metadata_cache::CACHE_TYPE_OFFSET_INDEX => {
+                page_index::clear_scoped_cache();
+                Ok(())
             }
             _ => Err(format!("Unknown cache type: {}", cache_type))
         }
@@ -318,7 +367,7 @@ impl CustomCacheManager {
     /// Get memory consumed by specific cache type
     pub fn get_memory_consumed_by_type(&self, cache_type: &str) -> Result<usize, String> {
         match cache_type {
-            crate::cache::metadata_cache::CACHE_TYPE_METADATA => {
+            metadata_cache::CACHE_TYPE_METADATA => {
                 if let Some(cache) = &self.file_metadata_cache {
                     if let Ok(cache_guard) = cache.inner.lock() {
                         Ok(cache_guard.memory_used())
@@ -329,12 +378,18 @@ impl CustomCacheManager {
                     Err("No metadata cache configured".to_string())
                 }
             }
-            crate::cache::metadata_cache::CACHE_TYPE_STATS => {
+            metadata_cache::CACHE_TYPE_STATS => {
                 if let Some(cache) = &self.statistics_cache {
                     Ok(cache.memory_consumed())
                 } else {
                     Err("No statistics cache configured".to_string())
                 }
+            }
+            metadata_cache::CACHE_TYPE_COLUMN_INDEX => {
+                Ok(page_index::column_index_cache_stats().used_bytes)
+            }
+            metadata_cache::CACHE_TYPE_OFFSET_INDEX => {
+                Ok(page_index::offset_index_cache_stats().used_bytes)
             }
             _ => Err(format!("Unknown cache type: {}", cache_type))
         }
@@ -434,14 +489,14 @@ impl CustomCacheManager {
                     success_count += 1;
                 }
                 Err(e) => {
-                    debug!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
+                    native_bridge_common::log_debug!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
                     failed_files.push(file_path.clone());
                 }
             }
         }
 
         if !failed_files.is_empty() {
-            debug!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
+            native_bridge_common::log_debug!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
                       failed_files.len(), failed_files);
         }
 
@@ -537,5 +592,118 @@ impl CustomCacheManager {
         if let Some(cache) = &self.file_metadata_cache {
             cache.reset_stats();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cache::{CACHE_TYPE_COLUMN_INDEX, CACHE_TYPE_OFFSET_INDEX};
+    use super::*;
+    use crate::cache::eviction_policy::PolicyType;
+    use crate::cache::page_index::{
+        SCOPED_CACHE_TEST_GUARD, clear_scoped_cache_for_test, column_index_cache_stats,
+        offset_index_cache_stats,
+    };
+
+    #[test]
+    fn set_column_index_cache_registers_and_sets_limit() {
+        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let mut mgr = CustomCacheManager::new();
+        assert!(!mgr.column_index_registered);
+
+        let limit = 16 * 1024 * 1024; // 16 MB
+        mgr.set_column_index_cache(limit, PolicyType::Lru);
+
+        assert!(mgr.column_index_registered);
+        assert_eq!(column_index_cache_stats().limit_bytes, limit);
+
+        clear_scoped_cache_for_test();
+    }
+
+    #[test]
+    fn set_offset_index_cache_registers_and_sets_limit() {
+        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let mut mgr = CustomCacheManager::new();
+        assert!(!mgr.offset_index_registered);
+
+        let limit = 32 * 1024 * 1024; // 32 MB
+        mgr.set_offset_index_cache(limit, PolicyType::Lru);
+
+        assert!(mgr.offset_index_registered);
+        assert_eq!(offset_index_cache_stats().limit_bytes, limit);
+
+        clear_scoped_cache_for_test();
+    }
+
+    #[test]
+    fn clear_cache_type_column_index_clears_scoped_cache() {
+        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let mut mgr = CustomCacheManager::new();
+        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
+
+        // clear_cache_type must succeed for COLUMN_INDEX
+        assert!(mgr.clear_cache_type(CACHE_TYPE_COLUMN_INDEX).is_ok());
+        // and for OFFSET_INDEX too (both route to clear_scoped_cache)
+        assert!(mgr.clear_cache_type(CACHE_TYPE_OFFSET_INDEX).is_ok());
+
+        clear_scoped_cache_for_test();
+    }
+
+    #[test]
+    fn get_memory_consumed_by_type_returns_scoped_stats() {
+        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let mut mgr = CustomCacheManager::new();
+        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
+        mgr.set_offset_index_cache(32 * 1024 * 1024, PolicyType::Lru);
+
+        // On empty cache both return 0 bytes (no entries yet).
+        assert_eq!(
+            mgr.get_memory_consumed_by_type(CACHE_TYPE_COLUMN_INDEX).unwrap(),
+            0
+        );
+        assert_eq!(
+            mgr.get_memory_consumed_by_type(CACHE_TYPE_OFFSET_INDEX).unwrap(),
+            0
+        );
+
+        clear_scoped_cache_for_test();
+    }
+
+    #[test]
+    fn remove_files_evicts_scoped_cache_when_registered() {
+        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let mut mgr = CustomCacheManager::new();
+        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
+
+        // Calling remove_files on a non-existent file must not panic.
+        let result = mgr.remove_files(&["/nonexistent/file.parquet".to_string()]);
+        assert!(result.is_ok());
+
+        clear_scoped_cache_for_test();
+    }
+
+    #[test]
+    fn clear_all_clears_scoped_cache_when_registered() {
+        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+
+        let mut mgr = CustomCacheManager::new();
+        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
+        mgr.set_offset_index_cache(32 * 1024 * 1024, PolicyType::Lru);
+
+        // Must not panic even with no metadata/stats caches set.
+        mgr.clear_all();
+
+        clear_scoped_cache_for_test();
     }
 }

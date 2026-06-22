@@ -83,6 +83,23 @@ use cache_keys::{CiCellKey, OiCellKey, OiColumn};
 use crate::cache::eviction_policy::PolicyType;
 use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
 use once_cell::sync::Lazy;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Process-global kill-switch for the scoped page-index feature.
+/// When false, `metadata_cache::put` retains the full page index (fallback mode),
+/// and the scoped optimizer/augmentation loops are no-ops.
+/// Toggled via `datafusion.scoped_page_index.enabled` dynamic cluster setting.
+pub(crate) static SCOPED_PAGE_INDEX_ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// Returns true when the scoped page-index feature is enabled (default).
+pub fn is_scoped_page_index_enabled() -> bool {
+    SCOPED_PAGE_INDEX_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Enable or disable the scoped page-index feature. Called from the Java settings consumer.
+pub fn set_scoped_page_index_enabled(enabled: bool) {
+    SCOPED_PAGE_INDEX_ENABLED.store(enabled, Ordering::Relaxed);
+}
 
 pub use cache_store::ScopedCacheStats;
 pub use page_index_io::{

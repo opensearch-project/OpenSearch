@@ -288,6 +288,18 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Kill-switch for the scoped page-index feature.
+     * When false, the scoped CI/OI caches are bypassed and the metadata cache
+     * retains the full page index (fallback mode). Default: true.
+     */
+    public static final Setting<Boolean> SCOPED_PAGE_INDEX_ENABLED = Setting.boolSetting(
+        "datafusion.scoped_page_index.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Admission threshold for the jemalloc memory guard (0.0–1.0).
      * When pool accounting rejects a phantom reservation but jemalloc reports
      * actual RSS below this fraction of the pool limit, the reservation proceeds
@@ -494,6 +506,16 @@ public class DataFusionPlugin extends Plugin
             );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SCOPED_PAGE_INDEX_ENABLED, enabled -> {
+            NativeBridge.setScopedPageIndexEnabled(enabled);
+            if (!enabled) {
+                // Clear scoped caches immediately when disabling — entries are
+                // useless in fallback mode and would waste native heap.
+                NativeBridge.clearColumnIndexCache();
+                NativeBridge.clearOffsetIndexCache();
+                logger.info("Scoped page-index disabled: cleared CI and OI caches");
+            }
+        });
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
@@ -519,6 +541,7 @@ public class DataFusionPlugin extends Plugin
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setScopedPageIndexEnabled(SCOPED_PAGE_INDEX_ENABLED.get(settings));
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),

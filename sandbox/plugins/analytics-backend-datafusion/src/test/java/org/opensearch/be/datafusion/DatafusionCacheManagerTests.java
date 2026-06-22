@@ -39,6 +39,9 @@ public class DatafusionCacheManagerTests extends OpenSearchTestCase {
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_ENABLED);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
         clusterSettingsToAdd.add(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
         clusterSettingsToAdd.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         clusterSettingsToAdd.add(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);

@@ -16,16 +16,18 @@ use datafusion::execution::cache::cache_manager::{
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::cache::DefaultFilesMetadataCache;
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use log::error;
 use object_store::path::Path;
+use native_bridge_common::log_error;
+use crate::parquet_page_cache::is_scoped_page_index_enabled;
 
 // Cache type constants
 pub const CACHE_TYPE_METADATA: &str = "METADATA";
 pub const CACHE_TYPE_STATS: &str = "STATISTICS";
+pub const CACHE_TYPE_COLUMN_INDEX: &str = "COLUMN_INDEX";
+pub const CACHE_TYPE_OFFSET_INDEX: &str = "OFFSET_INDEX";
 
-// Helper function to log cache operations
 fn log_cache_error(operation: &str, error: &str) {
-    error!("[CACHE ERROR] {} operation failed: {}", operation, error);
+    log_error!("[CACHE ERROR] {} operation failed: {}", operation, error);
 }
 
 /// Return a cache entry whose `ParquetMetaData` carries footer-only metadata (no
@@ -132,22 +134,19 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     }
 
     fn put(&self, k: &Path, v: CachedFileMetadataEntry) -> Option<CachedFileMetadataEntry> {
-        // Enforce the footer-only invariant at the single cache chokepoint.
+        // When scoped page-index is enabled: strip ColumnIndex + OffsetIndex from
+        // the entry before caching. The level-1 cache stays footer-only; page-level
+        // pruning is handled by the scoped cache (`parquet_page_cache`).
         //
-        // DataFusion's parquet paths (`infer_schema`, the scan opener,
-        // `fetch_statistics`) hand this cache to `DFParquetMetadata::fetch_metadata`,
-        // which force-decodes the FULL page index (`ColumnIndex` + `OffsetIndex`
-        // for every column of every row group) before calling `put`. On wide
-        // schemas that decoded index dominates the native heap and, since this is
-        // a shared LRU keyed by path, also evicts the small footer-only entries
-        // the scan paths depend on.
-        //
-        // We can't stop DataFusion from decoding it, but we can refuse to retain
-        // it: strip the page index here so the level-1 cache only ever holds
-        // footer-only metadata (row-group + file stats). Page-level pruning is
-        // unaffected — both scan paths rebuild a predicate-scoped page index per
-        // query through the shared scoped cache (`parquet_page_cache`).
-        let v = strip_page_index(v);
+        // When scoped page-index is disabled (fallback mode): retain the full entry
+        // including page indexes so DataFusion's default page pruning path continues
+        // to function. In this mode `load_parquet_metadata` fetches with
+        // `PageIndexPolicy::ReadAll`, so the full index is present to retain.
+        let v = if is_scoped_page_index_enabled() {
+            strip_page_index(v)
+        } else {
+            v
+        };
         match self.inner.lock() {
             Ok(cache) => cache.put(k, v),
             Err(e) => {

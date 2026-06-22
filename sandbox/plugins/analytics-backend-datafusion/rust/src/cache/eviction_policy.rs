@@ -10,6 +10,8 @@
 //!
 //! Simple pluggable cache eviction policies for statistics cache.
 
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use datafusion::common::instant;
 use instant::Instant;
 use thiserror::Error;
@@ -24,24 +26,30 @@ pub enum CacheError {
 /// Result type for cache operations
 pub type CacheResult<T> = Result<T, CacheError>;
 
-/// Core trait for cache eviction policies
+/// Core trait for cache eviction policies.
+///
+/// All methods take `&self` — implementations use interior mutability
+/// (`DashMap`, atomics) so the trait object can be shared as `Arc<dyn CachePolicy>`
+/// without an outer `Mutex`. This means `get` on the parent cache never contends
+/// on a global lock, only on the per-shard DashMap locks inside the policy.
 pub trait CachePolicy: Send + Sync {
-    /// Called when a cache entry is accessed
-    fn on_access(&mut self, key: &str, size: usize);
+    /// Called when a cache entry is accessed (updates recency/frequency metadata).
+    fn on_access(&self, key: &str, size: usize);
 
-    /// Called when a cache entry is inserted
-    fn on_insert(&mut self, key: &str, size: usize);
-    /// Called when a cache entry is removed
-    fn on_remove(&mut self, key: &str);
+    /// Called when a cache entry is inserted.
+    fn on_insert(&self, key: &str, size: usize);
 
-    /// Select entries for eviction to reach target size
-    /// Returns keys to evict, ordered by eviction priority
+    /// Called when a cache entry is removed.
+    fn on_remove(&self, key: &str);
+
+    /// Select entries for eviction to free at least `target_size` bytes.
+    /// Returns string keys ordered by eviction priority (lowest-priority first).
     fn select_for_eviction(&self, target_size: usize) -> Vec<String>;
 
-    /// Reset policy state
-    fn clear(&mut self);
+    /// Reset all policy state (called on cache clear).
+    fn clear(&self);
 
-    /// Get the name of this policy
+    /// Name of this policy, for logging/stats.
     fn policy_name(&self) -> &'static str;
 }
 
@@ -52,7 +60,8 @@ pub enum PolicyType {
     Lfu,
 }
 
-/// Simple cache entry metadata
+/// Metadata tracked per cached entry for eviction ordering.
+/// Stored inside the policy's `DashMap`, mutated via `get_mut`.
 #[derive(Debug, Clone)]
 pub struct CacheEntryMetadata {
     pub size: usize,
@@ -69,6 +78,8 @@ impl CacheEntryMetadata {
         }
     }
 
+    /// Update recency and frequency. Called via `DashMap::get_mut` which holds
+    /// only the per-shard write lock — not a global lock.
     pub fn on_access(&mut self) {
         self.last_accessed = Instant::now();
         self.access_count += 1;
@@ -97,37 +108,31 @@ impl Default for LruPolicy {
 }
 
 impl CachePolicy for LruPolicy {
-    fn on_access(&mut self, key: &str, size: usize) {
+    fn on_access(&self, key: &str, size: usize) {
         match self.entries.get_mut(key) {
             Some(mut entry) => {
                 entry.on_access();
             }
             None => {
+                // Entry missing from policy metadata (can happen transiently) — insert it.
                 let metadata = CacheEntryMetadata::new(key.to_string(), size);
                 self.entries.insert(key.to_string(), metadata);
-                self.total_size
-                    .fetch_add(size, std::sync::atomic::Ordering::Relaxed);
+                self.total_size.fetch_add(size, Ordering::Relaxed);
             }
         }
     }
 
-    fn on_insert(&mut self, key: &str, size: usize) {
+    fn on_insert(&self, key: &str, size: usize) {
         let metadata = CacheEntryMetadata::new(key.to_string(), size);
-
         if let Some(old_entry) = self.entries.insert(key.to_string(), metadata) {
-            let old_size = old_entry.size;
-            self.total_size
-                .fetch_sub(old_size, std::sync::atomic::Ordering::Relaxed);
+            self.total_size.fetch_sub(old_entry.size, Ordering::Relaxed);
         }
-
-        self.total_size
-            .fetch_add(size, std::sync::atomic::Ordering::Relaxed);
+        self.total_size.fetch_add(size, Ordering::Relaxed);
     }
 
-    fn on_remove(&mut self, key: &str) {
+    fn on_remove(&self, key: &str) {
         if let Some((_, entry)) = self.entries.remove(key) {
-            self.total_size
-                .fetch_sub(entry.size, std::sync::atomic::Ordering::Relaxed);
+            self.total_size.fetch_sub(entry.size, Ordering::Relaxed);
         }
     }
 
@@ -167,10 +172,9 @@ impl CachePolicy for LruPolicy {
         candidates
     }
 
-    fn clear(&mut self) {
+    fn clear(&self) {
         self.entries.clear();
-        self.total_size
-            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.total_size.store(0, Ordering::Relaxed);
     }
 
     fn policy_name(&self) -> &'static str {
@@ -200,7 +204,7 @@ impl Default for LfuPolicy {
 }
 
 impl CachePolicy for LfuPolicy {
-    fn on_access(&mut self, key: &str, size: usize) {
+    fn on_access(&self, key: &str, size: usize) {
         match self.entries.get_mut(key) {
             Some(mut entry) => {
                 entry.on_access();
@@ -208,29 +212,22 @@ impl CachePolicy for LfuPolicy {
             None => {
                 let metadata = CacheEntryMetadata::new(key.to_string(), size);
                 self.entries.insert(key.to_string(), metadata);
-                self.total_size
-                    .fetch_add(size, std::sync::atomic::Ordering::Relaxed);
+                self.total_size.fetch_add(size, Ordering::Relaxed);
             }
         }
     }
 
-    fn on_insert(&mut self, key: &str, size: usize) {
+    fn on_insert(&self, key: &str, size: usize) {
         let metadata = CacheEntryMetadata::new(key.to_string(), size);
-
         if let Some(old_entry) = self.entries.insert(key.to_string(), metadata) {
-            let old_size = old_entry.size;
-            self.total_size
-                .fetch_sub(old_size, std::sync::atomic::Ordering::Relaxed);
+            self.total_size.fetch_sub(old_entry.size, Ordering::Relaxed);
         }
-
-        self.total_size
-            .fetch_add(size, std::sync::atomic::Ordering::Relaxed);
+        self.total_size.fetch_add(size, Ordering::Relaxed);
     }
 
-    fn on_remove(&mut self, key: &str) {
+    fn on_remove(&self, key: &str) {
         if let Some((_, entry)) = self.entries.remove(key) {
-            self.total_size
-                .fetch_sub(entry.size, std::sync::atomic::Ordering::Relaxed);
+            self.total_size.fetch_sub(entry.size, Ordering::Relaxed);
         }
     }
 
@@ -273,10 +270,9 @@ impl CachePolicy for LfuPolicy {
         candidates
     }
 
-    fn clear(&mut self) {
+    fn clear(&self) {
         self.entries.clear();
-        self.total_size
-            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.total_size.store(0, Ordering::Relaxed);
     }
 
     fn policy_name(&self) -> &'static str {
@@ -285,10 +281,10 @@ impl CachePolicy for LfuPolicy {
 }
 
 /// Create a cache policy instance
-pub fn create_policy(policy_type: PolicyType) -> Box<dyn CachePolicy> {
+pub fn create_policy(policy_type: PolicyType) -> Arc<dyn CachePolicy> {
     match policy_type {
-        PolicyType::Lru => Box::new(LruPolicy::new()),
-        PolicyType::Lfu => Box::new(LfuPolicy::new()),
+        PolicyType::Lru => Arc::new(LruPolicy::new()),
+        PolicyType::Lfu => Arc::new(LfuPolicy::new()),
     }
 }
 

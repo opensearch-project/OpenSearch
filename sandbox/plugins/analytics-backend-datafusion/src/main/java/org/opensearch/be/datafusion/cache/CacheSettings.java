@@ -77,6 +77,32 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Eviction policy for the scoped ColumnIndex cache.
+     * Currently only {@code FIFO} is supported — the CI/OI caches use a lock-free
+     * read design (FIFO insert-order eviction under a single write lock).
+     * {@code S3_FIFO} will be added as a follow-up.
+     */
+    public static final Setting<String> COLUMN_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
+        "datafusion.column_index.cache.eviction.type",
+        "FIFO",
+        CacheSettings::validateScopedEvictionType,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Eviction policy for the scoped OffsetIndex cache.
+     * Currently only {@code FIFO} is supported.
+     */
+    public static final Setting<String> OFFSET_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
+        "datafusion.offset_index.cache.eviction.type",
+        "FIFO",
+        CacheSettings::validateScopedEvictionType,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // Page-cache total budget (3% of node.native_memory.limit)
 
     public static final String METADATA_INDEX_CACHE_TOTAL_SIZE_KEY = "datafusion.metadata_index_cache.total_size";
@@ -206,10 +232,28 @@ public class CacheSettings {
         return total + "b";
     }
 
+    /** Validates eviction type for metadata/statistics caches (LRU or LFU via CachePolicy). */
     private static String validateEvictionType(String value) {
         String upper = value.toUpperCase(Locale.ROOT);
         if (!upper.equals("LRU") && !upper.equals("LFU")) {
             throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU' or 'LFU'.");
+        }
+        return upper;
+    }
+
+    /**
+     * Validates eviction type for the scoped CI/OI caches.
+     * Only {@code FIFO} is supported today; {@code S3_FIFO} will be added as a follow-up.
+     */
+    private static String validateScopedEvictionType(String value) {
+        String upper = value.toUpperCase(Locale.ROOT);
+        if (!upper.equals("FIFO")) {
+            throw new IllegalArgumentException(
+                "Invalid eviction type '"
+                    + value
+                    + "' for scoped page-index cache. "
+                    + "Only 'FIFO' is supported. S3_FIFO support is planned as a follow-up."
+            );
         }
         return upper;
     }
