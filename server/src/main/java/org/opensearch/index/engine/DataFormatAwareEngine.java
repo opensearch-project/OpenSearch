@@ -1169,6 +1169,17 @@ public class DataFormatAwareEngine implements Indexer {
                 // latestCatalogSnapshot between commit() and updateLastCommitInfo(). Reentrant.
                 refreshLock.lock();
                 try {
+                    // Capture the processed checkpoint BEFORE refreshing. The refresh persists the
+                    // current writer buffer into the catalog snapshot; any operation processed
+                    // concurrently DURING this flush lands in a NEW writer that is not part of this
+                    // snapshot. Committing the live (post-refresh) processed checkpoint would
+                    // over-claim those ops, so a subsequent recovery/relocation would start replay
+                    // past them (seeding them as "already processed") and silently drop them.
+                    // Capturing here keeps the committed local checkpoint <= what the snapshot
+                    // durably contains, mirroring Lucene's InternalEngine.commitIndexWriter (which
+                    // captures the checkpoint before IndexWriter.commit flushes). See
+                    // DataFormatAwareEngineTests#testFlushMustNotCommitCheckpointAheadOfPersistedSnapshot.
+                    final long committedLocalCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
                     // Refresh first to flush buffered data to segments
                     refresh("flush");
                     translogManager.rollTranslogGeneration();
@@ -1190,10 +1201,7 @@ public class DataFormatAwareEngine implements Indexer {
                             );
                             commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
                             commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                            commitData.put(
-                                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
-                                Long.toString(localCheckpointTracker.getProcessedCheckpoint())
-                            );
+                            commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(committedLocalCheckpoint));
                             commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                             commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                             commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
