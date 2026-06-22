@@ -279,6 +279,68 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
         assertEquals(8192L, FoyerAggregatedStats.snapshot(raw, 0L).blockLevelStats().activeInBytes());
     }
 
+    // ── Tiered stats (snapshotTiered) ──────────────────────────────────────────
+
+    public void testSnapshotTieredNonNull() {
+        assertNotNull(FoyerAggregatedStats.snapshotTiered(new long[20], 100L, 10L));
+    }
+
+    public void testSnapshotTieredIsTiered() {
+        assertTrue(FoyerAggregatedStats.snapshotTiered(new long[20], 100L, 10L).isTiered());
+    }
+
+    public void testSnapshotNonTieredIsNotTiered() {
+        assertFalse(FoyerAggregatedStats.snapshot(new long[20], 100L).isTiered());
+    }
+
+    public void testSnapshotTieredOverallMergesCounters() {
+        // data: 10 hits, 100 hit_bytes | metadata: 5 hits, 50 hit_bytes
+        long[] raw = buf(10, 100, 0, 0, 0, 0, 0, 0, 0, 0, 5, 50, 0, 0, 0, 0, 0, 0, 0, 0);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(raw, 1000L, 200L);
+        assertEquals(15L, s.overallStats().hits());
+        assertEquals(150L, s.overallStats().hitBytes());
+    }
+
+    public void testSnapshotTieredDataCacheStats() {
+        long[] raw = buf(10, 100, 3, 300, 1, 50, 500, 0, 0, 0, 5, 50, 2, 200, 0, 0, 100, 0, 0, 0);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(raw, 1000L, 200L);
+        assertEquals(10L, s.dataCacheStats().hits());
+        assertEquals(100L, s.dataCacheStats().hitBytes());
+        assertEquals(3L, s.dataCacheStats().misses());
+        assertEquals(500L, s.dataCacheStats().diskBytesUsed());
+        assertEquals(1000L, s.dataCacheStats().totalBytes());
+    }
+
+    public void testSnapshotTieredMetadataCacheStats() {
+        long[] raw = buf(10, 100, 3, 300, 1, 50, 500, 0, 0, 0, 5, 50, 2, 200, 0, 0, 100, 0, 0, 0);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(raw, 1000L, 200L);
+        assertEquals(5L, s.metadataCacheStats().hits());
+        assertEquals(50L, s.metadataCacheStats().hitBytes());
+        assertEquals(2L, s.metadataCacheStats().misses());
+        assertEquals(100L, s.metadataCacheStats().diskBytesUsed());
+        assertEquals(200L, s.metadataCacheStats().totalBytes());
+    }
+
+    public void testSnapshotTieredCapacityBytes() {
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(new long[20], 380_000L, 20_000L);
+        assertEquals(380_000L, s.dataCapacityBytes());
+        assertEquals(20_000L, s.metadataCapacityBytes());
+        assertEquals(400_000L, s.overallStats().totalBytes());
+    }
+
+    public void testSnapshotTieredOverallUsedBytesIsSumOfBoth() {
+        long[] raw = buf(0, 0, 0, 0, 0, 0, 800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 0, 0);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(raw, 1000L, 100L);
+        assertEquals(850L, s.overallStats().diskBytesUsed());
+    }
+
+    public void testSnapshotTieredOverallEvictionsIsSumOfBoth() {
+        long[] raw = buf(0, 0, 0, 0, 7, 700, 0, 0, 0, 0, 0, 0, 0, 0, 3, 300, 0, 0, 0, 0);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshotTiered(raw, 1000L, 100L);
+        assertEquals(10L, s.overallStats().evictions());
+        assertEquals(1000L, s.overallStats().evictionBytes());
+    }
+
     // ── All-zeros ─────────────────────────────────────────────────────────────
 
     public void testAllZeroBuffer() {
