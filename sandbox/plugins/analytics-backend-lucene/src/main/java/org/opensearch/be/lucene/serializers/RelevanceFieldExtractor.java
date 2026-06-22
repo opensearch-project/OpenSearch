@@ -133,7 +133,7 @@ final class RelevanceFieldExtractor {
         try {
             query = parser.parse(queryString);
         } catch (ParseException | RuntimeException e) {
-            LOGGER.debug(
+            LOGGER.warn(
                 "[{}] skipping in-string field extraction; query string not parseable by plan-time parser [{}]: {}",
                 functionName,
                 queryString,

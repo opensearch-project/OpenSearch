@@ -198,7 +198,7 @@ public class OpenSearchFilterRule extends RelOptRule {
                         return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
                     }
                     // Eagerly reject text-relevance functions on non-text/keyword fields, unless the
-                    // caller explicitly set lenient=true (see design decision 3, Option B).
+                    // caller explicitly set lenient=true
                     if (lenient == false) {
                         TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
                             predicate.getOperator().getName(),
@@ -216,11 +216,12 @@ public class OpenSearchFilterRule extends RelOptRule {
                             }
                         }
                         if (storageInfo == null) {
-                            // Unknown field — fall back to TEXT type assumption for this field.
-                            viableSet.retainAll(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
-                        } else {
-                            viableSet.retainAll(registry.filterBackendsForField(function, storageInfo));
+                            // An explicitly-named literal field absent from the scan's schema is an
+                            // unknown field. (Wildcard/regex field tokens never reach here: they are
+                            // classified as patterns and handled by the empty-literals branch above.)
+                            throw new IllegalArgumentException("Field [" + fieldName + "] not found.");
                         }
+                        viableSet.retainAll(registry.filterBackendsForField(function, storageInfo));
                     }
                     if (viableSet.isEmpty()) {
                         throw new IllegalStateException(

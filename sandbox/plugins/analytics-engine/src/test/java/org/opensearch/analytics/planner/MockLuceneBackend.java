@@ -18,6 +18,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -119,7 +120,16 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
 
             @Override
             public FieldReferences referencedFields(RexCall call, List<FieldStorageInfo> fieldStorage) {
-                return new FieldReferences(extractLiteralFieldNames(call), List.of(), false);
+                List<String> literals = new ArrayList<>();
+                List<String> patterns = new ArrayList<>();
+                for (String token : extractLiteralFieldNames(call)) {
+                    if (Regex.isSimpleMatchPattern(token)) {
+                        patterns.add(token);
+                    } else {
+                        literals.add(token);
+                    }
+                }
+                return new FieldReferences(literals, patterns, false);
             }
         };
         return Map.of(

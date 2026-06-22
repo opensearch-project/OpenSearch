@@ -204,6 +204,36 @@ public class TextRelevanceValidationIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * In-string literal field with an <em>integer fuzzy</em> value ({@code severityNumber:15~2}). The
+     * {@code ~2} edit-distance applies to the value, not the field name — {@code severityNumber} is still a
+     * concrete literal field — and {@code ~2} (integer edit distance) is grammar the plan-time classic parser
+     * accepts, so the query string parses, {@code severityNumber} is surfaced as a literal, and the planner
+     * rejects it because it is a {@code long}. This is the fuzzy-value analogue of
+     * {@link #testQueryStringInStringRegexOnNumericFieldIsRejected}: a fuzzy operator on the value does not
+     * change literal-field classification.
+     */
+    public void testQueryStringInStringFuzzyOnNumericFieldIsRejected() {
+        String ppl = "source=" + DATASET.indexName + " | where query_string(['body'], 'severityNumber:15~2')";
+        assertErrorContains(ppl, "severityNumber");
+        assertErrorContains(ppl, "text and keyword");
+    }
+
+    /**
+     * Graceful fallback for a query string the plan-time parser cannot parse. {@code GET~2.5} uses a
+     * <em>fractional</em> fuzzy similarity, which Lucene's classic {@link org.apache.lucene.queryparser.classic.QueryParser}
+     * no longer accepts, so {@code RelevanceFieldExtractor} fails to parse the whole string, logs a warning, and
+     * skips in-string field extraction (rather than failing the plan). Validation then relies solely on the
+     * explicit {@code fields} operand ({@code body}, a text field), which is valid — so the query is NOT rejected
+     * at planning and runs to completion (the authoritative parse happens at execution). This pins the
+     * best-effort fallback contract: an unparseable in-string body must not turn into a plan-time rejection.
+     */
+    public void testQueryStringUnparseableInStringFallsBackToExplicitField() throws IOException {
+        assertSucceeds(
+            "source=" + DATASET.indexName + " | where query_string(['body'], 'severityNumber:15 OR GET~2.5') | stats count() as c"
+        );
+    }
+
+    /**
      * Sends a PPL query expected to plan and execute successfully; asserts a non-null response that
      * carries a result shape ({@code datarows} or {@code schema}).
      */

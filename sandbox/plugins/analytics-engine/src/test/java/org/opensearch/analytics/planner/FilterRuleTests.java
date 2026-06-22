@@ -490,6 +490,43 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     }
 
     /**
+     * A literal field named in {@code query_string} that is absent from the scan's schema is an
+     * unknown field — rejected with a "field not found" error, matching how a normal predicate on an
+     * unknown field fails, rather than silently assuming TEXT and matching nothing. (Wildcard/regex
+     * tokens are classified as patterns and are unaffected — see
+     * {@link #testQueryStringWildcardFieldPatternIsAccepted}.)
+     */
+    public void testQueryStringOnUnknownLiteralFieldIsRejected() {
+        RelOptTable table = mockTable("test_index", new String[] { "status" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
+        RexNode condition = makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("nosuchfield"), "active");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("status", Map.of("type", "keyword", "index", true)));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue("Error must name the unknown field: " + exception.getMessage(), exception.getMessage().contains("nosuchfield"));
+        assertTrue("Error must say not found: " + exception.getMessage(), exception.getMessage().contains("not found"));
+    }
+
+    /**
+     * A wildcard field pattern (e.g. {@code ser*}) is classified as a pattern, not a literal, so it
+     * is never type-checked or treated as an unknown field — it routes to the full-text backend and
+     * is expanded at execution. Guards the empty-literals fallback against the unknown-field rejection
+     * added in {@link #testQueryStringOnUnknownLiteralFieldIsRejected}.
+     */
+    public void testQueryStringWildcardFieldPatternIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("status", Map.of("type", "keyword", "index", true)),
+            new String[] { "status" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("ser*"), "active")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
      * DataFusion (FILTER delegation) + Lucene (accepts FILTER delegation, registers a stub
      * {@link DelegatedPredicateSerializer} for {@code QUERY_STRING} whose {@code referencedFields}
      * returns {@code refs}).
