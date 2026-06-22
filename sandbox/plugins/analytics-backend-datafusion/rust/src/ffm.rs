@@ -48,7 +48,7 @@ use crate::api::DataFusionRuntime;
 use crate::cache;
 use crate::datafusion_query_config::InternalSearch;
 use crate::custom_cache_manager::CustomCacheManager;
-use crate::eviction_policy::PolicyType;
+use crate::eviction_policy::CacheEvictionPolicy;
 use crate::runtime_manager::RuntimeManager;
 use crate::statistics_cache::CustomStatisticsCache;
 
@@ -783,15 +783,14 @@ pub unsafe extern "C" fn df_create_cache(
     let eviction_type = str_from_raw(eviction_type_ptr, eviction_type_len)
         .map_err(|e| format!("df_create_cache: eviction_type: {}", e))?;
 
-    let policy_type = match eviction_type.to_uppercase().as_str() {
-        "LRU" => PolicyType::Lru,
-        "LFU" => PolicyType::Lfu,
-        _ => {
-            return Err(format!(
-                "df_create_cache: unsupported eviction type: {}",
-                eviction_type
-            ))
-        }
+    // Parse the eviction type string into the unified CacheEvictionPolicy enum.
+    // All four cache types share one enum — the per-cache match below enforces
+    // which policies are valid for each type.
+    let policy = match eviction_type.to_uppercase().as_str() {
+        "LRU"  => CacheEvictionPolicy::Lru,
+        "LFU"  => CacheEvictionPolicy::Lfu,
+        "FIFO" => CacheEvictionPolicy::Fifo,
+        _ => return Err(format!("df_create_cache: unsupported eviction type: {}", eviction_type)),
     };
 
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
@@ -799,23 +798,35 @@ pub unsafe extern "C" fn df_create_cache(
 
     match cache_type {
         cache::CACHE_TYPE_METADATA => {
+            // METADATA uses DefaultFilesMetadataCache (has its own LRU); eviction
+            // type is accepted but not forwarded.
             let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
             let metadata_cache = Arc::new(cache::MutexFileMetadataCache::new(inner_cache));
             manager.set_file_metadata_cache(metadata_cache);
         }
         cache::CACHE_TYPE_STATS => {
+            if policy == CacheEvictionPolicy::Fifo {
+                return Err("df_create_cache: STATISTICS cache does not support FIFO eviction".to_string());
+            }
             let stats_cache = Arc::new(CustomStatisticsCache::new(
-                policy_type,
+                policy,
                 size_limit as usize,
                 0.8,
             ));
             manager.set_statistics_cache(stats_cache);
         }
         cache::CACHE_TYPE_COLUMN_INDEX => {
-            manager.set_column_index_cache(size_limit as usize, policy_type);
+            // CI/OI use BoundedCache<FIFO>; eviction type must be FIFO.
+            if policy != CacheEvictionPolicy::Fifo {
+                return Err(format!("df_create_cache: COLUMN_INDEX cache only supports FIFO eviction, got {eviction_type}"));
+            }
+            manager.set_column_index_cache(size_limit as usize);
         }
         cache::CACHE_TYPE_OFFSET_INDEX => {
-            manager.set_offset_index_cache(size_limit as usize, policy_type);
+            if policy != CacheEvictionPolicy::Fifo {
+                return Err(format!("df_create_cache: OFFSET_INDEX cache only supports FIFO eviction, got {eviction_type}"));
+            }
+            manager.set_offset_index_cache(size_limit as usize);
         }
         _ => {
             return Err(format!(

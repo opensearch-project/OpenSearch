@@ -80,7 +80,7 @@ impl CustomCacheManager {
 
     /// Register the column index cache with the given size limit.
     /// Sets the limit on the process-global `COLUMN_INDEX_CACHE` singleton.
-    pub fn set_column_index_cache(&mut self, size_limit: usize, _policy: crate::cache::eviction_policy::PolicyType) {
+    pub fn set_column_index_cache(&mut self, size_limit: usize) {
         crate::cache::page_index::set_column_index_cache_limit(size_limit);
         self.column_index_registered = true;
         log_debug!("[CACHE INFO] Column index cache registered (limit={} bytes)", size_limit);
@@ -88,7 +88,7 @@ impl CustomCacheManager {
 
     /// Register the offset index cache with the given size limit.
     /// Sets the limit on the process-global `OFFSET_INDEX_CACHE` singleton.
-    pub fn set_offset_index_cache(&mut self, size_limit: usize, _policy: crate::cache::eviction_policy::PolicyType) {
+    pub fn set_offset_index_cache(&mut self, size_limit: usize) {
         crate::cache::page_index::set_offset_index_cache_limit(size_limit);
         self.offset_index_registered = true;
         log_debug!("[CACHE INFO] Offset index cache registered (limit={} bytes)", size_limit);
@@ -628,7 +628,7 @@ mod tests {
         assert!(!mgr.column_index_registered);
 
         let limit = 16 * 1024 * 1024; // 16 MB
-        mgr.set_column_index_cache(limit, PolicyType::Lru);
+        mgr.set_column_index_cache(limit);
 
         assert!(mgr.column_index_registered);
         assert_eq!(column_index_cache_stats().limit_bytes, limit);
@@ -645,7 +645,7 @@ mod tests {
         assert!(!mgr.offset_index_registered);
 
         let limit = 32 * 1024 * 1024; // 32 MB
-        mgr.set_offset_index_cache(limit, PolicyType::Lru);
+        mgr.set_offset_index_cache(limit);
 
         assert!(mgr.offset_index_registered);
         assert_eq!(offset_index_cache_stats().limit_bytes, limit);
@@ -659,7 +659,7 @@ mod tests {
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
-        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
+        mgr.set_column_index_cache(16 * 1024 * 1024);
 
         // clear_cache_type must succeed for COLUMN_INDEX
         assert!(mgr.clear_cache_type(CACHE_TYPE_COLUMN_INDEX).is_ok());
@@ -675,8 +675,8 @@ mod tests {
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
-        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
-        mgr.set_offset_index_cache(32 * 1024 * 1024, PolicyType::Lru);
+        mgr.set_column_index_cache(16 * 1024 * 1024);
+        mgr.set_offset_index_cache(32 * 1024 * 1024);
 
         // On empty cache both return 0 bytes (no entries yet).
         assert_eq!(
@@ -697,7 +697,7 @@ mod tests {
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
-        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
+        mgr.set_column_index_cache(16 * 1024 * 1024);
 
         // Calling remove_files on a non-existent file must not panic.
         let result = mgr.remove_files(&["/nonexistent/file.parquet".to_string()]);
@@ -712,8 +712,8 @@ mod tests {
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
-        mgr.set_column_index_cache(16 * 1024 * 1024, PolicyType::Lru);
-        mgr.set_offset_index_cache(32 * 1024 * 1024, PolicyType::Lru);
+        mgr.set_column_index_cache(16 * 1024 * 1024);
+        mgr.set_offset_index_cache(32 * 1024 * 1024);
 
         // Must not panic even with no metadata/stats caches set.
         mgr.clear_all();

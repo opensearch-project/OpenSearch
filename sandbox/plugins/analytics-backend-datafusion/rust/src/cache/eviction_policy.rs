@@ -53,12 +53,24 @@ pub trait CachePolicy: Send + Sync {
     fn policy_name(&self) -> &'static str;
 }
 
-/// Policy types
-#[derive(Debug, Clone)]
-pub enum PolicyType {
+/// Unified eviction policy selector for all caches in this crate.
+///
+/// - `Lru` / `Lfu` — used by `CustomStatisticsCache` and the metadata cache
+///   (backed by [`CachePolicy`] + [`create_policy`]).
+/// - `Fifo` — used by `BoundedCache` (CI/OI scoped caches) via
+///   `ScopedEvictionPolicy` + `FifoPolicy`.
+///
+/// One enum for all caches means `df_create_cache` parses the Java-supplied
+/// eviction string once and routes uniformly without separate enums per family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheEvictionPolicy {
     Lru,
     Lfu,
+    Fifo,
 }
+
+/// Backward-compatible alias — will be removed once all call sites are migrated.
+pub type PolicyType = CacheEvictionPolicy;
 
 /// Metadata tracked per cached entry for eviction ordering.
 /// Stored inside the policy's `DashMap`, mutated via `get_mut`.
@@ -280,11 +292,19 @@ impl CachePolicy for LfuPolicy {
     }
 }
 
-/// Create a cache policy instance
-pub fn create_policy(policy_type: PolicyType) -> Arc<dyn CachePolicy> {
+/// Create a [`CachePolicy`] (LRU or LFU) from `CacheEvictionPolicy`.
+///
+/// Returns `None` for `Fifo` — FIFO uses `ScopedEvictionPolicy` via
+/// `BoundedCache::with_named_policy`, not this trait. Callers that receive
+/// `None` should route to `BoundedCache` instead.
+///
+/// When a new variant is added to `CacheEvictionPolicy`, the compiler will
+/// flag the missing arm here.
+pub fn create_policy(policy_type: CacheEvictionPolicy) -> Option<Arc<dyn CachePolicy>> {
     match policy_type {
-        PolicyType::Lru => Arc::new(LruPolicy::new()),
-        PolicyType::Lfu => Arc::new(LfuPolicy::new()),
+        CacheEvictionPolicy::Lru  => Some(Arc::new(LruPolicy::new())),
+        CacheEvictionPolicy::Lfu  => Some(Arc::new(LfuPolicy::new())),
+        CacheEvictionPolicy::Fifo => None,
     }
 }
 
@@ -310,10 +330,10 @@ mod tests {
 
     #[test]
     fn test_create_policy() {
-        let lru_policy = create_policy(PolicyType::Lru);
+        let lru_policy = create_policy(PolicyType::Lru).unwrap();
         assert_eq!(lru_policy.policy_name(), "lru");
 
-        let lfu_policy = create_policy(PolicyType::Lfu);
+        let lfu_policy = create_policy(PolicyType::Lfu).unwrap();
         assert_eq!(lfu_policy.policy_name(), "lfu");
     }
 

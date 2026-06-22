@@ -78,9 +78,9 @@ pub mod page_index_io;
 pub mod column_schema_resolver;
 
 use cache_store::{BoundedCache, DEFAULT_SCOPED_CACHE_LIMIT};
+use crate::cache::eviction_policy::CacheEvictionPolicy;
 use cache_keys::{CiCellKey, OiCellKey, OiColumn};
 
-use crate::cache::eviction_policy::PolicyType;
 use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -111,10 +111,10 @@ pub use column_schema_resolver::{
 // Process-global caches
 
 pub(crate) static COLUMN_INDEX_CACHE: Lazy<BoundedCache<CiCellKey, ColumnIndexMetaData>> =
-    Lazy::new(|| BoundedCache::new(DEFAULT_SCOPED_CACHE_LIMIT, PolicyType::Lru));
+    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
 
 pub(crate) static OFFSET_INDEX_CACHE: Lazy<BoundedCache<OiCellKey, OiColumn>> =
-    Lazy::new(|| BoundedCache::new(DEFAULT_SCOPED_CACHE_LIMIT, PolicyType::Lru));
+    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
 
 /// Set the ColumnIndex cache's byte budget. Called from startup wiring with the
 /// configured limit. Idempotent; shrinking evicts immediately. Zero ignored.
