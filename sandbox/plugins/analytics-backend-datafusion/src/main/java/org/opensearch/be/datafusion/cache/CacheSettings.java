@@ -24,14 +24,14 @@ import java.util.Locale;
  * <pre>
  * node.native_memory.limit = 80% of off-heap
  *   ├── 71% → datafusion.memory_pool_limit_bytes  (operator pool)
- *   ├──  3% → datafusion.metadata_index_cache.total_size   (all metadata caches (footer + page indexes), this class)
+ *   ├──  9% → datafusion.metadata_index_cache.total_size   (all metadata caches (footer + page indexes), this class)
  *   │     ├── 50% → metadata cache   (footer metadata, Rust jemalloc)
  *   │     ├── 35% → offset index     (projection-driven, Rust jemalloc)
  *   │     └── 15% → column index     (predicate-driven, Rust jemalloc)
- *   ├──  8% → Arrow ingest pool
+ *   ├──  4% → Arrow ingest pool
  *   ├──  5% → Arrow flight pool
  *   ├──  5% → Arrow query pool
- *   ├──  5% → Parquet write pool
+ *   ├──  3% → Parquet write pool
  *   └──  3% → Parquet merge pool
  *   = 100%
  * </pre>
@@ -39,7 +39,7 @@ import java.util.Locale;
  * <p>The three sub-cache percentages must sum to &lt;= 100 (unused headroom is accepted). Changing any one without adjusting
  * the others is rejected at validation time.
  *
- * <p>The statistics cache is sized independently (not part of the 3% total) because it
+ * <p>The statistics cache is sized independently (not part of the 9% total) because it
  * holds file-level row-group statistics, not page-level indexes — a different working set
  * with different eviction characteristics.
  */
@@ -103,13 +103,13 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
-    // Page-cache total budget (3% of node.native_memory.limit)
+    // Page-cache total budget (9% (for warm)/3% (for other node types) of node.native_memory.limit)
 
     public static final String METADATA_INDEX_CACHE_TOTAL_SIZE_KEY = "datafusion.metadata_index_cache.total_size";
 
     /**
      * Total byte budget for all three metadata caches (footer metadata, ColumnIndex,
-     * OffsetIndex). Defaults to 3% of {@code node.native_memory.limit}; falls back to
+     * OffsetIndex). Defaults to 9% of {@code node.native_memory.limit}; falls back to
      * 500 MB when AC is unconfigured.
      */
     public static final Setting<ByteSizeValue> METADATA_INDEX_CACHE_TOTAL_SIZE = new Setting<>(
@@ -220,7 +220,7 @@ public class CacheSettings {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
-     * Default total page-cache budget: 3% of {@code node.native_memory.limit}.
+     * Default total page-cache budget: 9% of {@code node.native_memory.limit}.
      * Falls back to 500 MB when AC is unconfigured (limit == 0).
      */
     static String deriveMetadataIndexCacheTotalDefault(Settings settings) {
@@ -228,7 +228,7 @@ public class CacheSettings {
         if (nativeLimit.getBytes() <= 0) {
             return (500L * 1024 * 1024) + "b";
         }
-        long total = Math.max(nativeLimit.getBytes() * 3 / 100, 0L);
+        long total = Math.max(nativeLimit.getBytes() * 9 / 100, 0L);
         return total + "b";
     }
 

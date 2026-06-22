@@ -125,19 +125,19 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         Setting.Property.Dynamic
     );
 
-    /** Minimum guaranteed bytes for the ingest pool. Default is 4% of budget. */
+    /** Minimum guaranteed bytes for the ingest pool. Default is 2% of budget. */
     public static final Setting<Long> INGEST_MIN_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_INGEST_MIN,
-        s -> derivePoolMinDefault(s, 4),
+        s -> derivePoolMinDefault(s, 2),
         s -> parseNonNegativeLong(s, NativeAllocatorPoolConfig.SETTING_INGEST_MIN),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the ingest pool can burst to. Default is 8% of budget. */
+    /** Maximum bytes the ingest pool can burst to. Default is 4% of budget. */
     public static final Setting<Long> INGEST_MAX_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_INGEST_MAX,
-        s -> derivePoolMaxDefault(s, 8),
+        s -> derivePoolMaxDefault(s, 4),
         s -> parseNonNegativeLong(s, NativeAllocatorPoolConfig.SETTING_INGEST_MAX),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

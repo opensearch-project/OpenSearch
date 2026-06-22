@@ -185,7 +185,7 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Minimum guaranteed bytes for the native write pool. Default is half of write max (2% of budget). */
+    /** Minimum guaranteed bytes for the native write pool. Default is 2% of budget. */
     public static final Setting<Long> WRITE_POOL_MIN = new Setting<>(
         "parquet.native.pool.write.min",
         s -> derivePoolMinDefault(s, 2),
@@ -200,10 +200,10 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the native write pool can burst to. Default is 5% of node.native_memory.limit. */
+    /** Maximum bytes the native write pool can burst to. Default is 3% of node.native_memory.limit. */
     public static final Setting<Long> WRITE_POOL_MAX = new Setting<>(
         "parquet.native.pool.write.max",
-        s -> derivePoolMaxDefault(s, 5),
+        s -> derivePoolMaxDefault(s, 3),
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {
