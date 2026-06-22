@@ -8,9 +8,11 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -310,6 +312,39 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
             verify(listener, never()).putNext(any(ArrowBuf.class));
             root.close();
         }
+    }
+
+    // ── classifyError tests ──────────────────────────────────────────────
+    // These pin the contract that Arrow allocator exhaustion (back-pressure)
+    // surfaces as CallStatus.RESOURCE_EXHAUSTED, while everything else stays
+    // CallStatus.INTERNAL. The mapping is what later lets the coordinator
+    // translate the error into an HTTP 429 instead of 500 — preventing replica
+    // retry storms via OpenSearch core's FailAwareWeightedRouting.
+
+    public void testClassifyErrorArrowOomIsResourceExhausted() {
+        OutOfMemoryException oom = new OutOfMemoryException("Unable to allocate buffer of size 128 due to memory limit");
+        assertSame(CallStatus.RESOURCE_EXHAUSTED, FlightServerChannel.classifyError(oom));
+    }
+
+    public void testClassifyErrorWrappedArrowOomIsResourceExhausted() {
+        // Mirrors the production cause chain: ArrayImporter wraps Arrow OOM in IllegalArgumentException.
+        OutOfMemoryException oom = new OutOfMemoryException("Unable to allocate buffer of size 98304");
+        IllegalArgumentException wrapped = new IllegalArgumentException("Could not load buffers for field cnt[hll_registers]", oom);
+        assertSame(CallStatus.RESOURCE_EXHAUSTED, FlightServerChannel.classifyError(wrapped));
+    }
+
+    public void testClassifyErrorRuntimePanicIsInternal() {
+        // Rust panic translated to RuntimeException — engine bug, NOT back-pressure.
+        RuntimeException panic = new RuntimeException("Execution error: Panic: byte array offset overflow");
+        assertSame(CallStatus.INTERNAL, FlightServerChannel.classifyError(panic));
+    }
+
+    public void testClassifyErrorGenericExceptionIsInternal() {
+        assertSame(CallStatus.INTERNAL, FlightServerChannel.classifyError(new IllegalStateException("boom")));
+    }
+
+    public void testClassifyErrorNullCauseChainIsInternal() {
+        assertSame(CallStatus.INTERNAL, FlightServerChannel.classifyError(new RuntimeException("no cause")));
     }
 
     private static VectorSchemaRoot newSingleIntRoot(BufferAllocator allocator, int value) {

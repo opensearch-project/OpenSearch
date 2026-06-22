@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.IntVector;
@@ -18,7 +19,11 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -172,6 +177,91 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
     public void testBatchesToRowsThrowsWhenTargetNameMissing() {
         VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // [age, name]
         expectThrows(IllegalStateException.class, () -> DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent")));
+    }
+
+    // ── translateArrowOom tests ──────────────────────────────────────────
+    // Pin the contract that Arrow allocator exhaustion surfaces to clients as
+    // CircuitBreakingException (HTTP 429 / TOO_MANY_REQUESTS) rather than as a
+    // generic 500. This is what makes OpenSearch core's FailAwareWeightedRouting
+    // skip retries on replica shards — preventing retry storms across nodes.
+
+    public void testTranslateArrowOomDirectMatchProducesCircuitBreakingException() {
+        OutOfMemoryException oom = new OutOfMemoryException("Unable to allocate buffer of size 128 due to memory limit. Current allocation: 277821480");
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-test", oom);
+
+        assertTrue("must be CircuitBreakingException", translated instanceof CircuitBreakingException);
+        assertEquals("must map to HTTP 429", RestStatus.TOO_MANY_REQUESTS, ((CircuitBreakingException) translated).status());
+        assertTrue("message must include context", translated.getMessage().contains("[query-test]"));
+        assertTrue("message must preserve the Arrow OOM detail", translated.getMessage().contains("Unable to allocate buffer"));
+        assertSame("original throwable must be preserved as cause", oom, translated.getCause());
+    }
+
+    public void testTranslateArrowOomWrappedInCauseChainStillTranslates() {
+        // Mirrors the in-process Arrow OOM path: ArrayImporter wraps OOM in IllegalArgumentException.
+        OutOfMemoryException oom = new OutOfMemoryException("Unable to allocate buffer of size 98304");
+        IllegalArgumentException wrapped = new IllegalArgumentException("Could not load buffers for field cnt[hll_registers]", oom);
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-wrapped", wrapped);
+
+        assertTrue(translated instanceof CircuitBreakingException);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ((CircuitBreakingException) translated).status());
+        assertTrue(translated.getMessage().contains("Unable to allocate buffer"));
+    }
+
+    public void testTranslateArrowOomStreamExceptionResourceExhaustedTranslates() {
+        // Mirrors the cross-Flight-RPC path: the shard-side Arrow OOM was reclassified
+        // by FlightServerChannel.classifyError to CallStatus.RESOURCE_EXHAUSTED, arrived
+        // at the coordinator as a StreamException carrying that error code, but the
+        // original OutOfMemoryException class identity was stripped by the Flight wire format.
+        StreamException se = new StreamException(
+            StreamErrorCode.RESOURCE_EXHAUSTED,
+            "Could not load buffers for field cnt[hll_registers]: ... Unable to allocate buffer of size 98304"
+        );
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-rpc", se);
+
+        assertTrue("must be CircuitBreakingException", translated instanceof CircuitBreakingException);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ((CircuitBreakingException) translated).status());
+        assertTrue("message must include context", translated.getMessage().contains("[query-rpc]"));
+        assertSame("original throwable must be preserved as cause", se, translated.getCause());
+    }
+
+    public void testTranslateArrowOomStreamExceptionInternalIsNotTranslated() {
+        // Engine bugs (e.g. Rust panic "byte array offset overflow") arrive as
+        // StreamException with INTERNAL code, NOT RESOURCE_EXHAUSTED. They must
+        // NOT be re-classified as back-pressure — they need 500 so operators
+        // and oncall see a real "fix this" signal.
+        StreamException se = new StreamException(
+            StreamErrorCode.INTERNAL,
+            "java.lang.RuntimeException: Execution error: Panic: byte array offset overflow"
+        );
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-engine-bug", se);
+
+        assertSame("INTERNAL-code StreamException must pass through unchanged", se, translated);
+        assertFalse(translated instanceof CircuitBreakingException);
+    }
+
+    public void testTranslateArrowOomRustPanicIsNotTranslated() {
+        // The wrapped RuntimeException from cross_rt_stream.rs:107 — engine bug,
+        // not back-pressure. Should remain unchanged so REST surfaces it as 500.
+        RuntimeException panic = new RuntimeException("Execution error: Execution error: Panic: byte array offset overflow");
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-panic", panic);
+
+        assertSame("Rust panic must pass through unchanged", panic, translated);
+        assertFalse(translated instanceof CircuitBreakingException);
+    }
+
+    public void testTranslateArrowOomUnrelatedExceptionIsNotTranslated() {
+        IllegalStateException unrelated = new IllegalStateException("totally unrelated failure");
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-unrelated", unrelated);
+
+        assertSame(unrelated, translated);
+    }
+
+    public void testTranslateArrowOomEmptyCauseChainReturnsOriginal() {
+        // Defensive: the helper must not infinite-loop on a chain that bottoms out at null.
+        Exception bare = new Exception("no cause, no Arrow OOM");
+        Exception translated = DefaultPlanExecutor.translateArrowOom("query-bare", bare);
+
+        assertSame(bare, translated);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
