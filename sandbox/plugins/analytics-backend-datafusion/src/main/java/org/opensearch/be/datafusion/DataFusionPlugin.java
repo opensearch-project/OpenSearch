@@ -112,7 +112,8 @@ public class DataFusionPlugin extends Plugin
     /**
      * Validates {@link #DATAFUSION_SPILL_MEMORY_LIMIT} against {@link #DATAFUSION_SPILL_DIRECTORY}:
      * <ul>
-     *   <li>If spill is disabled (empty directory), only {@code 0} is accepted.</li>
+     *   <li>If spill is disabled (empty directory), the limit is a no-op and any value is accepted —
+     *       the capacity check has no volume to probe, so it is skipped.</li>
      *   <li>If spill is enabled, the value must not exceed the spill volume's total capacity
      *       (probed live via {@link FileStore#getTotalSpace()}).</li>
      * </ul>
@@ -134,13 +135,8 @@ public class DataFusionPlugin extends Plugin
                 dir = "";
             }
             if (dir.isEmpty()) {
-                if (value != 0L) {
-                    throw new IllegalArgumentException(
-                        "Setting [datafusion.spill_memory_limit_bytes]="
-                            + value
-                            + " is non-zero but datafusion.spill_directory is unset (spill disabled)"
-                    );
-                }
+                // Spill disabled: the limit has no effect and there is no volume to size it against,
+                // so accept any value rather than rejecting startup over an inert setting.
                 return;
             }
             long total;
