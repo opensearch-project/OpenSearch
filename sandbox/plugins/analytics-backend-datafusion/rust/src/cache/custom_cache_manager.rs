@@ -496,16 +496,28 @@ impl CustomCacheManager {
         store: Arc<dyn MetadataCachingStore>,
         rt_handle: &tokio::runtime::Handle,
     ) -> Result<Vec<(String, bool)>, String> {
+        native_bridge_common::log_info!(
+            "[init::warmup] add_files_with_store ENTRY n_files={}",
+            file_paths.len()
+        );
         let mut results = Vec::with_capacity(file_paths.len());
+        let mut succ = 0usize;
         for file_path in file_paths {
             match self.warmup_file_with_store(file_path, &store, rt_handle) {
-                Ok(success) => results.push((file_path.clone(), success)),
+                Ok(success) => {
+                    if success { succ += 1; }
+                    results.push((file_path.clone(), success));
+                }
                 Err(e) => {
                     error!("[CACHE ERROR] add_files_with_store failed for {}: {}", file_path, e);
                     results.push((file_path.clone(), false));
                 }
             }
         }
+        native_bridge_common::log_info!(
+            "[init::warmup] add_files_with_store DONE successes={}/{}",
+            succ, file_paths.len()
+        );
         Ok(results)
     }
 
@@ -523,8 +535,12 @@ impl CustomCacheManager {
         rt_handle: &tokio::runtime::Handle,
     ) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
+            native_bridge_common::log_info!(
+                "[init::warmup] file='{}' SKIPPED (non-parquet)", file_path
+            );
             return Ok(false);
         }
+        native_bridge_common::log_info!("[init::warmup] file='{}' ENTRY", file_path);
 
         // Step 1: Fetch footer only → heap cache (parsed ParquetMetaData)
         let (parquet_metadata, object_meta) = self.fetch_footer_to_heap(file_path, store, rt_handle)?;
@@ -541,6 +557,7 @@ impl CustomCacheManager {
 
         // Step 3: Compute page/offset index byte ranges from the parsed footer.
         let mut index_ranges = compute_page_index_range(&parquet_metadata);
+        let pi_count = index_ranges.len();
 
         // Also promote the footer (last 64 KB) to metadata Foyer — heap-eviction safety net.
         // Heap holds the parsed `ParquetMetaData` for fast lookups; the metadata Foyer entry
@@ -548,13 +565,27 @@ impl CustomCacheManager {
         let footer_prefetch = 64 * 1024u64; // matches DataFusion's DEFAULT_FOOTER_READ_SIZE
         let footer_start = object_meta.size.saturating_sub(footer_prefetch);
         index_ranges.push(footer_start..object_meta.size);
+        let total_pre_fetch_bytes: u64 = index_ranges.iter().map(|r| r.end - r.start).sum();
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' index_ranges: page_index={} +1 footer (last 64KB) = {} ranges total_bytes={}",
+            file_path, pi_count, index_ranges.len(), total_pre_fetch_bytes
+        );
 
         // Step 4: Fetch the ranges through the store (populates data Foyer on the way).
         let fetched_bytes = Self::fetch_ranges_via_store(store, file_path, &index_ranges, rt_handle)?;
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' fetched n_ranges={} fetched_bytes={}",
+            file_path, fetched_bytes.len(),
+            fetched_bytes.iter().map(|b| b.len() as u64).sum::<u64>()
+        );
 
         // Step 5: Promote bytes to metadata Foyer (never-evict tier).
         // No-op when `store` is not a TieredObjectStore (default trait impl is no-op).
         store.put_metadata(file_path, &index_ranges, &fetched_bytes);
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' DONE (footer + page-index promoted to metadata Foyer)",
+            file_path
+        );
 
         Ok(true)
     }
@@ -581,6 +612,10 @@ impl CustomCacheManager {
             store.head(&path).await
                 .map_err(|e| format!("Failed to head {}: {}", file_path, e))
         })?;
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' head: size={} last_modified={}",
+            file_path, object_meta.size, object_meta.last_modified
+        );
 
         let cache_ref = self.file_metadata_cache.as_ref()
             .ok_or_else(|| "No file metadata cache configured".to_string())?;
@@ -594,6 +629,12 @@ impl CustomCacheManager {
             df_metadata.fetch_metadata().await
                 .map_err(|e| format!("Failed to fetch footer: {}", e))
         })?;
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' footer parsed: rg_count={} col_count={}",
+            file_path,
+            parquet_metadata.num_row_groups(),
+            parquet_metadata.file_metadata().schema_descr().num_columns()
+        );
 
         // Put lightweight footer-only metadata into heap cache
         use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
@@ -604,6 +645,10 @@ impl CustomCacheManager {
             Arc::new(CachedParquetMetaData::new(Arc::clone(&parquet_metadata))),
         );
         metadata_cache.put(&path, cached_entry);
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' heap metadata_cache.put DONE (footer only)",
+            file_path
+        );
 
         Ok((parquet_metadata, object_meta))
     }
@@ -702,6 +747,10 @@ impl CustomCacheManager {
             .map_err(|e| format!("failed to compute statistics for {}: {}", file_path, e))?;
 
         cache.put_statistics(&path, Arc::new(stats), object_meta);
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' statistics_cache.put DONE rg_count={}",
+            file_path, parquet_metadata.num_row_groups()
+        );
         Ok(true)
     }
 
