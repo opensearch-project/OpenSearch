@@ -25,6 +25,7 @@ arrow-schema = { workspace = true }
 
 parquet = { workspace = true }
 object_store = { workspace = true }
+bytes = { workspace = true }
 url = { workspace = true }
 
 prost = { workspace = true }
@@ -40,6 +41,7 @@ dashmap = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
 native-bridge-common = { workspace = true }
+opensearch-tiered-storage = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 roaring = "=0.10.12"

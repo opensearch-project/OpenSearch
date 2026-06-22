@@ -15,8 +15,9 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use bytes::Bytes;
 use dashmap::DashMap;
-use foyer::{BlockEngineConfig, DeviceBuilder, FsDeviceBuilder,
-            HybridCache, HybridCacheBuilder, IoEngineConfig, PsyncIoEngineConfig, RecoverMode};
+use foyer::{AdmitAll, BlockEngineConfig, DeviceBuilder, FsDeviceBuilder,
+            HybridCache, HybridCacheBuilder, IoEngineConfig, PsyncIoEngineConfig, RecoverMode,
+            StorageFilter};
 use tokio_util::sync::CancellationToken;
 #[cfg(target_os = "linux")]
 use foyer::UringIoEngineConfig;
@@ -226,12 +227,31 @@ pub struct FoyerCache {
 
 impl Drop for FoyerCache {
     fn drop(&mut self) {
+        // Flush partial blocks to SSD before shutdown with a timeout.
+        // Without close(), entries smaller than block_size are lost on restart.
+        // Timeout prevents indefinite blocking if the flusher is stuck.
+        let close_result = self._runtime.block_on(async {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                self.inner.close()
+            ).await
+        });
+        match close_result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                native_bridge_common::log_info!(
+                    "[block-cache] HybridCache close FAILED on shutdown: {}", e
+                );
+            }
+            Err(_) => {
+                native_bridge_common::log_info!(
+                    "[block-cache] HybridCache close TIMED OUT (5s) on shutdown — partial blocks may be lost"
+                );
+            }
+        }
+
         // Unconditional final persist — graceful shutdown path.
         // Writes the complete current key_index as the authoritative final snapshot.
-        // This supersedes any earlier periodic persist and ensures the most
-        // up-to-date state is available on the next restart.
-        // On crash (OOM, SIGKILL) Drop is not called; the cache restarts from the
-        // last periodic snapshot, or with an empty key_index if no snapshot exists.
         if let Err(e) = key_index_store::save(&self.cache_dir, &self.key_index) {
             native_bridge_common::log_info!(
                 "[block-cache] key_index final persist FAILED on shutdown: {}",
@@ -284,6 +304,7 @@ impl FoyerCache {
         sweep_interval_secs: u64,
         sweep_threshold_ratio: f64,
         persist_interval_secs: u64,
+        reinsertion_admit_all: bool,
     ) -> Self {
         let disk_dir: PathBuf = disk_dir.into();
 
@@ -298,6 +319,22 @@ impl FoyerCache {
         let io_engine = io_engine.to_string();
         let io_engine_for_log = io_engine.clone();  // clone for use in log after the closure
         let inner = rt.block_on(async move {
+            let mut engine_config = BlockEngineConfig::new(
+                FsDeviceBuilder::new(dir_clone)
+                    .with_capacity(disk_bytes)
+                    .build()
+                    .expect("[block-cache] FsDevice build failed")
+            )
+            .with_block_size(block_size_bytes)
+            .with_buffer_pool_size(buffer_pool_size_bytes)
+            .with_submit_queue_size_threshold(submit_queue_size_threshold_bytes);
+
+            if reinsertion_admit_all {
+                engine_config = engine_config.with_reinsertion_filter(
+                    StorageFilter::new().with_condition(AdmitAll)
+                );
+            }
+
             HybridCacheBuilder::<String, Vec<u8>>::new()
                 .with_name("block-cache")
                 .memory(1)
@@ -313,27 +350,18 @@ impl FoyerCache {
                 // On a fresh directory (clean startup) Quiet behaves identically to None.
                 .with_recover_mode(RecoverMode::Quiet)
                 .with_io_engine_config(build_io_engine_config(&io_engine))
-                .with_engine_config(
-                    BlockEngineConfig::new(
-                        FsDeviceBuilder::new(dir_clone)
-                            .with_capacity(disk_bytes)
-                            .build()
-                            .expect("[block-cache] FsDevice build failed")
-                    )
-                    .with_block_size(block_size_bytes)
-                    .with_buffer_pool_size(buffer_pool_size_bytes)
-                    .with_submit_queue_size_threshold(submit_queue_size_threshold_bytes)
-                )
+                .with_engine_config(engine_config)
                 .build()
                 .await
                 .expect("[block-cache] HybridCache build failed")
         });
         native_bridge_common::log_info!(
             "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, sweep_threshold={:.0}%, \
-             persist_interval={}s, dir={}",
+             persist_interval={}s, reinsertion={}, dir={}",
             disk_bytes, block_size_bytes, io_engine_for_log,
             sweep_threshold_ratio * 100.0,
             if persist_interval_secs == 0 { "disabled".to_string() } else { persist_interval_secs.to_string() },
+            if reinsertion_admit_all { "AdmitAll" } else { "RejectAll" },
             disk_dir.display()
         );
         // CancellationToken is Clone and Send — cheap to share with background tasks.
@@ -685,6 +713,12 @@ impl FoyerCache {
     /// Clear all entries synchronously. Called from the FFM layer.
     pub(crate) fn clear_sync(&self) {
         self._runtime.block_on(self.clear());
+    }
+
+    /// Wait for the storage flusher to drain its write queue.
+    /// After this returns, all previously put() entries are on SSD and findable via get().
+    pub async fn wait_for_flush(&self) {
+        self.inner.storage().wait().await;
     }
 
     /// Derive the normalized index key from a cache key.

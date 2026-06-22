@@ -22,4 +22,10 @@ opensearch-block-cache = { path = "../../../../../plugins/block-cache-foyer/src/
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+parquet = { workspace = true }
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+datafusion = { workspace = true }
+url = { workspace = true }
