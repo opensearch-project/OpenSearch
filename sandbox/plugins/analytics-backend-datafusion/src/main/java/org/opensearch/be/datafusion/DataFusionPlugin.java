@@ -19,6 +19,7 @@ import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
+import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -34,17 +35,21 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.indices.breaker.BreakerSettings;
-import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
 import org.opensearch.nativebridge.spi.RustLoggerBridge;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
@@ -52,6 +57,7 @@ import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -66,10 +72,12 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -90,9 +98,71 @@ public class DataFusionPlugin extends Plugin
         SearchBackEndPlugin<DatafusionReader>,
         AnalyticsSearchBackendPlugin,
         ActionPlugin,
-        CircuitBreakerPlugin {
+        CircuitBreakerPlugin,
+        DocumentLookupProvider {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
+
+    /** Fraction of the spill volume's total capacity used as the default cap. */
+    static final double SPILL_LIMIT_FRACTION = 0.90;
+
+    /** Fallback when the spill volume's capacity cannot be probed. 8 GiB. */
+    static final long SPILL_LIMIT_FALLBACK_BYTES = 8L * 1024 * 1024 * 1024;
+
+    /**
+     * Validates {@link #DATAFUSION_SPILL_MEMORY_LIMIT} against {@link #DATAFUSION_SPILL_DIRECTORY}:
+     * <ul>
+     *   <li>If spill is disabled (empty directory), only {@code 0} is accepted.</li>
+     *   <li>If spill is enabled, the value must not exceed the spill volume's total capacity
+     *       (probed live via {@link FileStore#getTotalSpace()}).</li>
+     * </ul>
+     * Probes the filesystem on each validate call. Cluster-settings updates are infrequent and
+     * the probe is a single syscall (~µs), so caching is not worth the bookkeeping cost.
+     * If the probe fails ({@link IOException}) the capacity check is skipped — operators retain
+     * the ability to set the cap; only the safety-net validation is disabled.
+     */
+    static final class SpillLimitValidator implements Setting.Validator<Long> {
+        @Override
+        public void validate(Long value) {
+            // Range check (>= 0) lives in the parser; nothing to do here without dependencies.
+        }
+
+        @Override
+        public void validate(Long value, Map<Setting<?>, Object> dependencies) {
+            String dir = (String) dependencies.get(DATAFUSION_SPILL_DIRECTORY);
+            if (dir == null) {
+                dir = "";
+            }
+            if (dir.isEmpty()) {
+                if (value != 0L) {
+                    throw new IllegalArgumentException(
+                        "Setting [datafusion.spill_memory_limit_bytes]="
+                            + value
+                            + " is non-zero but datafusion.spill_directory is unset (spill disabled)"
+                    );
+                }
+                return;
+            }
+            long total;
+            try {
+                total = Environment.getFileStore(Path.of(dir)).getTotalSpace();
+            } catch (IOException e) {
+                // Probe failed — skip the capacity check. Same fail-open behavior as the
+                // boot-time default derivation.
+                return;
+            }
+            if (total > 0 && value > total) {
+                throw new IllegalArgumentException(
+                    "Setting [datafusion.spill_memory_limit_bytes]=" + value + " exceeds spill volume capacity (" + total + " bytes)"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(DATAFUSION_SPILL_DIRECTORY).iterator();
+        }
+    }
 
     /**
      * Memory pool limit for the DataFusion runtime.
@@ -101,7 +171,8 @@ public class DataFusionPlugin extends Plugin
      * ({@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}), which is
      * the same off-heap budget admission control throttles against. The DataFusion Rust
      * runtime is the dominant native-memory consumer for analytics workloads (see PR #21732
-     * partitioning model), so the default takes 74% of {@code node.native_memory.limit}.
+     * partitioning model), so the default takes 71% of {@code node.native_memory.limit}
+     * (reduced from 74% to fund the 3% parquet cache budget).
      * If the AC limit is unset (== 0), the default is {@link Long#MAX_VALUE} — unbounded — to
      * preserve pre-AC behaviour rather than make up a number from JVM heap (which is a
      * separate, already-allocated region with no relation to native-memory sizing).
@@ -124,9 +195,15 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
-     * Computes the default for {@link #DATAFUSION_MEMORY_POOL_LIMIT} as 74% of
+     * Computes the default for {@link #DATAFUSION_MEMORY_POOL_LIMIT} as 71% of
      * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}, falling back to
      * {@link Long#MAX_VALUE} when AC is unconfigured.
+     *
+     * <p>Reduced from 74% to 71%: 3% of {@code node.native_memory.limit} is now reserved for
+     * the DataFusion parquet caches (footer metadata, ColumnIndex, OffsetIndex). That 3% is
+     * funded by 2% from the operator pool and 1% from the unmanaged headroom (which expanded
+     * from 21% to 20% of off-heap via the 79→80% change to
+     * {@code ResourceTrackerSettings.deriveNativeMemoryLimitDefault}).
      *
      * <p>The fraction is taken straight from {@code node.native_memory.limit}, not from
      * {@code limit - buffer_percent}. {@code buffer_percent} is an admission-control throttle
@@ -140,48 +217,12 @@ public class DataFusionPlugin extends Plugin
         if (nativeLimit.getBytes() <= 0) {
             return Long.toString(Long.MAX_VALUE);
         }
-        // 74% of node.native_memory.limit. DataFusion is the dominant native consumer for
+        // 71% of node.native_memory.limit. DataFusion is the dominant native consumer for
         // analytics workloads; operators tune via the dynamic setting once they characterize
         // their workload.
-        long pool = Math.max(0L, nativeLimit.getBytes() * 74 / 100);
+        long pool = Math.max(0L, nativeLimit.getBytes() * 71 / 100);
         return Long.toString(pool);
     }
-
-    /**
-     * Disk-staging budget for DataFusion spill. When in-memory operations (HashAggregate, Sort,
-     * TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}, DataFusion writes working state to disk;
-     * this setting caps how much disk space that staging can consume.
-     *
-     * <p><strong>Default: 50% of physical RAM.</strong> Spill is a disk budget, not a memory budget,
-     * so it is intentionally <em>not</em> derived from {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}
-     * — the operator-declared off-heap budget bounds working memory, but the spill ceiling needs
-     * to scale with how much state could plausibly need to spill across all concurrent queries,
-     * which tracks physical RAM rather than the off-heap carve-out. 50% is a conservative upper
-     * bound that leaves room for page cache, JVM heap, and OS overhead.
-     *
-     * <p>Falls back to {@link Long#MAX_VALUE} when {@link OsProbe#getTotalPhysicalMemorySize()}
-     * returns 0 (containerized environments where {@code /proc/meminfo} is restricted), preserving
-     * pre-AC unbounded behaviour.
-     *
-     * <p>Dynamic only when the loaded native library exports {@code df_set_spill_limit}
-     * (see {@link org.opensearch.be.datafusion.nativelib.NativeBridge#isSpillLimitDynamic()}).
-     * When the symbol is absent the setting can still be updated at the cluster level,
-     * but the new value only takes effect after a node restart — the live update consumer
-     * logs a warning in that case.
-     */
-    public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = new Setting<>(
-        "datafusion.spill_memory_limit_bytes",
-        s -> deriveSpillLimitDefault(),
-        s -> {
-            long v = Long.parseLong(s);
-            if (v < 0) {
-                throw new IllegalArgumentException("Setting [datafusion.spill_memory_limit_bytes] must be >= 0, got " + v);
-            }
-            return v;
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     /**
      * Spill directory used by DataFusion's {@code DiskManager} for intermediate state when
@@ -195,6 +236,10 @@ public class DataFusionPlugin extends Plugin
      *
      * <p>{@code Final} because DataFusion's {@code DiskManager} is built once at runtime
      * startup; changing the directory mid-flight would orphan in-progress spill files.
+     *
+     * <p>Declared before {@link #DATAFUSION_SPILL_MEMORY_LIMIT} because the {@code Setting}
+     * constructor evaluates the default-value supplier eagerly (under {@code -ea}); the
+     * spill-limit default reads this setting, so it must be initialized first.
      */
     public static final Setting<String> DATAFUSION_SPILL_DIRECTORY = new Setting<>(
         "datafusion.spill_directory",
@@ -203,6 +248,42 @@ public class DataFusionPlugin extends Plugin
         DataFusionPlugin::validateSpillDirectory,
         Setting.Property.NodeScope,
         Setting.Property.Final
+    );
+
+    /**
+     * Disk-staging budget for DataFusion spill. When in-memory operations (HashAggregate, Sort,
+     * TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}, DataFusion writes working state to disk;
+     * this setting caps how much disk space that staging can consume.
+     *
+     * <p><strong>Default: 80% of the spill volume's total disk capacity.</strong> Spill is a disk
+     * budget, not a memory budget, so the default is derived from the disk volume itself rather
+     * than from physical RAM or the off-heap carve-out. This sizes correctly on both supported
+     * deployment patterns: a dedicated EBS volume mounted at the spill directory, or the spill
+     * directory on the same disk as the OpenSearch process.
+     *
+     * <p>When {@link #DATAFUSION_SPILL_DIRECTORY} is unset (empty), returns {@code 0} — spill is
+     * disabled and the cap is irrelevant. Falls back to {@link #SPILL_LIMIT_FALLBACK_BYTES}
+     * (8 GiB) when the spill volume cannot be probed.
+     *
+     * <p>Dynamic only when the loaded native library exports {@code df_set_spill_limit}
+     * (see {@link org.opensearch.be.datafusion.nativelib.NativeBridge#isSpillLimitDynamic()}).
+     * When the symbol is absent the setting can still be updated at the cluster level,
+     * but the new value only takes effect after a node restart — the live update consumer
+     * logs a warning in that case.
+     */
+    public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = new Setting<>(
+        new Setting.SimpleKey("datafusion.spill_memory_limit_bytes"),
+        DataFusionPlugin::deriveSpillLimitDefault,
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [datafusion.spill_memory_limit_bytes] must be >= 0, got " + v);
+            }
+            return v;
+        },
+        new SpillLimitValidator(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -227,20 +308,36 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
-     * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT} as 50% of physical RAM.
-     * Returns the bytes-as-string representation expected by the {@link Setting} parser.
+     * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT}.
      *
-     * <p>Falls back to {@link Long#MAX_VALUE} when the OS probe cannot read total physical memory
-     * (returns 0 or negative), which happens in some containerized environments. Preserving the
-     * unbounded fallback matches the pattern used by {@link #DATAFUSION_MEMORY_POOL_LIMIT} and
-     * {@code ArrowBasePlugin}'s pool-max defaults when AC is unconfigured.
+     * <ul>
+     *   <li>When {@link #DATAFUSION_SPILL_DIRECTORY} is unset (empty), returns {@code "0"} —
+     *       spill is disabled and the cap is irrelevant.</li>
+     *   <li>When set, returns {@link #SPILL_LIMIT_FRACTION} of the spill volume's
+     *       {@link FileStore#getTotalSpace() total space}.</li>
+     *   <li>When the file store cannot be probed (transient FS hiccup after boot probe),
+     *       returns {@link #SPILL_LIMIT_FALLBACK_BYTES} — a conservative 8 GiB.</li>
+     * </ul>
+     *
+     * <p>Spill is a disk budget, so the default is derived from the disk volume itself
+     * rather than from physical RAM. This sizes correctly on both supported deployment
+     * patterns: a dedicated EBS volume mounted at the spill directory, or the spill
+     * directory on the same disk as the OpenSearch process.
      */
-    static String deriveSpillLimitDefault() {
-        long totalRam = OsProbe.getInstance().getTotalPhysicalMemorySize();
-        if (totalRam <= 0) {
-            return Long.toString(Long.MAX_VALUE);
+    static String deriveSpillLimitDefault(Settings settings) {
+        String dir = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        if (dir == null || dir.isEmpty()) {
+            return "0";
         }
-        return Long.toString(totalRam / 2);
+        try {
+            long total = Environment.getFileStore(Path.of(dir)).getTotalSpace();
+            if (total <= 0) {
+                return Long.toString(SPILL_LIMIT_FALLBACK_BYTES);
+            }
+            return Long.toString((long) (total * SPILL_LIMIT_FRACTION));
+        } catch (IOException e) {
+            return Long.toString(SPILL_LIMIT_FALLBACK_BYTES);
+        }
     }
 
     /**
@@ -332,6 +429,21 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Total in-flight allocation in bytes allowed through the 85% spill gate by spillable consumers
+     * so they can finish spilling before the pool rejects them. Bounds how much concurrent spilling
+     * can collectively borrow above the spill threshold while staying below the 95% critical limit.
+     * Default 536870912 (512MB) expressed in raw bytes. Live-tunable — takes effect on the next
+     * allocation decision.
+     */
+    public static final Setting<Long> DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP = Setting.longSetting(
+        "datafusion.memory_guard.spill_exempt_cap_bytes",
+        536870912L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Selects how the coordinator-reduce sink hands shard responses to the native runtime.
      * <ul>
      *   <li>{@code streaming} (default) — use {@link DatafusionReduceSink}: each batch is pushed
@@ -368,6 +480,8 @@ public class DataFusionPlugin extends Plugin
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
+    // DocumentLookupProvider implementation. Construction deferred until the DataFusion service is live.
+    private volatile GetService getService;
     private volatile CircuitBreaker datafusionBreaker;
 
     /**
@@ -440,25 +554,68 @@ public class DataFusionPlugin extends Plugin
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
+        // Build the get-by-id service now that the DataFusion runtime is live. The
+        // DocumentMetadataResolver is supplied per-call by the engine, so it is not needed here.
+        this.getService = new GetService(this);
+
         // Wire the dynamic spill limit setting to the native runtime so updates via the
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
+        // Recompute and push absolute cache limits whenever the total budget or any
+        // sub-cache percentage changes. Validates that percentages sum to 100 first.
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CacheSettings.STATISTICS_CACHE_PERCENT,
+                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+            );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP, NativeBridge::setSpillExemptCapBytes);
+        // The four memory-guard thresholds are pushed to the native pool together via a single
+        // grouped consumer. This MUST use the grouped Consumer<Settings> overload (not
+        // `v -> updateMemoryGuardThresholds()` re-reading via getClusterSettings().get()): during
+        // an apply cycle the per-setting getter resolves against `lastSettingsApplied`, which the
+        // settings framework only swaps in AFTER all update consumers have run — so a callback that
+        // re-reads sees the stale/previous value and would push defaults instead of the new value.
+        // The grouped consumer receives a Settings built from the cycle's new (`current`) settings,
+        // so reading each threshold from it yields the value just set.
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
+            .addSettingsUpdateConsumer(
+                this::updateMemoryGuardThresholds,
+                List.of(
+                    DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD,
+                    DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD,
+                    DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD,
+                    DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD
+                )
+            );
 
         // Push Rust log level whenever any logger.* cluster setting changes, so Rust macros
         // can short-circuit format!() for suppressed levels without polling.
         clusterService.getClusterSettings()
             .addAffixUpdateConsumer(Loggers.LOG_LEVEL_SETTING, (namespace, level) -> RustLoggerBridge.pushLevel(), (k, v) -> {});
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD, v -> updateMemoryGuardThresholds());
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
 
         // Wire dynamic concurrency gate multiplier settings
         int cpuThreads = DataFusionService.cpuThreadCount();
@@ -471,6 +628,7 @@ public class DataFusionPlugin extends Plugin
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setSpillExemptCapBytes(DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP.get(settings));
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),
@@ -681,11 +839,53 @@ public class DataFusionPlugin extends Plugin
         logger.info("Updated DataFusion min_target_partitions to {}", value);
     }
 
-    private void updateMemoryGuardThresholds() {
-        double admissionThrottle = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD);
-        double admissionReject = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD);
-        double executionSpill = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD);
-        double executionCritical = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD);
+    /**
+     * Recompute absolute ColumnIndex and OffsetIndex cache limits from the current
+     * {@link CacheSettings#METADATA_INDEX_CACHE_TOTAL_SIZE} and percent settings, then push them
+     * to native. Validates that percentages sum to 100 before applying.
+     */
+    private void recomputePageCacheLimits(org.opensearch.common.settings.ClusterSettings cs) {
+        long total = cs.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE).getBytes();
+        int metaPct = cs.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
+        int oiPct = cs.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
+        int ciPct = cs.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        int statsPct = cs.get(CacheSettings.STATISTICS_CACHE_PERCENT);
+        CacheSettings.validatePercentSum(metaPct, oiPct, ciPct, statsPct);
+        long metaLimit = total * metaPct / 100;
+        long ciLimit = total * ciPct / 100;
+        long oiLimit = total * oiPct / 100;
+        long statsLimit = total * statsPct / 100;
+        logger.info(
+            "Updating cache limits: footer_metadata={} bytes (node restart required), "
+                + "column_index={} bytes, offset_index={} bytes, statistics={} bytes (node restart required)",
+            metaLimit,
+            ciLimit,
+            oiLimit,
+            statsLimit
+        );
+        // CI and OI limits take effect immediately via FFI.
+        // Footer metadata and statistics cache limits require a node restart
+        // (no runtime FFI to update the Java-side DefaultFilesMetadataCache limits).
+        // TODO: add df_update_metadata_cache_limit FFI to make them dynamic.
+        NativeBridge.setColumnIndexCacheLimit(ciLimit);
+        NativeBridge.setOffsetIndexCacheLimit(oiLimit);
+    }
+
+    /**
+     * Pushes the four memory-guard thresholds to the native pool. Reads each value from the
+     * `updated` Settings supplied by the grouped settings-update consumer — which the framework
+     * builds from the cycle's new settings — rather than re-reading via
+     * `clusterService.getClusterSettings().get(...)`. The latter resolves against
+     * `lastSettingsApplied`, which is not swapped in until after all update consumers have run, so
+     * re-reading mid-cycle would yield the stale/previous value (the root cause of thresholds
+     * silently not updating at runtime). Unchanged thresholds are filled with their registered
+     * defaults in `updated`, so passing all four every time is correct.
+     */
+    private void updateMemoryGuardThresholds(Settings updated) {
+        double admissionThrottle = DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(updated);
+        double admissionReject = DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(updated);
+        double executionSpill = DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD.get(updated);
+        double executionCritical = DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD.get(updated);
         NativeBridge.setMemoryGuardThresholds(admissionThrottle, admissionReject, executionSpill, executionCritical);
         logger.info(
             "Updated DataFusion memory guard thresholds: admission_throttle={}, admission_reject={}, execution_spill={}, execution_critical={}",
@@ -748,7 +948,13 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class));
+        return List.of(
+            new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class),
+            new ActionHandler<>(
+                org.opensearch.be.datafusion.action.stats.ClearCacheActionType.INSTANCE,
+                org.opensearch.be.datafusion.action.stats.TransportClearCacheAction.class
+            )
+        );
     }
 
     @Override
@@ -764,7 +970,7 @@ public class DataFusionPlugin extends Plugin
         if (dataFusionService == null) {
             return Collections.emptyList();
         }
-        return List.of(new RestDataFusionStatsAction());
+        return List.of(new RestDataFusionStatsAction(), new org.opensearch.be.datafusion.action.stats.RestClearCacheAction());
     }
 
     @Override
@@ -812,6 +1018,9 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public void close() throws IOException {
+        if (getService != null) {
+            getService.close();
+        }
         if (dataFusionService != null) {
             dataFusionService.close();
         }
@@ -838,5 +1047,49 @@ public class DataFusionPlugin extends Plugin
             logger.debug("getTopQueriesByMemory: {} entries from native registry", result.size());
         }
         return result;
+    }
+
+    /**
+     * Get-by-id entry point. Delegates to {@link GetService}, which fetches the row through the native runtime.
+     */
+    @Override
+    public DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader, Index index, DocumentMetadataResolver resolver)
+        throws IOException {
+        GetService getService = getServiceOrThrow();
+        return getService.documentLookupService(resolver).getById(get.id(), reader, index);
+    }
+
+    @Override
+    public DocumentLookupResult getVersionMetadata(
+        String id,
+        IndexReaderProvider.Reader reader,
+        Index index,
+        DocumentMetadataResolver resolver
+    ) throws IOException {
+        GetService svc = getServiceOrThrow();
+        return svc.documentLookupService(resolver).getVersionMetadata(id, reader, index);
+    }
+
+    @Override
+    public List<DocumentLookupResult> getDocsAboveSeqNo(
+        long fromSeqNoExclusive,
+        IndexReaderProvider.Reader reader,
+        Index index,
+        DocumentMetadataResolver resolver
+    ) throws IOException {
+        GetService svc = getService;
+        if (svc == null) return List.of();
+        return svc.documentLookupService(resolver).getDocsAboveSeqNo(fromSeqNoExclusive, reader, index);
+    }
+
+    /**
+     * Returns the {@link GetService} , throwing IllegalStateException if not initialized.
+     */
+    private GetService getServiceOrThrow() {
+        GetService svc = getService;
+        if (svc == null) {
+            throw new IllegalStateException("GetService is not initialized. ");
+        }
+        return svc;
     }
 }

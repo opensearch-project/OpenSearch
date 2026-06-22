@@ -488,11 +488,7 @@ pub fn create_global_runtime(
         crate::memory_guard::mark_spill_disabled();
         DiskManagerBuilder::default().with_mode(DiskManagerMode::Disabled)
     } else {
-        let effective_spill_limit = if spill_limit == 0 {
-            resolve_dynamic_spill_limit(spill_dir)
-        } else {
-            spill_limit as u64
-        };
+        let effective_spill_limit = spill_limit as u64;
 
         // Wipe leaked entries from a prior non-graceful shutdown.
         //
@@ -841,6 +837,7 @@ pub async unsafe fn execute_query(
     manager: &RuntimeManager,
     context_id: i64,
     query_config: crate::datafusion_query_config::DatafusionQueryConfig,
+    internal_search: crate::datafusion_query_config::InternalSearch,
 ) -> Result<i64, DataFusionError> {
     let shard_view = &*(shard_view_ptr as *const ShardView);
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
@@ -911,6 +908,8 @@ pub async unsafe fn execute_query(
         //    - IndexedPredicateOnly → indexed path (position-based row IDs)
         //    - None → vanilla path (no row ID computation)
         // 3. Neither → vanilla path
+        // Engine-internal point lookups pass an empty plan, so is_indexed/has_row_id are both
+        // false and this naturally resolves to the vanilla ListingTable path.
         let use_indexed = is_indexed
             || (has_row_id && effective_config.query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
 
@@ -941,6 +940,7 @@ pub async unsafe fn execute_query(
                 phantom_corrector,
                 &shard_view.sort_fields,
                 &shard_view.sort_orders,
+                internal_search,
             ).await
         }
     };
@@ -1119,36 +1119,6 @@ pub async unsafe fn fetch_by_row_ids(
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
     Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime, context_id))
-}
-
-/// it; the failure mode is documented here to keep the dispatch contract
-/// explicit.
-/// Resolve the dynamic spill limit based on available disk space.
-/// Uses 80% of available space on the spill directory's filesystem.
-/// Falls back to 8GB if disk space cannot be determined.
-fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
-    const FRACTION: f64 = 0.80;
-    const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
-
-    let _ = std::fs::create_dir_all(spill_dir);
-
-    match crate::memory_guard::available_disk_space(spill_dir) {
-        Some(available) => {
-            let limit = (available as f64 * FRACTION) as u64;
-            log::info!(
-                "Dynamic spill limit: {} bytes (80% of {} available on {})",
-                limit, available, spill_dir
-            );
-            limit
-        }
-        None => {
-            log::warn!(
-                "Could not determine disk space for '{}', using fallback {}GB",
-                spill_dir, FALLBACK / (1024 * 1024 * 1024)
-            );
-            FALLBACK
-        }
-    }
 }
 
 /// Inspect substrait plan bytes for routing signals.
@@ -1822,11 +1792,10 @@ pub async unsafe fn execute_local_plan(
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
     let cpu_exec = manager.cpu_executor();
-    let (cross_rt_stream, abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
-    }
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Reduce path: cancel via the token only, do NOT register the abort handle — an abort() mid-send
+    // would skip the cross_rt drop+drain cleanup and leak the aggregate's in-flight GroupValues.
     if let Some(rt) = cpu_exec.handle() {
         query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
@@ -1862,6 +1831,7 @@ pub unsafe fn execute_local_prepared_plan(
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    let token = query_tracker::get_cancellation_token(context_id);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
     // stream channels that require a Tokio reactor. Enter the IO runtime's
@@ -1870,11 +1840,9 @@ pub unsafe fn execute_local_prepared_plan(
     let df_stream = session.execute_prepared()?;
 
     let cpu_exec = manager.cpu_executor();
-    let (cross_rt_stream, abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
-    }
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Prepared-reduce path: same as execute_local_plan — token-only cancel, no abort handle.
     if let Some(rt) = cpu_exec.handle() {
         query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
@@ -2001,11 +1969,10 @@ mod tests {
     #[test]
     fn create_global_runtime_with_spill_dir_enables_disk_manager() {
         // Non-empty spill_dir takes the Directories(...) path. tmp_files_enabled() must
-        // be true so spill attempts succeed. Passing spill_limit=0 also exercises the
-        // dynamic-limit resolver (resolve_dynamic_spill_limit + set_spill_dir). The
-        // budget must NOT be Disabled — set_spill_dir flips SPILL_ENABLED on. Whether
-        // it's Available or Critical depends on the test host's free disk; both prove
-        // the enabled-path branch is taken.
+        // be true so spill attempts succeed. The budget must NOT be Disabled —
+        // set_spill_dir flips SPILL_ENABLED on. Whether it's Available or Critical
+        // depends on the test host's free disk; both prove the enabled-path branch
+        // is taken.
         //
         // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
         // file in the directory before the call and assert it's gone after.
@@ -2018,7 +1985,7 @@ mod tests {
         fs::write(&sentinel, b"stale spill data").expect("seed sentinel");
         assert!(sentinel.exists(), "sentinel must exist before runtime build");
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
@@ -2033,6 +2000,11 @@ mod tests {
         assert!(
             runtime.runtime_env.disk_manager.tmp_files_enabled(),
             "expected DiskManagerMode::Directories when spill_dir is set"
+        );
+        assert_eq!(
+            runtime.runtime_env.disk_manager.max_temp_directory_size(),
+            1024 * 1024 * 1024,
+            "DiskManager cap must equal the positive spill_limit passed in"
         );
         assert_ne!(
             crate::memory_guard::per_query_spill_budget(),
@@ -2070,7 +2042,7 @@ mod tests {
         assert!(top_file.exists());
         assert!(nested_file.exists());
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1: original names gone (renamed to *.stale).

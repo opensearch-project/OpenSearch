@@ -92,12 +92,11 @@ public class AttachChildrenTests extends OpenSearchTestCase {
     }
 
     /**
-     * Early-termination contract: when a parent cancels its own child (e.g. coordinator-side
-     * LIMIT satisfied, stop the shard stream), the child transitions to CANCELLED. The
-     * cascade must NOT propagate that cancel back to the parent — the parent is the one
-     * who issued the cancel and must stay RUNNING.
+     * Cancelled-child contract: the cascade must close the parent's per-child input (so a parent
+     * reduce drain blocked on {@code streamNext} sees EOF and unwinds) but must NOT propagate cancel
+     * to the parent's state or schedule it.
      */
-    public void testCancelledChildIsNotPropagatedToParent() {
+    public void testCancelledChildClosesInputButDoesNotPropagateToParent() {
         StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild cancelled = new FakeChild(5);  // no failure recorded
 
@@ -106,6 +105,9 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         parent.attachChildren(List.of(cancelled), scheduler);
         cancelled.fire(StageExecution.State.CANCELLED);
 
+        // EOF released to the reduce input (the leak fix).
+        verify(parent).closeChildInput(eq(5));
+        // State is NOT propagated and the parent is NOT scheduled.
         verify(parent, never()).cancel(any());
         verify(parent, never()).failWithCause(any());
         verify(parent, never()).consumeChildMetadata(any());

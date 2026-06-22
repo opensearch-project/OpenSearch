@@ -138,8 +138,10 @@ public interface StageExecution {
      *   no per-child resources); decrements a counter; on zero, collects
      *   {@link #publishedMetadata} from each child and hands off via {@link #consumeChildMetadata};
      *   default-mode parents are scheduled here (eager parents already scheduled).
-     *   <li>FAILED — propagates via {@link #failWithCause}.
-     *   <li>CANCELLED — intentionally not propagated (cancel initiator owns the parent's lifecycle).
+     *   <li>FAILED — invokes {@link #closeChildInput} then propagates via {@link #failWithCause}.
+     *   <li>CANCELLED — invokes {@link #closeChildInput} (so a parent reduce drain sees EOF and
+     *   unwinds) but does NOT propagate cancel to the parent's state (the cancel initiator owns the
+     *   parent's lifecycle).
      * </ul>
      *
      * <p>Parent→sibling cancel sweep: on FAILED / CANCELLED, sweep still-running children.
@@ -189,8 +191,13 @@ public interface StageExecution {
                                 : new RuntimeException("child stage " + child.getStageId() + " failed without recorded cause")
                         );
                     }
+                    case CANCELLED ->
+                        // Close this parent's input for the cancelled child so a parent reduce drain
+                        // blocked on streamNext sees EOF and unwinds. Cancel is not propagated to the
+                        // parent's state (it stays owner-driven).
+                        closeChildInput(childId);
                     default -> {
-                    }  // CANCELLED intentionally not propagated
+                    }
                 }
             });
         }

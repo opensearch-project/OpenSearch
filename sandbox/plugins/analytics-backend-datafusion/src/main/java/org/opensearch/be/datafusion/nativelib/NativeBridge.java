@@ -102,6 +102,7 @@ public final class NativeBridge {
     private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
     private static final MethodHandle SET_REDUCE_TARGET_PARTITIONS;
+    private static final MethodHandle SET_SPILL_EXEMPT_CAP_BYTES;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -134,6 +135,9 @@ public final class NativeBridge {
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
+    private static final MethodHandle SET_COLUMN_INDEX_CACHE_LIMIT;
+    private static final MethodHandle SET_OFFSET_INDEX_CACHE_LIMIT;
+    private static final MethodHandle CLEAR_SCOPED_PAGE_INDEX_CACHE;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
@@ -219,6 +223,11 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
+        SET_SPILL_EXEMPT_CAP_BYTES = linker.downcallHandle(
+            lib.find("df_set_spill_exempt_cap_bytes").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
         SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
             lib.find("df_set_memory_guard_thresholds").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
@@ -248,15 +257,17 @@ public final class NativeBridge {
         EXECUTE_QUERY = linker.downcallHandle(
             lib.find("df_execute_query").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,   // returns stream_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // table_name_ptr
+                ValueLayout.JAVA_LONG,   // table_name_len
+                ValueLayout.ADDRESS,     // plan_ptr
+                ValueLayout.JAVA_LONG,   // plan_len
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // context_id
+                ValueLayout.JAVA_LONG,   // query_config_ptr
+                ValueLayout.JAVA_LONG,   // internal_search_mode
+                ValueLayout.JAVA_LONG    // internal_search_bound
             )
         );
 
@@ -501,6 +512,18 @@ public final class NativeBridge {
             )
         );
 
+        SET_COLUMN_INDEX_CACHE_LIMIT = linker.downcallHandle(
+            lib.find("df_set_column_index_cache_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        SET_OFFSET_INDEX_CACHE_LIMIT = linker.downcallHandle(
+            lib.find("df_set_offset_index_cache_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        CLEAR_SCOPED_PAGE_INDEX_CACHE = linker.downcallHandle(
+            lib.find("df_clear_scoped_page_index_cache").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
         SET_CANCEL_STATS_THRESHOLD_MS = linker.downcallHandle(
@@ -807,6 +830,19 @@ public final class NativeBridge {
         }
     }
 
+    /**
+     * Sets the spill-exemption cap in bytes — the total in-flight allocation allowed through the
+     * 85% spill gate by spillable consumers so they can finish spilling. Live-tunable; takes effect
+     * on the next try_grow.
+     */
+    public static void setSpillExemptCapBytes(long bytes) {
+        try {
+            SET_SPILL_EXEMPT_CAP_BYTES.invokeExact(bytes);
+        } catch (Throwable t) {
+            logger.debug("Failed to set spill exempt cap bytes", t);
+        }
+    }
+
     /** Sets the memory guard thresholds (0.0–1.0): admission throttle, admission reject, execution spill, execution critical. */
     public static void setMemoryGuardThresholds(
         double admissionThrottle,
@@ -901,6 +937,13 @@ public final class NativeBridge {
 
     // ---- Query execution (confined Arena for tableName + plan bytes) ----
 
+    /** {@code internal_search_mode}: normal query — decode {@code substraitPlan} as Substrait. */
+    public static final long INTERNAL_SEARCH_OFF = 0L;
+    /** {@code internal_search_mode}: get-by-row-id — native plan filters {@code __row_id__ = bound}, {@code substraitPlan} ignored. */
+    public static final long INTERNAL_SEARCH_BY_ROW_ID = 1L;
+    /** {@code internal_search_mode}: seq-no scan — native plan filters {@code _seq_no > bound}, {@code substraitPlan} ignored. */
+    public static final long INTERNAL_SEARCH_SEQ_NO_ABOVE = 2L;
+
     public static void executeQueryAsync(
         long readerPtr,
         String tableName,
@@ -908,6 +951,30 @@ public final class NativeBridge {
         long runtimePtr,
         long contextId,
         long queryConfigPtr,
+        ActionListener<Long> listener
+    ) {
+        executeQueryAsync(readerPtr, tableName, substraitPlan, runtimePtr, contextId, queryConfigPtr, INTERNAL_SEARCH_OFF, 0L, listener);
+    }
+
+    /**
+     * Executes a query and returns an opaque stream pointer via {@code listener}.
+     * <p>
+     * When {@code internalSearchMode} is {@link #INTERNAL_SEARCH_OFF}, {@code substraitPlan} is
+     * decoded as a Substrait plan (normal search). When it is {@link #INTERNAL_SEARCH_BY_ROW_ID}
+     * or {@link #INTERNAL_SEARCH_SEQ_NO_ABOVE}, the native side ignores {@code substraitPlan} and
+     * builds a single pushed-down filter plan via the DataFusion DataFrame API, using
+     * {@code internalSearchBound} as the {@code __row_id__} value or the {@code _seq_no} floor.
+     * The returned stream is drained identically in all modes.
+     */
+    public static void executeQueryAsync(
+        long readerPtr,
+        String tableName,
+        byte[] substraitPlan,
+        long runtimePtr,
+        long contextId,
+        long queryConfigPtr,
+        long internalSearchMode,
+        long internalSearchBound,
         ActionListener<Long> listener
     ) {
         try {
@@ -928,7 +995,9 @@ public final class NativeBridge {
                 (long) substraitPlan.length,
                 runtimePtr,
                 contextId,
-                queryConfigPtr
+                queryConfigPtr,
+                internalSearchMode,
+                internalSearchBound
             );
             listener.onResponse(result);
         } catch (Throwable t) {
@@ -1587,6 +1656,60 @@ public final class NativeBridge {
             var file = call.str(filePath);
             long result = call.invoke(CACHE_MANAGER_CONTAINS_BY_TYPE, runtimePtr, type.segment(), type.len(), file.segment(), file.len());
             return result != 0;
+        }
+    }
+
+    /**
+     * Sets the byte budget of the process-global scoped ColumnIndex cache.
+     * Shrinking evicts LRU entries immediately. Zero is ignored.
+     */
+    public static void setColumnIndexCacheLimit(long sizeLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_COLUMN_INDEX_CACHE_LIMIT, sizeLimitBytes);
+        }
+    }
+
+    /**
+     * Sets the byte budget of the process-global scoped OffsetIndex cache.
+     * Shrinking evicts LRU entries immediately. Zero is ignored.
+     */
+    public static void setOffsetIndexCacheLimit(long sizeLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_OFFSET_INDEX_CACHE_LIMIT, sizeLimitBytes);
+        }
+    }
+
+    /**
+     * Clears the process-global scoped page-index cache (drops entries + resets
+     * counters, keeps the budget). For operational testing.
+     */
+    public static void clearScopedPageIndexCache() {
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the footer metadata cache. */
+    public static void clearFooterCache() {
+        // TODO(PR1): wire to df_clear_footer_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the scoped ColumnIndex (predicate) cache. */
+    public static void clearColumnIndexCache() {
+        // TODO(PR1): wire to df_clear_column_index_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the scoped OffsetIndex (projection) cache. */
+    public static void clearOffsetIndexCache() {
+        // TODO(PR1): wire to df_clear_offset_index_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
         }
     }
 

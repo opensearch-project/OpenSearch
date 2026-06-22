@@ -143,12 +143,14 @@ public class ResourceTrackerSettings {
         if (ram <= 0 || heap <= 0 || heap >= ram) {
             return "0b";
         }
-        // 79% of off-heap (RAM - heap) leaves ~21% headroom for unmanaged native consumers:
-        // Lucene mmap, Liquid cache, OS page cache, sidecar processes. Matches the partitioning
+        // 80% of off-heap (RAM - heap) leaves ~20% headroom for unmanaged native consumers:
+        // Lucene mmap, Liquid cache, OS page cache, sidecar processes. Raised from 79% to 80%
+        // to accommodate the DataFusion parquet cache budget (1% of off-heap carved from
+        // unmanaged headroom + 2% from the DataFusion operator pool). Matches the partitioning
         // model in PR #21732. Operators with predominantly analytics workloads can raise this
         // toward 100%; search-heavy workloads needing more page cache should lower it.
         long offHeap = ram - heap;
-        return Long.toString(offHeap * 79 / 100) + "b";
+        return Long.toString(offHeap * 80 / 100) + "b";
     }
 
     /**

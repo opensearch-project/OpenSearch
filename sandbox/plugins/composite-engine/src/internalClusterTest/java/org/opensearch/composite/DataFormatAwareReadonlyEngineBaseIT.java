@@ -18,7 +18,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.composite.framework.ParquetOnlyDataFormatPlugin;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -29,6 +28,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
@@ -136,7 +136,7 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
                 .filter(p -> p != MockFsRepositoryPlugin.class),
             Stream.<Class<? extends Plugin>>of(
                 ArrowBasePlugin.class,
-                ParquetOnlyDataFormatPlugin.class,
+                ParquetDataFormatPlugin.class,
                 CompositeDataFormatPlugin.class,
                 LucenePlugin.class,
                 DataFusionPlugin.class,
