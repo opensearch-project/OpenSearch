@@ -62,10 +62,6 @@ for i in "${config_files[@]}"; do
 done
 
 # Plugin-related files
-if [ -e "${buildroot}/${config_dir}/opensearch-observability/observability.yml" ]; then
-	chmod -c 660 "${buildroot}/${config_dir}/opensearch-observability/observability.yml"
-fi
-
 if [ -e "${buildroot}/${config_dir}/opensearch-reports-scheduler/reports-scheduler.yml" ]; then
 	chmod -c 660 "${buildroot}/${config_dir}/opensearch-reports-scheduler/reports-scheduler.yml"
 fi

@@ -51,9 +51,6 @@ cp -pr /wazuh-certificates/root-ca.pem ${TARGET_DIR}${CONFIG_DIR}/certs/root-ca.
 cp -pr /wazuh-certificates/admin.pem ${TARGET_DIR}${CONFIG_DIR}/certs/admin.pem
 cp -pr /wazuh-certificates/admin-key.pem ${TARGET_DIR}${CONFIG_DIR}/certs/admin-key.pem
 
-# Set path to indexer home directory
-sed -i 's/-Djava.security.policy=file:\/\/\/etc\/wazuh-indexer\/opensearch-performance-analyzer\/opensearch_security.policy/-Djava.security.policy=file:\/\/\/usr\/share\/wazuh-indexer\/opensearch-performance-analyzer\/opensearch_security.policy/g' ${TARGET_DIR}${CONFIG_DIR}/jvm.options
-
 chmod -R 500 ${TARGET_DIR}${CONFIG_DIR}/certs
 chmod -R 400 ${TARGET_DIR}${CONFIG_DIR}/certs/*
 
