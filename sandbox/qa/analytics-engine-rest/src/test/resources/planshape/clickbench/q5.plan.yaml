@@ -1,0 +1,61 @@
+# Generated via -Dplan.generate=write, then human-reviewed.
+query: q5
+ppl_file: q5.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchAggregate(group=[{}], dc(UserID)=[APPROX_COUNT_DISTINCT($0)], mode=[FINAL], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchAggregate(group=[{}], dc(UserID)=[APPROX_COUNT_DISTINCT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
+            OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
+              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($97))], viableBackends=[[datafusion]])
+                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], dc(UserID)=[APPROX_COUNT_DISTINCT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
+        OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($97))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], dc(UserID)=[APPROX_COUNT_DISTINCT($0)], mode=[FINAL], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
+        FilterExec: UserID@0 IS NOT NULL
+          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+            DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 IS NOT NULL, pruning_predicate=UserID_null_count@1 != row_count@0, required_guarantees=[]
+    shard_physical_nseg: |
+      AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
+        FilterExec: UserID@0 IS NOT NULL
+          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+            DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 IS NOT NULL, pruning_predicate=UserID_null_count@1 != row_count@0, required_guarantees=[]
+  prod1s:
+    post_cbo: |
+      OpenSearchAggregate(group=[{}], dc(UserID)=[APPROX_COUNT_DISTINCT($0)], mode=[SINGLE], viableBackends=[[datafusion]])
+        OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($97))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], dc(UserID)=[APPROX_COUNT_DISTINCT($0)], mode=[SINGLE], viableBackends=[[datafusion]])
+        OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($97))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "dc(UserID)", data_type: Int64, nullable: true }], metadata: {} }
+        AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
+          CoalescePartitionsExec
+            AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
+              FilterExec: UserID@0 IS NOT NULL
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 IS NOT NULL, pruning_predicate=UserID_null_count@1 != row_count@0, required_guarantees=[]
+    shard_physical_nseg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "dc(UserID)", data_type: Int64, nullable: true }], metadata: {} }
+        AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
+          CoalescePartitionsExec
+            AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
+              FilterExec: UserID@0 IS NOT NULL
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 IS NOT NULL, pruning_predicate=UserID_null_count@1 != row_count@0, required_guarantees=[]

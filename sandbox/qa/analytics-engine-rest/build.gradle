@@ -123,6 +123,23 @@ testClusters.integTest {
 
 integTest {
     systemProperty 'tests.security.manager', 'false'
+    // Forward plan-shape harness props to the forked test JVM (see PlanShapeGoldenTestBase):
+    //   -Dplan.generate=write  capture + write q{N}.plan.yaml to the source tree
+    //   -Dplan.generate=print  capture + log the block (read-only peek, no write)
+    //   (flag absent           = assertion mode: compare capture vs golden)
+    //   -Dplan.combos=...       override which named combos run (else combos.yaml defaults)
+    ['plan.generate', 'plan.combos'].each { k ->
+        if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
+    }
+    // Source resources dir, so -Dplan.generate writes goldens to the source tree (not build/).
+    systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
+    // FIXME [RemoveBeforeMerge]: surface the forked test JVM's PLAN-SHAPE DIAG logger lines on the
+    // gradle console so a redirected run captures them in one greppable file while bringing up the
+    // segment-topology axis. Remove (or gate behind a flag) before PR — too noisy for CI.
+    testLogging {
+        showStandardStreams = true
+        exceptionFormat = 'full'
+    }
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'

@@ -1,0 +1,97 @@
+# Generated via -Dplan.generate=write, then human-reviewed.
+query: q8
+ppl_file: q8.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$1], AdvEngineID=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$1], dir0=[DESC-nulls-last], fetch=[30000], viableBackends=[[datafusion]])
+                  OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+                    OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
+                      OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
+                        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], dir0=[DESC-nulls-last], fetch=[30000], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
+              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$1], AdvEngineID=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[AdvEngineID@0 as AdvEngineID, count(Int64(1))[count]@1 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST], fetch=30000
+          SortExec: TopK(fetch=30000), expr=[count(Int64(1))@1 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[AdvEngineID@0 as AdvEngineID], aggr=[count(Int64(1))]
+              FilterExec: AdvEngineID@0 != 0
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[AdvEngineID@0 as AdvEngineID, count(Int64(1))[count]@1 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST], fetch=30000
+          SortExec: TopK(fetch=30000), expr=[count(Int64(1))@1 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[AdvEngineID@0 as AdvEngineID], aggr=[count(Int64(1))]
+              FilterExec: AdvEngineID@0 != 0
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.count())@0 as count(), AdvEngineID@1 as AdvEngineID]
+        SortPreservingMergeExec: [sum(input-0.count())@0 DESC NULLS LAST], fetch=10000
+          SortExec: TopK(fetch=10000), expr=[sum(input-0.count())@0 DESC NULLS LAST], preserve_partitioning=[true]
+            ProjectionExec: expr=[sum(input-0.count())@1 as sum(input-0.count()), AdvEngineID@0 as AdvEngineID]
+              AggregateExec: mode=FinalPartitioned, gby=[AdvEngineID@0 as AdvEngineID], aggr=[sum(input-0.count())]
+                RepartitionExec: partitioning=Hash([AdvEngineID@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[AdvEngineID@0 as AdvEngineID], aggr=[sum(input-0.count())]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      StreamingTableExec: partition_sizes=1, projection=[AdvEngineID, count()]
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$1], AdvEngineID=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$1], AdvEngineID=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as count(), AdvEngineID@1 as AdvEngineID]
+        SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST], fetch=10000
+          SortExec: TopK(fetch=10000), expr=[count(Int64(1))@0 DESC NULLS LAST], preserve_partitioning=[true]
+            ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), AdvEngineID@0 as AdvEngineID]
+              AggregateExec: mode=FinalPartitioned, gby=[AdvEngineID@0 as AdvEngineID], aggr=[count(Int64(1))]
+                RepartitionExec: partitioning=Hash([AdvEngineID@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[AdvEngineID@0 as AdvEngineID], aggr=[count(Int64(1))]
+                    FilterExec: AdvEngineID@0 != 0
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as count(), AdvEngineID@1 as AdvEngineID]
+        SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST], fetch=10000
+          SortExec: TopK(fetch=10000), expr=[count(Int64(1))@0 DESC NULLS LAST], preserve_partitioning=[true]
+            ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), AdvEngineID@0 as AdvEngineID]
+              AggregateExec: mode=FinalPartitioned, gby=[AdvEngineID@0 as AdvEngineID], aggr=[count(Int64(1))]
+                RepartitionExec: partitioning=Hash([AdvEngineID@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[AdvEngineID@0 as AdvEngineID], aggr=[count(Int64(1))]
+                    FilterExec: AdvEngineID@0 != 0
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]

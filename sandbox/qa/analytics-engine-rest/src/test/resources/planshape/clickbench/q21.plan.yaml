@@ -1,0 +1,40 @@
+# Generated via -Dplan.generate=write, then human-reviewed.
+query: q21
+ppl_file: q21.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[lucene, datafusion]])
+        OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
+                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=lucene tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[lucene, datafusion]])
+        OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.count())@0 as count()]
+        AggregateExec: mode=Final, gby=[], aggr=[sum(input-0.count())]
+          CoalescePartitionsExec
+            AggregateExec: mode=Partial, gby=[], aggr=[sum(input-0.count())]
+              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                StreamingTableExec: partition_sizes=1, projection=[count()]
+  prod1s:
+    post_cbo: |
+      OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[lucene, datafusion]])
+        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=lucene tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[lucene, datafusion]])
+        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
