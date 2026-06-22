@@ -24,6 +24,8 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use std::fs::File;
+use arrow_schema::SchemaRef;
+use parquet::file::metadata::ParquetMetaData;
 
 /// Trait to calculate heap memory size for statistics objects
 trait HeapSize {
@@ -485,6 +487,21 @@ impl Default for CustomStatisticsCache {
     fn default() -> Self {
         Self::with_default_config()
     }
+}
+
+/// Compute statistics from an already-loaded `ParquetMetaData` and schema.
+///
+/// Avoids a second file/IO round-trip when the footer has already been fetched
+/// (e.g. by `load_parquet_metadata` during metadata cache warming). The caller
+/// is responsible for providing the correct Arrow schema derived from the same
+/// metadata.
+pub fn compute_parquet_statistics_from_metadata(
+    metadata: &ParquetMetaData,
+    schema: &SchemaRef,
+) -> Result<Statistics, Box<dyn std::error::Error>> {
+    use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+    let statistics = DFParquetMetadata::statistics_from_parquet_metadata(metadata, schema)?;
+    Ok(statistics)
 }
 
 /// Compute statistics from a parquet file using DataFusion's built-in functionality

@@ -102,13 +102,7 @@ pub fn set_scoped_page_index_enabled(enabled: bool) {
 }
 
 pub use cache_store::ScopedCacheStats;
-pub use page_index_io::{
-    load_scoped_page_index,
-    load_scoped_page_index_cols,
-    load_scoped_page_index_rgs,
-    load_page_index_fully_scoped,
-    surviving_row_groups,
-};
+pub use page_index_io::load_scoped_page_index_cols;
 pub use column_schema_resolver::{
     resolve_predicate_parquet_columns,
     resolve_predicate_parquet_columns_pair,

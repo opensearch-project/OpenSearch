@@ -10,7 +10,7 @@ use std::sync::Arc;
 use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatisticsCache, CacheManagerConfig};
 use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
-use crate::cache::statistics_cache::compute_parquet_statistics;
+use crate::cache::statistics_cache::{compute_parquet_statistics, compute_parquet_statistics_from_metadata};
 use crate::cache::metadata_cache::MutexFileMetadataCache;
 use crate::cache::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
@@ -126,7 +126,12 @@ impl CustomCacheManager {
         config
     }
 
-    /// Add multiple files to all applicable caches
+    /// Add multiple files to all applicable caches.
+    ///
+    /// Footer metadata and statistics are derived from a **single** object-store
+    /// read per file: `load_parquet_metadata` fetches the footer, caches it, and
+    /// returns `(schema, ParquetMetaData)`. Statistics are then computed from that
+    /// already-decoded metadata — avoiding a second file read.
     pub fn add_files(&self, file_paths: &[String], rt_handle: &tokio::runtime::Handle) -> Result<Vec<(String, bool)>, String> {
         let mut results = Vec::new();
 
@@ -134,40 +139,43 @@ impl CustomCacheManager {
             let mut any_success = false;
             let mut errors = Vec::new();
 
-            // Add to metadata cache
-            match self.metadata_cache_put(file_path, rt_handle) {
-                Ok(true) => {
+            // Single footer fetch — warms metadata cache and returns the decoded metadata
+            // so statistics can be derived without a second IO round-trip.
+            match self.metadata_cache_put_returning_meta(file_path, rt_handle) {
+                Ok(Some((schema, pq_meta))) => {
                     any_success = true;
+
+                    // Derive statistics from the already-loaded metadata — no second read.
+                    if let Some(stats_cache) = &self.statistics_cache {
+                        let path = Path::from(file_path.as_str());
+                        if !stats_cache.contains_key(&path) {
+                            match compute_parquet_statistics_from_metadata(&pq_meta, &schema) {
+                                Ok(stats) => {
+                                    let meta = ObjectMeta {
+                                        location: path.clone(),
+                                        last_modified: chrono::Utc::now(),
+                                        size: std::fs::metadata(file_path).map(|m| m.len()).unwrap_or(0),
+                                        e_tag: None,
+                                        version: None,
+                                    };
+                                    stats_cache.put_statistics(&path, Arc::new(stats), &meta);
+                                }
+                                Err(e) => {
+                                    errors.push(format!("Statistics cache: {}", e));
+                                }
+                            }
+                        }
+                    }
                 }
-                Ok(false) => {
-                    native_bridge_common::log_debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
+                Ok(None) => {
+                    log_debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
                 }
                 Err(e) => {
                     errors.push(format!("Metadata cache: {}", e));
                 }
             }
 
-            // Add to statistics cache
-            if let Some(_) = &self.statistics_cache {
-                match self.statistics_cache_compute_and_put(file_path) {
-                    Ok(true) => {
-                        any_success = true;
-                    }
-                    Ok(false) => {
-                        log_debug!("[CACHE INFO] File not added for statistics cache: {}", file_path);
-                    }
-                    Err(e) => {
-                        errors.push(format!("Statistics cache: {}", e));
-                    }
-                }
-            }
-
-            let success = if !errors.is_empty() && !any_success {
-                false
-            } else {
-                any_success
-            };
-
+            let success = if !errors.is_empty() && !any_success { false } else { any_success };
             results.push((file_path.clone(), success));
         }
 
@@ -395,10 +403,18 @@ impl CustomCacheManager {
         }
     }
 
-    /// Internal method to put metadata into cache
-    fn metadata_cache_put(&self, file_path: &str, rt_handle: &tokio::runtime::Handle) -> Result<bool, String> {
+    /// Fetch a parquet file's footer, warm the metadata cache, and return the
+    /// decoded `(SchemaRef, Arc<ParquetMetaData>)` so the caller can derive
+    /// statistics without a second IO round-trip.
+    ///
+    /// Returns `Ok(None)` for non-parquet files.
+    fn metadata_cache_put_returning_meta(
+        &self,
+        file_path: &str,
+        rt_handle: &tokio::runtime::Handle,
+    ) -> Result<Option<(datafusion::arrow::datatypes::SchemaRef, Arc<datafusion::parquet::file::metadata::ParquetMetaData>)>, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
-            return Ok(false); // Skip unsupported formats
+            return Ok(None);
         }
 
         let object_metas = create_object_meta_from_file(file_path)
@@ -413,14 +429,12 @@ impl CustomCacheManager {
             .ok_or_else(|| "No file metadata cache configured".to_string())?
             .clone() as Arc<dyn FileMetadataCache>;
 
-        // Warm the level-1 metadata cache footer-only. `load_parquet_metadata`
-        // fetches with PageIndexPolicy::Skip — only footer bytes, no page index IO.
-        // On success the entry is in the cache; on failure the error propagates.
         let location = object_meta.location.clone();
-        rt_handle.block_on(async {
+        let (schema, _size, pq_meta) = rt_handle.block_on(async {
             parquet_bridge::load_parquet_metadata(store, &location, metadata_cache).await
         })?;
-        Ok(true)
+
+        Ok(Some((schema, pq_meta)))
     }
 
     /// Compute and put statistics into cache

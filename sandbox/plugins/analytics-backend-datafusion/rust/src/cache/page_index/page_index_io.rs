@@ -8,8 +8,9 @@
 
 //! Page-index load entry points and their supporting internals.
 //!
-//! The four public `load_scoped_page_index*` functions are the only callers of
-//! the cache machinery; all decoding, cache lookup, and grafting happens here.
+//! [`load_scoped_page_index_cols`] is the single public entry point — it loads
+//! the ColumnIndex for predicate columns (all RGs) and the OffsetIndex for
+//! projection columns, using the two process-global caches.
 
 use std::collections::{HashMap, HashSet};
 use std::mem;
@@ -40,33 +41,9 @@ use super::cache_keys::{CiCellKey, OiCellKey, OiColumn};
 use super::{COLUMN_INDEX_CACHE, OFFSET_INDEX_CACHE};
 
 /// Load + graft a scoped page index: ColumnIndex for `predicate_cols` (all RGs),
-/// OffsetIndex for all columns/all RGs. The Step-1 baseline.
-pub async fn load_scoped_page_index(
-    store: &Arc<dyn ObjectStore>,
-    location: &object_store::path::Path,
-    footer_meta: &Arc<ParquetMetaData>,
-    predicate_cols: &[usize],
-) -> Option<Arc<ParquetMetaData>> {
-    attach_scoped_page_index_to_metadata(store, location, footer_meta, predicate_cols, None, None).await
-}
-
-/// Like [`load_scoped_page_index`], but the ColumnIndex is built only for the row
-/// groups in `surviving_rgs` (footer-stats survivors — [`surviving_row_groups`]);
-/// other RGs get a `NONE` ColumnIndex placeholder. OffsetIndex stays all-columns.
-pub async fn load_scoped_page_index_rgs(
-    store: &Arc<dyn ObjectStore>,
-    location: &object_store::path::Path,
-    footer_meta: &Arc<ParquetMetaData>,
-    predicate_cols: &[usize],
-    surviving_rgs: &[usize],
-) -> Option<Arc<ParquetMetaData>> {
-    attach_scoped_page_index_to_metadata(store, location, footer_meta, predicate_cols, Some(surviving_rgs), None).await
-}
-
-/// Like [`load_scoped_page_index`], but the OffsetIndex is built only for
-/// `projection_cols` (the loader unions in the predicate columns + column 0
-/// defensively); other columns get an empty placeholder. ColumnIndex stays
-/// all-RG. See [`OiKey`] for which columns must be real and why.
+/// OffsetIndex for `projection_cols` (∪ predicate ∪ col 0). This is the single
+/// production entry point used by both the listing path (`ScopedPageIndexReaderFactory`)
+/// and the indexed executor augmentation loop.
 pub async fn load_scoped_page_index_cols(
     store: &Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
@@ -74,110 +51,7 @@ pub async fn load_scoped_page_index_cols(
     predicate_cols: &[usize],
     projection_cols: &[usize],
 ) -> Option<Arc<ParquetMetaData>> {
-    attach_scoped_page_index_to_metadata(store, location, footer_meta, predicate_cols, None, Some(projection_cols)).await
-}
-
-/// Fully scoped: ColumnIndex RG-scoped to `surviving_rgs`, OffsetIndex
-/// column-scoped to `projection_cols` (∪ predicate ∪ {0}). The Step-2 target both
-/// scan paths call once they know their surviving-RG set and projection.
-pub async fn load_page_index_fully_scoped(
-    store: &Arc<dyn ObjectStore>,
-    location: &object_store::path::Path,
-    footer_meta: &Arc<ParquetMetaData>,
-    predicate_cols: &[usize],
-    surviving_rgs: &[usize],
-    projection_cols: &[usize],
-) -> Option<Arc<ParquetMetaData>> {
-    attach_scoped_page_index_to_metadata(
-        store,
-        location,
-        footer_meta,
-        predicate_cols,
-        Some(surviving_rgs),
-        Some(projection_cols),
-    )
-        .await
-}
-
-//  Surviving-RG computation (footer-stats prune; superset of DF's set) - NOT WIRED YET
-
-/// Compute the row groups that pass footer RG-statistics pruning for `predicate`.
-///
-/// A **superset** of the row groups DataFusion will scan (DataFusion applies the
-/// same footer-stats pruning plus bloom/range/limit, which only remove more), so
-/// scoping the predicate-column ColumnIndex to this set is safe. Returns all row
-/// groups if the predicate can't be lowered or stats are missing. Deterministic
-/// in `(footer_meta, schema, predicate)` → both scan paths agree.
-pub fn surviving_row_groups(
-    footer_meta: &ParquetMetaData,
-    arrow_schema: &SchemaRef,
-    predicate: &Arc<dyn PhysicalExpr>,
-) -> Vec<usize> {
-
-    let num_rgs = footer_meta.num_row_groups();
-    let all: Vec<usize> = (0..num_rgs).collect();
-    if num_rgs == 0 {
-        return all;
-    }
-
-    let Ok(pp) = PruningPredicate::try_new(Arc::clone(predicate), Arc::clone(arrow_schema)) else {
-        return all;
-    };
-
-    struct RgStats<'a> {
-        meta: &'a ParquetMetaData,
-        schema: &'a SchemaRef,
-        num_rgs: usize,
-    }
-    impl<'a> RgStats<'a> {
-        fn conv(&self, col: &str) -> Option<StatisticsConverter<'_>> {
-            StatisticsConverter::try_new(col, self.schema, self.meta.file_metadata().schema_descr())
-                .ok()
-        }
-    }
-    impl<'a> PruningStatistics for RgStats<'a> {
-        fn min_values(&self, column: &datafusion::common::Column) -> Option<ArrayRef> {
-            self.conv(&column.name)?
-                .row_group_mins(self.meta.row_groups().iter())
-                .ok()
-        }
-        fn max_values(&self, column: &datafusion::common::Column) -> Option<ArrayRef> {
-            self.conv(&column.name)?
-                .row_group_maxes(self.meta.row_groups().iter())
-                .ok()
-        }
-        fn num_containers(&self) -> usize {
-            self.num_rgs
-        }
-        fn null_counts(&self, column: &datafusion::common::Column) -> Option<ArrayRef> {
-            self.conv(&column.name)?
-                .row_group_null_counts(self.meta.row_groups().iter())
-                .ok()
-                .map(|a| Arc::new(a) as ArrayRef)
-        }
-        fn row_counts(&self) -> Option<ArrayRef> {
-            let counts: Vec<u64> =
-                self.meta.row_groups().iter().map(|rg| rg.num_rows() as u64).collect();
-            Some(Arc::new(UInt64Array::from(counts)) as ArrayRef)
-        }
-        fn contained(
-            &self,
-            _column: &datafusion::common::Column,
-            _values: &HashSet<ScalarValue>,
-        ) -> Option<BooleanArray> {
-            None
-        }
-    }
-
-    let stats = RgStats { meta: footer_meta, schema: arrow_schema, num_rgs };
-    match pp.prune(&stats) {
-        Ok(mask) => mask
-            .iter()
-            .enumerate()
-            .filter_map(|(i, keep)| if *keep { Some(i) } else { None })
-            .collect(),
-        Err(_) => all,
-    }
+    attach_scoped_page_index_to_metadata(store, location, footer_meta, predicate_cols, Some(projection_cols)).await
 }
 
 async fn attach_scoped_page_index_to_metadata(
@@ -185,33 +59,28 @@ async fn attach_scoped_page_index_to_metadata(
     location: &object_store::path::Path,
     footer_meta: &Arc<ParquetMetaData>,
     predicate_cols: &[usize],
-    surviving_rgs: Option<&[usize]>,
     projection_cols: Option<&[usize]>,
 ) -> Option<Arc<ParquetMetaData>> {
-    // Nothing to build only when there is NEITHER a predicate (ColumnIndex for
-    // pruning) NOR an explicit projection (OffsetIndex for page-level IO). A
-    // match-only query has empty `predicate_cols` but a real, non-empty
-    // `projection_cols` (the projected columns) — it still needs the OffsetIndex so
-    // the parquet reader can fetch just the matched rows' pages instead of whole
-    // column chunks. `projection_cols == None` (all-columns) with no predicate is the
-    // legacy "nothing requested" case → return None as before.
-    let has_offset_work = projection_cols.map(|c| !c.is_empty()).unwrap_or(false);
-    if predicate_cols.is_empty() && !has_offset_work {
+    // Nothing to build when both predicate_cols and projection_cols are empty/absent.
+    // An empty projection slice means "no specific projection" → treat as None (all columns).
+    let oi_proj = match projection_cols {
+        Some(p) if !p.is_empty() => Some(p),
+        _ => None, // empty or absent → OI covers all columns
+    };
+    if predicate_cols.is_empty() && oi_proj.is_none() && projection_cols.is_some() {
+        // All empty — nothing to build.
         return None;
     }
-    // CI and OI are independent — run their IO concurrently.
-    // CPU setup before each `.await` still runs sequentially (same thread), but
-    // both `store.get_ranges` calls are in-flight at the same time so wall-clock
-    // time = max(ci_latency, oi_latency) instead of their sum.
+    // CI and OI IO run concurrently — wall time = max(ci, oi) not their sum.
     let (ci_result, oi_result) = tokio::join!(
         async {
             if predicate_cols.is_empty() {
                 Some(None)
             } else {
-                Some(Some(get_or_build_column_index(store, location, footer_meta, predicate_cols, surviving_rgs).await?))
+                Some(Some(get_or_build_column_index(store, location, footer_meta, predicate_cols).await?))
             }
         },
-        get_or_build_offset_index(store, location, footer_meta, predicate_cols, projection_cols),
+        get_or_build_offset_index(store, location, footer_meta, predicate_cols, oi_proj),
     );
     let column_index = ci_result?;
     let offset_index = oi_result?;
@@ -242,19 +111,16 @@ fn graft(
 // ── ColumnIndex cache lookup + build (per `(file, col, rg)` cell) ────────────
 
 /// Assemble the full-width `[rg][col]` `ColumnIndex` matrix (real cells only at
-/// `predicate_cols` × built RGs; `NONE` everywhere else) by looking up each
+/// `predicate_cols` × all RGs; `NONE` everywhere else) by looking up each
 /// `(file, col, rg)` cell in the cache and decoding only the cells that miss.
 ///
-/// `surviving_rgs == None` builds every RG; `Some(set)` restricts the built RGs
-/// to footer-stats survivors ([`surviving_row_groups`]). Either way a cell is
-/// keyed solely on `(file, col, rg)`, so it is decoded once per file and reused
-/// across every predicate combination and surviving-RG set that touches it.
+/// Each cell is keyed on `(file, col, rg)` and decoded once per file — reused
+/// across every query that filters on the same column regardless of predicates.
 async fn get_or_build_column_index(
     store: &Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
     footer_meta: &Arc<ParquetMetaData>,
     predicate_cols: &[usize],
-    surviving_rgs: Option<&[usize]>,
 ) -> Option<ParquetColumnIndex> {
     let num_rgs = footer_meta.num_row_groups();
     if num_rgs == 0 {
@@ -270,22 +136,7 @@ async fn get_or_build_column_index(
         return None;
     }
 
-    // Which RGs to build the (heavy) predicate-column ColumnIndex for.
-    let build_rgs: Vec<usize> = match surviving_rgs {
-        None => (0..num_rgs).collect(),
-        Some(set) => {
-            debug_assert!(
-                set.iter().all(|&r| r < num_rgs),
-                "surviving_rgs contains out-of-bounds index (num_rgs={num_rgs}): {set:?}"
-            );
-            set.iter().copied().filter(|&r| r < num_rgs).collect()
-        }
-    };
-    if build_rgs.is_empty() {
-        // Nothing to build (e.g. an empty survivor set) → footer-only fallback.
-        return None;
-    }
-
+    let build_rgs: Vec<usize> = (0..num_rgs).collect();
     let path: Arc<str> = Arc::from(location.as_ref());
 
     // Initially filled NONE for all RGs and all cols - as placeholders
@@ -880,7 +731,7 @@ mod tests {
         let (bytes, _schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        assert!(load_scoped_page_index(&store, &loc, &fo, &[]).await.is_none());
+        assert!(load_scoped_page_index_cols(&store, &loc, &fo, &[], &[]).await.is_none());
         assert_eq!(ci().entries, 0);
         assert_eq!(oi().entries, 0);
     }
@@ -896,7 +747,7 @@ mod tests {
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
         assert_eq!(cols, vec![0]);
 
-        let aug = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let c = aug.column_index().unwrap();
         let o = aug.offset_index().unwrap();
         assert!(!matches!(c[0][0], ColumnIndexMetaData::NONE), "predicate col has real CI");
@@ -966,7 +817,7 @@ mod tests {
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
-        let aug = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let full = full_index(&bytes);
         let pp = build_pruning_predicate(&pred("price", 0, Operator::GtEq, 20), schema.clone()).unwrap();
         let s = PagePruner::new(&schema, Arc::clone(&aug)).prune_rg(&pp, 0, None);
@@ -1031,7 +882,7 @@ mod tests {
         let cols = resolve_predicate_parquet_columns(&union_schema, &fo, &["price".to_string()]);
         assert_eq!(cols, vec![1], "price must resolve to its per-file leaf (1), not union pos 0");
 
-        let aug = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let full = full_index(&bytes);
         // `price` pages: 0..8,8..16,16..24,24..32; `price >= 20` keeps the last two
         // pages (rows 16..32 = 16 rows). Build the pruning predicate against the
@@ -1075,7 +926,7 @@ mod tests {
         // path). `qty` therefore gets the one-page placeholder + NONE ColumnIndex.
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
         assert_eq!(cols, vec![0]);
-        let aug = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let full = full_index(&bytes);
 
         // Residual references BOTH columns: price >= 16 (full keeps pages 2,3) AND
@@ -1112,7 +963,7 @@ mod tests {
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
-        let aug = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let selection = RowSelection::from(vec![RowSelector::skip(16), RowSelector::select(16)]);
         let scoped_vals = read_selected_column(&bytes, &aug, 1, selection.clone()).unwrap();
         let full = full_index(&bytes);
@@ -1136,13 +987,13 @@ mod tests {
         let fo = footer_only(&bytes);
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let (c1, o1) = (ci(), oi());
         assert_eq!((c1.hits, c1.misses, c1.entries), (0, 1, 1), "1 CI cell (price,rg0)");
         assert_eq!((o1.hits, o1.misses, o1.entries), (0, 2, 2), "2 OI cells (col0,col1)");
         assert!(c1.used_bytes > 0 && o1.used_bytes > 0);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         let (c2, o2) = (ci(), oi());
         assert_eq!((c2.hits, c2.misses, c2.entries, c2.used_bytes), (1, 1, 1, c1.used_bytes));
         assert_eq!((o2.hits, o2.misses, o2.entries, o2.used_bytes), (2, 2, 2, o1.used_bytes));
@@ -1162,8 +1013,8 @@ mod tests {
         let c_price = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
         let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()]);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap();
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_qty).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_qty, &[]).await.unwrap();
 
         assert_eq!(ci().entries, 2, "distinct predicate cells: (price,rg0) + (qty,rg0)");
         assert_eq!(oi().entries, 2, "all-column OffsetIndex: 2 column cells, shared");
@@ -1190,11 +1041,11 @@ mod tests {
             &["price".to_string(), "qty".to_string()],
         );
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses, ci().entries), (0, 1, 1), "price cell decoded");
 
         // Predicate now covers {price, qty}: price's cell hits, qty's cell misses.
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_both).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_both, &[]).await.unwrap();
         assert_eq!(
             (ci().hits, ci().misses, ci().entries),
             (1, 2, 2),
@@ -1217,8 +1068,8 @@ mod tests {
         // never enters the cache key.
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
-        let _ = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
         assert_eq!(ci().entries, 1, "same column → one cell regardless of literal");
         assert_eq!(ci().hits, 1);
         clear_scoped_cache_for_test();
@@ -1235,14 +1086,14 @@ mod tests {
         let c_price = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
         let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()]);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses), (0, 1));
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses), (1, 1));
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_qty).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_qty, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses), (1, 2));
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap();
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_qty).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_qty, &[]).await.unwrap();
         let s = ci();
         assert_eq!((s.hits, s.misses, s.entries, s.evictions), (3, 2, 2, 0));
     }
@@ -1263,15 +1114,15 @@ mod tests {
 
         // Measure one CI cell (predicate `price` = col0 at the single RG), then set
         // a budget of ~1.5 cells so a second distinct cell forces an eviction.
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap();
         let one_cell = ci().used_bytes;
         assert!(one_cell > 0);
         let budget = one_cell + one_cell / 2;
         clear_scoped_cache_for_test();
         set_column_index_cache_limit_for_test(budget);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_price).await.unwrap(); // cell (col0)
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_qty).await.unwrap(); // cell (col1) → evicts col0
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[]).await.unwrap(); // cell (col0)
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_qty, &[]).await.unwrap(); // cell (col1) → evicts col0
 
         assert!(ci().used_bytes <= budget, "CI bytes {} must stay within {}", ci().used_bytes, budget);
         assert_eq!(ci().entries, 1, "only the most-recent cell fits");
@@ -1279,79 +1130,14 @@ mod tests {
 
         // The most-recently-used cell (qty/col1) must still be a hit.
         let hits_before = ci().hits;
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_qty).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_qty, &[]).await.unwrap();
         assert_eq!(ci().hits, hits_before + 1, "MRU cell must remain cached");
 
         clear_scoped_cache_for_test();
     }
 
-    // ── Step 2: RG-scoping the ColumnIndex ────────────────────────────────
-
-    #[tokio::test]
-    async fn surviving_row_groups_matches_footer_stats_prune() {
-        let (bytes, schema) = four_rg_parquet();
-        let fo = footer_only(&bytes);
-        assert_eq!(fo.num_row_groups(), 4);
-        let p = pred("id", 0, Operator::GtEq, 25);
-        assert_eq!(surviving_row_groups(&fo, &schema, &p), vec![2, 3]);
-        let p2 = pred("id", 0, Operator::Lt, 12);
-        assert_eq!(surviving_row_groups(&fo, &schema, &p2), vec![0, 1]);
-    }
-
-    #[tokio::test]
-    async fn rg_scoped_load_builds_column_index_only_for_survivors() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
-        clear_scoped_cache_for_test();
-        let (bytes, schema) = four_rg_parquet();
-        let (store, loc) = stage(bytes.clone()).await;
-        let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
-        let surviving = vec![2usize, 3usize];
-
-        let aug = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &surviving).await.unwrap();
-        let c = aug.column_index().unwrap();
-        let o = aug.offset_index().unwrap();
-        assert_eq!(c.len(), 4);
-        for &rg in &surviving {
-            assert!(!matches!(c[rg][0], ColumnIndexMetaData::NONE), "survivor RG {rg} real CI");
-        }
-        for &rg in &[0usize, 1usize] {
-            assert!(matches!(c[rg][0], ColumnIndexMetaData::NONE), "pruned RG {rg} NONE CI");
-        }
-        for rg in 0..4 {
-            for cc in 0..2 {
-                assert!(!o[rg][cc].page_locations().is_empty(), "OI real for all rg/col");
-            }
-        }
-        let full = full_index(&bytes);
-        let pp = build_pruning_predicate(&pred("id", 0, Operator::GtEq, 25), schema.clone()).unwrap();
-        let s = PagePruner::new(&schema, Arc::clone(&aug)).prune_rg(&pp, 2, None);
-        let f = PagePruner::new(&schema, full).prune_rg(&pp, 2, None);
-        assert_eq!(s.as_ref().map(kept), f.as_ref().map(kept));
-        clear_scoped_cache_for_test();
-    }
-
-    #[tokio::test]
-    async fn rg_scoping_reduces_column_index_bytes() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
-        clear_scoped_cache_for_test();
-        let (bytes, schema) = four_rg_parquet();
-        let (store, loc) = stage(bytes.clone()).await;
-        let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
-
-        let _ = load_scoped_page_index(&store, &loc, &fo, &cols).await.unwrap();
-        let all_rg = ci().used_bytes;
-        clear_scoped_cache_for_test();
-        let _ = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &[2, 3]).await.unwrap();
-        assert!(ci().used_bytes < all_rg, "RG-scoped CI bytes {} < all-RG {}", ci().used_bytes, all_rg);
-        clear_scoped_cache_for_test();
-    }
-
-    /// CI cells are keyed per `(col, rg)`. Loading survivors {2,3} caches cells
-    /// (id,rg2) + (id,rg3); reloading the same survivor set hits both; a different
-    /// survivor set {0,1} adds two fresh cells. So a column's per-RG index is
-    /// reused across overlapping survivor sets instead of re-decoded per set.
+    /// CI cells are keyed per `(file, col, rg)`. Loading a predicate column on a
+    /// 4-RG file caches 4 cells (one per RG); a repeat query hits all 4.
     #[tokio::test]
     async fn rg_scoped_key_includes_surviving_rgs() {
         let _g = CACHE_TEST_GUARD.lock().unwrap();
@@ -1361,40 +1147,16 @@ mod tests {
         let fo = footer_only(&bytes);
         let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
 
-        let _ = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &[2, 3]).await.unwrap();
-        assert_eq!((ci().misses, ci().entries), (2, 2), "cells (id,rg2)+(id,rg3)");
-        let _ = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &[2, 3]).await.unwrap();
-        assert_eq!((ci().hits, ci().entries), (2, 2), "same survivors → both cells hit");
-        let _ = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &[0, 1]).await.unwrap();
-        assert_eq!((ci().misses, ci().entries), (4, 4), "new survivors → 2 fresh cells");
-        // OI stayed all-columns across all three → 2 column cells, shared.
-        assert_eq!(oi().entries, 2);
-        clear_scoped_cache_for_test();
-    }
+        // Cold: 4 RGs × 1 predicate col → 4 CI misses, 4 CI entries.
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
+        assert_eq!((ci().misses, ci().entries), (4, 4), "4 RGs × col → 4 CI cells");
 
-    /// Partial-overlap survivor sets only decode the NEW row groups. Load
-    /// survivors {2,3} (cells rg2,rg3), then {1,2,3}: rg2+rg3 hit, only rg1 is
-    /// freshly decoded. Proves RG-scoping reuses per-RG cells across overlapping
-    /// survivor sets rather than re-decoding the whole set.
-    #[tokio::test]
-    async fn overlapping_survivor_sets_decode_only_new_rgs() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
-        clear_scoped_cache_for_test();
-        let (bytes, schema) = four_rg_parquet();
-        let (store, loc) = stage(bytes.clone()).await;
-        let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
+        // Warm: all 4 cells hit, entry count unchanged.
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[]).await.unwrap();
+        assert_eq!((ci().hits, ci().entries), (4, 4), "warm: all 4 cells hit");
 
-        let _ = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &[2, 3]).await.unwrap();
-        assert_eq!((ci().hits, ci().misses, ci().entries), (0, 2, 2), "cells (id,rg2)+(id,rg3)");
-
-        // {1,2,3}: rg2 & rg3 are cached (2 hits); only rg1 is new (1 miss).
-        let _ = load_scoped_page_index_rgs(&store, &loc, &fo, &cols, &[1, 2, 3]).await.unwrap();
-        assert_eq!(
-            (ci().hits, ci().misses, ci().entries),
-            (2, 3, 3),
-            "rg2+rg3 reused (2 hits); only rg1 freshly decoded"
-        );
+        // OI: empty projection → all 2 columns × 1 file → 2 OI entries.
+        assert_eq!(oi().entries, 2, "OI: 2 cols (all cols) × 1 file");
         clear_scoped_cache_for_test();
     }
 
@@ -1422,13 +1184,13 @@ mod tests {
         );
 
         // {n0}: 1 new cell.
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_n0).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_n0, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses, ci().entries), (0, 1, 1));
         // {n0,n1}: n0 hits, n1 new.
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_n0_n1).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_n0_n1, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses, ci().entries), (1, 2, 2), "n0 reused; n1 new");
         // {n1,s0}: n1 hits, s0 new.
-        let _ = load_scoped_page_index(&store, &loc, &fo, &c_n1_s0).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_n1_s0, &[]).await.unwrap();
         assert_eq!((ci().hits, ci().misses, ci().entries), (2, 3, 3), "n1 reused; s0 new");
         clear_scoped_cache_for_test();
     }
@@ -1518,7 +1280,7 @@ mod tests {
         let fo = footer_only(&bytes);
         let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &pred_cols).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[]).await.unwrap();
         let all_cols = oi().used_bytes;
         clear_scoped_cache_for_test();
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[2]).await.unwrap();
@@ -1539,7 +1301,7 @@ mod tests {
         let fo = footer_only(&bytes);
         let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
 
-        let _ = load_scoped_page_index(&store, &loc, &fo, &pred_cols).await.unwrap();
+        let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[]).await.unwrap();
         assert_eq!(oi().entries, 2, "all-columns load caches 2 column cells");
         // Project {1}; union {0,1} = both columns, both already cached → 2 hits.
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[1]).await.unwrap();
@@ -1548,7 +1310,7 @@ mod tests {
         clear_scoped_cache_for_test();
     }
 
-    /// The fully-scoped entry point: CI RG-scoped + OI column-scoped together.
+    /// CI (all RGs) + OI column-scoped: both axes populated in one call.
     #[tokio::test]
     async fn fully_scoped_load_combines_both_axes() {
         let _g = CACHE_TEST_GUARD.lock().unwrap();
@@ -1556,18 +1318,19 @@ mod tests {
         let (bytes, schema) = four_rg_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
+        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
+        let proj_cols = resolve_predicate_parquet_columns(&schema, &fo, &["val".to_string()]);
 
-        // CI scoped to RGs {2,3}; OI scoped to {0,1} = all 2 cols (collapses to all).
-        let aug = load_page_index_fully_scoped(&store, &loc, &fo, &cols, &[2, 3], &[1])
+        let aug = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &proj_cols)
             .await
             .unwrap();
         let c = aug.column_index().unwrap();
-        assert!(matches!(c[0][0], ColumnIndexMetaData::NONE), "RG0 pruned → NONE CI");
-        assert!(!matches!(c[2][0], ColumnIndexMetaData::NONE), "RG2 survivor → real CI");
-        // CI cells (id,rg2)+(id,rg3) = 2; OI cells (col0)+(col1) = 2.
-        assert_eq!(ci().entries, 2);
-        assert_eq!(oi().entries, 2);
+        // All 4 RGs built for the predicate column (id = col 0).
+        assert!(!matches!(c[0][0], ColumnIndexMetaData::NONE), "RG0 real CI");
+        assert!(!matches!(c[2][0], ColumnIndexMetaData::NONE), "RG2 real CI");
+        // CI: 4 RGs × 1 pred col = 4 cells; OI: {id(0), val(1)} × 1 file = 2 cells.
+        assert_eq!(ci().entries, 4, "4 RGs × 1 pred col");
+        assert_eq!(oi().entries, 2, "2 proj cols × 1 file");
         clear_scoped_cache_for_test();
     }
 

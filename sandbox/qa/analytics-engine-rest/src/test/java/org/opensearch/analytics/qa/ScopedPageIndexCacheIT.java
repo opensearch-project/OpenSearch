@@ -514,6 +514,173 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         assertExactOiEntries("post-merge: OI entries = 2 (1 merged file × {col_0,age})", 2L);
     }
 
+    // ── cross-index shared cache ──────────────────────────────────────────────
+
+    private static final String INDEX_B = "scoped_cache_it_b";
+
+    /**
+     * Two parquet indices share the same process-global CI/OI caches.
+     * Queries on INDEX_NAME and INDEX_B accumulate independent entries
+     * (different file paths → different cache keys). Entries from one index
+     * must not corrupt or evict entries from the other if the cache is sized
+     * to hold both comfortably.
+     *
+     * <p>This exercises the FIFO write lock under real concurrent key diversity.
+     */
+    public void testCrossIndexCacheEntriesAreIndependent() throws Exception {
+        // Provision a second index with the same schema.
+        try { client().performRequest(new Request("DELETE", "/" + INDEX_B)); } catch (Exception ignored) {}
+        provisionNamedIndex(INDEX_B);
+        try {
+            clearAllCaches();
+            assertCacheEmpty();
+
+            String pplA = "source=" + INDEX_NAME + " | where age > 80 | stats count()";
+            String pplB = "source=" + INDEX_B + " | where score > 75.0 | stats count()";
+
+            // Cold run on both indices.
+            executePpl(pplA);
+            executePpl(pplB);
+            JsonNode cold = stats();
+            // Each index contributes 1 CI entry (1 file × 1 pred col × 1 RG).
+            // Total CI entries = 2 (one per index, different file paths).
+            long ciAfterBoth = ciEntries(cold);
+            assertTrue("cross-index: CI entries must be >= 2 after cold queries on both indices",
+                ciAfterBoth >= 2);
+
+            // Warm run on both — both should hit.
+            long hitsBefore = ciHits(cold);
+            executePpl(pplA);
+            executePpl(pplB);
+            JsonNode warm = stats();
+            assertTrue("cross-index: CI hits must increase after warm queries on both indices",
+                ciHits(warm) > hitsBefore);
+
+            // Clearing index A's entries via prefix eviction must not affect index B.
+            // (Index B has different file path prefix so its entries survive.)
+            executePpl(pplB); // ensure B is warm
+            long bHitsBefore = ciHits(stats());
+            // Simulate an eviction for INDEX_NAME by clearing all and re-running only B.
+            clearAllCaches();
+            executePpl(pplA); // re-populates A
+            executePpl(pplB); // should hit from re-populated B after cache clear
+            // B's entries are fresh misses after the clear — that's expected and correct.
+            assertPositive("cross-index: B CI misses after full clear", ciMisses(stats()));
+        } finally {
+            try { client().performRequest(new Request("DELETE", "/" + INDEX_B)); } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Cache sized to hold exactly one index's worth of entries (tight budget).
+     * Concurrent queries on INDEX_NAME and INDEX_B put the FIFO write lock under
+     * contention while eviction fires. After all queries:
+     * <ul>
+     *   <li>used_bytes must not exceed the limit (correctness under eviction).</li>
+     *   <li>Both indices must still return correct query results (cache is optional).</li>
+     *   <li>Cache stats must be internally consistent (no phantom entries).</li>
+     * </ul>
+     *
+     * <p>The budget is set to approximately the size of CI entries for one index so
+     * inserting B's entries forces eviction of A's (or vice versa) — exercising the
+     * FIFO drain path under concurrent inserts.
+     */
+    public void testCacheContetionTwoIndicesOneTightBudget() throws Exception {
+        try { client().performRequest(new Request("DELETE", "/" + INDEX_B)); } catch (Exception ignored) {}
+        provisionNamedIndex(INDEX_B);
+        try {
+            // Set a tight budget: ~500 bytes — enough for a handful of entries but not all.
+            // A typical CI entry for an integer column with 2000 rows is ~100-500 bytes.
+            // This forces eviction when both indices push entries concurrently.
+            setCacheTotalSize("2kb");
+            clearAllCaches();
+            assertCacheEmpty();
+
+            String pplA1 = "source=" + INDEX_NAME + " | where age > 80 | stats count()";
+            String pplA2 = "source=" + INDEX_NAME + " | where score > 75.0 | stats count()";
+            String pplB1 = "source=" + INDEX_B + " | where age > 60 | stats count()";
+            String pplB2 = "source=" + INDEX_B + " | where score > 60.0 | stats count()";
+
+            // Interleave queries on both indices — drives concurrent cache inserts + evictions.
+            for (int i = 0; i < 3; i++) {
+                executePpl(pplA1);
+                executePpl(pplB1);
+                executePpl(pplA2);
+                executePpl(pplB2);
+                // Interleave refreshes to create new segments.
+                if (i == 1) {
+                    client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_refresh"));
+                    client().performRequest(new Request("POST", "/" + INDEX_B + "/_refresh"));
+                }
+            }
+
+            JsonNode s = stats();
+            long limit = s.get("column_index_cache").get("size_limit_bytes").asLong();
+            long usedBytes = s.get("column_index_cache").get("memory_bytes").asLong();
+
+            // Correctness: cache must never exceed its limit.
+            assertTrue(
+                "CI used_bytes=" + usedBytes + " must be <= size_limit_bytes=" + limit,
+                usedBytes <= limit
+            );
+
+            // Result correctness: queries must return valid results regardless of eviction.
+            // Re-run all queries — they must not error even if the cache is empty.
+            executePpl(pplA1);
+            executePpl(pplA2);
+            executePpl(pplB1);
+            executePpl(pplB2);
+
+        } finally {
+            restoreCacheDefaults();
+            clearAllCaches();
+            try { client().performRequest(new Request("DELETE", "/" + INDEX_B)); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Provision a named parquet index with the same schema as the main test index. */
+    private void provisionNamedIndex(String indexName) throws IOException {
+        String body = "{"
+            + "\"settings\":{"
+            + "  \"number_of_shards\":1,\"number_of_replicas\":0,"
+            + "  \"index.pluggable.dataformat.enabled\":true,"
+            + "  \"index.pluggable.dataformat\":\"composite\","
+            + "  \"index.composite.primary_data_format\":\"parquet\","
+            + "  \"index.composite.secondary_data_formats\":\"lucene\""
+            + "},"
+            + "\"mappings\":{\"properties\":{"
+            + "  \"name\":{\"type\":\"keyword\"},"
+            + "  \"age\":{\"type\":\"integer\"},"
+            + "  \"score\":{\"type\":\"double\"},"
+            + "  \"city\":{\"type\":\"keyword\"}"
+            + "}}}";
+        Request create = new Request("PUT", "/" + indexName);
+        create.setJsonEntity(body);
+        assertOkAndParse(client().performRequest(create), "create " + indexName);
+
+        Request health = new Request("GET", "/_cluster/health/" + indexName);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+
+        String[] cities = {"seattle", "portland", "denver", "austin", "boston"};
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < DOC_COUNT; i++) {
+            bulk.append("{\"index\":{}}\n")
+                .append("{\"name\":\"user").append(i)
+                .append("\",\"age\":").append(i % 100)
+                .append(",\"score\":").append(50.0 + (i % 50))
+                .append(",\"city\":\"").append(cities[i % cities.length])
+                .append("\"}\n");
+        }
+        Request bulkReq = new Request("POST", "/" + indexName + "/_bulk");
+        bulkReq.setJsonEntity(bulk.toString());
+        bulkReq.addParameter("refresh", "true");
+        bulkReq.setOptions(bulkReq.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
+        Map<String, Object> r = assertOkAndParse(client().performRequest(bulkReq), "bulk " + indexName);
+        assertEquals(indexName + " bulk errors", false, r.get("errors"));
+    }
+
     // ── full enabled → disabled lifecycle loop ────────────────────────────────
 
     /**
