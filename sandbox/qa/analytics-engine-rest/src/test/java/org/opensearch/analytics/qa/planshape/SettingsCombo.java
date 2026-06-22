@@ -16,13 +16,14 @@ import java.util.Map;
  * {@code planshape/combos.yaml}. Goldens reference a combo only by {@link #name()}.
  *
  * <p>A combo IS its settings — there is no knob-token indirection. {@link #clusterSettings()} are
- * applied via {@code PUT /_cluster/settings}; {@link #indexSettings()} are applied at the index
- * {@code PUT} when the dataset is provisioned.
+ * applied via {@code PUT /_cluster/settings}.
  *
- * <p>{@code number_of_shards} is a REQUIRED index setting — it is the universal root knob (it decides
- * whether the plan splits into a coordinator stage), so every combo must declare it. It lives in
- * {@link #indexSettings()} like any other index-scoped knob and is also surfaced as the typed
- * convenience {@link #numberOfShards()} (the harness needs it for index naming).
+ * <p>{@code number_of_shards} is a REQUIRED index setting — the universal root knob (it decides
+ * whether the plan splits into a coordinator stage), so every combo must declare it under
+ * {@code index:}. TODAY it is the ONLY index setting the harness applies: it is read via the typed
+ * {@link #numberOfShards()} and injected at the index {@code PUT}. Any OTHER key in
+ * {@link #indexSettings()} is currently parsed but NOT applied — wiring the full map through
+ * provisioning is future work for when a second index-scoped knob is added.
  *
  * <p>Example {@code combos.yaml}:
  * <pre>
@@ -70,7 +71,10 @@ public final class SettingsCombo {
         return clusterSettings;
     }
 
-    /** Index-scope settings (including {@code number_of_shards}) applied at provision time. */
+    /**
+     * Index-scope settings as declared under {@code index:}. NOTE: only {@code number_of_shards} is
+     * applied today (via {@link #numberOfShards()}); other keys are not yet wired into provisioning.
+     */
     public Map<String, Object> indexSettings() {
         return indexSettings;
     }

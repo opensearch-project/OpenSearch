@@ -59,8 +59,8 @@ public final class SettingsComboRegistry {
 
     /** Load and parse a {@code combos.yaml} classpath resource into named {@link SettingsCombo}s. */
     @SuppressWarnings("unchecked")
-    public static SettingsComboRegistry load(ClassLoader loader, String resourcePath) throws IOException {
-        try (InputStream is = loader.getResourceAsStream(resourcePath)) {
+    public static SettingsComboRegistry load(String resourcePath) throws IOException {
+        try (InputStream is = SettingsComboRegistry.class.getClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
                 throw new IllegalStateException(
                     String.format(Locale.ROOT, "combos resource not found: %s", resourcePath)
@@ -77,18 +77,18 @@ public final class SettingsComboRegistry {
 
             LinkedHashMap<String, SettingsCombo> byName = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : combos.entrySet()) {
-                String name = entry.getKey();
-                Map<String, Object> body = (Map<String, Object>) entry.getValue();
+                String comboName = entry.getKey();
+                Map<String, Object> comboBody = (Map<String, Object>) entry.getValue();
 
-                Map<String, Object> cluster = (Map<String, Object>) body.getOrDefault("cluster", Map.of());
-                Map<String, Object> index = (Map<String, Object>) body.getOrDefault("index", Map.of());
+                Map<String, Object> cluster = (Map<String, Object>) comboBody.getOrDefault("cluster", Map.of());
+                Map<String, Object> index = (Map<String, Object>) comboBody.getOrDefault("index", Map.of());
                 if (!index.containsKey(SettingsCombo.NUMBER_OF_SHARDS)) {
                     throw new IllegalStateException(
-                        String.format(Locale.ROOT, "combo '%s' must declare index.%s", name, SettingsCombo.NUMBER_OF_SHARDS)
+                        String.format(Locale.ROOT, "combo '%s' must declare index.%s", comboName, SettingsCombo.NUMBER_OF_SHARDS)
                     );
                 }
 
-                byName.put(name, new SettingsCombo(name, cluster, index));
+                byName.put(comboName, new SettingsCombo(comboName, cluster, index));
             }
 
             List<String> defaults = (List<String>) root.get("defaults");

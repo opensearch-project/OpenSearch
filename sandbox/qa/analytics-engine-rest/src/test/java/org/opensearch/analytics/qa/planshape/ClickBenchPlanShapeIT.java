@@ -42,7 +42,7 @@ public class ClickBenchPlanShapeIT extends PlanShapeGoldenTestBase {
 
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
-        return enumerate(SPEC);
+        return buildQueryAndSettingCombinationsToRun(SPEC);
     }
 
     public ClickBenchPlanShapeIT(@Name("case") GoldenCase testCase) {

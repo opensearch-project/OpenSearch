@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa.planshape;
 
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -90,22 +89,23 @@ public final class ExpectedQueryPlan {
      * absent under that combo. {@code same_as} references are already resolved at load time.
      */
     public Optional<String> expected(String comboName, PlanShapeLayer layer) {
-        return expectedRaw(comboName, layer.yamlKey());
+        return expectedTextForLayerKey(comboName, layer.yamlKey());
     }
 
     /**
-     * Expected plan text for a (combo, raw YAML key), or {@link Optional#empty()} if absent. Used
-     * for the segment-topology variants of the shard physical plan ({@code shard_physical_1seg} /
-     * {@code shard_physical_nseg}), which are not fixed {@link PlanShapeLayer}s but sub-keys that
-     * exist only when the 1seg and Nseg shard plans diverge.
+     * Expected plan text for a (combo, layer key), or {@link Optional#empty()} if absent. The layer
+     * key is the golden's YAML key for a {@link PlanShapeLayer} ({@code post_cbo} / {@code fragment} /
+     * {@code shard_physical} / {@code coord_physical}), or a shard segment-layout sub-key
+     * ({@code shard_physical_1seg} / {@code shard_physical_nseg}) that exists only when the single-
+     * and multi-segment shard plans diverge.
      */
-    public Optional<String> expectedRaw(String comboName, String yamlKey) {
-        Map<String, String> byLayer = plansByCombo.get(comboName);
-        if (byLayer == null) {
+    public Optional<String> expectedTextForLayerKey(String comboName, String layerKey) {
+        Map<String, String> textByLayerKey = plansByCombo.get(comboName);
+        if (textByLayerKey == null) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "query '%s' has no plans for combo '%s'", queryId, comboName)
             );
         }
-        return Optional.ofNullable(byLayer.get(yamlKey));
+        return Optional.ofNullable(textByLayerKey.get(layerKey));
     }
 }

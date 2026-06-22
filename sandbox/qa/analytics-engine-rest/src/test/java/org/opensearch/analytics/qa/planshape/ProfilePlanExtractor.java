@@ -8,8 +8,6 @@
 
 package org.opensearch.analytics.qa.planshape;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.qa.planshape.ExpectedQueryPlan.PlanShapeLayer;
 
 import java.util.LinkedHashMap;
@@ -38,9 +36,6 @@ import java.util.regex.Pattern;
  */
 public final class ProfilePlanExtractor {
 
-    // FIXME [RemoveBeforeMerge]: verbose diagnostics while bringing up the harness.
-    private static final Logger LOGGER = LogManager.getLogger(ProfilePlanExtractor.class);
-
     /** Single consistent token for every non-deterministic value we redact from a plan. */
     private static final String SCRUBBED = "<scrubbed>";
 
@@ -48,26 +43,19 @@ public final class ProfilePlanExtractor {
     private static final Pattern FILE_GROUPS = Pattern.compile("file_groups=\\{[^}]*\\}");
     private static final String FILE_GROUPS_SCRUBBED = "file_groups={" + SCRUBBED + "}";
 
-    // DataFusion's TopK dynamic-filter pushdown appends a `, filter=[<expr> > N]` clause to a
-    // SortExec TopK line. It is a RUNTIME watermark, not plan structure: the SortExec shares a
-    // mutable DynamicFilterPhysicalExpr Arc with the running TopK operator, and the rendered value
-    // is whatever threshold the heap reached at display time — it only appears once a partition's
-    // heap fills to k=fetch rows. Its very PRESENCE varies with partition/segment count (1 segment
-    // -> heap fills -> shown; 2 segments -> each partial heap stays under k -> absent). That makes
-    // it a non-plan-shape, capture-time-dependent token, so strip the whole clause (delete, don't
-    // tokenize: the nondeterminism is presence vs absence, which a placeholder wouldn't unify).
-    // Anchored on the preceding preserve_partitioning=[...] so only the SortExec dynamic filter is
-    // removed (DataSourceExec uses predicate=/required_guarantees, never this `, filter=[...]`).
+    // TopK SortExec's `, filter=[<expr> > N]` is a runtime value, not plan shape — its presence flips
+    // with segment count, so we delete the whole clause (anchored on preserve_partitioning=[...] so
+    // only SortExec is touched; DataSourceExec uses predicate=, not this).
+    // TODO(plan-shape): confirm the exact mechanism. The "appears once the TopK heap fills to k"
+    // explanation is from a read of DataFusion source, NOT verified end-to-end — it depends on WHEN
+    // the Profile API snapshots the DF physical plan (pre-exec / mid-exec / post-exec). Trace the
+    // QueryProfileBuilder -> Rust physical_plan capture path to nail this down. See core-axioms.
     private static final Pattern TOPK_DYNAMIC_FILTER =
         Pattern.compile("(preserve_partitioning=\\[[^\\]]*\\]), filter=\\[[^\\]]*\\]");
     private static final String TOPK_DYNAMIC_FILTER_KEPT = "$1";
 
-    // NOTE: input_partitions is NOT scrubbed. It reflects the shard's parquet segment count, which
-    // is now a CONTROLLED axis — every combo is captured under both a single-segment and a
-    // multi-segment index variant, so input_partitions is deterministic per variant and meaningful
-    // to assert. Guiding principle: control the input (pin segment topology), don't erase the
-    // output. The only scrub left is the file_groups absolute path (genuinely host/UUID/gen
-    // specific, not plan shape, not controllable).
+    // input_partitions is deliberately NOT scrubbed: it equals the shard's segment count, which is a
+    // controlled axis (captured per segment layout), so it's deterministic and worth asserting.
 
     /** The concrete index name is scrubbed too, so goldens are index-name agnostic. */
     private static final String INDEX_TOKEN = SCRUBBED;
@@ -92,45 +80,29 @@ public final class ProfilePlanExtractor {
      * agnostic to which per-shard-count index was provisioned.
      */
     @SuppressWarnings("unchecked")
-    public static ProfilePlanExtractor from(Map<String, Object> response, String indexName) {
-        // FIXME [RemoveBeforeMerge]: verbose bring-up diagnostics.
-        LOGGER.info("PLAN-SHAPE DIAG: extracting for index={}, response top-keys={}", indexName, response.keySet());
+    public static ProfilePlanExtractor extractFrom(Map<String, Object> response, String indexName) {
         Map<String, Object> profile = (Map<String, Object>) response.get("profile");
         if (profile == null) {
-            LOGGER.error("PLAN-SHAPE DIAG: NO profile block. full response={}", response);
             throw new AssertionError("response has no 'profile' block — request must set profile=true");
         }
-        // full_plan + stages live under profile.plan in the nested profile shape
-        // ({ summary, plan: {...}, phases }); some builds emit them flat directly on profile.
-        // Accept either: use profile.plan when present, else profile itself.
-        Map<String, Object> plan = profile.containsKey("plan")
-            ? (Map<String, Object>) profile.get("plan")
-            : profile;
-        if (plan == null || plan.get("stages") == null) {
-            LOGGER.error("PLAN-SHAPE DIAG: no stages found. profile keys={} response={}", profile.keySet(), response);
-            throw new AssertionError("profile has no stages; profile keys=" + profile.keySet());
+        // The opensearch-sql plugin's QueryProfile {summary, phases, plan} embeds the analytics-engine
+        // plan profile (full_plan + stages) under the `plan` field, so they live at profile.plan.
+        Map<String, Object> planProfile = (Map<String, Object>) profile.get("plan");
+        if (planProfile == null) {
+            throw new AssertionError("profile has no 'plan' block; profile keys=" + profile.keySet());
         }
-        LOGGER.info("PLAN-SHAPE DIAG: profile keys={}, plan keys={}, full_plan lines={}",
-            profile.keySet(), plan.keySet(), plan.get("full_plan") == null ? "null" : ((List<?>) plan.get("full_plan")).size());
-
-        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) planProfile.get("stages");
         if (stages == null) {
-            LOGGER.error("PLAN-SHAPE DIAG: profile.stages is NULL. profile keys={} full response={}", profile.keySet(), response);
-            throw new AssertionError("profile.stages is null; profile keys=" + profile.keySet() + " response=" + response);
+            throw new AssertionError("profile.plan has no stages; plan keys=" + planProfile.keySet());
         }
-        LOGGER.info("PLAN-SHAPE DIAG: {} stage(s): {}", stages.size(),
-            stages.stream().map(s -> s.get("execution_type") + "(backend=" + s.get("chosen_backend")
-                + ",tasks=" + (s.get("tasks") == null ? "null" : ((List<?>) s.get("tasks")).size()) + ")").toList());
 
         Map<PlanShapeLayer, Optional<String>> layers = new LinkedHashMap<>();
-        layers.put(PlanShapeLayer.POST_CBO, Optional.of(joinLines((List<String>) plan.get("full_plan"))));
+        layers.put(PlanShapeLayer.POST_CBO, Optional.of(joinLines((List<String>) planProfile.get("full_plan"))));
         layers.put(PlanShapeLayer.FRAGMENT, Optional.of(renderFragment(stages)));
-        layers.put(PlanShapeLayer.SHARD_PHYSICAL, physicalOf(stages, SHARD_FRAGMENT));
-        layers.put(PlanShapeLayer.COORD_PHYSICAL, physicalOf(stages, COORDINATOR_REDUCE));
+        layers.put(PlanShapeLayer.SHARD_PHYSICAL, physicalPlanOf(stages, SHARD_FRAGMENT));
+        layers.put(PlanShapeLayer.COORD_PHYSICAL, physicalPlanOf(stages, COORDINATOR_REDUCE));
 
         layers.replaceAll((layer, text) -> text.map(t -> t.replace(indexName, INDEX_TOKEN)));
-        layers.forEach((layer, text) -> LOGGER.info("PLAN-SHAPE DIAG: layer {} -> {}",
-            layer, text.isEmpty() ? "ABSENT" : (text.get().split("\n", 2)[0] + " ...(" + text.get().length() + " chars)")));
         return new ProfilePlanExtractor(layers);
     }
 
@@ -138,7 +110,7 @@ public final class ProfilePlanExtractor {
     // post-fork `alternatives` (see QueryProfileBuilder TODO), assert on those instead.
     @SuppressWarnings("unchecked")
     private static String renderFragment(List<Map<String, Object>> stages) {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder rendered = new StringBuilder();
         for (Map<String, Object> stage : stages) {
             // tree_shape is the delegation shape (CONJUNCTIVE / INTERLEAVED_BOOLEAN_EXPRESSION /
             // ...) and MUST be asserted. "Absent" serializes inconsistently across builds (JSON
@@ -146,7 +118,7 @@ public final class ProfilePlanExtractor {
             // and node-agnostic.
             Object treeShape = stage.get("tree_shape");
             String treeShapeStr = (treeShape == null || "None".equals(treeShape)) ? "NONE" : treeShape.toString();
-            sb.append('[')
+            rendered.append('[')
                 .append(stage.get("execution_type"))
                 .append(" chosen_backend=")
                 .append(stage.get("chosen_backend"))
@@ -157,11 +129,11 @@ public final class ProfilePlanExtractor {
             List<String> fragment = (List<String>) stage.get("fragment");
             if (fragment != null) {
                 for (String line : fragment) {
-                    sb.append(line).append('\n');
+                    rendered.append(line).append('\n');
                 }
             }
         }
-        return stripTrailingNewline(sb.toString());
+        return stripTrailingNewline(rendered.toString());
     }
 
     /**
@@ -170,49 +142,33 @@ public final class ProfilePlanExtractor {
      * stage are expected to be identical after scrubbing; a divergence is a real finding and fails.
      */
     @SuppressWarnings("unchecked")
-    private static Optional<String> physicalOf(List<Map<String, Object>> stages, String executionType) {
+    private static Optional<String> physicalPlanOf(List<Map<String, Object>> stages, String executionType) {
         for (Map<String, Object> stage : stages) {
             if (!executionType.equals(stage.get("execution_type"))) {
                 continue;
             }
             List<Map<String, Object>> tasks = (List<Map<String, Object>>) stage.get("tasks");
             if (tasks == null) {
-                LOGGER.info("PLAN-SHAPE DIAG: {} has no tasks -> physical ABSENT", executionType);
                 return Optional.empty();
             }
-            TreeSet<String> distinct = new TreeSet<>();
-            int withPlan = 0;
+            TreeSet<String> distinctPlans = new TreeSet<>();
             for (Map<String, Object> task : tasks) {
-                Object plan = task.get("physical_plan");
-                if (plan instanceof String s && !s.isEmpty()) {
-                    withPlan++;
-                    distinct.add(scrub(s));
+                Object physicalPlan = task.get("physical_plan");
+                if (physicalPlan instanceof String text && !text.isEmpty()) {
+                    distinctPlans.add(scrub(text));
                 }
             }
-            LOGGER.info("PLAN-SHAPE DIAG: {} -> {} task(s), {} with physical_plan, {} distinct after scrub",
-                executionType, tasks.size(), withPlan, distinct.size());
-            if (distinct.isEmpty()) {
+            if (distinctPlans.isEmpty()) {
                 return Optional.empty();
             }
-            if (distinct.size() > 1) {
-                // FIXME [RemoveBeforeMerge]: pinpoint which line(s) differ between the two variants.
-                String[] a = distinct.first().split("\n", -1);
-                String[] b = distinct.last().split("\n", -1);
-                for (int i = 0; i < Math.max(a.length, b.length); i++) {
-                    String la = i < a.length ? a[i] : "<none>";
-                    String lb = i < b.length ? b[i] : "<none>";
-                    if (!la.equals(lb)) {
-                        LOGGER.error("PLAN-SHAPE DIAG: {} divergence at line {}:\n  A: {}\n  B: {}", executionType, i, la, lb);
-                    }
-                }
+            if (distinctPlans.size() > 1) {
                 throw new AssertionError(
                     "tasks of stage " + executionType + " produced differing physical plans after scrub:\n"
-                        + String.join("\n--- vs ---\n", distinct)
+                        + String.join("\n--- vs ---\n", distinctPlans)
                 );
             }
-            return Optional.of(distinct.first());
+            return Optional.of(distinctPlans.first());
         }
-        LOGGER.info("PLAN-SHAPE DIAG: no {} stage present -> physical ABSENT", executionType);
         return Optional.empty();
     }
 

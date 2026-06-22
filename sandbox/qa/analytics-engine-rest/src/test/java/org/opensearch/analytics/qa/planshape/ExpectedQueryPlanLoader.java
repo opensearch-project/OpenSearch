@@ -37,12 +37,18 @@ public final class ExpectedQueryPlanLoader {
 
     private ExpectedQueryPlanLoader() {}
 
+    /**
+     * Load one query's {@code q{N}.plan.yaml} golden (at {@code goldenResourcePath} on the
+     * classpath) into an {@link ExpectedQueryPlan}: resolves the query text (inline {@code ppl} or a
+     * {@code ppl_file} under {@code queryDir}) and the per-combo, per-layer expected plan text,
+     * resolving any {@code same_as} references.
+     */
     @SuppressWarnings("unchecked")
-    public static ExpectedQueryPlan load(ClassLoader loader, String goldenResourcePath, String queryDir) throws IOException {
-        Map<String, Object> root = parseYaml(loader, goldenResourcePath);
+    public static ExpectedQueryPlan loadGolden(String goldenResourcePath, String queryDir) throws IOException {
+        Map<String, Object> root = parseYaml(goldenResourcePath);
 
-        String queryId = stringField(root, "query", goldenResourcePath);
-        String queryText = resolveQueryText(loader, root, queryDir, goldenResourcePath);
+        String queryId = requiredString(root, "query", goldenResourcePath);
+        String queryText = resolveQueryText(root, queryDir, goldenResourcePath);
 
         List<String> applies = (List<String>) root.get("applies");
         if (applies == null || applies.isEmpty()) {
@@ -61,63 +67,68 @@ public final class ExpectedQueryPlanLoader {
         // First pass: collect each combo's raw layer map (text or same_as ref) without resolving.
         Map<String, Map<String, Object>> rawByCombo = new LinkedHashMap<>();
         for (String combo : applies) {
-            Object body = plans.get(combo);
-            if (body == null) {
+            Object comboPlans = plans.get(combo);
+            if (comboPlans == null) {
                 throw new IllegalStateException(
                     String.format(Locale.ROOT, "golden '%s' applies to combo '%s' but has no plans for it", goldenResourcePath, combo)
                 );
             }
-            rawByCombo.put(combo, (Map<String, Object>) body);
+            rawByCombo.put(combo, (Map<String, Object>) comboPlans);
         }
 
         // Second pass: resolve same_as (one hop) into concrete layer text.
-        Map<String, Map<String, String>> resolved = new LinkedHashMap<>();
+        Map<String, Map<String, String>> resolvedByCombo = new LinkedHashMap<>();
         for (String combo : applies) {
-            Map<String, Object> raw = rawByCombo.get(combo);
-            Map<String, String> byLayer = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> layer : raw.entrySet()) {
-                byLayer.put(layer.getKey(), resolveLayer(layer.getValue(), rawByCombo, combo, layer.getKey(), goldenResourcePath));
+            Map<String, Object> rawLayers = rawByCombo.get(combo);
+            Map<String, String> textByLayerKey = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> layer : rawLayers.entrySet()) {
+                textByLayerKey.put(layer.getKey(), resolveLayerText(layer.getValue(), rawByCombo, combo, layer.getKey(), goldenResourcePath));
             }
-            resolved.put(combo, byLayer);
+            resolvedByCombo.put(combo, textByLayerKey);
         }
 
-        return new ExpectedQueryPlan(queryId, queryText, applies, resolved);
+        return new ExpectedQueryPlan(queryId, queryText, applies, resolvedByCombo);
     }
 
-    /** Resolve a layer value: a plain string is plan text; a {@code {same_as: <combo>}} map is a one-hop ref. */
+    /**
+     * The expected plan text for one layer of one combo. A layer value in the golden is either the
+     * literal plan text, or a {@code {same_as: <otherCombo>}} map that reuses that other combo's text
+     * for the same layer verbatim (so identical plans aren't duplicated across combos). Resolves the
+     * latter — one hop only; the target must itself be literal text.
+     */
     @SuppressWarnings("unchecked")
-    private static String resolveLayer(
-        Object value,
+    private static String resolveLayerText(
+        Object rawLayerValue,
         Map<String, Map<String, Object>> rawByCombo,
         String combo,
         String layerKey,
         String goldenResourcePath
     ) {
-        if (value instanceof String s) {
-            return s;
+        if (rawLayerValue instanceof String literalText) {
+            return literalText;
         }
-        if (value instanceof Map) {
-            Object ref = ((Map<String, Object>) value).get("same_as");
-            if (ref instanceof String refCombo) {
-                Map<String, Object> target = rawByCombo.get(refCombo);
-                if (target == null) {
+        if (rawLayerValue instanceof Map) {
+            Object sameAs = ((Map<String, Object>) rawLayerValue).get("same_as");
+            if (sameAs instanceof String referencedCombo) {
+                Map<String, Object> referencedLayers = rawByCombo.get(referencedCombo);
+                if (referencedLayers == null) {
                     throw new IllegalStateException(
-                        String.format(Locale.ROOT, 
+                        String.format(Locale.ROOT,
                             "golden '%s' combo '%s' layer '%s' references same_as '%s', which is not an applied combo",
-                            goldenResourcePath, combo, layerKey, refCombo
+                            goldenResourcePath, combo, layerKey, referencedCombo
                         )
                     );
                 }
-                Object targetValue = target.get(layerKey);
-                if (!(targetValue instanceof String s)) {
+                Object referencedText = referencedLayers.get(layerKey);
+                if (!(referencedText instanceof String literalText)) {
                     throw new IllegalStateException(
-                        String.format(Locale.ROOT, 
+                        String.format(Locale.ROOT,
                             "golden '%s' combo '%s' layer '%s' same_as '%s' must point at literal text (no chained same_as / missing layer)",
-                            goldenResourcePath, combo, layerKey, refCombo
+                            goldenResourcePath, combo, layerKey, referencedCombo
                         )
                     );
                 }
-                return s;
+                return literalText;
             }
         }
         throw new IllegalStateException(
@@ -126,8 +137,7 @@ public final class ExpectedQueryPlanLoader {
     }
 
     /** Resolve query text from inline {@code ppl:} XOR referenced {@code ppl_file:}. */
-    private static String resolveQueryText(ClassLoader loader, Map<String, Object> root, String queryDir, String goldenResourcePath)
-        throws IOException {
+    private static String resolveQueryText(Map<String, Object> root, String queryDir, String goldenResourcePath) throws IOException {
         Object inline = root.get("ppl");
         Object file = root.get("ppl_file");
         if ((inline == null) == (file == null)) {
@@ -138,12 +148,13 @@ public final class ExpectedQueryPlanLoader {
         if (inline != null) {
             return ((String) inline).strip();
         }
-        return loadResource(loader, queryDir + "/" + file).strip();
+        return loadResource(queryDir + "/" + file).strip();
     }
 
-    private static String stringField(Map<String, Object> root, String key, String goldenResourcePath) {
-        Object v = root.get(key);
-        if (!(v instanceof String s)) {
+    /** Read a required top-level string field from the parsed golden, failing if absent or non-string. */
+    private static String requiredString(Map<String, Object> root, String key, String goldenResourcePath) {
+        Object value = root.get(key);
+        if (!(value instanceof String s)) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "golden '%s' missing required string field '%s'", goldenResourcePath, key)
             );
@@ -151,13 +162,8 @@ public final class ExpectedQueryPlanLoader {
         return s;
     }
 
-    private static Map<String, Object> parseYaml(ClassLoader loader, String resourcePath) throws IOException {
-        try (InputStream is = loader.getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                throw new IllegalStateException(
-                    String.format(Locale.ROOT, "golden resource not found: %s", resourcePath)
-                );
-            }
+    private static Map<String, Object> parseYaml(String resourcePath) throws IOException {
+        try (InputStream is = resourceStream(resourcePath, "golden")) {
             try (
                 XContentParser parser = YamlXContent.yamlXContent.createParser(
                     NamedXContentRegistry.EMPTY,
@@ -170,16 +176,21 @@ public final class ExpectedQueryPlanLoader {
         }
     }
 
-    private static String loadResource(ClassLoader loader, String resourcePath) throws IOException {
-        try (InputStream is = loader.getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                throw new IllegalStateException(
-                    String.format(Locale.ROOT, "query resource not found: %s", resourcePath)
-                );
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                return reader.lines().collect(Collectors.joining("\n"));
-            }
+    private static String loadResource(String resourcePath) throws IOException {
+        try (
+            InputStream is = resourceStream(resourcePath, "query");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
+        ) {
+            return reader.lines().collect(Collectors.joining("\n"));
         }
+    }
+
+    /** Open a classpath resource (from this class's loader), failing with a {@code kind}-tagged message. */
+    private static InputStream resourceStream(String resourcePath, String kind) {
+        InputStream is = ExpectedQueryPlanLoader.class.getClassLoader().getResourceAsStream(resourcePath);
+        if (is == null) {
+            throw new IllegalStateException(String.format(Locale.ROOT, "%s resource not found: %s", kind, resourcePath));
+        }
+        return is;
     }
 }

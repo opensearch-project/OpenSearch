@@ -43,26 +43,26 @@ public final class DatasetProvisioner {
     /**
      * How the dataset's documents are laid out into parquet segments per shard — a controlled axis
      * for plan-shape tests, where the shard DataFusion physical plan can legitimately differ with
-     * segment count (e.g. a TopK's runtime dynamic filter).
+     * segment count (e.g. the scan's {@code input_partitions}). The {@code suffix} disambiguates the
+     * per-layout index name.
      */
     public enum SegmentLayout {
-        /** Single bulk + flush; segment count is whatever the engine produces (not pinned). */
-        DEFAULT,
-        /** Single bulk + flush, then force-merge to exactly one segment per shard. */
-        SINGLE_SEGMENT,
+        /** Exactly one segment per shard: single bulk + flush, then force-merge to one segment. */
+        SINGLE_SEGMENT("1seg"),
         /**
-         * Exactly {@link #MULTI_SEGMENT_COUNT} segments per shard: bulk the rows in that many parts,
-         * flushing after each. Parquet flush→segment is 1:1 (one writer generation per flush →
-         * one parquet file → one segment), so N flushed parts yield exactly N segments per shard,
-         * deterministically — that pins the shard physical plan's {@code input_partitions}.
-         *
-         * <p>Deliberately NO force-merge here. Force-merge's contract is "at most maxNumSegments",
-         * not "exactly": on this small data {@code _forcemerge?max_num_segments=2} would happily
-         * collapse 2 tiny segments into 1 (well under the 5GB max-merged-segment budget), which is
-         * the one thing that could break the count. The default TieredMergePolicy won't auto-merge
-         * them either (segments_per_tier=10 ≫ 2), so the N flushed parts stay put.
+         * Exactly {@link #MULTI_SEGMENT_COUNT} segments per shard: bulk in that many flushed parts.
+         * Parquet flush→segment is 1:1, so N parts give exactly N segments — deterministically pinning
+         * the scan's {@code input_partitions}. No force-merge: it caps "at most N" and could collapse
+         * tiny segments to 1; the default TieredMergePolicy won't auto-merge so few either.
          */
-        MULTI_SEGMENT
+        MULTI_SEGMENT("nseg");
+
+        /** Short tag for the per-layout index name (e.g. {@code parquet_hits_2s_1seg}). */
+        public final String suffix;
+
+        SegmentLayout(String suffix) {
+            this.suffix = suffix;
+        }
     }
 
     /** The per-shard segment count produced by {@link SegmentLayout#MULTI_SEGMENT} (one flush each). */
@@ -73,13 +73,17 @@ public final class DatasetProvisioner {
     }
 
     /**
-     * Provision the dataset into the cluster with parquet as the primary data format.
+     * Provision the dataset into the cluster with parquet as the primary data format. Segment layout
+     * is left to the engine (single bulk + flush); pass a {@link SegmentLayout} to control it.
      */
     public static void provision(RestClient client, Dataset dataset, int numberOfShards) throws IOException {
-        provision(client, dataset, numberOfShards, SegmentLayout.DEFAULT);
+        provision(client, dataset, numberOfShards, null);
     }
 
-    /** Provision with an explicit {@link SegmentLayout} controlling per-shard segment topology. */
+    /**
+     * Provision the dataset, optionally pinning the per-shard segment layout via {@code layout}
+     * ({@code null} = single bulk + flush, engine-decided segment count).
+     */
     public static void provision(RestClient client, Dataset dataset, int numberOfShards, SegmentLayout layout) throws IOException {
         for (String indexName : dataset.indexNames) {
             provisionIndex(client, dataset, indexName, numberOfShards, layout);
@@ -91,9 +95,9 @@ public final class DatasetProvisioner {
     }
 
     /**
-     * Provision the dataset with {@code numberOfShards} overriding the value in the mapping.
-     * Pass {@code 0} to keep the mapping's value. Used by tests that need multi-shard
-     * coverage of planner paths (exchange insertion, sort split, etc.).
+     * Provision one index. {@code numberOfShards} overrides the mapping's value ({@code 0} keeps it).
+     * {@code layout} pins the per-shard segment layout ({@code null} = single bulk + flush, engine-
+     * decided). Used by tests needing multi-shard / multi-segment coverage of planner paths.
      */
     private static void provisionIndex(RestClient client, Dataset dataset, String indexName, int numberOfShards, SegmentLayout layout)
         throws IOException {
@@ -138,6 +142,7 @@ public final class DatasetProvisioner {
                 // deterministic (no per-shard divergence from differing segment counts).
                 forceMergeAndFlush(client, indexName, 1);
             }
+            // layout == null: leave segment count to the engine (legacy non-plan-shape callers).
         }
 
         // Wait for index health. wait_for_status=yellow only guarantees primaries are assigned, not
@@ -197,6 +202,14 @@ public final class DatasetProvisioner {
             }
         }
         int pairCount = docLines.size() / 2; // (action, source) pairs
+        // Each part is flushed into its own segment, so we need at least one doc per part — otherwise
+        // we'd silently produce fewer segments than requested and the shard plan's input_partitions
+        // wouldn't match the golden. Fail loudly instead.
+        if (pairCount < parts) {
+            throw new IllegalArgumentException(
+                "dataset has " + pairCount + " doc(s), too few for a " + parts + "-segment layout (need >= " + parts + ")"
+            );
+        }
         int pairsPerPart = Math.max(1, (int) Math.ceil((double) pairCount / parts));
         List<String> chunks = new ArrayList<>();
         StringBuilder chunk = new StringBuilder();
@@ -218,6 +231,11 @@ public final class DatasetProvisioner {
         return chunks;
     }
 
+    // TODO(plan-shape): both this and injectParquetSettings mutate the index settings by string/regex
+    // rewriting the raw mapping JSON — brittle (depends on the literal "number_of_shards" token) and
+    // it means a combo's SettingsCombo.indexSettings map can't drive arbitrary index knobs. Replace
+    // with: parse mapping JSON -> merge a settings map (mapping defaults + parquet + combo.indexSettings)
+    // -> re-serialize. Shared by ~15 ITs, so do it as its own change and re-verify them.
     /**
      * Replace the {@code number_of_shards} value in the mapping body. Matches the form
      * {@code "number_of_shards": <int>} produced by the canonical dataset mappings.

@@ -31,13 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Shared harness for plan-shape golden ITs. One JUnit case per (query, combo): each applies the
  * combo's cluster settings, captures the {@code /_plugins/_ppl?profile=true} plan under both segment
- * topologies (see {@link SegmentVariant}), renders it into the {@link PlanShapeLayer}s, and asserts
- * each against the query's golden. The non-shard layers are segment-independent (asserted once); the
- * shard physical plan is asserted per segment variant.
+ * layouts ({@link SegmentLayout}), renders it into the {@link PlanShapeLayer}s, and asserts each
+ * against the query's golden. The non-shard layers are segment-independent (asserted once); the
+ * shard physical plan is asserted per segment layout.
  *
  * <p>Per-workload subclasses supply a {@link WorkloadSpec} via a static {@code @ParametersFactory}
- * that calls {@link #enumerate(WorkloadSpec)} (the factory must be static, so it cannot read an
- * instance field).
+ * that calls {@link #buildQueryAndSettingCombinationsToRun(WorkloadSpec)} (the factory must be
+ * static, so it cannot read an instance field).
  */
 public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
 
@@ -63,29 +63,21 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
     }
 
     /**
-     * Per-shard parquet segment topology — a controlled axis (see core-axioms): the shard physical
-     * plan can legitimately differ with segment count (e.g. a TopK's runtime dynamic filter), so
-     * every combo is captured under BOTH a single-segment and a multi-segment index. The non-shard
-     * layers (post_cbo / fragment / coord) are NOT segment-derived and captured once (from 1seg).
+     * The two segment layouts every combo is captured under — a controlled axis (see core-axioms):
+     * the shard physical plan can legitimately differ with segment count (e.g. the scan's
+     * {@code input_partitions}). The non-shard layers (post_cbo / fragment / coord) are NOT
+     * segment-derived and are captured once (from the single-segment index).
      */
-    enum SegmentVariant {
-        SINGLE("1seg", SegmentLayout.SINGLE_SEGMENT),
-        MULTI("nseg", SegmentLayout.MULTI_SEGMENT);
+    private static final SegmentLayout[] SEGMENT_LAYOUTS = { SegmentLayout.SINGLE_SEGMENT, SegmentLayout.MULTI_SEGMENT };
 
-        final String suffix;
-        final SegmentLayout layout;
+    /** One unit of YAML indentation; golden nesting is whole multiples of this. */
+    private static final String INDENT = "  ";
 
-        SegmentVariant(String suffix, SegmentLayout layout) {
-            this.suffix = suffix;
-            this.layout = layout;
-        }
-    }
-
-    /** YAML key for the deduped shard physical plan (1seg == nseg). */
+    /** YAML key for the deduped shard physical plan (single-segment == multi-segment). */
     private static final String SHARD_KEY = PlanShapeLayer.SHARD_PHYSICAL.yamlKey();
-    /** YAML keys for the per-segment-topology shard physical plans (used only when they diverge). */
-    private static String shardKey(SegmentVariant v) {
-        return SHARD_KEY + "_" + v.suffix;
+    /** YAML keys for the per-segment-layout shard physical plans (used only when they diverge). */
+    private static String shardKey(SegmentLayout layout) {
+        return SHARD_KEY + "_" + layout.suffix;
     }
 
     private final GoldenCase testCase;
@@ -95,16 +87,16 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
     }
 
     /**
-     * Build the (query x applicable-combo) cases for a workload. Each query's golden declares which
-     * combos it applies to; restricted to the combos this run is exercising (defaults, or
-     * {@code -Dplan.combos=...}). Static — invoked from each subclass's {@code @ParametersFactory}.
+     * Build the JUnit parameter rows — one per (query, setting-combo) — for a workload, the source for
+     * the subclass {@code @ParametersFactory}. Each query's golden declares which combos it applies
+     * to, intersected with the combos this run exercises ({@link #getSettingCombosToRun}). Static, so
+     * it can't read an instance field.
      */
-    protected static List<Object[]> enumerate(WorkloadSpec spec) {
+    protected static List<Object[]> buildQueryAndSettingCombinationsToRun(WorkloadSpec spec) {
         try {
-            ClassLoader cl = PlanShapeGoldenTestBase.class.getClassLoader();
-            SettingsComboRegistry combos = SettingsComboRegistry.load(cl, COMBOS_RESOURCE);
-            List<String> runCombos = requestedCombos(combos);
-            // When generating, a golden may not exist yet — enumerate every run-combo per query.
+            SettingsComboRegistry combos = SettingsComboRegistry.load(COMBOS_RESOURCE);
+            List<String> runCombos = getSettingCombosToRun(combos);
+            // When generating, a golden may not exist yet — use every run-combo per query.
             // When asserting, only the combos the golden declares it applies to (intersected).
             boolean generating = System.getProperty("plan.generate") != null;
 
@@ -112,7 +104,7 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
             for (String queryId : spec.queryIds()) {
                 List<String> queryCombos = generating
                     ? runCombos
-                    : ExpectedQueryPlanLoader.load(cl, spec.goldenResourcePath(queryId), spec.queryDir())
+                    : ExpectedQueryPlanLoader.loadGolden(spec.goldenResourcePath(queryId), spec.queryDir())
                         .appliesCombos().stream().filter(runCombos::contains).toList();
                 for (String comboName : queryCombos) {
                     cases.add(new Object[] { new GoldenCase(spec, queryId, comboName) });
@@ -120,12 +112,12 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
             }
             return cases;
         } catch (IOException e) {
-            throw new RuntimeException("failed enumerating plan-shape cases for workload " + spec.name(), e);
+            throw new RuntimeException("failed building plan-shape cases for workload " + spec.name(), e);
         }
     }
 
-    /** Combos to run this invocation: {@code -Dplan.combos=a,b} or {@code all}, else the file defaults. */
-    private static List<String> requestedCombos(SettingsComboRegistry combos) {
+    /** The {@link SettingsCombo} names this run should exercise: {@code -Dplan.combos=a,b} or {@code all}, else the file defaults. */
+    private static List<String> getSettingCombosToRun(SettingsComboRegistry combos) {
         String prop = System.getProperty("plan.combos");
         if (prop == null || prop.isBlank()) {
             return combos.defaults();
@@ -133,45 +125,40 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
         if (prop.trim().equals("all")) {
             return combos.allNames();
         }
-        return List.of(prop.trim().split("\\s*,\\s*"));
+        List<String> requested = List.of(prop.trim().split("\\s*,\\s*"));
+        // Validate up front: an unknown name in assert mode would otherwise just filter to zero cases
+        // and silently run nothing. byName throws with the list of defined combos.
+        requested.forEach(combos::byName);
+        return requested;
     }
 
-    // ------------------------------------------------------------------ the test
-
     public void testPlanShape() throws Exception {
-        // FIXME [RemoveBeforeMerge]: verbose bring-up diagnostics throughout the test.
-        logger.info("PLAN-SHAPE DIAG: ===== START case {} =====", testCase);
-        ClassLoader cl = getClass().getClassLoader();
-        SettingsComboRegistry combos = SettingsComboRegistry.load(cl, COMBOS_RESOURCE);
+        SettingsComboRegistry combos = SettingsComboRegistry.load(COMBOS_RESOURCE);
         SettingsCombo combo = combos.byName(testCase.comboName);
         boolean generating = System.getProperty("plan.generate") != null;
         // Assertion mode needs the golden; generate mode does not (it's creating it) and reads the
         // query text straight from the workload's query file.
         ExpectedQueryPlan golden = generating
             ? null
-            : ExpectedQueryPlanLoader.load(cl, testCase.workload.goldenResourcePath(testCase.queryId), testCase.workload.queryDir());
+            : ExpectedQueryPlanLoader.loadGolden(testCase.workload.goldenResourcePath(testCase.queryId), testCase.workload.queryDir());
         String queryText = generating
             ? loadResource(testCase.workload.queryDir() + "/" + testCase.queryId + ".ppl").strip()
             : golden.queryText();
-        logger.info("PLAN-SHAPE DIAG: combo={} shards={} clusterSettings={}",
-            combo.name(), combo.numberOfShards(), combo.clusterSettings());
 
         applyClusterSettings(combo);
 
-        // Capture under both segment topologies. The non-shard layers come from SINGLE (they are
-        // not segment-derived); SHARD_PHYSICAL is captured per variant and keyed by topology.
-        Map<SegmentVariant, ProfilePlanExtractor> captured = new LinkedHashMap<>();
-        for (SegmentVariant variant : SegmentVariant.values()) {
-            provisionOnce(testCase.workload, combo.numberOfShards(), variant);
-            String indexName = indexNameFor(testCase.workload, combo.numberOfShards(), variant);
+        // Capture under both segment layouts. The non-shard layers come from the single-segment
+        // index (they are not segment-derived); the shard physical plan is captured per layout.
+        Map<SegmentLayout, ProfilePlanExtractor> captured = new LinkedHashMap<>();
+        for (SegmentLayout layout : SEGMENT_LAYOUTS) {
+            provisionOnce(testCase.workload, combo.numberOfShards(), layout);
+            String indexName = indexNameFor(testCase.workload, combo.numberOfShards(), layout);
+            // Point the query at the per-layout index. Replaces every occurrence of the dataset
+            // name; relies on it being a distinctive token (the source name), not a substring that
+            // also appears elsewhere in the query.
             String ppl = queryText.replace(testCase.workload.dataset().name, indexName);
-            logger.info("PLAN-SHAPE DIAG: variant={} indexName={} ppl=[{}]", variant.suffix, indexName, ppl);
             Map<String, Object> response = executePplWithProfile(ppl);
-            logger.info("PLAN-SHAPE DIAG: variant={} response top-keys={} datarows={} hasError={}",
-                variant.suffix, response.keySet(),
-                response.get("datarows") == null ? "null" : ((List<?>) response.get("datarows")).size(),
-                response.containsKey("error"));
-            captured.put(variant, ProfilePlanExtractor.from(response, indexName));
+            captured.put(layout, ProfilePlanExtractor.extractFrom(response, indexName));
         }
 
         // -Dplan.generate=write|print : capture instead of assert. write -> the q{N}.plan.yaml in
@@ -180,100 +167,84 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
         if (generate != null) {
             String comboYaml = renderComboYaml(captured);
             if ("print".equals(generate)) {
-                logger.info("\n{}{}\n{}", GENERATED_BANNER, testCase, comboYaml);
+                logger.info("plan-shape generated for {}:\n{}", testCase, comboYaml);
             } else {
                 writeGolden(comboYaml);
             }
             return;
         }
 
-        // Non-shard layers: assert once (from the SINGLE capture — segment-independent).
-        ProfilePlanExtractor single = captured.get(SegmentVariant.SINGLE);
+        // Non-shard layers: assert once (from the single-segment capture — segment-independent).
+        ProfilePlanExtractor singleSegment = captured.get(SegmentLayout.SINGLE_SEGMENT);
         for (PlanShapeLayer layer : PlanShapeLayer.values()) {
             if (layer == PlanShapeLayer.SHARD_PHYSICAL) {
                 continue;
             }
-            assertLayer(golden.expected(testCase.comboName, layer), single.layer(layer), layer.toString());
+            assertPlanShapeLayer(golden.expected(testCase.comboName, layer), singleSegment.layer(layer), layer.toString());
         }
         assertShardPhysical(golden, captured);
     }
 
     /**
-     * Assert the shard physical plan for both segment variants. A golden stores either a single
-     * deduped {@code shard_physical} (when 1seg and Nseg are identical) or both
-     * {@code shard_physical_1seg} / {@code shard_physical_nseg} (when they diverge). Resolve per
-     * variant: prefer the variant-specific key, else fall back to the deduped key.
+     * Assert the shard physical plan for both segment layouts. A golden stores either a single
+     * deduped {@code shard_physical} (when the two are identical) or both {@code shard_physical_1seg}
+     * / {@code shard_physical_nseg} (when they diverge). Resolve per layout: prefer the
+     * layout-specific key, else fall back to the deduped key.
      */
-    private void assertShardPhysical(ExpectedQueryPlan golden, Map<SegmentVariant, ProfilePlanExtractor> captured) {
-        for (SegmentVariant variant : SegmentVariant.values()) {
-            Optional<String> actual = captured.get(variant).layer(PlanShapeLayer.SHARD_PHYSICAL);
-            Optional<String> expected = golden.expectedRaw(testCase.comboName, shardKey(variant));
+    private void assertShardPhysical(ExpectedQueryPlan golden, Map<SegmentLayout, ProfilePlanExtractor> captured) {
+        for (SegmentLayout layout : SEGMENT_LAYOUTS) {
+            Optional<String> actual = captured.get(layout).layer(PlanShapeLayer.SHARD_PHYSICAL);
+            Optional<String> expected = golden.expectedTextForLayerKey(testCase.comboName, shardKey(layout));
             if (expected.isEmpty()) {
-                expected = golden.expectedRaw(testCase.comboName, SHARD_KEY); // deduped
+                expected = golden.expectedTextForLayerKey(testCase.comboName, SHARD_KEY); // deduped
             }
-            assertLayer(expected, actual, PlanShapeLayer.SHARD_PHYSICAL + "[" + variant.suffix + "]");
+            assertPlanShapeLayer(expected, actual, PlanShapeLayer.SHARD_PHYSICAL + "[" + layout.suffix + "]");
         }
     }
-
-    private static final String GENERATED_BANNER = ">>>>> PLANSHAPE-GENERATED ";
 
     /**
      * Render this (query, combo)'s captured layers as the YAML body that sits under {@code plans:}.
-     * Non-shard layers come from the SINGLE capture (segment-independent). SHARD_PHYSICAL is
-     * deduped: if 1seg and Nseg are identical, emit one {@code shard_physical}; if they diverge,
-     * emit both {@code shard_physical_1seg} and {@code shard_physical_nseg}.
+     * Non-shard layers come from the single-segment capture (segment-independent). The shard physical
+     * plan is deduped: if the single- and multi-segment plans are identical, emit one
+     * {@code shard_physical}; if they diverge, emit both {@code shard_physical_1seg} and
+     * {@code shard_physical_nseg}.
      */
-    private String renderComboYaml(Map<SegmentVariant, ProfilePlanExtractor> captured) {
-        ProfilePlanExtractor single = captured.get(SegmentVariant.SINGLE);
-        StringBuilder body = new StringBuilder();
-        body.append("  ").append(testCase.comboName).append(":\n");
+    private String renderComboYaml(Map<SegmentLayout, ProfilePlanExtractor> captured) {
+        ProfilePlanExtractor singleSegment = captured.get(SegmentLayout.SINGLE_SEGMENT);
+        StringBuilder yaml = new StringBuilder();
+        yaml.append(INDENT).append(testCase.comboName).append(":\n");
         for (PlanShapeLayer layer : PlanShapeLayer.values()) {
             if (layer == PlanShapeLayer.SHARD_PHYSICAL) {
-                appendShardPhysical(body, captured);
+                appendShardPhysical(yaml, captured);
                 continue;
             }
-            single.layer(layer).ifPresent(text -> appendBlock(body, layer.yamlKey(), text));
+            singleSegment.layer(layer).ifPresent(text -> appendBlock(yaml, layer.yamlKey(), text));
         }
-        return body.toString();
+        return yaml.toString();
     }
 
-    /** Emit the shard physical plan(s): one deduped key if the variants match, else both. */
-    private void appendShardPhysical(StringBuilder body, Map<SegmentVariant, ProfilePlanExtractor> captured) {
-        Optional<String> oneSeg = captured.get(SegmentVariant.SINGLE).layer(PlanShapeLayer.SHARD_PHYSICAL);
-        Optional<String> nSeg = captured.get(SegmentVariant.MULTI).layer(PlanShapeLayer.SHARD_PHYSICAL);
-        if (oneSeg.isEmpty() && nSeg.isEmpty()) {
-            logger.info("PLAN-SHAPE DIAG: {} shard_physical ABSENT for both variants -> omit", testCase);
+    /** Emit the shard physical plan(s): one deduped key if the layouts match, else both. */
+    private void appendShardPhysical(StringBuilder yaml, Map<SegmentLayout, ProfilePlanExtractor> captured) {
+        Optional<String> oneSeg = captured.get(SegmentLayout.SINGLE_SEGMENT).layer(PlanShapeLayer.SHARD_PHYSICAL);
+        Optional<String> multiSeg = captured.get(SegmentLayout.MULTI_SEGMENT).layer(PlanShapeLayer.SHARD_PHYSICAL);
+        if (oneSeg.isEmpty() && multiSeg.isEmpty()) {
             return; // no shard physical (Lucene fast-path): omit, asserted absent for both
         }
-        if (oneSeg.equals(nSeg)) {
-            logger.info("PLAN-SHAPE DIAG: {} shard_physical IDENTICAL across 1seg/nseg -> dedup to one key", testCase);
-            appendBlock(body, SHARD_KEY, oneSeg.get()); // identical across topologies -> dedup
+        if (oneSeg.equals(multiSeg)) {
+            appendBlock(yaml, SHARD_KEY, oneSeg.get()); // identical across layouts -> dedup
             return;
         }
-        logger.info("PLAN-SHAPE DIAG: {} shard_physical DIVERGES 1seg vs nseg -> writing both keys", testCase);
-        logShardDiff(oneSeg.orElse(""), nSeg.orElse(""));
-        // Diverge (e.g. TopK runtime dynamic filter on multi-segment): pin each topology.
-        oneSeg.ifPresent(t -> appendBlock(body, shardKey(SegmentVariant.SINGLE), t));
-        nSeg.ifPresent(t -> appendBlock(body, shardKey(SegmentVariant.MULTI), t));
+        // Diverge: pin each layout under its own key. This also covers the asymmetric case where
+        // one layout has a shard plan and the other doesn't (Optional.empty) — the present side
+        // gets its key, the absent side is simply omitted (asserted absent for that layout).
+        oneSeg.ifPresent(text -> appendBlock(yaml, shardKey(SegmentLayout.SINGLE_SEGMENT), text));
+        multiSeg.ifPresent(text -> appendBlock(yaml, shardKey(SegmentLayout.MULTI_SEGMENT), text));
     }
 
-    /** FIXME [RemoveBeforeMerge]: line-by-line diff of the 1seg vs nseg shard physical plans. */
-    private void logShardDiff(String oneSeg, String nSeg) {
-        String[] a = oneSeg.split("\n", -1);
-        String[] b = nSeg.split("\n", -1);
-        for (int i = 0; i < Math.max(a.length, b.length); i++) {
-            String la = i < a.length ? a[i] : "<none>";
-            String lb = i < b.length ? b[i] : "<none>";
-            if (!la.equals(lb)) {
-                logger.info("PLAN-SHAPE DIAG: shard_physical diff @line {}:\n  1seg: {}\n  nseg: {}", i, la, lb);
-            }
-        }
-    }
-
-    private static void appendBlock(StringBuilder body, String yamlKey, String text) {
-        body.append("    ").append(yamlKey).append(": |\n");
+    private static void appendBlock(StringBuilder yaml, String yamlKey, String text) {
+        yaml.append(INDENT.repeat(2)).append(yamlKey).append(": |\n");
         for (String line : text.split("\n")) {
-            body.append("      ").append(line).append('\n');
+            yaml.append(INDENT.repeat(3)).append(line).append('\n');
         }
     }
 
@@ -288,32 +259,33 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
         if (resourcesDir == null) {
             throw new IllegalStateException("plan.generate=write needs -Dplan.resourcesDir (set by build.gradle)");
         }
-        Map<String, String> byCombo = GENERATED.computeIfAbsent(testCase.workload.name() + "/" + testCase.queryId, k -> new LinkedHashMap<>());
-        byCombo.put(testCase.comboName, comboYaml);
+        Map<String, String> yamlByCombo = GENERATED_YAML_BY_QUERY.computeIfAbsent(
+            testCase.workload.name() + "/" + testCase.queryId, k -> new LinkedHashMap<>());
+        yamlByCombo.put(testCase.comboName, comboYaml);
 
         StringBuilder doc = new StringBuilder();
-        doc.append("# Generated via -Dplan.generate=write, then human-reviewed.\n");
+        doc.append("# Generated via -Dplan.generate=write.\n");
         doc.append("query: ").append(testCase.queryId).append('\n');
         doc.append("ppl_file: ").append(testCase.queryId).append(".ppl\n");
-        doc.append("applies: [").append(String.join(", ", byCombo.keySet())).append("]\n");
+        doc.append("applies: [").append(String.join(", ", yamlByCombo.keySet())).append("]\n");
         doc.append("plans:\n");
-        byCombo.values().forEach(doc::append);
+        yamlByCombo.values().forEach(doc::append);
 
         Path out = Path.of(resourcesDir, testCase.workload.goldenResourcePath(testCase.queryId));
         try {
             Files.createDirectories(out.getParent());
             Files.writeString(out, doc.toString());
-            logger.info("{}{} -> wrote {}", GENERATED_BANNER, testCase, out);
+            logger.info("plan-shape wrote golden {} -> {}", testCase, out);
         } catch (IOException e) {
             throw new UncheckedIOException("failed writing golden " + out, e);
         }
     }
 
-    /** queryKey -> (comboName -> rendered combo YAML), accumulated across cases in a generate run. */
-    private static final Map<String, Map<String, String>> GENERATED = new ConcurrentHashMap<>();
+    /** "workload/queryId" -> (comboName -> that combo's rendered YAML), accumulated across a generate run. */
+    private static final Map<String, Map<String, String>> GENERATED_YAML_BY_QUERY = new ConcurrentHashMap<>();
 
-    /** Assert one captured layer against its expected text (present text, or empty = expected absent). */
-    private void assertLayer(Optional<String> expected, Optional<String> actual, String layerLabel) {
+    /** Assert one captured plan-shape layer against its expected text (present text, or empty = expected absent). */
+    private void assertPlanShapeLayer(Optional<String> expected, Optional<String> actual, String layerLabel) {
         String label = testCase + " " + layerLabel;
 
         if (expected.isEmpty()) {
@@ -336,8 +308,6 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
         );
     }
 
-    // ------------------------------------------------------------------ cluster interaction
-
     private Map<String, Object> executePplWithProfile(String ppl) throws IOException {
         Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\", \"profile\": true}");
@@ -346,81 +316,44 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
 
     private void applyClusterSettings(SettingsCombo combo) throws IOException {
         if (combo.clusterSettings().isEmpty()) {
-            logger.info("PLAN-SHAPE DIAG: combo {} has no cluster settings to apply", combo.name());
             return;
         }
-        StringBuilder body = new StringBuilder("{\"transient\":{");
+        StringBuilder settingsJson = new StringBuilder("{\"transient\":{");
         boolean first = true;
-        for (Map.Entry<String, Object> e : combo.clusterSettings().entrySet()) {
-            if (!first) body.append(',');
+        for (Map.Entry<String, Object> setting : combo.clusterSettings().entrySet()) {
+            if (!first) {
+                settingsJson.append(',');
+            }
             first = false;
-            body.append('"').append(e.getKey()).append("\":").append(toJsonValue(e.getValue()));
+            settingsJson.append('"').append(setting.getKey()).append("\":").append(toJsonValue(setting.getValue()));
         }
-        body.append("}}");
-        Request req = new Request("PUT", "/_cluster/settings");
-        req.setJsonEntity(body.toString());
-        // FIXME [RemoveBeforeMerge]: log the settings body + response.
-        logger.info("PLAN-SHAPE DIAG: applying cluster settings: {}", body);
-        Map<String, Object> resp = assertOkAndParse(client().performRequest(req), "PUT settings: " + body);
-        logger.info("PLAN-SHAPE DIAG: cluster settings applied, ack={}", resp.get("acknowledged"));
+        settingsJson.append("}}");
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(settingsJson.toString());
+        assertOkAndParse(client().performRequest(request), "PUT settings: " + settingsJson);
     }
 
     private static String toJsonValue(Object v) {
         return v instanceof String ? "\"" + v + "\"" : String.valueOf(v);
     }
 
-    // ------------------------------------------------------------------ provisioning (once per shard count)
-
     /**
-     * One index per (shard count, segment topology) cell, so all variants coexist on one cluster,
+     * One index per (shard count, segment layout) cell, so all variants coexist on one cluster,
      * e.g. {@code parquet_hits_2s_1seg} / {@code parquet_hits_2s_nseg}.
      */
-    private static String indexNameFor(WorkloadSpec spec, int numberOfShards, SegmentVariant variant) {
-        return spec.dataset().indexName + "_" + numberOfShards + "s_" + variant.suffix;
+    private static String indexNameFor(WorkloadSpec spec, int numberOfShards, SegmentLayout layout) {
+        return spec.dataset().indexName + "_" + numberOfShards + "s_" + layout.suffix;
     }
 
-    private void provisionOnce(WorkloadSpec spec, int numberOfShards, SegmentVariant variant) throws IOException {
-        String indexName = indexNameFor(spec, numberOfShards, variant);
-        if (PROVISIONED_INDICES.contains(indexName)) {
-            logger.info("PLAN-SHAPE DIAG: index {} already provisioned, skipping", indexName);
-            return;
+    private void provisionOnce(WorkloadSpec spec, int numberOfShards, SegmentLayout layout) throws IOException {
+        String indexName = indexNameFor(spec, numberOfShards, layout);
+        if (!PROVISIONED_INDICES.add(indexName)) {
+            return; // already provisioned this JVM
         }
-        logger.info("PLAN-SHAPE DIAG: provisioning index {} at {} shard(s) topology={} from dataset {}",
-            indexName, numberOfShards, variant.suffix, spec.dataset().name);
         Dataset index = new Dataset(spec.dataset().name, indexName);
-        DatasetProvisioner.provision(client(), index, numberOfShards, variant.layout);
-        PROVISIONED_INDICES.add(indexName);
-        // FIXME [RemoveBeforeMerge]: confirm the segment topology axis actually took effect —
-        // 1seg must be exactly 1 segment per shard, nseg must be >=2. If these don't hold, the
-        // shard-physical variants are meaningless, so surface it loudly here.
-        logSegmentCounts(indexName, variant);
-        logger.info("PLAN-SHAPE DIAG: provisioned {} OK", indexName);
+        DatasetProvisioner.provision(client(), index, numberOfShards, layout);
     }
 
-    /** FIXME [RemoveBeforeMerge]: log the realized per-shard segment count for a provisioned index. */
-    @SuppressWarnings("unchecked")
-    private void logSegmentCounts(String indexName, SegmentVariant variant) {
-        try {
-            Map<String, Object> resp = assertOkAndParse(
-                client().performRequest(new Request("GET", "/" + indexName + "/_segments")), "_segments " + indexName);
-            Map<String, Object> indices = (Map<String, Object>) resp.get("indices");
-            Map<String, Object> idx = (Map<String, Object>) indices.get(indexName);
-            Map<String, Object> shards = (Map<String, Object>) idx.get("shards");
-            shards.forEach((shardId, replicas) -> {
-                for (Object replica : (List<Object>) replicas) {
-                    Map<String, Object> segs = (Map<String, Object>) ((Map<String, Object>) replica).get("segments");
-                    int count = segs == null ? 0 : segs.size();
-                    int expected = variant == SegmentVariant.SINGLE ? 1 : DatasetProvisioner.MULTI_SEGMENT_COUNT;
-                    String warn = count != expected ? " <-- UNEXPECTED (want " + expected + ") for " + variant.suffix : "";
-                    logger.info("PLAN-SHAPE DIAG: index {} [{}] shard {} -> {} segment(s){}",
-                        indexName, variant.suffix, shardId, count, warn);
-                }
-            });
-        } catch (Exception e) {
-            logger.warn("PLAN-SHAPE DIAG: could not read segments for {}: {}", indexName, e.toString());
-        }
-    }
-
-    /** Indices already provisioned this JVM — each shard-count index is provisioned once. */
+    /** Indices already provisioned this JVM — each (shard count, segment layout) index is provisioned once. */
     private static final Set<String> PROVISIONED_INDICES = ConcurrentHashMap.newKeySet();
 }
