@@ -23,14 +23,71 @@ use opensearch_tiered_storage::tiered_object_store::MetadataCachingStore;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use log::{debug, error};
 
-/// Compute ONE global merged range for all page indexes — matching exactly
-/// what parquet crate's `range_for_page_index()` produces.
+/// Compute the page-index regions to warm, as SEPARATE column-index (CI) and
+/// offset-index (OI) whole regions — matching exactly how the query-time
+/// whole-region fetch (`page_index/page_index_io.rs::whole_index_region`) computes
+/// and probes them.
 ///
-/// Folds ALL columns across ALL row groups into a single contiguous range
-/// encompassing all column_index and offset_index data. Returns an empty Vec
-/// if the file has no page index metadata, or a single-element Vec with the
-/// merged range.
+/// Each region folds ALL columns across ALL row groups for that one index kind:
+/// - CI region = `min(start)..max(end)` over every column×RG `column_index` extent
+/// - OI region = `min(start)..max(end)` over every column×RG `offset_index` extent
+///
+/// Returns up to two ranges (CI first, then OI), skipping whichever kind the file
+/// lacks. Returns an empty Vec if the file has no page index at all.
+///
+/// IMPORTANT: warmup must write these as TWO keys (CI, OI) — NOT one merged
+/// CI∪OI range. The query probes the CI whole region and the OI whole region
+/// under separate keys, so a single merged key would never match (warm miss).
 pub(crate) fn compute_page_index_range(metadata: &parquet::file::metadata::ParquetMetaData) -> Vec<std::ops::Range<u64>> {
+    // Column-index whole region across all columns × all row groups.
+    let ci_region = metadata.row_groups().iter()
+        .flat_map(|rg| rg.columns().iter())
+        .fold(None::<std::ops::Range<u64>>, |acc, col| {
+            if let (Some(offset), Some(length)) = (col.column_index_offset(), col.column_index_length()) {
+                let start = offset as u64;
+                let end = start + length as u64;
+                match acc {
+                    Some(a) => Some(a.start.min(start)..a.end.max(end)),
+                    None => Some(start..end),
+                }
+            } else {
+                acc
+            }
+        });
+
+    // Offset-index whole region across all columns × all row groups.
+    let oi_region = metadata.row_groups().iter()
+        .flat_map(|rg| rg.columns().iter())
+        .fold(None::<std::ops::Range<u64>>, |acc, col| {
+            if let (Some(offset), Some(length)) = (col.offset_index_offset(), col.offset_index_length()) {
+                let start = offset as u64;
+                let end = start + length as u64;
+                match acc {
+                    Some(a) => Some(a.start.min(start)..a.end.max(end)),
+                    None => Some(start..end),
+                }
+            } else {
+                acc
+            }
+        });
+
+    let mut ranges = Vec::with_capacity(2);
+    if let Some(r) = ci_region {
+        ranges.push(r);
+    }
+    if let Some(r) = oi_region {
+        ranges.push(r);
+    }
+    ranges
+}
+
+/// Legacy: ONE global merged range covering both column-index and offset-index.
+///
+/// Kept only for reference / non-warmup callers. The warmup path must NOT use this
+/// — it produces a single CI∪OI key that the query-time per-kind whole-region
+/// probes never match. Use [`compute_page_index_range`] instead.
+#[allow(dead_code)]
+pub(crate) fn compute_page_index_range_merged(metadata: &parquet::file::metadata::ParquetMetaData) -> Vec<std::ops::Range<u64>> {
     let page_index_range = metadata.row_groups().iter()
         .flat_map(|rg| rg.columns().iter())
         .fold(None::<std::ops::Range<u64>>, |acc, col| {
@@ -556,8 +613,20 @@ impl CustomCacheManager {
         }
 
         // Step 3: Compute page/offset index byte ranges from the parsed footer.
+        // NOTE: this now returns SEPARATE CI and OI whole regions (up to 2 ranges),
+        // matching the query-time whole-region probe keys exactly. A single merged
+        // CI∪OI range would never match the query's per-kind probes (warm miss).
         let mut index_ranges = compute_page_index_range(&parquet_metadata);
         let pi_count = index_ranges.len();
+        // TEMP debug log (remove before prod): the exact page-index keys warmup will
+        // write — compare against the query's `[query::whole-region-pi] WHOLE_REGION range=`.
+        let path_for_key = file_path.strip_prefix('/').unwrap_or(file_path);
+        for (i, r) in index_ranges.iter().enumerate() {
+            native_bridge_common::log_info!(
+                "[init::warmup] file='{}' page_index_range[{}] = [{}..{}] (key='{}\\x1F{}-{}')",
+                file_path, i, r.start, r.end, path_for_key, r.start, r.end
+            );
+        }
 
         // Also promote the footer (last 64 KB) to metadata Foyer — heap-eviction safety net.
         // Heap holds the parsed `ParquetMetaData` for fast lookups; the metadata Foyer entry
