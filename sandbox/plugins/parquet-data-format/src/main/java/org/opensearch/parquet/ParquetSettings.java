@@ -186,10 +186,10 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Minimum guaranteed bytes for the native write pool. Default is 2% of budget. */
+    /** Minimum guaranteed bytes for the native write pool. Default is 2% of budget on warm nodes, 4% otherwise. */
     public static final Setting<Long> WRITE_POOL_MIN = new Setting<>(
         "parquet.native.pool.write.min",
-        s -> derivePoolMinDefault(s, 2),
+        s -> derivePoolMinDefault(s, DiscoveryNode.isWarmNode(s) ? 2 : 4),
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {
@@ -201,10 +201,10 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the native write pool can burst to. Default is 3% of budget on warm nodes, 5% otherwise. */
+    /** Maximum bytes the native write pool can burst to. Default is 4% of budget on warm nodes, 8% otherwise. */
     public static final Setting<Long> WRITE_POOL_MAX = new Setting<>(
         "parquet.native.pool.write.max",
-        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 3 : 5),
+        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 4 : 8),
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {
