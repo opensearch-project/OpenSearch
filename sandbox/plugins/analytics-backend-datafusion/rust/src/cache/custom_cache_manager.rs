@@ -194,17 +194,10 @@ impl CustomCacheManager {
             {
                 let path = Path::from(file_path.clone());
                 if let Some(cache) = &self.file_metadata_cache {
-                    match cache.inner.lock() {
-                        Ok(cache_guard) => {
-                            if cache_guard.remove(&path).is_some() {
-                                any_removed = true;
-                            } else {
-                                log_debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
-                            }
-                        }
-                        Err(e) => {
-                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
-                        }
+                    if cache.remove(&path).is_some() {
+                        any_removed = true;
+                    } else {
+                        log_debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                     }
                 } else {
                     errors.push("No metadata cache configured".to_string());
@@ -318,9 +311,7 @@ impl CustomCacheManager {
 
         // Add metadata cache memory
         if let Some(cache) = &self.file_metadata_cache {
-            if let Ok(cache_guard) = cache.inner.lock() {
-                total += cache_guard.memory_used();
-            }
+            total += cache.memory_used();
         }
 
         // Add statistics cache memory
@@ -377,11 +368,7 @@ impl CustomCacheManager {
         match cache_type {
             metadata_cache::CACHE_TYPE_METADATA => {
                 if let Some(cache) = &self.file_metadata_cache {
-                    if let Ok(cache_guard) = cache.inner.lock() {
-                        Ok(cache_guard.memory_used())
-                    } else {
-                        Err("Failed to lock metadata cache".to_string())
-                    }
+                    Ok(cache.memory_used())
                 } else {
                     Err("No metadata cache configured".to_string())
                 }

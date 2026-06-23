@@ -320,8 +320,9 @@ where
     }
 
     /// Remove an entry if present (fires `on_leave(Remove)` → bookkeeping cleaned up there).
-    pub fn remove(&self, key: &K) {
-        self.inner.remove(key);
+    /// Returns the removed value, if any, without affecting hit/miss counters.
+    pub fn remove(&self, key: &K) -> Option<V> {
+        self.inner.remove(key).map(|entry| entry.value().clone())
     }
 
     /// Resize the byte cap at runtime (dynamic `datafusion.*.cache.size.limit`). foyer evicts

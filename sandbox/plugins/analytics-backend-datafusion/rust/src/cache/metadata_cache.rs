@@ -6,18 +6,17 @@
  * compatible open source license.
  */
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
 use datafusion::execution::cache::cache_manager::{
     CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
 };
 use datafusion::execution::cache::CacheAccessor;
-use datafusion::execution::cache::DefaultFilesMetadataCache;
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use object_store::path::Path;
-use native_bridge_common::log_error;
+use crate::cache::eviction_policy::CacheEvictionPolicy;
+use crate::cache::foyer_backed_cache::FoyerBackedCache;
 use crate::parquet_page_cache::is_scoped_page_index_enabled;
 
 // Cache type constants
@@ -25,10 +24,6 @@ pub const CACHE_TYPE_METADATA: &str = "METADATA";
 pub const CACHE_TYPE_STATS: &str = "STATISTICS";
 pub const CACHE_TYPE_COLUMN_INDEX: &str = "COLUMN_INDEX";
 pub const CACHE_TYPE_OFFSET_INDEX: &str = "OFFSET_INDEX";
-
-fn log_cache_error(operation: &str, error: &str) {
-    log_error!("[CACHE ERROR] {} operation failed: {}", operation, error);
-}
 
 /// Return a cache entry whose `ParquetMetaData` carries footer-only metadata (no
 /// `ColumnIndex` / `OffsetIndex`). If the entry already lacks a page index — or
@@ -64,73 +59,64 @@ fn strip_page_index(entry: CachedFileMetadataEntry) -> CachedFileMetadataEntry {
     )
 }
 
-// Wrapper to make Mutex<DefaultFilesMetadataCache> implement FileMetadataCache
+/// Foyer-backed footer-metadata cache. Replaces the previous
+/// `Mutex<DefaultFilesMetadataCache>` (hardcoded LRU) with a byte-bounded, sharded foyer cache
+/// so the metadata cache shares the same eviction implementation as the statistics and
+/// page-index caches. The name is retained for call-site compatibility.
+///
+/// Keyed by object-store `Path`; the byte weight of each entry is its
+/// `FileMetadata::memory_size()` (the same accounting DataFusion's own metadata cache uses), so
+/// the configured `datafusion.metadata.cache.size.limit` keeps its byte semantics. The
+/// footer-only invariant is still enforced on every `put` via [`strip_page_index`].
 pub struct MutexFileMetadataCache {
-    pub inner: Mutex<DefaultFilesMetadataCache>,
-    hit_count: AtomicUsize,
-    miss_count: AtomicUsize,
+    inner: FoyerBackedCache<Path, CachedFileMetadataEntry>,
 }
 
 impl MutexFileMetadataCache {
-    pub fn new(cache: DefaultFilesMetadataCache) -> Self {
+    /// Build with an explicit byte limit and the default eviction policy (LRU, matching the
+    /// prior `DefaultFilesMetadataCache` behavior).
+    pub fn with_limit(size_limit: usize) -> Self {
         Self {
-            inner: Mutex::new(cache),
-            hit_count: AtomicUsize::new(0),
-            miss_count: AtomicUsize::new(0),
+            inner: FoyerBackedCache::new(size_limit, CacheEvictionPolicy::Lru, |_k, v: &CachedFileMetadataEntry| {
+                v.file_metadata.memory_size()
+            }),
         }
     }
 
     pub fn hit_count(&self) -> usize {
-        self.hit_count.load(Ordering::Relaxed)
+        self.inner.stats().hits as usize
     }
 
     pub fn miss_count(&self) -> usize {
-        self.miss_count.load(Ordering::Relaxed)
+        self.inner.stats().misses as usize
     }
 
     pub fn reset_stats(&self) {
-        self.hit_count.store(0, Ordering::Relaxed);
-        self.miss_count.store(0, Ordering::Relaxed);
+        self.inner.reset_stats();
     }
 
     pub fn clear_cache(&self) {
-        if let Ok(cache) = self.inner.lock() {
-            cache.clear();
-        }
+        self.inner.clear();
+    }
+
+    /// Current byte usage — exposes the foyer-tracked counter (replaces the old
+    /// `inner.lock().memory_used()` the cache manager used).
+    pub fn memory_used(&self) -> usize {
+        self.inner.used_bytes()
     }
 
     pub fn update_cache_limit(&self, new_limit: usize) {
-        if let Ok(cache) = self.inner.lock() {
-            cache.update_cache_limit(new_limit);
-        }
+        self.inner.set_limit(new_limit);
     }
 
     pub fn get_cache_limit(&self) -> usize {
-        if let Ok(cache) = self.inner.lock() {
-            cache.cache_limit()
-        } else {
-            0
-        }
+        self.inner.stats().limit_bytes
     }
 }
 
 impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     fn get(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
-        match self.inner.lock() {
-            Ok(cache) => {
-                let result = cache.get(k);
-                if result.is_some() {
-                    self.hit_count.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    self.miss_count.fetch_add(1, Ordering::Relaxed);
-                }
-                result
-            }
-            Err(e) => {
-                log_cache_error("get", &e.to_string());
-                None
-            }
-        }
+        self.inner.get(k)
     }
 
     fn put(&self, k: &Path, v: CachedFileMetadataEntry) -> Option<CachedFileMetadataEntry> {
@@ -147,89 +133,47 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
         } else {
             v
         };
-        match self.inner.lock() {
-            Ok(cache) => cache.put(k, v),
-            Err(e) => {
-                log_cache_error("put", &e.to_string());
-                None
-            }
-        }
+        // DataFusion's CacheAccessor::put returns the previous entry; foyer doesn't surface it,
+        // and no caller inspects the return value, so we return None.
+        self.inner.insert(k.clone(), v);
+        None
     }
 
     fn remove(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
-        match self.inner.lock() {
-            Ok(cache) => cache.remove(k),
-            Err(e) => {
-                log_cache_error("remove", &e.to_string());
-                None
-            }
-        }
+        self.inner.remove(k)
     }
 
     fn contains_key(&self, k: &Path) -> bool {
-        match self.inner.lock() {
-            Ok(cache) => cache.contains_key(k),
-            Err(e) => {
-                log_cache_error("contains_key", &e.to_string());
-                false
-            }
-        }
+        self.inner.contains(k)
     }
 
     fn len(&self) -> usize {
-        match self.inner.lock() {
-            Ok(cache) => cache.len(),
-            Err(e) => {
-                log_cache_error("len", &e.to_string());
-                0
-            }
-        }
+        self.inner.len()
     }
 
     fn clear(&self) {
-        match self.inner.lock() {
-            Ok(cache) => cache.clear(),
-            Err(e) => log_cache_error("clear", &e.to_string()),
-        }
+        self.inner.clear();
     }
 
     fn name(&self) -> String {
-        match self.inner.lock() {
-            Ok(cache) => cache.name(),
-            Err(e) => {
-                log_cache_error("name", &e.to_string());
-                "cache_error".to_string()
-            }
-        }
+        "MutexFileMetadataCache(foyer-lru)".to_string()
     }
 }
 
 impl FileMetadataCache for MutexFileMetadataCache {
     fn cache_limit(&self) -> usize {
-        match self.inner.lock() {
-            Ok(cache) => cache.cache_limit(),
-            Err(e) => {
-                log_cache_error("cache_limit", &e.to_string());
-                0
-            }
-        }
+        self.inner.stats().limit_bytes
     }
 
     fn update_cache_limit(&self, limit: usize) {
-        match self.inner.lock() {
-            Ok(cache) => cache.update_cache_limit(limit),
-            Err(e) => log_cache_error("update_cache_limit", &e.to_string()),
-        }
+        self.inner.set_limit(limit);
     }
 
     fn list_entries(&self) -> std::collections::HashMap<Path, FileMetadataCacheEntry> {
-        match self.inner.lock() {
-            Ok(cache) => cache.list_entries(),
-            Err(e) => {
-                log_cache_error("list_entries", &e.to_string());
-                std::collections::HashMap::new()
-            }
-        }
+        // Entry enumeration is not supported by the foyer backend; callers (node-stats) use the
+        // hit/miss/byte counters instead. Empty map matches the prior behavior for the
+        // table-scope-less metadata cache.
+        std::collections::HashMap::new()
     }
 }
 
@@ -299,7 +243,7 @@ mod strip_page_index_tests {
         let entry = full_index_entry(&bytes);
         assert!(page_index_present(&entry), "precondition: entry has page index");
 
-        let cache = MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(64 * 1024 * 1024));
+        let cache = MutexFileMetadataCache::with_limit(64 * 1024 * 1024);
         let key = Path::from("data.parquet");
         cache.put(&key, entry);
 
