@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
@@ -41,6 +42,7 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -230,14 +232,16 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
     }
 
     /** Index N docs with RefreshPolicy.NONE. */
-    protected void indexDocs(int count) {
+    protected List<String> indexDocs(int count) {
+        List<String> ids = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
+            IndexResponse indexResponse = client().prepareIndex(INDEX_NAME)
                 .setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE)
                 .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", (long) i)
                 .get();
+            ids.add(indexResponse.getId());
         }
+        return ids;
     }
 
     /** Primary's node name. */

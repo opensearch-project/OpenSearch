@@ -72,7 +72,7 @@ public class CacheSettingsPercentValidationTests extends OpenSearchTestCase {
     // ── computeCacheSizes ─────────────────────────────────────────────────────
 
     public void testComputeSizesDefaultSplit() {
-        long total = 1_150_000_000L; // ~1.15 GB (3% of 38.4 GB native limit on r6g.2xlarge)
+        long total = 1_150_000_000L; // ~1.15 GB sample metadata-index cache total budget
         long[] sizes = CacheSettings.computeCacheSizes(48, 34, 13, 5, total);
         assertEquals(4, sizes.length);
         assertEquals(total * 48 / 100, sizes[0]); // footer ~552 MB

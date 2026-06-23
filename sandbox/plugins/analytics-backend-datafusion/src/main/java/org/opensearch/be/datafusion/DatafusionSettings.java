@@ -289,11 +289,14 @@ public final class DatafusionSettings {
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD,
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD,
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP,
         DATAFUSION_MEMORY_POOL_MIN,
 
-        // Cache settings — metadata, statistics, and metadata-index cache configuration
+        // Cache settings — metadata, statistics, column index, offset index configuration
         CacheSettings.METADATA_CACHE_EVICTION_TYPE,
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
+        CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE,
+        CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE,
         CacheSettings.METADATA_CACHE_ENABLED,
         CacheSettings.STATISTICS_CACHE_ENABLED,
         CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
@@ -301,6 +304,9 @@ public final class DatafusionSettings {
         CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
         CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
         CacheSettings.STATISTICS_CACHE_PERCENT,
+
+        // Scoped page-index feature flag
+        DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED,
 
         // Concurrency gate settings
         CONCURRENCY_DATANODE_MULTIPLIER,

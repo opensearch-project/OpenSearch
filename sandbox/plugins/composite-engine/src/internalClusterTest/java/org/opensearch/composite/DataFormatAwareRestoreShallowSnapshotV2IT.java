@@ -195,7 +195,7 @@ public class DataFormatAwareRestoreShallowSnapshotV2IT extends AbstractSnapshotI
     protected void indexDocuments(Client client, String indexName, int fromId, int toId) {
         for (int i = fromId; i < toId; i++) {
             String id = Integer.toString(i);
-            client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            client.prepareIndex(indexName).setSource("text", "sometext").get();
         }
     }
 

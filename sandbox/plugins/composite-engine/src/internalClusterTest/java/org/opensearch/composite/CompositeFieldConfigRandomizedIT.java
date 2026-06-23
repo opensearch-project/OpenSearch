@@ -136,7 +136,6 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
             assertEquals(
                 RestStatus.CREATED,
                 client().prepareIndex(indexName)
-                    .setId(String.valueOf(i))
                     .setSource(
                         "f_keyword_1",
                         "kw1_val_" + i,
@@ -243,7 +242,6 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
             assertEquals(
                 RestStatus.CREATED,
                 client().prepareIndex(indexName)
-                    .setId(String.valueOf(i))
                     .setSource("col_keyword", "value_" + i, "col_long", (long) (i * 10), "col_double", i * 2.5)
                     .get()
                     .status()

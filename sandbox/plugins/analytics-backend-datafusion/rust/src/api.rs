@@ -488,11 +488,7 @@ pub fn create_global_runtime(
         crate::memory_guard::mark_spill_disabled();
         DiskManagerBuilder::default().with_mode(DiskManagerMode::Disabled)
     } else {
-        let effective_spill_limit = if spill_limit == 0 {
-            resolve_dynamic_spill_limit(spill_dir)
-        } else {
-            spill_limit as u64
-        };
+        let effective_spill_limit = spill_limit as u64;
 
         // Wipe leaked entries from a prior non-graceful shutdown.
         //
@@ -1123,36 +1119,6 @@ pub async unsafe fn fetch_by_row_ids(
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
     Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime, context_id))
-}
-
-/// it; the failure mode is documented here to keep the dispatch contract
-/// explicit.
-/// Resolve the dynamic spill limit based on available disk space.
-/// Uses 80% of available space on the spill directory's filesystem.
-/// Falls back to 8GB if disk space cannot be determined.
-fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
-    const FRACTION: f64 = 0.80;
-    const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
-
-    let _ = std::fs::create_dir_all(spill_dir);
-
-    match crate::memory_guard::available_disk_space(spill_dir) {
-        Some(available) => {
-            let limit = (available as f64 * FRACTION) as u64;
-            log::info!(
-                "Dynamic spill limit: {} bytes (80% of {} available on {})",
-                limit, available, spill_dir
-            );
-            limit
-        }
-        None => {
-            log::warn!(
-                "Could not determine disk space for '{}', using fallback {}GB",
-                spill_dir, FALLBACK / (1024 * 1024 * 1024)
-            );
-            FALLBACK
-        }
-    }
 }
 
 /// Inspect substrait plan bytes for routing signals.
@@ -2003,11 +1969,10 @@ mod tests {
     #[test]
     fn create_global_runtime_with_spill_dir_enables_disk_manager() {
         // Non-empty spill_dir takes the Directories(...) path. tmp_files_enabled() must
-        // be true so spill attempts succeed. Passing spill_limit=0 also exercises the
-        // dynamic-limit resolver (resolve_dynamic_spill_limit + set_spill_dir). The
-        // budget must NOT be Disabled — set_spill_dir flips SPILL_ENABLED on. Whether
-        // it's Available or Critical depends on the test host's free disk; both prove
-        // the enabled-path branch is taken.
+        // be true so spill attempts succeed. The budget must NOT be Disabled —
+        // set_spill_dir flips SPILL_ENABLED on. Whether it's Available or Critical
+        // depends on the test host's free disk; both prove the enabled-path branch
+        // is taken.
         //
         // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
         // file in the directory before the call and assert it's gone after.
@@ -2020,7 +1985,7 @@ mod tests {
         fs::write(&sentinel, b"stale spill data").expect("seed sentinel");
         assert!(sentinel.exists(), "sentinel must exist before runtime build");
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
@@ -2035,6 +2000,11 @@ mod tests {
         assert!(
             runtime.runtime_env.disk_manager.tmp_files_enabled(),
             "expected DiskManagerMode::Directories when spill_dir is set"
+        );
+        assert_eq!(
+            runtime.runtime_env.disk_manager.max_temp_directory_size(),
+            1024 * 1024 * 1024,
+            "DiskManager cap must equal the positive spill_limit passed in"
         );
         assert_ne!(
             crate::memory_guard::per_query_spill_budget(),
@@ -2072,7 +2042,7 @@ mod tests {
         assert!(top_file.exists());
         assert!(nested_file.exists());
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1: original names gone (renamed to *.stale).

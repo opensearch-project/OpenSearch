@@ -96,11 +96,12 @@ public class DataFormatAwareDFASnapshotBlockingIT extends DataFormatAwareReadonl
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
         client().admin().indices().prepareCreate(indexName).setSettings(hot).get();
         ensureGreen(indexName);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("n", (long) i).get();
+            client().prepareIndex(indexName).setSource("n", (long) i).get();
         }
         client().admin().indices().prepareFlush(indexName).setForce(true).get();
     }

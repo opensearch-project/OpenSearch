@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -163,6 +164,24 @@ public class RelNodeUtils {
             return findNode(node.getInputs().getFirst(), type);
         }
         return null;
+    }
+
+    /**
+     * Finds all nodes of the given type reachable from {@code node} (walks the full tree, all inputs).
+     * Unlike {@link #findNode} (which returns only the topmost match via the first-input chain), this
+     * sees every match — e.g. a WHERE filter below an Aggregate AND a HAVING filter above it, which
+     * do not merge (FILTER_MERGE does not cross the Aggregate). Order is pre-order (topmost first).
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> List<T> findAllNodes(RelNode node, Class<T> type) {
+        List<T> out = new ArrayList<>();
+        if (type.isInstance(node)) {
+            out.add((T) node);
+        }
+        for (RelNode input : node.getInputs()) {
+            out.addAll(findAllNodes(input, type));
+        }
+        return out;
     }
 
     /**

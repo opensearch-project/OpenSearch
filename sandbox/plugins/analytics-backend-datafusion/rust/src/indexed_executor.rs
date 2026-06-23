@@ -67,15 +67,16 @@ use crate::indexed_table::table_provider::{
     EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
 };
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::api::ShardView;
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
-
+use crate::parquet_page_cache::{load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair};
 
 /// Execute an indexed query.
 ///
@@ -304,7 +305,7 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     let Some(e) = extraction else { return vec![] };
     let mut exprs = Vec::new();
     collect_predicate_exprs(&e.tree, &mut exprs);
-    let mut indices = BTreeSet::new();
+    let mut indices = HashSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node.downcast_ref::<Column>() {
@@ -315,6 +316,56 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     }
     indices.into_iter().collect()
 }
+
+fn collect_predicate_column_names(
+    extraction: Option<&ExtractionResult>,
+    schema: &SchemaRef,
+) -> Vec<String> {
+    let Some(e) = extraction else { return vec![] };
+    let mut exprs = Vec::new();
+    collect_predicate_exprs(&e.tree, &mut exprs);
+    let mut names = HashSet::new();
+    for expr in &exprs {
+        let _ = expr.apply(|node| {
+            if let Some(col) = node.downcast_ref::<Column>() {
+                if let Some(field) = schema.fields().get(col.index()) {
+                    names.insert(field.name().to_string());
+                }
+            }
+            Ok(TreeNodeRecursion::Continue)
+        });
+    }
+    names.into_iter().collect()
+}
+
+fn collect_plan_column_names(plan: &datafusion::logical_expr::LogicalPlan) -> Vec<String> {
+    let mut names = HashSet::new();
+    let _ = plan.apply(|node| {
+        // Output-schema columns of every node: this is what each node actually
+        // emits / reads. Critically this captures `SELECT *` (and any projection
+        // pushed into the scan), where no Projection expression lists the columns
+        // but every column is still read. Expression-only collection misses them,
+        // and a read column that gets only a placeholder OffsetIndex (instead of
+        // its real multi-page one) corrupts the page read: arrow decodes the whole
+        // column chunk as a single page → "output too small for decompressed data"
+        // (or, upstream, the (0,0)-page byte-range subtract underflow).
+        for field in node.schema().fields() {
+            names.insert(field.name().to_string());
+        }
+        let _ = node.apply_expressions(|expr| {
+            let _ = expr.apply(|e| {
+                if let Expr::Column(col) = e {
+                    names.insert(col.name().to_string());
+                }
+                Ok(TreeNodeRecursion::Continue)
+            });
+            Ok(TreeNodeRecursion::Continue)
+        });
+        Ok(TreeNodeRecursion::Continue)
+    });
+    names.into_iter().collect()
+}
+
 /// For a tree classified as `SingleCollector`, walk it to find the single
 /// Collector leaf and return its query bytes.
 fn single_collector_id(tree: &BoolNode) -> Option<i32> {
@@ -556,6 +607,43 @@ mod tests {
     fn analyze_top_sort_returns_none_when_no_sort() {
         let plan = build_logical_plan("SELECT id FROM t");
         assert!(analyze_top_sort(&plan).is_none());
+    }
+
+    // ── collect_plan_column_names ─────────────────────────────────────
+
+    /// Regression: `SELECT *` (and any scan that reads columns no Projection
+    /// expression names) must yield ALL output columns. The scoped page-index
+    /// load gives only these columns a REAL multi-page OffsetIndex; columns left
+    /// out get a single-page placeholder, which is fine for pruning but CORRUPTS
+    /// a real read — arrow decodes the whole chunk as one page ("output too small
+    /// for decompressed data"), or underflows the read byte range. The
+    /// `match() | sort | head` shape (q23) hit this: it reads every column but no
+    /// expression lists them. Collecting each plan node's OUTPUT SCHEMA fixes it.
+    #[test]
+    fn collect_plan_column_names_includes_select_star_columns() {
+        // No projection expressions name id/ts/v, but `SELECT *` reads all three.
+        let plan = build_logical_plan("SELECT * FROM t WHERE v = 0 ORDER BY ts");
+        let mut names = collect_plan_column_names(&plan);
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["id".to_string(), "ts".to_string(), "v".to_string()],
+            "every read column (full output schema) must be collected, not just expression columns"
+        );
+    }
+
+    /// A narrow projection still collects exactly the columns the query touches
+    /// (projected `v` + filter `id` + sort `ts`) — the scoping benefit is retained.
+    #[test]
+    fn collect_plan_column_names_collects_projected_and_referenced() {
+        let plan = build_logical_plan("SELECT v FROM t WHERE id = 1 ORDER BY ts");
+        let names = collect_plan_column_names(&plan);
+        for expected in ["v", "id", "ts"] {
+            assert!(
+                names.iter().any(|n| n == expected),
+                "expected column `{expected}` in collected names {names:?}"
+            );
+        }
     }
 
     #[test]
@@ -923,6 +1011,40 @@ async unsafe fn execute_indexed_with_context_inner(
     });
 
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
+
+    // Augment each segment's footer-only metadata with a scoped page index so
+    // the indexed PagePruner can page-prune. Both predicate (→ ColumnIndex) and
+    // projection (→ OffsetIndex) are wired — a match()-only query still needs a
+    // scoped OffsetIndex so the reader fetches only matched pages.
+    if page_index::is_scoped_page_index_enabled() {
+        let predicate_column_names = collect_predicate_column_names(extraction.as_ref(), &schema);
+        let projection_column_names = collect_plan_column_names(&logical_plan);
+        if !predicate_column_names.is_empty() || !projection_column_names.is_empty() {
+            for segment in segments.iter_mut() {
+                let (parquet_cols, offset_cols) =
+                    resolve_predicate_parquet_columns_pair(
+                        &schema,
+                        &segment.metadata,
+                        &predicate_column_names,
+                        &projection_column_names,
+                    );
+                if parquet_cols.is_empty() && offset_cols.is_empty() {
+                    continue;
+                }
+                if let Some(augmented) = load_scoped_page_index_cols(
+                    &store,
+                    &segment.object_path,
+                    &segment.metadata,
+                    &parquet_cols,
+                    &offset_cols,
+                )
+                .await
+                {
+                    segment.metadata = augmented;
+                }
+            }
+        }
+    }
 
     let factory: EvaluatorFactory = match classification {
         FilterClass::None => {
