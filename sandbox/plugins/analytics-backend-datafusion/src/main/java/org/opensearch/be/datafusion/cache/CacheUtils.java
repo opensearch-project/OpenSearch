@@ -11,11 +11,14 @@ package org.opensearch.be.datafusion.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 
+import static org.opensearch.be.datafusion.cache.CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE;
 import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_ENABLED;
 import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
+import static org.opensearch.be.datafusion.cache.CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE;
 import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_ENABLED;
 import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_EVICTION_TYPE;
 
@@ -44,13 +47,36 @@ public final class CacheUtils {
             public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
                 return statsLimit;
             }
+        },
+        COLUMN_INDEX("COLUMN_INDEX", null, COLUMN_INDEX_CACHE_EVICTION_TYPE) {
+            @Override
+            public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
+                return ciLimit;
+            }
+
+            @Override
+            public boolean isEnabled(ClusterSettings clusterSettings) {
+                return clusterSettings.get(org.opensearch.be.datafusion.DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
+            }
+        },
+        OFFSET_INDEX("OFFSET_INDEX", null, OFFSET_INDEX_CACHE_EVICTION_TYPE) {
+            @Override
+            public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
+                return oiLimit;
+            }
+
+            @Override
+            public boolean isEnabled(ClusterSettings clusterSettings) {
+                return clusterSettings.get(org.opensearch.be.datafusion.DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
+            }
         };
 
         private final String cacheTypeName;
+        @Nullable
         private final Setting<Boolean> enabledSetting;
         private final Setting<String> evictionTypeSetting;
 
-        CacheType(String cacheTypeName, Setting<Boolean> enabledSetting, Setting<String> evictionTypeSetting) {
+        CacheType(String cacheTypeName, @Nullable Setting<Boolean> enabledSetting, Setting<String> evictionTypeSetting) {
             this.cacheTypeName = cacheTypeName;
             this.enabledSetting = enabledSetting;
             this.evictionTypeSetting = evictionTypeSetting;
@@ -59,9 +85,10 @@ public final class CacheUtils {
         public abstract long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit);
 
         public boolean isEnabled(ClusterSettings clusterSettings) {
-            return clusterSettings.get(enabledSetting);
+            return enabledSetting != null && clusterSettings.get(enabledSetting);
         }
 
+        @Nullable
         public Setting<Boolean> getEnabledSetting() {
             return enabledSetting;
         }
@@ -133,8 +160,6 @@ public final class CacheUtils {
             }
         }
 
-        NativeBridge.setColumnIndexCacheLimit(ciLimit);
-        NativeBridge.setOffsetIndexCacheLimit(oiLimit);
         logger.info("Cache configuration completed");
         return handle;
     }

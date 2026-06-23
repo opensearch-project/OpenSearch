@@ -168,8 +168,11 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         List<Setting<?>> settings = new DataFusionPlugin().getSettings();
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_EVICTION_TYPE));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE));
+        assertTrue(settings.contains(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE));
+        assertTrue(settings.contains(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE));
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_ENABLED));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_ENABLED));
+        assertTrue(settings.contains(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED));
         assertTrue(settings.contains(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE));
         assertTrue(settings.contains(CacheSettings.FOOTER_METADATA_CACHE_PERCENT));
         assertTrue(settings.contains(CacheSettings.OFFSET_INDEX_CACHE_PERCENT));
@@ -229,6 +232,9 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         all.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         all.add(CacheSettings.STATISTICS_CACHE_ENABLED);
         all.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
+        all.add(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE);
+        all.add(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE);
+        all.add(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
         all.add(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
         all.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
         all.add(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);

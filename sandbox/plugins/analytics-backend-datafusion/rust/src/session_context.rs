@@ -30,8 +30,10 @@ use log::error;
 use object_store::ObjectMeta;
 
 use crate::api::{DataFusionRuntime, ShardView};
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::query_tracker::QueryTrackingContext;
+use crate::scoped_index_optimizer::ScopedPageIndexOptimizer;
 
 /// Opaque handle holding a configured SessionContext between FFM calls.
 pub struct SessionContextHandle {
@@ -229,6 +231,18 @@ pub async unsafe fn create_session_context(
             );
     }
 
+    // Install the scoped page-index reader factory on every parquet scan.
+    // Registered AFTER ProjectRowIdOptimizer so it sees the final DataSourceExec.
+    // Also, this SHOULD be the last optimizer to see all projections / predicates
+    if page_index::is_scoped_page_index_enabled() {
+        state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
+            ScopedPageIndexOptimizer::new(
+                Arc::clone(&shard_view.store),
+                runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+            ),
+        ));
+    }
+
     let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);
@@ -269,6 +283,26 @@ pub async unsafe fn create_session_context(
     } else {
         table_name.to_string()
     };
+
+    // Pre-warm the metadata cache footer-only before infer_schema fires.
+    // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
+    // on a cache miss — fetching full page index bytes. By pre-warming here with
+    // PageIndexPolicy::Skip via load_parquet_metadata, every infer_schema call becomes
+    // a cache hit and never touches the page index bytes.
+    // Cache key is meta.location (Path) — same key infer_schema uses.
+    // Empty shard: loop is a no-op; infer_schema is also skipped below.
+    {
+        let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+        for meta in shard_view.object_metas.as_ref() {
+            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
+                Arc::clone(&shard_view.store),
+                &meta.location,
+                meta.clone(),
+                Arc::clone(&metadata_cache),
+            )
+            .await;
+        }
+    }
 
     // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
     // below populates columns from the substrait base_schema.

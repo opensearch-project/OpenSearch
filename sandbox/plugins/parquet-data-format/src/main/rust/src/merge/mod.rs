@@ -18,7 +18,9 @@ mod unsorted;
 
 pub use error::{MergeError, MergeResult};
 pub use sorted::merge_sorted;
+pub use sorted::merge_sorted_with_pool;
 pub use unsorted::merge_unsorted;
+pub use unsorted::merge_unsorted_with_pool;
 
 /// Output of a merge operation. Carries both the row-ID mapping (for remapping
 /// secondary-format row IDs post-merge) and the Parquet file metadata + CRC32

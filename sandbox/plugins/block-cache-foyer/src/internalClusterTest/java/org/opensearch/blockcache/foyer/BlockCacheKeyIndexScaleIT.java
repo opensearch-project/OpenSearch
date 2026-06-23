@@ -287,7 +287,7 @@ public class BlockCacheKeyIndexScaleIT extends AbstractSnapshotIntegTestCase {
 
         // Index 1 doc into each index to make the snapshot non-trivial.
         for (String name : indexNames) {
-            client.prepareIndex(name).setId("1").setSource("field", "value").get();
+            client.prepareIndex(name).setSource("field", "value").get();
         }
         ensureGreen();
 
