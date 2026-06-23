@@ -771,41 +771,26 @@ pub unsafe extern "C" fn df_create_cache(
     cache_type_ptr: *const u8,
     cache_type_len: i64,
     size_limit: i64,
-    eviction_type_ptr: *const u8,
-    eviction_type_len: i64,
 ) -> i64 {
     if cache_manager_ptr == 0 {
         return Err("df_create_cache: null cache manager pointer".to_string());
     }
     let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
         .map_err(|e| format!("df_create_cache: cache_type: {}", e))?;
-    let eviction_type = str_from_raw(eviction_type_ptr, eviction_type_len)
-        .map_err(|e| format!("df_create_cache: eviction_type: {}", e))?;
 
-    // Parse the eviction type string into the unified CacheEvictionPolicy enum.
-    // All four cache types share one enum — the per-cache match below enforces
-    // which policies are valid for each type.
-    let policy = match eviction_type.to_uppercase().as_str() {
-        "LRU"    => CacheEvictionPolicy::Lru,
-        "LFU"    => CacheEvictionPolicy::Lfu,
-        "FIFO"   => CacheEvictionPolicy::Fifo,
-        "S3FIFO" => CacheEvictionPolicy::S3Fifo,
-        _ => return Err(format!("df_create_cache: unsupported eviction type: {}", eviction_type)),
-    };
+    // Every cache uses the single, fixed eviction policy: S3-FIFO (scan-resistant). Eviction is
+    // no longer configurable — `CacheEvictionPolicy::default()` is S3-FIFO and all caches use it.
+    let policy = CacheEvictionPolicy::default();
 
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
     let manager = &mut *(cache_manager_ptr as *mut CustomCacheManager);
 
     match cache_type {
         cache::CACHE_TYPE_METADATA => {
-            // METADATA is foyer-backed; eviction policy comes from the setting (default S3-FIFO).
             let metadata_cache = Arc::new(cache::MutexFileMetadataCache::with_policy(size_limit as usize, policy));
             manager.set_file_metadata_cache(metadata_cache);
         }
         cache::CACHE_TYPE_STATS => {
-            if policy == CacheEvictionPolicy::Fifo {
-                return Err("df_create_cache: STATISTICS cache does not support FIFO eviction".to_string());
-            }
             let stats_cache = Arc::new(CustomStatisticsCache::new(
                 policy,
                 size_limit as usize,
@@ -815,8 +800,7 @@ pub unsafe extern "C" fn df_create_cache(
         }
         cache::CACHE_TYPE_COLUMN_INDEX => {
             // CI/OI page-index caches are foyer-backed; the policy is fixed at process start
-            // (Lazy static, default S3-FIFO). The eviction-type arg is validated but only the
-            // byte limit is applied at runtime.
+            // (Lazy static, S3-FIFO). Only the byte limit is applied here.
             manager.set_column_index_cache(size_limit as usize);
         }
         cache::CACHE_TYPE_OFFSET_INDEX => {

@@ -166,10 +166,6 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
     public void testPluginRegistersAllCacheSettings() {
         List<Setting<?>> settings = new DataFusionPlugin().getSettings();
-        assertTrue(settings.contains(CacheSettings.METADATA_CACHE_EVICTION_TYPE));
-        assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE));
-        assertTrue(settings.contains(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE));
-        assertTrue(settings.contains(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE));
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_ENABLED));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_ENABLED));
         assertTrue(settings.contains(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED));
@@ -190,16 +186,16 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
     public void testNativeBridgeCreateCacheOnManager() {
         ensureTokioInit();
         long ptr = NativeBridge.createCustomCacheManager();
-        NativeBridge.createCache(ptr, "METADATA", 250 * 1024 * 1024, "LRU");
-        NativeBridge.createCache(ptr, "STATISTICS", 100 * 1024 * 1024, "LRU");
+        NativeBridge.createCache(ptr, "METADATA", 250 * 1024 * 1024);
+        NativeBridge.createCache(ptr, "STATISTICS", 100 * 1024 * 1024);
         NativeBridge.destroyCustomCacheManager(ptr);
     }
 
     public void testRuntimeWithCacheManagerPointer() {
         ensureTokioInit();
         long cachePtr = NativeBridge.createCustomCacheManager();
-        NativeBridge.createCache(cachePtr, "METADATA", 250 * 1024 * 1024, "LRU");
-        NativeBridge.createCache(cachePtr, "STATISTICS", 100 * 1024 * 1024, "LRU");
+        NativeBridge.createCache(cachePtr, "METADATA", 250 * 1024 * 1024);
+        NativeBridge.createCache(cachePtr, "STATISTICS", 100 * 1024 * 1024);
 
         Path spillDir = createTempDir("spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, cachePtr, spillDir.toString(), 32 * 1024 * 1024);
@@ -211,7 +207,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
     public void testCacheManagerHandleConsumedAfterRuntimeCreation() {
         ensureTokioInit();
         var handle = new org.opensearch.be.datafusion.cache.NativeCacheManagerHandle(NativeBridge.createCustomCacheManager());
-        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024, "LRU");
+        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024);
 
         long ptrBefore = handle.getPointer();
         assertTrue(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
@@ -229,11 +225,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
     private ClusterSettings createCacheClusterSettings(Settings settings) {
         Set<Setting<?>> all = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         all.add(CacheSettings.METADATA_CACHE_ENABLED);
-        all.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         all.add(CacheSettings.STATISTICS_CACHE_ENABLED);
-        all.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
-        all.add(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE);
-        all.add(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE);
         all.add(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
         all.add(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
         all.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);

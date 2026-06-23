@@ -408,7 +408,8 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_create_cache(mgr_ptr, type_ptr, type_len, size_limit, eviction_ptr, eviction_len)
+        // i64 df_create_cache(mgr_ptr, type_ptr, type_len, size_limit)
+        // Eviction policy is fixed (S3-FIFO) in native code and no longer passed from Java.
         CREATE_CACHE = linker.downcallHandle(
             lib.find("df_create_cache").orElseThrow(),
             FunctionDescriptor.of(
@@ -416,8 +417,6 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -1654,11 +1653,14 @@ public final class NativeBridge {
         }
     }
 
-    public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit, String evictionType) {
+    /**
+     * Creates a cache of the given type with a byte limit. The eviction policy is fixed at
+     * S3-FIFO in native code and is no longer configurable.
+     */
+    public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit) {
         try (var call = new NativeCall()) {
             var type = call.str(cacheType);
-            var eviction = call.str(evictionType);
-            call.invoke(CREATE_CACHE, cacheManagerPtr, type.segment(), type.len(), sizeLimit, eviction.segment(), eviction.len());
+            call.invoke(CREATE_CACHE, cacheManagerPtr, type.segment(), type.len(), sizeLimit);
         }
     }
 

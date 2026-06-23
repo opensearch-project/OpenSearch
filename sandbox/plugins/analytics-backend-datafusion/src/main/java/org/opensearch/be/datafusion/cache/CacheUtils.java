@@ -15,12 +15,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 
-import static org.opensearch.be.datafusion.cache.CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE;
 import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_ENABLED;
-import static org.opensearch.be.datafusion.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
-import static org.opensearch.be.datafusion.cache.CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE;
 import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_ENABLED;
-import static org.opensearch.be.datafusion.cache.CacheSettings.STATISTICS_CACHE_EVICTION_TYPE;
 
 /**
  * Utility class for cache initialization and configuration.
@@ -36,19 +32,19 @@ public final class CacheUtils {
      * Cache type enumeration with associated settings.
      */
     public enum CacheType {
-        METADATA("METADATA", METADATA_CACHE_ENABLED, METADATA_CACHE_EVICTION_TYPE) {
+        METADATA("METADATA", METADATA_CACHE_ENABLED) {
             @Override
             public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
                 return metaLimit;
             }
         },
-        STATISTICS("STATISTICS", STATISTICS_CACHE_ENABLED, STATISTICS_CACHE_EVICTION_TYPE) {
+        STATISTICS("STATISTICS", STATISTICS_CACHE_ENABLED) {
             @Override
             public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
                 return statsLimit;
             }
         },
-        COLUMN_INDEX("COLUMN_INDEX", null, COLUMN_INDEX_CACHE_EVICTION_TYPE) {
+        COLUMN_INDEX("COLUMN_INDEX", null) {
             @Override
             public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
                 return ciLimit;
@@ -59,7 +55,7 @@ public final class CacheUtils {
                 return clusterSettings.get(org.opensearch.be.datafusion.DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
             }
         },
-        OFFSET_INDEX("OFFSET_INDEX", null, OFFSET_INDEX_CACHE_EVICTION_TYPE) {
+        OFFSET_INDEX("OFFSET_INDEX", null) {
             @Override
             public long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit) {
                 return oiLimit;
@@ -74,12 +70,10 @@ public final class CacheUtils {
         private final String cacheTypeName;
         @Nullable
         private final Setting<Boolean> enabledSetting;
-        private final Setting<String> evictionTypeSetting;
 
-        CacheType(String cacheTypeName, @Nullable Setting<Boolean> enabledSetting, Setting<String> evictionTypeSetting) {
+        CacheType(String cacheTypeName, @Nullable Setting<Boolean> enabledSetting) {
             this.cacheTypeName = cacheTypeName;
             this.enabledSetting = enabledSetting;
-            this.evictionTypeSetting = evictionTypeSetting;
         }
 
         public abstract long sizeBytes(long metaLimit, long oiLimit, long ciLimit, long statsLimit);
@@ -91,14 +85,6 @@ public final class CacheUtils {
         @Nullable
         public Setting<Boolean> getEnabledSetting() {
             return enabledSetting;
-        }
-
-        public Setting<String> getEvictionTypeSetting() {
-            return evictionTypeSetting;
-        }
-
-        public String getEvictionType(ClusterSettings clusterSettings) {
-            return clusterSettings.get(evictionTypeSetting);
         }
 
         public String getCacheTypeName() {
@@ -144,17 +130,13 @@ public final class CacheUtils {
             statsLimit
         );
 
-        // Configure each enabled cache type using the percent-derived limit.
+        // Configure each enabled cache type using the percent-derived limit. Eviction policy is
+        // fixed at S3-FIFO (scan-resistant) in native code — no longer configurable per cache.
         for (CacheType type : CacheType.values()) {
             if (type.isEnabled(clusterSettings)) {
                 long sizeLimit = type.sizeBytes(metaLimit, oiLimit, ciLimit, statsLimit);
-                logger.info(
-                    "Configuring {} cache: size={} bytes, eviction={}",
-                    type.getCacheTypeName(),
-                    sizeLimit,
-                    type.getEvictionType(clusterSettings)
-                );
-                NativeBridge.createCache(handle.getPointer(), type.cacheTypeName, sizeLimit, type.getEvictionType(clusterSettings));
+                logger.info("Configuring {} cache: size={} bytes, eviction=S3FIFO", type.getCacheTypeName(), sizeLimit);
+                NativeBridge.createCache(handle.getPointer(), type.cacheTypeName, sizeLimit);
             } else {
                 logger.debug("Cache type {} is disabled", type.getCacheTypeName());
             }

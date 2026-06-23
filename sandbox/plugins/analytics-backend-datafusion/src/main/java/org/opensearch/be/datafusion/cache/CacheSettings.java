@@ -14,7 +14,6 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
-import java.util.Locale;
 
 /**
  * Settings for the DataFusion parquet caches.
@@ -45,22 +44,6 @@ import java.util.Locale;
  */
 public class CacheSettings {
 
-    public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.metadata.cache.eviction.type",
-        "S3FIFO",
-        CacheSettings::validateEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<String> STATISTICS_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.statistics.cache.eviction.type",
-        "S3FIFO",
-        CacheSettings::validateEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final String METADATA_CACHE_ENABLED_KEY = "datafusion.metadata.cache.enabled";
     public static final Setting<Boolean> METADATA_CACHE_ENABLED = Setting.boolSetting(
         METADATA_CACHE_ENABLED_KEY,
@@ -77,30 +60,10 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Eviction policy for the scoped ColumnIndex cache. Foyer-backed; defaults to
-     * {@code S3FIFO} (scan-resistant). The policy is fixed at process start, so changing
-     * this setting at runtime applies only on restart.
-     */
-    public static final Setting<String> COLUMN_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.column_index.cache.eviction.type",
-        "S3FIFO",
-        CacheSettings::validateScopedEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Eviction policy for the scoped OffsetIndex cache. Foyer-backed; defaults to
-     * {@code S3FIFO}.
-     */
-    public static final Setting<String> OFFSET_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.offset_index.cache.eviction.type",
-        "S3FIFO",
-        CacheSettings::validateScopedEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    // Eviction policy is no longer configurable: every DataFusion cache uses S3-FIFO
+    // (scan-resistant), fixed in native code. The former
+    // datafusion.{metadata,statistics,column_index,offset_index}.cache.eviction.type settings
+    // have been removed.
 
     // Page-cache total budget (3% of node.native_memory.limit)
 
@@ -229,28 +192,5 @@ public class CacheSettings {
         }
         long total = Math.max(nativeLimit.getBytes() * 3 / 100, 0L);
         return total + "b";
-    }
-
-    /** Validates eviction type for metadata/statistics caches (LRU, LFU, or S3FIFO). */
-    private static String validateEvictionType(String value) {
-        String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("LRU") && !upper.equals("LFU") && !upper.equals("S3FIFO")) {
-            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU', 'LFU', or 'S3FIFO'.");
-        }
-        return upper;
-    }
-
-    /**
-     * Validates eviction type for the scoped CI/OI page-index caches. Foyer-backed, so
-     * {@code FIFO} and {@code S3FIFO} are both supported (default S3FIFO).
-     */
-    private static String validateScopedEvictionType(String value) {
-        String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("FIFO") && !upper.equals("S3FIFO")) {
-            throw new IllegalArgumentException(
-                "Invalid eviction type '" + value + "' for scoped page-index cache. Must be 'FIFO' or 'S3FIFO'."
-            );
-        }
-        return upper;
     }
 }
