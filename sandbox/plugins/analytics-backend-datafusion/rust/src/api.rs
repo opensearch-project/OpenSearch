@@ -791,6 +791,11 @@ pub fn create_reader(
         default_rt.object_store(&table_url)?
     };
 
+    // A Java-supplied store (store_ptr > 0) is a remote/warm store: fetch the whole
+    // page-index region so query range keys match eager warm-population (warm hits).
+    // The default LocalFileSystem has no warm tier → keep the narrow scoped fetch.
+    crate::cache::page_index::set_whole_region_fetch_enabled(store_ptr > 0);
+
     let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
         store.as_ref(),
         table_path,
