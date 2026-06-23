@@ -101,6 +101,28 @@ pub fn set_scoped_page_index_enabled(enabled: bool) {
     SCOPED_PAGE_INDEX_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+/// Whether the page-index loader fetches each file's WHOLE index region in one
+/// `get_ranges` (decode stays scoped) instead of per-column scoped fetches.
+///
+/// Only worthwhile on a remote/warm object store: the warm tier is keyed by the
+/// exact byte-range string, and eager shard-init populates the whole-region range,
+/// so a narrower per-column fetch computes a different key and misses. Fetching the
+/// whole region makes the query's key match what warming wrote → a warm hit. For
+/// local stores there is no warm tier and fewer bytes is better, so it stays off.
+/// Set from `create_reader` when a Java-supplied (remote) store is wired in.
+pub(crate) static WHOLE_REGION_FETCH_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Returns true when whole-region page-index fetch is enabled (remote stores).
+pub fn is_whole_region_fetch_enabled() -> bool {
+    WHOLE_REGION_FETCH_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Enable/disable whole-region page-index fetch. Called from `create_reader` based
+/// on whether a remote object store is in use (`store_ptr > 0`).
+pub fn set_whole_region_fetch_enabled(enabled: bool) {
+    WHOLE_REGION_FETCH_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
 pub use cache_store::ScopedCacheStats;
 pub use page_index_io::load_scoped_page_index_cols;
 pub use column_schema_resolver::{
