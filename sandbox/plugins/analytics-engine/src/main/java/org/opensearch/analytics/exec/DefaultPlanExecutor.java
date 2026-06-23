@@ -50,12 +50,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
-import org.opensearch.transport.stream.StreamErrorCode;
-import org.opensearch.transport.stream.StreamException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -344,13 +340,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // No taskManager.unregister here: the framework (HandledTransportAction) unregisters the
         // task it created for doExecute once this listener settles. Unregistering it ourselves
         // would double-free a task we no longer own.
-        final String queryAllocatorContext = "query-" + dag.queryId();
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.wrap(batches -> {
             Iterable<Object[]> rows = batchesToRows(batches, outputColumnOrder);
             long totalRows = rows instanceof List ? ((List<?>) rows).size() : 0;
             queryListener.onQueryComplete(dag.queryId(), System.nanoTime() - queryStartNanos, totalRows);
             rowsListener.onResponse(rows);
-        }, e -> rowsListener.onFailure(translateArrowOom(queryAllocatorContext, e)));
+        }, rowsListener::onFailure);
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
         TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
@@ -495,53 +490,5 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             ordered.add(vector);
         }
         return ordered;
-    }
-
-    /**
-     * Translates Arrow allocator exhaustion that surfaces mid-query into
-     * {@link CircuitBreakingException} so the REST layer maps it to HTTP 429 instead of a
-     * generic 500. This signals back-pressure to clients (and to OpenSearch core's
-     * {@code FailAwareWeightedRouting}, which skips 429 — preventing retry storms on
-     * replica shards).
-     *
-     * <p>Two structural checks:
-     * <ol>
-     *   <li><b>Typed match</b> — {@code instanceof org.apache.arrow.memory.OutOfMemoryException}.
-     *       Catches Arrow OOMs thrown directly on the coordinator listener thread
-     *       (no Flight RPC hop between failure site and translator).</li>
-     *   <li><b>StreamErrorCode match</b> — {@code RESOURCE_EXHAUSTED}. Catches Arrow OOMs
-     *       that originated on a shard node, were classified by
-     *       {@code FlightServerChannel.classifyError} as {@code CallStatus.RESOURCE_EXHAUSTED}
-     *       on the way out, and arrived here wrapped as a {@code StreamException} carrying the
-     *       typed error code (the original {@code OutOfMemoryException} class identity is not
-     *       preserved across the Flight wire format, but the error code is).</li>
-     * </ol>
-     *
-     * <p>Pairs with {@code AllocationRejection.wrap} which only catches synchronous OOMs at
-     * allocator-creation sites — Arrow allocators reserve a limit but allocate lazily, so the
-     * actual OOM often fires later, deep inside async execution.
-     */
-    // Package-private for test access; otherwise treat as private.
-    static Exception translateArrowOom(String context, Exception e) {
-        Throwable cur = e;
-        while (cur != null) {
-            if (cur instanceof org.apache.arrow.memory.OutOfMemoryException oom) {
-                return makeRejection(context, oom.getMessage(), e);
-            }
-            if (cur instanceof StreamException se && se.getErrorCode() == StreamErrorCode.RESOURCE_EXHAUSTED) {
-                return makeRejection(context, se.getMessage(), e);
-            }
-            cur = cur.getCause();
-        }
-        return e;
-    }
-
-    private static CircuitBreakingException makeRejection(String context, String detail, Throwable cause) {
-        CircuitBreakingException rejection = new CircuitBreakingException(
-            "native memory allocation rejected at [" + context + "]: " + detail,
-            CircuitBreaker.Durability.TRANSIENT
-        );
-        rejection.initCause(cause);
-        return rejection;
     }
 }

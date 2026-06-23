@@ -420,9 +420,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         if (error instanceof FlightRuntimeException fre) {
             flightExc = fre;
         } else {
-            // Map Arrow allocator exhaustion to RESOURCE_EXHAUSTED so it surfaces to clients as
-            // HTTP 429 (CircuitBreakingException). Everything else stays INTERNAL → HTTP 500.
-            flightExc = classifyError(error).withCause(error)
+            flightExc = CallStatus.INTERNAL.withCause(error)
                 .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
                 .toRuntimeException();
         }
@@ -436,28 +434,6 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         serverStreamListener.error(flightExc);
         terminalSent = true;
         callTracker.recordCallEnd(mapFromCallStatus(flightExc).name());
-    }
-
-    /**
-     * Classifies a Flight-stream error into a CallStatus. Arrow allocator exhaustion is
-     * back-pressure (consumer should retry less / shrink request size), not an engine bug,
-     * so it maps to {@link CallStatus#RESOURCE_EXHAUSTED}. Everything else uses
-     * {@link CallStatus#INTERNAL}.
-     *
-     * <p>Walks the cause chain — the {@link org.apache.arrow.memory.OutOfMemoryException}
-     * is often the root cause of a higher-level {@code IllegalArgumentException} thrown by
-     * {@code org.apache.arrow.c.ArrayImporter}.
-     */
-    // Package-private for test access; otherwise treat as private.
-    static CallStatus classifyError(Throwable error) {
-        Throwable cur = error;
-        while (cur != null) {
-            if (cur instanceof org.apache.arrow.memory.OutOfMemoryException) {
-                return CallStatus.RESOURCE_EXHAUSTED;
-            }
-            cur = cur.getCause();
-        }
-        return CallStatus.INTERNAL;
     }
 
     @Override
