@@ -62,14 +62,20 @@ pub trait CachePolicy: Send + Sync {
 ///
 /// One enum for all caches means `df_create_cache` parses the Java-supplied
 /// eviction string once and routes uniformly without separate enums per family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// [`S3Fifo`](CacheEvictionPolicy::S3Fifo) is the **default** (`#[default]`): it is the
+/// scan-resistant policy we tuned and is the configured default for every cache (see the
+/// `datafusion.*.cache.eviction.type` settings). A cache's policy is fixed when the cache is
+/// constructed — there is no runtime re-policy API; changing the setting takes effect on restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CacheEvictionPolicy {
     Lru,
     Lfu,
     Fifo,
-    /// Scan-resistant S3-FIFO. Not implemented via the hand-written [`CachePolicy`]
-    /// trait — it is provided natively by foyer (`FoyerBackedCache`), so `create_policy`
+    /// Scan-resistant S3-FIFO — the default policy. Provided natively by foyer
+    /// (`FoyerBackedCache`), not the hand-written [`CachePolicy`] trait, so `create_policy`
     /// returns `None` for it and callers route to the foyer-backed cache instead.
+    #[default]
     S3Fifo,
 }
 

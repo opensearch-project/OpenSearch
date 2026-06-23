@@ -59,13 +59,23 @@ pub struct FoyerCacheStats {
     pub limit_bytes: usize,
 }
 
-/// Map our policy enum → a foyer eviction config. S3-FIFO is tuned to the values that beat
-/// LRU/paper-default on our metadata cache (ghost-off, small-queue 0.25).
+/// Map our policy enum → a foyer eviction config.
+///
+/// **`S3Fifo` is the default policy** (`CacheEvictionPolicy::default()` — see
+/// [`CacheEvictionPolicy`]): it is the scan-resistant policy we tuned (ghost-off, small-queue
+/// 0.25 — the values that beat LRU/paper-default on our metadata cache). The other arms exist so
+/// an operator can override via the `datafusion.*.cache.eviction.type` settings.
+///
+/// The policy is **fixed at cache construction** and baked into the underlying `foyer::Cache`
+/// variant; foyer exposes no way to swap the eviction algorithm on a live cache, so there is no
+/// runtime re-policy path — a changed setting only takes effect when the cache is rebuilt
+/// (node restart).
 fn eviction_config(policy: CacheEvictionPolicy) -> foyer::EvictionConfig {
     match policy {
         CacheEvictionPolicy::Lru => LruConfig::default().into(),
         CacheEvictionPolicy::Lfu => LfuConfig::default().into(),
         CacheEvictionPolicy::Fifo => FifoConfig::default().into(),
+        // Default. S3-FIFO tuned: ghost-off + small-queue 0.25.
         CacheEvictionPolicy::S3Fifo => S3FifoConfig {
             small_queue_capacity_ratio: 0.25,
             ghost_queue_capacity_ratio: 0.0,

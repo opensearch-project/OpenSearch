@@ -65,9 +65,9 @@ where
     K: Eq + Hash + Clone + Display + Send + Sync + 'static,
     V: Clone + Send + Sync + 'static,
 {
-    /// Create a `BoundedCache` with the named eviction policy. All `CacheEvictionPolicy`
-    /// variants are accepted (the page-index caches use `Fifo` today; `S3Fifo` is the
-    /// intended scan-resistant upgrade).
+    /// Create a `BoundedCache` with the given eviction policy. All `CacheEvictionPolicy` variants
+    /// are accepted; the page-index caches construct this with `CacheEvictionPolicy::default()`
+    /// (S3-FIFO, scan-resistant).
     pub(crate) fn with_named_policy(limit: usize, policy: CacheEvictionPolicy) -> Self {
         // Weight by the externally-supplied byte cost carried in the value tuple.
         Self {
@@ -75,10 +75,10 @@ where
         }
     }
 
-    /// Create a new cache with FIFO eviction — shorthand for tests.
+    /// Test-only shorthand: a cache with the default eviction policy (S3-FIFO).
     #[cfg(test)]
     pub(super) fn new(limit: usize) -> Self {
-        Self::with_named_policy(limit, CacheEvictionPolicy::Fifo)
+        Self::with_named_policy(limit, CacheEvictionPolicy::default())
     }
 
     /// Lock-free read. Returns a clone of the stored value (drops the byte-cost tuple element).

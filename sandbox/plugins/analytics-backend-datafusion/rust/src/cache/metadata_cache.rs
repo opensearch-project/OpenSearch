@@ -82,9 +82,10 @@ impl MutexFileMetadataCache {
         }
     }
 
-    /// Build with an explicit byte limit and the default eviction policy (S3-FIFO).
+    /// Build with an explicit byte limit and the default eviction policy
+    /// ([`CacheEvictionPolicy::default`] = S3-FIFO).
     pub fn with_limit(size_limit: usize) -> Self {
-        Self::with_policy(size_limit, CacheEvictionPolicy::S3Fifo)
+        Self::with_policy(size_limit, CacheEvictionPolicy::default())
     }
 
     pub fn hit_count(&self) -> usize {
