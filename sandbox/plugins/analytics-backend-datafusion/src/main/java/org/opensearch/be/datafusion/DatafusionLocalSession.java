@@ -26,9 +26,12 @@ public final class DatafusionLocalSession extends NativeHandle {
      * Creates a new local session tied to the given global runtime pointer.
      *
      * @param runtimePtr pointer returned by {@link NativeBridge#createGlobalRuntime}
+     * @param contextId  the parent {@code AnalyticsQueryTask.getId()} used to attribute this
+     *                   reduce's native memory to the coordinator search task (0 disables
+     *                   per-query tracking)
      */
-    public DatafusionLocalSession(long runtimePtr) {
-        super(NativeBridge.createLocalSession(runtimePtr));
+    public DatafusionLocalSession(long runtimePtr, long contextId) {
+        super(NativeBridge.createLocalSession(runtimePtr, contextId));
     }
 
     @Override

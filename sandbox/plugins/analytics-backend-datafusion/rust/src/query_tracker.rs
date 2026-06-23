@@ -512,7 +512,27 @@ impl QueryTrackingContext {
         if context_id == 0 {
             return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
         }
-        let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
+        Self::from_query_pool(context_id, Arc::new(QueryMemoryPool::new(global_pool)), query_type)
+    }
+
+    /// Create a query context that reports against an existing
+    /// [`QueryMemoryPool`] instead of wrapping a shared pool itself.
+    ///
+    /// Use this when the executing session already built its `RuntimeEnv`
+    /// against a per-query pool (the coordinator-reduce path): passing that
+    /// same `Arc<QueryMemoryPool>` here makes the registry tracker report the
+    /// bytes the session actually reserves. Wrapping a fresh pool instead (as
+    /// [`Self::new`] does) would leave the tracker reporting zero because the
+    /// session never reserves against it. If `context_id` is 0, tracking is
+    /// disabled.
+    pub fn from_query_pool(
+        context_id: i64,
+        query_pool: Arc<QueryMemoryPool>,
+        query_type: QueryType,
+    ) -> Self {
+        if context_id == 0 {
+            return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
+        }
         let tracker = Arc::new(QueryTracker {
             start_time: Instant::now(),
             context_id,

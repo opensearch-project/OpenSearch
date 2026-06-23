@@ -43,7 +43,7 @@ public class FinalAggregateInstructionHandler implements FragmentInstructionHand
     ) {
         ExchangeSinkContext ctx = (ExchangeSinkContext) commonContext;
 
-        DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
+        DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get(), ctx.taskId());
         List<DatafusionPartitionSender> senders = new ArrayList<>(ctx.childInputs().size());
         List<Schema> inputSchemas = new ArrayList<>(ctx.childInputs().size());
         try {

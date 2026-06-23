@@ -44,6 +44,7 @@ use prost::Message;
 use substrait::proto::Plan;
 
 use crate::partition_stream::{channel, PartitionStreamSender, SingleReceiverPartition};
+use crate::query_tracker::QueryMemoryPool;
 
 /// Coordinator-reduce DataFusion session.
 ///
@@ -60,6 +61,13 @@ pub struct LocalSession {
     /// untracked memory (intermediate buffers, hash table overhead) in the shared
     /// pool so concurrent reduces trigger backpressure before OOM.
     _phantom_reservation: Option<datafusion::execution::memory_pool::MemoryReservation>,
+    /// Per-query memory pool installed into this session's `RuntimeEnv` when the
+    /// session was created with a non-zero `context_id`. `None` when tracking is
+    /// disabled. The bridge layer reuses this exact instance to seed the
+    /// [`crate::query_tracker::QueryTrackingContext`], so the registry reports
+    /// the bytes the reduce actually reserves (the operators reserve against the
+    /// pool in this `RuntimeEnv`).
+    query_pool: Option<Arc<QueryMemoryPool>>,
 }
 
 impl LocalSession {
@@ -68,8 +76,31 @@ impl LocalSession {
     /// The runtime's memory pool, disk manager, and caches are inherited —
     /// every batch consumed or produced by this session counts against the
     /// same limits as the shard-scan path.
+    ///
+    /// Equivalent to [`Self::new_tracked`] with `context_id == 0` (no per-query
+    /// tracking). Retained for tests and any caller without a task id.
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
-        let runtime_env = Arc::new(runtime_env.clone());
+        Self::new_tracked(runtime_env, 0)
+    }
+
+    /// Builds a session that, when `context_id != 0`, installs a per-query
+    /// [`QueryMemoryPool`] (wrapping the runtime's pool) into its `RuntimeEnv`.
+    ///
+    /// All reduce allocations then reserve against that wrapper, so the
+    /// per-query tracker keyed by `context_id` (the parent `AnalyticsQueryTask`
+    /// id) reports the reduce's true native footprint to search backpressure.
+    /// When `context_id == 0`, the session shares the runtime pool directly and
+    /// no per-query pool is created.
+    pub fn new_tracked(runtime_env: &RuntimeEnv, context_id: i64) -> Self {
+        let mut env = runtime_env.clone();
+        let query_pool = if context_id != 0 {
+            let qp = Arc::new(QueryMemoryPool::new(Arc::clone(&runtime_env.memory_pool)));
+            env.memory_pool = Arc::clone(&qp) as Arc<dyn MemoryPool>;
+            Some(qp)
+        } else {
+            None
+        };
+        let runtime_env = Arc::new(env);
         let mut config = SessionConfig::new();
         config.options_mut().execution.target_partitions = crate::api::get_reduce_target_partitions();
         let state = SessionStateBuilder::new()
@@ -81,7 +112,15 @@ impl LocalSession {
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
         crate::udaf::register_all(&ctx);
-        Self { ctx, prepared_plan: None, _phantom_reservation: None }
+        Self { ctx, prepared_plan: None, _phantom_reservation: None, query_pool }
+    }
+
+    /// The per-query memory pool this session was built against, or `None` when
+    /// created without tracking (`context_id == 0`). The bridge layer reuses
+    /// this to construct the query-tracking context so the tracker and the
+    /// executing session share one counter.
+    pub fn query_pool(&self) -> Option<Arc<QueryMemoryPool>> {
+        self.query_pool.clone()
     }
 
     /// Returns the configured batch_size for this session.

@@ -304,10 +304,10 @@ public final class NativeBridge {
         );
 
         // ── Coordinator-reduce bindings ──
-        // i64 df_create_local_session(runtime_ptr)
+        // i64 df_create_local_session(runtime_ptr, context_id)
         CREATE_LOCAL_SESSION = linker.downcallHandle(
             lib.find("df_create_local_session").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         // void df_close_local_session(session_ptr)
@@ -1203,11 +1203,17 @@ public final class NativeBridge {
     /**
      * Creates a local DataFusion session tied to the given global runtime. Returns an opaque
      * native pointer freed by {@link #closeLocalSession}.
+     *
+     * @param runtimePtr pointer to the global runtime
+     * @param contextId  the parent {@code AnalyticsQueryTask.getId()} (0 disables per-query
+     *                   native-memory tracking). When non-zero, the session installs a per-query
+     *                   memory pool so reduce allocations are attributed to this id and become
+     *                   visible to search backpressure.
      */
-    public static long createLocalSession(long runtimePtr) {
+    public static long createLocalSession(long runtimePtr, long contextId) {
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
-            return call.invoke(CREATE_LOCAL_SESSION, runtimePtr);
+            return call.invoke(CREATE_LOCAL_SESSION, runtimePtr, contextId);
         }
     }
 
