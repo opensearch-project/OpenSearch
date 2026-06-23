@@ -625,7 +625,7 @@ mod tests {
     use super::*;
     use datafusion::execution::memory_pool::GreedyMemoryPool;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     fn make_global_pool(limit: usize) -> Arc<dyn MemoryPool> {
         Arc::new(GreedyMemoryPool::new(limit))
@@ -1007,10 +1007,23 @@ mod tests {
 
         // The abort is async — the task future may not be dropped yet.
         // flush_cpu_runtime gives the runtime scheduling opportunities to
-        // process the abort and drop the future (freeing the sentinel).
-        flush_cpu_runtime(ctx_id);
+         // process the abort and drop the future (freeing the sentinel). A single
+        // flush is best-effort: it spawns a fixed number of yield tasks and
+        // returns once they finish, which under heavy parallel test load (a
+        // CPU-starved CI box running 1000+ tests against a 2-worker runtime) can
+        // race the runtime actually polling and dropping the aborted task. Poll
+        // the flush until the deferred drop is observed, bounded by a timeout so
+        // a genuine regression (flush never processes the drop) still fails.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !dropped.load(Ordering::Acquire) && Instant::now() < deadline {
+            flush_cpu_runtime(ctx_id);
+            if dropped.load(Ordering::Acquire) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
 
-        // After flush, the sentinel should have been dropped.
+        // After flushing, the sentinel must have been dropped.
         assert!(
             dropped.load(Ordering::Acquire),
             "sentinel must be dropped after flush — deferred drop was not processed"

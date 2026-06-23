@@ -24,6 +24,8 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use std::fs::File;
+use arrow_schema::SchemaRef;
+use parquet::file::metadata::ParquetMetaData;
 
 /// Trait to calculate heap memory size for statistics objects
 trait HeapSize {
@@ -125,8 +127,10 @@ struct MemoryState {
 pub struct CustomStatisticsCache {
     /// The underlying DataFusion statistics cache (DashMap-based, already thread-safe)
     inner_cache: DashMap<Path, CachedFileMetadata>,
-    /// The eviction policy (thread-safe)
-    policy: Arc<Mutex<Box<dyn CachePolicy>>>,
+    /// Current eviction policy. `Mutex` guards atomic swaps in `set_policy`;
+    /// hot-path callers clone the `Arc` while holding the lock briefly, then call
+    /// through the clone without holding the lock.
+    policy: Mutex<Arc<dyn CachePolicy>>,
     /// Size limit for the cache in bytes
     size_limit: AtomicUsize,
     /// Eviction threshold (0.0 to 1.0)
@@ -144,7 +148,7 @@ impl CustomStatisticsCache {
     pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
         Self {
             inner_cache: DashMap::new(),
-            policy: Arc::new(Mutex::new(create_policy(policy_type))),
+            policy: Mutex::new(create_policy(policy_type).expect("statistics cache requires Lru or Lfu")),
             size_limit: AtomicUsize::new(size_limit),
             eviction_threshold,
             memory_state: Arc::new(Mutex::new(MemoryState {
@@ -195,17 +199,19 @@ impl CustomStatisticsCache {
         self.miss_count.store(0, Ordering::Relaxed);
     }
 
+    /// Clone the policy Arc without holding the Mutex. Hot-path callers use this
+    /// so they don't hold the lock while calling policy methods.
+    fn policy(&self) -> Arc<dyn CachePolicy> {
+        self.policy.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
     /// Update the cache size limit
     pub fn update_size_limit(&self, new_limit: usize) -> CacheResult<()> {
         self.size_limit.store(new_limit, Ordering::Relaxed);
         let current_size = self.current_size()?;
         if current_size > new_limit {
             let target_eviction = current_size - (new_limit as f64 * self.eviction_threshold) as usize;
-            let candidates = {
-                if let Ok(policy_guard) = self.policy.lock() {
-                    policy_guard.select_for_eviction(target_eviction)
-                } else { vec![] }
-            };
+            let candidates = self.policy().select_for_eviction(target_eviction);
             for candidate_key in candidates {
                 if let Ok(path) = self.parse_key_to_path(&candidate_key) {
                     self.remove_internal(&path);
@@ -215,7 +221,7 @@ impl CustomStatisticsCache {
         Ok(())
     }
 
-    /// Switch to a different eviction policy
+    /// Switch to a different eviction policy, rebuilding state from current entries.
     pub fn set_policy(&self, policy_type: PolicyType) -> CacheResult<()> {
         let entries: Vec<(String, usize)> = {
             let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
@@ -223,23 +229,20 @@ impl CustomStatisticsCache {
             })?;
             state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
         };
-        let mut policy_guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
-            reason: format!("Failed to acquire policy lock: {}", e),
-        })?;
-        let mut new_policy = create_policy(policy_type);
+        let new_policy = create_policy(policy_type).expect("statistics cache requires Lru or Lfu");
         for (key, size) in entries {
             new_policy.on_insert(&key, size);
         }
-        *policy_guard = new_policy;
+        let mut guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
+            reason: format!("Failed to acquire policy lock: {}", e),
+        })?;
+        *guard = new_policy;
         Ok(())
     }
 
     /// Get current policy name
     pub fn policy_name(&self) -> CacheResult<String> {
-        let policy_guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
-            reason: format!("Failed to acquire policy lock: {}", e),
-        })?;
-        Ok(policy_guard.policy_name().to_string())
+        Ok(self.policy().policy_name().to_string())
     }
 
     /// Get current cache size according to policy (uses actual memory consumption)
@@ -252,16 +255,10 @@ impl CustomStatisticsCache {
         self.size_limit.load(Ordering::Relaxed)
     }
 
-    /// Manually trigger eviction (requires &mut self)
+    /// Manually trigger eviction.
     pub fn evict(&mut self, target_size: usize) -> CacheResult<usize> {
         if target_size == 0 { return Ok(0); }
-
-        let candidates = {
-            let policy_guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
-                reason: format!("Failed to acquire policy lock: {}", e),
-            })?;
-            policy_guard.select_for_eviction(target_size)
-        };
+        let candidates = self.policy().select_for_eviction(target_size);
 
         let mut freed_size = 0;
         for key in candidates {
@@ -279,9 +276,7 @@ impl CustomStatisticsCache {
                             state.tracker.remove(&key);
                             state.total = state.total.saturating_sub(entry_size);
                         }
-                        if let Ok(mut policy_guard) = self.policy.lock() {
-                            policy_guard.on_remove(&key);
-                        }
+                        self.policy().on_remove(&key);
                         freed_size += entry_size;
                     }
                     if freed_size >= target_size { break; }
@@ -322,9 +317,7 @@ impl CustomStatisticsCache {
                     state.total = state.total.saturating_sub(old_size);
                 }
             }
-            if let Ok(mut policy_guard) = self.policy.lock() {
-                policy_guard.on_remove(&key);
-            }
+            self.policy().on_remove(&key);
         }
         result.map(|x| x.1)
     }
@@ -347,9 +340,7 @@ impl CustomStatisticsCache {
                 let state = self.memory_state.lock();
                 state.map(|s| s.tracker.get(&key).copied().unwrap_or(0)).unwrap_or(0)
             };
-            if let Ok(mut policy_guard) = self.policy.lock() {
-                policy_guard.on_access(&key, memory_size);
-            }
+            self.policy().on_access(&key, memory_size);
         } else {
             self.miss_count.fetch_add(1, Ordering::Relaxed);
         }
@@ -370,9 +361,7 @@ impl CustomStatisticsCache {
             let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
             if current_size + memory_size > threshold {
                 let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
-                if let Ok(policy_guard) = self.policy.lock() {
-                    policy_guard.select_for_eviction(target_eviction)
-                } else { vec![] }
+                self.policy().select_for_eviction(target_eviction)
             } else { vec![] }
         };
 
@@ -392,10 +381,7 @@ impl CustomStatisticsCache {
             state.total += memory_size;
         }
 
-        if let Ok(mut policy_guard) = self.policy.lock() {
-            policy_guard.on_insert(&key, memory_size);
-        }
-
+        self.policy().on_insert(&key, memory_size);
         result
     }
 
@@ -408,9 +394,7 @@ impl CustomStatisticsCache {
                     state.total = state.total.saturating_sub(old_size);
                 }
             }
-            if let Ok(mut policy_guard) = self.policy.lock() {
-                policy_guard.on_remove(&key);
-            }
+            self.policy().on_remove(&key);
         }
         result.map(|x| x.1)
     }
@@ -429,7 +413,7 @@ impl CustomStatisticsCache {
             state.tracker.clear();
             state.total = 0;
         }
-        if let Ok(mut policy_guard) = self.policy.lock() { policy_guard.clear(); }
+        self.policy().clear();
         self.reset_stats();
     }
 
@@ -503,6 +487,21 @@ impl Default for CustomStatisticsCache {
     fn default() -> Self {
         Self::with_default_config()
     }
+}
+
+/// Compute statistics from an already-loaded `ParquetMetaData` and schema.
+///
+/// Avoids a second file/IO round-trip when the footer has already been fetched
+/// (e.g. by `load_parquet_metadata` during metadata cache warming). The caller
+/// is responsible for providing the correct Arrow schema derived from the same
+/// metadata.
+pub fn compute_parquet_statistics_from_metadata(
+    metadata: &ParquetMetaData,
+    schema: &SchemaRef,
+) -> Result<Statistics, Box<dyn std::error::Error>> {
+    use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+    let statistics = DFParquetMetadata::statistics_from_parquet_metadata(metadata, schema)?;
+    Ok(statistics)
 }
 
 /// Compute statistics from a parquet file using DataFusion's built-in functionality
