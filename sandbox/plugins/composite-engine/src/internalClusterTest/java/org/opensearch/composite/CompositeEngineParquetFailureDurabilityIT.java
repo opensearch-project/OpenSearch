@@ -126,7 +126,7 @@ public class CompositeEngineParquetFailureDurabilityIT extends RemoteStoreBaseIn
         // Phase 1: index N docs with f1 into writer-1.
         final int initialDocs = 5;
         for (int i = 0; i < initialDocs; i++) {
-            IndexResponse r = client().prepareIndex(INDEX_NAME).setId("d" + i).setSource("f1", "v" + i).get();
+            IndexResponse r = client().prepareIndex(INDEX_NAME).setSource("f1", "v" + i).get();
             assertEquals(RestStatus.CREATED, r.status());
         }
 
@@ -137,7 +137,7 @@ public class CompositeEngineParquetFailureDurabilityIT extends RemoteStoreBaseIn
         FailableParquetDataFormatPlugin.armSchemaSuppression();
         client().admin().indices().preparePutMapping(INDEX_NAME).setSource("f2", "type=keyword").get();
 
-        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setId("fail").setSource("f2", "value-fail")).get();
+        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setSource("f2", "value-fail")).get();
         assertEquals(1, bulk.getItems().length);
         BulkItemResponse failed = bulk.getItems()[0];
         assertTrue("oversized-schema doc must surface as a per-item failure: " + failed.getFailureMessage(), failed.isFailed());
@@ -147,7 +147,7 @@ public class CompositeEngineParquetFailureDurabilityIT extends RemoteStoreBaseIn
         FailableParquetDataFormatPlugin.clearFailure();
         final int postRetirementDocs = 3;
         for (int i = 0; i < postRetirementDocs; i++) {
-            IndexResponse r = client().prepareIndex(INDEX_NAME).setId("p" + i).setSource("f1", "p" + i).get();
+            IndexResponse r = client().prepareIndex(INDEX_NAME).setSource("f1", "p" + i).get();
             assertEquals(RestStatus.CREATED, r.status());
         }
 

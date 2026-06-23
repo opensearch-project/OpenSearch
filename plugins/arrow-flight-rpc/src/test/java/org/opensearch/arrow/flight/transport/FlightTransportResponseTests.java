@@ -177,6 +177,7 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
     }
 
     /** An unexpected error from the stream is wrapped as a StreamException. */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/22249")
     public void testCloseRethrowsUnexpectedErrorAsStreamException() throws Exception {
         FlightClient client = mock(FlightClient.class);
         FlightStream stream = mock(FlightStream.class);
