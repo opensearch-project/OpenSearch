@@ -17,6 +17,7 @@ import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -50,6 +51,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
@@ -409,7 +411,21 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // immediately. The listener is wrapped to convert backend-specific exceptions.
         ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(listener::onResponse, e -> {
             Exception converted = e instanceof Exception ex ? contextProvider.convertException(ex) : new RuntimeException(e);
-            listener.onFailure(converted);
+            // If convertException returned unrecognized 500 — redact internal details and log the original.
+            if (converted == e && isInternalError(converted)) {
+                AnalyticsQueryTask queryTask = (AnalyticsQueryTask) task;
+                String queryId = queryTask.getQueryId();
+                String identifier = "unassigned".equals(queryId)
+                    ? "task_id=" + task.getId()
+                    : "task_id=" + task.getId() + ", query_id=" + queryId;
+                logger.error(
+                    new org.apache.logging.log4j.message.ParameterizedMessage("[analytics-engine] internal error [{}]", identifier),
+                    converted
+                );
+                listener.onFailure(new RuntimeException("Internal error [" + identifier + "]"));
+            } else {
+                listener.onFailure(converted);
+            }
         });
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
@@ -441,6 +457,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 );
             }
         });
+    }
+
+    /**
+     * Returns true if the exception would produce a 500 response and should be redacted.
+     */
+    private static boolean isInternalError(Exception e) {
+        return ExceptionsHelper.status(e) == RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     /**
