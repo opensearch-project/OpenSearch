@@ -565,9 +565,26 @@ impl CustomCacheManager {
         let footer_prefetch = 64 * 1024u64; // matches DataFusion's DEFAULT_FOOTER_READ_SIZE
         let footer_start = object_meta.size.saturating_sub(footer_prefetch);
         index_ranges.push(footer_start..object_meta.size);
+
+        // Also promote the exact last-8-byte postscript [size-8, size] to metadata Foyer.
+        // DataFusion's FIRST footer read is an 8-byte read of the postscript (4-byte
+        // footer-metadata length + "PAR1" magic) to learn the footer length. On an
+        // exact-key warm tier that 8-byte read probes key [size-8, size], which the
+        // 64 KB footer range above does NOT match — so without this the very first
+        // metadata read always misses the warm tier. Promoting the exact 8 bytes under
+        // their own key makes that probe a warm hit.
+        let postscript_start = object_meta.size.saturating_sub(8);
+        index_ranges.push(postscript_start..object_meta.size);
+        native_bridge_common::log_info!(
+            "[init::warmup] file='{}' footer ranges: footer_64k=[{}..{}] postscript_8b=[{}..{}] (postscript key='{}\\x1F{}-{}')",
+            file_path, footer_start, object_meta.size,
+            postscript_start, object_meta.size,
+            file_path.strip_prefix('/').unwrap_or(file_path), postscript_start, object_meta.size
+        );
+
         let total_pre_fetch_bytes: u64 = index_ranges.iter().map(|r| r.end - r.start).sum();
         native_bridge_common::log_info!(
-            "[init::warmup] file='{}' index_ranges: page_index={} +1 footer (last 64KB) = {} ranges total_bytes={}",
+            "[init::warmup] file='{}' index_ranges: page_index={} +1 footer (last 64KB) +1 postscript (last 8B) = {} ranges total_bytes={}",
             file_path, pi_count, index_ranges.len(), total_pre_fetch_bytes
         );
 
@@ -583,7 +600,7 @@ impl CustomCacheManager {
         // No-op when `store` is not a TieredObjectStore (default trait impl is no-op).
         store.put_metadata(file_path, &index_ranges, &fetched_bytes);
         native_bridge_common::log_info!(
-            "[init::warmup] file='{}' DONE (footer + page-index promoted to metadata Foyer)",
+            "[init::warmup] file='{}' DONE (footer 64KB + postscript 8B + page-index promoted to metadata Foyer)",
             file_path
         );
 
