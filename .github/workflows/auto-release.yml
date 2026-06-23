@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: GitHub App token
         id: github_app_token
-        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2.1.0
+        uses: tibdex/github-app-token@0af3325639c0a60612b2eeaf010f0f88e468e800 # v2.1.0
         with:
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -22,7 +22,7 @@ jobs:
       - name: Get tag
         id: tag
         uses: dawidd6/action-get-tag@727a6f0a561be04e09013531e73a3983a65e3479 # v1
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}

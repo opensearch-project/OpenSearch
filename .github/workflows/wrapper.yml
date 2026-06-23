@@ -7,5 +7,5 @@ jobs:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5
-      - uses: gradle/actions/wrapper-validation@0723195856401067f7a2779048b490ace7a47d7c # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4

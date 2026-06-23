@@ -26,14 +26,14 @@ jobs:
     steps:
       - name: GitHub App token
         id: github_app_token
-        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2.1.0
+        uses: tibdex/github-app-token@0af3325639c0a60612b2eeaf010f0f88e468e800 # v2.1.0
         with:
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
           installation_id: 22958780
 
       - name: Backport
-        uses: VachaShah/backport@142d3b8a8c70dc54db515e653e5ed3c3fac64100 # v2.1.0
+        uses: VachaShah/backport@3dc1c79b5fa9d9dcd542cee70bd5d10c6e5dbbf6 # v2.1.0
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
           head_template: backport/backport-<%= number %>-to-<%= base %>
