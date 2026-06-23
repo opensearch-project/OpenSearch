@@ -12,7 +12,7 @@ jobs:
     runs-on:
       - codebuild-github-actions-codebuild-runner-indexer-amd-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check version
         run: bash build-scripts/check-version.sh

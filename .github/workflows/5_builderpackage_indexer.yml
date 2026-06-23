@@ -130,7 +130,7 @@ jobs:
       alerting_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_alerting_branch }}
       wazuh_ref: ${{ steps.branches.outputs.wazuh_branch }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Resolve branches
         id: branches
         uses: ./.github/actions/5_builderpackage_indexer_branch_resolver
@@ -145,7 +145,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       opensearch_version: ${{ steps.version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
           sparse-checkout: |
@@ -169,7 +169,7 @@ jobs:
       version: ${{ steps.plugins_version.outputs.version }}
       opensearch_version: ${{ steps.plugins_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-plugins
           ref: ${{ needs.branches.outputs.wazuh_plugins_ref }}
@@ -195,7 +195,7 @@ jobs:
       version: ${{ steps.reporting_version.outputs.version }}
       opensearch_version: ${{ steps.reporting_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-reporting
           ref: ${{ needs.branches.outputs.reporting_plugin_ref }}
@@ -221,7 +221,7 @@ jobs:
       version: ${{ steps.security_analytics_version.outputs.version }}
       opensearch_version: ${{ steps.security_analytics_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-security-analytics
           ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
@@ -247,7 +247,7 @@ jobs:
       version: ${{ steps.notifications_version.outputs.version }}
       opensearch_version: ${{ steps.notifications_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-notifications
           ref: ${{ needs.branches.outputs.notifications_plugin_ref }}
@@ -273,7 +273,7 @@ jobs:
       version: ${{ steps.common_utils_version.outputs.version }}
       opensearch_version: ${{ steps.common_utils_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-common-utils
           ref: ${{ needs.branches.outputs.common_utils_plugin_ref }}
@@ -298,7 +298,7 @@ jobs:
       version: ${{ steps.alerting_version.outputs.version }}
       opensearch_version: ${{ steps.alerting_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-alerting
           ref: ${{ needs.branches.outputs.alerting_plugin_ref }}
@@ -330,7 +330,7 @@ jobs:
         get-versions-wazuh-indexer-alerting
       ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
           sparse-checkout: |
@@ -368,7 +368,7 @@ jobs:
               '{distribution: $distribution, architecture: $architecture}'
           )
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: previous_release
         name: Get latest Wazuh release from GitHub
         run: |
@@ -417,7 +417,7 @@ jobs:
     outputs:
       name: ${{ steps.package.outputs.name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Built by the build-wazuh-engine job
       - name: Download Wazuh Engine
@@ -585,7 +585,10 @@ jobs:
             if [ "$rc" -eq 0 ]; then
               echo "ERROR: upgrade unexpectedly succeeded"; exit 1
             fi
-            if ! echo "$out" | grep -qF "Direct upgrade from Wazuh Indexer 4.X to 5.X is not supported"; then
+            if ! echo "$out" | grep -qF "Upgrade from indexer versions prior to 5.x is not supported"; then
+              echo "ERROR: expected block banner not found in output"; exit 1
+            fi
+            if ! echo "$out" | grep -qF "Detected installed version:"; then
               echo "ERROR: expected block banner not found in output"; exit 1
             fi
 
@@ -646,7 +649,10 @@ jobs:
             if [ "$rc" -eq 0 ]; then
               echo "ERROR: upgrade unexpectedly succeeded"; exit 1
             fi
-            if ! echo "$out" | grep -qF "Direct upgrade from Wazuh Indexer 4.X to 5.X is not supported"; then
+            if ! echo "$out" | grep -qF "Upgrade from indexer versions prior to 5.x is not supported"; then
+              echo "ERROR: expected block banner not found in output"; exit 1
+            fi
+            if ! echo "$out" | grep -qF "Detected installed version:"; then
               echo "ERROR: expected block banner not found in output"; exit 1
             fi
 

@@ -20,12 +20,16 @@ echo "Running Wazuh Indexer Pre-Installation Script"
 case "$1" in
     upgrade)
         # Hard block: refuse 4.X -> 5.X upgrades
-        if grep -Pq '4\.\d+\.\d+' /usr/share/wazuh-indexer/VERSION*; then
-            cat >&2 <<'EOF'
+        detected_version=$(grep -Pho '4\.\d+\.\d+' /usr/share/wazuh-indexer/VERSION* 2>/dev/null | head -n1)
+        if [ -n "${detected_version}" ]; then
+            cat >&2 <<EOF
 ==============================================================
-ERROR: Direct upgrade from Wazuh Indexer 4.X to 5.X is not supported.
+ERROR: Upgrade from indexer versions prior to 5.x is not supported.
 
-A clean installation of Wazuh Indexer 5.x is required.
+Detected installed version: ${detected_version}
+
+A clean installation of indexer 5.x is required.
+Refer to the 5.x migration guide for more information.
 ==============================================================
 EOF
             exit 1

@@ -11,6 +11,14 @@
 
 set -e
 
+# dpkg is not atomic: when an earlier step (e.g. the preinst version block) aborts an
+# upgrade, dpkg still invokes this postinst with an abort-* action.
+case "$1" in
+    abort-upgrade|abort-remove|abort-deconfigure)
+        exit 0
+        ;;
+esac
+
 echo "Running Wazuh Indexer Post-Installation Script"
 
 name="wazuh-indexer"

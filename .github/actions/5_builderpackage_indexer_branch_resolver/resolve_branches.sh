@@ -46,7 +46,7 @@ declare -A VERSION
 
 extract_version_branch() {
     local version="$1"
-    [ "$version" == "5.0.0" ] && echo "main" || echo "$version"
+    [ "$version" == "5.0.1" ] && echo "main" || echo "$version"
 }
 
 navigate_to_project_root() {

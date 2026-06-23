@@ -101,7 +101,7 @@ jobs:
     env:
       docker_path: ./build-scripts/docker
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Get version
         id: version

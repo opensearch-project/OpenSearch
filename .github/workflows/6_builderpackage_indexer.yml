@@ -146,7 +146,7 @@ jobs:
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-plugins
           ref: ${{ inputs.wazuh_plugins_ref }}
@@ -189,7 +189,7 @@ jobs:
     env:
       plugin_name: wazuh-indexer-reports-scheduler
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: wazuh/wazuh-indexer-reporting
           ref: ${{ inputs.reporting_plugin_ref }}
@@ -231,7 +231,7 @@ jobs:
     outputs:
       name: ${{ steps.package.outputs.name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Download plugins
       - name: Download plugins

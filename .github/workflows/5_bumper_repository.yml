@@ -85,7 +85,7 @@ jobs:
           export GPG_TTY=$(tty)
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           token: ${{ env.GH_TOKEN }}
           fetch-depth: 0

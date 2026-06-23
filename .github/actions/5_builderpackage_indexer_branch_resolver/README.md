@@ -11,7 +11,7 @@ By invoking this action, the workflows that build wazuh-indexer packages can sim
 
 2. Does the input branch exist in any other repository?
    ├─ YES → Read the product version from that repository's branch (present in VERSION.json)
-   │        └─ Use version-based branch on repositories missing the input branch (e.g., 5.0.0 → main, 4.12.1 → 4.12.1)
+   │        └─ Use version-based branch on repositories missing the input branch (the in-development version maps to `main`, e.g. 4.12.1 → 4.12.1)
    └─ NO → Continue to step 3
 
 3. Does VERSION.json exist in the current repository?
@@ -19,7 +19,7 @@ By invoking this action, the workflows that build wazuh-indexer packages can sim
    └─ NO → ERROR: No fallback available
 ```
 
-> **Note:** Currently, only `5.0.0` maps to `main`. All other versions map directly to their full version string.
+> **Note:** Only the version currently under development on the `main` branch maps to `main`; every other version maps directly to its own same-named branch. This mapping lives in `resolve_branches.sh` and is kept in sync automatically by the repository bumper (`tools/repository_bumper.sh`) whenever `main` is bumped (`--set-as-main`), so it should not need manual edits.
 
 ## Usage
 

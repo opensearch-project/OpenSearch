@@ -213,6 +213,42 @@ function update_rpm_changelog() {
 }
 
 # ====
+# Update the branch resolver action's version->main mapping.
+#
+# The branch resolver (.github/actions/5_builderpackage_indexer_branch_resolver)
+# maps the version that lives on `main` to the literal branch `main`, and every
+# other version to its own same-named branch. That mapping is hardcoded, so when
+# `main`'s version is bumped it must be updated in lockstep, otherwise the
+# resolver keeps pointing the old version at `main` and the new one at a branch
+# that does not exist yet. This is only relevant in main branch mode
+# (--set-as-main); release branches map to themselves and need no change.
+#
+# Arguments:
+#   $1 - version
+# ====
+function update_branch_resolver() {
+    local version="$1"
+    local resolver_file=".github/actions/5_builderpackage_indexer_branch_resolver/resolve_branches.sh"
+
+    if [[ ! -f "$resolver_file" ]]; then
+        log "Branch resolver not found at $resolver_file; skipping."
+        return 0
+    fi
+
+    if ! grep -qE '\[ "\$version" == "[0-9]+\.[0-9]+\.[0-9]+" \] && echo "main"' "$resolver_file"; then
+        log "Warning: could not locate version->main mapping in $resolver_file; leaving unchanged."
+        return 0
+    fi
+
+    sed -E -i.bak \
+        's/(\[ "\$version" == ")[0-9]+\.[0-9]+\.[0-9]+(" \] && echo "main")/\1'"$version"'\2/' \
+        "$resolver_file"
+    rm -f "${resolver_file}.bak"
+
+    log "Updated branch resolver mapping to '$version' -> main in $resolver_file"
+}
+
+# ====
 # Main logic
 # ====
 function main() {
@@ -252,6 +288,9 @@ function main() {
     date=$(normalize_date "$date")
     update_version_file "$version" "$stage"
     update_rpm_changelog "$version" "$date"
+    if [[ "$set_as_main" == "yes" ]]; then
+        update_branch_resolver "$version"
+    fi
     log "Update complete."
 }
 
