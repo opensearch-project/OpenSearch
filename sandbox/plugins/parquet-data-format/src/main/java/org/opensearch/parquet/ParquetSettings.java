@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -200,10 +201,10 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the native write pool can burst to. Default is 3% of node.native_memory.limit. */
+    /** Maximum bytes the native write pool can burst to. Default is 3% of budget on warm nodes, 5% otherwise. */
     public static final Setting<Long> WRITE_POOL_MAX = new Setting<>(
         "parquet.native.pool.write.max",
-        s -> derivePoolMaxDefault(s, 3),
+        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 3 : 5),
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {

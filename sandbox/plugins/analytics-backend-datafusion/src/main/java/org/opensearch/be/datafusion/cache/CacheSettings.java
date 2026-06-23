@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion.cache;
 
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -25,15 +26,16 @@ import java.util.Locale;
  * node.native_memory.limit = 80% of off-heap
  *   ├── 71% → datafusion.memory_pool_limit_bytes  (operator pool)
  *   ├──  9% → datafusion.metadata_index_cache.total_size   (all metadata caches (footer + page indexes), this class)
+ *   │     │       (9% on warm nodes; 3% on all other node types)
  *   │     ├── 50% → metadata cache   (footer metadata, Rust jemalloc)
  *   │     ├── 35% → offset index     (projection-driven, Rust jemalloc)
  *   │     └── 15% → column index     (predicate-driven, Rust jemalloc)
- *   ├──  4% → Arrow ingest pool
+ *   ├──  4% → Arrow ingest pool                            (4% on warm nodes; 8% on all other node types)
  *   ├──  5% → Arrow flight pool
  *   ├──  5% → Arrow query pool
- *   ├──  3% → Parquet write pool
+ *   ├──  3% → Parquet write pool                           (3% on warm nodes; 5% on all other node types)
  *   └──  3% → Parquet merge pool
- *   = 100%
+ *   = 100% (warm node)
  * </pre>
  *
  * <p>The three sub-cache percentages must sum to &lt;= 100 (unused headroom is accepted). Changing any one without adjusting
@@ -103,14 +105,14 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
-    // Page-cache total budget (9% (for warm)/3% (for other node types) of node.native_memory.limit)
+    // Page-cache total budget (9% of node.native_memory.limit on warm nodes, 3% otherwise)
 
     public static final String METADATA_INDEX_CACHE_TOTAL_SIZE_KEY = "datafusion.metadata_index_cache.total_size";
 
     /**
      * Total byte budget for all three metadata caches (footer metadata, ColumnIndex,
-     * OffsetIndex). Defaults to 9% of {@code node.native_memory.limit}; falls back to
-     * 500 MB when AC is unconfigured.
+     * OffsetIndex). Defaults to 9% of {@code node.native_memory.limit} on warm nodes
+     * (3% on all other node types); falls back to 500 MB when AC is unconfigured.
      */
     public static final Setting<ByteSizeValue> METADATA_INDEX_CACHE_TOTAL_SIZE = new Setting<>(
         METADATA_INDEX_CACHE_TOTAL_SIZE_KEY,
@@ -220,15 +222,17 @@ public class CacheSettings {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
-     * Default total page-cache budget: 9% of {@code node.native_memory.limit}.
-     * Falls back to 500 MB when AC is unconfigured (limit == 0).
+     * Default total page-cache budget: 9% of {@code node.native_memory.limit} on warm nodes,
+     * 3% on all other node types. Falls back to 500 MB when AC is unconfigured (limit == 0).
      */
     static String deriveMetadataIndexCacheTotalDefault(Settings settings) {
         ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
         if (nativeLimit.getBytes() <= 0) {
             return (500L * 1024 * 1024) + "b";
         }
-        long total = Math.max(nativeLimit.getBytes() * 9 / 100, 0L);
+        // Warm nodes dedicate a larger share (9%) to metadata caches; other node types retain the 3% default.
+        int percent = DiscoveryNode.isWarmNode(settings) ? 9 : 3;
+        long total = Math.max(nativeLimit.getBytes() * percent / 100, 0L);
         return total + "b";
     }
 
