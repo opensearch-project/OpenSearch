@@ -41,6 +41,7 @@ import org.opensearch.analytics.exec.join.CascadeShuffleDispatch;
 import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
 import org.opensearch.analytics.exec.join.DistributedAggOverJoinDispatch;
 import org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter;
+import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.exec.join.HashShuffleDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
@@ -432,81 +433,101 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // pure shard scans); the rewrite extends an existing lower-level shuffle upward. Gated on
         // MPP + the cascade sub-toggle; the rewriter itself only fires on a join whose subtree
         // already shuffles, so small-probe joins CBO kept coord-centric are untouched.
-        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings) && AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.get(perQuerySettings)) {
+        // Option B (experimental, off by default): the general post-CBO distribution-enforcement pass
+        // REPLACES the enumerated shape-matchers (CascadeShufflePlanRewriter / seedAggOverJoinBottomShuffle
+        // / splitThetaJoinOverAggInputs / DistributedAggOverJoinRewriter). It places exchanges by the
+        // OpenSearchDistribution.satisfies() algebra, so the cascade / agg-over-join / outer / mixed-key /
+        // scalar-subquery shapes all emerge generically. While the toggle is off, the legacy rewriters
+        // below run unchanged (production path). See MPP-GENERAL-SCHEDULING-DESIGN.md.
+        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings) && AnalyticsSettings.MPP_CBO_NATIVE_CASCADE.get(perQuerySettings)) {
             int cascadePartitions = MppShufflePartitions.resolve(
                 perQuerySettings,
                 planningState,
                 capabilityRegistry,
                 ((OpenSearchRelNode) plan).getViableBackends()
             );
-            // Seed the agg-over-join shape (q2/q11) FIRST: when a decomposable aggregate sits above a
-            // multi-way INNER join whose large×small bottom join CBO kept coordinator-centric, shuffle
-            // that bottom join so the cascade extend + DistributedAggOverJoinRewriter can push a PARTIAL
-            // below the coordinator gather (the proven q5/q10 path). CBO won't shuffle a large×small
-            // bottom join itself — broadcasting the small side still gathers the large join output to
-            // SINGLETON for the parent dimension join — so the PARTIAL push is the only thing that caps
-            // the gather. Gated additionally on the aggregate-over-join toggle (the seed is pointless
-            // without that rewriter) and a row floor tied to the coordinator buffer (don't shuffle a
-            // bottom join small enough to gather safely).
-            //
-            // SELF-VALIDATING: the seed shuffles a bottom join the RelNode-level shape check accepts, but
-            // canPushPartial also applies DAG-level gates (each dimension must be a reducer-fed
-            // StageInputScan) the seed can't fully replicate pre-DAG. Keep the seeded plan ONLY if it
-            // yields a dispatchable distributed-agg-over-join DAG; otherwise revert to the un-seeded plan
-            // so an un-acceptable seed can't leave an orphaned shuffle that the generic HashShuffleDispatch
-            // would mis-lift (the "No table named input-N" failure). Then the existing extend runs on the
-            // chosen plan.
-            if (AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)) {
-                long minBottomJoinRows = MIN_AGG_OVER_JOIN_BOTTOM_ROWS;
-                RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(plan, cascadePartitions, minBottomJoinRows);
-                if (seeded != plan) {
-                    // First try the scalar-subquery theta-split (q2/q11): when the root is a theta join over
-                    // TWO agg-over-join subtrees, cut each into its own child stage so each distributes
-                    // independently. SELF-VALIDATING: keep the split plan only if BOTH cut children are
-                    // distributable (canPushPartial per child); else fall through to the single-subtree path.
-                    RelNode split = CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs(seeded);
-                    boolean tookSplit = false;
-                    if (split != seeded) {
-                        RelNode splitExtended = CascadeShufflePlanRewriter.rewrite(split, cascadePartitions);
-                        QueryDAG trialDag = DAGBuilder.build(
-                            splitExtended,
-                            capabilityRegistry,
-                            clusterService,
-                            indexNameExpressionResolver
-                        );
-                        List<Stage> distributableChildren = trialDag.rootStage()
-                            .getChildStages()
-                            .stream()
-                            .filter(child -> DistributedAggOverJoinRewriter.canPushPartial(trialDag, child))
-                            .toList();
-                        if (distributableChildren.size() >= 2) {
-                            plan = split;
-                            tookSplit = true;
-                        } else {
-                            logger.debug("theta agg-over-join split produced <2 distributable children; trying single-subtree path");
+            plan = DistributionEnforcementPass.enforce(
+                plan,
+                plannerContext.getDistributionTraitDef(),
+                cascadePartitions,
+                MIN_AGG_OVER_JOIN_BOTTOM_ROWS
+            );
+        } else if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)
+            && AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.get(perQuerySettings)) {
+                int cascadePartitions = MppShufflePartitions.resolve(
+                    perQuerySettings,
+                    planningState,
+                    capabilityRegistry,
+                    ((OpenSearchRelNode) plan).getViableBackends()
+                );
+                // Seed the agg-over-join shape (q2/q11) FIRST: when a decomposable aggregate sits above a
+                // multi-way INNER join whose large×small bottom join CBO kept coordinator-centric, shuffle
+                // that bottom join so the cascade extend + DistributedAggOverJoinRewriter can push a PARTIAL
+                // below the coordinator gather (the proven q5/q10 path). CBO won't shuffle a large×small
+                // bottom join itself — broadcasting the small side still gathers the large join output to
+                // SINGLETON for the parent dimension join — so the PARTIAL push is the only thing that caps
+                // the gather. Gated additionally on the aggregate-over-join toggle (the seed is pointless
+                // without that rewriter) and a row floor tied to the coordinator buffer (don't shuffle a
+                // bottom join small enough to gather safely).
+                //
+                // SELF-VALIDATING: the seed shuffles a bottom join the RelNode-level shape check accepts, but
+                // canPushPartial also applies DAG-level gates (each dimension must be a reducer-fed
+                // StageInputScan) the seed can't fully replicate pre-DAG. Keep the seeded plan ONLY if it
+                // yields a dispatchable distributed-agg-over-join DAG; otherwise revert to the un-seeded plan
+                // so an un-acceptable seed can't leave an orphaned shuffle that the generic HashShuffleDispatch
+                // would mis-lift (the "No table named input-N" failure). Then the existing extend runs on the
+                // chosen plan.
+                if (AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)) {
+                    long minBottomJoinRows = MIN_AGG_OVER_JOIN_BOTTOM_ROWS;
+                    RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(plan, cascadePartitions, minBottomJoinRows);
+                    if (seeded != plan) {
+                        // First try the scalar-subquery theta-split (q2/q11): when the root is a theta join over
+                        // TWO agg-over-join subtrees, cut each into its own child stage so each distributes
+                        // independently. SELF-VALIDATING: keep the split plan only if BOTH cut children are
+                        // distributable (canPushPartial per child); else fall through to the single-subtree path.
+                        RelNode split = CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs(seeded);
+                        boolean tookSplit = false;
+                        if (split != seeded) {
+                            RelNode splitExtended = CascadeShufflePlanRewriter.rewrite(split, cascadePartitions);
+                            QueryDAG trialDag = DAGBuilder.build(
+                                splitExtended,
+                                capabilityRegistry,
+                                clusterService,
+                                indexNameExpressionResolver
+                            );
+                            List<Stage> distributableChildren = trialDag.rootStage()
+                                .getChildStages()
+                                .stream()
+                                .filter(child -> DistributedAggOverJoinRewriter.canPushPartial(trialDag, child))
+                                .toList();
+                            if (distributableChildren.size() >= 2) {
+                                plan = split;
+                                tookSplit = true;
+                            } else {
+                                logger.debug("theta agg-over-join split produced <2 distributable children; trying single-subtree path");
+                            }
                         }
-                    }
-                    // Single-subtree path (q11-main / q5 / q10): keep the seeded plan only if it yields a
-                    // dispatchable distributed-agg-over-join DAG; else revert to un-seeded (so an
-                    // un-acceptable seed can't orphan a shuffle the generic HashShuffleDispatch mis-lifts).
-                    if (!tookSplit) {
-                        RelNode seededExtended = CascadeShufflePlanRewriter.rewrite(seeded, cascadePartitions);
-                        QueryDAG trialDag = DAGBuilder.build(
-                            seededExtended,
-                            capabilityRegistry,
-                            clusterService,
-                            indexNameExpressionResolver
-                        );
-                        if (DistributedAggOverJoinRewriter.canPushPartial(trialDag)) {
-                            plan = seeded;
-                        } else {
-                            logger.debug("agg-over-join seed produced a non-distributable DAG; reverting to un-seeded plan");
+                        // Single-subtree path (q11-main / q5 / q10): keep the seeded plan only if it yields a
+                        // dispatchable distributed-agg-over-join DAG; else revert to un-seeded (so an
+                        // un-acceptable seed can't orphan a shuffle the generic HashShuffleDispatch mis-lifts).
+                        if (!tookSplit) {
+                            RelNode seededExtended = CascadeShufflePlanRewriter.rewrite(seeded, cascadePartitions);
+                            QueryDAG trialDag = DAGBuilder.build(
+                                seededExtended,
+                                capabilityRegistry,
+                                clusterService,
+                                indexNameExpressionResolver
+                            );
+                            if (DistributedAggOverJoinRewriter.canPushPartial(trialDag)) {
+                                plan = seeded;
+                            } else {
+                                logger.debug("agg-over-join seed produced a non-distributable DAG; reverting to un-seeded plan");
+                            }
                         }
                     }
                 }
+                plan = CascadeShufflePlanRewriter.rewrite(plan, cascadePartitions);
             }
-            plan = CascadeShufflePlanRewriter.rewrite(plan, cascadePartitions);
-        }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 

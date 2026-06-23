@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rex.RexNode;
@@ -29,9 +30,17 @@ import java.util.Set;
  * coordinator (enforced by {@link #computeSelfCost}). {@code right} is always the
  * build side (matches substrait {@code JoinRel.right}).
  *
+ * <p>Implements {@link DistributionAware}: under the post-CBO distribution-enforcement pass (Option B,
+ * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
+ * on its equi keys — it requires {@code WORKER+HASH(leftKeys,N)} on the left input and
+ * {@code WORKER+HASH(rightKeys,N)} on the right, and outputs {@code WORKER+HASH(leftKeys,N)}. That lets a
+ * parent join/aggregate keyed on the same column consume the output with no further exchange, so the
+ * multi-tier cascade emerges for any chain depth. A pure-theta join (no equi key) imposes no requirement
+ * (stays coordinator-gathered).
+ *
  * @opensearch.internal
  */
-public class OpenSearchJoin extends Join implements OpenSearchRelNode {
+public class OpenSearchJoin extends Join implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
 
@@ -189,6 +198,68 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             if (trait instanceof OpenSearchDistribution dist) return dist;
         }
         return null;
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /**
+     * An equi-join co-partitions on its equi keys: input 0 (left) must deliver
+     * {@code WORKER+HASH(leftKeys, N)}, input 1 (right) {@code WORKER+HASH(rightKeys, N)}. A pure-theta
+     * join (empty {@code leftKeys}) returns {@code null} — no key to hash-partition on, so it stays
+     * coordinator-gathered. Co-partitioning is sound for all of INNER/LEFT/RIGHT/FULL/SEMI/ANTI: a
+     * hash-partitioned outer/semi/anti join's null-fill / existence test is partition-local because rows
+     * with the same key land in the same partition (standard Spark/Presto). The per-row null semantics
+     * live in the worker join operator, not the distribution.
+     */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        JoinInfo info = analyzeCondition();
+        if (info.leftKeys.isEmpty()) {
+            return null;
+        }
+        if (inputIndex == 0) {
+            return traitDef.hash(info.leftKeys, partitionCount);
+        }
+        if (inputIndex == 1) {
+            return traitDef.hash(info.rightKeys, partitionCount);
+        }
+        return null;
+    }
+
+    /**
+     * When the left input is hash-partitioned on this join's left equi keys, the join output is
+     * {@code WORKER+HASH(leftKeys, N)} — left key columns keep their output positions (left fields come
+     * first in the join row type), so a parent keyed on the same column consumes it without a re-shuffle.
+     * Anchored on the LEFT side only (the engine convention used by {@code OpenSearchHashJoinSplitRule} and
+     * the cost gate). Returns {@code null} (output not co-partitionable) when the left input is not
+     * hash-partitioned on exactly the left equi keys, or for a pure-theta join.
+     */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        if (childDistributions.size() != 2) {
+            return null;
+        }
+        OpenSearchDistribution leftDist = childDistributions.get(0);
+        if (leftDist == null || leftDist.getType() != org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED) {
+            return null;
+        }
+        JoinInfo info = analyzeCondition();
+        if (info.leftKeys.isEmpty()) {
+            return null;
+        }
+        // Left input must be hash-partitioned on exactly this join's left equi keys (order-sensitive)
+        // for the output-is-left-keys derivation to be sound.
+        if (!leftDist.getKeys().equals(info.leftKeys)) {
+            return null;
+        }
+        Integer n = leftDist.getPartitionCount();
+        if (n == null) {
+            return null;
+        }
+        return traitDef.hash(info.leftKeys, n);
     }
 
     @Override

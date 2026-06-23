@@ -187,6 +187,31 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
 
     @Override
     public RelNode convert(RelOptPlanner planner, RelNode rel, OpenSearchDistribution toTrait, boolean allowInfiniteCostConverters) {
+        RelNode result = buildEnforcer(rel, toTrait);
+        if (result == null) {
+            return null;
+        }
+        if (result == rel) {
+            // ANY demand or already satisfied — no exchange inserted, nothing to register.
+            return rel;
+        }
+        return planner.register(result, rel);
+    }
+
+    /**
+     * Builds the exchange rel that enforces {@code toTrait} over {@code rel} — an
+     * {@link OpenSearchExchangeReducer} for SINGLETON, {@link OpenSearchShuffleExchange} for
+     * HASH_DISTRIBUTED, {@link OpenSearchBroadcastExchange} for BROADCAST_DISTRIBUTED — WITHOUT
+     * registering it with any planner. Shared by:
+     * <ul>
+     *   <li>{@link #convert} (bottom-up): registers the returned rel via {@code planner.register};</li>
+     *   <li>{@link OpenSearchConvention#enforce} (top-down): returns it for the planner to register.</li>
+     * </ul>
+     * Returns {@code rel} unchanged when {@code toTrait} is ANY or already satisfied (caller treats that
+     * as "no exchange needed"), and never returns {@code null} today (an unenforceable demand throws).
+     * One factory so the two planner modes produce identical exchanges.
+     */
+    public RelNode buildEnforcer(RelNode rel, OpenSearchDistribution toTrait) {
         OpenSearchDistribution fromTrait = rel.getTraitSet().getTrait(this);
 
         if (toTrait.getType() == RelDistribution.Type.ANY) {
@@ -200,7 +225,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         List<String> viableBackends = resolveViableBackendsFromRel(rel);
 
         LOGGER.debug(
-            "convert(): rel={}#{}, fromTrait={}, toTrait={}, backend={}",
+            "buildEnforcer(): rel={}#{}, fromTrait={}, toTrait={}, backend={}",
             rel.getClass().getSimpleName(),
             rel.getId(),
             fromTrait,
@@ -210,13 +235,12 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
 
         CapabilityRegistry registry = plannerContext.getCapabilityRegistry();
 
-        RelNode result;
         if (toTrait.getType() == RelDistribution.Type.SINGLETON) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, viableBackends);
             // ER output always lives at the coordinator. Even if the demand is null-locality
             // (root demand), stamp COORDINATOR so the resulting subset is well-typed.
             OpenSearchDistribution stamp = toTrait.getLocality() == null ? coordSingleton() : toTrait;
-            result = new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(stamp), rel, reduceViable);
+            return new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(stamp), rel, reduceViable);
         } else if (toTrait.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
             // The split rule that issued the demand resolved the concrete partition count
             // (cluster setting → engine default) and embedded it in toTrait. A null demand
@@ -235,7 +259,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             // Lucene, kept viable for a keyword scan under prefer_metadata_driver) so the producer
             // never lands on a driver that throws SHUFFLE_PRODUCER UOE at execution.
             List<String> shuffleViable = CapabilityResolutionUtils.filterByShuffleProducerCapability(registry, viableBackends);
-            result = new OpenSearchShuffleExchange(
+            return new OpenSearchShuffleExchange(
                 rel.getCluster(),
                 rel.getTraitSet().replace(toTrait),
                 rel,
@@ -254,7 +278,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
                         + toTrait
                 );
             }
-            result = new OpenSearchBroadcastExchange(
+            return new OpenSearchBroadcastExchange(
                 rel.getCluster(),
                 rel.getTraitSet().replace(toTrait),
                 rel,
@@ -265,8 +289,6 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             // RANGE is still not implemented; never produced by analytics-engine rules today.
             throw new UnsupportedOperationException("RANGE exchange not yet implemented [toTrait=" + toTrait + "]");
         }
-
-        return planner.register(result, rel);
     }
 
     @Override

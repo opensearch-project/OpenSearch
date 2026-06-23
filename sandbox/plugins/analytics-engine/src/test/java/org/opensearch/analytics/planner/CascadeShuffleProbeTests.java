@@ -21,6 +21,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter;
 import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
+import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
@@ -28,6 +29,8 @@ import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.planner.dag.WorkerTargetResolver;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -131,6 +134,246 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             RelDistribution.Type.SINGLETON,
             topWorkerInDag.getExchangeInfo().distributionType()
         );
+    }
+
+    /**
+     * Option B (general enforcement pass): the SAME 3-way shared-key join, scheduled by
+     * {@link DistributionEnforcementPass} instead of {@code CascadeShufflePlanRewriter}. The pass must
+     * produce the same cascade — both join levels over shuffle inputs, the bottom join's hash output
+     * reused by the top join (so 2 shuffle-join levels, NOT 4 shuffles + a gather between). This is the
+     * emergent-cascade proof at the RelNode level (DAG/dispatch validated separately).
+     */
+    public void testEnforcementPass_threeWayJoinFormsCascade() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L
+        );
+
+        // Both joins must end up over two ShuffleExchange inputs (the cascade). For a shared-key 3-way
+        // join the bottom join's hash output is reused by the top join — so the top join's left input is
+        // NOT re-shuffled (it's the bottom join, already HASH on the key); only c is shuffled at the top.
+        List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
+        assertEquals("two joins in the 3-way plan", 2, joins.size());
+        int joinsOverTwoShuffles = 0;
+        int joinsWithReusedHashLeft = 0;
+        for (OpenSearchJoin join : joins) {
+            RelNode left = unwrap(join.getInput(0));
+            RelNode right = unwrap(join.getInput(1));
+            boolean leftShuffle = left instanceof OpenSearchShuffleExchange;
+            boolean rightShuffle = right instanceof OpenSearchShuffleExchange;
+            if (leftShuffle && rightShuffle) {
+                joinsOverTwoShuffles++;
+            }
+            // The top join reuses the bottom join's hash output on its left → left is a Join, not a shuffle.
+            if (!leftShuffle && left instanceof OpenSearchJoin && rightShuffle) {
+                joinsWithReusedHashLeft++;
+            }
+        }
+        assertEquals("bottom join shuffles BOTH its scan inputs", 1, joinsOverTwoShuffles);
+        assertEquals(
+            "top join reuses the bottom join's hash output (no re-shuffle on its left), shuffles only c",
+            1,
+            joinsWithReusedHashLeft
+        );
+    }
+
+    /**
+     * Option B: agg over a 3-way cascade (q5/q10 class). The enforcement pass must split the SINGLE
+     * aggregate into PARTIAL (over the distributed cascade) + FINAL (over a coordinator gather), and
+     * the cascade below must still form. Asserts: exactly one PARTIAL + one FINAL aggregate, a cascade
+     * of 2 joins, and the FINAL gathers (ER above PARTIAL).
+     */
+    public void testEnforcementPass_aggOverThreeWayJoinSplitsAndCascades() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L
+        );
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        long partials = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL).count();
+        long finals = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.FINAL).count();
+        assertEquals("exactly one PARTIAL aggregate (pushed below the gather)", 1, partials);
+        assertEquals("exactly one FINAL aggregate (on the coordinator)", 1, finals);
+
+        // The cascade still forms below the PARTIAL: 2 joins, the bottom over two shuffles.
+        List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
+        assertEquals("two joins in the 3-way cascade", 2, joins.size());
+        long bottomShuffleJoins = joins.stream()
+            .filter(
+                j -> unwrap(j.getInput(0)) instanceof OpenSearchShuffleExchange
+                    && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
+            )
+            .count();
+        assertEquals("bottom join shuffles both scan inputs", 1, bottomShuffleJoins);
+    }
+
+    /**
+     * Option B coverage the rewriters CANNOT do (1): a LEFT-outer 3-way join. The current cascade is
+     * INNER-only; the enforcement pass co-partitions outer joins too (null-fill is partition-local for a
+     * hash-partitioned outer join). Asserts the cascade still forms over a LEFT top join.
+     */
+    public void testEnforcementPass_leftOuterThreeWayJoinCascades() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeThreeWayJoinTopType(context, JoinRelType.LEFT), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L
+        );
+
+        List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
+        assertEquals("two joins", 2, joins.size());
+        long shuffleJoins = joins.stream()
+            .filter(
+                j -> unwrap(j.getInput(0)) instanceof OpenSearchShuffleExchange
+                    || unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
+            )
+            .count();
+        assertEquals("both join levels are distributed (outer join co-partitions too)", 2, shuffleJoins);
+        boolean hasLeftJoin = joins.stream().anyMatch(j -> j.getJoinType() == JoinRelType.LEFT);
+        assertTrue("the top join stays LEFT (distribution doesn't change join semantics)", hasLeftJoin);
+    }
+
+    /**
+     * Option B coverage the rewriters struggle with (2): a MIXED-KEY 3-way join — a⋈b on col0, then ⋈c
+     * on col1. The bottom join's output is HASH(col0); the top join needs HASH(col1) → the pass inserts a
+     * RE-SHUFFLE exactly at the key change (the bottom join's output does NOT satisfy the top's
+     * requirement). Asserts: the top join's left input is a ShuffleExchange (re-shuffled), not the bare
+     * bottom join.
+     */
+    public void testEnforcementPass_mixedKeyCascadeReshufflesAtKeyChange() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeMixedKeyThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L
+        );
+
+        List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
+        assertEquals("two joins", 2, joins.size());
+        // The top join (keyed on col1) must have BOTH inputs shuffled — its left input is a re-shuffle of
+        // the bottom join (which was keyed on col0), because HASH(col0) does NOT satisfy HASH(col1).
+        OpenSearchJoin top = joins.stream()
+            .filter(j -> findAll(j, OpenSearchJoin.class).size() == 2) // the one containing the other join
+            .findFirst()
+            .orElseThrow();
+        assertTrue("top join left input re-shuffled at the key change", unwrap(top.getInput(0)) instanceof OpenSearchShuffleExchange);
+        assertTrue("top join right input shuffled", unwrap(top.getInput(1)) instanceof OpenSearchShuffleExchange);
+        // And under the left re-shuffle sits the bottom join (which itself shuffled its two scans).
+        RelNode underLeftShuffle = unwrap(((OpenSearchShuffleExchange) unwrap(top.getInput(0))).getInput());
+        assertTrue("bottom join sits under the top's left re-shuffle", underLeftShuffle instanceof OpenSearchJoin);
+    }
+
+    /**
+     * Option B size floor: a 3-way join whose scans are all BELOW the row floor must stay
+     * coordinator-centric — the pass distributes nothing (no ShuffleExchange), matching CBO's cheap
+     * coord-centric choice for small joins. Guards against the pass force-distributing every join.
+     */
+    public void testEnforcementPass_smallJoinBelowFloorStaysCoordCentric() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", 1_000L, "b_idx", 1_000L, "c_idx", 1_000L);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1_000_000L
+        );
+
+        assertTrue("no shuffle for a join below the row floor", findAll(enforced, OpenSearchShuffleExchange.class).isEmpty());
+    }
+
+    /** Like makeThreeWayJoin but the TOP join uses the given type (INNER/LEFT/…). */
+    private RelNode makeThreeWayJoinTopType(PlannerContext context, JoinRelType topType) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+        int abCols = ab.getRowType().getFieldCount();
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        return LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), topType);
+    }
+
+    /** a⋈b on col0, then (ab)⋈c on col1 — the cascade re-keys at the top level. */
+    private RelNode makeMixedKeyThreeWayJoin(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+        int abCols = ab.getRowType().getFieldCount();
+        // top join keyed on col1 (size), a DIFFERENT column than the bottom (col0/status)
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 1),
+            rexBuilder.makeInputRef(intType, abCols + 1)
+        );
+        return LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+    }
+
+    private <T> List<T> findAll(RelNode root, Class<T> type) {
+        List<T> out = new java.util.ArrayList<>();
+        collect(unwrap(root), type, out);
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> void collect(RelNode node, Class<T> type, List<T> out) {
+        if (type.isInstance(node)) {
+            out.add((T) node);
+        }
+        for (RelNode input : node.getInputs()) {
+            collect(unwrap(input), type, out);
+        }
+    }
+
+    private static RelNode unwrap(RelNode node) {
+        return org.opensearch.analytics.planner.RelNodeUtils.unwrapHep(node);
     }
 
     /**

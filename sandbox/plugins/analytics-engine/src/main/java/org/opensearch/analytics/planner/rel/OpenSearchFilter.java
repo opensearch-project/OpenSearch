@@ -32,7 +32,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
+public class OpenSearchFilter extends Filter implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
 
@@ -68,6 +68,23 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /** Filter is fully transparent to distribution: it imposes no partitioning requirement on its input. */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        return null;
+    }
+
+    /** Filter doesn't change schema or partitioning — output distribution = the child's, verbatim. */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        return childDistributions.size() == 1 ? childDistributions.get(0) : null;
     }
 
     @Override

@@ -152,6 +152,29 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * TRANSITIONAL migration flag (default {@code false}) — NOT a permanent knob. Routes multi-way-join
+     * scheduling through the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass},
+     * Option B — Spark/Presto's {@code EnsureRequirements}/{@code AddExchanges} model) instead of the
+     * enumerated shape-matchers ({@code CascadeShufflePlanRewriter} / {@code DistributedAggOverJoinRewriter} / …).
+     * The pass places exchanges by the {@code OpenSearchDistribution.satisfies()} algebra, so the cascade,
+     * agg-over-join, outer-join, mixed-key, and scalar-subquery shapes all emerge with no per-shape code.
+     *
+     * <p><b>Why it's false today, and when it goes away.</b> It stays {@code false} ONLY until the pass is
+     * proven at sf=10 to reproduce the rewriters' results (row-parity vs DuckDB on q3/q5/q10/q11) — until
+     * then the legacy rewriters are the trusted production path and this is the kill switch. The END STATE
+     * (B3 in {@code MPP-GENERAL-SCHEDULING-DESIGN.md}) is: flip the default to {@code true}, DELETE the
+     * rewriters + shape-routing, keep this toggle for one release as an emergency revert, then remove it
+     * entirely. There is no intended steady state where both paths coexist — that would re-create the
+     * per-shape maintenance burden the refactor exists to eliminate.
+     */
+    public static final Setting<Boolean> MPP_CBO_NATIVE_CASCADE = Setting.boolSetting(
+        "analytics.mpp.cbo_native_cascade",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-strategy sub-toggle for <em>distributed aggregation over a cascade join</em> (the q5/q10
      * shape: {@code Sort? → stats … by … → dimension-joins → bottom hash-shuffle join}). When
      * {@code true} (default, under {@link #MPP_ENABLED} + {@link #MPP_SHUFFLE_CASCADE_ENABLED}), a
@@ -272,6 +295,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_SHUFFLE_CASCADE_ENABLED,
+        MPP_CBO_NATIVE_CASCADE,
         MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,

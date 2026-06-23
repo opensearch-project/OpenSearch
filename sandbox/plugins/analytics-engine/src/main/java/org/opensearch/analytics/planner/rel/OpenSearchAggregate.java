@@ -45,7 +45,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
+public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
     private final AggregateMode mode;
@@ -362,6 +362,56 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             }
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /**
+     * A {@code SINGLE} aggregate over a distributable input declares it needs its input hash-partitioned
+     * on the group keys, so the enforcement pass can split it into {@code Aggregate(PARTIAL)} on the
+     * workers + {@code Aggregate(FINAL)} on the coordinator (the existing {@code OpenSearchAggregateSplitRule}
+     * / {@code DistributedAggregateRewriter} machinery the pass reuses):
+     * <ul>
+     *   <li>non-empty group set → require {@code WORKER+HASH(groupKeys, N)} on the input;</li>
+     *   <li>empty group set (e.g. {@code stats sum(x)} no {@code by}) → require {@code COORDINATOR+SINGLETON}:
+     *       PARTIAL runs wherever the input is, FINAL merges the ≤N partials at the coordinator. The gather
+     *       is bounded (one partial row per partition), so no hash key is needed.</li>
+     * </ul>
+     * Returns {@code null} (no requirement → input left at its CBO-chosen shape) for non-SINGLE modes, or
+     * when the aggregate is not decomposable ({@code STATE_EXPANDING}/{@code DISTINCT}/percentile) — those
+     * stay coordinator-centric. The {@code groupSet} of a SINGLE aggregate indexes INPUT columns, so the
+     * hash keys are the group-set bits directly.
+     */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        if (inputIndex != 0 || mode != AggregateMode.SINGLE) {
+            return null;
+        }
+        if (org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(this)) {
+            return null;
+        }
+        if (getGroupSet().isEmpty()) {
+            // No partition key — the PARTIAL/FINAL split still distributes the work below, but the agg
+            // itself gathers its partials to the coordinator. Requiring SINGLETON here is a no-op when the
+            // input is already gathered; the distribution win comes from the input's own requirement.
+            return traitDef.coordSingleton();
+        }
+        return traitDef.hash(getGroupSet().asList(), partitionCount);
+    }
+
+    /**
+     * An aggregate's output is partitioned by its group keys only when it ran distributed (PARTIAL/FINAL)
+     * — but in the pre-split SINGLE form the pass hasn't decided that yet, and the FINAL gathers to the
+     * coordinator anyway. So we do not advertise a co-partitionable output here (returns {@code null}); a
+     * parent that needs a specific partitioning will demand its own exchange. (Aggregate output rarely
+     * feeds a co-partition-sensitive parent in PPL; revisit if a join-on-agg-output shape needs it.)
+     */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        return null;
     }
 
     @Override
