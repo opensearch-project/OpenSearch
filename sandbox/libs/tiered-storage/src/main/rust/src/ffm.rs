@@ -23,6 +23,7 @@ use opensearch_block_cache::traits::BlockCache;
 use crate::registry::TieredStorageRegistry;
 use crate::registry::FileRegistry;
 use crate::tiered_object_store::TieredObjectStore;
+use crate::tiered_object_store::ResolveCallbackFn;
 use crate::types::FileLocation;
 
 const NULL_PTR: i64 = 0;
@@ -77,12 +78,16 @@ unsafe fn arc_from_ptr(ptr: i64) -> Result<Arc<TieredObjectStore>, String> {
 /// - `cache_box_ptr`: if non-zero, a `Box<Arc<dyn BlockCache>>` pointer from a block cache
 ///   plugin. The Arc is cloned (ownership is NOT taken — the pointer remains valid for the
 ///   node lifetime). If 0, no block cache is attached.
+/// - `resolve_cb_ptr`: if non-zero, a function pointer for lazy file resolution (Java upcall).
+///   Signature: `(store_ptr: i64, path_ptr: *const u8, path_len: i64) -> i64`. Returns 1 if
+///   the file was resolved and registered, 0 otherwise. If 0, no lazy resolution.
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn ts_create_tiered_object_store(
     local_store_box_ptr: i64,
     remote_store_box_ptr: i64,
     cache_box_ptr: i64,
+    resolve_cb_ptr: i64,
 ) -> i64 {
     let file_registry = Arc::new(TieredStorageRegistry::new());
 
@@ -108,10 +113,29 @@ pub extern "C" fn ts_create_tiered_object_store(
         native_bridge_common::log_info!("ffm: ts_create_tiered_object_store: block cache wired");
     }
 
+    if resolve_cb_ptr != NULL_PTR {
+        let cb: ResolveCallbackFn =
+            unsafe { std::mem::transmute(resolve_cb_ptr) };
+        store = store.with_resolve_callback(cb);
+        native_bridge_common::log_info!("ffm: ts_create_tiered_object_store: resolve callback wired");
+    }
+
     let ptr = Arc::into_raw(Arc::new(store)) as i64;
+
+    // Set self_ptr so the store can pass its own identity to the Java upcall.
+    // Safe: we increment the strong count to get a temporary reference, set the
+    // atomic, then drop the temporary (decrementing back).
+    unsafe {
+        Arc::increment_strong_count(ptr as *const TieredObjectStore);
+        let arc_ref = Arc::from_raw(ptr as *const TieredObjectStore);
+        arc_ref.self_ptr.store(ptr, std::sync::atomic::Ordering::Release);
+        // drop arc_ref decrements strong count back
+    }
+
     native_bridge_common::log_info!(
-        "ffm: ts_create_tiered_object_store cache_wired={}",
-        cache_box_ptr != NULL_PTR
+        "ffm: ts_create_tiered_object_store cache_wired={} resolve_cb_wired={}",
+        cache_box_ptr != NULL_PTR,
+        resolve_cb_ptr != NULL_PTR
     );
     Ok(ptr)
 }

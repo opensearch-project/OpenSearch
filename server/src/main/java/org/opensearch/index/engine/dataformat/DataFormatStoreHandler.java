@@ -86,4 +86,19 @@ public interface DataFormatStoreHandler extends Closeable {
     default NativeStoreHandle getFormatStoreHandle() {
         return null;
     }
+
+    /**
+     * Sets a lazy file resolver for handling registry misses at query time.
+     *
+     * <p>Called by the store layer ({@code StoreStrategyRegistry}) after handler
+     * construction. The handler uses this resolver in its Rust upcall target to
+     * lazily register files that were not present during the initial
+     * {@link #seed(Map)} call.
+     *
+     * <p>Default: no-op (no lazy resolution). Override in handlers that support
+     * native file tracking with a Rust registry.
+     *
+     * @param resolver the resolver to use for lazy file registration
+     */
+    default void setFileResolver(FileResolver resolver) {}
 }

@@ -951,3 +951,256 @@ async fn test_head_file_path_not_treated_as_directory() {
     // Not in registry, not local → NotFound
     assert!(result.is_err());
 }
+
+
+// ---------------------------------------------------------------------------
+// Lazy resolver tests
+// ---------------------------------------------------------------------------
+
+/// Mock callback that always succeeds — simulates Java resolving and registering the file.
+/// It registers the file directly in the registry (mimicking what Java does via FFM).
+unsafe extern "C" fn mock_resolve_success(_store_ptr: i64, path_ptr: *const u8, path_len: i64) -> i64 {
+    // In a real scenario, Java would call TieredStorageBridge.registerFile here.
+    // For the test, we access the registry directly via a global test helper.
+    let _path = std::str::from_utf8(std::slice::from_raw_parts(path_ptr, path_len as usize)).unwrap();
+    1 // success
+}
+
+/// Mock callback that always fails — simulates Java unable to resolve the file.
+unsafe extern "C" fn mock_resolve_failure(_store_ptr: i64, _path_ptr: *const u8, _path_len: i64) -> i64 {
+    0 // failure
+}
+
+#[test]
+fn test_try_lazy_resolve_no_callback_returns_false() {
+    let registry = std::sync::Arc::new(super::super::registry::TieredStorageRegistry::new());
+    let local = std::sync::Arc::new(object_store::memory::InMemory::new());
+    let store = super::TieredObjectStore::new(registry, local);
+    // No callback set — should return false
+    assert!(!store.try_lazy_resolve("some/path/file.parquet"));
+}
+
+#[test]
+fn test_try_lazy_resolve_with_success_callback() {
+    let registry = std::sync::Arc::new(super::super::registry::TieredStorageRegistry::new());
+    let local = std::sync::Arc::new(object_store::memory::InMemory::new());
+    let store = super::TieredObjectStore::new(registry, local)
+        .with_resolve_callback(mock_resolve_success);
+    store.self_ptr.store(42, std::sync::atomic::Ordering::Release);
+    assert!(store.try_lazy_resolve("some/path/file.parquet"));
+}
+
+#[test]
+fn test_try_lazy_resolve_with_failure_callback() {
+    let registry = std::sync::Arc::new(super::super::registry::TieredStorageRegistry::new());
+    let local = std::sync::Arc::new(object_store::memory::InMemory::new());
+    let store = super::TieredObjectStore::new(registry, local)
+        .with_resolve_callback(mock_resolve_failure);
+    store.self_ptr.store(42, std::sync::atomic::Ordering::Release);
+    assert!(!store.try_lazy_resolve("some/path/file.parquet"));
+}
+
+#[test]
+fn test_lazy_resolve_called_on_registry_miss() {
+    let registry = std::sync::Arc::new(super::super::registry::TieredStorageRegistry::new());
+    let local = std::sync::Arc::new(object_store::memory::InMemory::new());
+
+    // Do NOT register the file — natural registry miss triggers lazy resolve
+    let store = super::TieredObjectStore::new(registry, local)
+        .with_resolve_callback(mock_resolve_success);
+    store.self_ptr.store(99, std::sync::atomic::Ordering::Release);
+
+    // File is not in registry, so try_lazy_resolve is called and succeeds
+    assert!(store.try_lazy_resolve("test/file.parquet"));
+}
+
+#[test]
+fn test_self_ptr_passed_to_callback() {
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    static RECEIVED_PTR: AtomicI64 = AtomicI64::new(0);
+
+    unsafe extern "C" fn capture_ptr(store_ptr: i64, _path_ptr: *const u8, _path_len: i64) -> i64 {
+        RECEIVED_PTR.store(store_ptr, Ordering::Release);
+        1
+    }
+
+    let registry = std::sync::Arc::new(super::super::registry::TieredStorageRegistry::new());
+    let local = std::sync::Arc::new(object_store::memory::InMemory::new());
+    let store = super::TieredObjectStore::new(registry, local)
+        .with_resolve_callback(capture_ptr);
+    store.self_ptr.store(12345, Ordering::Release);
+
+    store.try_lazy_resolve("any/path");
+    assert_eq!(RECEIVED_PTR.load(Ordering::Acquire), 12345);
+}
+
+// ---------------------------------------------------------------------------
+// should_retry_remote + lazy resolver integration tests
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_get_opts_not_found_triggers_lazy_resolve_via_should_retry_remote() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static RESOLVER_CALLED: AtomicBool = AtomicBool::new(false);
+
+    unsafe extern "C" fn resolver_registers_file(store_ptr: i64, path_ptr: *const u8, path_len: i64) -> i64 {
+        RESOLVER_CALLED.store(true, Ordering::Release);
+        // Simulate Java registering the file in the registry.
+        // In real code, Java calls TieredStorageBridge.registerFile which calls ts_register_files.
+        // Here we access the store directly through the raw pointer.
+        let path = std::str::from_utf8(std::slice::from_raw_parts(path_ptr, path_len as usize)).unwrap();
+        Arc::increment_strong_count(store_ptr as *const super::TieredObjectStore);
+        let store = Arc::from_raw(store_ptr as *const super::TieredObjectStore);
+        let entry = super::super::types::TieredFileEntry::new(
+            super::super::types::FileLocation::Remote,
+            Some(std::sync::Arc::from("remote/resolved.parquet")),
+        );
+        store.registry().register(path, entry);
+        // drop decrements refcount back
+        1
+    }
+
+    let registry = Arc::new(TieredStorageRegistry::new());
+    let local = Arc::new(InMemory::new()); // file NOT on local — will return NotFound
+    let remote = Arc::new(InMemory::new());
+
+    // Put data on remote at the path the resolver will register
+    remote
+        .put(&Path::from("remote/resolved.parquet"), PutPayload::from_static(b"resolved-data"))
+        .await
+        .unwrap();
+
+    let store = TieredObjectStore::new(Arc::clone(&registry), local as _)
+        .with_resolve_callback(resolver_registers_file);
+    store.set_remote(remote as _);
+
+    // Set self_ptr (simulating what FFM does after Arc::into_raw)
+    let arc = Arc::new(store);
+    let ptr = Arc::into_raw(Arc::clone(&arc)) as i64;
+    arc.self_ptr.store(ptr, std::sync::atomic::Ordering::Release);
+
+    RESOLVER_CALLED.store(false, Ordering::Release);
+
+    // File is NOT in registry, NOT on local → should trigger lazy resolve
+    let result = arc.get_opts(&Path::from("test/file.parquet"), GetOptions::default()).await;
+
+    assert!(RESOLVER_CALLED.load(Ordering::Acquire), "lazy resolver should have been called");
+    assert!(result.is_ok(), "should succeed after lazy resolve registers the file");
+
+    let bytes = result.unwrap().bytes().await.unwrap();
+    assert_eq!(bytes.as_ref(), b"resolved-data");
+
+    // Cleanup: drop the extra Arc from into_raw
+    unsafe { Arc::from_raw(ptr as *const TieredObjectStore) };
+}
+
+#[tokio::test]
+async fn test_get_ranges_not_found_triggers_lazy_resolve_via_should_retry_remote() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static RESOLVER_CALLED: AtomicBool = AtomicBool::new(false);
+
+    unsafe extern "C" fn resolver_registers_file(store_ptr: i64, path_ptr: *const u8, path_len: i64) -> i64 {
+        RESOLVER_CALLED.store(true, Ordering::Release);
+        let path = std::str::from_utf8(std::slice::from_raw_parts(path_ptr, path_len as usize)).unwrap();
+        Arc::increment_strong_count(store_ptr as *const super::TieredObjectStore);
+        let store = Arc::from_raw(store_ptr as *const super::TieredObjectStore);
+        let entry = super::super::types::TieredFileEntry::new(
+            super::super::types::FileLocation::Remote,
+            Some(std::sync::Arc::from("remote/ranges.parquet")),
+        );
+        store.registry().register(path, entry);
+        1
+    }
+
+    let registry = Arc::new(TieredStorageRegistry::new());
+    let local = Arc::new(InMemory::new());
+    let remote = Arc::new(InMemory::new());
+
+    remote
+        .put(&Path::from("remote/ranges.parquet"), PutPayload::from_static(b"0123456789"))
+        .await
+        .unwrap();
+
+    let store = TieredObjectStore::new(Arc::clone(&registry), local as _)
+        .with_resolve_callback(resolver_registers_file);
+    store.set_remote(remote as _);
+
+    let arc = Arc::new(store);
+    let ptr = Arc::into_raw(Arc::clone(&arc)) as i64;
+    arc.self_ptr.store(ptr, std::sync::atomic::Ordering::Release);
+
+    RESOLVER_CALLED.store(false, Ordering::Release);
+
+    // get_ranges on a file not in registry, not on local
+    let result = arc.get_ranges(&Path::from("test/file.parquet"), &[2..5]).await;
+
+    assert!(RESOLVER_CALLED.load(Ordering::Acquire), "lazy resolver should have been called via fetch_misses");
+    assert!(result.is_ok(), "should succeed after lazy resolve");
+    assert_eq!(result.unwrap()[0].as_ref(), b"234");
+
+    unsafe { Arc::from_raw(ptr as *const TieredObjectStore) };
+}
+
+#[tokio::test]
+async fn test_should_retry_remote_returns_none_when_resolver_fails() {
+    unsafe extern "C" fn always_fail(_: i64, _: *const u8, _: i64) -> i64 { 0 }
+
+    let registry = Arc::new(TieredStorageRegistry::new());
+    let local = Arc::new(InMemory::new());
+
+    let store = TieredObjectStore::new(Arc::clone(&registry), local as _)
+        .with_resolve_callback(always_fail);
+    store.self_ptr.store(99, std::sync::atomic::Ordering::Release);
+
+    let err = object_store::Error::NotFound {
+        path: "test.parquet".to_string(),
+        source: "test".into(),
+    };
+
+    // File not in registry + resolver fails → should return None
+    let result = store.should_retry_remote("test.parquet", &err);
+    assert!(result.is_none());
+}
+
+#[test]
+fn test_should_retry_remote_returns_some_when_file_already_in_registry() {
+    let registry = Arc::new(TieredStorageRegistry::new());
+    let local = Arc::new(InMemory::new());
+    let remote = Arc::new(InMemory::new());
+
+    let store = TieredObjectStore::new(Arc::clone(&registry), local as _);
+    store.set_remote(remote as _);
+
+    // Register file BEFORE calling should_retry_remote
+    let entry = TieredFileEntry::new(FileLocation::Remote, Some(Arc::from("remote/a.parquet")));
+    registry.register("a.parquet", entry);
+
+    let err = object_store::Error::NotFound {
+        path: "a.parquet".to_string(),
+        source: "test".into(),
+    };
+
+    // File IS in registry → should return Some without calling resolver
+    let result = store.should_retry_remote("a.parquet", &err);
+    assert!(result.is_some());
+}
+
+#[test]
+fn test_should_retry_remote_ignores_non_not_found_errors() {
+    let registry = Arc::new(TieredStorageRegistry::new());
+    let local = Arc::new(InMemory::new());
+
+    let store = TieredObjectStore::new(registry, local as _);
+
+    let err = object_store::Error::Generic {
+        store: "test",
+        source: "some other error".into(),
+    };
+
+    // Non-NotFound error → should return None immediately
+    let result = store.should_retry_remote("test.parquet", &err);
+    assert!(result.is_none());
+}
