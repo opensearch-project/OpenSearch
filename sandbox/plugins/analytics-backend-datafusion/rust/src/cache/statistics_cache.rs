@@ -166,6 +166,15 @@ impl CustomStatisticsCache {
         self.inner.reset_stats();
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.inner.is_enabled()
+    }
+
+    /// Enable/disable at runtime. Disabling clears the cache to free native heap immediately.
+    pub fn set_enabled(&self, enabled: bool) {
+        self.inner.set_enabled(enabled);
+    }
+
     /// Update the cache size limit (foyer evicts down to the new cap as needed).
     pub fn update_size_limit(&self, new_limit: usize) -> CacheResult<()> {
         self.inner.set_limit(new_limit);

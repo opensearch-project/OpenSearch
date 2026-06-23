@@ -35,7 +35,7 @@
 
 use std::hash::Hash;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::Relaxed};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed};
 
 use dashmap::DashSet;
 use foyer::{Cache, CacheBuilder, Event, EventListener, FifoConfig, LfuConfig, LruConfig, S3FifoConfig};
@@ -208,6 +208,9 @@ where
     misses: AtomicU64,
     /// Configured byte cap (mirrors foyer's capacity for lock-free `stats()` reads).
     limit_bytes: AtomicUsize,
+    /// Runtime enable flag. When disabled, `get` returns `None` without counting a miss and
+    /// `insert` is a no-op, so a disabled cache neither serves nor accumulates entries.
+    enabled: AtomicBool,
 }
 
 impl<K, V> FoyerBackedCache<K, V>
@@ -268,11 +271,30 @@ where
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             limit_bytes: AtomicUsize::new(limit_bytes),
+            enabled: AtomicBool::new(true),
         }
     }
 
-    /// Per-shard read. Returns a clone of the value on hit. Records hit/miss.
+    /// Whether the cache is currently serving (default true).
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.load(Relaxed)
+    }
+
+    /// Enable or disable the cache at runtime. Disabling also clears existing entries so the
+    /// native heap is freed immediately (matches the page-index disable behavior).
+    pub fn set_enabled(&self, enabled: bool) {
+        self.enabled.store(enabled, Relaxed);
+        if !enabled {
+            self.clear();
+        }
+    }
+
+    /// Per-shard read. Returns a clone of the value on hit. Records hit/miss. When the cache is
+    /// disabled, returns `None` WITHOUT counting a miss (a disabled cache isn't "missing" data).
     pub fn get(&self, key: &K) -> Option<V> {
+        if !self.is_enabled() {
+            return None;
+        }
         match self.inner.get(key) {
             Some(entry) => {
                 self.hits.fetch_add(1, Relaxed);
@@ -288,6 +310,10 @@ where
     /// Insert `(key, value)`; foyer evicts as needed to stay ≤ capacity. The byte cost comes
     /// from the weighter set at build time, so no explicit size argument is needed.
     pub fn insert(&self, key: K, value: V) {
+        // A disabled cache accepts nothing (keeps the native heap free until re-enabled).
+        if !self.is_enabled() {
+            return;
+        }
         // Account the new entry's bytes up front. On a replace, foyer fires `on_leave(Replace)`
         // for the old value (subtracting its bytes) during `inner.insert`, so net usage is
         // correct either way. On eviction triggered by this insert, `on_leave(Evict)` subtracts
@@ -456,6 +482,31 @@ mod tests {
             c.insert(format!("k{i}"), vec![0u8; 10]);
         }
         assert!(c.used_bytes() <= 100, "used {} > cap", c.used_bytes());
+    }
+
+    #[test]
+    fn disabled_cache_serves_nothing_and_counts_no_miss() {
+        let c = byte_cache(1024, CacheEvictionPolicy::S3Fifo);
+        c.insert("a".to_string(), vec![1, 2, 3]);
+        assert_eq!(c.len(), 1);
+
+        c.set_enabled(false);
+        // disable clears existing entries
+        assert_eq!(c.len(), 0);
+        assert_eq!(c.used_bytes(), 0);
+        // get returns None without counting a miss; insert is a no-op
+        assert!(c.get(&"a".to_string()).is_none());
+        c.insert("b".to_string(), vec![9]);
+        assert_eq!(c.len(), 0);
+        let s = c.stats();
+        assert_eq!(s.misses, 0, "disabled lookups must not count as misses");
+        assert_eq!(s.hits, 0);
+
+        // re-enable: serves fresh entries again
+        c.set_enabled(true);
+        c.insert("c".to_string(), vec![7, 7]);
+        assert_eq!(c.get(&"c".to_string()), Some(vec![7, 7]));
+        assert_eq!(c.stats().hits, 1);
     }
 
     #[test]

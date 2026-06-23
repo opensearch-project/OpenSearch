@@ -786,9 +786,10 @@ pub unsafe extern "C" fn df_create_cache(
     // All four cache types share one enum — the per-cache match below enforces
     // which policies are valid for each type.
     let policy = match eviction_type.to_uppercase().as_str() {
-        "LRU"  => CacheEvictionPolicy::Lru,
-        "LFU"  => CacheEvictionPolicy::Lfu,
-        "FIFO" => CacheEvictionPolicy::Fifo,
+        "LRU"    => CacheEvictionPolicy::Lru,
+        "LFU"    => CacheEvictionPolicy::Lfu,
+        "FIFO"   => CacheEvictionPolicy::Fifo,
+        "S3FIFO" => CacheEvictionPolicy::S3Fifo,
         _ => return Err(format!("df_create_cache: unsupported eviction type: {}", eviction_type)),
     };
 
@@ -797,9 +798,8 @@ pub unsafe extern "C" fn df_create_cache(
 
     match cache_type {
         cache::CACHE_TYPE_METADATA => {
-            // METADATA is foyer-backed (LRU); the eviction-type arg is accepted but the
-            // footer cache always uses LRU to preserve prior behavior.
-            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::with_limit(size_limit as usize));
+            // METADATA is foyer-backed; eviction policy comes from the setting (default S3-FIFO).
+            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::with_policy(size_limit as usize, policy));
             manager.set_file_metadata_cache(metadata_cache);
         }
         cache::CACHE_TYPE_STATS => {
@@ -814,16 +814,12 @@ pub unsafe extern "C" fn df_create_cache(
             manager.set_statistics_cache(stats_cache);
         }
         cache::CACHE_TYPE_COLUMN_INDEX => {
-            // CI/OI use BoundedCache<FIFO>; eviction type must be FIFO.
-            if policy != CacheEvictionPolicy::Fifo {
-                return Err(format!("df_create_cache: COLUMN_INDEX cache only supports FIFO eviction, got {eviction_type}"));
-            }
+            // CI/OI page-index caches are foyer-backed; the policy is fixed at process start
+            // (Lazy static, default S3-FIFO). The eviction-type arg is validated but only the
+            // byte limit is applied at runtime.
             manager.set_column_index_cache(size_limit as usize);
         }
         cache::CACHE_TYPE_OFFSET_INDEX => {
-            if policy != CacheEvictionPolicy::Fifo {
-                return Err(format!("df_create_cache: OFFSET_INDEX cache only supports FIFO eviction, got {eviction_type}"));
-            }
             manager.set_offset_index_cache(size_limit as usize);
         }
         _ => {
@@ -833,6 +829,64 @@ pub unsafe extern "C" fn df_create_cache(
             ));
         }
     }
+    Ok(0)
+}
+
+/// Update the byte size-limit of an already-created cache at runtime.
+///
+/// Mirrors the `runtime_ptr` + `cache_type` string convention of the other
+/// `df_cache_manager_*` functions (the cache manager lives behind the runtime). For the
+/// METADATA and STATISTICS caches this resizes the foyer-backed cache in place (foyer evicts
+/// down to the new cap). CI/OI page-index caches have their own dedicated FFI
+/// (`df_set_column_index_cache_limit` / `df_set_offset_index_cache_limit`) and are rejected here.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_update_size_limit(
+    runtime_ptr: i64,
+    cache_type_ptr: *const u8,
+    cache_type_len: i64,
+    new_limit: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_update_size_limit: null runtime pointer".to_string());
+    }
+    if new_limit < 0 {
+        return Err(format!("df_cache_manager_update_size_limit: negative size limit: {}", new_limit));
+    }
+    let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_update_size_limit: no cache manager configured".to_string()
+    })?;
+    manager
+        .update_size_limit_by_type(cache_type, new_limit as usize)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    Ok(0)
+}
+
+/// Enable or disable a METADATA / STATISTICS cache at runtime (`enabled != 0` = enable).
+/// Disabling clears the cache to free native heap.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_set_enabled(
+    runtime_ptr: i64,
+    cache_type_ptr: *const u8,
+    cache_type_len: i64,
+    enabled: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_set_enabled: null runtime pointer".to_string());
+    }
+    let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
+        .map_err(|e| format!("df_cache_manager_set_enabled: {}", e))?;
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_set_enabled: no cache manager configured".to_string()
+    })?;
+    manager
+        .set_enabled_by_type(cache_type, enabled != 0)
+        .map_err(|e| format!("df_cache_manager_set_enabled: {}", e))?;
     Ok(0)
 }
 

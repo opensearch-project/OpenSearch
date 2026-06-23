@@ -79,7 +79,9 @@ impl CustomCacheManager {
     }
 
     /// Register the column index cache with the given size limit.
-    /// Sets the limit on the process-global `COLUMN_INDEX_CACHE` singleton.
+    /// Sets the limit on the process-global `COLUMN_INDEX_CACHE` singleton. The eviction policy
+    /// of the page-index caches is fixed at process start (the `Lazy` static, default S3-FIFO);
+    /// only the byte limit is runtime-tunable here.
     pub fn set_column_index_cache(&mut self, size_limit: usize) {
         crate::cache::page_index::set_column_index_cache_limit(size_limit);
         self.column_index_registered = true;
@@ -302,6 +304,50 @@ impl CustomCacheManager {
                 .map_err(|e| format!("Failed to update statistics cache limit: {:?}", e))
         } else {
             Err("No statistics cache configured".to_string())
+        }
+    }
+
+    /// Update the size limit of a specific cache type at runtime, keyed on the same cache-type
+    /// strings used elsewhere. Dispatches to the metadata / statistics limit setters; CI/OI use
+    /// their own dedicated FFI and are rejected here. Errors when the cache is unconfigured or
+    /// the type is unknown so the FFM layer can surface it to the Java caller.
+    pub fn update_size_limit_by_type(&self, cache_type: &str, new_limit: usize) -> Result<(), String> {
+        match cache_type {
+            metadata_cache::CACHE_TYPE_METADATA => {
+                if self.file_metadata_cache.is_some() {
+                    self.update_metadata_cache_limit(new_limit);
+                    Ok(())
+                } else {
+                    Err("No metadata cache configured".to_string())
+                }
+            }
+            metadata_cache::CACHE_TYPE_STATS => self.update_statistics_cache_limit(new_limit),
+            other => Err(format!("Unknown or unsupported cache type for size-limit update: {}", other)),
+        }
+    }
+
+    /// Enable or disable a cache type at runtime. Disabling clears the cache (frees native heap)
+    /// and makes lookups return misses-without-counting until re-enabled. CI/OI page-index caches
+    /// are toggled via the scoped-page-index feature flag, not here.
+    pub fn set_enabled_by_type(&self, cache_type: &str, enabled: bool) -> Result<(), String> {
+        match cache_type {
+            metadata_cache::CACHE_TYPE_METADATA => {
+                if let Some(cache) = &self.file_metadata_cache {
+                    cache.set_enabled(enabled);
+                    Ok(())
+                } else {
+                    Err("No metadata cache configured".to_string())
+                }
+            }
+            metadata_cache::CACHE_TYPE_STATS => {
+                if let Some(cache) = &self.statistics_cache {
+                    cache.set_enabled(enabled);
+                    Ok(())
+                } else {
+                    Err("No statistics cache configured".to_string())
+                }
+            }
+            other => Err(format!("Unknown or unsupported cache type for enable/disable: {}", other)),
         }
     }
 

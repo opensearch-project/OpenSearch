@@ -47,7 +47,7 @@ public class CacheSettings {
 
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<>(
         "datafusion.metadata.cache.eviction.type",
-        "LRU",
+        "S3FIFO",
         CacheSettings::validateEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -55,7 +55,7 @@ public class CacheSettings {
 
     public static final Setting<String> STATISTICS_CACHE_EVICTION_TYPE = new Setting<>(
         "datafusion.statistics.cache.eviction.type",
-        "LRU",
+        "S3FIFO",
         CacheSettings::validateEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -78,26 +78,25 @@ public class CacheSettings {
     );
 
     /**
-     * Eviction policy for the scoped ColumnIndex cache.
-     * Currently only {@code FIFO} is supported — the CI/OI caches use a lock-free
-     * read design (FIFO insert-order eviction under a single write lock).
-     * {@code S3_FIFO} will be added as a follow-up.
+     * Eviction policy for the scoped ColumnIndex cache. Foyer-backed; defaults to
+     * {@code S3FIFO} (scan-resistant). The policy is fixed at process start, so changing
+     * this setting at runtime applies only on restart.
      */
     public static final Setting<String> COLUMN_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
         "datafusion.column_index.cache.eviction.type",
-        "FIFO",
+        "S3FIFO",
         CacheSettings::validateScopedEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     /**
-     * Eviction policy for the scoped OffsetIndex cache.
-     * Currently only {@code FIFO} is supported.
+     * Eviction policy for the scoped OffsetIndex cache. Foyer-backed; defaults to
+     * {@code S3FIFO}.
      */
     public static final Setting<String> OFFSET_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
         "datafusion.offset_index.cache.eviction.type",
-        "FIFO",
+        "S3FIFO",
         CacheSettings::validateScopedEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -232,27 +231,24 @@ public class CacheSettings {
         return total + "b";
     }
 
-    /** Validates eviction type for metadata/statistics caches (LRU or LFU via CachePolicy). */
+    /** Validates eviction type for metadata/statistics caches (LRU, LFU, or S3FIFO). */
     private static String validateEvictionType(String value) {
         String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("LRU") && !upper.equals("LFU")) {
-            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU' or 'LFU'.");
+        if (!upper.equals("LRU") && !upper.equals("LFU") && !upper.equals("S3FIFO")) {
+            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU', 'LFU', or 'S3FIFO'.");
         }
         return upper;
     }
 
     /**
-     * Validates eviction type for the scoped CI/OI caches.
-     * Only {@code FIFO} is supported today; {@code S3_FIFO} will be added as a follow-up.
+     * Validates eviction type for the scoped CI/OI page-index caches. Foyer-backed, so
+     * {@code FIFO} and {@code S3FIFO} are both supported (default S3FIFO).
      */
     private static String validateScopedEvictionType(String value) {
         String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("FIFO")) {
+        if (!upper.equals("FIFO") && !upper.equals("S3FIFO")) {
             throw new IllegalArgumentException(
-                "Invalid eviction type '"
-                    + value
-                    + "' for scoped page-index cache. "
-                    + "Only 'FIFO' is supported. S3_FIFO support is planned as a follow-up."
+                "Invalid eviction type '" + value + "' for scoped page-index cache. Must be 'FIFO' or 'S3FIFO'."
             );
         }
         return upper;

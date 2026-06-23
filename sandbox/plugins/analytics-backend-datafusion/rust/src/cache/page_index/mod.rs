@@ -111,10 +111,10 @@ pub use column_schema_resolver::{
 // Process-global caches
 
 pub(crate) static COLUMN_INDEX_CACHE: Lazy<BoundedCache<CiCellKey, ColumnIndexMetaData>> =
-    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
+    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::S3Fifo));
 
 pub(crate) static OFFSET_INDEX_CACHE: Lazy<BoundedCache<OiCellKey, OiColumn>> =
-    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
+    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::S3Fifo));
 
 /// Set the ColumnIndex cache's byte budget. Called from startup wiring with the
 /// configured limit. Idempotent; shrinking evicts immediately. Zero ignored.

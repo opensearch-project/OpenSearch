@@ -279,6 +279,35 @@ public class DataFusionService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * Updates the byte size-limit of a foyer-backed METADATA or STATISTICS cache at runtime.
+     * The page-index (CI/OI) caches are resized via their own dedicated FFI.
+     *
+     * @param cacheType "METADATA" or "STATISTICS"
+     * @param newLimitBytes new byte budget
+     */
+    public void updateCacheSizeLimit(String cacheType, long newLimitBytes) {
+        try {
+            NativeBridge.updateCacheSizeLimit(runtimeHandle.get(), cacheType, newLimitBytes);
+        } catch (Exception e) {
+            logger.warn("Failed to update {} cache size limit to {} bytes", cacheType, newLimitBytes, e);
+        }
+    }
+
+    /**
+     * Enables or disables a foyer-backed METADATA or STATISTICS cache at runtime.
+     *
+     * @param cacheType "METADATA" or "STATISTICS"
+     * @param enabled   true to enable, false to disable (clears the cache)
+     */
+    public void setCacheEnabled(String cacheType, boolean enabled) {
+        try {
+            NativeBridge.setCacheEnabled(runtimeHandle.get(), cacheType, enabled);
+        } catch (Exception e) {
+            logger.warn("Failed to set {} cache enabled={}", cacheType, enabled, e);
+        }
+    }
+
     private void releaseRuntime() {
         NativeRuntimeHandle handle = runtimeHandle;
         if (handle != null) {

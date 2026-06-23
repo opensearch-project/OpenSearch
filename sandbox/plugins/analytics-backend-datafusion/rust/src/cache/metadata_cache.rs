@@ -73,14 +73,18 @@ pub struct MutexFileMetadataCache {
 }
 
 impl MutexFileMetadataCache {
-    /// Build with an explicit byte limit and the default eviction policy (LRU, matching the
-    /// prior `DefaultFilesMetadataCache` behavior).
-    pub fn with_limit(size_limit: usize) -> Self {
+    /// Build with an explicit byte limit and eviction policy.
+    pub fn with_policy(size_limit: usize, policy: CacheEvictionPolicy) -> Self {
         Self {
-            inner: FoyerBackedCache::new(size_limit, CacheEvictionPolicy::Lru, |_k, v: &CachedFileMetadataEntry| {
+            inner: FoyerBackedCache::new(size_limit, policy, |_k, v: &CachedFileMetadataEntry| {
                 v.file_metadata.memory_size()
             }),
         }
+    }
+
+    /// Build with an explicit byte limit and the default eviction policy (S3-FIFO).
+    pub fn with_limit(size_limit: usize) -> Self {
+        Self::with_policy(size_limit, CacheEvictionPolicy::S3Fifo)
     }
 
     pub fn hit_count(&self) -> usize {
@@ -93,6 +97,15 @@ impl MutexFileMetadataCache {
 
     pub fn reset_stats(&self) {
         self.inner.reset_stats();
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.inner.is_enabled()
+    }
+
+    /// Enable/disable at runtime. Disabling clears the cache to free native heap immediately.
+    pub fn set_enabled(&self, enabled: bool) {
+        self.inner.set_enabled(enabled);
     }
 
     pub fn clear_cache(&self) {
