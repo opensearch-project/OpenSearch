@@ -870,6 +870,56 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * Aggregation whose {@code case(...)} expression reads a column that is NOT in the
+     * group-by/projection list must still scan that column correctly.
+     *
+     * <p>Regression test for a scoped-OffsetIndex bug: the optimizer derived the scan's read set
+     * from the projected output field <em>names</em>, but with expression push-down the projection
+     * contains computed fields like {@code CASE WHEN status = 200 ...} whose names are not file
+     * columns. The base column the CASE reads ({@code age}/{@code score} here) was therefore left
+     * out of the scoped OffsetIndex and got a single-page placeholder. When the scan actually read
+     * that column, arrow decoded the whole chunk as one page and failed with
+     * "provided output is too small for the decompressed data" (HTTP 500).
+     *
+     * <p>Two variants exercise both factory-install paths:
+     * <ul>
+     *   <li>Listing path — numeric predicate keeps the scan on the listing/parquet path.</li>
+     *   <li>Indexed path — {@code match()} routes through the Lucene-indexed executor, which wires
+     *       the scoped page index via a different code path ({@code collect_plan_column_names}).</li>
+     * </ul>
+     * Each query groups by one column while a {@code case()} reads a different, non-projected one;
+     * {@code executePpl} asserts HTTP 200, so a decompression failure fails the test.
+     */
+    public void testCaseAggregationOnNonProjectedColumnListingPath() throws Exception {
+        clearAllCaches();
+        // Listing path (mirrors api_metrics Q1/Q7): NO predicate, group by city, the case()
+        // aggregations read `age`/`score` which are not otherwise projected. Projection push-down
+        // makes the scan project {city, CASE(age...), CASE(score...)} — the CASE fields are not
+        // file columns, so the buggy name-based read-set inference dropped age/score and gave them
+        // a placeholder OffsetIndex, corrupting the page read.
+        String listing = "source=" + INDEX_NAME
+            + " | stats count() as total, sum(case(age > 50, 1 else 0)) as old,"
+            + " sum(case(score > 75.0, 1 else 0)) as hi by city"
+            + " | eval old_rate = round(old * 100.0 / total, 2)"
+            + " | fields city, total, old_rate";
+        executePpl(listing);
+        executePpl(listing); // warm: exercise the cached-OI path too
+    }
+
+    public void testCaseAggregationOnNonProjectedColumnIndexedPath() throws Exception {
+        clearAllCaches();
+        // Indexed path: match() routes through the Lucene-indexed executor, which wires the scoped
+        // page index via a different code path than the listing optimizer. Same hazard: the case()
+        // aggregations read `age`/`score`, which are not in the group-by/projection list.
+        String indexed = "source=" + INDEX_NAME
+            + " | where match(city, 'seattle') | stats count() as total,"
+            + " sum(case(age > 50, 1 else 0)) as old, sum(case(score > 75.0, 1 else 0)) as hi by city"
+            + " | fields city, total, old, hi";
+        executePpl(indexed);
+        executePpl(indexed); // warm
+    }
+
+    /**
      * Delegated keyword-equality predicate produces NO scoped cache activity.
      *
      * <p>This is the converse of {@link #testStringFieldFilterFillsColumnIndex}: with the default

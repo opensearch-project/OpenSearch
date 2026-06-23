@@ -108,23 +108,33 @@ impl PhysicalOptimizerRule for ScopedPageIndexOptimizer {
                 })
                 .unwrap_or_default();
 
-            // Projected column NAMES — the columns this scan actually reads.
-            // `projected_schema()` reflects the projection pushed into the scan.
-            let projection_names: Vec<String> = match config.projected_schema() {
-                Ok(ps) => ps
-                    .fields()
-                    .iter()
-                    .map(|f| f.name().to_string())
-                    .filter(|n| file_schema.index_of(n).is_ok())
+            // Projected column NAMES — the file-schema columns this scan actually READS.
+            //
+            // We must derive these from the projection's underlying column references, NOT from
+            // the projected output field names. With expression push-down the projected schema can
+            // contain computed fields (e.g. `CASE WHEN status = 200 ...`) whose names are not in the
+            // file schema; those expressions still read the base column (`status`). Matching output
+            // field names against the file schema would drop `status`, leaving it without a real
+            // OffsetIndex — and a column that is read but only has the single-page placeholder OI
+            // corrupts the page decode ("provided output is too small for the decompressed data").
+            // `ProjectionExprs::column_indices()` walks every projection expression and returns the
+            // referenced file-schema column indices, which is exactly the read set we must scope to.
+            let num_file_cols = file_schema.fields().len();
+            let projection_names: Vec<String> = match config.file_source().projection() {
+                Some(proj) => proj
+                    .column_indices()
+                    .into_iter()
+                    .filter(|&i| i < num_file_cols)
+                    .map(|i| file_schema.field(i).name().to_string())
                     .collect(),
-                Err(_) => Vec::new(),
+                // No projection pushed → the scan reads every column.
+                None => Vec::new(),
             };
 
-            // Only scope when there's something to scope to. A full-schema scan
-            // with no predicate gains nothing from scoping — skip it.
-            // `projected_schema()` returns the full schema when no projection is
-            // pushed, so we check whether the projection is a strict subset.
-            let is_projected = projection_names.len() < file_schema.fields().len();
+            // Only scope when there's something to scope to. A full-schema scan with no predicate
+            // gains nothing from scoping — skip it. A None projection (read-all) or a projection
+            // that already covers every column is not a strict subset.
+            let is_projected = !projection_names.is_empty() && projection_names.len() < num_file_cols;
             if predicate_names.is_empty() && !is_projected {
                 return Ok(Transformed::no(node));
             }
