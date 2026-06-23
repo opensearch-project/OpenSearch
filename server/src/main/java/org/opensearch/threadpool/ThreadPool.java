@@ -74,7 +74,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -146,7 +145,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         FIXED("fixed"),
         RESIZABLE("resizable"),
         SCALING("scaling"),
-        FORK_JOIN("fork_join");
+        FORK_JOIN("fork_join"),
+        VIRTUAL("virtual");
 
         private final String type;
 
@@ -707,9 +707,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
-            ExecutorService es = executor.executor();
-            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
-                es.shutdown();
+            if (executor.executor() != DIRECT_EXECUTOR) {
+                executor.executor().shutdown();
             }
         }
     }
@@ -718,9 +717,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
-            ExecutorService es = executor.executor();
-            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
-                es.shutdownNow();
+            if (executor.executor() != DIRECT_EXECUTOR) {
+                executor.executor().shutdownNow();
             }
         }
     }
@@ -728,7 +726,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
+            if (executor.executor() != DIRECT_EXECUTOR) {
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }
@@ -929,7 +927,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool;
+            assert executor instanceof OpenSearchThreadPoolExecutor
+                || executor == DIRECT_EXECUTOR
+                || executor instanceof ForkJoinPool
+                || info.type == ThreadPoolType.VIRTUAL;
             this.executor = executor;
             this.info = info;
         }
@@ -1008,12 +1009,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             if (type == ThreadPoolType.RESIZABLE && out.getVersion().before(Version.V_3_0_0)) {
-                // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
+                // OpenSearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_4_0)) {
-                // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
+                // OpenSearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
+            } else if (type == ThreadPoolType.VIRTUAL && out.getVersion().before(Version.V_3_8_0)) {
+                // VIRTUAL introduced in 3.8, convert to SCALING for bwc
+                out.writeString(ThreadPoolType.SCALING.getType());
             } else {
                 out.writeString(type.getType());
             }

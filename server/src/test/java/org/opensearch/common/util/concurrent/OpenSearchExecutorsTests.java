@@ -41,6 +41,7 @@ import org.hamcrest.Matcher;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -505,6 +506,58 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
             available
         );
         assertSettingDeprecationsAndWarnings(deprecatedSettings, expectedWarning);
+    }
+
+    public void testVirtualThreadPerTaskExecutor() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("test-virtual", threadContext);
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicBoolean isVirtual = new AtomicBoolean();
+            executor.execute(() -> {
+                isVirtual.set(Thread.currentThread().isVirtual());
+                latch.countDown();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertTrue("task should run on a virtual thread", isVirtual.get());
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorPreservesThreadContext() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("test-virtual-ctx", threadContext);
+        try {
+            threadContext.putHeader("test-header", "test-value");
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicBoolean contextPreserved = new AtomicBoolean();
+            executor.execute(() -> {
+                contextPreserved.set("test-value".equals(threadContext.getHeader("test-header")));
+                latch.countDown();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertTrue("thread context should be preserved on virtual thread", contextPreserved.get());
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorThreadNaming() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("test-naming", threadContext);
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicBoolean nameMatches = new AtomicBoolean();
+            executor.execute(() -> {
+                nameMatches.set(Thread.currentThread().getName().startsWith("test-naming#"));
+                latch.countDown();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertTrue("virtual thread should have the expected name prefix", nameMatches.get());
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
     }
 
 }
