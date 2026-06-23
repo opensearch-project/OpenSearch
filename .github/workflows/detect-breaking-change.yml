@@ -11,7 +11,7 @@ jobs:
       with:
         distribution: temurin # Temurin is a distribution of adoptium
         java-version: 21
-    - uses: gradle/gradle-build-action@0723195856401067f7a2779048b490ace7a47d7c # v3
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
       with:
         cache-disabled: true
         arguments: japicmp
