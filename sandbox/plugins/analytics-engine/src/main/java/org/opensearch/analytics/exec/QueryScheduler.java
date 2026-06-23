@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
@@ -77,11 +78,13 @@ public class QueryScheduler implements Scheduler {
                     "analytics query terminal — cleaning up dispatched fragments",
                     false,
                     ActionListener.wrap(v -> {}, ex -> logger.debug(
-                        "[QueryScheduler] orphan-cleanup cancel failed for queryId={}", queryId, ex
+                        new ParameterizedMessage("[QueryScheduler] orphan-cleanup cancel failed for queryId={}", queryId), ex
                     ))
                 );
             } catch (Exception ex) {
-                logger.debug("[QueryScheduler] orphan-cleanup invocation failed for queryId={}", queryId, ex);
+                logger.debug(
+                    new ParameterizedMessage("[QueryScheduler] orphan-cleanup invocation failed for queryId={}", queryId), ex
+                );
             }
         });
 

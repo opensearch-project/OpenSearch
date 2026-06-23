@@ -1488,6 +1488,7 @@ async fn run_wide_segments_with_stats_pruning(
         prune_tree_config: Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema.clone())),
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
