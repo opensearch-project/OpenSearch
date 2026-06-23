@@ -304,7 +304,7 @@ public class GoogleCloudStorageService {
 
     private KeyStore createFipsCompliantGoogleTrustStore() throws GeneralSecurityException, IOException {
         // Use BCFKS KeyStore type which is required for FIPS mode
-        KeyStore trustStore = KeyStore.getInstance("BCFIPS", "BCFIPS");
+        KeyStore trustStore = KeyStore.getInstance("BCFKS", "BCFIPS");
         // Initialize empty BCFKS trust store
         trustStore.load(null, null);
 
@@ -323,3 +323,4 @@ public class GoogleCloudStorageService {
         return trustStore;
     }
 }
+
