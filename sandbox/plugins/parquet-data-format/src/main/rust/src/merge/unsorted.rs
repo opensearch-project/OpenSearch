@@ -19,7 +19,7 @@ use super::context::MergeContext;
 use super::error::MergeResult;
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
-use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior, MERGE_WAIT_TIMEOUT};
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 use crate::memory::merge_pool;
 
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
@@ -30,7 +30,7 @@ pub fn merge_unsorted(
     index_name: &str,
     output_writer_generation: i64,
 ) -> MergeResult<super::MergeOutput> {
-    let mut reservation = MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Wait(MERGE_WAIT_TIMEOUT));
+    let mut reservation = MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Reject);
     merge_unsorted_with_pool(input_files, output_path, index_name, output_writer_generation, &mut reservation)
 }
 

@@ -26,13 +26,15 @@ pub const DEFAULT_WAIT_TIMEOUT: Duration = Duration::from_secs(300);
 /// Merge operations can wait longer (600 seconds).
 pub const MERGE_WAIT_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// Controls whether an allocation blocks or rejects immediately.
+/// Controls how a reservation reacts when the pool is full.
 #[derive(Debug, Clone)]
 pub enum PoolBehavior {
     /// Block until memory is available, up to the given timeout.
     Wait(Duration),
     /// Fail immediately if pool is full.
     Reject,
+    /// Never block and never fail: account via infallible `grow`, allowing the pool to over-commit.
+    IgnoreLimit,
 }
 
 /// Error returned when a pool cannot satisfy an allocation request.
@@ -253,6 +255,11 @@ impl MemoryReservation {
                 self.size += bytes;
                 Ok(())
             }
+            PoolBehavior::IgnoreLimit => {
+                self.pool.grow(bytes);
+                self.size += bytes;
+                Ok(())
+            }
         }
     }
 
@@ -388,5 +395,37 @@ mod tests {
         child.request(100).unwrap();
         assert_eq!(child.consumer(), "child");
         assert_eq!(pool.used(), 100);
+    }
+
+    #[test]
+    fn test_ignore_limit_exceeds_limit() {
+        let pool = Arc::new(MemoryPool::new("test", 100));
+        let mut res = MemoryReservation::new(&pool, "writer", PoolBehavior::IgnoreLimit);
+        // Request far beyond the limit — must succeed and over-commit.
+        assert!(res.request(500).is_ok());
+        assert_eq!(res.size(), 500);
+        assert_eq!(pool.used(), 500);
+        assert!(pool.used() > pool.limit());
+    }
+
+    #[test]
+    fn test_ignore_limit_never_fails_when_already_over() {
+        let pool = Arc::new(MemoryPool::new("test", 100));
+        let mut res = MemoryReservation::new(&pool, "writer", PoolBehavior::IgnoreLimit);
+        res.request(1000).unwrap();
+        // Already over the limit; further requests still succeed immediately.
+        assert!(res.request(1000).is_ok());
+        assert_eq!(pool.used(), 2000);
+    }
+
+    #[test]
+    fn test_ignore_limit_drop_releases() {
+        let pool = Arc::new(MemoryPool::new("test", 100));
+        {
+            let mut res = MemoryReservation::new(&pool, "writer", PoolBehavior::IgnoreLimit);
+            res.request(500).unwrap();
+            assert_eq!(pool.used(), 500);
+        }
+        assert_eq!(pool.used(), 0);
     }
 }

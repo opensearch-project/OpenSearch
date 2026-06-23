@@ -21,7 +21,7 @@ use super::heap::{cmp_sort_values, get_sort_values, HeapItem};
 use super::io_task::get_merge_pool;
 use super::schema::ColumnMapping;
 
-use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior, MERGE_WAIT_TIMEOUT};
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 use crate::memory::merge_pool;
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
@@ -34,7 +34,7 @@ pub fn merge_sorted(
     nulls_first: &[bool],
     output_writer_generation: i64,
 ) -> super::MergeResult<super::MergeOutput> {
-    let mut reservation = MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Wait(MERGE_WAIT_TIMEOUT));
+    let mut reservation = MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
     merge_sorted_with_pool(input_files, output_path, index_name, sort_columns, reverse_sorts, nulls_first, output_writer_generation, &mut reservation)
 }
 

@@ -26,7 +26,7 @@ use crate::memory::write_pool;
 use crate::merge::{merge_sorted_with_pool, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
-use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior, DEFAULT_WAIT_TIMEOUT};
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
 /// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
 #[derive(Debug)]
@@ -452,7 +452,7 @@ impl NativeParquetWriter {
             settings,
             crc_handle,
             writer_generation,
-            reservation: MemoryReservation::new(write_pool(), "parquet_writer", PoolBehavior::Wait(DEFAULT_WAIT_TIMEOUT)),
+            reservation: MemoryReservation::new(write_pool(), "parquet_writer", PoolBehavior::IgnoreLimit),
         });
 
         Ok(())
@@ -489,9 +489,9 @@ impl NativeParquetWriter {
                         WriterVariant::Parquet(writer_arc) => {
                             log_debug!("Writing RecordBatch to Parquet file");
                             let batch_bytes = record_batch.get_array_memory_size();
-                            // Reserve 2× batch as estimate — ArrowWriter encoding may temporarily
+                            // Reserve 3× batch as estimate — ArrowWriter encoding may temporarily
                             // hold dictionary, compressed pages, and data page buffers.
-                            let estimated = batch_bytes * 2;
+                            let estimated = batch_bytes * 3;
                             let writer_arc = writer_arc.clone();
                             state.reservation.reserve_estimated(estimated)?;
                             let mut writer = writer_arc.lock().unwrap();
@@ -674,7 +674,7 @@ impl NativeParquetWriter {
             chunk_paths.len(), output_filename
         );
 
-        let mut merge_reservation = MemoryReservation::new(write_pool(), "writer:k_way_merge", PoolBehavior::Wait(DEFAULT_WAIT_TIMEOUT));
+        let mut merge_reservation = MemoryReservation::new(write_pool(), "writer:k_way_merge", PoolBehavior::IgnoreLimit);
         let merge_output = merge_sorted_with_pool(
             chunk_paths,
             output_filename,
