@@ -266,10 +266,7 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
                     startLatch.await();
                     for (int i = 0; i < docsPerThread; i++) {
                         int docId = threadId * docsPerThread + i;
-                        client().prepareIndex(INDEX_NAME)
-                            .setId(String.valueOf(docId))
-                            .setSource("name", "doc_" + docId, "age", randomIntBetween(0, 100))
-                            .get();
+                        client().prepareIndex(INDEX_NAME).setSource("name", "doc_" + docId, "age", randomIntBetween(0, 100)).get();
                     }
                 } catch (Exception e) {
                     error.compareAndSet(null, e);

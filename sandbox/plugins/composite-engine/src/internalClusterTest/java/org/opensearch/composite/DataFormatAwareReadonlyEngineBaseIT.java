@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
@@ -20,6 +21,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
@@ -42,6 +44,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -205,15 +208,17 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
     }
 
     /** Create hot DFA index, index docs, flush, then tier to warm. */
-    protected void createHotIndexAndTierToWarm(int replicaCount) throws Exception {
+    protected List<String> createHotIndexAndTierToWarm(int replicaCount) throws Exception {
         client().admin().indices().prepareCreate(INDEX_NAME).setSettings(dfaIndexSettings(replicaCount)).get();
         ensureGreen(INDEX_NAME);
 
+        List<String> docIds = new ArrayList<>();
         for (int i = 0; i < DOC_COUNT; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
+            IndexResponse indexResponse = client().prepareIndex(INDEX_NAME)
                 .setSource("field_text", "value_" + i, "field_number", (long) i)
                 .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+            docIds.add(indexResponse.getId());
         }
         client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
 
@@ -226,5 +231,6 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
             .get();
         client().admin().indices().prepareOpen(INDEX_NAME).get();
         ensureGreen(INDEX_NAME);
+        return docIds;
     }
 }

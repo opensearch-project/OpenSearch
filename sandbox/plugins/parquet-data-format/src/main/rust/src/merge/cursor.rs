@@ -19,6 +19,8 @@ use super::heap::{get_sort_values, SortKey};
 use super::io_task::get_merge_pool;
 use super::schema::projection_indices_excluding_row_id;
 
+use native_bridge_common::memory_pool::MemoryReservation;
+
 /// A cursor over a single sorted Parquet input file.
 ///
 /// When deferred mode is active (controlled by the dynamic index setting
@@ -43,6 +45,8 @@ pub struct FileCursor {
     pub sort_col_indices: Vec<usize>,
     pub sort_col_types: Vec<ArrowDataType>,
     pub nulls_first: Vec<bool>,
+    current_sort_batch_bytes: usize,
+    current_data_batch_bytes: usize,
 }
 
 impl FileCursor {
@@ -53,6 +57,7 @@ impl FileCursor {
         nulls_first: &[bool],
         batch_size: usize,
         deferred_threshold: usize,
+        reservation: &mut MemoryReservation,
     ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
         // Open file and read metadata
         let file = File::open(path)?;
@@ -159,7 +164,15 @@ impl FileCursor {
             sort_col_indices,
             sort_col_types,
             nulls_first: nulls_first.to_vec(),
+            current_sort_batch_bytes: 0,
+            current_data_batch_bytes: 0,
         };
+
+        // Track sort batch + prefetch (estimate 2x first batch)
+        let batch_bytes = cursor.sort_batch.as_ref().unwrap().get_array_memory_size();
+        reservation.grow(batch_bytes * 2);
+        cursor.current_sort_batch_bytes = batch_bytes;
+
         cursor.start_sort_prefetch();
         Ok((cursor, projected_schema, parquet_schema_descr, writer_generation, total_row_count))
     }
@@ -182,60 +195,89 @@ impl FileCursor {
         });
     }
 
-    pub fn load_next_batch(&mut self) -> MergeResult<bool> {
+    pub fn load_next_batch(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
+        let old_sort_bytes = self.current_sort_batch_bytes;
         self.sort_batch = None;
+
+        // Release data batch tracking — previous data_batch is dropped
+        if self.current_data_batch_bytes > 0 {
+            reservation.shrink(self.current_data_batch_bytes);
+            self.current_data_batch_bytes = 0;
+        }
         self.data_batch = None;
 
         let sort_result = match self.sort_prefetch_rx.recv() {
             Ok(Some(Ok(batch))) => Some(batch),
-            Ok(Some(Err(e))) => { self.sort_prefetch_pending = false; return Err(e); }
+            Ok(Some(Err(e))) => {
+                self.sort_prefetch_pending = false;
+                // Error: release sort batch tracking since cursor is now exhausted
+                reservation.shrink(old_sort_bytes);
+                self.current_sort_batch_bytes = 0;
+                return Err(e);
+            }
             Ok(None) | Err(_) => None,
         };
         self.sort_prefetch_pending = false;
 
         match sort_result {
             Some(batch) => {
+                let new_bytes = batch.get_array_memory_size();
                 self.sort_batch = Some(batch);
                 self.row_idx = 0;
                 self.sort_batch_index += 1;
                 self.start_sort_prefetch();
+                // Delta-adjust: new sort batch may differ in size from previous
+                if new_bytes > old_sort_bytes {
+                    reservation.grow(new_bytes - old_sort_bytes);
+                } else if new_bytes < old_sort_bytes {
+                    reservation.shrink(old_sort_bytes - new_bytes);
+                }
+                self.current_sort_batch_bytes = new_bytes;
                 Ok(true)
             }
             None => {
-                self.data_reader = None; // Release file descriptor
+                // Cursor exhausted — release all sort batch tracking
+                self.data_reader = None;
+                reservation.shrink(old_sort_bytes);
+                self.current_sort_batch_bytes = 0;
                 Ok(false)
             }
         }
     }
 
-    fn ensure_data_loaded(&mut self) -> MergeResult<()> {
+    fn ensure_data_loaded(&mut self, reservation: &mut MemoryReservation) -> MergeResult<()> {
         if !self.deferred {
             return Ok(());
         }
-        // data_batch_index tracks "next batch to read" — after successfully loading
-        // sort_batch_index, it equals sort_batch_index + 1.
         if self.data_batch.is_some() && self.data_batch_index == self.sort_batch_index + 1 {
             return Ok(());
         }
 
-        match self.try_load_data() {
+        match self.try_load_data(reservation) {
             Ok(()) => Ok(()),
             Err(e) => {
-                // Close the data reader on failure — the cursor is irrecoverable since
-                // the reader's internal position is unknown after a partial advance.
+                // Error path: close reader and release any data_batch memory
                 self.data_reader = None;
+                if self.current_data_batch_bytes > 0 {
+                    reservation.shrink(self.current_data_batch_bytes);
+                    self.current_data_batch_bytes = 0;
+                }
                 Err(e)
             }
         }
     }
 
-    fn try_load_data(&mut self) -> MergeResult<()> {
+    fn try_load_data(&mut self, reservation: &mut MemoryReservation) -> MergeResult<()> {
         let reader = self.data_reader.as_mut()
             .ok_or_else(|| MergeError::Logic("Data reader already closed".into()))?;
 
-        // Read batches from data reader until we have the one at sort_batch_index.
-        // data_batch_index tracks how many batches have been consumed from the reader
-        // (i.e., the next call to reader.next() will return batch number data_batch_index).
+        // Release previous data_batch — about to load a new one
+        if self.current_data_batch_bytes > 0 {
+            reservation.shrink(self.current_data_batch_bytes);
+            self.current_data_batch_bytes = 0;
+        }
+        self.data_batch = None;
+
         while self.data_batch_index <= self.sort_batch_index {
             match reader.next() {
                 Some(Ok(batch)) => {
@@ -255,6 +297,10 @@ impl FileCursor {
                                 )));
                             }
                         }
+                        let data_bytes = batch.get_array_memory_size();
+                        // Track full-column data batch — already allocated by data_reader.next()
+                        reservation.grow(data_bytes);
+                        self.current_data_batch_bytes = data_bytes;
                         self.data_batch = Some(batch);
                     }
                     // Skipped batch — discard
@@ -290,9 +336,9 @@ impl FileCursor {
     }
 
     #[inline]
-    pub fn take_slice(&mut self, start: usize, len: usize) -> MergeResult<RecordBatch> {
+    pub fn take_slice(&mut self, start: usize, len: usize, reservation: &mut MemoryReservation) -> MergeResult<RecordBatch> {
         if self.deferred {
-            self.ensure_data_loaded()?;
+            self.ensure_data_loaded(reservation)?;
             let batch = self.data_batch.as_ref()
                 .ok_or_else(|| MergeError::Logic("Data batch not loaded".into()))?;
             Ok(batch.slice(start, len))
@@ -303,7 +349,7 @@ impl FileCursor {
         }
     }
 
-    pub fn advance(&mut self) -> MergeResult<bool> {
+    pub fn advance(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
         if self.sort_batch.is_none() {
             return Ok(false);
         }
@@ -311,14 +357,24 @@ impl FileCursor {
         if self.row_idx >= self.sort_batch.as_ref().unwrap().num_rows() {
             self.sort_batch = None;
             self.data_batch = None;
-            return self.load_next_batch();
+            // Batch boundary crossed — release data_batch before loading next sort batch
+            if self.current_data_batch_bytes > 0 {
+                reservation.shrink(self.current_data_batch_bytes);
+                self.current_data_batch_bytes = 0;
+            }
+            return self.load_next_batch(reservation);
         }
         Ok(true)
     }
 
-    pub fn advance_past_batch(&mut self) -> MergeResult<bool> {
+    pub fn advance_past_batch(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
         self.sort_batch = None;
         self.data_batch = None;
-        self.load_next_batch()
+        // Skip remaining rows — release data_batch before loading next sort batch
+        if self.current_data_batch_bytes > 0 {
+            reservation.shrink(self.current_data_batch_bytes);
+            self.current_data_batch_bytes = 0;
+        }
+        self.load_next_batch(reservation)
     }
 }

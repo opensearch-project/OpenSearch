@@ -484,10 +484,8 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             );
 
-            // Restore version map and checkpoint tracker after crash recovery.
-            if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
-                restoreVersionMapAndCheckpointTracker();
-            }
+            // Restore version map and checkpoint tracker after recovery.
+            restoreVersionMapAndCheckpointTracker();
 
             // Merge failure cleanup: cleans up unreferenced files and acts as a safety net
             // for refreshLock. The preMergeCommitHook acquires refreshLock on the merge thread;
