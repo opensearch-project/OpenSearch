@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# Most complex aggregate combo: 5 partials (sum + count + sum-for-avg + count-for-avg + HLL).
+# TopK on count column (not dc) with fetch=30 at shard, coordinator sorts same column.
+# AVG + dc coexist in one grouped FinalPartitioned aggregate with CASE WHEN division.
 query: q10
 ppl_file: q10.ppl
 applies: [prod2s, prod1s]

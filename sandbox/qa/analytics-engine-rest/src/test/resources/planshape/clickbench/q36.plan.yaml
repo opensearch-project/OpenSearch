@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# Derived-expression group keys: all 3 arithmetic (ClientIP-N) pushed into DataSourceExec scan.
+# 4-key hash repartition with functionally-dependent keys (all derived from ClientIP).
+# Planner does NOT optimize correlated keys away — still repartitions on all 4.
 query: q36
 ppl_file: q36.ppl
 applies: [prod2s, prod1s]

@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# EXTRACT expression pushed into DataSourceExec projection (computed at parquet scan level).
+# Project node annotated datafusion-only (lucene cannot evaluate temporal extraction).
+# 3-key grouped TopK where one key is a derived expression — participates in hash-repartition.
 query: q19
 ppl_file: q19.ppl
 applies: [prod2s, prod1s]

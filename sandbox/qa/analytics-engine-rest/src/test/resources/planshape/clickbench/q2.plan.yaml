@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# != filter forces datafusion-only backend (not lucene-viable).
+# Triple parquet pushdown: predicate, pruning_predicate (min/max stats), required_guarantees (page-level).
+# Single-column projection pushed to scan despite 100+ column table.
 query: q2
 ppl_file: q2.ppl
 applies: [prod2s, prod1s]

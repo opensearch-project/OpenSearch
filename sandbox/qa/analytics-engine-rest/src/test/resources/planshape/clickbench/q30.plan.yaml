@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# 10 parallel scalar SUMs with arithmetic expressions pushed into DataSourceExec projection.
+# No sort, no group-by, no filter — pure wide aggregation stress-test.
+# Expression evaluation (col+N) at parquet reader level before aggregation.
 query: q30
 ppl_file: q30.ppl
 applies: [prod2s, prod1s]

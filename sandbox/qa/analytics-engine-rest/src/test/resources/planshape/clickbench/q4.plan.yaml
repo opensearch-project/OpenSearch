@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# Pure avg decomposition: ships exactly 2 partial values (SUM, COUNT) for one aggregate.
+# Coordinator applies CASE WHEN sum(count)=0 THEN NULL ELSE sum/count division.
+# Division expression in final Project forces datafusion-only (lucene cannot evaluate).
 query: q4
 ppl_file: q4.ppl
 applies: [prod2s, prod1s]

@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# tree_shape=CONJUNCTIVE: text field delegates IS NOT NULL to lucene inverted index.
+# QueryShardExec (lucene scan path) instead of DataSourceExec (parquet) — only query using this.
+# datafusion handles HLL aggregation above the lucene-delegated filter.
 query: q6
 ppl_file: q6.ppl
 applies: [prod2s, prod1s]

@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write, then human-reviewed.
+# TopK with 3x fetch multiplier: shard fetch=30000 for coordinator limit=10000.
+# Hash-repartitioned FinalPartitioned aggregate at coordinator (grouped merge).
+# Full parquet predicate stack coexists with shard-side TopK sort.
 query: q8
 ppl_file: q8.ppl
 applies: [prod2s, prod1s]

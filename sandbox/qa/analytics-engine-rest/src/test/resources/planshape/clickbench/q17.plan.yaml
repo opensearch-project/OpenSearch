@@ -1,4 +1,5 @@
-# Generated via -Dplan.generate=write.
+# Multi-key grouped TopK: composite (UserID, SearchPhrase) hash-repartition at coordinator.
+# Same 3x fetch multiplier and double-sort as q16 — planner treats N-key identically to 1-key.
 query: q17
 ppl_file: q17.ppl
 applies: [prod2s, prod1s]

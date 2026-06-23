@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write, then human-reviewed.
+# dc → APPROX_COUNT_DISTINCT with HLL sketch merge across shards.
+# Implicit IS NOT NULL filter injected by optimizer, pushed to parquet pruning_predicate.
+# prod1s uses RelabelExec for output schema renaming (not present in multi-shard).
 query: q5
 ppl_file: q5.ppl
 applies: [prod2s, prod1s]

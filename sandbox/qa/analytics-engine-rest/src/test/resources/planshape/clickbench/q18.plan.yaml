@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# No sort → no shard-side TopK: head without sort is an arbitrary limit, not TopK.
+# Shard sends ALL partial groups (no pruning possible without sort direction).
+# Coordinator applies CoalescePartitionsExec: fetch=10 (arbitrary row selection).
 query: q18
 ppl_file: q18.ppl
 applies: [prod2s, prod1s]

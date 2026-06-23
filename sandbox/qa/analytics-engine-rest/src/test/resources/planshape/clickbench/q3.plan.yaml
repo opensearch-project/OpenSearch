@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# AVG decomposed to SUM+COUNT at PARTIAL, recombined with CASE WHEN null-guard at coordinator.
+# 4 partial aggregates shipped for 3 user-visible aggregates (avg expansion).
+# Multi-column projection pushdown: only [AdvEngineID, ResolutionWidth] read.
 query: q3
 ppl_file: q3.ppl
 applies: [prod2s, prod1s]

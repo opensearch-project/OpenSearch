@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# ordering_mode=PartiallySorted([0]): constant group key enables DF partial-sort optimization.
+# Literal 1 materialized in DataSourceExec projection (not a separate ProjectionExec).
+# Semantically equivalent to q34 but exercises constant-key degenerate case handling.
 query: q35
 ppl_file: q35.ppl
 applies: [prod2s, prod1s]

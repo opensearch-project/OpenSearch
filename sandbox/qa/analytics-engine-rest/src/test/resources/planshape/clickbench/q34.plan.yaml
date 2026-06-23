@@ -1,4 +1,5 @@
-# Generated via -Dplan.generate=write.
+# High-cardinality text-field grouping: URL (keyword) stays on datafusion despite lucene viability.
+# Structurally simplest TopK plan — single key, single agg, 3x fetch. Reference baseline.
 query: q34
 ppl_file: q34.ppl
 applies: [prod2s, prod1s]

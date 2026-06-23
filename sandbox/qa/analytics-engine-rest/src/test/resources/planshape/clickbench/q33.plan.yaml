@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# Mixed aggregates: COUNT + SUM + AVG in one grouped query, each with its own decomposition.
+# AVG split into SUM+COUNT partial, CASE WHEN null-guard division at coordinator.
+# 4-column projection from 100+ column source (WatchID, ClientIP, IsRefresh, ResolutionWidth).
 query: q33
 ppl_file: q33.ppl
 applies: [prod2s, prod1s]

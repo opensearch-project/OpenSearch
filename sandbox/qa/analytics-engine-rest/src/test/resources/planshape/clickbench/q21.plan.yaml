@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write, then human-reviewed.
+# Lucene backend: LIKE wildcard on text field delegated to lucene inverted index.
+# No shard_physical (lucene handles filter+count natively). Only coord_physical present.
+# prod1s is single-stage with no coordinator (SINGLE mode, simplest possible execution).
 query: q21
 ppl_file: q21.ppl
 applies: [prod2s, prod1s]

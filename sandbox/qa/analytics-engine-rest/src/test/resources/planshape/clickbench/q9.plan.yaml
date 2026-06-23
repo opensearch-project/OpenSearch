@@ -1,4 +1,6 @@
-# Generated via -Dplan.generate=write.
+# reduce_eval('approx_distinct') enables TopK on HLL partial registers before coordinator.
+# Shard sorts on estimated cardinality from partial HLL state, fetch=30 (3x of head 10).
+# Raw HLL register bytes flow through TopK sort, not scalar values.
 query: q9
 ppl_file: q9.ppl
 applies: [prod2s, prod1s]
