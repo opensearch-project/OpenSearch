@@ -293,14 +293,34 @@ public class TranslogTransferManager {
         } else {
             // Download translog.tlog file with object metadata from remote to local FS
             Map<String, String> metadata = downloadToFS(translogFilename, location, primaryTerm, true);
+            Map<String, String> normalizedMetadata = normalizeMetadata(metadata);
             try {
-                assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
-                recoverCkpFileUsingMetadata(metadata, location, generation, translogFilename);
+                assert normalizedMetadata != null
+                    && !normalizedMetadata.isEmpty()
+                    && normalizedMetadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
+                recoverCkpFileUsingMetadata(normalizedMetadata, location, generation, translogFilename);
             } catch (Exception e) {
                 throw new IOException("Failed to recover checkpoint file from remote", e);
             }
         }
         return true;
+    }
+
+    private Map<String, String> normalizeMetadata(Map<String, String> metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        Map<String, String> normalizedMetadata = new HashMap<>();
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            if (entry.getKey() != null) {
+                String key = entry.getKey().toLowerCase(java.util.Locale.ROOT);
+                if (key.startsWith("x-amz-meta-")) {
+                    key = key.substring("x-amz-meta-".length());
+                }
+                normalizedMetadata.put(key, entry.getValue());
+            }
+        }
+        return normalizedMetadata;
     }
 
     /**
