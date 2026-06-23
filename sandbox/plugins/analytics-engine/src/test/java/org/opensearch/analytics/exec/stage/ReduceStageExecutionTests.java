@@ -323,7 +323,7 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
 
     private static QueryContext mockContext() {
         QueryContext ctx = mock(QueryContext.class);
-        when(ctx.reduceExecutor()).thenReturn(inlineExecutor());
+        when(ctx.localTaskExecutor()).thenReturn(inlineExecutor());
         when(ctx.schedulerExecutor()).thenReturn(inlineExecutor());
         when(ctx.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
         return ctx;

@@ -28,8 +28,11 @@ use tempfile::TempDir;
 use opensearch_datafusion::ffm::{
     df_close_global_runtime, df_close_local_session, df_create_global_runtime,
     df_create_local_session, df_execute_local_plan, df_init_runtime_manager,
-    df_register_partition_stream, df_sender_close, df_sender_send, df_stream_close, df_stream_next,
+    df_register_partition_stream, df_sender_close, df_stream_close,
 };
+
+mod common;
+use common::{sender_send_sync, stream_next_sync};
 
 // ---------------------------------------------------------------------------
 // One-time setup (same OnceLock pattern as local_exec_test.rs)
@@ -206,8 +209,8 @@ fn test_stringview_gc_on_sliced_batch() {
         .expect("batch from sliced array");
 
         let (arr_ptr, sch_ptr) = export_batch_ptrs(batch);
-        let rc = unsafe { df_sender_send(sender_ptr, arr_ptr, sch_ptr) };
-        assert_eq!(rc, 0, "df_sender_send rc={}", rc);
+        let rc = sender_send_sync(sender_ptr, arr_ptr, sch_ptr).expect("send ok");
+        assert_eq!(rc, 0, "sender_send rc={}", rc);
 
         unsafe { df_sender_close(sender_ptr) };
     });
@@ -225,8 +228,7 @@ fn test_stringview_gc_on_sliced_batch() {
     // Drain the output and check buffer sizes
     let mut output_batches: Vec<RecordBatch> = Vec::new();
     loop {
-        let rc = unsafe { df_stream_next(stream_ptr) };
-        assert!(rc >= 0, "df_stream_next rc={}", rc);
+        let rc = stream_next_sync(stream_ptr).expect("stream_next ok");
         if rc == 0 {
             break;
         }

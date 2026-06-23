@@ -61,6 +61,11 @@ import io.substrait.extension.SimpleExtension;
  *       sink, feed Arrow batches, close, and assert the downstream sink received the
  *       reduced result.</li>
  * </ul>
+ *
+ * <p>{@link ThreadLeakScope.Scope#NONE}: the async-completion path fires upcalls on Tokio IO-runtime
+ * worker threads (process-lifetime singletons that attach to the JVM and persist after the test).
+ * They cannot be shut down per-test without breaking other classes sharing the JVM — same rationale
+ * as {@code DataFusionNativeBridgeTests}.
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class DatafusionReduceSinkTests extends OpenSearchTestCase {
@@ -78,14 +83,15 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
 
     /**
      * The benign "consumer finished first" case (a {@code LimitExec} satisfied its fetch and
-     * dropped the receiver while producers were still feeding) is signalled by {@code df_sender_send}
-     * returning the positive sentinel {@link NativeBridge#SENDER_SEND_RECEIVER_DROPPED} rather than a
-     * stringly-typed error — {@code feedToSender} keys off this code. The sentinel must be positive
-     * (so {@code checkResult} passes it through the success half of the return contract instead of
-     * treating it as an error pointer) and distinct from a normal send ({@code 0}). The Rust↔Java
-     * agreement on the value is enforced by the matching {@code SENDER_SEND_RECEIVER_DROPPED} in
-     * {@code ffm.rs}; the structural "only a dropped receiver maps here" guarantee is covered by the
-     * Rust {@code send_blocking_reports_receiver_dropped} unit test.
+     * dropped the receiver while producers were still feeding) is signalled by
+     * {@code df_sender_send_async} returning the positive sentinel
+     * {@link NativeBridge#SENDER_SEND_RECEIVER_DROPPED} rather than a stringly-typed error —
+     * {@code feedToSender} keys off this code. The sentinel must be positive (so {@code checkResult}
+     * passes it through the success half of the return contract instead of treating it as an error
+     * pointer) and distinct from a normal send ({@code 0}). The Rust↔Java agreement on the value is
+     * enforced by the matching {@code SENDER_SEND_RECEIVER_DROPPED} in {@code ffm.rs}; the structural
+     * "only a dropped receiver maps here" guarantee is covered by the Rust
+     * {@code try_send_reports_receiver_dropped} unit test.
      */
     public void testReceiverDroppedSentinelIsPositiveAndDistinctFromSuccess() {
         assertTrue(

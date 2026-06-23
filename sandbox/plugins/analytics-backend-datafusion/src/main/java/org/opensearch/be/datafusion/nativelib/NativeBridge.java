@@ -109,6 +109,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_QUERY;
     private static final MethodHandle STREAM_GET_SCHEMA;
     private static final MethodHandle STREAM_NEXT;
+    private static final MethodHandle STREAM_NEXT_ASYNC;
     private static final MethodHandle STREAM_CLOSE;
     private static final MethodHandle STREAM_GET_METRICS;
     private static final MethodHandle FREE_METRICS_BUF;
@@ -118,8 +119,9 @@ public final class NativeBridge {
     private static final MethodHandle CLOSE_LOCAL_SESSION;
     private static final MethodHandle REGISTER_PARTITION_STREAM;
     private static final MethodHandle EXECUTE_LOCAL_PLAN;
-    private static final MethodHandle SENDER_SEND;
+    private static final MethodHandle SENDER_SEND_ASYNC;
     private static final MethodHandle SENDER_CLOSE;
+    private static final MethodHandle REGISTER_COMPLETION_CALLBACK;
     private static final MethodHandle REGISTER_MEMTABLE;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
@@ -277,9 +279,19 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
+        // i64 df_stream_next(stream_ptr) — synchronous pull (block_on); used by the shard-scan /
+        // fetch data-node paths on the SEARCH platform pool.
         STREAM_NEXT = linker.downcallHandle(
             lib.find("df_stream_next").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_stream_next_async(stream_ptr, call_id) — initiates the pull; the batch (or error)
+        // arrives later via the completion upcall under call_id. Synchronous return is 0 / -errPtr.
+        // Used only by the coordinator-reduce drain (on virtual threads).
+        STREAM_NEXT_ASYNC = linker.downcallHandle(
+            lib.find("df_stream_next_async").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         STREAM_CLOSE = linker.downcallHandle(lib.find("df_stream_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
@@ -353,10 +365,22 @@ public final class NativeBridge {
             )
         );
 
-        // i64 df_sender_send(sender_ptr, array_ptr, schema_ptr)
-        SENDER_SEND = linker.downcallHandle(
-            lib.find("df_sender_send").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        // i64 df_sender_send_async(sender_ptr, array_ptr, schema_ptr, call_id)
+        SENDER_SEND_ASYNC = linker.downcallHandle(
+            lib.find("df_sender_send_async").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // void df_register_completion_callback(onComplete)
+        REGISTER_COMPLETION_CALLBACK = linker.downcallHandle(
+            lib.find("df_register_completion_callback").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
         );
 
         // void df_sender_close(sender_ptr)
@@ -541,6 +565,12 @@ public final class NativeBridge {
         // are installed and `df_execute_indexed_query` can dispatch into Java.
         installFilterTreeCallbacks(linker);
 
+        // Install the single async-completion upcall. Spawned IO-runtime tasks
+        // (stream_next_async / sender_send_async) deliver their results back to
+        // per-call listeners through this stub. Must be installed before any
+        // async entry is invoked.
+        installCompletionCallback(linker);
+
         CLOSE_SESSION_CONTEXT = linker.downcallHandle(
             lib.find("df_close_session_context").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
@@ -705,6 +735,32 @@ public final class NativeBridge {
                 collectDocsStub,
                 releaseCollectorStub
             );
+        } catch (Throwable t) {
+            throw new ExceptionInInitializerError(t);
+        }
+    }
+
+    private static void installCompletionCallback(Linker linker) {
+        try {
+            java.lang.foreign.Arena arena = java.lang.foreign.Arena.global();
+            var lookup = java.lang.invoke.MethodHandles.lookup();
+            MethodHandle onComplete = lookup.findStatic(
+                NativeCompletionCallbacks.class,
+                "onNativeComplete",
+                java.lang.invoke.MethodType.methodType(int.class, long.class, long.class, MemorySegment.class, long.class)
+            );
+            MemorySegment stub = linker.upcallStub(
+                onComplete,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG
+                ),
+                arena
+            );
+            NativeCall.invokeVoid(REGISTER_COMPLETION_CALLBACK, stub);
         } catch (Throwable t) {
             throw new ExceptionInInitializerError(t);
         }
@@ -1032,6 +1088,32 @@ public final class NativeBridge {
         }
     }
 
+    /**
+     * Initiates a next-batch pull and returns immediately; the listener fires later from the
+     * completion upcall (on a tokio worker) when the batch — or error, or end-of-stream (0) — is
+     * ready. Register before the downcall, because the completion can race the downcall's
+     * synchronous return. Used only by the coordinator-reduce drain, which runs on virtual threads
+     * where the downstream {@code CompletableFuture.join} park unmounts its carrier.
+     */
+    public static void streamNextAsync(long runtimePtr, long streamPtr, ActionListener<Long> listener) {
+        long callId = NativeCompletionCallbacks.register(listener);
+        try {
+            NativeHandle.validatePointer(streamPtr, "stream");
+            NativeLibraryLoader.checkResult((long) STREAM_NEXT_ASYNC.invokeExact(streamPtr, callId));
+        } catch (Throwable t) {
+            // Initiation failed before the task was spawned (bad stream ptr, runtime/callback not
+            // ready). The native entry returns 0 once it reaches spawn, so a throw here means no task
+            // is in flight and no completion will fire — reclaim the listener and surface the error.
+            // (A panic AFTER spawn is caught inside the task and delivered as an error completion, not
+            // as a throw.) unregister is single-fire safe: if a completion somehow raced us it already
+            // removed the entry, and we no-op.
+            ActionListener<Long> l = NativeCompletionCallbacks.unregister(callId);
+            if (l != null) {
+                listener.onFailure(convertNativeError(t));
+            }
+        }
+    }
+
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
     }
@@ -1286,8 +1368,8 @@ public final class NativeBridge {
     }
 
     /**
-     * Positive sentinel returned by {@code df_sender_send} (via {@link #senderSend}) when the
-     * send was skipped because the consumer dropped the receiver before this batch could be sent
+     * Positive sentinel returned by {@code df_sender_send_async} (via {@link #senderSendAsync}) when
+     * the send was skipped because the consumer dropped the receiver before this batch could be sent
      * — the benign "consumer finished first" case (e.g. a LimitExec satisfied its fetch). It
      * rides the success half of the native return contract ({@code >= 0} success, {@code < 0}
      * {@code -error_ptr}), so {@code checkResult} passes it through without throwing.
@@ -1296,11 +1378,22 @@ public final class NativeBridge {
     public static final long SENDER_SEND_RECEIVER_DROPPED = 1L;
 
     /**
-     * Pushes one Arrow C Data-exported batch (array + schema addresses) into the sender. The
-     * native side takes ownership of both FFI structs. Returns {@code 0} on a normal send or
-     * {@link #SENDER_SEND_RECEIVER_DROPPED} if the consumer already dropped the receiver.
+     * Positive sentinel returned by {@code df_sender_send_async} (via {@link #senderSendAsync})
+     * when the channel was full and the send is now in flight on the IO runtime; the registered
+     * listener fires from the completion upcall when capacity frees and the batch lands. Rides the
+     * success half of the native return contract. MUST match {@code SENDER_SEND_PENDING} in
+     * {@code ffm.rs}.
      */
-    public static long senderSend(long senderPtr, long arrayPtr, long schemaPtr) {
+    public static final long SENDER_SEND_PENDING = 2L;
+
+    /**
+     * Initiates a batch push. Returns {@code 0} (sent on the fast path),
+     * {@link #SENDER_SEND_RECEIVER_DROPPED} (consumer dropped the receiver), or
+     * {@link #SENDER_SEND_PENDING} (channel full — the send is in flight and the {@code listener}
+     * fires later from the completion upcall with the eventual outcome). The native side takes
+     * ownership of both FFI structs on any non-throwing outcome.
+     */
+    public static long senderSendAsync(long senderPtr, long arrayPtr, long schemaPtr, ActionListener<Long> listener) {
         NativeHandle.validatePointer(senderPtr, "sender");
         // arrayPtr/schemaPtr come from Arrow Java's C Data export (ArrowArray.memoryAddress()),
         // NOT from our NativeHandle lifecycle — validate as non-zero rather than live-handle.
@@ -1310,8 +1403,17 @@ public final class NativeBridge {
         if (schemaPtr == 0) {
             throw new IllegalArgumentException("schemaPtr must be non-zero");
         }
+        long callId = NativeCompletionCallbacks.register(listener);
+        boolean pending = false;
         try (var call = new NativeCall()) {
-            return call.invoke(SENDER_SEND, senderPtr, arrayPtr, schemaPtr);
+            long rc = call.invoke(SENDER_SEND_ASYNC, senderPtr, arrayPtr, schemaPtr, callId);
+            pending = (rc == SENDER_SEND_PENDING);
+            return rc;
+        } finally {
+            // Sync outcome (Sent / ReceiverDropped) or a throw: no completion is coming, so reclaim.
+            if (!pending) {
+                NativeCompletionCallbacks.unregister(callId);
+            }
         }
     }
 

@@ -35,8 +35,6 @@ import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collection;
@@ -51,15 +49,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Verifies the coordinator-reduce thread pool ({@code analytics_reduce}) is released after a query
- * — both on the normal-completion path and the cancellation path.
+ * Verifies the coordinator-reduce drain unwinds and leaves no residual tasks after a query — both
+ * on the normal-completion path and the cancellation path.
  *
- * <p>The reduce drain runs on a thread from this fixed pool (one task per coordinator-reduce
- * stage). If {@code DatafusionReduceSink.reduce} fails to unwind on cancellation (the drain parks
- * in {@code stream_next} and is never cancelled, or {@code closeImpl} double-frees / deadlocks),
- * the drain thread leaks: the pool's {@code active} count stays elevated and eventually the pool
- * saturates. These tests assert the pool drains back to {@code active=0} after each query, which
- * is what this PR's {@code closeImpl}/cancel teardown guarantees.
+ * <p>The reduce drain now runs on the per-query virtual-thread executor
+ * ({@code QueryContext.localTaskExecutor()}), not a dedicated platform pool; its data-flow waits
+ * are {@code CompletableFuture} parks that unmount the carrier. If {@code DatafusionReduceSink.reduce}
+ * fails to unwind on cancellation (the drain parks waiting for input and is never cancelled, or
+ * {@code closeImpl} double-frees / deadlocks), the query task leaks. These tests assert the
+ * coordinator clears its {@code analytics/query} (and {@code fragment}) tasks after each query,
+ * which is what the {@code closeImpl}/cancel teardown guarantees.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope(com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope.TEST)
@@ -165,26 +164,6 @@ public class ReduceThreadPoolCleanupIT extends OpenSearchIntegTestCase {
         return client().execute(UnifiedPPLExecuteAction.INSTANCE, new PPLRequest(ppl)).actionGet(timeout);
     }
 
-    /** Max {@code active}/{@code queue} for the {@code analytics_reduce} pool across all nodes. */
-    private int reducePoolActiveAcrossNodes() {
-        int maxActive = 0;
-        for (ThreadPool tp : internalCluster().getInstances(ThreadPool.class)) {
-            for (ThreadPoolStats.Stats s : tp.stats()) {
-                if (AnalyticsPlugin.REDUCE_THREAD_POOL_NAME.equals(s.getName())) {
-                    maxActive = Math.max(maxActive, s.getActive() + s.getQueue());
-                }
-            }
-        }
-        return maxActive;
-    }
-
-    private void assertReducePoolDrains() throws Exception {
-        assertBusy(() -> {
-            int active = reducePoolActiveAcrossNodes();
-            assertEquals("analytics_reduce pool must drain to 0 active+queued; got " + active, 0, active);
-        }, 30, TimeUnit.SECONDS);
-    }
-
     private void assertNoResidualTasks(String action) throws Exception {
         assertBusy(() -> {
             ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
@@ -203,7 +182,6 @@ public class ReduceThreadPoolCleanupIT extends OpenSearchIntegTestCase {
         long actual = ((Number) response.getRows().get(0)[response.getColumns().indexOf("total")]).longValue();
         assertEquals("query must return the correct sum", EXPECTED_SUM, actual);
 
-        assertReducePoolDrains();
         assertNoResidualTasks(AnalyticsQueryAction.NAME);
     }
 
@@ -256,8 +234,7 @@ public class ReduceThreadPoolCleanupIT extends OpenSearchIntegTestCase {
             exec.awaitTermination(5, TimeUnit.SECONDS);
         }
 
-        // The cancelled query's reduce drain must have unwound and returned its pool thread.
-        assertReducePoolDrains();
+        // The cancelled query's reduce drain must have unwound, leaving no residual tasks.
         assertNoResidualTasks(AnalyticsQueryAction.NAME);
         assertNoResidualTasks(FragmentExecutionAction.NAME);
     }

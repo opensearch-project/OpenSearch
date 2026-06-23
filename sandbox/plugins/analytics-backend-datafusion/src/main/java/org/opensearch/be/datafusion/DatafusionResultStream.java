@@ -92,16 +92,29 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         private final StreamHandle streamHandle;
         private final BufferAllocator allocator;
         private final CDataDictionaryProvider dictionaryProvider;
+        /**
+         * When true, batch pulls go through {@link NativeBridge#streamNextAsync} (initiate-now,
+         * complete-via-upcall) so the {@code callNativeFn} park unmounts a virtual-thread carrier.
+         * Reserved for the coordinator-reduce drain. The shard-scan / fetch paths leave this false
+         * and use the synchronous {@link NativeBridge#streamNext} (native block_on), unchanged.
+         */
+        private final boolean async;
         private Schema schema;
         private VectorSchemaRoot nextBatch;
         private Boolean nextAvailable;
         private boolean batchEmitted;
         private boolean nativeStreamExhausted;
 
+        /** Synchronous pull (shard-scan / fetch paths). */
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
+            this(streamHandle, allocator, dictionaryProvider, false);
+        }
+
+        BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider, boolean async) {
             this.streamHandle = streamHandle;
             this.allocator = allocator;
             this.dictionaryProvider = dictionaryProvider;
+            this.async = async;
         }
 
         private void ensureSchema() {
@@ -119,9 +132,13 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         private boolean loadNextBatch() {
             ensureSchema();
             if (nativeStreamExhausted) return false;
-            long arrayAddr = callNativeFn(
-                listener -> NativeBridge.streamNext(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener)
-            );
+            long arrayAddr = callNativeFn(listener -> {
+                if (async) {
+                    NativeBridge.streamNextAsync(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener);
+                } else {
+                    NativeBridge.streamNext(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener);
+                }
+            });
             if (arrayAddr == 0) {
                 nativeStreamExhausted = true;
                 // Streaming Flight requires ≥1 schema-bearing frame before completeStream;

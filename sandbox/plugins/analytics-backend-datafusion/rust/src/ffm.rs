@@ -13,6 +13,7 @@ use std::str;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures::FutureExt;
 use log::warn;
 use native_bridge_common::ffm_safe;
 use parking_lot::RwLock;
@@ -20,9 +21,14 @@ use parking_lot::RwLock;
 /// Only log block_on durations exceeding this threshold.
 const BLOCK_ON_LOG_THRESHOLD: Duration = Duration::from_millis(1);
 
-/// `df_sender_send` return code when the consumer dropped the receiver. Positive so it rides the
-/// success half of the FFM contract. MUST match `NativeBridge.SENDER_SEND_RECEIVER_DROPPED`.
-const SENDER_SEND_RECEIVER_DROPPED: i64 = 1;
+/// `df_sender_send_async` return code when the consumer dropped the receiver. Positive so it rides
+/// the success half of the FFM contract. MUST match `NativeBridge.SENDER_SEND_RECEIVER_DROPPED`.
+pub(crate) const SENDER_SEND_RECEIVER_DROPPED: i64 = 1;
+
+/// `df_sender_send_async` return code when the channel was full and the send is now in flight; the
+/// completion upcall will fire under the supplied call id. Positive so it rides the success half of
+/// the FFM contract. MUST match `NativeBridge.SENDER_SEND_PENDING`.
+pub(crate) const SENDER_SEND_PENDING: i64 = 2;
 
 /// Times a block_on call and logs a warning if it exceeds the threshold.
 #[inline(always)]
@@ -446,12 +452,66 @@ pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
     api::stream_get_schema(stream_ptr).map_err(|e| e.to_string())
 }
 
+/// Extracts a human-readable message from a `catch_unwind` panic payload,
+/// mirroring the `JobError::Panic` extraction in `executor.rs`.
+fn panic_message(p: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = p.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = p.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        "unknown panic".to_string()
+    }
+}
+
+/// Synchronous next-batch pull: blocks the calling thread on the IO runtime
+/// until DataFusion produces a batch (FFI_ArrowArray ptr), exhausts (0), or
+/// errors. Retained for the shard-scan / fetch data-node paths, which run on
+/// the SEARCH platform-thread pool and do not benefit from the async upcall
+/// path. The coordinator-reduce drain uses [`df_stream_next_async`] instead.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
     let mgr = get_rt_manager()?;
-    timed_block_on(&mgr.io_runtime, "stream_next", crate::task_monitors::stream_next_monitor().instrument(api::stream_next(stream_ptr)))
-        .map_err(|e| e.to_string())
+    timed_block_on(
+        &mgr.io_runtime,
+        "stream_next",
+        crate::task_monitors::stream_next_monitor().instrument(api::stream_next(stream_ptr)),
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Initiates the next-batch pull on the IO runtime and returns immediately.
+/// Result (FFI_ArrowArray ptr, 0 = exhausted, or error) delivered via the
+/// completion callback under `call_id`.
+///
+/// SAFETY CONTRACT (Java side upholds, and already does):
+///  - at most ONE in-flight pull per stream (BatchIterator pulls sequentially);
+///  - df_stream_close only after the in-flight pull's completion fired
+///    (DatafusionReduceSink's SinkState machine orders teardown after the
+///    drain unwinds; the task's last deref of stream_ptr strictly precedes
+///    the upcall, so this ordering is sufficient).
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_stream_next_async(stream_ptr: i64, call_id: i64) -> i64 {
+    let mgr = get_rt_manager()?;
+    let cb = crate::completion::load_on_complete()?;
+    mgr.io_runtime.spawn(
+        crate::task_monitors::stream_next_monitor().instrument(async move {
+            // A panic swallowed by tokio = no completion = Java future never
+            // resolves = silent query hang. Map panic -> error completion.
+            let result = match std::panic::AssertUnwindSafe(api::stream_next(stream_ptr))
+                .catch_unwind()
+                .await
+            {
+                Ok(Ok(ptr)) => Ok(ptr),
+                Ok(Err(e)) => Err(e.to_string()),
+                Err(p) => Err(format!("stream_next panicked: {}", panic_message(&*p))),
+            };
+            crate::completion::complete(cb, call_id, result, /*owned_batch=*/ true);
+        }),
+    );
+    Ok(0)
 }
 
 #[no_mangle]
@@ -600,7 +660,7 @@ unsafe fn write_out_buffer(
 // string pointer that `NativeCall.invoke` reads and frees on the Java side.
 // Close functions are infallible and do not use the macro. The output stream
 // returned by `df_execute_local_plan` is the same `QueryStreamHandle` shape
-// as `df_execute_query`, so it drains through the existing `df_stream_next` /
+// as `df_execute_query`, so it drains through the existing `df_stream_next_async` /
 // `df_stream_close` paths unchanged.
 // ---------------------------------------------------------------------------
 
@@ -697,22 +757,27 @@ pub unsafe extern "C" fn df_execute_local_plan(
         .map_err(|e| e.to_string())
 }
 
+/// Initiates a batch send. Synchronous return codes: `0` = sent on the fast path,
+/// [`SENDER_SEND_RECEIVER_DROPPED`] = consumer dropped the receiver,
+/// [`SENDER_SEND_PENDING`] = channel was full and the completion will arrive under `call_id`.
+/// The FFI structs are consumed at initiation regardless of which non-error outcome is returned.
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_sender_send(sender_ptr: i64, array_ptr: i64, schema_ptr: i64) -> i64 {
+pub unsafe extern "C" fn df_sender_send_async(
+    sender_ptr: i64,
+    array_ptr: i64,
+    schema_ptr: i64,
+    call_id: i64,
+) -> i64 {
     let mgr = get_rt_manager()?;
-    api::sender_send(sender_ptr, array_ptr, schema_ptr, mgr.io_runtime.handle())
-        .map(send_outcome_to_code)
+    let cb = crate::completion::load_on_complete()?;
+    api::sender_send_async(sender_ptr, array_ptr, schema_ptr, &mgr, cb, call_id)
+        .map(|o| match o {
+            api::SendInitOutcome::Sent => 0,
+            api::SendInitOutcome::ReceiverDropped => SENDER_SEND_RECEIVER_DROPPED,
+            api::SendInitOutcome::Pending => SENDER_SEND_PENDING,
+        })
         .map_err(|e| e.to_string())
-}
-
-/// Maps a send outcome to the `df_sender_send` return code: normal send `0`, dropped receiver
-/// [`SENDER_SEND_RECEIVER_DROPPED`] so the Java side can latch early-termination.
-fn send_outcome_to_code(outcome: crate::partition_stream::SendOutcome) -> i64 {
-    match outcome {
-        crate::partition_stream::SendOutcome::Sent => 0,
-        crate::partition_stream::SendOutcome::ReceiverDropped => SENDER_SEND_RECEIVER_DROPPED,
-    }
 }
 
 #[no_mangle]
@@ -1343,7 +1408,7 @@ pub unsafe extern "C" fn df_prepare_final_plan(
 /// Executes the previously prepared final-aggregate plan on a local session.
 ///
 /// Returns a stream pointer (same shape as `df_execute_local_plan`) that can
-/// be drained via `df_stream_next` / `df_stream_close`.
+/// be drained via `df_stream_next_async` / `df_stream_close`.
 ///
 /// # Safety
 /// `session_ptr` must be a valid pointer returned by `df_create_local_session`
@@ -1415,19 +1480,14 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::partition_stream::SendOutcome;
 
     #[test]
-    fn send_outcome_maps_sent_to_zero() {
-        assert_eq!(send_outcome_to_code(SendOutcome::Sent), 0);
-    }
-
-    #[test]
-    fn send_outcome_maps_receiver_dropped_to_sentinel() {
-        // Must surface the sentinel, not collapse to 0 like a normal send, or Java never latches
-        // isConsumerDone().
-        assert_eq!(send_outcome_to_code(SendOutcome::ReceiverDropped), SENDER_SEND_RECEIVER_DROPPED);
+    fn send_return_codes_are_distinct_and_stable() {
+        // 0 = sent (fast path), 1 = receiver dropped, 2 = pending. Java mirrors these
+        // constants; collapsing any pair would break isConsumerDone() / the park decision.
         assert_eq!(SENDER_SEND_RECEIVER_DROPPED, 1);
+        assert_eq!(SENDER_SEND_PENDING, 2);
+        assert_ne!(SENDER_SEND_RECEIVER_DROPPED, SENDER_SEND_PENDING);
     }
 
     /// Initialize the global runtime manager for tests.

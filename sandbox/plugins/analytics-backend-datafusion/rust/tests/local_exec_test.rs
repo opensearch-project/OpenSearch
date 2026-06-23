@@ -13,18 +13,16 @@
 //!
 //! - `df_create_local_session` / `df_close_local_session` lifecycle
 //! - `df_register_partition_stream` exposes the input as a DataFusion table
-//! - `df_sender_send` → execute → `df_stream_next` drains a `SUM` aggregate
-//! - Error path: `df_sender_send` on a sender whose receiver is gone returns
-//!   a negative rc and the heap-allocated error string decodes cleanly
+//! - `df_sender_send_async` → execute → `df_stream_next_async` drains a `SUM` aggregate
+//! - Early-termination path: a send on a sender whose receiver is gone returns
+//!   the benign `SENDER_SEND_RECEIVER_DROPPED` sentinel (not an error)
 //! - `df_close_local_session` drops registered senders (receiver side of the
-//!   mpsc closes), so a subsequent `df_sender_send` fails
+//!   mpsc closes), so a subsequent send reports `SENDER_SEND_RECEIVER_DROPPED`
 //!
 //! The runtime manager (`df_init_runtime_manager`) is a process-global
 //! singleton, so we initialize it exactly once across all tests via a
 //! `OnceLock` guard.
 
-use std::ffi::CString;
-use std::os::raw::c_char;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::Duration;
@@ -41,8 +39,11 @@ use tempfile::TempDir;
 use opensearch_datafusion::ffm::{
     df_close_global_runtime, df_close_local_session, df_create_global_runtime,
     df_create_local_session, df_execute_local_plan, df_init_runtime_manager,
-    df_register_partition_stream, df_sender_close, df_sender_send, df_stream_close, df_stream_next,
+    df_register_partition_stream, df_sender_close, df_stream_close,
 };
+
+mod common;
+use common::{sender_send_sync, stream_next_sync, SENDER_SEND_RECEIVER_DROPPED};
 
 // ---------------------------------------------------------------------------
 // One-time setup
@@ -152,8 +153,8 @@ fn ipc_bytes_to_schema(bytes: &[u8]) -> Schema {
 /// ownership to the caller — mirrors what `DatafusionReduceSink.feed` will do
 /// on the Java side.
 ///
-/// Returns `(array_ptr, schema_ptr)` as `i64` addresses. On successful
-/// `df_sender_send` the Rust side consumes both pointers via `from_raw`.
+/// Returns `(array_ptr, schema_ptr)` as `i64` addresses. On a non-error send
+/// the Rust side consumes both pointers via `from_raw` at initiation.
 fn export_batch_ptrs(batch: RecordBatch) -> (i64, i64) {
     let schema = batch.schema();
     let ffi_schema = FFI_ArrowSchema::try_from(schema.as_ref()).expect("schema export");
@@ -165,20 +166,6 @@ fn export_batch_ptrs(batch: RecordBatch) -> (i64, i64) {
     let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
     let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
     (array_ptr, schema_ptr)
-}
-
-/// Decode (and free) the heap-allocated error string referenced by a
-/// negative FFM return code. Convention is defined in
-/// `sandbox/libs/dataformat-native/rust/common/src/error.rs`: the error
-/// pointer is the positive value of the negated return code, and the
-/// string is a `CString` that must be freed via `CString::from_raw`.
-fn decode_error(rc: i64) -> String {
-    assert!(rc < 0, "expected negative rc, got {}", rc);
-    let ptr = (-rc) as *mut c_char;
-    // SAFETY: the FFM layer produces this string via `CString::into_raw`;
-    // taking ownership back via `from_raw` both reads and frees it.
-    let cstring = unsafe { CString::from_raw(ptr) };
-    cstring.to_string_lossy().into_owned()
 }
 
 /// Build a Substrait plan for `SELECT SUM(x) AS total FROM "input-0"` using a
@@ -298,8 +285,8 @@ fn test_execute_sum_substrait() {
         for chunk in [vec![1i64, 2, 3], vec![4i64, 5, 6], vec![7i64, 8, 9]] {
             let batch = i64_batch(&producer_schema, &chunk);
             let (arr_ptr, sch_ptr) = export_batch_ptrs(batch);
-            let rc = unsafe { df_sender_send(sender_ptr, arr_ptr, sch_ptr) };
-            assert_eq!(rc, 0, "df_sender_send rc={}", rc);
+            let rc = sender_send_sync(sender_ptr, arr_ptr, sch_ptr).expect("send ok");
+            assert_eq!(rc, 0, "sender_send rc={}", rc);
         }
         // EOF — releases the sender, which closes the mpsc.
         unsafe { df_sender_close(sender_ptr) };
@@ -326,8 +313,7 @@ fn test_execute_sum_substrait() {
     // must drop it) or 0 for EOS.
     let mut total: i64 = 0;
     loop {
-        let rc = unsafe { df_stream_next(stream_ptr) };
-        assert!(rc >= 0, "df_stream_next rc={}", rc);
+        let rc = stream_next_sync(stream_ptr).expect("stream_next ok");
         if rc == 0 {
             break;
         }
@@ -363,7 +349,7 @@ fn test_execute_sum_substrait() {
 }
 
 #[test]
-fn test_sender_send_error_path() {
+fn test_sender_send_receiver_dropped_path() {
     let runtime = RuntimeGuard::new();
     let session_ptr = unsafe { df_create_local_session(runtime.ptr) };
     assert!(session_ptr > 0);
@@ -376,18 +362,15 @@ fn test_sender_send_error_path() {
     // channel is now closed.
     unsafe { df_close_local_session(session_ptr) };
 
-    // Attempting to send now fails — `send_blocking` reports "receiver
-    // dropped before send".
+    // Attempting to send now reports the benign receiver-dropped sentinel
+    // (try_send => Closed) rather than an error — the consumer finished first.
     let batch = i64_batch(&schema, &[1, 2, 3]);
     let (arr_ptr, sch_ptr) = export_batch_ptrs(batch);
-    let rc = unsafe { df_sender_send(sender_ptr, arr_ptr, sch_ptr) };
-    assert!(rc < 0, "expected error, got rc={}", rc);
-
-    let msg = decode_error(rc);
-    assert!(
-        msg.contains("receiver dropped") || msg.contains("receiver"),
-        "unexpected error message: {}",
-        msg
+    let rc = sender_send_sync(sender_ptr, arr_ptr, sch_ptr).expect("send initiates");
+    assert_eq!(
+        rc, SENDER_SEND_RECEIVER_DROPPED,
+        "expected receiver-dropped sentinel, got rc={}",
+        rc
     );
 
     unsafe { df_sender_close(sender_ptr) };
@@ -406,22 +389,20 @@ fn test_close_session_drops_registered_senders() {
     // capacity 4 so one send does not block).
     let batch_ok = i64_batch(&schema, &[10]);
     let (a0, s0) = export_batch_ptrs(batch_ok);
-    let rc_ok = unsafe { df_sender_send(sender_ptr, a0, s0) };
+    let rc_ok = sender_send_sync(sender_ptr, a0, s0).expect("send ok");
     assert_eq!(rc_ok, 0, "pre-close send should succeed, rc={}", rc_ok);
 
     // Close the session. The surviving sender's mpsc is now orphaned.
     unsafe { df_close_local_session(session_ptr) };
 
-    // Subsequent `df_sender_send` on the still-live sender pointer fails.
+    // Subsequent send on the still-live sender pointer reports the receiver-dropped sentinel.
     let batch_fail = i64_batch(&schema, &[20]);
     let (a1, s1) = export_batch_ptrs(batch_fail);
-    let rc_err = unsafe { df_sender_send(sender_ptr, a1, s1) };
-    assert!(rc_err < 0, "post-close send should fail, got rc={}", rc_err);
-    let msg = decode_error(rc_err);
-    assert!(
-        msg.contains("receiver"),
-        "expected receiver-dropped error, got: {}",
-        msg
+    let rc_dropped = sender_send_sync(sender_ptr, a1, s1).expect("send initiates");
+    assert_eq!(
+        rc_dropped, SENDER_SEND_RECEIVER_DROPPED,
+        "post-close send should report receiver dropped, got rc={}",
+        rc_dropped
     );
 
     unsafe { df_sender_close(sender_ptr) };

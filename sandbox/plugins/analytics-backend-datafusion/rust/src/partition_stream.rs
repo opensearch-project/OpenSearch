@@ -10,17 +10,20 @@
 //!
 //! A [`channel`] produces a paired [`PartitionStreamSender`] /
 //! [`PartitionStreamReceiver`]. The sender is exposed through the FFM bridge so
-//! Java can push Arrow `RecordBatch`es synchronously via
-//! [`PartitionStreamSender::send_blocking`]. The receiver implements DataFusion's
+//! Java can push Arrow `RecordBatch`es via [`PartitionStreamSender::try_send`]
+//! (fast path) and, when the channel is full, by cloning the inner
+//! [`PartitionStreamSender::clone_tx`] into a spawned task that completes via
+//! the async-completion upcall. The receiver implements DataFusion's
 //! [`RecordBatchStream`] and is wrapped in a [`SingleReceiverPartition`] so it
 //! can be registered on a `SessionContext` as a `StreamingTable`.
 //!
 //! # Backpressure
 //!
 //! The underlying mpsc is bounded (capacity 4) — chosen small so the sender
-//! back-pressures when the DataFusion execute side falls behind. Under load the
-//! Java feeder thread blocks on `send_blocking`, which naturally stalls the
-//! shard response pipeline.
+//! back-pressures when the DataFusion execute side falls behind. Under load a
+//! full channel makes [`PartitionStreamSender::try_send`] return `Full`; the
+//! FFM bridge then parks the send on the IO runtime (Java parks on a virtual
+//! thread), which naturally stalls the shard response pipeline.
 //!
 //! # Single-consumer contract
 //!
@@ -43,8 +46,8 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream, Stream};
-use tokio::runtime::Handle;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TrySendError;
 
 /// Bounded channel capacity. Small by design — producers back-pressure when the
 /// DataFusion execute side falls behind.
@@ -60,41 +63,35 @@ pub struct PartitionStreamSender {
     schema: SchemaRef,
 }
 
-/// Outcome of a blocking send. `ReceiverDropped` is the benign terminal case — the
-/// DataFusion consumer finished (e.g. a `LimitExec` satisfied its fetch) and dropped the
-/// receiver. Surfaced as a distinct variant so the FFM layer can signal it without the Java
-/// side substring-matching an error message.
-#[must_use]
-pub enum SendOutcome {
-    Sent,
-    ReceiverDropped,
-}
-
 impl PartitionStreamSender {
     /// Returns the schema this sender was created with.
     pub fn schema(&self) -> &SchemaRef {
         &self.schema
     }
 
-    /// Push a batch into the channel from a synchronous (non-async) context.
-    ///
-    /// The provided `handle` is used to drive the async send — typically the
-    /// `io_runtime` handle from the global `RuntimeManager`. This lets the FFM
-    /// bridge push without being async itself and without requiring the calling
-    /// thread to be a Tokio worker.
-    ///
-    /// Blocks while the channel is full (natural backpressure). Returns
-    /// [`SendOutcome::ReceiverDropped`] only if the receiver has been dropped —
-    /// the sole failure mode of `mpsc::Sender::send`.
-    pub fn send_blocking(
+    /// Non-blocking push. Returns `Ok(())` on the fast path, or a
+    /// [`TrySendError`] when the channel is full (`Full`, carrying the batch
+    /// back so the caller can retry it on a spawned task) or the receiver has
+    /// been dropped (`Closed`).
+    pub fn try_send(
         &self,
         batch: Result<RecordBatch, DataFusionError>,
-        handle: &Handle,
-    ) -> SendOutcome {
-        match handle.block_on(self.tx.send(batch)) {
-            Ok(()) => SendOutcome::Sent,
-            Err(_) => SendOutcome::ReceiverDropped,
-        }
+    ) -> Result<(), TrySendError<Result<RecordBatch, DataFusionError>>> {
+        self.tx.try_send(batch)
+    }
+
+    /// Clones the inner `mpsc::Sender` (two `Arc` bumps). The clone is moved
+    /// into a spawned task to complete a full-channel send across an `await`
+    /// without borrowing the boxed [`PartitionStreamSender`] — which is what
+    /// makes [`crate::api::sender_close`] safe against in-flight sends.
+    ///
+    /// # EOF semantics
+    /// The channel signals EOF only when **all** `Sender` clones drop. A pending
+    /// in-flight send holds a clone, so closing the sender (dropping the boxed
+    /// `PartitionStreamSender`) defers EOF until the queued batch is delivered —
+    /// EOF is therefore ordered strictly after every accepted batch.
+    pub fn clone_tx(&self) -> mpsc::Sender<Result<RecordBatch, DataFusionError>> {
+        self.tx.clone()
     }
 }
 
@@ -264,37 +261,63 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_blocking_pushes_through_handle() {
+    async fn try_send_fast_path_then_eof() {
         let schema = test_schema();
         let (sender, mut receiver) = channel(Arc::clone(&schema));
-        let handle = Handle::current();
 
-        let sender_schema = Arc::clone(&schema);
-        let producer = std::thread::spawn(move || {
-            let outcome = sender.send_blocking(Ok(test_batch(&sender_schema, &[7, 8, 9])), &handle);
-            assert!(matches!(outcome, SendOutcome::Sent));
-            drop(sender);
-        });
+        // Capacity is 4; a single batch fits the fast path without blocking.
+        sender.try_send(Ok(test_batch(&schema, &[7, 8, 9]))).expect("fast-path send");
+        drop(sender);
 
         let batch = receiver.next().await.unwrap().unwrap();
         assert_eq!(batch.num_rows(), 3);
         assert!(receiver.next().await.is_none());
-        producer.join().unwrap();
     }
 
-    #[test]
-    fn send_blocking_reports_receiver_dropped() {
-        let rt = tokio::runtime::Runtime::new().expect("runtime builds");
-        let handle = rt.handle().clone();
+    #[tokio::test]
+    async fn try_send_full_then_clone_tx_drains() {
+        let schema = test_schema();
+        let (sender, mut receiver) = channel(Arc::clone(&schema));
 
+        // Fill the channel to capacity (4) on the fast path.
+        for _ in 0..CHANNEL_CAPACITY {
+            sender.try_send(Ok(test_batch(&schema, &[1]))).expect("within capacity");
+        }
+        // The next try_send must report Full and hand the batch back.
+        let overflow = test_batch(&schema, &[2]);
+        let tx = match sender.try_send(Ok(overflow)) {
+            Err(TrySendError::Full(batch)) => {
+                // Mirror the FFM bridge: clone the inner Sender and complete the
+                // send on a task once capacity frees up.
+                let tx = sender.clone_tx();
+                tokio::spawn(async move {
+                    tx.send(batch).await.expect("receiver still live");
+                });
+                sender.clone_tx()
+            }
+            other => panic!("expected Full, got {:?}", other.is_ok()),
+        };
+        drop(tx);
+        drop(sender);
+
+        // Drain all five batches (4 fast-path + 1 deferred), then EOF.
+        let mut count = 0;
+        while receiver.next().await.is_some() {
+            count += 1;
+        }
+        assert_eq!(count, CHANNEL_CAPACITY + 1);
+    }
+
+    #[tokio::test]
+    async fn try_send_reports_receiver_dropped() {
         let schema = test_schema();
         let (sender, receiver) = channel(Arc::clone(&schema));
         drop(receiver);
 
-        let outcome = std::thread::spawn(move || sender.send_blocking(Ok(test_batch(&schema, &[1])), &handle))
-            .join()
-            .unwrap();
-        assert!(matches!(outcome, SendOutcome::ReceiverDropped));
+        match sender.try_send(Ok(test_batch(&schema, &[1]))) {
+            Err(TrySendError::Closed(_)) => {}
+            other => panic!("expected Closed, got is_ok={}", other.is_ok()),
+        }
     }
 
     #[tokio::test]
