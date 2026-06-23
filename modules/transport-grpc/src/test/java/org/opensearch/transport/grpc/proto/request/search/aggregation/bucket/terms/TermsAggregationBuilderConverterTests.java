@@ -8,6 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.aggregation.bucket.terms;
 
 import org.opensearch.protobufs.AggregationContainer;
+import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.SortOrder;
@@ -93,6 +94,16 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
         assertEquals("map", t.executionHint());
         assertEquals(SubAggCollectionMode.BREADTH_FIRST, t.collectMode());
         assertNotNull(t.includeExclude());
+    }
+
+    public void testStringMissingValue() {
+        AggregationContainer container = buildContainer(
+            TermsAggregationFields.newBuilder().setField("status").setMissing(FieldValue.newBuilder().setString("unknown").build()).build()
+        );
+
+        TermsAggregationBuilder builder = (TermsAggregationBuilder) converter.fromProto("by_status", container);
+
+        assertEquals("unknown", builder.missing());
     }
 
     public void testOrderVariants() {
