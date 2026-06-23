@@ -585,7 +585,7 @@ jobs:
             if [ "$rc" -eq 0 ]; then
               echo "ERROR: upgrade unexpectedly succeeded"; exit 1
             fi
-            if ! echo "$out" | grep -qF "Upgrade from indexer versions prior to 5.x is not supported"; then
+            if ! echo "$out" | grep -qF "Upgrade from Wazuh indexer versions prior to 5.x is not supported"; then
               echo "ERROR: expected block banner not found in output"; exit 1
             fi
             if ! echo "$out" | grep -qF "Detected installed version:"; then
@@ -649,7 +649,7 @@ jobs:
             if [ "$rc" -eq 0 ]; then
               echo "ERROR: upgrade unexpectedly succeeded"; exit 1
             fi
-            if ! echo "$out" | grep -qF "Upgrade from indexer versions prior to 5.x is not supported"; then
+            if ! echo "$out" | grep -qF "Upgrade from Wazuh indexer versions prior to 5.x is not supported"; then
               echo "ERROR: expected block banner not found in output"; exit 1
             fi
             if ! echo "$out" | grep -qF "Detected installed version:"; then

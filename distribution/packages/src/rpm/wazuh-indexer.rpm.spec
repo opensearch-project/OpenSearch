@@ -155,7 +155,7 @@ if [ $1 = 2 ]; then
     if [ -n "${detected_version}" ]; then
         cat >&2 <<EOF
 ==============================================================
-ERROR: Upgrade from indexer versions prior to 5.x is not supported.
+ERROR: Upgrade from Wazuh indexer versions prior to 5.x is not supported.
 
 Detected installed version: ${detected_version}
 
