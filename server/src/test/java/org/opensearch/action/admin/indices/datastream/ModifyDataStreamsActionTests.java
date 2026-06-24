@@ -227,6 +227,21 @@ public class ModifyDataStreamsActionTests extends org.opensearch.test.OpenSearch
         assertThat(e.getMessage(), containsString("already"));
     }
 
+    public void testAddIndexBelongingToAnotherDataStreamFails() {
+        ClusterState cs = getClusterStateWithDataStreams(
+            List.of(new Tuple<>(DATA_STREAM, 2), new Tuple<>("other-data-stream", 2)),
+            List.of()
+        );
+        // this index is already a backing index of a different data stream
+        String otherBackingIndex = DataStream.getDefaultBackingIndexName("other-data-stream", 1);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> modify(cs, List.of(DataStreamAction.addBackingIndex(DATA_STREAM, otherBackingIndex)))
+        );
+        assertThat(e.getMessage(), containsString("is already a backing index of data stream [other-data-stream]"));
+    }
+
     public void testMultipleActionsAppliedAtomically() {
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(DATA_STREAM, 3)), List.of("standalone-index"));
         String indexToRemove = DataStream.getDefaultBackingIndexName(DATA_STREAM, 1);

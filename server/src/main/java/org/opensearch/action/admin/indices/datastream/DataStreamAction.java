@@ -159,6 +159,8 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         ObjectParser<DataStreamAction, Void> parser = new ObjectParser<>(name, supplier);
         parser.declareString((action, dataStream) -> action.dataStream = dataStream, DATA_STREAM_FIELD);
         parser.declareString((action, index) -> action.index = index, INDEX_FIELD);
+        parser.declareRequiredFieldSet(DATA_STREAM_FIELD.getPreferredName());
+        parser.declareRequiredFieldSet(INDEX_FIELD.getPreferredName());
         return parser;
     }
 

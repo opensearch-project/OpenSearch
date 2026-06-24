@@ -58,6 +58,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -320,6 +321,21 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
                 "index [" + indexName + "] is already a backing index of data stream [" + dataStreamName + "] and cannot be added"
             );
         }
+        // an index that already belongs to a different data stream cannot be added, as that would leave the index
+        // referenced by two data streams and corrupt the cluster state's indices lookup
+        for (DataStream other : builder.dataStreams().values()) {
+            if (other.getName().equals(dataStreamName) == false && other.getIndices().contains(index.getIndex())) {
+                throw new IllegalArgumentException(
+                    "index ["
+                        + indexName
+                        + "] is already a backing index of data stream ["
+                        + other.getName()
+                        + "] and cannot be added to data stream ["
+                        + dataStreamName
+                        + "]"
+                );
+            }
+        }
         // an index with aliases cannot become a backing index, as aliases and data streams cannot point at the same index
         if (index.getAliases().isEmpty() == false) {
             throw new IllegalArgumentException(
@@ -348,34 +364,39 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             .build();
 
         final MapperService mapperService = mapperServiceFactory.apply(hiddenIndex);
-        if (hiddenIndex.mapping() != null) {
-            mapperService.merge(hiddenIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+        try {
+            if (hiddenIndex.mapping() != null) {
+                mapperService.merge(hiddenIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+            }
+            mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                new ComposableIndexTemplate.DataStreamTemplate(new DataStream.TimestampField(timestampFieldName))
+                    .getDataStreamMappingSnippet(),
+                MapperService.MergeReason.MAPPING_UPDATE
+            );
+            MetadataCreateDataStreamService.validateTimestampFieldMapping(mapperService);
+
+            final IndexMetadata.Builder updated = IndexMetadata.builder(hiddenIndex);
+
+            // Only bump the settings version if hiding the index actually changed its settings; re-adding an index that was
+            // already hidden leaves the settings unchanged and the version must not move (IndexService.updateMetadata asserts this).
+            if (index.getSettings().equals(hiddenIndex.getSettings()) == false) {
+                updated.settingsVersion(1 + hiddenIndex.getSettingsVersion());
+            }
+
+            // Likewise, only update the mapping (and bump the mapping version) if merging the _data_stream_timestamp meta field
+            // actually changed the mapping; re-adding an index that was already a backing index leaves the mapping unchanged
+            // (MapperService.updateMapping asserts that a mapping version bump implies a mapping change).
+            final MappingMetadata mergedMapping = new MappingMetadata(mapperService.documentMapper().mappingSource());
+            final MappingMetadata currentMapping = hiddenIndex.mapping();
+            if (currentMapping == null || currentMapping.source().equals(mergedMapping.source()) == false) {
+                updated.putMapping(mergedMapping).mappingVersion(1 + hiddenIndex.getMappingVersion());
+            }
+
+            return updated.build();
+        } finally {
+            IOUtils.close(mapperService);
         }
-        mapperService.merge(
-            MapperService.SINGLE_MAPPING_NAME,
-            new ComposableIndexTemplate.DataStreamTemplate(new DataStream.TimestampField(timestampFieldName)).getDataStreamMappingSnippet(),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
-        MetadataCreateDataStreamService.validateTimestampFieldMapping(mapperService);
-
-        final IndexMetadata.Builder updated = IndexMetadata.builder(hiddenIndex);
-
-        // Only bump the settings version if hiding the index actually changed its settings; re-adding an index that was
-        // already hidden leaves the settings unchanged and the version must not move (IndexService.updateMetadata asserts this).
-        if (index.getSettings().equals(hiddenIndex.getSettings()) == false) {
-            updated.settingsVersion(1 + hiddenIndex.getSettingsVersion());
-        }
-
-        // Likewise, only update the mapping (and bump the mapping version) if merging the _data_stream_timestamp meta field
-        // actually changed the mapping; re-adding an index that was already a backing index leaves the mapping unchanged
-        // (MapperService.updateMapping asserts that a mapping version bump implies a mapping change).
-        final MappingMetadata mergedMapping = new MappingMetadata(mapperService.documentMapper().mappingSource());
-        final MappingMetadata currentMapping = hiddenIndex.mapping();
-        if (currentMapping == null || currentMapping.source().equals(mergedMapping.source()) == false) {
-            updated.putMapping(mergedMapping).mappingVersion(1 + hiddenIndex.getMappingVersion());
-        }
-
-        return updated.build();
     }
 
     private static void removeBackingIndex(Metadata.Builder builder, String dataStreamName, String indexName) {

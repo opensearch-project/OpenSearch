@@ -56,6 +56,22 @@ public class DataStreamActionTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRejectsActionWithoutIndex() throws IOException {
+        String json = "{ \"add_backing_index\": { \"data_stream\": \"ds\" } }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DataStreamAction.fromXContent(parser));
+            assertThat(causeChainMessages(e), containsString("index"));
+        }
+    }
+
+    public void testRejectsActionWithoutDataStream() throws IOException {
+        String json = "{ \"remove_backing_index\": { \"index\": \"i1\" } }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DataStreamAction.fromXContent(parser));
+            assertThat(causeChainMessages(e), containsString("data_stream"));
+        }
+    }
+
     // ConstructingObjectParser wraps validation errors thrown from its builder lambda, so the custom message
     // surfaces somewhere in the cause chain rather than on the top-level exception.
     private static String causeChainMessages(Throwable t) {

@@ -1375,7 +1375,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public DataStream dataStream(String dataStreamName) {
-            return ((DataStreamMetadata) customs.get(DataStreamMetadata.TYPE)).dataStreams().get(dataStreamName);
+            return dataStreams().get(dataStreamName);
+        }
+
+        public Map<String, DataStream> dataStreams() {
+            return Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                .map(DataStreamMetadata::dataStreams)
+                .orElse(Collections.emptyMap());
         }
 
         public Builder dataStreams(Map<String, DataStream> dataStreams) {
