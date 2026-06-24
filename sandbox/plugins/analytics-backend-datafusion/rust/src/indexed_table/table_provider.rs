@@ -206,6 +206,10 @@ pub struct IndexedTableConfig {
     /// matches the wire format from `DataFusionPlugin`). Same length as
     /// `sort_fields` (validated at index creation).
     pub sort_orders: Vec<String>,
+    /// Per-query cancellation token (from the global `QUERY_REGISTRY`). Threaded
+    /// down to `IndexReader` so the scan cooperatively stops when the query task
+    /// is cancelled. `None` for untracked queries (`context_id == 0`) and tests.
+    pub cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -699,6 +703,7 @@ impl ExecutionPlan for QueryShardExec {
                 emit_row_ids: self.config.emit_row_ids,
                 row_id_output_index: self.row_id_output_index,
                 dynamic_filter: dynamic_filter.clone(),
+                cancellation_token: self.config.cancellation_token.clone(),
             };
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
@@ -828,6 +833,7 @@ mod tests {
             prune_tree_config: None,
             sort_fields: vec![],
             sort_orders: vec![],
+            cancellation_token: None,
         }
     }
 

@@ -136,6 +136,9 @@ struct IndexReader {
     dynamic_prune_ctx: Option<super::dynamic_filter::RgPruningContext>,
     /// Count of RGs skipped at prefetch time (before the Lucene eval).
     dynamic_filter_rg_pruned_at_prefetch: Option<datafusion::physical_plan::metrics::Count>,
+    /// Per-query cancellation token. Checked before each row group is dispatched
+    /// and before the evaluator runs in a queued blocking job. `None` disables cancellation.
+    cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 impl IndexReader {
@@ -149,6 +152,7 @@ impl IndexReader {
         prefetch_wait_count: Option<datafusion::physical_plan::metrics::Count>,
         metadata: Option<Arc<ParquetMetaData>>,
         dynamic_filter_rg_pruned_at_prefetch: Option<datafusion::physical_plan::metrics::Count>,
+        cancellation_token: Option<tokio_util::sync::CancellationToken>,
     ) -> Self {
         Self {
             evaluator,
@@ -164,7 +168,17 @@ impl IndexReader {
             metadata,
             dynamic_prune_ctx: None,
             dynamic_filter_rg_pruned_at_prefetch,
+            cancellation_token,
         }
+    }
+
+    /// True when this query's task has been cancelled. Cheap (one relaxed
+    /// atomic load); `None` token (untracked/test) is never cancelled.
+    #[inline]
+    fn is_cancelled(&self) -> bool {
+        self.cancellation_token
+            .as_ref()
+            .is_some_and(|t| t.is_cancelled())
     }
 
     /// Result of a prefetch task. `Pruned` is distinct from `Ok(None)`
@@ -177,9 +191,15 @@ impl IndexReader {
         rg_idx: usize,
         doc_range: Option<(i32, i32)>,
         prune: Option<(super::dynamic_filter::RgPruningContext, Arc<ParquetMetaData>)>,
+        cancellation_token: Option<&tokio_util::sync::CancellationToken>,
     ) -> std::result::Result<PrefetchOutcome, String> {
         if rg_idx >= row_groups.len() {
             return Ok(PrefetchOutcome::Empty);
+        }
+        // Bail before the expensive evaluator.prefetch_rg if the query was
+        // cancelled after this blocking job was queued but before it started.
+        if cancellation_token.is_some_and(|t| t.is_cancelled()) {
+            return Err("query cancelled".to_string());
         }
         let rg = row_groups[rg_idx].clone();
 
@@ -221,8 +241,9 @@ impl IndexReader {
             (Some(ctx), Some(md)) => Some((ctx, Arc::clone(md))),
             _ => None,
         };
+        let token = self.cancellation_token.clone();
         let handle = tokio::task::spawn_blocking(move || {
-            Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range, prune)
+            Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range, prune, token.as_ref())
         });
         self.pending_prefetch = Some(handle);
     }
@@ -232,6 +253,12 @@ impl IndexReader {
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<Option<PrefetchedRowGroup>, DataFusionError>> {
         loop {
+            // Bail before dispatching the next row group if the query is cancelled.
+            if self.is_cancelled() {
+                return Poll::Ready(Err(DataFusionError::Execution(
+                    "query cancelled".to_string(),
+                )));
+            }
             if self.current_rg_idx >= self.row_groups.len() {
                 return Poll::Ready(Ok(None));
             }
@@ -359,6 +386,10 @@ pub struct IndexedExec {
     /// parquet statistics cannot satisfy the (tightening) predicate. `None`
     /// when no dynamic filter was pushed to this query.
     pub(crate) dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+    /// Per-query cancellation token. When cancelled, `IndexReader` stops
+    /// dispatching further row groups and `IndexedStream` stops draining.
+    /// `None` disables cancellation checks.
+    pub(crate) cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -431,6 +462,7 @@ impl ExecutionPlan for IndexedExec {
             self.stream_metrics.prefetch_wait_count.clone(),
             Some(Arc::clone(&self.metadata)),
             self.stream_metrics.dynamic_filter_rg_pruned_at_prefetch.clone(),
+            self.cancellation_token.clone(),
         );
         Ok(Box::pin(IndexedStream::new(
             self.schema.clone(),
@@ -849,6 +881,13 @@ impl IndexedStream {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<RecordBatch>>> {
         loop {
+            // Stop draining on cancellation; surfaces as a query-level error (no partial results).
+            if self.index_reader.is_cancelled() {
+                return Poll::Ready(Some(Err(DataFusionError::Execution(
+                    "query cancelled".to_string(),
+                ))));
+            }
+
             // 1. Drain any completed batch from the coalescer first.
             if let Some(batch) = self.batch_coalescer.next_completed_batch() {
                 if let Some(ref counter) = self.metrics.output_rows {
@@ -1171,7 +1210,7 @@ impl RecordBatchStream for IndexedStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -1235,6 +1274,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         // Poll the reader — should complete with an error within the timeout.
@@ -1277,5 +1317,136 @@ mod tests {
             Ok(Ok(_)) => panic!("Stream should return Err when prefetch panics, got Ok"),
             Err(e) => panic!("Tokio JoinError: {}", e),
         };
+    }
+
+    // `spawn_blocking` jobs cannot be aborted — tokio's task abort only cancels
+    // async tasks at `.await` points. The tests below verify that the cancellation
+    // token checkpoint stops new row groups from being dispatched.
+
+    /// Evaluator whose `prefetch_rg` busy-spins (no `.await`/sleep — genuine
+    /// non-yielding CPU work like a real Lucene/Arrow scan) for a fixed duration,
+    /// counting how many row groups it actually evaluated.
+    use roaring::RoaringBitmap;
+
+    struct SpinningEvaluator {
+        spin: Duration,
+        rgs_evaluated: Arc<AtomicUsize>,
+    }
+
+    impl RowGroupBitsetSource for SpinningEvaluator {
+        fn prefetch_rg(
+            &self,
+            rg: &RowGroupInfo,
+            _min_doc: i32,
+            _max_doc: i32,
+        ) -> Result<Option<PrefetchedRg>, String> {
+            // Non-yielding busy work — mirrors a synchronous scan/decode poll.
+            let deadline = Instant::now() + self.spin;
+            while Instant::now() < deadline {
+                std::hint::spin_loop();
+            }
+            self.rgs_evaluated.fetch_add(1, Ordering::SeqCst);
+            // Produce a non-empty candidate set so the RG is "Fetched".
+            let mut candidates = RoaringBitmap::new();
+            candidates.insert_range(0..rg.num_rows as u32);
+            Ok(Some(PrefetchedRg::without_context(candidates, 0)))
+        }
+
+        fn on_batch_mask(
+            &self,
+            _rg_state: &dyn std::any::Any,
+            _rg_first_row: i64,
+            _position_map: &PositionMap,
+            _batch_offset: usize,
+            _batch_len: usize,
+            _batch: &RecordBatch,
+        ) -> Result<Option<BooleanArray>, String> {
+            Ok(None)
+        }
+    }
+
+    /// Cancelling mid-scan stops `poll_next_row_group` from dispatching further
+    /// row groups. At most one already-in-flight `spawn_blocking` job (non-abortable)
+    /// may still complete; total evaluated is bounded to `evaluated_at_cancel + 1`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn cancel_stops_row_group_dispatch() {
+        let token = tokio_util::sync::CancellationToken::new();
+        let rgs_evaluated = Arc::new(AtomicUsize::new(0));
+
+        let evaluator = Arc::new(SpinningEvaluator {
+            spin: Duration::from_millis(200),
+            rgs_evaluated: rgs_evaluated.clone(),
+        });
+
+        // 8 row groups × 200ms spin each = ~1.6s of work if cancellation is ignored.
+        let row_groups: Vec<RowGroupInfo> = (0..8)
+            .map(|i| RowGroupInfo { index: i, first_row: (i as i64) * 100, num_rows: 100 })
+            .collect();
+
+        let mut reader = IndexReader::new(
+            evaluator,
+            row_groups,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(token.clone()),
+        );
+
+        // Drive the reader exactly like IndexedStream does. Records whether the
+        // reader terminated via the cancellation Err path.
+        let cancelled_err = Arc::new(AtomicBool::new(false));
+        let cancelled_err_drv = cancelled_err.clone();
+        let driver = tokio::spawn(async move {
+            loop {
+                let done = futures::future::poll_fn(|cx| match reader.poll_next_row_group(cx) {
+                    Poll::Pending => Poll::Ready(false),
+                    Poll::Ready(Ok(None)) => Poll::Ready(true),
+                    Poll::Ready(Ok(Some(_))) => Poll::Ready(false),
+                    Poll::Ready(Err(_)) => {
+                        cancelled_err_drv.store(true, Ordering::SeqCst);
+                        Poll::Ready(true)
+                    }
+                })
+                .await;
+                if done {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
+
+        // Let a couple of row groups start evaluating, then cancel.
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        let evaluated_at_cancel = rgs_evaluated.load(Ordering::SeqCst);
+        token.cancel();
+
+        tokio::time::timeout(Duration::from_secs(10), driver)
+            .await
+            .expect("reader should terminate promptly after cancel")
+            .expect("driver task panicked");
+
+        let total_evaluated = rgs_evaluated.load(Ordering::SeqCst);
+
+        // At most one already-in-flight spawn_blocking job (non-abortable) can
+        // complete after cancel; all others must be skipped by the checkpoint.
+        assert!(
+            total_evaluated <= evaluated_at_cancel + 1,
+            "cancelled reader kept evaluating row groups: evaluated_at_cancel={}, total_evaluated={}",
+            evaluated_at_cancel,
+            total_evaluated
+        );
+        assert!(
+            cancelled_err.load(Ordering::SeqCst),
+            "reader should terminate via the cancellation Err path"
+        );
+        // Sanity: it did NOT run all 8 row groups.
+        assert!(
+            total_evaluated < 8,
+            "expected early termination, but all row groups were evaluated ({})",
+            total_evaluated
+        );
     }
 }

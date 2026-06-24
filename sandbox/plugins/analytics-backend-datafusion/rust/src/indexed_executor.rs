@@ -1294,6 +1294,7 @@ async unsafe fn execute_indexed_with_context_inner(
         prune_tree_config,
         sort_fields: sort_fields.clone(),
         sort_orders: sort_orders.clone(),
+        cancellation_token: crate::query_tracker::get_cancellation_token(context_id),
     }));
     ctx.register_table(&register_name, provider)?;
 

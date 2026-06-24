@@ -19,7 +19,9 @@ import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link QueryScheduler#scheduleStage} and {@link QueryScheduler#handleFor}.
@@ -41,7 +44,9 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        scheduler = new QueryScheduler(mock(StageExecutionBuilder.class));
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        scheduler = new QueryScheduler(mock(StageExecutionBuilder.class), transportService);
     }
 
     /** Happy path: scheduler iterates tasks, transitions each to RUNNING, runs them. */
