@@ -601,4 +601,26 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(visitedQueries.get(3), instanceOf(TermQueryBuilder.class));
     }
 
+    public void testVisitWithNullChildVisitor() {
+        NestedQueryBuilder builder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        QueryBuilderVisitor visitor = new QueryBuilderVisitor() {
+            @Override
+            public void accept(QueryBuilder qb) {
+                visitedQueries.add(qb);
+            }
+
+            @Override
+            public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
+                return null;
+            }
+        };
+        builder.visit(visitor);
+
+        // Should only visit the NestedQueryBuilder itself, not recurse into children
+        assertEquals(1, visitedQueries.size());
+        assertThat(visitedQueries.get(0), instanceOf(NestedQueryBuilder.class));
+    }
+
 }
