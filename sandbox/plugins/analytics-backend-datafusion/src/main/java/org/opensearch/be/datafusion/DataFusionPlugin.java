@@ -110,14 +110,39 @@ public class DataFusionPlugin extends Plugin
     static final long SPILL_LIMIT_FALLBACK_BYTES = 8L * 1024 * 1024 * 1024;
 
     /**
+     * Node-scoped spill directory captured from {@link #DATAFUSION_SPILL_DIRECTORY} at plugin
+     * startup ({@link #createComponents}). The {@link SpillLimitValidator} falls back to this when
+     * its dependency on {@code spill_directory} resolves empty.
+     *
+     * <p>This is needed because {@code datafusion.spill_directory} is {@code NodeScope + Final} —
+     * it lives only in {@code opensearch.yml} and can never appear in cluster state — while
+     * {@code datafusion.spill_memory_limit_bytes} is a {@code Dynamic} cluster setting. During a
+     * {@code PUT _cluster/settings} the framework resolves the validator's dependency against the
+     * cluster-state-only settings view (see {@code SettingsUpdater#updateSettings}, which validates
+     * each scope in isolation), where {@code spill_directory} is absent. The dependency map
+     * therefore yields empty even on a node where spill is configured and enabled. Without this
+     * fallback the capacity check below could never run for a dynamic update.
+     *
+     * <p>Package-private and {@code volatile}: written once on the startup thread in
+     * {@code createComponents}, read on cluster-settings-update threads by the static validator
+     * instance. Tests in this package set it directly to exercise the fallback.
+     */
+    static volatile String configuredSpillDir = "";
+
+    /**
      * Validates {@link #DATAFUSION_SPILL_MEMORY_LIMIT} against {@link #DATAFUSION_SPILL_DIRECTORY}:
      * <ul>
-     *   <li>If spill is disabled (empty directory), the limit is a no-op and any value is accepted —
-     *       the capacity check has no volume to probe, so it is skipped.</li>
+     *   <li>If spill is disabled (no directory configured at node scope either), the limit is a
+     *       no-op and any value is accepted — there is no volume to size it against.</li>
      *   <li>If spill is enabled, the value must not exceed the spill volume's total capacity
      *       (probed live via {@link FileStore#getTotalSpace()}).</li>
      * </ul>
-     * Probes the filesystem on each validate call. Cluster-settings updates are infrequent and
+     * The {@code spill_directory} dependency resolves empty during a dynamic
+     * {@code PUT _cluster/settings} (it is {@code NodeScope + Final}, so it never reaches cluster
+     * state); in that case the validator falls back to {@link #configuredSpillDir}, captured from
+     * node settings at startup, so the capacity check still applies to dynamic updates on a
+     * spill-enabled node.
+     * <p>Probes the filesystem on each validate call. Cluster-settings updates are infrequent and
      * the probe is a single syscall (~µs), so caching is not worth the bookkeeping cost.
      * If the probe fails ({@link IOException}) the capacity check is skipped — operators retain
      * the ability to set the cap; only the safety-net validation is disabled.
@@ -131,12 +156,17 @@ public class DataFusionPlugin extends Plugin
         @Override
         public void validate(Long value, Map<Setting<?>, Object> dependencies) {
             String dir = (String) dependencies.get(DATAFUSION_SPILL_DIRECTORY);
-            if (dir == null) {
-                dir = "";
+            if (dir == null || dir.isEmpty()) {
+                // The dependency resolves empty during a dynamic PUT _cluster/settings because
+                // spill_directory is NodeScope+Final and never appears in cluster state. Fall back
+                // to the directory captured from node settings at startup so a spill-enabled node
+                // still gets its capacity check (rather than blindly accepting any value).
+                dir = configuredSpillDir;
             }
-            if (dir.isEmpty()) {
-                // Spill disabled: the limit has no effect and there is no volume to size it against,
-                // so accept any value rather than rejecting startup over an inert setting.
+            if (dir == null || dir.isEmpty()) {
+                // Spill genuinely disabled (no directory configured anywhere): the limit has no
+                // effect and there is no volume to size it against, so accept any value rather than
+                // rejecting an inert setting.
                 return;
             }
             long total;
@@ -549,8 +579,13 @@ public class DataFusionPlugin extends Plugin
         this.clusterService = clusterService;
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
-        long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
         String spillDir = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        // Capture the node-scoped spill directory so SpillLimitValidator can fall back to it on a
+        // dynamic PUT _cluster/settings, where the Final/NodeScope spill_directory dependency is
+        // absent from cluster state. Set before reading the spill limit below so the validator
+        // invoked by DATAFUSION_SPILL_MEMORY_LIMIT.get(settings) sees the configured directory.
+        configuredSpillDir = spillDir == null ? "" : spillDir;
+        long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)

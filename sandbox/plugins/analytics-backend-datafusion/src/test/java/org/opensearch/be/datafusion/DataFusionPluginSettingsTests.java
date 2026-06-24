@@ -26,6 +26,14 @@ import java.util.stream.Collectors;
  */
 public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
 
+    @Override
+    public void tearDown() throws Exception {
+        // configuredSpillDir is a static field the SpillLimitValidator falls back to; reset it so
+        // a test that sets it does not leak into the next.
+        DataFusionPlugin.configuredSpillDir = "";
+        super.tearDown();
+    }
+
     public void testMemoryPoolLimitIsDynamic() {
         assertTrue(
             "datafusion.memory_pool_limit_bytes must be dynamic to support runtime updates",
@@ -310,6 +318,36 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("datafusion.spill_directory", "").put("datafusion.spill_memory_limit_bytes", 0L).build();
         long parsed = DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
         assertEquals("Zero with spill disabled is valid", 0L, parsed);
+    }
+
+    public void testValidateSpillLimitUsesConfiguredDirFallbackForCapacityCheck() throws Exception {
+        // Simulates a dynamic PUT _cluster/settings: spill_directory is NodeScope+Final so it is
+        // absent from the cluster-state settings the validator sees, yet the node has spill enabled
+        // (configuredSpillDir captured at startup). The capacity check must still run against the
+        // real volume and reject a value exceeding it — rather than blindly accepting any value.
+        Path spillDir = createTempDir();
+        long total = Environment.getFileStore(spillDir).getTotalSpace();
+        DataFusionPlugin.configuredSpillDir = spillDir.toString();
+        // Only the limit is in the settings, exactly as a transient/persistent cluster update arrives.
+        Settings settings = Settings.builder().put("datafusion.spill_memory_limit_bytes", total + 1).build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings)
+        );
+        assertTrue(
+            "expected message to mention exceeding capacity, got: " + e.getMessage(),
+            e.getMessage().contains("exceeds spill volume capacity")
+        );
+    }
+
+    public void testValidateSpillLimitAcceptsValidValueViaConfiguredDirFallback() throws Exception {
+        // Same dynamic-PUT shape, but a value at/below the volume capacity must be accepted.
+        Path spillDir = createTempDir();
+        long total = Environment.getFileStore(spillDir).getTotalSpace();
+        DataFusionPlugin.configuredSpillDir = spillDir.toString();
+        Settings settings = Settings.builder().put("datafusion.spill_memory_limit_bytes", total / 2).build();
+        long parsed = DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        assertEquals("a non-zero limit within the configured volume must be accepted on a dynamic update", total / 2, parsed);
     }
 
     public void testValidateSpillLimitSkipsCapacityCheckWhenProbeFails() {
