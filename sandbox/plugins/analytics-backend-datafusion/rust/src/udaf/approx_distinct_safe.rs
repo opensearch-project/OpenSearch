@@ -8,6 +8,10 @@
 
 //! Safe `approx_distinct` override — fixes https://github.com/apache/datafusion/pull/21064
 //! by routing Utf8View through consistent &str hashing.
+//!
+//! TODO: Remove once fixed upstream (likely DataFusion v55/v56).
+//! TODO: Evaluate if DF's UDAF extension points (e.g. AccumulatorArgs overrides or
+//!       custom PhysicalOptimizerRule to inject CastExec) can avoid same-name overrides.
 
 use std::sync::Arc;
 use datafusion::arrow::array::{Array, ArrayRef, StringArray, StringViewArray};
