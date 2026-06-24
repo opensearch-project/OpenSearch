@@ -189,6 +189,7 @@ async fn run_indexed(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

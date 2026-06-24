@@ -305,6 +305,7 @@ async fn run_tree_and_plan(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

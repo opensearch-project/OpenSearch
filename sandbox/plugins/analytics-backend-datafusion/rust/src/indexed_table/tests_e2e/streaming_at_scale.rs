@@ -460,6 +460,7 @@ async fn run_large(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -917,6 +918,7 @@ async fn run_large_partitioned(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

@@ -125,6 +125,7 @@ public final class NativeBridge {
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
     private static final MethodHandle CACHE_MANAGER_ADD_FILES;
+    private static final MethodHandle CACHE_MANAGER_ADD_FILES_WITH_STORE;
     private static final MethodHandle CACHE_MANAGER_REMOVE_FILES;
     private static final MethodHandle CACHE_MANAGER_CLEAR;
     private static final MethodHandle CACHE_MANAGER_CLEAR_BY_TYPE;
@@ -465,6 +466,18 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_ADD_FILES_WITH_STORE = linker.downcallHandle(
+            lib.find("df_cache_manager_add_files_with_store").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // runtime_ptr
+                ValueLayout.JAVA_LONG,  // store_ptr
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.JAVA_LONG   // files_count
             )
         );
 
@@ -1619,6 +1632,22 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var f = call.strArray(filePaths);
             call.invoke(CACHE_MANAGER_ADD_FILES, runtimePtr, f.ptrs(), f.lens(), f.count());
+        }
+    }
+
+    /**
+     * Load metadata for files through the given TieredObjectStore.
+     * Reads footer (lightweight) into heap cache, fetches page/offset index bytes
+     * through the store (populating data Foyer), and returns for promotion to metadata Foyer.
+     *
+     * @param runtimePtr pointer from createGlobalRuntime
+     * @param storePtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer (from TieredStorageBridge.getObjectStoreBoxPtr)
+     * @param filePaths array of absolute file paths
+     */
+    public static void cacheManagerAddFilesWithStore(long runtimePtr, long storePtr, String[] filePaths) {
+        try (var call = new NativeCall()) {
+            var f = call.strArray(filePaths);
+            call.invoke(CACHE_MANAGER_ADD_FILES_WITH_STORE, runtimePtr, storePtr, f.ptrs(), f.lens(), f.count());
         }
     }
 

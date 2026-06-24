@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
@@ -20,6 +21,8 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Optional;
@@ -36,11 +39,13 @@ public class QueryScheduler implements Scheduler {
     private static final Logger logger = LogManager.getLogger(QueryScheduler.class);
 
     private final StageExecutionBuilder stageExecutionBuilder;
+    private final TaskManager taskManager;
     private final Map<String, QueryExecution> executions = new ConcurrentHashMap<>();
 
     @Inject
-    public QueryScheduler(StageExecutionBuilder stageExecutionBuilder) {
+    public QueryScheduler(StageExecutionBuilder stageExecutionBuilder, TransportService transportService) {
         this.stageExecutionBuilder = stageExecutionBuilder;
+        this.taskManager = transportService.getTaskManager();
     }
 
     @Override
@@ -50,6 +55,7 @@ public class QueryScheduler implements Scheduler {
             context.operationListeners()
         );
         final long queryStartNanos = System.nanoTime();
+        final AnalyticsQueryTask queryTask = context.parentTask();
 
         ExecutionGraph graph = ExecutionGraph.build(context, stageExecutionBuilder, this::scheduleStage);
 
@@ -59,7 +65,30 @@ public class QueryScheduler implements Scheduler {
         }, e -> {
             opListener.onQueryFailure(queryId, e);
             listener.onFailure(e);
-        }), () -> executions.remove(queryId));
+        }), () -> {
+            executions.remove(queryId);
+            // Cascade a cancel to dispatched data-node fragments before the framework unregisters
+            // the parent task. Otherwise TaskManager.setBan, which matches children by parent
+            // TaskId in the cancellable-tasks registry, cannot reach fragments after the parent
+            // has been unregistered — they survive into orphan state and run to natural
+            // completion. Idempotent against the already-cancelled path.
+            try {
+                taskManager.cancelTaskAndDescendants(
+                    queryTask,
+                    "analytics query terminal — cleaning up dispatched fragments",
+                    false,
+                    ActionListener.wrap(
+                        v -> {},
+                        ex -> logger.debug(
+                            new ParameterizedMessage("[QueryScheduler] orphan-cleanup cancel failed for queryId={}", queryId),
+                            ex
+                        )
+                    )
+                );
+            } catch (Exception ex) {
+                logger.debug(new ParameterizedMessage("[QueryScheduler] orphan-cleanup invocation failed for queryId={}", queryId), ex);
+            }
+        });
 
         QueryExecution execution = new QueryExecution(context, graph, this::scheduleStage, wrapped);
         executions.put(queryId, execution);
