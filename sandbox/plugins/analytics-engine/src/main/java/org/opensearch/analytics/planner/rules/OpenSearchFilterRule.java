@@ -224,7 +224,9 @@ public class OpenSearchFilterRule extends RelOptRule {
                         viableSet.retainAll(registry.filterBackendsForField(function, storageInfo));
                     }
                     if (viableSet.isEmpty()) {
-                        throw new IllegalStateException(
+                        // No viable alternatives is a client error (IllegalArgumentException -> HTTP 400) so the actionable
+                        // message is surfaced to the caller instead of being redacted as a 500.
+                        throw new IllegalArgumentException(
                             "No backend can evaluate filter predicate ["
                                 + predicate.getKind()
                                 + "] on literal-named fields "
