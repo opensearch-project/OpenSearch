@@ -172,9 +172,20 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
     // (re)construct the rebalancer after cancelRebalanceTask() has torn it down.
     private volatile ArrowNativeAllocator rebalancerAllocator;
     private volatile Supplier<Long> rebalancerBudgetSupplier;
-    // Set once in buildAllocator so startRebalancer can seed the rebalancer with the configured
-    // (cluster-settings) thresholds rather than the static setting defaults.
-    private volatile ClusterSettings clusterSettings;
+    // Live rebalancer threshold values. Seeded from node settings at startup (buildAllocator) and
+    // kept current by the threshold update consumers. startRebalancer seeds a (re)built rebalancer
+    // from these fields rather than re-reading the settings via clusterSettings.get(...): during a
+    // PUT _cluster/settings apply cycle clusterSettings.get(...) resolves against the not-yet-swapped
+    // lastSettingsApplied and would return the STALE pre-PUT value, so a combined PUT changing the
+    // interval and a threshold together would rebuild the rebalancer with the old threshold. These
+    // fields are written by the same threshold consumers, so they always hold the latest value.
+    private volatile double pressureThreshold;
+    private volatile double idleThreshold;
+    private volatile double shrinkFactor;
+    // Live rebalance interval (seconds). Same rationale as the threshold fields: seeded from yml at
+    // startup and kept current by the interval consumer, so the enable/disable consumer rebuilds the
+    // rebalancer with the correct interval without a stale clusterSettings.get() mid-apply-cycle.
+    private volatile long rebalanceIntervalSeconds;
 
     // ─── Plugin lifecycle ────────────────────────────────────────────────────────
 
@@ -260,7 +271,13 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         // interval change (updateRebalanceInterval) and on enable/disable.
         this.rebalancerAllocator = allocator;
         this.rebalancerBudgetSupplier = budgetSupplier;
-        this.clusterSettings = cs;
+        // Seed live threshold values from node settings (yml). This runs at startup, NOT during a
+        // settings-apply cycle, so reading from `settings` here is correct. The threshold update
+        // consumers below keep these fields current thereafter.
+        this.pressureThreshold = PRESSURE_THRESHOLD_SETTING.get(settings);
+        this.idleThreshold = IDLE_THRESHOLD_SETTING.get(settings);
+        this.shrinkFactor = SHRINK_FACTOR_SETTING.get(settings);
+        this.rebalanceIntervalSeconds = REBALANCE_INTERVAL_SETTING.get(settings);
 
         // Set budget for validation
         long nativeBudget = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings).getBytes();
@@ -301,13 +318,14 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         cs.addSettingsUpdateConsumer(QUERY_MIN_SETTING, newMin -> allocator.setPoolMin(NativeAllocatorPoolConfig.POOL_QUERY, newMin));
         cs.addSettingsUpdateConsumer(QUERY_MAX_SETTING, newMax -> allocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_QUERY, newMax));
 
-        // Register dynamic consumer for rebalancer enable/disable
+        // Register dynamic consumer for rebalancer enable/disable. On enable, rebuild using the live
+        // interval field (not clusterSettings.get(), which would be stale mid-apply-cycle).
         cs.addSettingsUpdateConsumer(REBALANCER_ENABLED_SETTING, enabled -> {
             if (enabled == false) {
                 cancelRebalanceTask();
                 allocator.resetAllPoolsToMax();
             } else {
-                startRebalancer(allocator, budgetSupplier, cs.get(REBALANCE_INTERVAL_SETTING));
+                startRebalancer(allocator, budgetSupplier, this.rebalanceIntervalSeconds);
             }
         });
 
@@ -319,16 +337,20 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         // Register dynamic consumer for interval changes
         cs.addSettingsUpdateConsumer(REBALANCE_INTERVAL_SETTING, this::updateRebalanceInterval);
 
-        // Register dynamic consumers for threshold changes
+        // Register dynamic consumers for threshold changes. Each updates the live field (so a later
+        // rebalancer rebuild seeds from the latest value) AND pushes into the running rebalancer.
         cs.addSettingsUpdateConsumer(PRESSURE_THRESHOLD_SETTING, value -> {
+            this.pressureThreshold = value;
             NativeMemoryRebalancer r = this.rebalancer;
             if (r != null) r.setPressureThreshold(value);
         });
         cs.addSettingsUpdateConsumer(IDLE_THRESHOLD_SETTING, value -> {
+            this.idleThreshold = value;
             NativeMemoryRebalancer r = this.rebalancer;
             if (r != null) r.setIdleThreshold(value);
         });
         cs.addSettingsUpdateConsumer(SHRINK_FACTOR_SETTING, value -> {
+            this.shrinkFactor = value;
             NativeMemoryRebalancer r = this.rebalancer;
             if (r != null) r.setShrinkFactor(value);
         });
@@ -345,14 +367,18 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         if (budget <= 0) return;
         if (intervalSeconds <= 0) return;
 
-        // Seed with the configured threshold values (yml + any applied cluster overrides), not the
-        // static setting defaults — otherwise values set in opensearch.yml are ignored at boot, and
-        // a disable/enable cycle silently resets previously-applied dynamic thresholds to defaults.
-        ClusterSettings cs = this.clusterSettings;
-        double pressure = cs != null ? cs.get(PRESSURE_THRESHOLD_SETTING) : PRESSURE_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
-        double idle = cs != null ? cs.get(IDLE_THRESHOLD_SETTING) : IDLE_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
-        double shrink = cs != null ? cs.get(SHRINK_FACTOR_SETTING) : SHRINK_FACTOR_SETTING.getDefault(Settings.EMPTY);
-        NativeMemoryRebalancer nativeRebalancer = new NativeMemoryRebalancer(allocator, budgetSupplier, pressure, idle, shrink);
+        // Seed from the live threshold fields (seeded from yml at startup, kept current by the
+        // threshold update consumers) — NOT clusterSettings.get(...), which during a settings-apply
+        // cycle resolves against the not-yet-swapped lastSettingsApplied and would return the stale
+        // pre-PUT value. Using the fields makes a combined PUT (interval + threshold in one request)
+        // rebuild the rebalancer with the correct new thresholds regardless of consumer ordering.
+        NativeMemoryRebalancer nativeRebalancer = new NativeMemoryRebalancer(
+            allocator,
+            budgetSupplier,
+            this.pressureThreshold,
+            this.idleThreshold,
+            this.shrinkFactor
+        );
         this.rebalancer = nativeRebalancer;
 
         Scheduler.SafeScheduledThreadPoolExecutor executor = new Scheduler.SafeScheduledThreadPoolExecutor(1, r -> {
@@ -380,9 +406,12 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     private synchronized void updateRebalanceInterval(long newInterval) {
+        // Track the live interval so the enable/disable consumer can rebuild with the right cadence
+        // without a stale clusterSettings.get().
+        this.rebalanceIntervalSeconds = newInterval;
         // cancelRebalanceTask() nulls rebalancer and rebalancerScheduler, so we cannot reschedule
-        // the old task — we must rebuild via startRebalancer (which also re-reads the configured
-        // thresholds). A new interval of 0 disables rebalancing: tear down and leave it stopped.
+        // the old task — we must rebuild via startRebalancer (which seeds thresholds from the live
+        // fields). A new interval of 0 disables rebalancing: tear down and leave it stopped.
         cancelRebalanceTask();
         if (newInterval <= 0) {
             return;
