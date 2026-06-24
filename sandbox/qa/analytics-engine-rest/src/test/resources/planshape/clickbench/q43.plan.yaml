@@ -1,0 +1,49 @@
+# Generated via -Dplan.generate=write.
+query: q43
+ppl_file: q43.ppl
+applies: [prod1s]
+plans:
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$1], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], dir0=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$1], M=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(M=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], DATE_FORMAT($16, '%Y-%m-%d %H:%i:00':VARCHAR))], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-14':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-15':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($14, 0)))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], dir0=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$1], M=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(M=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], DATE_FORMAT($16, '%Y-%m-%d %H:%i:00':VARCHAR))], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-14':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-15':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($14, 0)))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@1 as M]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@1 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@1 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0 as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))]
+                AggregateExec: mode=FinalPartitioned, gby=[date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0 as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0 as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))], aggr=[count(Int64(1))]
+                      ProjectionExec: expr=[date_format(CAST(EventTime@0 AS Timestamp(µs)), %Y-%m-%d %H:%i:00) as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))]
+                        FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1373760000000 AND EventDate@2 <= 1373846400000 AND IsRefresh@4 = 0 AND DontCountHits@1 = 0, projection=[EventTime@3]
+                          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                            DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, EventTime, IsRefresh], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1373760000000 AND EventDate@0 <= 1373846400000 AND IsRefresh@74 = 0 AND DontCountHits@43 = 0 AND DynamicFilter [ empty ], pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1373760000000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1373846400000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND DontCountHits_null_count@12 != row_count@3 AND DontCountHits_min@10 <= 0 AND 0 <= DontCountHits_max@11, required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@1 as M]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@1 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@1 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0 as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))]
+                AggregateExec: mode=FinalPartitioned, gby=[date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0 as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))@0 as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))], aggr=[count(Int64(1))]
+                      ProjectionExec: expr=[date_format(CAST(EventTime@0 AS Timestamp(µs)), %Y-%m-%d %H:%i:00) as date_format(<scrubbed>.EventTime,Utf8("%Y-%m-%d %H:%i:00"))]
+                        FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1373760000000 AND EventDate@2 <= 1373846400000 AND IsRefresh@4 = 0 AND DontCountHits@1 = 0, projection=[EventTime@3]
+                          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3
+                            DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, EventTime, IsRefresh], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1373760000000 AND EventDate@0 <= 1373846400000 AND IsRefresh@74 = 0 AND DontCountHits@43 = 0 AND DynamicFilter [ empty ], pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1373760000000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1373846400000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND DontCountHits_null_count@12 != row_count@3 AND DontCountHits_min@10 <= 0 AND 0 <= DontCountHits_max@11, required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0)]

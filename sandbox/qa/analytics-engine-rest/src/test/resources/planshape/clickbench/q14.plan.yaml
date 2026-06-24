@@ -1,0 +1,45 @@
+# Generated via -Dplan.generate=write.
+query: q14
+ppl_file: q14.ppl
+applies: [prod1s]
+plans:
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(u=[$1], SearchPhrase=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(u=[$1], SearchPhrase=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
+        ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, SearchPhrase@1 as SearchPhrase]
+          SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], fetch=10
+            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], preserve_partitioning=[true]
+              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), SearchPhrase@0 as SearchPhrase]
+                AggregateExec: mode=FinalPartitioned, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                  RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
+        ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, SearchPhrase@1 as SearchPhrase]
+          SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], fetch=10
+            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], preserve_partitioning=[true]
+              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), SearchPhrase@0 as SearchPhrase]
+                AggregateExec: mode=FinalPartitioned, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                  RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                        QueryShardExec: partitions=2, segments=3, ordering=unsorted

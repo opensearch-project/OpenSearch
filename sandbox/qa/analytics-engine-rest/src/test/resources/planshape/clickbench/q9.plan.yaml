@@ -1,57 +1,20 @@
-# reduce_eval('approx_distinct') enables TopK on HLL partial registers before coordinator.
-# Shard sorts on estimated cardinality from partial HLL state, fetch=30 (3x of head 10).
-# Raw HLL register bytes flow through TopK sort, not scalar values.
+# Generated via -Dplan.generate=write.
 query: q9
 ppl_file: q9.ppl
-applies: [prod2s, prod1s]
+applies: [prod1s]
 plans:
-  prod2s:
-    post_cbo: |
-      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
-        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
-          OpenSearchProject(u=[$1], RegionID=[$0], viableBackends=[[datafusion]])
-            OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                OpenSearchProject(RegionID=[$0], u=[$1], viableBackends=[[datafusion]])
-                  OpenSearchSort(sort0=[$2], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
-                    OpenSearchProject(RegionID=[$0], u=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[datafusion]])
-                      OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
-                        OpenSearchProject(RegionID=[$65], UserID=[$97], viableBackends=[[lucene, datafusion]])
-                          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
-    fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
-      OpenSearchProject(RegionID=[$0], u=[$1], viableBackends=[[datafusion]])
-        OpenSearchSort(sort0=[$2], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
-          OpenSearchProject(RegionID=[$0], u=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[datafusion]])
-            OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
-              OpenSearchProject(RegionID=[$65], UserID=[$97], viableBackends=[[lucene, datafusion]])
-                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
-      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
-      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
-        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
-          OpenSearchProject(u=[$1], RegionID=[$0], viableBackends=[[datafusion]])
-            OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
-    shard_physical: |
-      ProjectionExec: expr=[RegionID@0 as RegionID, approx_distinct(<scrubbed>.UserID)@1 as u]
-        SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], fetch=30
-          SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], preserve_partitioning=[true]
-            ProjectionExec: expr=[RegionID@0 as RegionID, approx_distinct(<scrubbed>.UserID)[hll_registers]@1 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@1) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
-                DataSourceExec: file_groups={<scrubbed>}, projection=[RegionID, UserID], file_type=parquet
   prod1s:
     post_cbo: |
-      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
-        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], RegionID=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
               OpenSearchProject(RegionID=[$65], UserID=[$97], viableBackends=[[lucene, datafusion]])
                 OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
-      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
-        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], RegionID=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
               OpenSearchProject(RegionID=[$65], UserID=[$97], viableBackends=[[lucene, datafusion]])
@@ -59,8 +22,8 @@ plans:
     shard_physical_1seg: |
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, RegionID@1 as RegionID]
-          SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], preserve_partitioning=[true]
+          SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], fetch=10
+            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], preserve_partitioning=[true]
               ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
                 AggregateExec: mode=FinalPartitioned, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=1
@@ -69,10 +32,10 @@ plans:
     shard_physical_nseg: |
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, RegionID@1 as RegionID]
-          SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], preserve_partitioning=[true]
+          SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], fetch=10
+            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], preserve_partitioning=[true]
               ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
                 AggregateExec: mode=FinalPartitioned, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
-                  RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=2
+                  RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=3
                     AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
                       DataSourceExec: file_groups={<scrubbed>}, projection=[RegionID, UserID], file_type=parquet

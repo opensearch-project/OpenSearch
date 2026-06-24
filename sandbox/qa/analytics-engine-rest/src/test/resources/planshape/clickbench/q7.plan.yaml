@@ -1,0 +1,18 @@
+# Generated via -Dplan.generate=write.
+query: q7
+ppl_file: q7.ppl
+applies: [prod1s]
+plans:
+  prod1s:
+    post_cbo: |
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[SINGLE], viableBackends=[[datafusion]])
+        OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[SINGLE], viableBackends=[[datafusion]])
+        OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[1373760000000 as min(EventDate), 1405103939300 as max(EventDate)]
+        PlaceholderRowExec

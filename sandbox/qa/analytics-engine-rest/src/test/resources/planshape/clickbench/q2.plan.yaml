@@ -1,45 +1,8 @@
-# != filter forces datafusion-only backend (not lucene-viable).
-# Triple parquet pushdown: predicate, pruning_predicate (min/max stats), required_guarantees (page-level).
-# Single-column projection pushed to scan despite 100+ column table.
+# Generated via -Dplan.generate=write.
 query: q2
 ppl_file: q2.ppl
-applies: [prod2s, prod1s]
+applies: [prod1s]
 plans:
-  prod2s:
-    post_cbo: |
-      OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[datafusion]])
-        OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[datafusion]])
-          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-            OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
-              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
-                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
-    fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
-      OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
-        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
-      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
-      OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[datafusion]])
-        OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[datafusion]])
-          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-            OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
-    shard_physical_1seg: |
-      AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
-        FilterExec: AdvEngineID@0 != 0, projection=[]
-          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-            DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
-    shard_physical_nseg: |
-      AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
-        FilterExec: AdvEngineID@0 != 0, projection=[]
-          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-            DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
-    coord_physical: |
-      ProjectionExec: expr=[sum(input-0.count())@0 as count()]
-        AggregateExec: mode=Final, gby=[], aggr=[sum(input-0.count())]
-          CoalescePartitionsExec
-            AggregateExec: mode=Partial, gby=[], aggr=[sum(input-0.count())]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                StreamingTableExec: partition_sizes=1, projection=[count()]
   prod1s:
     post_cbo: |
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
@@ -62,5 +25,5 @@ plans:
         CoalescePartitionsExec
           AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
             FilterExec: AdvEngineID@0 != 0, projection=[]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3
                 DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]

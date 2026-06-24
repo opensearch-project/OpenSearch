@@ -1,0 +1,47 @@
+# Generated via -Dplan.generate=write.
+query: q39
+ppl_file: q39.ppl
+applies: [prod1s]
+plans:
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$1], URL=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], <>($35, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], =($33, 0)))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$1], URL=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], <>($35, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], =($33, 0)))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, URL@1 as URL]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, URL@1 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[count(Int64(1))@0 DESC NULLS LAST, URL@1 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), URL@0 as URL]
+                AggregateExec: mode=FinalPartitioned, gby=[URL@0 as URL], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([URL@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[URL@0 as URL], aggr=[count(Int64(1))]
+                      FilterExec: CounterID@0 = 62 AND EventDate@1 >= 1372636800000 AND EventDate@1 <= 1375228800000 AND IsRefresh@4 = 0 AND IsLink@3 != 0 AND IsDownload@2 = 0, projection=[URL@5]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                          DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, EventDate, IsDownload, IsLink, IsRefresh, URL], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND IsRefresh@74 = 0 AND IsLink@49 != 0 AND IsDownload@36 = 0, pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND IsLink_null_count@12 != row_count@3 AND (IsLink_min@10 != 0 OR 0 != IsLink_max@11) AND IsDownload_null_count@15 != row_count@3 AND IsDownload_min@13 <= 0 AND 0 <= IsDownload_max@14, required_guarantees=[CounterID in (62), IsDownload in (0), IsLink not in (0), IsRefresh in (0)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, URL@1 as URL]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, URL@1 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[count(Int64(1))@0 DESC NULLS LAST, URL@1 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), URL@0 as URL]
+                AggregateExec: mode=FinalPartitioned, gby=[URL@0 as URL], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([URL@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[URL@0 as URL], aggr=[count(Int64(1))]
+                      FilterExec: CounterID@0 = 62 AND EventDate@1 >= 1372636800000 AND EventDate@1 <= 1375228800000 AND IsRefresh@4 = 0 AND IsLink@3 != 0 AND IsDownload@2 = 0, projection=[URL@5]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3
+                          DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, EventDate, IsDownload, IsLink, IsRefresh, URL], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND IsRefresh@74 = 0 AND IsLink@49 != 0 AND IsDownload@36 = 0, pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND IsLink_null_count@12 != row_count@3 AND (IsLink_min@10 != 0 OR 0 != IsLink_max@11) AND IsDownload_null_count@15 != row_count@3 AND IsDownload_min@13 <= 0 AND 0 <= IsDownload_max@14, required_guarantees=[CounterID in (62), IsDownload in (0), IsLink not in (0), IsRefresh in (0)]

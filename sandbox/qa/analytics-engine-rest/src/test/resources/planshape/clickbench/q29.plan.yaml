@@ -1,0 +1,51 @@
+# Generated via -Dplan.generate=write.
+query: q29
+ppl_file: q29.ppl
+applies: [prod1s]
+plans:
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[25], viableBackends=[[datafusion]])
+          OpenSearchProject(l=[$1], c=[$2], min(Referer)=[$3], k=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=9, backends=[datafusion], >($2, 5))], viableBackends=[[datafusion]])
+              OpenSearchProject(k=[$0], l=[ANNOTATED_PROJECT_EXPR(id=8, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=7, backends=[datafusion], CAST($1):DOUBLE), $2))], c=[$3], min(Referer)=[$4], viableBackends=[[datafusion]])
+                OpenSearchAggregate(group=[{0}], agg#0=[SUM($2)], agg#1=[COUNT($2)], c=[COUNT()], min(Referer)=[MIN($1)], mode=[SINGLE], viableBackends=[[datafusion]])
+                  OpenSearchProject(k=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], REGEXP_REPLACE($61, '^https?://(?:www\.)?([^/]+)/.*$':VARCHAR, '$1'))], Referer=[$61], $f3=[ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CHAR_LENGTH($61))], viableBackends=[[datafusion]])
+                    OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($61, ''))], viableBackends=[[lucene, datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[25], viableBackends=[[datafusion]])
+          OpenSearchProject(l=[$1], c=[$2], min(Referer)=[$3], k=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=9, backends=[datafusion], >($2, 5))], viableBackends=[[datafusion]])
+              OpenSearchProject(k=[$0], l=[ANNOTATED_PROJECT_EXPR(id=8, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=7, backends=[datafusion], CAST($1):DOUBLE), $2))], c=[$3], min(Referer)=[$4], viableBackends=[[datafusion]])
+                OpenSearchAggregate(group=[{0}], agg#0=[SUM($2)], agg#1=[COUNT($2)], c=[COUNT()], min(Referer)=[MIN($1)], mode=[SINGLE], viableBackends=[[datafusion]])
+                  OpenSearchProject(k=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], REGEXP_REPLACE($61, '^https?://(?:www\.)?([^/]+)/.*$':VARCHAR, '$1'))], Referer=[$61], $f3=[ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CHAR_LENGTH($61))], viableBackends=[[datafusion]])
+                    OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($61, ''))], viableBackends=[[lucene, datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END@0 as l, count(Int64(1))@1 as c, min(<scrubbed>.Referer)@2 as min(Referer), regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@3 as k]
+        SortPreservingMergeExec: [CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END@0 DESC NULLS LAST], fetch=25
+          SortExec: TopK(fetch=25), expr=[CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END@0 DESC NULLS LAST], preserve_partitioning=[true]
+            FilterExec: count(Int64(1))@1 > 5
+              ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.Referer))@2 = 0 THEN NULL ELSE CAST(sum(character_length(<scrubbed>.Referer))@1 AS Float64) / CAST(count(character_length(<scrubbed>.Referer))@2 AS Float64) END as CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END, count(Int64(1))@3 as count(Int64(1)), min(<scrubbed>.Referer)@4 as min(<scrubbed>.Referer), regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0 as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))]
+                AggregateExec: mode=FinalPartitioned, gby=[regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0 as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))], aggr=[sum(character_length(<scrubbed>.Referer)), count(character_length(<scrubbed>.Referer)), count(Int64(1)), min(<scrubbed>.Referer)]
+                  RepartitionExec: partitioning=Hash([regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0 as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))], aggr=[sum(character_length(<scrubbed>.Referer)), count(character_length(<scrubbed>.Referer)), count(Int64(1)), min(<scrubbed>.Referer)]
+                      ProjectionExec: expr=[regexp_replace(Referer@0, ^https?://(?:www\.)?([^/]+)/.*$, ${1}, g) as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g")), Referer@0 as Referer, character_length(Referer@0) as character_length(<scrubbed>.Referer)]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                          QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END@0 as l, count(Int64(1))@1 as c, min(<scrubbed>.Referer)@2 as min(Referer), regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@3 as k]
+        SortPreservingMergeExec: [CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END@0 DESC NULLS LAST], fetch=25
+          SortExec: TopK(fetch=25), expr=[CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END@0 DESC NULLS LAST], preserve_partitioning=[true]
+            FilterExec: count(Int64(1))@1 > 5
+              ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.Referer))@2 = 0 THEN NULL ELSE CAST(sum(character_length(<scrubbed>.Referer))@1 AS Float64) / CAST(count(character_length(<scrubbed>.Referer))@2 AS Float64) END as CASE WHEN count(character_length(<scrubbed>.Referer)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.Referer)) / count(character_length(<scrubbed>.Referer)) END, count(Int64(1))@3 as count(Int64(1)), min(<scrubbed>.Referer)@4 as min(<scrubbed>.Referer), regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0 as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))]
+                AggregateExec: mode=FinalPartitioned, gby=[regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0 as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))], aggr=[sum(character_length(<scrubbed>.Referer)), count(character_length(<scrubbed>.Referer)), count(Int64(1)), min(<scrubbed>.Referer)]
+                  RepartitionExec: partitioning=Hash([regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))@0 as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g"))], aggr=[sum(character_length(<scrubbed>.Referer)), count(character_length(<scrubbed>.Referer)), count(Int64(1)), min(<scrubbed>.Referer)]
+                      ProjectionExec: expr=[regexp_replace(Referer@0, ^https?://(?:www\.)?([^/]+)/.*$, ${1}, g) as regexp_replace(<scrubbed>.Referer,Utf8("^https?://(?:www\.)?([^/]+)/.*$"),Utf8("${1}"),Utf8("g")), Referer@0 as Referer, character_length(Referer@0) as character_length(<scrubbed>.Referer)]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                          QueryShardExec: partitions=2, segments=3, ordering=unsorted

@@ -1,0 +1,43 @@
+# Generated via -Dplan.generate=write.
+query: q38
+ppl_file: q38.ppl
+applies: [prod1s]
+plans:
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$1], Title=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(Title=[$83], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($83, '')))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$1], Title=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(Title=[$83], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($83, '')))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, Title@1 as Title]
+        SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, Title@1 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST, Title@1 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), Title@0 as Title]
+              AggregateExec: mode=FinalPartitioned, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+                RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, Title@1 as Title]
+        SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, Title@1 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST, Title@1 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), Title@0 as Title]
+              AggregateExec: mode=FinalPartitioned, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+                RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                      QueryShardExec: partitions=2, segments=3, ordering=unsorted
