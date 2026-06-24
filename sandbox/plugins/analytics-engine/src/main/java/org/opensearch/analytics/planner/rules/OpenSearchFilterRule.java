@@ -25,7 +25,9 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldReferences;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -166,8 +168,73 @@ public class OpenSearchFilterRule extends RelOptRule {
         if (fieldIndices.isEmpty()) {
             // Multi-field full-text functions (multi_match, query_string, simple_query_string)
             // encode field names as string literals in nested MAPs rather than RexInputRef.
-            // Resolve viability against any backend that supports the function on text fields.
+            // Extract the literal field names and resolve viability per-field using the actual
+            // FieldStorageInfo lookup — same code path as RexInputRef-based fields. This ensures
+            // that, e.g., query_string(['severityNumber'], ...) on an INTEGER field doesn't get
+            // routed to a backend that only declared (QUERY_STRING, TEXT) capability.
             if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
+                if (TextRelevanceFieldValidator.usesLiteralFieldEncoding(function)) {
+                    // A backend that declares full-text capability for these multi-field functions
+                    // MUST register a DelegatedPredicateSerializer whose referencedFields() surfaces
+                    // the fields named inside the query string (not just the `fields` MAP). A missing
+                    // serializer (or one that does not implement referencedFields) is a wiring error,
+                    // not a query error — fail explicitly rather than under-validating.
+                    DelegatedPredicateSerializer serializer = registry.predicateSerializer(function);
+                    FieldReferences refs = serializer == null ? null : serializer.referencedFields(predicate, fieldStorageInfos);
+                    if (refs == null) {
+                        throw new IllegalStateException(
+                            "No field-reference extraction available for full-text function ["
+                                + predicate.getOperator().getName()
+                                + "]. A backend declaring this function's filter capability must provide a"
+                                + " DelegatedPredicateSerializer that implements referencedFields()."
+                        );
+                    }
+                    List<String> literalFieldNames = refs.literalFields();
+                    boolean lenient = refs.lenient();
+                    if (literalFieldNames.isEmpty()) {
+                        // No explicit literal fields to type-check: only patterns and/or default-field
+                        // fan-out, which OpenSearch resolves best-effort at execution. Fall back to the
+                        // TEXT-type assumption and let the full-text-capable backend handle it.
+                        return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
+                    }
+                    // Eagerly reject text-relevance functions on non-text/keyword fields, unless the
+                    // caller explicitly set lenient=true
+                    if (lenient == false) {
+                        TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
+                            predicate.getOperator().getName(),
+                            literalFieldNames,
+                            fieldStorageInfos
+                        );
+                    }
+                    Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
+                    for (String fieldName : literalFieldNames) {
+                        FieldStorageInfo storageInfo = null;
+                        for (FieldStorageInfo info : fieldStorageInfos) {
+                            if (fieldName.equals(info.getFieldName())) {
+                                storageInfo = info;
+                                break;
+                            }
+                        }
+                        if (storageInfo == null) {
+                            // An explicitly-named literal field absent from the scan's schema is an
+                            // unknown field. (Wildcard/regex field tokens never reach here: they are
+                            // classified as patterns and handled by the empty-literals branch above.)
+                            throw new IllegalArgumentException("Field [" + fieldName + "] not found.");
+                        }
+                        viableSet.retainAll(registry.filterBackendsForField(function, storageInfo));
+                    }
+                    if (viableSet.isEmpty()) {
+                        throw new IllegalStateException(
+                            "No backend can evaluate filter predicate ["
+                                + predicate.getKind()
+                                + "] on literal-named fields "
+                                + literalFieldNames
+                        );
+                    }
+                    return new ArrayList<>(viableSet);
+                }
+                // FULL_TEXT but not a literal-field-encoding function (e.g. QUERY no-field variant,
+                // MATCHALL): no explicit field list to validate — fall back to TEXT type assumption.
                 return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
             }
             // No field reference (non-deterministic, or an unfoldable constant like
