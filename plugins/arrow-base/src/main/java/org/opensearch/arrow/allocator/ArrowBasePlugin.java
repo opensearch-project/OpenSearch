@@ -168,6 +168,13 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
     private volatile ScheduledExecutorService rebalancerScheduler;
     private volatile ScheduledFuture<?> rebalanceTask;
     private volatile NativeMemoryRebalancer rebalancer;
+    // Captured in buildAllocator so updateRebalanceInterval and the enable/disable consumer can
+    // (re)construct the rebalancer after cancelRebalanceTask() has torn it down.
+    private volatile ArrowNativeAllocator rebalancerAllocator;
+    private volatile Supplier<Long> rebalancerBudgetSupplier;
+    // Set once in buildAllocator so startRebalancer can seed the rebalancer with the configured
+    // (cluster-settings) thresholds rather than the static setting defaults.
+    private volatile ClusterSettings clusterSettings;
 
     // ─── Plugin lifecycle ────────────────────────────────────────────────────────
 
@@ -248,6 +255,12 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
      */
     ArrowNativeAllocator buildAllocator(Settings settings, ClusterSettings cs, Supplier<Long> budgetSupplier) {
         ArrowNativeAllocator allocator = new ArrowNativeAllocator();
+
+        // Capture for (re)construction of the rebalancer outside this method — on a dynamic
+        // interval change (updateRebalanceInterval) and on enable/disable.
+        this.rebalancerAllocator = allocator;
+        this.rebalancerBudgetSupplier = budgetSupplier;
+        this.clusterSettings = cs;
 
         // Set budget for validation
         long nativeBudget = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings).getBytes();
@@ -332,13 +345,14 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         if (budget <= 0) return;
         if (intervalSeconds <= 0) return;
 
-        NativeMemoryRebalancer nativeRebalancer = new NativeMemoryRebalancer(
-            allocator,
-            budgetSupplier,
-            PRESSURE_THRESHOLD_SETTING.getDefault(Settings.EMPTY),
-            IDLE_THRESHOLD_SETTING.getDefault(Settings.EMPTY),
-            SHRINK_FACTOR_SETTING.getDefault(Settings.EMPTY)
-        );
+        // Seed with the configured threshold values (yml + any applied cluster overrides), not the
+        // static setting defaults — otherwise values set in opensearch.yml are ignored at boot, and
+        // a disable/enable cycle silently resets previously-applied dynamic thresholds to defaults.
+        ClusterSettings cs = this.clusterSettings;
+        double pressure = cs != null ? cs.get(PRESSURE_THRESHOLD_SETTING) : PRESSURE_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
+        double idle = cs != null ? cs.get(IDLE_THRESHOLD_SETTING) : IDLE_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
+        double shrink = cs != null ? cs.get(SHRINK_FACTOR_SETTING) : SHRINK_FACTOR_SETTING.getDefault(Settings.EMPTY);
+        NativeMemoryRebalancer nativeRebalancer = new NativeMemoryRebalancer(allocator, budgetSupplier, pressure, idle, shrink);
         this.rebalancer = nativeRebalancer;
 
         Scheduler.SafeScheduledThreadPoolExecutor executor = new Scheduler.SafeScheduledThreadPoolExecutor(1, r -> {
@@ -365,10 +379,18 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
     }
 
-    private void updateRebalanceInterval(long newInterval) {
+    private synchronized void updateRebalanceInterval(long newInterval) {
+        // cancelRebalanceTask() nulls rebalancer and rebalancerScheduler, so we cannot reschedule
+        // the old task — we must rebuild via startRebalancer (which also re-reads the configured
+        // thresholds). A new interval of 0 disables rebalancing: tear down and leave it stopped.
         cancelRebalanceTask();
-        if (newInterval > 0 && rebalancerScheduler != null && rebalancer != null) {
-            rebalanceTask = rebalancerScheduler.scheduleAtFixedRate(rebalancer, newInterval, newInterval, TimeUnit.SECONDS);
+        if (newInterval <= 0) {
+            return;
+        }
+        ArrowNativeAllocator a = this.rebalancerAllocator;
+        Supplier<Long> budget = this.rebalancerBudgetSupplier;
+        if (a != null && budget != null) {
+            startRebalancer(a, budget, newInterval);
         }
     }
 
@@ -376,6 +398,23 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         if (min > max) {
             throw new IllegalArgumentException("Pool '" + poolName + "' min (" + min + ") exceeds max (" + max + ")");
         }
+    }
+
+    // ─── Visible for tests ───────────────────────────────────────────────────────
+
+    /** The live rebalancer, or {@code null} if rebalancing is currently stopped. */
+    NativeMemoryRebalancer rebalancerForTesting() {
+        return rebalancer;
+    }
+
+    /** True when a rebalance task is scheduled (i.e. rebalancing is actively running). */
+    boolean isRebalanceTaskScheduled() {
+        return rebalanceTask != null;
+    }
+
+    /** Drives {@link #updateRebalanceInterval} as the cluster-settings consumer would. */
+    void updateRebalanceIntervalForTesting(long newInterval) {
+        updateRebalanceInterval(newInterval);
     }
 
     static String derivePoolMaxDefault(Settings settings, int percent) {

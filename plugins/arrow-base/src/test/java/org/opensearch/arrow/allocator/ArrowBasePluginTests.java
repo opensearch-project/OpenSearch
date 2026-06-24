@@ -161,4 +161,61 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
     public void testRebalanceIntervalSettingDefault() {
         assertEquals(Long.valueOf(5L), ArrowBasePlugin.REBALANCE_INTERVAL_SETTING.get(Settings.EMPTY));
     }
+
+    public void testRebalancerSeedsConfiguredThresholdsNotDefaults() throws Exception {
+        // Non-default thresholds set in node settings (mirrors opensearch.yml) must be applied to
+        // the rebalancer at startup, not silently replaced by the static setting defaults.
+        Settings nodeSettings = Settings.builder()
+            .put("node.native_memory.limit", "1gb")
+            .put("native.allocator.rebalancer.enabled", true)
+            .put("native.allocator.rebalance.interval_seconds", 5L)
+            .put("native.allocator.rebalancer.pressure_threshold", 0.90)
+            .put("native.allocator.rebalancer.idle_threshold", 0.20)
+            .put("native.allocator.rebalancer.shrink_factor", 0.30)
+            .build();
+        ClusterSettings cs = newClusterSettings(nodeSettings);
+
+        ArrowBasePlugin plugin = new ArrowBasePlugin();
+        long budget = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(nodeSettings).getBytes();
+        ArrowNativeAllocator allocator = plugin.buildAllocator(nodeSettings, cs, () -> budget);
+        try {
+            NativeMemoryRebalancer r = plugin.rebalancerForTesting();
+            assertNotNull("rebalancer must be running when enabled", r);
+            assertEquals(0.90, r.getPressureThreshold(), 0.0);
+            assertEquals(0.20, r.getIdleThreshold(), 0.0);
+            assertEquals(0.30, r.getShrinkFactor(), 0.0);
+        } finally {
+            allocator.close();
+            plugin.close();
+        }
+    }
+
+    public void testUpdateRebalanceIntervalKeepsRebalancerRunning() throws Exception {
+        Settings nodeSettings = Settings.builder()
+            .put("node.native_memory.limit", "1gb")
+            .put("native.allocator.rebalancer.enabled", true)
+            .put("native.allocator.rebalance.interval_seconds", 5L)
+            .build();
+        ClusterSettings cs = newClusterSettings(nodeSettings);
+
+        ArrowBasePlugin plugin = new ArrowBasePlugin();
+        long budget = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(nodeSettings).getBytes();
+        ArrowNativeAllocator allocator = plugin.buildAllocator(nodeSettings, cs, () -> budget);
+        try {
+            assertTrue("rebalancer must be scheduled at startup", plugin.isRebalanceTaskScheduled());
+
+            // Changing the interval must reschedule, not permanently stop the rebalancer.
+            plugin.updateRebalanceIntervalForTesting(10L);
+            assertTrue("rebalancer must still be scheduled after an interval change", plugin.isRebalanceTaskScheduled());
+            assertNotNull("a live rebalancer must exist after an interval change", plugin.rebalancerForTesting());
+
+            // Interval 0 disables rebalancing: it must tear down and stay stopped.
+            plugin.updateRebalanceIntervalForTesting(0L);
+            assertFalse("interval 0 must stop the rebalancer", plugin.isRebalanceTaskScheduled());
+            assertNull("interval 0 must leave no live rebalancer", plugin.rebalancerForTesting());
+        } finally {
+            allocator.close();
+            plugin.close();
+        }
+    }
 }
