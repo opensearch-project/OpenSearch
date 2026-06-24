@@ -8,8 +8,6 @@
 
 package org.opensearch.parquet;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
@@ -86,8 +84,6 @@ import java.util.function.Supplier;
  * there. The plugin stays purely declarative.
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, ActionPlugin {
-
-    private static final Logger logger = LogManager.getLogger(ParquetDataFormatPlugin.class);
 
     /**
      * Current parquet writer format version, long-encoded (plugin-defined namespace; the
@@ -181,34 +177,10 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
                 mergePool.updateStats(s[4], s[5]);
             });
         } else {
-            // No allocator — wire dynamic consumers directly to the raw Rust pools, which only have
-            // a max (initMemoryPools/setWritePoolLimit/setMergePoolLimit). The pool *min* is a
-            // virtual-pool floor enforced by the arrow-base allocator's rebalancer; with no
-            // allocator there is nothing to apply it to. Register the MIN consumers anyway so a
-            // dynamic update is acknowledged rather than silently dropped, and log that it has no
-            // effect on this node — otherwise an operator's PUT of write/merge pool min looks
-            // applied but does nothing.
+            // No allocator — wire dynamic consumers directly to Rust pools
             ClusterSettings cs = clusterService.getClusterSettings();
             cs.addSettingsUpdateConsumer(ParquetSettings.WRITE_POOL_MAX, newMax -> RustBridge.setWritePoolLimit(newMax));
             cs.addSettingsUpdateConsumer(ParquetSettings.MERGE_POOL_MAX, newMax -> RustBridge.setMergePoolLimit(newMax));
-            cs.addSettingsUpdateConsumer(
-                ParquetSettings.WRITE_POOL_MIN,
-                newMin -> logger.warn(
-                    "Updated {} to {} but the native allocator (arrow-base) is not loaded; pool-min is a "
-                        + "rebalancer floor with no effect on this node",
-                    ParquetSettings.WRITE_POOL_MIN.getKey(),
-                    newMin
-                )
-            );
-            cs.addSettingsUpdateConsumer(
-                ParquetSettings.MERGE_POOL_MIN,
-                newMin -> logger.warn(
-                    "Updated {} to {} but the native allocator (arrow-base) is not loaded; pool-min is a "
-                        + "rebalancer floor with no effect on this node",
-                    ParquetSettings.MERGE_POOL_MIN.getKey(),
-                    newMin
-                )
-            );
         }
 
         return Collections.emptyList();
