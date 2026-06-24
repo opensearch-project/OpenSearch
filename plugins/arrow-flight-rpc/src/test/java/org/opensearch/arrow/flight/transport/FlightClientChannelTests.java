@@ -9,6 +9,7 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightClient;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -264,6 +265,85 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
         assertEquals("Simulated handler exception", handlerException.get().getMessage());
+    }
+
+    /**
+     * Wire round-trip: a {@link StreamException} with a specific {@link StreamErrorCode} sent from the
+     * server handler must arrive at the client as a StreamException carrying the SAME error code and
+     * message. This is the leg analytics relies on — {@code AnalyticsTransportErrors.toWireError} tags a
+     * resource-exhaustion failure RESOURCE_EXHAUSTED on the data node, and the coordinator's
+     * {@code fromWireError} rebuilds a 429 from the code that survives here. Flight does not serialize the
+     * exception type, so the code is the only signal that crosses.
+     */
+    public void testStreamErrorCodeSurvivesWire() throws InterruptedException {
+        assertErrorCodeRoundTrips(StreamErrorCode.RESOURCE_EXHAUSTED, "memory budget exhausted on shard");
+        assertErrorCodeRoundTrips(StreamErrorCode.UNAVAILABLE, "Network closed for unknown reason");
+    }
+
+    private void assertErrorCodeRoundTrips(StreamErrorCode code, String message) throws InterruptedException {
+        String action = "internal:test/stream/errorcode/" + code.name();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> received = new AtomicReference<>();
+
+        streamTransportService.registerRequestHandler(
+            action,
+            ThreadPool.Names.SAME,
+            in -> new TestRequest(in),
+            (request, channel, task) -> {
+                try {
+                    channel.sendResponse(new StreamException(code, message));
+                } catch (IOException ignored) {}
+            }
+        );
+
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
+        TransportResponseHandler<TestResponse> responseHandler = new TransportResponseHandler<>() {
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                try {
+                    while (streamResponse.nextResponse() != null) {
+                    }
+                } catch (Exception e) {
+                    received.set(e);
+                    try {
+                        streamResponse.close();
+                    } catch (IOException ignored) {}
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                received.set(exp);
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        };
+
+        streamTransportService.sendRequest(remoteNode, action, new TestRequest(), options, responseHandler);
+
+        assertTrue("no error surfaced for " + code, latch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        Exception e = received.get();
+        assertNotNull("expected an error for " + code, e);
+        StreamException se = (StreamException) ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof StreamException)
+            .orElse(null);
+        assertNotNull("error must surface as a StreamException, got: " + e, se);
+        assertEquals("error code must survive the wire", code, se.getErrorCode());
+        assertTrue("message must survive the wire, got: " + se.getMessage(), se.getMessage() != null && se.getMessage().contains(message));
     }
 
     public void testThreadPoolExhaustion() throws InterruptedException {
