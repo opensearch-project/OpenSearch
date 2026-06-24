@@ -31,6 +31,7 @@ import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
+import org.apache.calcite.sql2rel.RelFieldTrimmer;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -126,6 +127,8 @@ public class PlannerImpl {
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
+        modifiedRelNode = trimFields(modifiedRelNode);
+        LOGGER.debug("After field trimming:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
@@ -387,6 +390,24 @@ public class PlannerImpl {
             // that invariant intact and lets TopK oversampling still fire for these queries.
             .addRuleInstance(CoreRules.PROJECT_MERGE)
             .run(input, listener);
+    }
+
+    /**
+     * Slims the all-{@code Logical} tree (pre-marking) to only the columns each consumer needs via
+     * Calcite's {@link RelFieldTrimmer}, narrowing the scan so DataFusion prunes the parquet read.
+     * Package-private for {@code RelFieldTrimmerTests} (the SQL frontend already emits minimal
+     * projections, so the trimmer is only exercised in isolation on a deliberately-wide tree).
+     */
+    static RelNode trimFields(RelNode input) {
+        RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
+        // Trimming is a pure optimization; the untrimmed tree is always a correct fallback (the
+        // trimmer's stock handlers throw on some valid shapes, e.g. a non-literal OFFSET).
+        try {
+            return new RelFieldTrimmer(null, relBuilder).trim(input);
+        } catch (RuntimeException e) {
+            LOGGER.debug("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
+            return input;
+        }
     }
 
     /**
