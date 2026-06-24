@@ -1559,12 +1559,14 @@ fn derive_schema_from_partial_plan(
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
-    // Engine-native-merge (HLL): Partial has Binary fields that differ from the top (Int64).
-    // Use Partial schema + Root.names so coordinator sees the correct Binary wire type.
-    // All other plans: use top schema directly (matches main behavior).
+    // Engine-native-merge: Partial state types differ from Final output (Binary HLL sketches,
+    // or List state for sub-32-bit bitmap accumulators). Use Partial schema + Root.names so
+    // the coordinator sees the correct wire type.
     if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
-        let has_binary = partial_schema.fields().iter().any(|f| matches!(f.data_type(), arrow::datatypes::DataType::Binary));
-        if has_binary && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+        let has_nontrivial_state = partial_schema.fields().iter().any(|f| {
+            matches!(f.data_type(), arrow::datatypes::DataType::Binary | arrow::datatypes::DataType::List(_))
+        });
+        if has_nontrivial_state && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
             use arrow::datatypes::{Field, Schema};
             let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
             let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())
