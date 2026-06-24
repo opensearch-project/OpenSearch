@@ -440,17 +440,32 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         assertQtfDeclined("SELECT URL FROM hits LIMIT 10", 2);
     }
 
-    public void testQtfDeclined_skipPredicate_sortColIsOnlyProjection() {
+    public void testQtfFires_sortColIsOnlyProjection() {
         // SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10
-        // AboveAnchor = {EventDate}; BelowAnchor = {EventDate}; FetchOnly = {} → skip.
-        // Refetching EventDate by row id when it already rode through the reduce would be a wash.
-        assertQtfDeclined("SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10", 2);
+        // AboveAnchor = {EventDate}; BelowAnchor = {EventDate}; FetchOnly = {}.
+        // No fetch-only column, BUT the query needs only 1 of the table's columns, so the narrowed
+        // Scan still avoids materializing every column for all rows — QTF fires (degenerate case).
+        // Previously declined, which left the non-QTF path reading the full row (latency cliff).
+        assertQtfFired(
+            "SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("EventDate"),
+            Expect.wrapperOutput("EventDate")
+        );
     }
 
-    public void testQtfDeclined_skipPredicate_filterColIsOnlyProjection() {
+    public void testQtfFires_filterColIsOnlyProjection() {
         // SELECT CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10
-        // AboveAnchor = {CounterID}; BelowAnchor = {CounterID, EventDate}; FetchOnly = {} → skip.
-        assertQtfDeclined("SELECT CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10", 2);
+        // AboveAnchor = {CounterID}; BelowAnchor = {CounterID, EventDate}; FetchOnly = {}.
+        // Above ⊆ below, but the query needs only 2 columns → narrowed Scan still helps → QTF fires.
+        assertQtfFired(
+            "SELECT CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("CounterID", "EventDate"),
+            Expect.aboveAnchorPhysicalFields("CounterID"),
+            Expect.wrapperOutput("CounterID")
+        );
     }
 
     public void testQtfDeclined_aggregateBelowSort() {

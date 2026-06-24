@@ -151,12 +151,44 @@ public final class OpenSearchLateMaterializationRewriter {
             anchorCtx.anchor
         );
 
-        // Skip predicate: aboveAnchorPhysicalFields - belowAnchorPhysicalFields must be non-empty.
+        // Columns the query actually touches = sort keys + below-filter cols (belowAnchor)
+        // ∪ output/display cols (aboveAnchor). The narrowed Scan need only carry these.
+        Set<String> neededPhysicalFields = new HashSet<>(belowAnchorPhysicalFields);
+        neededPhysicalFields.addAll(aboveAnchorPhysicalFields);
+        int totalScanCols = belowChain.scan.getRowType().getFieldCount();
+
+        // Skip predicate.
+        //
+        // Previously this declined QTF whenever aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields,
+        // on the premise that "the non-QTF path reads the same physical fields anyway, so QTF saves
+        // no I/O." That premise does not hold: when the sole output column is (a subset of) the sort
+        // key, projection pushdown does not narrow the parquet scan, so the non-QTF plan reads EVERY
+        // column. For example `... | sort EventTime | head 10 | fields EventTime` materialized all
+        // ~100 columns to answer a one-column query. Declining QTF there is a latency cliff.
+        //
+        // Fire QTF whenever the query touches fewer columns than the full scan, so the narrowed Scan
+        // reads only `neededPhysicalFields`:
+        // - hasFetchOnly (above ⊄ below): classic late-materialization — heavy display columns are
+        // deferred to a per-survivor fetch.
+        // - !hasFetchOnly (above ⊆ below): no fetch-only columns, but the narrowed Scan still avoids
+        // materializing every column for all N rows. The wrapper's fetch re-reads only the K
+        // survivors of already-needed (cheap) columns — negligible beside the columns it skips.
+        // Decline only when the query already needs every column (narrowing would be a no-op).
         boolean hasFetchOnly = aboveAnchorPhysicalFields.stream().anyMatch(name -> !belowAnchorPhysicalFields.contains(name));
-        if (!hasFetchOnly) {
-            LOGGER.debug("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
+        boolean narrowsScan = neededPhysicalFields.size() < totalScanCols;
+        if (!hasFetchOnly && !narrowsScan) {
+            LOGGER.debug("[QTF] query needs all {} scan columns; narrowing would be a no-op — skipping", totalScanCols);
             return null;
         }
+        LOGGER.debug(
+            "[QTF] narrowing scan from {} cols to {} needed cols {} (hasFetchOnly={}); below={} above={}",
+            totalScanCols,
+            neededPhysicalFields.size(),
+            neededPhysicalFields,
+            hasFetchOnly,
+            belowAnchorPhysicalFields,
+            aboveAnchorPhysicalFields
+        );
 
         return new Detection(
             anchorCtx.anchor,
