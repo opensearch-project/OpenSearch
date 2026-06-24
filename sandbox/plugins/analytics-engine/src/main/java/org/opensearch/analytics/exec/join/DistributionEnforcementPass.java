@@ -23,6 +23,9 @@ import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -102,8 +105,10 @@ public final class DistributionEnforcementPass {
         if (root.actualDistribution != null && root.actualDistribution.satisfies(coordSingleton)) {
             return root.rel;
         }
-        RelNode gathered = traitDef.buildEnforcer(root.rel, coordSingleton);
-        return gathered == null ? root.rel : gathered;
+        // Force the gather from the TRACKED distribution — not buildEnforcer, whose satisfies() check
+        // trusts root.rel's stale CBO coordSingleton trait and would wrongly insert no ER (e.g. a top join
+        // the pass distributed still carries coordSingleton on its traitSet).
+        return traitDef.buildReducer(root.rel);
     }
 
     /**
@@ -148,6 +153,40 @@ public final class DistributionEnforcementPass {
             return new Visited(rebuilt, traitDef.coordSingleton());
         }
 
+        // 3a. Transparent-passthrough fast path: a single-input op that imposes NO requirement (a row-wise
+        // Project / Filter) over a PARTITIONED child must RIDE on its child's worker, not gather it. This
+        // MUST run BEFORE the 3b floor/no-requirement gate below — that gate's {@code !imposesRequirement}
+        // branch was written for a pure-theta JOIN (gather both inputs, stay coordinator) and would otherwise
+        // wrongly gather a transparent Project over a distributed bottom join, cutting the join into a
+        // separate gather-fed stage that never ships its shuffle (the q3 intermediate-Project worker-timeout
+        // — found on the cluster, reproduced by testGeneralShuffle_intermediateProjectRidesOnWorker).
+        //
+        // We propagate the child's distribution VERBATIM rather than calling deriveOutputDistribution (whose
+        // Project key-remap has a Calcite mapping-direction bug — see [[enforcement-pass-stale-trait]]). The
+        // verbatim propagation is conservatively correct for the ride decision: if a Project reorders the
+        // hash key columns, the NEXT tier boundary (a join keying on the moved column) re-shuffles to the
+        // exact columns it needs via forceShuffle, so a slightly-wrong propagated key list never produces a
+        // mis-partitioned worker join — at worst an extra (correct) re-shuffle. Keeping the partitioning is
+        // what avoids the spurious gather; the precise key positions only affect whether the parent CAN
+        // reuse it (a future N-ary-transport optimization that doesn't apply to the binary-tier path, where
+        // every join input is re-shuffled anyway).
+        //
+        // RESTRICTED to genuinely ROW-TRANSPARENT operators (Project / Filter). An OpenSearchAggregate must
+        // NEVER ride a partitioned child here: a NON-decomposable SINGLE aggregate (percentile / TAKE / LIST
+        // / residual DISTINCT) is split-ineligible so its requiredInputDistribution is null — but riding it
+        // per-partition with no FINAL merge gives silently-wrong (per-partition) results. Decomposable SINGLE
+        // aggregates were already handled by step 3c above (PARTIAL/FINAL split); a non-decomposable one must
+        // fall through to step 3b's gather → coordinator-centric SINGLE aggregate (correct). (codex re-review
+        // BLOCKER: step 3a rode non-decomposable aggregates on workers.)
+        boolean rowTransparent = n instanceof OpenSearchProject || n instanceof OpenSearchFilter;
+        if (rowTransparent
+            && n.getInputs().size() == 1
+            && isPartitioned(childDists.get(0))
+            && aware.requiredInputDistribution(0, partitionCount, traitDef) == null) {
+            RelNode rebuilt = copyWithInputs(n, childContents);
+            return new Visited(rebuilt, childDists.get(0));
+        }
+
         // 3b. Size floor: distribute this operator only when it is worth it — either a child is ALREADY
         // distributed (a deeper op cleared the floor; keep the cascade going), or this operator's own scan
         // subtree exceeds minRows. Otherwise treat it as non-distributable (gather inputs, stay
@@ -172,7 +211,49 @@ public final class DistributionEnforcementPass {
             return new Visited(rebuilt, traitDef.coordSingleton());
         }
 
+        // 3c. SINGLE decomposable aggregate — Variant A (NO group-key shuffle), mirroring the legacy
+        // DistributedAggOverJoinRewriter. The PARTIAL result is correct under ANY input partitioning (a
+        // decomposable PARTIAL doesn't care whether rows are partitioned by join-key or group-key — only the
+        // FINAL needs all partials, and the FINAL gathers), so we do NOT honor the aggregate's
+        // HASH(groupKeys) requirement here. Doing so (the bug codex found) inserts a group-key re-shuffle
+        // whose consumer is the PARTIAL — a NON-join shuffle edge that GeneralShuffleDAGRewriter (joins-only)
+        // never promotes/wires → hang. Instead:
+        // - child already distributed (a join/cascade below) → split: PARTIAL rides on the child's worker
+        // (no exchange), FINAL gathers. This is the q5/q10 shape and works for group-key == OR != the
+        // join key, and for the empty-group case.
+        // - child NOT distributed (bare scan) → distributing the aggregate itself would need a group-key
+        // shuffle + a single-input agg worker tier, which the general dispatch does NOT yet drive
+        // (that's the legacy HASH_SHUFFLE_AGG path, gated off under the toggle). Rather than emit an
+        // un-wireable agg-shuffle, GATHER and run the SINGLE aggregate on the coordinator (coord-centric,
+        // correct). Generalizing dispatch to agg-consumer shuffle edges is the documented next step.
+        if (n instanceof OpenSearchAggregate agg
+            && agg.getMode() == AggregateMode.SINGLE
+            && aware.requiredInputDistribution(0, partitionCount, traitDef) != null) {
+            RelNode childContent = childContents.get(0);
+            OpenSearchDistribution childDist = childDists.get(0);
+            if (isPartitioned(childDist)) {
+                return splitAggregate(agg, childContent);
+            }
+            RelNode gathered = gatherIfNeeded(childContent, childDist);
+            return new Visited(copyWithInputs(n, List.of(gathered)), traitDef.coordSingleton());
+        }
+
         // 4. DistributionAware: enforce each input's required distribution.
+        //
+        // Binary-tier lowering: a JOIN is a worker-tier boundary. The hash-shuffle transport delivers
+        // exactly TWO named shuffle inputs per worker (left/right buffer slices — ShuffleScanInstructionNode
+        // side ∈ {left,right}; the buffer has two slices), so every distributed join input must arrive as
+        // its OWN shuffle producer stream. We therefore do NOT take the co-partition-reuse shortcut on a
+        // join input: even when a lower join's output already satisfies the required hash, we insert a
+        // same-key inter-tier shuffle so DAGBuilder cuts the lower join into its own binary producer stage
+        // (rather than collapsing N joins into one fragment with N shuffle leaves, which the binary
+        // transport cannot run). This same-key inter-tier shuffle is exactly what the legacy cascade
+        // already does (each intermediate worker produces a shuffle to its parent worker). UNARY ops
+        // (Project / Filter / PARTIAL aggregate) are NOT tier boundaries — they ride on the same worker as
+        // their child, so they keep the reuse shortcut (e.g. a PARTIAL agg sits on its join's worker with
+        // no extra shuffle). Eliminating the inter-tier shuffle for genuinely co-partitioned tiers is a
+        // documented future optimization (needs N-ary shuffle transport); see MPP-GENERAL-SCHEDULING-DESIGN.md.
+        boolean isTierBoundary = n instanceof OpenSearchJoin;
         List<RelNode> newInputs = new ArrayList<>(childContents.size());
         List<OpenSearchDistribution> enforcedChildDists = new ArrayList<>(childContents.size());
         for (int i = 0; i < childContents.size(); i++) {
@@ -180,37 +261,45 @@ public final class DistributionEnforcementPass {
             OpenSearchDistribution childDist = childDists.get(i);
             OpenSearchDistribution required = aware.requiredInputDistribution(i, partitionCount, traitDef);
             if (required == null) {
-                // No requirement on this input — leave it, but make sure it lands somewhere coherent: if its
-                // distribution is unknown/partitioned and the op didn't ask for partitioning, gather it.
+                // No requirement on this input — gather it to a coherent landing. (A transparent op over a
+                // PARTITIONED child was already handled by the step-3a fast path, which rides on the child's
+                // worker; reaching here means the child is not partitioned, e.g. a theta join's gathered
+                // inputs, so a plain gather is correct.)
                 RelNode landed = gatherIfNeeded(childContent, childDist);
                 newInputs.add(landed);
                 enforcedChildDists.add(landed == childContent ? childDist : traitDef.coordSingleton());
                 continue;
             }
-            if (childDist != null && childDist.satisfies(required)) {
-                // Already co-partitioned — no exchange (this is where the cascade reuses upstream hashing).
+            if (!isTierBoundary && childDist != null && childDist.satisfies(required)) {
+                // Unary op already co-partitioned — no exchange (rides on its child's worker).
                 newInputs.add(childContent);
                 enforcedChildDists.add(childDist);
+            } else if (required.getType() == org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
+                // A SINGLETON requirement (a window / pinned OpenSearchProject that needs fully-gathered
+                // input) over a distributed child must be GATHERED. Force buildReducer from the TRACKED
+                // distribution — NOT buildEnforcer/forceShuffle, whose satisfies() check trusts the child's
+                // stale CBO coordSingleton trait and would skip the ER, leaving the window running
+                // per-partition (silently wrong global-window result — the codex BLOCKER). gatherIfNeeded is
+                // a no-op when the child is genuinely already SINGLETON.
+                RelNode landed = gatherIfNeeded(childContent, childDist);
+                newInputs.add(landed);
+                enforcedChildDists.add(landed == childContent ? childDist : traitDef.coordSingleton());
+                LOGGER.debug("enforce: {} input {} → SINGLETON gather", n.getRelTypeName(), i);
             } else {
-                RelNode enforced = traitDef.buildEnforcer(childContent, required);
+                // Join input (always) or a non-co-partitioned unary input with a HASH requirement:
+                // materialize the shuffle. For a join input whose child is a lower distributed join the
+                // child's traitSet still carries the CBO coordSingleton trait (the pass tracks the derived
+                // HASH only in Visited), so buildEnforcer sees from=coordSingleton ⊭ HASH and inserts the
+                // inter-tier shuffle.
+                RelNode enforced = forceShuffle(isTierBoundary, childContent, required);
                 newInputs.add(enforced);
                 enforcedChildDists.add(required);
-                LOGGER.debug("enforce: {} input {} → {}", n.getRelTypeName(), i, required);
+                LOGGER.debug("enforce: {} input {} → {}{}", n.getRelTypeName(), i, required, isTierBoundary ? " (tier boundary)" : "");
             }
         }
-        // 5. Aggregate special case: when a SINGLE aggregate's input was distributed (hash-shuffled, or
-        // its content is partitioned), the aggregate must be SPLIT into PARTIAL (over the partitioned
-        // input) + FINAL (over a coordinator gather). Volcano's OpenSearchAggregateSplitRule can't re-fire
-        // post-CBO, so the pass performs the split itself, reusing the exact same helpers
-        // (repairLossyReturnTypes / FinalAggCallBuilder / wrapWithCastIfNeeded) the split rule uses.
-        if (n instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.SINGLE) {
-            OpenSearchDistribution req = aware.requiredInputDistribution(0, partitionCount, traitDef);
-            if (req != null) {
-                RelNode enforcedInput = newInputs.get(0);
-                return splitAggregate(agg, enforcedInput);
-            }
-        }
-
+        // (The SINGLE-aggregate PARTIAL/FINAL split is handled earlier, in step 3c, NOT here — it must
+        // decide on the child's tracked partitioning before the generic per-input enforcement, and it never
+        // honors the aggregate's HASH(groupKeys) requirement. See step 3c.)
         RelNode rebuilt = copyWithInputs(n, newInputs);
         OpenSearchDistribution out = aware.deriveOutputDistribution(enforcedChildDists, traitDef);
         return new Visited(rebuilt, out);
@@ -237,7 +326,11 @@ public final class DistributionEnforcementPass {
             agg.getViableBackends(),
             agg.getCallAnnotations()
         );
-        RelNode gathered = traitDef.buildEnforcer(partial, traitDef.coordSingleton());
+        // Force the ER between PARTIAL and FINAL. buildReducer (not buildEnforcer): the PARTIAL was built
+        // over partialInput, whose traitSet may carry a stale coordSingleton (a join the pass distributed),
+        // so the satisfies()-gated buildEnforcer would skip the gather and collapse PARTIAL+FINAL into one
+        // stage — DAGBuilder then never cuts the worker boundary.
+        RelNode gathered = traitDef.buildReducer(partial);
 
         Map<Integer, List<RexLiteral>> finalExtraLiterals = OpenSearchAggregateSplitRule.captureLiteralArgsForFinal(
             agg.getAggCallList(),
@@ -269,14 +362,40 @@ public final class DistributionEnforcementPass {
         return new Visited(result, traitDef.coordSingleton());
     }
 
-    /** Gathers {@code rel} to COORDINATOR+SINGLETON unless it already produces SINGLETON. */
+    /**
+     * Enforces {@code required} (a WORKER+HASH demand) on {@code childContent}. At a JOIN tier boundary the
+     * shuffle is built UNCONDITIONALLY ({@code buildShuffleExchange}) — even when the child's trait already
+     * satisfies the required hash (a lower join CBO itself shuffled, so its traitSet carries HASH) — so
+     * DAGBuilder cuts the child into its own binary producer stage. The binary shuffle transport delivers
+     * exactly two named inputs per worker, so each distributed join input must be its own producer stream;
+     * reusing an already-HASH child in place would collapse N joins into one fragment with N shuffle leaves,
+     * which the transport cannot run. For a non-tier (unary) input we go through the satisfies-gated
+     * {@code buildEnforcer} so a genuinely co-partitioned unary child rides on its child's worker with no
+     * extra shuffle.
+     */
+    private RelNode forceShuffle(boolean isTierBoundary, RelNode childContent, OpenSearchDistribution required) {
+        return isTierBoundary ? traitDef.buildShuffleExchange(childContent, required) : traitDef.buildEnforcer(childContent, required);
+    }
+
+    /**
+     * True iff {@code aware} (a single-input transparent op — Project/Filter — that imposes no requirement
+     * on input {@code i}) would PRESERVE the child's WORKER+HASH partitioning in its output, i.e. it can
+     * ride on the child's worker rather than forcing a gather. Asks {@code deriveOutputDistribution} with
+     * {@code childDist} in the single input slot and checks the result is still partitioned. A window/pinned
+     * Project does not reach here (it imposes a SINGLETON requirement, so {@code required != null}); this is
+     * the row-wise Project / Filter path.
+     */
+    /**
+     * Gathers {@code rel} to COORDINATOR+SINGLETON unless its TRACKED distribution {@code actual} already
+     * satisfies SINGLETON. Decides off {@code actual} (the pass's tracked distribution), then forces the
+     * reducer via {@code buildReducer} — NOT {@code buildEnforcer}, whose satisfies() check trusts
+     * {@code rel}'s stale CBO trait and would skip the ER for a rel the pass actually left partitioned.
+     */
     private RelNode gatherIfNeeded(RelNode rel, OpenSearchDistribution actual) {
-        OpenSearchDistribution coordSingleton = traitDef.coordSingleton();
-        if (actual != null && actual.satisfies(coordSingleton)) {
+        if (actual != null && actual.satisfies(traitDef.coordSingleton())) {
             return rel;
         }
-        RelNode gathered = traitDef.buildEnforcer(rel, coordSingleton);
-        return gathered == null ? rel : gathered;
+        return traitDef.buildReducer(rel);
     }
 
     private static RelNode copyWithInputs(RelNode node, List<RelNode> newInputs) {

@@ -42,6 +42,8 @@ import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
 import org.opensearch.analytics.exec.join.DistributedAggOverJoinDispatch;
 import org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter;
 import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
+import org.opensearch.analytics.exec.join.GeneralShuffleDAGRewriter;
+import org.opensearch.analytics.exec.join.GeneralShuffleDispatch;
 import org.opensearch.analytics.exec.join.HashShuffleDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
@@ -387,6 +389,21 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED)
             )
+            // General-scheduler (Option B) toggle must follow dynamic updates too — executeInternal gates
+            // both the enforcement pass AND the GeneralShuffleDispatch routing on it; without the overlay a
+            // PUT /_cluster/settings to enable/disable it would be ignored and the node-bootstrap default
+            // (false) would win, so the sf=10 toggle-on validation could never switch the path on.
+            .put(
+                AnalyticsSettings.MPP_CBO_NATIVE_CASCADE.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_CBO_NATIVE_CASCADE)
+            )
+            // The general-scheduler row floor must follow dynamic updates too — the enforce() call gates
+            // distribute-vs-coord on it; the cluster ITs lower it (small datasets) to exercise the
+            // distributed path, so a static node-bootstrap read would pin the 1M default and never distribute.
+            .put(
+                AnalyticsSettings.MPP_CBO_NATIVE_CASCADE_MIN_ROWS.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_CBO_NATIVE_CASCADE_MIN_ROWS)
+            )
             .put(
                 AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
@@ -450,7 +467,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 plan,
                 plannerContext.getDistributionTraitDef(),
                 cascadePartitions,
-                MIN_AGG_OVER_JOIN_BOTTOM_ROWS
+                AnalyticsSettings.MPP_CBO_NATIVE_CASCADE_MIN_ROWS.get(perQuerySettings)
             );
         } else if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)
             && AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.get(perQuerySettings)) {
@@ -528,6 +545,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 }
                 plan = CascadeShufflePlanRewriter.rewrite(plan, cascadePartitions);
             }
+        // When the general post-CBO scheduler is on (Option B), the enforced DAG carries its own
+        // exchanges and a pre-split aggregate. Route it to the single GeneralShuffleDispatch path,
+        // bypassing the legacy shape-router (JoinStrategyAdvisor.observe + the dispatch* flags below)
+        // entirely. Computed here so the legacy routing block stays inert under the toggle.
+        final boolean cboNativeCascade = AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)
+            && AnalyticsSettings.MPP_CBO_NATIVE_CASCADE.get(perQuerySettings);
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 
@@ -553,11 +576,19 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         final Stage shuffleRight = JoinStrategyAdvisor.findShuffleScanRight(dag);
         final Stage shuffleAggProducer = AggregateStrategyAdvisor.findAggregateShuffleProducer(dag);
         final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
-        final boolean dispatchBroadcast = joinStrategy == MppStrategy.BROADCAST
+        // Under the general post-CBO scheduler (Option B) every legacy shape-routed dispatcher is
+        // suppressed: the enforced DAG carries its own exchanges + pre-split aggregate, so the legacy
+        // rewriters (which expect the CBO-gathered shape) would MISFIRE on it — e.g.
+        // CascadeShuffleDAGRewriter would try to re-lift stages the pass already distributed. The general
+        // path (dispatchGeneralShuffle, below) takes over. The legacy flags also feed the metrics block,
+        // so gating them here keeps that honest too (the general path records its own strategy).
+        final boolean dispatchBroadcast = !cboNativeCascade
+            && joinStrategy == MppStrategy.BROADCAST
             && broadcastBuild != null
             && broadcastProbe != null
             && isQueryScheduler;
-        final boolean dispatchHashShuffle = joinStrategy == MppStrategy.HASH_SHUFFLE
+        final boolean dispatchHashShuffle = !cboNativeCascade
+            && joinStrategy == MppStrategy.HASH_SHUFFLE
             && shuffleLeft != null
             && shuffleRight != null
             && isQueryScheduler;
@@ -590,13 +621,19 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // splitThetaJoinOverAggInputs cut) — NOT merely "≥2 distributable children". Without this, an
         // unrelated coordinator plan with two distributable children (e.g. a UNION of two aggregates)
         // would be wrongly stolen from its proper hash-shuffle/cascade dispatch.
-        final List<Stage> distributableThetaChildren = AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
+        final List<Stage> distributableThetaChildren = !cboNativeCascade
+            && AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
             && isQueryScheduler
             && isThetaJoinRoot(dag.rootStage())
                 ? dag.rootStage().getChildStages().stream().filter(c -> DistributedAggOverJoinRewriter.canPushPartial(dag, c)).toList()
                 : List.of();
         final boolean dispatchMultiSubtreeDistributedAgg = distributableThetaChildren.size() >= 2;
-        final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;
+        final boolean dispatchHashShuffleAggregate = !cboNativeCascade && shuffleAggProducer != null && isQueryScheduler;
+        // General post-CBO scheduler (Option B): the enforced DAG has at least one join-over-two-shuffles
+        // stage to promote to a worker tier. Takes precedence over every legacy dispatcher (all gated off
+        // above under the toggle). A toggle-on DAG the size-floor kept fully coord-centric has no such stage
+        // → falls through to plain scheduler.execute.
+        final boolean dispatchGeneralShuffle = cboNativeCascade && isQueryScheduler && GeneralShuffleDAGRewriter.hasDistributedJoin(dag);
         // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
         // buffers may be populated on data nodes (join shuffle, cascade, or shuffle-aggregate all cut
         // a HASH_DISTRIBUTED exchange in the DAG). Drives the terminal cleanup broadcast: skip it for
@@ -607,7 +644,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
 
         if (JoinStrategyAdvisor.containsJoin(dag)) {
             MppStrategy routedStrategy;
-            if (dispatchBroadcast) {
+            if (dispatchGeneralShuffle) {
+                // The general scheduler distributes via hash-shuffle worker tiers; record HASH_SHUFFLE so
+                // /_analytics/_strategies reflects the distributed dispatch the toggle-on path took.
+                routedStrategy = MppStrategy.HASH_SHUFFLE;
+            } else if (dispatchBroadcast) {
                 routedStrategy = MppStrategy.BROADCAST;
             } else if (dispatchHashShuffle) {
                 routedStrategy = MppStrategy.HASH_SHUFFLE;
@@ -793,7 +834,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // escape to execute()'s outer catch which calls listener.onFailure directly — leaving
         // the task registered and the allocator open.
         try {
-            if (dispatchBroadcast) {
+            if (dispatchGeneralShuffle) {
+                dispatchGeneralShuffle(dag, context, execRef, batchesListener);
+            } else if (dispatchBroadcast) {
                 dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
             } else if (dispatchMultiSubtreeDistributedAgg) {
                 dispatchMultiSubtreeDistributedAgg(dag, distributableThetaChildren, context, execRef, batchesListener);
@@ -932,6 +975,29 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     ) {
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
         new CascadeShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry, preferMetadataDriver).run(
+            context,
+            dag,
+            execRef::set,
+            terminal
+        );
+    }
+
+    /**
+     * Runs the GENERAL post-CBO scheduler path (Option B). The DAG was produced by
+     * {@link DistributionEnforcementPass}: it already carries every shuffle exchange and a pre-split
+     * aggregate ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link GeneralShuffleDispatch}, which
+     * promotes each join-over-two-shuffles stage to a worker tier in place (the PARTIAL aggregate rides on
+     * the worker), enriches the per-level shuffle instructions, and dispatches. One path for any join
+     * depth / shape / type — no shape recognition, no broadcast build/inject.
+     */
+    private void dispatchGeneralShuffle(
+        QueryDAG dag,
+        QueryContext context,
+        AtomicReference<QueryExecution> execRef,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        QueryScheduler qscheduler = (QueryScheduler) scheduler;
+        new GeneralShuffleDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver).run(
             context,
             dag,
             execRef::set,

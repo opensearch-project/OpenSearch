@@ -242,31 +242,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             OpenSearchDistribution stamp = toTrait.getLocality() == null ? coordSingleton() : toTrait;
             return new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(stamp), rel, reduceViable);
         } else if (toTrait.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            // The split rule that issued the demand resolved the concrete partition count
-            // (cluster setting → engine default) and embedded it in toTrait. A null demand
-            // is rejected here — the caller must resolve a concrete count before requesting
-            // a HASH conversion, otherwise the exchange is incoherent with downstream
-            // ShuffleScan handlers that index per-partition buffers.
-            if (toTrait.getPartitionCount() == null) {
-                throw new IllegalStateException(
-                    "HASH_DISTRIBUTED demand has null partitionCount; rule must resolve count "
-                        + "via OpenSearchDistributionTraitDef.hash(keys, partitionCount). toTrait="
-                        + toTrait
-                );
-            }
-            // A shuffle producer must serialize + ship hash partitions, which only a backend that
-            // declares DataTransferCapability(PRODUCER) can do. Prune scan-only backends (e.g.
-            // Lucene, kept viable for a keyword scan under prefer_metadata_driver) so the producer
-            // never lands on a driver that throws SHUFFLE_PRODUCER UOE at execution.
-            List<String> shuffleViable = CapabilityResolutionUtils.filterByShuffleProducerCapability(registry, viableBackends);
-            return new OpenSearchShuffleExchange(
-                rel.getCluster(),
-                rel.getTraitSet().replace(toTrait),
-                rel,
-                toTrait.getKeys(),
-                toTrait.getPartitionCount(),
-                shuffleViable
-            );
+            return buildShuffleExchange(rel, toTrait);
         } else if (toTrait.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
             // Broadcast demand: the build side gets replicated to every probe node. The split
             // rule resolved probeNodeEstimate (cluster setting → cluster's data-node count)
@@ -289,6 +265,71 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             // RANGE is still not implemented; never produced by analytics-engine rules today.
             throw new UnsupportedOperationException("RANGE exchange not yet implemented [toTrait=" + toTrait + "]");
         }
+    }
+
+    /**
+     * Builds an {@link OpenSearchExchangeReducer} that gathers {@code rel} to {@code COORDINATOR+SINGLETON} —
+     * UNCONDITIONALLY (no {@code satisfies()} short-circuit). The distribution enforcement pass (Option B)
+     * calls this directly: a content node returned by its bottom-up visit still carries CBO's stale
+     * COORDINATOR+SINGLETON trait on its {@code traitSet} (the pass tracks the REAL distribution separately,
+     * in its own {@code Visited} record), so the satisfies-gated {@link #buildEnforcer} would wrongly treat
+     * an already-{@code coordSingleton}-tagged-but-actually-HASH rel as "already gathered" and insert no ER.
+     * The pass therefore decides "gather needed" from its tracked distribution and calls this to force the
+     * reducer. {@link #buildEnforcer} keeps the satisfies-gated behavior for the bottom-up convert path,
+     * where the trait IS reliable.
+     */
+    public OpenSearchExchangeReducer buildReducer(RelNode rel) {
+        List<String> viableBackends = resolveViableBackendsFromRel(rel);
+        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
+            plannerContext.getCapabilityRegistry(),
+            viableBackends
+        );
+        // ER output always lives at the coordinator.
+        return new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(coordSingleton()), rel, reduceViable);
+    }
+
+    /**
+     * Builds an {@link OpenSearchShuffleExchange} that hash-partitions {@code rel} per {@code toTrait}'s
+     * keys + partition count — UNCONDITIONALLY (no {@code satisfies()} short-circuit). The distribution
+     * enforcement pass (Option B) calls this directly at a join tier boundary: the binary shuffle transport
+     * needs every distributed join input to be its OWN producer stage, so even an input already HASH on the
+     * required keys (e.g. a lower join CBO already shuffled) gets a same-key inter-tier shuffle rather than
+     * being reused in place (which would collapse N joins into one fragment with N shuffle leaves — the
+     * binary transport cannot run that). {@link #buildEnforcer} keeps the satisfies-gated behavior for the
+     * bottom-up convert path; this is the explicit "force a shuffle here" primitive.
+     *
+     * @throws IllegalStateException if {@code toTrait} carries no concrete partition count (downstream
+     *     ShuffleScan handlers index per-partition buffers and need a resolved count)
+     */
+    public OpenSearchShuffleExchange buildShuffleExchange(RelNode rel, OpenSearchDistribution toTrait) {
+        // The split rule / pass that issued the demand resolved the concrete partition count (cluster
+        // setting → engine default) and embedded it in toTrait. A null demand is rejected — the caller
+        // must resolve a concrete count, otherwise the exchange is incoherent with downstream ShuffleScan
+        // handlers that index per-partition buffers.
+        if (toTrait.getPartitionCount() == null) {
+            throw new IllegalStateException(
+                "HASH_DISTRIBUTED demand has null partitionCount; caller must resolve count "
+                    + "via OpenSearchDistributionTraitDef.hash(keys, partitionCount). toTrait="
+                    + toTrait
+            );
+        }
+        // A shuffle producer must serialize + ship hash partitions, which only a backend that declares
+        // DataTransferCapability(PRODUCER) can do. Prune scan-only backends (e.g. Lucene, kept viable for a
+        // keyword scan under prefer_metadata_driver) so the producer never lands on a driver that throws
+        // SHUFFLE_PRODUCER UOE at execution.
+        List<String> viableBackends = resolveViableBackendsFromRel(rel);
+        List<String> shuffleViable = CapabilityResolutionUtils.filterByShuffleProducerCapability(
+            plannerContext.getCapabilityRegistry(),
+            viableBackends
+        );
+        return new OpenSearchShuffleExchange(
+            rel.getCluster(),
+            rel.getTraitSet().replace(toTrait),
+            rel,
+            toTrait.getKeys(),
+            toTrait.getPartitionCount(),
+            shuffleViable
+        );
     }
 
     @Override

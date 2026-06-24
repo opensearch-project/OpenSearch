@@ -175,6 +175,28 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Size floor for the general post-CBO scheduler ({@link #MPP_CBO_NATIVE_CASCADE}): a join/aggregate is
+     * distributed onto a worker tier only when its larger scan subtree exceeds this many rows (or a deeper
+     * operator already distributed — the cascade continues upward regardless). Below the floor the operator
+     * stays coordinator-centric, matching CBO's cheap choice for small joins — distribution adds shuffle
+     * overhead that only pays off at scale.
+     *
+     * <p>Default {@code 1_000_000}: well below any TPC-H fact table that needs distributing (partsupp 8M,
+     * lineitem 60M) and well above trivial joins that gather cheaply. Replaces the formerly-hardcoded
+     * {@code MIN_AGG_OVER_JOIN_BOTTOM_ROWS} constant in {@code DefaultPlanExecutor}; exposed as a setting so
+     * the floor is tunable per workload AND so integration tests on small datasets can lower it to exercise
+     * the distributed path (the JVM tests use {@code minRows=1}; the cluster ITs set this to a small value).
+     * Only consulted when {@link #MPP_CBO_NATIVE_CASCADE} is {@code true}.
+     */
+    public static final Setting<Long> MPP_CBO_NATIVE_CASCADE_MIN_ROWS = Setting.longSetting(
+        "analytics.mpp.cbo_native_cascade.min_distributed_rows",
+        1_000_000L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-strategy sub-toggle for <em>distributed aggregation over a cascade join</em> (the q5/q10
      * shape: {@code Sort? → stats … by … → dimension-joins → bottom hash-shuffle join}). When
      * {@code true} (default, under {@link #MPP_ENABLED} + {@link #MPP_SHUFFLE_CASCADE_ENABLED}), a
@@ -296,6 +318,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_SHUFFLE_CASCADE_ENABLED,
         MPP_CBO_NATIVE_CASCADE,
+        MPP_CBO_NATIVE_CASCADE_MIN_ROWS,
         MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,

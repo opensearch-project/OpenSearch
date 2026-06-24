@@ -8,20 +8,24 @@
 
 package org.opensearch.analytics.planner;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalJoin;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexWindowBounds;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter;
 import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
 import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
+import org.opensearch.analytics.exec.join.GeneralShuffleDAGRewriter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
@@ -29,7 +33,9 @@ import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.planner.dag.WorkerTargetResolver;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.ClusterState;
@@ -139,9 +145,16 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     /**
      * Option B (general enforcement pass): the SAME 3-way shared-key join, scheduled by
      * {@link DistributionEnforcementPass} instead of {@code CascadeShufflePlanRewriter}. The pass must
-     * produce the same cascade — both join levels over shuffle inputs, the bottom join's hash output
-     * reused by the top join (so 2 shuffle-join levels, NOT 4 shuffles + a gather between). This is the
-     * emergent-cascade proof at the RelNode level (DAG/dispatch validated separately).
+     * produce a cascade of BINARY worker tiers — BOTH joins over two ShuffleExchange inputs.
+     *
+     * <p><b>Binary-tier lowering.</b> A join is a worker-tier boundary: the hash-shuffle transport
+     * delivers exactly two named inputs per worker (left/right buffer slices). So even though the bottom
+     * join's output already satisfies the top join's hash requirement (shared key), the pass inserts a
+     * SAME-KEY inter-tier shuffle on the top join's left input — the bottom join becomes its own binary
+     * producer stage, exactly as the legacy cascade does (intermediate worker → shuffle → parent worker).
+     * The top join thus sits over TWO shuffles (re-shuffled bottom-join output + shuffled c), and under its
+     * left shuffle sits the bottom join (itself over two scan shuffles). Eliminating the same-key inter-tier
+     * shuffle for genuinely co-partitioned tiers is a future N-ary-transport optimization.
      */
     public void testEnforcementPass_threeWayJoinFormsCascade() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
@@ -156,32 +169,21 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             /* minRows */ 1L
         );
 
-        // Both joins must end up over two ShuffleExchange inputs (the cascade). For a shared-key 3-way
-        // join the bottom join's hash output is reused by the top join — so the top join's left input is
-        // NOT re-shuffled (it's the bottom join, already HASH on the key); only c is shuffled at the top.
+        // Binary-tier lowering: BOTH joins sit over two ShuffleExchange inputs (no N-ary collapse).
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins in the 3-way plan", 2, joins.size());
-        int joinsOverTwoShuffles = 0;
-        int joinsWithReusedHashLeft = 0;
         for (OpenSearchJoin join : joins) {
-            RelNode left = unwrap(join.getInput(0));
-            RelNode right = unwrap(join.getInput(1));
-            boolean leftShuffle = left instanceof OpenSearchShuffleExchange;
-            boolean rightShuffle = right instanceof OpenSearchShuffleExchange;
-            if (leftShuffle && rightShuffle) {
-                joinsOverTwoShuffles++;
-            }
-            // The top join reuses the bottom join's hash output on its left → left is a Join, not a shuffle.
-            if (!leftShuffle && left instanceof OpenSearchJoin && rightShuffle) {
-                joinsWithReusedHashLeft++;
-            }
+            assertTrue(
+                "each join level must sit over two shuffle inputs (binary tier)",
+                unwrap(join.getInput(0)) instanceof OpenSearchShuffleExchange
+                    && unwrap(join.getInput(1)) instanceof OpenSearchShuffleExchange
+            );
         }
-        assertEquals("bottom join shuffles BOTH its scan inputs", 1, joinsOverTwoShuffles);
-        assertEquals(
-            "top join reuses the bottom join's hash output (no re-shuffle on its left), shuffles only c",
-            1,
-            joinsWithReusedHashLeft
-        );
+        // The top join's left shuffle re-partitions the bottom join's output (same-key inter-tier shuffle);
+        // under it sits the bottom join over its two scan shuffles.
+        OpenSearchJoin top = joins.stream().filter(j -> findAll(j, OpenSearchJoin.class).size() == 2).findFirst().orElseThrow();
+        RelNode underTopLeftShuffle = unwrap(((OpenSearchShuffleExchange) unwrap(top.getInput(0))).getInput());
+        assertTrue("the bottom join sits under the top join's left inter-tier shuffle", underTopLeftShuffle instanceof OpenSearchJoin);
     }
 
     /**
@@ -212,16 +214,16 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         assertEquals("exactly one PARTIAL aggregate (pushed below the gather)", 1, partials);
         assertEquals("exactly one FINAL aggregate (on the coordinator)", 1, finals);
 
-        // The cascade still forms below the PARTIAL: 2 joins, the bottom over two shuffles.
+        // The cascade still forms below the PARTIAL: 2 joins, each a binary tier (over two shuffles).
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins in the 3-way cascade", 2, joins.size());
-        long bottomShuffleJoins = joins.stream()
+        long binaryTierJoins = joins.stream()
             .filter(
                 j -> unwrap(j.getInput(0)) instanceof OpenSearchShuffleExchange
                     && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
             )
             .count();
-        assertEquals("bottom join shuffles both scan inputs", 1, bottomShuffleJoins);
+        assertEquals("both join levels are binary tiers (each over two shuffles)", 2, binaryTierJoins);
     }
 
     /**
@@ -311,6 +313,438 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         assertTrue("no shuffle for a join below the row floor", findAll(enforced, OpenSearchShuffleExchange.class).isEmpty());
     }
 
+    // ── GeneralShuffleDAGRewriter (B2): in-place worker promotion of the enforced DAG ──────────────
+
+    /**
+     * B2: the enforced 3-way join DAG, promoted by {@link GeneralShuffleDAGRewriter}. Binary-tier lowering
+     * made BOTH joins their own join-over-two-shuffles stage, so the rewriter promotes TWO worker tiers in
+     * place (each {@code SHUFFLE_WORKER} + {@code WORKER_FRAGMENT}). The deepest worker consumes two leaf
+     * scan shuffles; the top worker consumes the deepest worker (as a producer) + a leaf scan shuffle.
+     */
+    public void testGeneralShuffle_threeWayJoinPromotesTwoWorkerTiers() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeThreeWayJoin(context), context);
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("two binary join tiers → two worker tiers", 2, levels.size());
+        for (CascadeShuffleDAGRewriter.WorkerLevel level : levels) {
+            assertEquals(
+                "promoted join tier must be a WORKER_FRAGMENT",
+                StageExecutionType.WORKER_FRAGMENT,
+                level.worker().getExecutionType()
+            );
+            assertTrue("worker resolver is WorkerTargetResolver", level.worker().getTargetResolver() instanceof WorkerTargetResolver);
+            assertEquals("worker role SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, level.worker().getRole());
+        }
+        // Deepest worker (level 0) consumes two leaf shard scans; top worker (level 1) consumes the deepest
+        // worker (its producer) + a leaf scan.
+        CascadeShuffleDAGRewriter.WorkerLevel deepest = levels.get(0);
+        CascadeShuffleDAGRewriter.WorkerLevel top = levels.get(1);
+        assertEquals(
+            "deepest worker left producer is a shard fragment",
+            StageExecutionType.SHARD_FRAGMENT,
+            deepest.leftProducer().getExecutionType()
+        );
+        boolean topConsumesDeepest = top.leftProducer().getStageId() == deepest.worker().getStageId()
+            || top.rightProducer().getStageId() == deepest.worker().getStageId();
+        assertTrue("top worker consumes the deepest worker as one of its producers", topConsumesDeepest);
+        // The root stays a coordinator reduce gathering the top worker's SINGLETON output.
+        Stage newRoot = structure.dag().rootStage();
+        assertEquals(StageExecutionType.COORDINATOR_REDUCE, newRoot.getExecutionType());
+    }
+
+    /**
+     * B2: the enforced agg-over-3-way DAG. The pass pre-split the aggregate into
+     * {@code FINAL(ER(PARTIAL(...)))}; DAGBuilder cut the ER, so the PARTIAL sits in the SAME stage as the
+     * top join. {@link GeneralShuffleDAGRewriter} promotes that stage to a worker IN PLACE — so the PARTIAL
+     * aggregate rides on the top worker (runs per-partition), and the FINAL stays on the coordinator. Asserts
+     * two worker tiers, the PARTIAL on the top worker's fragment, the FINAL on the coordinator root.
+     */
+    public void testGeneralShuffle_aggOverJoinKeepsPartialOnWorker() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeAggregateOverThreeWayJoin(context), context);
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("two binary join tiers → two worker tiers", 2, levels.size());
+
+        // The top worker fragment carries the PARTIAL aggregate above its join.
+        CascadeShuffleDAGRewriter.WorkerLevel top = levels.get(levels.size() - 1);
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> workerAggs = findAll(
+            top.worker().getFragment(),
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        assertEquals("top worker fragment carries exactly the PARTIAL aggregate", 1, workerAggs.size());
+        assertEquals(
+            "the worker aggregate is the PARTIAL",
+            org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL,
+            workerAggs.get(0).getMode()
+        );
+
+        // The coordinator root carries the FINAL aggregate (and gathers the top worker).
+        Stage newRoot = structure.dag().rootStage();
+        assertEquals(StageExecutionType.COORDINATOR_REDUCE, newRoot.getExecutionType());
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> rootAggs = findAll(
+            newRoot.getFragment(),
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        assertEquals("coordinator root carries exactly the FINAL aggregate", 1, rootAggs.size());
+        assertEquals(
+            "the root aggregate is the FINAL",
+            org.opensearch.analytics.planner.rel.AggregateMode.FINAL,
+            rootAggs.get(0).getMode()
+        );
+    }
+
+    /**
+     * B2 coverage the legacy cascade CANNOT do: a BUSHY (non-left-deep) tree {@code (A⋈B) ⋈ (C⋈D)} on a
+     * shared key. The legacy {@code deepestInnerEquiJoin} walk assumes a left-deep chain (one bottom join,
+     * one probe per level) and bails on a bushy tree; the general pass is a plain bottom-up visitor, so it
+     * distributes BOTH sub-joins and the top join with no special code → THREE binary worker tiers, the top
+     * worker consuming the two sub-join workers as its producers.
+     */
+    public void testGeneralShuffle_bushyTreePromotesThreeWorkerTiers() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE, "d_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeBushyFourWayJoin(context), context);
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("bushy (A⋈B)⋈(C⋈D) → three binary worker tiers", 3, levels.size());
+        for (CascadeShuffleDAGRewriter.WorkerLevel level : levels) {
+            assertEquals("each tier is a WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, level.worker().getExecutionType());
+            assertEquals("each tier role SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, level.worker().getRole());
+        }
+        // The top tier (level 2, last bottom-up) consumes the two sub-join workers (levels 0 and 1) as BOTH
+        // its producers — the bushy signature (vs the left-deep cascade, where only the left producer is an
+        // intermediate worker).
+        CascadeShuffleDAGRewriter.WorkerLevel top = levels.get(2);
+        int l0 = levels.get(0).worker().getStageId();
+        int l1 = levels.get(1).worker().getStageId();
+        java.util.Set<Integer> topProducers = java.util.Set.of(top.leftProducer().getStageId(), top.rightProducer().getStageId());
+        assertEquals("top tier's two producers are the two sub-join workers", java.util.Set.of(l0, l1), topProducers);
+        Stage newRoot = structure.dag().rootStage();
+        assertEquals("root stays coordinator reduce", StageExecutionType.COORDINATOR_REDUCE, newRoot.getExecutionType());
+    }
+
+    /**
+     * B2 regression (the q3 intermediate-Project worker-timeout, found at sf-scale on the cluster): a 3-way
+     * join with an explicit row-wise Project BETWEEN the two join levels — the real PPL plan shape, where
+     * each join's output is renamed by a Project. The intermediate Project must RIDE on the bottom join's
+     * worker (propagate its HASH partitioning), NOT gather it to the coordinator — gathering would cut the
+     * bottom join into a separate reduce-fed stage that never ships its shuffle, so the top worker times out
+     * on its missing input. Asserts TWO worker tiers (not a gather between them) and the intermediate Project
+     * sits inside the bottom worker's fragment.
+     */
+    public void testGeneralShuffle_intermediateProjectRidesOnWorker() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeThreeWayJoinWithMidProject(context), context);
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = structure.buildLevels();
+        // TWO worker tiers — NOT three (a spurious gather stage from the mid-Project would break promotion).
+        assertEquals("intermediate Project must not insert a gather tier → still two worker tiers", 2, levels.size());
+        for (CascadeShuffleDAGRewriter.WorkerLevel level : levels) {
+            assertEquals("each tier is a WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, level.worker().getExecutionType());
+        }
+        // The bottom worker (level 0) must consume two leaf shard scans directly — proving the mid-Project
+        // did NOT cut a gather stage between the bottom join and its scans.
+        CascadeShuffleDAGRewriter.WorkerLevel deepest = levels.get(0);
+        assertEquals(
+            "bottom worker left producer is a shard fragment (no gather inserted by the mid-Project)",
+            StageExecutionType.SHARD_FRAGMENT,
+            deepest.leftProducer().getExecutionType()
+        );
+        // The top worker consumes the bottom worker as one of its two producers (the inter-tier shuffle), not
+        // a coordinator-reduce stage.
+        CascadeShuffleDAGRewriter.WorkerLevel top = levels.get(1);
+        boolean topConsumesDeepest = top.leftProducer().getStageId() == deepest.worker().getStageId()
+            || top.rightProducer().getStageId() == deepest.worker().getStageId();
+        assertTrue("top worker consumes the bottom worker directly (no gather between tiers)", topConsumesDeepest);
+        for (CascadeShuffleDAGRewriter.WorkerLevel level : levels) {
+            assertTrue(
+                "no worker producer may be a COORDINATOR_REDUCE (that would never ship a shuffle → timeout)",
+                level.leftProducer().getExecutionType() != StageExecutionType.COORDINATOR_REDUCE
+                    && level.rightProducer().getExecutionType() != StageExecutionType.COORDINATOR_REDUCE
+            );
+        }
+    }
+
+    /** Builds {@code Project(Join(Project(Join(a,b)), c))} — a 3-way join with an explicit row-wise Project
+     *  between the two join levels (the real PPL plan shape; each join's output is renamed). Shared key col0. */
+    private RelNode makeThreeWayJoinWithMidProject(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+        // Row-wise identity Project over the bottom join (preserves col0 at position 0 so the top join keys
+        // on it). This is the transparent op that must ride on the bottom worker.
+        int abCols = ab.getRowType().getFieldCount();
+        List<RexNode> midProjects = new java.util.ArrayList<>();
+        for (int i = 0; i < abCols; i++) {
+            midProjects.add(rexBuilder.makeInputRef(ab, i));
+        }
+        RelNode midProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            ab,
+            List.of(),
+            midProjects,
+            ab.getRowType().getFieldNames()
+        );
+
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        return LogicalJoin.create(midProject, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+    }
+
+    /** Builds the BUSHY tree {@code (A⋈B on col0) ⋈ (C⋈D on col0) on col0} — both sides contain a join, so
+     *  it is NOT left-deep. All joins share key col0 (status). */
+    private RelNode makeBushyFourWayJoin(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelNode dScan = stubScan(mockTable("d_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+
+        int aCols = aScan.getRowType().getFieldCount();
+        RexNode abCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode ab = LogicalJoin.create(aScan, bScan, List.of(), abCond, Set.of(), JoinRelType.INNER);
+
+        int cCols = cScan.getRowType().getFieldCount();
+        RexNode cdCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, cCols)
+        );
+        RelNode cd = LogicalJoin.create(cScan, dScan, List.of(), cdCond, Set.of(), JoinRelType.INNER);
+
+        int abCols = ab.getRowType().getFieldCount();
+        // Top join: ab.col0 = cd.col0 (cd's col0 is at offset abCols in the joined row).
+        RexNode topCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        return LogicalJoin.create(ab, cd, List.of(), topCond, Set.of(), JoinRelType.INNER);
+    }
+
+    /**
+     * Codex BLOCKER 2 regression: a decomposable aggregate grouped on a NON-join-key column over a
+     * multi-way join ({@code A⋈B⋈C on col0 | stats count() by col1}). The aggregate's group key (col1)
+     * differs from the join partitioning (col0). The pass must NOT insert a group-key re-shuffle (that
+     * would be a non-join shuffle edge GeneralShuffleDAGRewriter can't wire → hang) — instead the PARTIAL
+     * rides on the top-join worker partitioned by the JOIN key (Variant A: a decomposable PARTIAL is
+     * correct under any partitioning; the FINAL gathers + re-merges). Asserts: exactly one PARTIAL + one
+     * FINAL, the PARTIAL's input is the join directly (NO ShuffleExchange between the PARTIAL and the join),
+     * and two worker tiers still promote.
+     */
+    public void testGeneralShuffle_aggGroupedOnNonJoinKey_noReshuffle() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode logical = makeAggregateGroupedOnNonJoinKey(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        long partials = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL).count();
+        long finals = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.FINAL).count();
+        assertEquals("one PARTIAL aggregate", 1, partials);
+        assertEquals("one FINAL aggregate", 1, finals);
+        // The PARTIAL must sit DIRECTLY over the join (no group-key re-shuffle between them) — Variant A.
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggs.stream()
+            .filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL)
+            .findFirst()
+            .orElseThrow();
+        assertTrue(
+            "PARTIAL rides directly on the join worker — NO group-key ShuffleExchange between PARTIAL and join",
+            unwrap(partial.getInput(0)) instanceof OpenSearchJoin
+        );
+        // And the DAG still promotes two join worker tiers (the un-wireable agg-shuffle bug would have left
+        // the PARTIAL stage consuming an un-promoted shuffle).
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        GeneralShuffleDAGRewriter.Structure structure = GeneralShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+        assertEquals("two join worker tiers promoted", 2, structure.buildLevels().size());
+    }
+
+    /**
+     * Codex BLOCKER 1 regression: a window function ({@code RexOver}) over a distributed multi-way join.
+     * The window-bearing {@code OpenSearchProject} requires {@code COORDINATOR+SINGLETON} input (a global
+     * window frame can't run per-partition). Over a distributed join the pass MUST insert a gather (ER)
+     * before the window — the bug was that the SINGLETON requirement went through the satisfies()-gated
+     * buildEnforcer, which trusted the join's stale CBO coordSingleton trait and skipped the ER, leaving the
+     * window running per-partition (silently wrong). Asserts the window Project's input is an
+     * {@link OpenSearchExchangeReducer} (gathered), and the cascade still formed below it.
+     */
+    public void testEnforcementPass_windowOverJoinGathersBeforeWindow() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode logical = makeWindowOverThreeWayJoin(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+
+        // The window-bearing project must sit over a gather, not a partitioned join.
+        OpenSearchProject windowProject = findAll(enforced, OpenSearchProject.class).stream()
+            .filter(p -> !findAll(p, OpenSearchJoin.class).isEmpty()) // the project above the join
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no window project found"));
+        assertTrue(
+            "window project must gather (ER) its distributed-join input before running the global window frame",
+            unwrap(windowProject.getInput(0)) instanceof OpenSearchExchangeReducer
+        );
+        // The cascade still distributes BELOW the gather (the join itself is two binary tiers).
+        List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
+        assertEquals("two joins distributed below the window gather", 2, joins.size());
+        long binaryTiers = joins.stream()
+            .filter(
+                j -> unwrap(j.getInput(0)) instanceof OpenSearchShuffleExchange
+                    && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
+            )
+            .count();
+        assertEquals("both join levels are binary tiers below the gather", 2, binaryTiers);
+    }
+
+    /** Builds {@code Project(status, COUNT() OVER ())} over a 3-way INNER join — a global-window-frame
+     *  RexOver above the join, which requires fully-gathered (SINGLETON) input. */
+    private RelNode makeWindowOverThreeWayJoin(PlannerContext context) {
+        RelNode join = makeThreeWayJoin(context);
+        org.apache.calcite.rex.RexBuilder rb = join.getCluster().getRexBuilder();
+        RexNode countOver = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (org.apache.calcite.sql.SqlAggFunction) SqlStdOperatorTable.COUNT,
+            List.of(),
+            ImmutableList.of(),
+            ImmutableList.of(),
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.UNBOUNDED_FOLLOWING,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        return LogicalProject.create(join, List.of(), List.of(rb.makeInputRef(join, 0), countOver), List.of("status", "cnt"));
+    }
+
+    /**
+     * Codex re-review BLOCKER regression: a NON-decomposable SINGLE aggregate ({@code COUNT(DISTINCT col1)})
+     * over a distributed multi-way join. A non-decomposable aggregate is split-ineligible
+     * ({@code shouldSkipPartialFinalSplit} true for DISTINCT) so {@code requiredInputDistribution} is null —
+     * but it must NOT ride on the join worker per-partition (that would compute per-partition distinct
+     * counts with no FINAL merge → silently wrong). The pass must GATHER the join output and run the SINGLE
+     * aggregate coordinator-centric. Asserts: exactly one SINGLE aggregate (no PARTIAL/FINAL split), and its
+     * input is an {@link OpenSearchExchangeReducer} (gathered), not a partitioned join.
+     */
+    public void testEnforcementPass_nonDecomposableAggOverJoinGathers() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode logical = makeDistinctCountOverThreeWayJoin(context);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        assertEquals("non-decomposable agg stays a single SINGLE aggregate (no PARTIAL/FINAL split)", 1, aggs.size());
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate agg = aggs.get(0);
+        assertEquals("the aggregate is SINGLE (not split)", org.opensearch.analytics.planner.rel.AggregateMode.SINGLE, agg.getMode());
+        assertTrue(
+            "non-decomposable agg must GATHER its distributed-join input (ER), NOT ride per-partition on the worker",
+            unwrap(agg.getInput(0)) instanceof OpenSearchExchangeReducer
+        );
+    }
+
+    /** Builds {@code Aggregate(COLLECT(col1) by col0)} over a 3-way join — COLLECT is STATE_EXPANDING, so
+     *  {@code shouldSkipPartialFinalSplit} is true (genuinely non-decomposable: it can't merge per-partition
+     *  partials additively), so the pass must gather, not split/ride-per-partition. (Single-arg
+     *  COUNT(DISTINCT) is NOT a valid example — it's rewritten to the decomposable APPROX_COUNT_DISTINCT.) */
+    private RelNode makeDistinctCountOverThreeWayJoin(PlannerContext context) {
+        RelNode join = makeThreeWayJoin(context);
+        // Multi-arg COUNT(DISTINCT col1, col2): residual DISTINCT (the single-arg OpenSearchDistinctCountRule
+        // rewrite to decomposable APPROX_COUNT_DISTINCT does NOT apply to multi-arg), so
+        // shouldSkipPartialFinalSplit returns true (aggCall.isDistinct()) → non-decomposable → must gather.
+        // COUNT is a mock-backend-supported function (unlike COLLECT/LISTAGG), so the planner admits it.
+        AggregateCall distinctMultiArg = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            /* distinct */ true,
+            /* argList */ List.of(1, 2),
+            /* filterArg */ -1,
+            join,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(0), null, List.of(distinctMultiArg));
+    }
+
+    private RelNode makeAggregateGroupedOnNonJoinKey(PlannerContext context) {
+        RelNode join = makeThreeWayJoin(context); // joins on col0 (status)
+        // GROUP BY col1 (size) — a DIFFERENT column than the join key col0.
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            join,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(1), null, List.of(countCall));
+    }
+
+    /** Enforce + cut + fork/select + promote, returning the GeneralShuffleDAGRewriter structure. Mirrors the
+     *  cascade-probe pipeline (no convertAll — the mock backend has no fragment convertor). */
+    private GeneralShuffleDAGRewriter.Structure enforceAndPromote(RelNode logical, PlannerContext context) {
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L
+        );
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        assertTrue("enforced DAG has a distributed join to promote", GeneralShuffleDAGRewriter.hasDistributedJoin(dag));
+        return GeneralShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (levelIndex, partitionCount) -> nodeIds(partitionCount)
+        );
+    }
+
     /** Like makeThreeWayJoin but the TOP join uses the given type (INNER/LEFT/…). */
     private RelNode makeThreeWayJoinTopType(PlannerContext context, JoinRelType topType) {
         RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
@@ -354,6 +788,46 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             rexBuilder.makeInputRef(intType, abCols + 1)
         );
         return LogicalJoin.create(ab, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+    }
+
+    /**
+     * Codex round-3 BLOCKER (a SELF-JOIN must produce TWO distinct producer stages, not one shared id that
+     * enrichLevels would enrich as both left and right → only one sink → hang). Verifies the binary shuffle
+     * transport is safe for {@code a ⋈ a on k}: DAGBuilder cuts each shuffle input into its OWN stage (one
+     * id per shuffle-input cut), so the two producers have distinct ids even when both scan the same table.
+     */
+    public void testGeneralShuffle_selfJoinHasDistinctProducerStages() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+        RelNode l = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode r = stubScan(mockTable("a_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, l.getRowType().getFieldCount())
+        );
+        RelNode logical = LogicalJoin.create(l, r, List.of(), cond, Set.of(), JoinRelType.INNER);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+
+        assertTrue("self-join over two large scans distributes", GeneralShuffleDAGRewriter.hasDistributedJoin(dag));
+        GeneralShuffleDAGRewriter.Structure s = GeneralShuffleDAGRewriter.rewriteStructure(
+            dag,
+            context.getCapabilityRegistry(),
+            (lvl, pc) -> nodeIds(pc)
+        );
+        List<CascadeShuffleDAGRewriter.WorkerLevel> levels = s.buildLevels();
+        assertEquals("one worker tier for the self-join", 1, levels.size());
+        CascadeShuffleDAGRewriter.WorkerLevel wl = levels.get(0);
+        assertTrue(
+            "self-join's two shuffle producers MUST be distinct stages (else one sink serves both sides → hang)",
+            wl.leftProducer().getStageId() != wl.rightProducer().getStageId()
+        );
     }
 
     private <T> List<T> findAll(RelNode root, Class<T> type) {
