@@ -11,7 +11,6 @@ package org.opensearch.analytics.planner;
 import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
@@ -119,7 +118,7 @@ public class PlannerImpl {
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
     public static RelNode runAllOptimizations(RelNode rawRelNode, PlannerContext context) {
-        logPlan("Input RelNode", rawRelNode);
+        RelNodeUtils.logPlan(LOGGER, "Input RelNode", rawRelNode);
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
@@ -131,7 +130,7 @@ public class PlannerImpl {
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        logPlan("After marking", modifiedRelNode);
+        RelNodeUtils.logPlan(LOGGER, "After marking", modifiedRelNode);
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
@@ -143,21 +142,21 @@ public class PlannerImpl {
         // Revisit once those are designed. The rule would also strip performance peers from
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
-        logPlan("After CBO", modifiedRelNode);
+        RelNodeUtils.logPlan(LOGGER, "After CBO", modifiedRelNode);
         Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
-            logPlan("After late-materialization", modifiedRelNode);
+            RelNodeUtils.logPlan(LOGGER, "After late-materialization", modifiedRelNode);
         }
         Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
         if (topK.isPresent()) {
             modifiedRelNode = topK.get();
-            logPlan("After TopK rewrite", modifiedRelNode);
+            RelNodeUtils.logPlan(LOGGER, "After TopK rewrite", modifiedRelNode);
         }
         Optional<RelNode> sortPushdown = OpenSearchSortPushdownRewriter.rewrite(modifiedRelNode);
         if (sortPushdown.isPresent()) {
             modifiedRelNode = sortPushdown.get();
-            logPlan("After sort pushdown", modifiedRelNode);
+            RelNodeUtils.logPlan(LOGGER, "After sort pushdown", modifiedRelNode);
         }
 
         if (listener != null) {
@@ -375,18 +374,9 @@ public class PlannerImpl {
     }
 
     /**
-     * Slims the all-{@code Logical} tree (pre-marking) to only the columns each consumer needs via
-     * Calcite's {@link RelFieldTrimmer}, narrowing the scan so DataFusion prunes the parquet read.
-     * Package-private for {@code RelFieldTrimmerTests} (the SQL frontend already emits minimal
-     * projections, so the trimmer is only exercised in isolation on a deliberately-wide tree).
+     * Invokes Calcite's {@link RelFieldTrimmer} to slim each node to only the columns its consumer
+     * needs, inserting a narrowing Project above the scan so DataFusion prunes the parquet read.
      */
-    /** Debug-dumps a labelled plan, guarding the expensive {@link RelOptUtil#toString} behind the level check. */
-    private static void logPlan(String label, RelNode plan) {
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("{}:\n{}", label, RelOptUtil.toString(plan));
-        }
-    }
-
     static RelNode trimFields(RelNode input) {
         RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
         // Trimming is a pure optimization; the untrimmed tree is always a correct fallback. The
