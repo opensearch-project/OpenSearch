@@ -121,7 +121,7 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
             qc.target_partitions = 1;
             qc.force_strategy = Some(FilterStrategy::BooleanMask);
-            qc.force_pushdown = Some(false);
+            qc.indexed_pushdown_filters = false;
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
