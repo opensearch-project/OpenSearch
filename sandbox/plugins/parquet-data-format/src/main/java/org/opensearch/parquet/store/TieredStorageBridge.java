@@ -150,7 +150,9 @@ public final class TieredStorageBridge {
         registerFiles(storePtr, java.util.Map.of(file, path != null ? path : ""), location, size);
     }
 
-    /** Remove a file from the registry. */
+    /**
+     * Remove a file from the registry.
+     */
     public static void removeFile(long storePtr, String path) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment seg = arena.allocateFrom(path);

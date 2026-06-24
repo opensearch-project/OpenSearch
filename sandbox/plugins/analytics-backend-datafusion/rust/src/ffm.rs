@@ -876,6 +876,78 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
     Ok(0)
 }
 
+/// Warmup: load footer (lightweight) into heap and promote footer + page/offset
+/// index bytes to the metadata Foyer tier (never-evict) through the store.
+///
+/// After this call:
+/// - file_metadata_cache (heap): lightweight ParquetMetaData (footer only, no page indexes)
+/// - data Foyer: raw footer + page index bytes (via get_ranges populate)
+/// - metadata Foyer: the same ranges promoted via `MetadataCachingStore::put_metadata`
+///
+/// Promotion happens entirely in Rust inside `CustomCacheManager::add_files_with_store`;
+/// the Java caller only supplies the file paths.
+///
+/// # Safety
+/// - `runtime_ptr` must be a valid pointer from `df_create_global_runtime`.
+/// - `store_ptr` must be a valid `Box<Arc<dyn MetadataCachingStore>>` pointer (produced by
+///   `ts_get_object_store_box_ptr`).
+/// - `files_ptr[i]` must point to `files_len_ptr[i]` valid UTF-8 bytes.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_add_files_with_store(
+    runtime_ptr: i64,
+    store_ptr: i64,
+    files_ptr: *const *const u8,
+    files_len_ptr: *const i64,
+    files_count: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_add_files_with_store: null runtime pointer".to_string());
+    }
+    if store_ptr == 0 {
+        return Err("df_cache_manager_add_files_with_store: null store pointer".to_string());
+    }
+
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
+        .ok_or_else(|| "df_cache_manager_add_files_with_store: no cache manager".to_string())?;
+
+    // Pointer type is `Arc<dyn MetadataCachingStore>`; the manager calls `put_metadata`
+    // directly via the trait, no downcast needed.
+    let store_box = &*(store_ptr
+        as *const std::sync::Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>);
+    let store = std::sync::Arc::clone(store_box);
+
+    let mut file_paths = Vec::with_capacity(files_count as usize);
+    for i in 0..files_count as usize {
+        let ptr = *files_ptr.add(i);
+        let len = *files_len_ptr.add(i);
+        file_paths.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?
+                .to_string(),
+        );
+    }
+
+    let rt_manager = get_rt_manager()
+        .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?;
+    let rt_handle = rt_manager.io_runtime.handle();
+
+    let results = manager.add_files_with_store(&file_paths, store, rt_handle)
+        .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?;
+
+    // Log summary
+    let success_count = results.iter().filter(|(_, ok)| *ok).count();
+    native_bridge_common::log_info!(
+        "df_cache_manager_add_files_with_store: {} files, {} warmed (page-index promoted to metadata Foyer)",
+        files_count, success_count
+    );
+
+    Ok(0)
+}
+
 // ---------------------------------------------------------------------------
 // SessionContext decomposition — instruction-based execution
 // ---------------------------------------------------------------------------
