@@ -500,8 +500,8 @@ impl CustomCacheManager {
     }
 
     /// Warmup: load footer (lightweight) into heap, fetch page/offset index bytes
-    /// through the store (for Foyer caching), and return the index byte ranges
-    /// so the caller can promote them to metadata Foyer via `ts_put_metadata`.
+    /// through the store (for Foyer caching), and promote those ranges to the
+    /// metadata Foyer tier via `MetadataCachingStore::put_metadata`.
     ///
     /// Key design:
     /// - Footer (schema + RG stats) → heap file_metadata_cache (parsed `ParquetMetaData`, fast path)

@@ -876,26 +876,16 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
     Ok(0)
 }
 
-/// Warmup: load footer (lightweight) into heap + fetch page/offset index bytes
-/// through the TieredObjectStore for Foyer caching.
+/// Warmup: load footer (lightweight) into heap and promote footer + page/offset
+/// index bytes to the metadata Foyer tier (never-evict) through the store.
 ///
 /// After this call:
 /// - file_metadata_cache (heap): lightweight ParquetMetaData (footer only, no page indexes)
 /// - data Foyer: raw footer + page index bytes (via get_ranges populate)
+/// - metadata Foyer: the same ranges promoted via `MetadataCachingStore::put_metadata`
 ///
-/// The caller (Java) must then call `ts_put_metadata` with the same ranges to
-/// promote the bytes from data Foyer to metadata Foyer (never-evict tier).
-/// The ranges are returned in the output buffer.
-///
-/// # Output buffer
-/// `out_ranges_ptr` must point to a writable buffer of at least `files_count * MAX_RANGES * 2`
-/// i64 values. Each file's metadata ranges are written as (start, end) pairs.
-/// `out_ranges_count_ptr[i]` receives the number of ranges for file i.
-///
-/// For simplicity in this initial implementation, the function only populates caches
-/// and returns 0 on success. The Java side should call `ts_put_metadata` with the
-/// footer + page index ranges computed from the CatalogSnapshot (which already knows
-/// file sizes and can derive footer ranges).
+/// Promotion happens entirely in Rust inside `CustomCacheManager::add_files_with_store`;
+/// the Java caller only supplies the file paths.
 ///
 /// # Safety
 /// - `runtime_ptr` must be a valid pointer from `df_create_global_runtime`.

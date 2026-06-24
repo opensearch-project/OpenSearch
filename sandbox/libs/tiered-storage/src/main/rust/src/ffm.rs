@@ -248,63 +248,6 @@ pub extern "C" fn ts_remove_file(
     Ok(0)
 }
 
-/// Store metadata byte ranges into the metadata cache (never-evict tier).
-///
-/// Called by Java warmup after reading metadata bytes from any source (S3, local FS).
-/// The bytes are stored directly into the metadata_cache, bypassing data_cache.
-/// Subsequent reads via get_opts/get_ranges will find them on the first probe.
-///
-/// # Parameters
-/// - `store_ptr`: TieredObjectStore pointer.
-/// - `path_ptr`/`path_len`: UTF-8 file path.
-/// - `ranges_ptr`/`ranges_count`: array of `(start: i64, end: i64)` pairs.
-/// - `data_ptrs`/`data_lens`: arrays of byte buffers (one per range).
-///
-/// # Safety
-/// - `path_ptr` must point to `path_len` valid UTF-8 bytes.
-/// - `ranges_ptr` must point to `ranges_count * 2` consecutive i64 values.
-/// - `data_ptrs[i]` must point to `data_lens[i]` valid bytes for each range.
-#[ffm_safe]
-#[no_mangle]
-pub unsafe extern "C" fn ts_put_metadata(
-    store_ptr: i64,
-    path_ptr: *const u8,
-    path_len: i64,
-    ranges_ptr: *const i64,
-    ranges_count: i32,
-    data_ptrs: *const *const u8,
-    data_lens: *const i64,
-) -> i64 {
-    let store = arc_from_ptr(store_ptr)?;
-    let path = str_from_raw(path_ptr, path_len)
-        .map_err(|e| format!("ts_put_metadata path: {}", e))?;
-    let path = path.strip_prefix('/').unwrap_or(path);
-
-    if ranges_ptr.is_null() || ranges_count <= 0 {
-        return Ok(0);
-    }
-
-    let mut ranges = Vec::with_capacity(ranges_count as usize);
-    let mut data = Vec::with_capacity(ranges_count as usize);
-    for i in 0..(ranges_count as usize) {
-        let start = *ranges_ptr.add(i * 2) as u64;
-        let end = *ranges_ptr.add(i * 2 + 1) as u64;
-        ranges.push(start..end);
-
-        let ptr = *data_ptrs.add(i);
-        let len = *data_lens.add(i) as usize;
-        let bytes = bytes::Bytes::copy_from_slice(std::slice::from_raw_parts(ptr, len));
-        data.push(bytes);
-    }
-
-    store.put_metadata(path, &ranges, &data);
-
-    native_bridge_common::log_debug!(
-        "ffm: ts_put_metadata path='{}' ranges={}", path, ranges_count
-    );
-    Ok(0)
-}
-
 // TODO (writable warm): add ts_get_file_location when LOCAL routing is needed.
 // TODO (writable warm): add ts_add_remote_store_ptr for late-binding remote store.
 

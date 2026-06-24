@@ -36,7 +36,6 @@ public final class TieredStorageBridge {
     private static final MethodHandle REMOVE_FILE;
     private static final MethodHandle GET_OBJECT_STORE_BOX_PTR;
     private static final MethodHandle DESTROY_OBJECT_STORE_BOX_PTR;
-    private static final MethodHandle PUT_METADATA;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -79,21 +78,6 @@ public final class TieredStorageBridge {
         DESTROY_OBJECT_STORE_BOX_PTR = lib.find("ts_destroy_object_store_box_ptr")
             .map(sym -> linker.downcallHandle(sym, FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)))
             .orElse(null);
-
-        // i64 ts_put_metadata(i64 store_ptr, *u8 path_ptr, i64 path_len, *i64 ranges_ptr, i32 ranges_count, **u8 data_ptrs, *i64 data_lens)
-        PUT_METADATA = linker.downcallHandle(
-            lib.find("ts_put_metadata").orElseThrow(),
-            FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,   // return
-                ValueLayout.JAVA_LONG,   // store_ptr
-                ValueLayout.ADDRESS,     // path_ptr
-                ValueLayout.JAVA_LONG,   // path_len
-                ValueLayout.ADDRESS,     // ranges_ptr (i64 pairs)
-                ValueLayout.JAVA_INT,    // ranges_count
-                ValueLayout.ADDRESS,     // data_ptrs
-                ValueLayout.ADDRESS      // data_lens
-            )
-        );
 
     }
 
@@ -167,40 +151,8 @@ public final class TieredStorageBridge {
     }
 
     /**
-     * Store metadata byte ranges directly into the metadata Foyer cache (never-evict tier).
-     * Called by warmup after fetching metadata bytes.
-     *
-     * @param storePtr   Arc&lt;TieredObjectStore&gt; pointer
-     * @param path       file path (e.g., "seg0/_0.parquet")
-     * @param ranges     array of (start, end) pairs: [start0, end0, start1, end1, ...]
-     * @param dataArrays array of byte arrays, one per range
+     * Remove a file from the registry.
      */
-    public static void putMetadata(long storePtr, String path, long[] ranges, byte[][] dataArrays) {
-        int rangesCount = ranges.length / 2;
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment pathSeg = arena.allocateFrom(path);
-            MemorySegment rangesSeg = arena.allocate(ValueLayout.JAVA_LONG, ranges.length);
-            for (int i = 0; i < ranges.length; i++) {
-                rangesSeg.setAtIndex(ValueLayout.JAVA_LONG, i, ranges[i]);
-            }
-            // Allocate pointer array and length array for data buffers
-            MemorySegment dataPtrsSeg = arena.allocate(ValueLayout.ADDRESS, rangesCount);
-            MemorySegment dataLensSeg = arena.allocate(ValueLayout.JAVA_LONG, rangesCount);
-            for (int i = 0; i < rangesCount; i++) {
-                MemorySegment dataSeg = arena.allocate(dataArrays[i].length);
-                dataSeg.copyFrom(MemorySegment.ofArray(dataArrays[i]));
-                dataPtrsSeg.setAtIndex(ValueLayout.ADDRESS, i, dataSeg);
-                dataLensSeg.setAtIndex(ValueLayout.JAVA_LONG, i, dataArrays[i].length);
-            }
-            NativeLibraryLoader.checkResult(
-                (long) PUT_METADATA.invokeExact(storePtr, pathSeg, (long) path.length(), rangesSeg, rangesCount, dataPtrsSeg, dataLensSeg)
-            );
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to put metadata for: " + path, t);
-        }
-    }
-
-    /** Remove a file from the registry. */
     public static void removeFile(long storePtr, String path) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment seg = arena.allocateFrom(path);
