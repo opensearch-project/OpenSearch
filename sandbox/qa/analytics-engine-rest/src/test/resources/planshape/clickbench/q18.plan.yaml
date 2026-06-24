@@ -1,5 +1,6 @@
-# No sort → no shard-side TopK: head without sort is arbitrary limit, not TopK.
-# DynamicFilter scrubbed: runtime TopK boundary pushed into DataSourceExec predicate.
+# Sort-by-key TopK: sorts on the group keys (UserID, SearchPhrase ASC), not on count() DESC like q17.
+# TopK still fires (shard fetch=30); no delegable filter, so parquet DataSourceExec carries a scrubbed
+# DynamicFilter (runtime TopK boundary) rather than a QueryShardExec scan.
 query: q18
 ppl_file: q18.ppl
 applies: [prod2s, prod1s]

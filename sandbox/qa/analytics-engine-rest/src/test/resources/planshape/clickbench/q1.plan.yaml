@@ -1,5 +1,5 @@
 # Lucene-only shard path: no filter/expression means lucene metadata doc-count suffices.
-# No shard_physical emitted (lucene handles natively). viableBackends=[lucene, datafusion] throughout.
+# No shard_physical emitted (lucene handles natively); only the exchange/reduce stage is datafusion-only.
 query: q1
 ppl_file: q1.ppl
 applies: [prod2s, prod1s]

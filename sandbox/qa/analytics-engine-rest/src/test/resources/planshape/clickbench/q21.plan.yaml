@@ -1,4 +1,4 @@
-# Lucene backend: LIKE wildcard on text field delegated to lucene inverted index.
+# Lucene backend: LIKE wildcard on URL (keyword) delegated to lucene as ILIKE.
 # No shard_physical (lucene handles filter+count natively). prod1s is single-stage.
 query: q21
 ppl_file: q21.ppl

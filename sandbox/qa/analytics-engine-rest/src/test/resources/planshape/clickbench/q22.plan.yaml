@@ -1,5 +1,6 @@
-# Multi-filter: LIKE + != compound predicate with grouped count TopK.
-# Both filters annotated to datafusion (LIKE on URL not lucene-eligible here).
+# Multi-filter: LIKE(URL) + SearchPhrase != '' compound predicate with grouped count TopK.
+# Both predicates are lucene-delegated ([lucene, datafusion]) via QueryShardExec (tree_shape=CONJUNCTIVE);
+# datafusion is chosen only because the grouped aggregation can't run on lucene.
 query: q22
 ppl_file: q22.ppl
 applies: [prod2s, prod1s]

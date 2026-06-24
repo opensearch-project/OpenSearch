@@ -1,5 +1,6 @@
-# Grouped dc(UserID) by MobilePhoneModel with != filter and TopK.
-# Same HLL + reduce_eval pattern as q9 but with a string-field filter forcing datafusion.
+# Grouped dc(UserID) by MobilePhoneModel with != '' filter and TopK.
+# Same HLL + reduce_eval pattern as q9; dc (HLL) forces datafusion, while the keyword != '' filter is
+# lucene-delegated (QueryShardExec, tree_shape=CONJUNCTIVE) vs q9's filterless parquet DataSourceExec.
 query: q11
 ppl_file: q11.ppl
 applies: [prod2s, prod1s]

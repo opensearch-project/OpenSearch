@@ -1,5 +1,6 @@
-# Point lookup: UserID equality filter delegated to lucene (chosen_backend=lucene).
-# Single-stage scan-filter-project, no aggregation, no coordinator reduce.
+# Point lookup: numeric UserID equality is NOT lucene-delegable ([datafusion]); pushed into the parquet
+# DataSourceExec as predicate + pruning_predicate + required_guarantees=[UserID in (...)].
+# No aggregation (fields projection); the coordinator stage only gathers/limits shard rows.
 query: q20
 ppl_file: q20.ppl
 applies: [prod2s, prod1s]

@@ -1,5 +1,5 @@
-# tree_shape=CONJUNCTIVE: text field delegates IS NOT NULL to lucene inverted index.
-# QueryShardExec (lucene scan) instead of DataSourceExec (parquet) — only query using this.
+# dc(SearchPhrase): keyword field's implicit IS NOT NULL is lucene-delegated ([lucene, datafusion]),
+# so the shard scans via QueryShardExec (tree_shape=CONJUNCTIVE) — vs q5's numeric dc(UserID) on parquet DataSourceExec.
 query: q6
 ppl_file: q6.ppl
 applies: [prod2s, prod1s]

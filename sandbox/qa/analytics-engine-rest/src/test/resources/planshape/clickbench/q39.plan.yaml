@@ -1,5 +1,6 @@
-# OFFSET support: head 10 from 5 — tests fetch+offset in sort pushdown.
-# Same multi-predicate pattern as q37/q38 with IsLink!=0, IsDownload=0 added.
+# OFFSET: head 10 from 5 → effective limit 15, shard TopK fetch=45 (3x); tests fetch+offset pushdown.
+# Unlike q37/q38, all predicates are numeric/date ([datafusion]) — no keyword filter to delegate, so it
+# scans parquet (DataSourceExec, tree_shape=NONE) rather than a lucene QueryShardExec.
 query: q39
 ppl_file: q39.ppl
 applies: [prod2s, prod1s]

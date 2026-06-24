@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.analytics.qa.ClickBenchTestHelper;
 
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Plan-shape golden IT for ClickBench. Each (query, combo) is reported as its own JUnit case named
@@ -23,9 +24,8 @@ import java.util.List;
  * {@link WorkloadSpec}. The {@code @ParametersFactory} must be static, so it cannot read an
  * instance field — hence the static {@link #SPEC}.
  *
- * <p>Query allowlist: ClickBench queries that return rows on the shipped 100-doc dataset (others
- * match zero rows and produce no shard physical plan). Excluded queries are tracked for a future
- * richer dataset.
+ * <p>All 43 ClickBench PPL queries are exercised. Each query's golden declares which combos it
+ * applies to — queries whose shard physical plan is absent (lucene fast-path) simply omit that layer.
  */
 public class ClickBenchPlanShapeIT extends PlanShapeGoldenTestBase {
 
@@ -34,8 +34,7 @@ public class ClickBenchPlanShapeIT extends PlanShapeGoldenTestBase {
         ClickBenchTestHelper.DATASET,
         "datasets/clickbench/ppl",
         "planshape/clickbench",
-        // q7 excluded: multi-shard produces per-shard constant-folded min/max values that diverge across tasks.
-        List.of("q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43")
+        IntStream.rangeClosed(1, 43).mapToObj(i -> "q" + i).toList()
     );
 
     @ParametersFactory(shuffle = false)

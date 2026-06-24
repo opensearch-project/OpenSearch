@@ -1,5 +1,5 @@
-# Grouped count by SearchPhrase with != filter and TopK.
-# High-cardinality text grouping on datafusion with 3x fetch multiplier.
+# Grouped count by SearchPhrase (keyword) with != '' filter and TopK (3x fetch).
+# The != '' filter is lucene-delegated (QueryShardExec, tree_shape=CONJUNCTIVE); aggregation runs on datafusion.
 query: q13
 ppl_file: q13.ppl
 applies: [prod2s, prod1s]
