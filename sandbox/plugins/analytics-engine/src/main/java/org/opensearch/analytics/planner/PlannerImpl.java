@@ -119,20 +119,19 @@ public class PlannerImpl {
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
     public static RelNode runAllOptimizations(RelNode rawRelNode, PlannerContext context) {
-        LOGGER.debug("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
+        logPlan("Input RelNode", rawRelNode);
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = trimFields(modifiedRelNode);
-        LOGGER.debug("After field trimming:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        logPlan("After marking", modifiedRelNode);
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
@@ -144,21 +143,21 @@ public class PlannerImpl {
         // Revisit once those are designed. The rule would also strip performance peers from
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
-        LOGGER.debug("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        logPlan("After CBO", modifiedRelNode);
         Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
-            LOGGER.debug("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+            logPlan("After late-materialization", modifiedRelNode);
         }
         Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
         if (topK.isPresent()) {
             modifiedRelNode = topK.get();
-            LOGGER.debug("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
+            logPlan("After TopK rewrite", modifiedRelNode);
         }
         Optional<RelNode> sortPushdown = OpenSearchSortPushdownRewriter.rewrite(modifiedRelNode);
         if (sortPushdown.isPresent()) {
             modifiedRelNode = sortPushdown.get();
-            LOGGER.debug("After sort pushdown:\n{}", RelOptUtil.toString(modifiedRelNode));
+            logPlan("After sort pushdown", modifiedRelNode);
         }
 
         if (listener != null) {
@@ -381,14 +380,22 @@ public class PlannerImpl {
      * Package-private for {@code RelFieldTrimmerTests} (the SQL frontend already emits minimal
      * projections, so the trimmer is only exercised in isolation on a deliberately-wide tree).
      */
+    /** Debug-dumps a labelled plan, guarding the expensive {@link RelOptUtil#toString} behind the level check. */
+    private static void logPlan(String label, RelNode plan) {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("{}:\n{}", label, RelOptUtil.toString(plan));
+        }
+    }
+
     static RelNode trimFields(RelNode input) {
         RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
-        // Trimming is a pure optimization; the untrimmed tree is always a correct fallback (the
-        // trimmer's stock handlers throw on some valid shapes, e.g. a non-literal OFFSET).
+        // Trimming is a pure optimization; the untrimmed tree is always a correct fallback. The
+        // trimmer's stock handlers reject some valid shapes via IllegalArgumentException (e.g.
+        // RelBuilder.sortLimit on a non-literal OFFSET) — fall back rather than fail the query.
         try {
             return new RelFieldTrimmer(null, relBuilder).trim(input);
-        } catch (RuntimeException e) {
-            LOGGER.debug("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
             return input;
         }
     }
