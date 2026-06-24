@@ -31,10 +31,15 @@ import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldReferences;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -310,6 +315,296 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("has no storage"));
+    }
+
+    // ---- Text-relevance function on non-text field type-check ----
+
+    /**
+     * {@code query_string(['severityNumber'], '...')} on a {@code long} field is rejected
+     * at planning with a precise, actionable error message — text-relevance functions
+     * cannot be applied to numeric fields.
+     */
+    public void testQueryStringOnNumericFieldIsRejected() {
+        RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
+        RexNode condition = makeMultiFieldFullTextCall(
+            fullTextSqlFunction("QUERY_STRING"),
+            List.of("severityNumber"),
+            "severityNumber:>15"
+        );
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue("Error must name the function: " + exception.getMessage(), exception.getMessage().contains("QUERY_STRING"));
+        assertTrue("Error must name the offending field: " + exception.getMessage(), exception.getMessage().contains("severityNumber"));
+        assertTrue("Error must name the field type: " + exception.getMessage(), exception.getMessage().contains("long"));
+        assertTrue("Error must hint at typed comparison: " + exception.getMessage(), exception.getMessage().contains("typed comparison"));
+    }
+
+    /**
+     * {@code query_string(['eventTime'], '...')} on a {@code date} field is rejected — text-relevance
+     * functions only apply to text/keyword.
+     */
+    public void testQueryStringOnDateFieldIsRejected() {
+        RelOptTable table = mockTable("test_index", new String[] { "eventTime" }, new SqlTypeName[] { SqlTypeName.DATE });
+        RexNode condition = makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("eventTime"), "2026-01-01");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("eventTime", Map.of("type", "date")));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue(exception.getMessage().contains("QUERY_STRING"));
+        assertTrue(exception.getMessage().contains("eventTime"));
+        assertTrue(exception.getMessage().contains("date"));
+    }
+
+    /**
+     * {@code query_string(['status'], '...')} on a {@code keyword} field is accepted —
+     * keyword fields are valid for text-relevance functions.
+     *
+     * <p>Note: this fixture's mock DataFusion backend declares scan support only for
+     * numeric/keyword/date/boolean types (not {@code text}), and the mock Lucene backend
+     * has no value-producing scan capability, so a pure {@code text} field can't be scanned
+     * here at all — the table-scan rule throws before the filter rule runs. This test therefore
+     * exercises the {@code keyword} acceptance path.
+     */
+    public void testQueryStringOnKeywordFieldIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("status", Map.of("type", "keyword", "index", true)),
+            new String[] { "status" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("status"), "active")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * {@code query_string(['status', 'severityNumber'], '...')} with a mixed field list
+     * (keyword + long) is rejected — every named field must be text/keyword. The keyword
+     * field keeps the scan viable (see note on {@link #testQueryStringOnKeywordFieldIsAccepted}),
+     * so planning reaches the filter rule and the {@code long} field triggers the rejection.
+     */
+    public void testQueryStringOnMixedFieldsRejectsBecauseOfNonTextField() {
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "status", "severityNumber" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.BIGINT }
+        );
+        RexNode condition = makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("status", "severityNumber"), "error");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("status", Map.of("type", "keyword", "index", true), "severityNumber", Map.of("type", "long"))
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue(exception.getMessage().contains("severityNumber"));
+        assertTrue(exception.getMessage().contains("long"));
+    }
+
+    /**
+     * Field-less {@code query_string('category:A')} — the form the PPL {@code search} command lowers
+     * {@code search source=idx category=A} into. There is no {@code fields} MAP, so no literal field
+     * names are extracted; the field reference lives inside the Lucene query-string syntax. This must
+     * NOT be rejected — it falls back to the TEXT-type assumption and routes to the full-text backend.
+     * Regression test for the {@code search}-command 500 (no {@code fields} MAP present).
+     */
+    public void testFieldlessQueryStringIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("category", Map.of("type", "keyword", "index", true)),
+            new String[] { "category" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "category:A")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    // ---- referencedFields-driven validation (Wave 4) ----
+
+    /**
+     * With a backend serializer that reports field references, a field named only inside the
+     * query string (no {@code fields} MAP) is now validated. The stub reports a literal {@code long}
+     * field with {@code lenient=false}, so the planner rejects it — coverage the old MAP-literal
+     * path missed (field-less queries previously fell back to the TEXT assumption and were accepted).
+     */
+    public void testInStringLiteralNonTextRejectedViaExtractor() {
+        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), false);
+        RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
+        RexNode condition = makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "severityNumber:>15");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")), backendsWithExtractor(refs));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue(exception.getMessage().contains("severityNumber"));
+        assertTrue(exception.getMessage().contains("text and keyword"));
+    }
+
+    /**
+     * An explicit {@code lenient=true} (reported by the extractor) suppresses the eager type
+     * rejection. The query still fails — no backend supports {@code query_string} on a {@code long}
+     * field — but via the capability-viability path, not the friendly type-rejection. The distinct
+     * error proves the lenient gate skipped {@code rejectNonTextFieldsForTextFunction}.
+     */
+    public void testLenientTrueSuppressesEagerRejectionViaExtractor() {
+        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), true);
+        RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
+        RexNode condition = makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "severityNumber:>15");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")), backendsWithExtractor(refs));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Should fail via viability, not eager rejection: " + exception.getMessage(),
+            exception.getMessage().contains("No backend can evaluate")
+        );
+        assertFalse(
+            "Eager type-rejection must have been skipped: " + exception.getMessage(),
+            exception.getMessage().contains("text and keyword")
+        );
+    }
+
+    /**
+     * A field named only inside the query string that resolves to a {@code keyword} field is
+     * accepted via the extractor path and routes to the full-text backend — the extractor surfaces
+     * {@code category} as a literal, which the planner type-checks as keyword (valid).
+     */
+    public void testInStringLiteralKeywordAcceptedViaExtractor() {
+        FieldReferences refs = new FieldReferences(List.of("category"), List.of(), false);
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("category", Map.of("type", "keyword", "index", true)),
+            new String[] { "category" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "category:A"),
+            backendsWithExtractor(refs),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * A literal field named in {@code query_string} that is absent from the scan's schema is an
+     * unknown field — rejected with a "field not found" error, matching how a normal predicate on an
+     * unknown field fails, rather than silently assuming TEXT and matching nothing. (Wildcard/regex
+     * tokens are classified as patterns and are unaffected — see
+     * {@link #testQueryStringWildcardFieldPatternIsAccepted}.)
+     */
+    public void testQueryStringOnUnknownLiteralFieldIsRejected() {
+        RelOptTable table = mockTable("test_index", new String[] { "status" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
+        RexNode condition = makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("nosuchfield"), "active");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("status", Map.of("type", "keyword", "index", true)));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue("Error must name the unknown field: " + exception.getMessage(), exception.getMessage().contains("nosuchfield"));
+        assertTrue("Error must say not found: " + exception.getMessage(), exception.getMessage().contains("not found"));
+    }
+
+    /**
+     * A wildcard field pattern (e.g. {@code ser*}) is classified as a pattern, not a literal, so it
+     * is never type-checked or treated as an unknown field — it routes to the full-text backend and
+     * is expanded at execution. Guards the empty-literals fallback against the unknown-field rejection
+     * added in {@link #testQueryStringOnUnknownLiteralFieldIsRejected}.
+     */
+    public void testQueryStringWildcardFieldPatternIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("status", Map.of("type", "keyword", "index", true)),
+            new String[] { "status" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("ser*"), "active")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * DataFusion (FILTER delegation) + Lucene (accepts FILTER delegation, registers a stub
+     * {@link DelegatedPredicateSerializer} for {@code QUERY_STRING} whose {@code referencedFields}
+     * returns {@code refs}).
+     */
+    private List<AnalyticsSearchBackendPlugin> backendsWithExtractor(FieldReferences refs) {
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+                DelegatedPredicateSerializer stub = new DelegatedPredicateSerializer() {
+                    @Override
+                    public byte[] serialize(RexCall call, List<FieldStorageInfo> fieldStorage) {
+                        throw new UnsupportedOperationException("stub");
+                    }
+
+                    @Override
+                    public FieldReferences referencedFields(RexCall call, List<FieldStorageInfo> fieldStorage) {
+                        return refs;
+                    }
+                };
+                return Map.of(ScalarFunction.QUERY_STRING, stub);
+            }
+        };
+        return List.of(df, lucene);
+    }
+
+    /**
+     * Builds a multi-field full-text {@code RexCall} matching the shape that the SQL plugin
+     * lowers {@code query_string(['fieldName'], 'queryText')} into:
+     * <pre>
+     *   QUERY_STRING(
+     *     MAP('fields', MAP('fieldName':VARCHAR, 1.0:DOUBLE)),
+     *     MAP('query', 'queryText':VARCHAR)
+     *   )
+     * </pre>
+     */
+    private RexNode makeMultiFieldFullTextCall(SqlFunction function, List<String> fieldNames, String query) {
+        List<RexNode> innerMapOperands = new ArrayList<>();
+        for (String fieldName : fieldNames) {
+            innerMapOperands.add(rexBuilder.makeLiteral(fieldName));
+            innerMapOperands.add(rexBuilder.makeApproxLiteral(BigDecimal.valueOf(1.0)));
+        }
+        RexNode innerMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, innerMapOperands);
+        RexNode fieldsMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, rexBuilder.makeLiteral("fields"), innerMap);
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral(query)
+        );
+        return rexBuilder.makeCall(function, fieldsMap, queryMap);
+    }
+
+    /**
+     * Builds a field-less full-text {@code RexCall} matching the shape the SQL plugin lowers
+     * {@code query_string('category:A')} (and the PPL {@code search} command's {@code category=A})
+     * into:
+     * <pre>
+     *   QUERY_STRING(MAP('query', 'category:A':VARCHAR))
+     * </pre>
+     * There is no {@code fields} MAP — the field names live inside the query-string value itself.
+     */
+    private RexNode makeFieldlessFullTextCall(SqlFunction function, String query) {
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral(query)
+        );
+        return rexBuilder.makeCall(function, queryMap);
     }
 
     // ---- Derived columns ----

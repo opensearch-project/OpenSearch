@@ -23,6 +23,8 @@ use crate::rate_limited_writer::RateLimitedWriter;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 use crate::{log_debug, log_error, SETTINGS_STORE};
 
+use native_bridge_common::memory_pool::MemoryReservation;
+
 use super::error::{MergeError, MergeResult};
 use super::io_task::{
     get_merge_pool, spawn_io_task, IoCommand, RATE_LIMIT_MB_PER_SEC,
@@ -48,6 +50,8 @@ pub struct MergeContext {
     // Java side (see NativeParquetMergeStrategy + ParquetShardStatsTracker).
     flush_and_sort_chunk_count: i64,
     flush_and_sort_chunk_time_millis: i64,
+    reservation: MemoryReservation,
+    tracked_writer_bytes: usize,
 }
 
 impl MergeContext {
@@ -62,6 +66,7 @@ impl MergeContext {
         rayon_threads: Option<usize>,
         io_threads: Option<usize>,
         output_writer_generation: i64,
+        reservation: MemoryReservation,
     ) -> MergeResult<Self> {
         if let Some(parent) = Path::new(output_path).parent() {
             if !parent.exists() {
@@ -128,6 +133,8 @@ impl MergeContext {
             rayon_threads,
             flush_and_sort_chunk_count: 0,
             flush_and_sort_chunk_time_millis: 0,
+            reservation,
+            tracked_writer_bytes: 0,
         })
     }
 
@@ -142,7 +149,11 @@ impl MergeContext {
     pub fn push_batch(&mut self, batch: RecordBatch) -> MergeResult<()> {
         let num_rows = batch.num_rows();
         let with_id = append_row_id(&batch, self.next_row_id, &self.output_schema)?;
+        let with_id_bytes = with_id.get_array_memory_size();
         drop(batch);
+
+        // Track with_id batch (transient — alive during column write)
+        self.reservation.grow(with_id_bytes);
 
         let col_writers = self.col_writers.as_mut()
             .ok_or_else(|| MergeError::Logic("Column writers not initialized".into()))?;
@@ -165,8 +176,21 @@ impl MergeContext {
 
         if let Some(e) = write_errors.into_iter().next() {
             log_error!("[RUST] Column write failed during push_batch: {}", e);
+            self.reservation.shrink(with_id_bytes);
             return Err(e.into());
         }
+
+        // with_id dropped here — release its tracking
+        self.reservation.shrink(with_id_bytes);
+
+        // Track actual column writer memory using memory_size() API
+        let actual_writer_bytes: usize = col_writers.iter().map(|w| w.memory_size()).sum();
+        if actual_writer_bytes > self.tracked_writer_bytes {
+            self.reservation.grow(actual_writer_bytes - self.tracked_writer_bytes);
+        } else if actual_writer_bytes < self.tracked_writer_bytes {
+            self.reservation.shrink(self.tracked_writer_bytes - actual_writer_bytes);
+        }
+        self.tracked_writer_bytes = actual_writer_bytes;
 
         self.next_row_id += num_rows as i64;
         self.output_row_count += num_rows;
@@ -228,6 +252,10 @@ impl MergeContext {
 
         self.row_group_index += 1;
         self.output_row_count = 0;
+
+        // Column writers closed via close() — release tracked writer memory
+        self.reservation.shrink(self.tracked_writer_bytes);
+        self.tracked_writer_bytes = 0;
 
         // Open writers for the next row group.
         self.col_writers = Some(

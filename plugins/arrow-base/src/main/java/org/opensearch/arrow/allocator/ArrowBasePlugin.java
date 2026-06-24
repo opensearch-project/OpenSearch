@@ -126,19 +126,19 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         Setting.Property.Dynamic
     );
 
-    /** Minimum guaranteed bytes for the ingest pool. Default is 2% of budget on warm nodes, 4% otherwise. */
+    /** Minimum guaranteed bytes for the ingest pool. Default is 1% of budget on warm nodes, 2% otherwise. */
     public static final Setting<Long> INGEST_MIN_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_INGEST_MIN,
-        s -> derivePoolMinDefault(s, DiscoveryNode.isWarmNode(s) ? 2 : 4),
+        s -> derivePoolMinDefault(s, DiscoveryNode.isWarmNode(s) ? 1 : 2),
         s -> parseNonNegativeLong(s, NativeAllocatorPoolConfig.SETTING_INGEST_MIN),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the ingest pool can burst to. Default is 4% of budget on warm nodes, 8% otherwise. */
+    /** Maximum bytes the ingest pool can burst to. Default is 3% of budget on warm nodes, 5% otherwise. */
     public static final Setting<Long> INGEST_MAX_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_INGEST_MAX,
-        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 4 : 8),
+        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 3 : 5),
         s -> parseNonNegativeLong(s, NativeAllocatorPoolConfig.SETTING_INGEST_MAX),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
