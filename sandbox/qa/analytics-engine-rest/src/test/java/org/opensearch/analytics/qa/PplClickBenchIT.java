@@ -35,14 +35,7 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
      * resources/datasets/clickbench/ppl/. Individual queries can be excluded via
      * {@link #SKIP_QUERIES} when a feature is genuinely missing rather than broken.
      */
-    // Queries skipped:
-    //  - Q29: Substrait's default aggregate catalog has no min/max binding for string
-    //    types. Isthmus fails with "Unable to find binding for call MIN($1)" when PPL
-    //    emits `min(Referer)` on a VARCHAR column. DataFusion can execute min(Utf8)
-    //    natively — the gap is purely in the Substrait serialization layer. A fix
-    //    would register additional min/max impls covering string types in the loaded
-    //    SimpleExtension.ExtensionCollection at plugin init.
-    private static final Set<Integer> SKIP_QUERIES = Set.of(29);
+    private static final Set<Integer> SKIP_QUERIES = Set.of();
 
     private static boolean dataProvisioned = false;
 

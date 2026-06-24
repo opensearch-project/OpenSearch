@@ -12,6 +12,7 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
@@ -73,6 +74,12 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
+    // Per-function delegated-predicate serializers, aggregated across backends (first declaration wins).
+    // Besides producing execution bytes, a serializer can report a predicate's referenced fields at
+    // planning time (referencedFields). Full-text is Lucene-only today, so a single function -> serializer
+    // map suffices.
+    private final Map<ScalarFunction, DelegatedPredicateSerializer> predicateSerializers = new HashMap<>();
+
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
@@ -91,6 +98,10 @@ public class CapabilityRegistry {
             String name = backend.name();
             backendsByName.put(name, backend);
             BackendCapabilityProvider caps = backend.getCapabilityProvider();
+
+            for (Map.Entry<ScalarFunction, DelegatedPredicateSerializer> entry : caps.delegatedPredicateSerializers().entrySet()) {
+                predicateSerializers.putIfAbsent(entry.getKey(), entry.getValue());
+            }
 
             for (EngineCapability cap : caps.supportedEngineCapabilities()) {
                 operatorIndex.computeIfAbsent(cap, k -> new ArrayList<>()).add(name);
@@ -301,6 +312,17 @@ public class CapabilityRegistry {
 
     public List<String> opaqueBackendsAnyFormat(String name) {
         return allBackends(opaqueIndex.getOrDefault(name, Map.of()));
+    }
+
+    /**
+     * The {@link DelegatedPredicateSerializer} registered for {@code function}, or {@code null} if no
+     * backend declared one. Besides producing execution bytes, the serializer exposes a predicate's
+     * referenced fields at planning time via {@link DelegatedPredicateSerializer#referencedFields},
+     * which full-text field-type validation uses to enumerate the fields a relevance predicate
+     * references (including in-query-string fields).
+     */
+    public DelegatedPredicateSerializer predicateSerializer(ScalarFunction function) {
+        return predicateSerializers.get(function);
     }
 
     // ---- Annotation handling ----

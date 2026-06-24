@@ -138,6 +138,7 @@ public final class NativeBridge {
     private static final MethodHandle SET_COLUMN_INDEX_CACHE_LIMIT;
     private static final MethodHandle SET_OFFSET_INDEX_CACHE_LIMIT;
     private static final MethodHandle CLEAR_SCOPED_PAGE_INDEX_CACHE;
+    private static final MethodHandle SET_SCOPED_PAGE_INDEX_ENABLED;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
@@ -523,6 +524,10 @@ public final class NativeBridge {
         CLEAR_SCOPED_PAGE_INDEX_CACHE = linker.downcallHandle(
             lib.find("df_clear_scoped_page_index_cache").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
+        SET_SCOPED_PAGE_INDEX_ENABLED = linker.downcallHandle(
+            lib.find("df_set_scoped_page_index_enabled").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
@@ -1689,14 +1694,6 @@ public final class NativeBridge {
         }
     }
 
-    /** Clears the footer metadata cache. */
-    public static void clearFooterCache() {
-        // TODO(PR1): wire to df_clear_footer_cache when available
-        try (var call = new NativeCall()) {
-            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
-        }
-    }
-
     /** Clears the scoped ColumnIndex (predicate) cache. */
     public static void clearColumnIndexCache() {
         // TODO(PR1): wire to df_clear_column_index_cache when available
@@ -1710,6 +1707,17 @@ public final class NativeBridge {
         // TODO(PR1): wire to df_clear_offset_index_cache when available
         try (var call = new NativeCall()) {
             call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /**
+     * Enable or disable the scoped page-index feature.
+     * When disabled, the metadata cache retains the full page index (fallback mode)
+     * and CI/OI scoped caches are bypassed entirely.
+     */
+    public static void setScopedPageIndexEnabled(boolean enabled) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_SCOPED_PAGE_INDEX_ENABLED, enabled ? 1L : 0L);
         }
     }
 

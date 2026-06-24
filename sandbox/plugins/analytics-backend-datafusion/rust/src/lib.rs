@@ -25,9 +25,7 @@ pub mod api;
 pub mod cache;
 pub mod cancellation;
 pub mod cross_rt_stream;
-pub mod custom_cache_manager;
 pub mod datafusion_query_config;
-pub mod eviction_policy;
 pub mod executor;
 pub mod ffm;
 pub mod indexed_executor;
@@ -50,7 +48,6 @@ pub mod shard_table_provider;
 pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
-pub mod statistics_cache;
 pub mod udaf;
 pub mod udf;
 pub mod udwf;
@@ -58,6 +55,14 @@ pub mod native_node_stats;
 pub mod search_stats;
 pub mod stats;
 pub mod task_monitors;
+pub mod scoped_index_optimizer;
+pub mod scoped_page_index_reader;
+
+// Path aliases — old module names still resolve unchanged.
+pub use cache::statistics_cache;
+pub use cache::eviction_policy;
+pub use cache::custom_cache_manager;
+pub use cache::page_index as parquet_page_cache;
 
 #[cfg(test)]
 mod spill_e2e_test;

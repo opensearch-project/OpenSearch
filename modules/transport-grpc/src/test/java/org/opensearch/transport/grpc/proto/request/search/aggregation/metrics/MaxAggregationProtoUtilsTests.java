@@ -46,6 +46,17 @@ public class MaxAggregationProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(0.0, result.missing());
     }
 
+    public void testFromProtoWithStringMissingValue() {
+        MaxAggregation proto = MaxAggregation.newBuilder()
+            .setField("status")
+            .setMissing(FieldValue.newBuilder().setString("unknown").build())
+            .build();
+
+        MaxAggregationBuilder result = MaxAggregationProtoUtils.fromProto("max_status", proto);
+
+        assertEquals("unknown", result.missing());
+    }
+
     public void testFromProtoWithoutFieldOrScript() {
         MaxAggregation proto = MaxAggregation.newBuilder().build();
 

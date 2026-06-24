@@ -260,7 +260,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
 
         for (int i = 0; i < shardCount; i++) {
-            client().prepareIndex(indexName).setId(indexName + "-" + i).setSource("val", i + 1).get();
+            client().prepareIndex(indexName).setSource("val", i + 1).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
@@ -290,7 +290,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
 
         for (int i = 0; i < shardCount; i++) {
-            client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("val", i + 1).get();
+            client().prepareIndex(indexName).setSource("val", i + 1).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();

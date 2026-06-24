@@ -226,7 +226,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue("create must be acknowledged", response.isAcknowledged());
         ensureGreen(indexName);
-        client().prepareIndex(indexName).setId("0").setSource("value", VALUE).get();
+        client().prepareIndex(indexName).setSource("value", VALUE).get();
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
     }
@@ -254,7 +254,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         assertTrue("create must be acknowledged", response.isAcknowledged());
         ensureGreen(INDEX_3);
         for (int i = 0; i < 9; i++) {
-            client().prepareIndex(INDEX_3).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX_3).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX_3).get();
         client().admin().indices().prepareFlush(INDEX_3).get();
