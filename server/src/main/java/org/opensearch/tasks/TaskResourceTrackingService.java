@@ -23,8 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
@@ -32,16 +31,13 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -346,13 +342,12 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             String usage = taskResourceUsages.get(0);
             try {
                 if (usage != null && !usage.isEmpty()) {
-                    XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        new BytesArray(usage),
-                        MediaTypeRegistry.JSON
-                    );
-                    return TaskResourceInfo.PARSER.apply(parser, null);
+                    // Get the serialized data as a byte array
+                    byte[] serializedData = Base64.getDecoder().decode(usage);
+                    // Deserialize from byte array
+                    try (StreamInput streamInput = StreamInput.wrap(serializedData)) {
+                        return TaskResourceInfo.readFromStream(streamInput);
+                    }
                 }
             } catch (IOException e) {
                 logger.debug("fail to parse phase resource usages: ", e);
