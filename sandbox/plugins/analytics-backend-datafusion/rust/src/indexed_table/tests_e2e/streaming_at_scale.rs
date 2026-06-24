@@ -444,7 +444,7 @@ async fn run_large(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -901,7 +901,7 @@ async fn run_large_partitioned(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),

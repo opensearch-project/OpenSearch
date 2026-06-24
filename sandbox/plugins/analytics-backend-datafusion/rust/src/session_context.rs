@@ -199,7 +199,7 @@ pub async unsafe fn create_session_context(
     let phantom = phantom_reservation.map(|b| b.phantom_reservation);
 
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
@@ -218,21 +218,7 @@ pub async unsafe fn create_session_context(
             datafusion::physical_optimizer::optimizer::PhysicalOptimizer::new().rules
         });
 
-    // For ListingTable query strategy:
-    // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
-    // 2. Add ProjectRowIdOptimizer (physical) — computes __row_id__ + row_base.
-    if query_config.query_strategy == crate::datafusion_query_config::QueryStrategy::ListingTable {
-        state_builder = state_builder
-            .with_analyzer_rule(
-                Arc::new(crate::project_row_id_analyzer::ProjectRowIdAnalyzer::new())
-            )
-            .with_physical_optimizer_rule(
-                Arc::new(crate::project_row_id_optimizer::ProjectRowIdOptimizer)
-            );
-    }
-
     // Install the scoped page-index reader factory on every parquet scan.
-    // Registered AFTER ProjectRowIdOptimizer so it sees the final DataSourceExec.
     // Also, this SHOULD be the last optimizer to see all projections / predicates
     if page_index::is_scoped_page_index_enabled() {
         state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
