@@ -173,6 +173,8 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
 
     private static DateFieldMapper.Resolution resolveResolution(DateRangeFieldDomain domain) {
         if (domain.resolution() == null || domain.resolution().isEmpty()) {
+            // Match DateFieldMapper's default date resolution. Metadata publishers for date_nanos domains must publish
+            // an explicit nanoseconds resolution.
             return DateFieldMapper.Resolution.MILLISECONDS;
         }
 

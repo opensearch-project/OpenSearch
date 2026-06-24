@@ -57,6 +57,7 @@ public class SearchIndexPruningIT extends OpenSearchIntegTestCase {
     public static class RecordOldIndexSearchPlugin extends Plugin implements NetworkPlugin {
         private static final AtomicBoolean RECORD_SEARCH_EVENTS = new AtomicBoolean();
         private static final AtomicInteger OLD_INDEX_QUERY_PHASES = new AtomicInteger();
+        private static final AtomicInteger OVERLAPPING_INDEX_QUERY_PHASES = new AtomicInteger();
         private static final AtomicInteger CAN_MATCH_REQUESTS = new AtomicInteger();
         private static final AtomicInteger OLD_INDEX_CAN_MATCH_REQUESTS = new AtomicInteger();
 
@@ -65,8 +66,14 @@ public class SearchIndexPruningIT extends OpenSearchIntegTestCase {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
                 public void onPreQueryPhase(SearchContext searchContext) {
-                    if (RECORD_SEARCH_EVENTS.get() && "logs-000001".equals(searchContext.indexShard().shardId().getIndex().getName())) {
+                    if (RECORD_SEARCH_EVENTS.get() == false) {
+                        return;
+                    }
+                    String indexName = searchContext.indexShard().shardId().getIndex().getName();
+                    if ("logs-000001".equals(indexName)) {
                         OLD_INDEX_QUERY_PHASES.incrementAndGet();
+                    } else if ("logs-000002".equals(indexName) || "logs-000003".equals(indexName)) {
+                        OVERLAPPING_INDEX_QUERY_PHASES.incrementAndGet();
                     }
                 }
             });
@@ -120,6 +127,7 @@ public class SearchIndexPruningIT extends OpenSearchIntegTestCase {
         try {
             RecordOldIndexSearchPlugin.RECORD_SEARCH_EVENTS.set(false);
             RecordOldIndexSearchPlugin.OLD_INDEX_QUERY_PHASES.set(0);
+            RecordOldIndexSearchPlugin.OVERLAPPING_INDEX_QUERY_PHASES.set(0);
             RecordOldIndexSearchPlugin.CAN_MATCH_REQUESTS.set(0);
             RecordOldIndexSearchPlugin.OLD_INDEX_CAN_MATCH_REQUESTS.set(0);
             client().admin()
@@ -183,6 +191,37 @@ public class SearchIndexPruningIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testSearchKeepsIndicesWithDomainsPartiallyOverlappingQueryRange() throws Exception {
+        enableIndexPruning();
+        createLogsIndices();
+
+        index("logs-000001", "_doc", "1", "@timestamp", "1970-01-01T00:00:01Z", "message", "old");
+        index("logs-000002", "_doc", "1", "@timestamp", "1970-01-01T00:00:03.500Z", "message", "partial-left");
+        index("logs-000003", "_doc", "1", "@timestamp", "1970-01-01T00:00:05Z", "message", "partial-right");
+        refresh("logs-000001", "logs-000002", "logs-000003");
+
+        publishFieldDomain("logs-000001", new DateRangeFieldDomain("@timestamp", 1_000L, 2_000L, true, "test"));
+        publishFieldDomain("logs-000002", new DateRangeFieldDomain("@timestamp", 2_000L, 4_000L, true, "test"));
+        publishFieldDomain("logs-000003", new DateRangeFieldDomain("@timestamp", 4_000L, 6_000L, true, "test"));
+
+        resetSearchEventCounters();
+        RecordOldIndexSearchPlugin.RECORD_SEARCH_EVENTS.set(true);
+        SearchResponse response;
+        try {
+            response = client().prepareSearch("logs-*")
+                .setPreFilterShardSize(1)
+                .setQuery(rangeQuery("@timestamp").gte("1970-01-01T00:00:03Z").lte("1970-01-01T00:00:06Z"))
+                .addSort("@timestamp", SortOrder.ASC)
+                .get();
+        } finally {
+            RecordOldIndexSearchPlugin.RECORD_SEARCH_EVENTS.set(false);
+        }
+
+        assertHitCount(response, 2L);
+        assertThat(RecordOldIndexSearchPlugin.OLD_INDEX_QUERY_PHASES.get(), equalTo(0));
+        assertThat(RecordOldIndexSearchPlugin.OVERLAPPING_INDEX_QUERY_PHASES.get(), greaterThan(0));
+    }
+
     private SearchResponse searchWithIndexFieldDomainMetadata(int preFilterShardSize) throws Exception {
         enableIndexPruning();
         createLogsIndices();
@@ -235,6 +274,7 @@ public class SearchIndexPruningIT extends OpenSearchIntegTestCase {
 
     private void resetSearchEventCounters() {
         RecordOldIndexSearchPlugin.OLD_INDEX_QUERY_PHASES.set(0);
+        RecordOldIndexSearchPlugin.OVERLAPPING_INDEX_QUERY_PHASES.set(0);
         RecordOldIndexSearchPlugin.CAN_MATCH_REQUESTS.set(0);
         RecordOldIndexSearchPlugin.OLD_INDEX_CAN_MATCH_REQUESTS.set(0);
     }

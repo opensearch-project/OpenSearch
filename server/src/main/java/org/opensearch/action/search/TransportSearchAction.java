@@ -1283,7 +1283,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext
     ) {
-        applySearchIndexPruning(searchRequest, shardIterators, clusterState, timeProvider);
+        maybeApplySearchIndexPruning(searchRequest, shardIterators, clusterState, timeProvider);
         return createSearchAsyncAction(
             task,
             searchRequest,
@@ -1306,7 +1306,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * Applies index pruning results to the request-local shard iterators.
      */
-    private void applySearchIndexPruning(
+    private void maybeApplySearchIndexPruning(
         SearchRequest searchRequest,
         GroupShardsIterator<SearchShardIterator> shardIterators,
         ClusterState clusterState,
@@ -1318,6 +1318,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterState,
             new FieldDomainEvaluationContext(timeProvider::getAbsoluteStartMillis)
         );
+        if (pruningResult.pruned() == false) {
+            return;
+        }
         for (int i = 0; i < pruningResult.originalShardGroups(); i++) {
             if (pruningResult.isPrunedShardGroup(i)) {
                 pruningResult.shardIterators().get(i).resetAndSkip();

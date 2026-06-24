@@ -78,6 +78,16 @@ public class MandatoryQueryConstraintExtractorTests extends OpenSearchTestCase {
         assertTrue(extractor.extractMandatoryConstraints(source, Set.of("@timestamp")).isEmpty());
     }
 
+    public void testDoesNotExtractRangesFromDisMaxBranches() {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.disMaxQuery()
+                .add(QueryBuilders.rangeQuery("@timestamp").gte(100L).lte(200L))
+                .add(QueryBuilders.termQuery("service.name", "api"))
+        );
+
+        assertTrue(extractor.extractMandatoryConstraints(source, Set.of("@timestamp")).isEmpty());
+    }
+
     public void testDoesNotExtractRangesFromNegativeBranches() {
         SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("@timestamp").gte(100L).lte(200L))

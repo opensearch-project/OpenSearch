@@ -23,46 +23,34 @@ import java.util.Objects;
 public final class SearchIndexPruningResult {
     private final GroupShardsIterator<SearchShardIterator> shardIterators;
     private final BitSet prunedShardGroupIndexes;
-    private final int prunedShardGroups;
 
-    private SearchIndexPruningResult(
-        GroupShardsIterator<SearchShardIterator> shardIterators,
-        BitSet prunedShardGroupIndexes,
-        int prunedShardGroups
-    ) {
+    private SearchIndexPruningResult(GroupShardsIterator<SearchShardIterator> shardIterators, BitSet prunedShardGroupIndexes) {
         this.shardIterators = Objects.requireNonNull(shardIterators, "shardIterators must not be null");
-        this.prunedShardGroupIndexes = (BitSet) Objects.requireNonNull(prunedShardGroupIndexes, "prunedShardGroupIndexes must not be null")
-            .clone();
-        this.prunedShardGroups = prunedShardGroups;
+        this.prunedShardGroupIndexes = copyOf(prunedShardGroupIndexes);
     }
 
     /**
      * Creates a result representing no pruning.
      */
     public static SearchIndexPruningResult notPruned(GroupShardsIterator<SearchShardIterator> shardIterators) {
-        return new SearchIndexPruningResult(shardIterators, new BitSet(shardIterators.size()), 0);
+        return new SearchIndexPruningResult(shardIterators, new BitSet(shardIterators.size()));
     }
 
     /**
      * Creates a result containing pruned shard group indexes.
-     *
-     * At least one shard group must remain unpruned.
      */
-    public static SearchIndexPruningResult pruned(
-        GroupShardsIterator<SearchShardIterator> shardIterators,
-        BitSet prunedShardGroupIndexes,
-        int prunedShardGroups
-    ) {
+    public static SearchIndexPruningResult pruned(GroupShardsIterator<SearchShardIterator> shardIterators, BitSet prunedShardGroupIndexes) {
+        Objects.requireNonNull(shardIterators, "shardIterators must not be null");
+        Objects.requireNonNull(prunedShardGroupIndexes, "prunedShardGroupIndexes must not be null");
+
+        int prunedShardGroups = prunedShardGroupIndexes.cardinality();
         if (prunedShardGroups < 1 || prunedShardGroups >= shardIterators.size()) {
             throw new IllegalArgumentException("pruned shard group count must be between 1 and total shard groups - 1");
-        }
-        if (prunedShardGroupIndexes.cardinality() != prunedShardGroups) {
-            throw new IllegalArgumentException("pruned shard group count must match the number of pruned shard indexes");
         }
         if (prunedShardGroupIndexes.length() > shardIterators.size()) {
             throw new IllegalArgumentException("pruned shard group indexes must be within the shard iterator bounds");
         }
-        return new SearchIndexPruningResult(shardIterators, prunedShardGroupIndexes, prunedShardGroups);
+        return new SearchIndexPruningResult(shardIterators, prunedShardGroupIndexes);
     }
 
     /**
@@ -80,13 +68,6 @@ public final class SearchIndexPruningResult {
     }
 
     /**
-     * Copy of the pruned shard group index bitset.
-     */
-    public BitSet prunedShardGroupIndexes() {
-        return (BitSet) prunedShardGroupIndexes.clone();
-    }
-
-    /**
      * Whether the original shard group index was pruned.
      */
     public boolean isPrunedShardGroup(int shardGroupIndex) {
@@ -97,13 +78,17 @@ public final class SearchIndexPruningResult {
      * Number of pruned shard groups.
      */
     public int prunedShardGroups() {
-        return prunedShardGroups;
+        return prunedShardGroupIndexes.cardinality();
     }
 
     /**
      * Whether at least one shard group was pruned.
      */
     public boolean pruned() {
-        return prunedShardGroups > 0;
+        return prunedShardGroupIndexes.isEmpty() == false;
+    }
+
+    private static BitSet copyOf(BitSet bitSet) {
+        return (BitSet) Objects.requireNonNull(bitSet, "bitSet must not be null").clone();
     }
 }

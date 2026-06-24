@@ -121,9 +121,10 @@ public final class SearchIndexPruningService {
     ) {
         Objects.requireNonNull(evaluationContext, "evaluationContext must not be null");
         final int originalSize = size(shardIterators);
+        final int activeShardGroups = activeShardGroups(shardIterators);
         final SearchIndexPruningConfig currentConfig = config.get();
 
-        if (shouldSkip(request, shardIterators, currentConfig)) {
+        if (shouldSkip(request, activeShardGroups, currentConfig)) {
             return SearchIndexPruningResult.notPruned(shardIterators);
         }
 
@@ -137,7 +138,6 @@ public final class SearchIndexPruningService {
 
         Map<String, Map<String, Optional<FieldDomain>>> domainsByIndexAndField = new HashMap<>();
         BitSet prunedShardGroupIndexes = new BitSet(originalSize);
-        int activeShardGroups = 0;
         int pruned = 0;
 
         for (int shardGroupIndex = 0; shardGroupIndex < shardIterators.size(); shardGroupIndex++) {
@@ -146,7 +146,6 @@ public final class SearchIndexPruningService {
                 continue;
             }
 
-            activeShardGroups++;
             if (shouldAlwaysKeep(shardIterator)) {
                 continue;
             }
@@ -194,14 +193,10 @@ public final class SearchIndexPruningService {
             return SearchIndexPruningResult.notPruned(shardIterators);
         }
 
-        return SearchIndexPruningResult.pruned(shardIterators, prunedShardGroupIndexes, pruned);
+        return SearchIndexPruningResult.pruned(shardIterators, prunedShardGroupIndexes);
     }
 
-    private static boolean shouldSkip(
-        SearchRequest request,
-        GroupShardsIterator<SearchShardIterator> shardIterators,
-        SearchIndexPruningConfig config
-    ) {
+    private static boolean shouldSkip(SearchRequest request, int activeShardGroups, SearchIndexPruningConfig config) {
         if (config.enabled == false) {
             return true;
         }
@@ -211,10 +206,11 @@ public final class SearchIndexPruningService {
         }
 
         if (request.pointInTimeBuilder() != null) {
+            // PIT searches must preserve the shard set captured by the PIT creation snapshot.
             return true;
         }
 
-        if (shardIterators.size() < config.minShards) {
+        if (activeShardGroups < config.minShards) {
             return true;
         }
         return config.fields.isEmpty();
@@ -226,6 +222,16 @@ public final class SearchIndexPruningService {
 
     private static int size(GroupShardsIterator<SearchShardIterator> iterators) {
         return iterators.size();
+    }
+
+    private static int activeShardGroups(GroupShardsIterator<SearchShardIterator> iterators) {
+        int activeShardGroups = 0;
+        for (int i = 0; i < iterators.size(); i++) {
+            if (iterators.get(i).skip() == false) {
+                activeShardGroups++;
+            }
+        }
+        return activeShardGroups;
     }
 
     private static final class SearchIndexPruningConfig {

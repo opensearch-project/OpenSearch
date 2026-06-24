@@ -211,6 +211,30 @@ public class SearchIndexPruningServiceTests extends OpenSearchTestCase {
         assertTrue(service.prune(request, shardIterators, ClusterState.EMPTY_STATE, evaluationContext()).isPrunedShardGroup(0));
     }
 
+    public void testMinShardThresholdUsesActiveShardGroups() {
+        AtomicInteger lookups = new AtomicInteger();
+        FieldDomainProvider provider = (clusterState, indexName, field) -> {
+            lookups.incrementAndGet();
+            return Optional.of(domain(false));
+        };
+        SearchIndexPruningService service = new SearchIndexPruningService(
+            clusterSettings(pruningSettings(true, 2, FIELD)),
+            provider,
+            genericConstraintExtractor(),
+            genericEvaluators()
+        );
+
+        SearchShardIterator alreadySkipped = shardIterator("logs-000001", 0);
+        SearchShardIterator activeCandidate = shardIterator("logs-000002", 0);
+        alreadySkipped.resetAndSkip();
+        GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(alreadySkipped, activeCandidate));
+
+        SearchIndexPruningResult result = service.prune(searchRequest(), shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+
+        assertFalse(result.pruned());
+        assertThat(lookups.get(), equalTo(0));
+    }
+
     public void testCachesBoundsLookupPerIndexAndFieldDuringSinglePruningPass() {
         AtomicInteger lookups = new AtomicInteger();
         FieldDomainProvider provider = (clusterState, indexName, field) -> {
