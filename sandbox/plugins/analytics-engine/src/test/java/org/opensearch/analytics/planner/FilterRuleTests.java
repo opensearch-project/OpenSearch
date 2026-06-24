@@ -449,6 +449,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * rejection. The query still fails — no backend supports {@code query_string} on a {@code long}
      * field — but via the capability-viability path, not the friendly type-rejection. The distinct
      * error proves the lenient gate skipped {@code rejectNonTextFieldsForTextFunction}.
+     *
+     * <p>The viability failure is a query-level (client) error, so it surfaces as an
+     * {@link IllegalArgumentException} (HTTP 400 with the actionable message preserved) rather
+     * than an {@link IllegalStateException} (which would be redacted as a 500).
      */
     public void testLenientTrueSuppressesEagerRejectionViaExtractor() {
         FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), true);
@@ -457,7 +461,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")), backendsWithExtractor(refs));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(
             "Should fail via viability, not eager rejection: " + exception.getMessage(),
             exception.getMessage().contains("No backend can evaluate")

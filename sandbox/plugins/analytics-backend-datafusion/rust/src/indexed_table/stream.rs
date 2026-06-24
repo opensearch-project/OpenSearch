@@ -67,10 +67,12 @@ pub struct RowGroupInfo {
 }
 
 
-/// Test-only override for the per-RG `min_skip_run` selectivity heuristic.
-/// `IndexedStream` normally picks `min_skip_run` from candidate
-/// selectivity; setting `force_strategy` to one of these variants pins the
-/// choice so tests can exercise either extreme.
+/// Override for the per-RG `min_skip_run` selectivity heuristic. `IndexedStream`
+/// normally picks `min_skip_run` from candidate selectivity; setting
+/// `force_strategy` to one of these variants pins the choice node-wide.
+///
+/// Backed by the `datafusion.indexed.force_strategy` cluster setting (wire
+/// `-1` = `None` = let selectivity decide).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FilterStrategy {
     /// Force row-granular selection (`min_skip_run = 1`).
@@ -474,7 +476,6 @@ impl ExecutionPlan for IndexedExec {
             Arc::clone(&self.metadata),
             self.predicate.clone(),
             self.stream_metrics.clone(),
-            self.query_config.force_pushdown,
             self.query_config.force_strategy,
             self.query_config.min_skip_run_default,
             self.query_config.min_skip_run_selectivity_threshold,
@@ -521,17 +522,20 @@ struct IndexedStream {
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     initialized: bool,
     metrics: StreamMetrics,
-    force_pushdown: Option<bool>,
+    /// Optional override for the per-RG `min_skip_run` choice, backed by the
+    /// `datafusion.indexed.force_strategy` cluster setting — see `pick_min_skip_run`.
     force_strategy: Option<FilterStrategy>,
-    /// Baseline `min_skip_run` used when neither selectivity nor
-    /// `force_strategy` drives the choice. Extracted once from
-    /// `DatafusionQueryConfig` so the hot path reads a local `usize`.
+    /// Baseline `min_skip_run` used when selectivity drives the choice (the
+    /// only path in production; tests may pin it via `force_strategy`).
+    /// Extracted once from `DatafusionQueryConfig` so the hot path reads a
+    /// local `usize`.
     min_skip_run_default: usize,
     /// Below this candidate selectivity, pin `min_skip_run = 1`
     /// (row-granular selection). Same hot-path discipline as above.
     min_skip_run_selectivity_threshold: f64,
     /// Whether to ask parquet to apply residual predicates during decode.
-    /// `force_pushdown` still takes priority when set.
+    /// Node-wide default from the `datafusion.indexed.pushdown_filters`
+    /// cluster setting.
     indexed_pushdown_filters: bool,
     evaluator: Arc<dyn RowGroupBitsetSource>,
     /// Output coalescer — combines small post-filter batches up to
@@ -574,7 +578,6 @@ impl IndexedStream {
         metadata: Arc<ParquetMetaData>,
         predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
         metrics: StreamMetrics,
-        force_pushdown: Option<bool>,
         force_strategy: Option<FilterStrategy>,
         min_skip_run_default: usize,
         min_skip_run_selectivity_threshold: f64,
@@ -616,7 +619,6 @@ impl IndexedStream {
             predicate,
             initialized: false,
             metrics,
-            force_pushdown,
             force_strategy,
             min_skip_run_default,
             min_skip_run_selectivity_threshold,
@@ -629,6 +631,30 @@ impl IndexedStream {
             emit_row_ids,
             row_id_output_index,
             dynamic_rg_pruner,
+        }
+    }
+
+    /// Per-RG `min_skip_run` decision.
+    ///
+    /// When `force_strategy` is set (via the `datafusion.indexed.force_strategy`
+    /// cluster setting) it pins the choice to either extreme (`RowSelection` → 1,
+    /// `BooleanMask` → whole-RG select), bypassing the heuristic.
+    ///
+    /// Otherwise the choice is selectivity-driven: at low selectivity every gap
+    /// is worth skipping (`min_skip_run = 1`, row-granular); at higher selectivity
+    /// noisy short gaps would explode the selector Vec, so absorb anything shorter
+    /// than `min_skip_run_default` (block-granular).
+    fn pick_min_skip_run(&self, num_candidates: usize, rg_num_rows: usize) -> usize {
+        match self.force_strategy {
+            Some(FilterStrategy::RowSelection) => return 1,
+            Some(FilterStrategy::BooleanMask) => return rg_num_rows + 1,
+            None => {}
+        }
+        let selectivity = num_candidates as f64 / rg_num_rows as f64;
+        if selectivity < self.min_skip_run_selectivity_threshold {
+            1
+        } else {
+            self.min_skip_run_default
         }
     }
 
@@ -1030,29 +1056,8 @@ impl IndexedStream {
                     self.current_rg_context = Some(prefetched.prefetched.context);
                     self.batch_offset = 0;
 
-                    // Decide min_skip_run for this RG.
-                    //
-                    // - `force_strategy = RowSelection`: row-granular
-                    //   (min_skip_run = 1) — "sparse" path.
-                    // - `force_strategy = BooleanMask`: disable skipping
-                    //   (min_skip_run > rg.num_rows) — full scan.
-                    // - otherwise: pick based on selectivity. At low
-                    //   selectivity every gap is worth skipping (1); at
-                    //   higher selectivity noisy short gaps would explode
-                    //   the selector Vec, so absorb anything smaller than
-                    //   the default block size.
-                    let selectivity = candidates.len() as f64 / rg.num_rows as f64;
-                    let min_skip_run = match self.force_strategy {
-                        Some(FilterStrategy::RowSelection) => 1,
-                        Some(FilterStrategy::BooleanMask) => rg.num_rows as usize + 1,
-                        None => {
-                            if selectivity < self.min_skip_run_selectivity_threshold {
-                                1
-                            } else {
-                                self.min_skip_run_default
-                            }
-                        }
-                    };
+                    // Decide min_skip_run for this RG (see `pick_min_skip_run`).
+                    let min_skip_run = self.pick_min_skip_run(candidates.len() as usize, rg.num_rows as usize);
 
                     // Metrics: track which regime we landed in, using the
                     // same counters as before so `EXPLAIN ANALYZE` output
@@ -1126,10 +1131,12 @@ impl IndexedStream {
                     // dropped (supports_filters_pushdown = Exact) so
                     // there's no safety net if pushdown misbehaves on a
                     // UDF-containing predicate.
-                    let base_push = self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
+                    // Node-wide `indexed_pushdown_filters` setting, gated by
+                    // alignment/forbid checks below.
                     let alignment_risk = min_skip_run != 1 && self.evaluator.needs_row_mask();
-                    let push =
-                        base_push && !alignment_risk && !self.evaluator.forbid_parquet_pushdown();
+                    let push = self.indexed_pushdown_filters
+                        && !alignment_risk
+                        && !self.evaluator.forbid_parquet_pushdown();
 
                     match self.create_row_selection_stream(&rg, selection, push) {
                         Ok((stream, plan)) => {

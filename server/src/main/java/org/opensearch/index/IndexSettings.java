@@ -2051,15 +2051,17 @@ public final class IndexSettings {
                     IndexMergePolicy nodeMergePolicy = IndexMergePolicy.fromString(nodeScopedTimeSeriesIndexPolicy);
                     switch (nodeMergePolicy) {
                         case TIERED:
-                        case DEFAULT_POLICY:
                             mergePolicyProvider = tieredMergePolicyProvider;
                             break;
                         case LOG_BYTE_SIZE:
                             mergePolicyProvider = logByteSizeMergePolicyProvider;
                             break;
+                        case DEFAULT_POLICY:
+                            mergePolicyProvider = defaultMergePolicyProvider();
+                            break;
                     }
                 } else {
-                    mergePolicyProvider = tieredMergePolicyProvider;
+                    mergePolicyProvider = defaultMergePolicyProvider();
                 }
                 break;
         }
@@ -2069,6 +2071,14 @@ public final class IndexSettings {
             logger.trace("Index: " + this.index.getName() + ", Merge policy used: " + mergePolicyProvider);
         }
         return mergePolicyProvider.getMergePolicy();
+    }
+
+    /**
+     * Composite engine indexes default to {@link LogByteSizeMergePolicyProvider};
+     * all other indexes default to {@link TieredMergePolicyProvider}.
+     */
+    private MergePolicyProvider defaultMergePolicyProvider() {
+        return isPluggableDataFormatEnabled() ? logByteSizeMergePolicyProvider : tieredMergePolicyProvider;
     }
 
     public <T> T getValue(Setting<T> setting) {

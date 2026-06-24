@@ -442,7 +442,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
     // arithmetic were wrong we'd silently corrupt results on any segment after the first.
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(corpus.config.target_partitions.max(1))
-        .force_pushdown(Some(true))
+        .indexed_pushdown_filters(true)
         .batch_size(1024)
         .build();
 
