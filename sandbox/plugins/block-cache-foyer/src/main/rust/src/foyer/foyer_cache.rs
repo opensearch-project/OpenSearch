@@ -245,7 +245,7 @@ impl Drop for FoyerCache {
             }
             Err(_) => {
                 native_bridge_common::log_info!(
-                    "[block-cache] HybridCache close TIMED OUT (5s) on shutdown — partial blocks may be lost"
+                    "[block-cache] HybridCache close TIMED OUT (30s) on shutdown — partial blocks may be lost"
                 );
             }
         }

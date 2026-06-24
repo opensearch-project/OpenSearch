@@ -2770,3 +2770,101 @@ fn tiered_cache_key_alignment_warmup_matches_query() {
     // Superset → miss (different key)
     assert!(block_on(tiered.get(&range_cache_key("seg0/_0.parquet", 7_500_000, 9_000_000))).is_none());
 }
+
+/// put_metadata() skips entries larger than max_metadata_entry_size — oversized
+/// metadata is never written, bounding memory for pathological (wide-schema) files.
+#[test]
+fn tiered_cache_put_metadata_skips_oversized_entry() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+
+    // Shrink the bound so the test stays small (no multi-MB allocations).
+    tiered.update_max_metadata_entry_size(2048);
+
+    let big_key = range_cache_key("seg0/_0.parquet", 0, 4096);
+    tiered.put_metadata(&big_key, Bytes::from(vec![0xAB; 4096])); // 4KB > 2KB → skipped
+    assert!(block_on(tiered.get(&big_key)).is_none(),
+        "metadata entry exceeding max_metadata_entry_size must not be cached");
+    assert!(block_on(tiered.metadata_cache().get(&big_key)).is_none(),
+        "oversized metadata must not reach the metadata tier");
+
+    let small_key = range_cache_key("seg0/_0.parquet", 0, 1024);
+    tiered.put_metadata(&small_key, Bytes::from(vec![0xCD; 1024])); // 1KB <= 2KB → cached
+    assert_eq!(block_on(tiered.get(&small_key)).map(|b| b.len()), Some(1024),
+        "metadata entry within the limit must be cached");
+    assert!(block_on(tiered.metadata_cache().get(&small_key)).is_some());
+}
+
+/// put() skips data entries larger than max_data_entry_size; the getter reflects
+/// the configured bound (used by TieredObjectStore::get_opts to avoid buffering).
+#[test]
+fn tiered_cache_put_skips_oversized_data_entry() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+
+    tiered.update_max_data_entry_size(2048);
+    assert_eq!(tiered.max_data_entry_size(), 2048, "getter must reflect the updated bound");
+
+    let big_key = range_cache_key("seg0/_0.parquet", 0, 4096);
+    tiered.put(&big_key, Bytes::from(vec![0xAB; 4096])); // 4KB > 2KB → skipped
+    assert!(block_on(tiered.get(&big_key)).is_none(),
+        "data entry exceeding max_data_entry_size must not be cached");
+
+    let small_key = range_cache_key("seg0/_0.parquet", 4096, 5120);
+    tiered.put(&small_key, Bytes::from(vec![0xCD; 1024])); // 1KB <= 2KB → cached
+    assert!(block_on(tiered.data_cache().get(&small_key)).is_some(),
+        "data entry within the limit must be cached");
+}
+
+/// Size bounds update dynamically — raising the limit admits a previously
+/// rejected entry on the next put.
+#[test]
+fn tiered_cache_size_bound_update_takes_effect_immediately() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+
+    let key = range_cache_key("seg0/_0.parquet", 0, 4096);
+
+    // Tight bound → rejected.
+    tiered.update_max_data_entry_size(1024);
+    tiered.put(&key, Bytes::from(vec![0x11; 4096]));
+    assert!(block_on(tiered.get(&key)).is_none(), "4KB rejected under 1KB bound");
+
+    // Raise the bound → same entry now admitted.
+    tiered.update_max_data_entry_size(8192);
+    tiered.put(&key, Bytes::from(vec![0x22; 4096]));
+    assert_eq!(block_on(tiered.get(&key)).map(|b| b.len()), Some(4096),
+        "4KB admitted after raising bound to 8KB");
+}
+
+/// clear_sync() empties both tiers. This is the production entry point
+/// (FFM `foyer_clear_cache` → `clear_sync`); the async `clear()` trait method
+/// internally delegates to it.
+#[test]
+fn tiered_cache_clear_empties_both_tiers() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+    let path = "seg0/_0.parquet";
+
+    tiered.put_metadata(&range_cache_key(path, 9_000_000, 10_000_000), Bytes::from_static(b"meta"));
+    tiered.put(&range_cache_key(path, 0, 1_000_000), Bytes::from_static(b"data"));
+
+    tiered.clear_sync();
+
+    assert!(block_on(tiered.metadata_cache().get(&range_cache_key(path, 9_000_000, 10_000_000))).is_none(),
+        "metadata tier must be empty after clear_sync()");
+    assert!(block_on(tiered.data_cache().get(&range_cache_key(path, 0, 1_000_000))).is_none(),
+        "data tier must be empty after clear_sync()");
+}
+
+/// A single-tier FoyerCache (metadata_cache_ratio=0) inherits the
+/// `BlockCache::put_metadata` default, which routes to put() — so warmup's
+/// put_metadata still lands in the one cache. Dispatched via `&dyn BlockCache`
+/// to exercise the trait default explicitly.
+#[test]
+fn foyer_cache_put_metadata_default_routes_to_put() {
+    let (cache, _dir) = test_cache();
+    let dyn_cache: &dyn crate::traits::BlockCache = &cache;
+
+    let key = range_cache_key("seg0/_0.parquet", 0, 64);
+    dyn_cache.put_metadata(&key, Bytes::from_static(b"footer"));
+
+    assert_eq!(block_on(dyn_cache.get(&key)).as_deref(), Some(b"footer".as_slice()),
+        "put_metadata default must route to the single cache and be retrievable via get()");
+}

@@ -51,17 +51,7 @@ pub async fn load_scoped_page_index_cols(
     predicate_cols: &[usize],
     projection_cols: &[usize],
 ) -> Option<Arc<ParquetMetaData>> {
-    native_bridge_common::log_info!(
-        "[query::scoped-pi] load_scoped_page_index_cols ENTRY path='{}' n_pred_cols={} n_proj_cols={} rg_count={}",
-        location.as_ref(), predicate_cols.len(), projection_cols.len(),
-        footer_meta.num_row_groups()
-    );
-    let result = attach_scoped_page_index_to_metadata(store, location, footer_meta, predicate_cols, Some(projection_cols)).await;
-    native_bridge_common::log_info!(
-        "[query::scoped-pi] load_scoped_page_index_cols DONE path='{}' grafted={}",
-        location.as_ref(), result.is_some()
-    );
-    result
+    attach_scoped_page_index_to_metadata(store, location, footer_meta, predicate_cols, Some(projection_cols)).await
 }
 
 async fn attach_scoped_page_index_to_metadata(

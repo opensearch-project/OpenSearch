@@ -81,43 +81,6 @@ pub(crate) fn compute_page_index_range(metadata: &parquet::file::metadata::Parqu
     ranges
 }
 
-/// Legacy: ONE global merged range covering both column-index and offset-index.
-///
-/// Kept only for reference / non-warmup callers. The warmup path must NOT use this
-/// — it produces a single CI∪OI key that the query-time per-kind whole-region
-/// probes never match. Use [`compute_page_index_range`] instead.
-#[allow(dead_code)]
-pub(crate) fn compute_page_index_range_merged(metadata: &parquet::file::metadata::ParquetMetaData) -> Vec<std::ops::Range<u64>> {
-    let page_index_range = metadata.row_groups().iter()
-        .flat_map(|rg| rg.columns().iter())
-        .fold(None::<std::ops::Range<u64>>, |acc, col| {
-            let acc = if let (Some(offset), Some(length)) = (col.column_index_offset(), col.column_index_length()) {
-                let start = offset as u64;
-                let end = start + length as u64;
-                match acc {
-                    Some(a) => Some(a.start.min(start)..a.end.max(end)),
-                    None => Some(start..end),
-                }
-            } else {
-                acc
-            };
-            if let (Some(offset), Some(length)) = (col.offset_index_offset(), col.offset_index_length()) {
-                let start = offset as u64;
-                let end = start + length as u64;
-                match acc {
-                    Some(a) => Some(a.start.min(start)..a.end.max(end)),
-                    None => Some(start..end),
-                }
-            } else {
-                acc
-            }
-        });
-    match page_index_range {
-        Some(r) => vec![r],
-        None => vec![],
-    }
-}
-
 /// Create ObjectMeta from a local file path.
 fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, datafusion::common::DataFusionError> {
     use chrono::{DateTime, Utc};
@@ -553,16 +516,10 @@ impl CustomCacheManager {
         store: Arc<dyn MetadataCachingStore>,
         rt_handle: &tokio::runtime::Handle,
     ) -> Result<Vec<(String, bool)>, String> {
-        native_bridge_common::log_info!(
-            "[init::warmup] add_files_with_store ENTRY n_files={}",
-            file_paths.len()
-        );
         let mut results = Vec::with_capacity(file_paths.len());
-        let mut succ = 0usize;
         for file_path in file_paths {
             match self.warmup_file_with_store(file_path, &store, rt_handle) {
                 Ok(success) => {
-                    if success { succ += 1; }
                     results.push((file_path.clone(), success));
                 }
                 Err(e) => {
@@ -571,10 +528,6 @@ impl CustomCacheManager {
                 }
             }
         }
-        native_bridge_common::log_info!(
-            "[init::warmup] add_files_with_store DONE successes={}/{}",
-            succ, file_paths.len()
-        );
         Ok(results)
     }
 
@@ -592,12 +545,8 @@ impl CustomCacheManager {
         rt_handle: &tokio::runtime::Handle,
     ) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
-            native_bridge_common::log_info!(
-                "[init::warmup] file='{}' SKIPPED (non-parquet)", file_path
-            );
             return Ok(false);
         }
-        native_bridge_common::log_info!("[init::warmup] file='{}' ENTRY", file_path);
 
         // Step 1: Fetch footer only → heap cache (parsed ParquetMetaData)
         let (parquet_metadata, object_meta) = self.fetch_footer_to_heap(file_path, store, rt_handle)?;
@@ -617,16 +566,6 @@ impl CustomCacheManager {
         // matching the query-time whole-region probe keys exactly. A single merged
         // CI∪OI range would never match the query's per-kind probes (warm miss).
         let mut index_ranges = compute_page_index_range(&parquet_metadata);
-        let pi_count = index_ranges.len();
-        // TEMP debug log (remove before prod): the exact page-index keys warmup will
-        // write — compare against the query's `[query::whole-region-pi] WHOLE_REGION range=`.
-        let path_for_key = file_path.strip_prefix('/').unwrap_or(file_path);
-        for (i, r) in index_ranges.iter().enumerate() {
-            native_bridge_common::log_info!(
-                "[init::warmup] file='{}' page_index_range[{}] = [{}..{}] (key='{}\\x1F{}-{}')",
-                file_path, i, r.start, r.end, path_for_key, r.start, r.end
-            );
-        }
 
         // Also promote the footer (last 64 KB) to metadata Foyer — heap-eviction safety net.
         // Heap holds the parsed `ParquetMetaData` for fast lookups; the metadata Foyer entry
@@ -644,33 +583,20 @@ impl CustomCacheManager {
         // their own key makes that probe a warm hit.
         let postscript_start = object_meta.size.saturating_sub(8);
         index_ranges.push(postscript_start..object_meta.size);
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' footer ranges: footer_64k=[{}..{}] postscript_8b=[{}..{}] (postscript key='{}\\x1F{}-{}')",
-            file_path, footer_start, object_meta.size,
-            postscript_start, object_meta.size,
-            file_path.strip_prefix('/').unwrap_or(file_path), postscript_start, object_meta.size
-        );
-
-        let total_pre_fetch_bytes: u64 = index_ranges.iter().map(|r| r.end - r.start).sum();
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' index_ranges: page_index={} +1 footer (last 64KB) +1 postscript (last 8B) = {} ranges total_bytes={}",
-            file_path, pi_count, index_ranges.len(), total_pre_fetch_bytes
-        );
 
         // Step 4: Fetch the ranges through the store (populates data Foyer on the way).
         let fetched_bytes = Self::fetch_ranges_via_store(store, file_path, &index_ranges, rt_handle)?;
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' fetched n_ranges={} fetched_bytes={}",
-            file_path, fetched_bytes.len(),
-            fetched_bytes.iter().map(|b| b.len() as u64).sum::<u64>()
-        );
 
         // Step 5: Promote bytes to metadata Foyer (never-evict tier).
         // No-op when `store` is not a TieredObjectStore (default trait impl is no-op).
         store.put_metadata(file_path, &index_ranges, &fetched_bytes);
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' DONE (footer 64KB + postscript 8B + page-index promoted to metadata Foyer)",
-            file_path
+
+        native_bridge_common::log_debug!(
+            "[warm-tier] warmed file='{}' size={} promoted {} metadata ranges ({} bytes)",
+            file_path,
+            object_meta.size,
+            index_ranges.len(),
+            index_ranges.iter().map(|r| r.end - r.start).sum::<u64>()
         );
 
         Ok(true)
@@ -698,10 +624,6 @@ impl CustomCacheManager {
             store.head(&path).await
                 .map_err(|e| format!("Failed to head {}: {}", file_path, e))
         })?;
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' head: size={} last_modified={}",
-            file_path, object_meta.size, object_meta.last_modified
-        );
 
         let cache_ref = self.file_metadata_cache.as_ref()
             .ok_or_else(|| "No file metadata cache configured".to_string())?;
@@ -715,12 +637,6 @@ impl CustomCacheManager {
             df_metadata.fetch_metadata().await
                 .map_err(|e| format!("Failed to fetch footer: {}", e))
         })?;
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' footer parsed: rg_count={} col_count={}",
-            file_path,
-            parquet_metadata.num_row_groups(),
-            parquet_metadata.file_metadata().schema_descr().num_columns()
-        );
 
         // Put lightweight footer-only metadata into heap cache
         use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
@@ -731,10 +647,6 @@ impl CustomCacheManager {
             Arc::new(CachedParquetMetaData::new(Arc::clone(&parquet_metadata))),
         );
         metadata_cache.put(&path, cached_entry);
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' heap metadata_cache.put DONE (footer only)",
-            file_path
-        );
 
         Ok((parquet_metadata, object_meta))
     }
@@ -833,10 +745,6 @@ impl CustomCacheManager {
             .map_err(|e| format!("failed to compute statistics for {}: {}", file_path, e))?;
 
         cache.put_statistics(&path, Arc::new(stats), object_meta);
-        native_bridge_common::log_info!(
-            "[init::warmup] file='{}' statistics_cache.put DONE rg_count={}",
-            file_path, parquet_metadata.num_row_groups()
-        );
         Ok(true)
     }
 
@@ -1088,5 +996,142 @@ mod tests {
         mgr.clear_all();
 
         clear_scoped_cache_for_test();
+    }
+
+    // ── compute_page_index_range ──────────────────────────────────────────────
+
+    /// Write an in-memory parquet file and return its raw bytes. `stats` controls
+    /// whether page indexes (column-index + offset-index) are emitted into the footer.
+    fn parquet_bytes(num_cols: usize, num_rg: usize, stats: parquet::file::properties::EnabledStatistics) -> bytes::Bytes {
+        use arrow::array::{Int64Array, RecordBatch};
+        use arrow::datatypes::{DataType, Field, Schema};
+        use parquet::arrow::ArrowWriter;
+        use parquet::file::properties::WriterProperties;
+
+        let fields: Vec<Field> = (0..num_cols)
+            .map(|c| Field::new(format!("col_{}", c), DataType::Int64, false))
+            .collect();
+        let schema = Arc::new(Schema::new(fields));
+
+        let props = WriterProperties::builder()
+            .set_max_row_group_size(32)
+            .set_data_page_row_count_limit(8)
+            .set_write_batch_size(8)
+            .set_statistics_enabled(stats)
+            .build();
+
+        let mut buf: Vec<u8> = Vec::new();
+        {
+            let mut w = ArrowWriter::try_new(&mut buf, schema.clone(), Some(props)).unwrap();
+            for rg in 0..num_rg {
+                let base = (rg * 100) as i64;
+                let cols: Vec<Arc<dyn arrow::array::Array>> = (0..num_cols)
+                    .map(|c| {
+                        let vals: Vec<i64> = (base..base + 40).map(|v| v + (c as i64 * 1000)).collect();
+                        Arc::new(Int64Array::from(vals)) as Arc<dyn arrow::array::Array>
+                    })
+                    .collect();
+                let batch = RecordBatch::try_new(schema.clone(), cols).unwrap();
+                w.write(&batch).unwrap();
+            }
+            w.close().unwrap();
+        }
+        bytes::Bytes::from(buf)
+    }
+
+    /// A page-indexed file yields exactly TWO regions — the column-index (CI) whole
+    /// region first, then the offset-index (OI) whole region — and each region is the
+    /// tight min..max fold over the corresponding per-column extents in the footer.
+    #[test]
+    fn compute_page_index_range_returns_tight_ci_and_oi_regions() {
+        use parquet::file::properties::EnabledStatistics;
+        use parquet::file::reader::FileReader;
+        use parquet::file::serialized_reader::SerializedFileReader;
+
+        let buf = parquet_bytes(3, 2, EnabledStatistics::Page);
+        let reader = SerializedFileReader::new(buf).unwrap();
+        let metadata = reader.metadata();
+
+        let ranges = compute_page_index_range(metadata);
+        assert_eq!(ranges.len(), 2, "page-indexed file must yield separate CI and OI regions");
+        let (ci, oi) = (ranges[0].clone(), ranges[1].clone());
+        assert!(ci.end > ci.start, "CI region must be non-empty");
+        assert!(oi.end > oi.start, "OI region must be non-empty");
+        assert_ne!(ci, oi, "CI and OI must be distinct warm-tier keys (not merged)");
+
+        // Compute the expected tight folds independently and compare.
+        let mut exp_ci: Option<std::ops::Range<u64>> = None;
+        let mut exp_oi: Option<std::ops::Range<u64>> = None;
+        for rg in metadata.row_groups() {
+            for col in rg.columns() {
+                if let (Some(off), Some(len)) = (col.column_index_offset(), col.column_index_length()) {
+                    let (s, e) = (off as u64, off as u64 + len as u64);
+                    exp_ci = Some(match exp_ci {
+                        Some(a) => a.start.min(s)..a.end.max(e),
+                        None => s..e,
+                    });
+                }
+                if let (Some(off), Some(len)) = (col.offset_index_offset(), col.offset_index_length()) {
+                    let (s, e) = (off as u64, off as u64 + len as u64);
+                    exp_oi = Some(match exp_oi {
+                        Some(a) => a.start.min(s)..a.end.max(e),
+                        None => s..e,
+                    });
+                }
+            }
+        }
+        assert_eq!(Some(ci), exp_ci, "CI region must equal the tight min..max fold of all column_index extents");
+        assert_eq!(Some(oi), exp_oi, "OI region must equal the tight min..max fold of all offset_index extents");
+    }
+
+    /// With page statistics disabled the column index is absent (it requires
+    /// page-level stats), though the writer may still emit an offset index. The
+    /// function must equal the independent `[CI?, OI?]` fold — skipping absent
+    /// kinds — which exercises the "one kind present" branch.
+    #[test]
+    fn compute_page_index_range_matches_independent_fold_no_page_stats() {
+        use parquet::file::properties::EnabledStatistics;
+        use parquet::file::reader::FileReader;
+        use parquet::file::serialized_reader::SerializedFileReader;
+
+        let buf = parquet_bytes(2, 1, EnabledStatistics::None);
+        let reader = SerializedFileReader::new(buf).unwrap();
+        let metadata = reader.metadata();
+
+        let mut exp_ci: Option<std::ops::Range<u64>> = None;
+        let mut exp_oi: Option<std::ops::Range<u64>> = None;
+        for rg in metadata.row_groups() {
+            for col in rg.columns() {
+                if let (Some(off), Some(len)) = (col.column_index_offset(), col.column_index_length()) {
+                    let (s, e) = (off as u64, off as u64 + len as u64);
+                    exp_ci = Some(match exp_ci {
+                        Some(a) => a.start.min(s)..a.end.max(e),
+                        None => s..e,
+                    });
+                }
+                if let (Some(off), Some(len)) = (col.offset_index_offset(), col.offset_index_length()) {
+                    let (s, e) = (off as u64, off as u64 + len as u64);
+                    exp_oi = Some(match exp_oi {
+                        Some(a) => a.start.min(s)..a.end.max(e),
+                        None => s..e,
+                    });
+                }
+            }
+        }
+        let mut expected: Vec<std::ops::Range<u64>> = Vec::new();
+        if let Some(r) = exp_ci.clone() {
+            expected.push(r);
+        }
+        if let Some(r) = exp_oi {
+            expected.push(r);
+        }
+
+        assert_eq!(
+            compute_page_index_range(metadata),
+            expected,
+            "result must equal the independent [CI?, OI?] fold, skipping absent index kinds"
+        );
+        // Column index requires page-level statistics; with stats disabled it must be absent.
+        assert!(exp_ci.is_none(), "column index must be absent when statistics are disabled");
     }
 }

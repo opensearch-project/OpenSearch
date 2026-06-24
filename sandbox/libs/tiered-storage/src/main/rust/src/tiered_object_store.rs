@@ -105,16 +105,17 @@ impl TieredObjectStore {
 
     /// Set the remote store (once). Subsequent calls are ignored.
     pub fn set_remote(&self, store: Arc<dyn ObjectStore>) {
-        self.remote.set(store).ok(); // ignore if already set
+        let was_set = self.remote.set(store).is_err();
+        native_bridge_common::log_debug!("[warm-tier] set_remote wired={} (already_set={})", !was_set, was_set);
     }
 
     /// Attach a block cache. Hot nodes skip this; `None` means no caching.
     #[must_use]
     pub fn with_cache(mut self, cache: Arc<dyn BlockCache>) -> Self {
         self.cache = Some(cache);
+        native_bridge_common::log_debug!("[warm-tier] TieredObjectStore: block cache attached");
         self
     }
-
 
     /// Evict all cache entries whose key starts with `path`.
     ///
@@ -123,6 +124,7 @@ impl TieredObjectStore {
     /// so that stale byte-range entries are freed promptly.
     pub fn evict_path(&self, path: &str) {
         if let Some(ref cache) = self.cache {
+            native_bridge_common::log_debug!("[warm-tier] evict_path path='{}'", path);
             cache.evict_prefix(path);
         }
     }
@@ -141,10 +143,12 @@ impl TieredObjectStore {
         // already stripped). Without this, warmup writes under "/Volumes/..." while query
         // reads probe under "Volumes/..." — silent cache miss on every read.
         let path_str = path.strip_prefix('/').unwrap_or(path);
-        let total_bytes: u64 = ranges.iter().map(|r| r.end - r.start).sum();
-        native_bridge_common::log_info!(
-            "[init::tier-store] put_metadata path='{}' n_ranges={} total_bytes={} has_cache={}",
-            path_str, ranges.len(), total_bytes, self.cache.is_some()
+        native_bridge_common::log_debug!(
+            "[warm-tier] put_metadata path='{}' ranges={} bytes={} cache={}",
+            path_str,
+            ranges.len(),
+            ranges.iter().map(|r| r.end - r.start).sum::<u64>(),
+            self.cache.is_some()
         );
         if let Some(ref cache) = self.cache {
             for (r, bytes) in ranges.iter().zip(data.iter()) {
@@ -276,7 +280,7 @@ impl TieredObjectStore {
         if matches!(err, object_store::Error::NotFound { .. }) {
             let resolved = self.resolve_remote(path_str);
             if resolved.is_some() {
-                native_bridge_common::log_info!(
+                native_bridge_common::log_debug!(
                     "TieredObjectStore: LOCAL NotFound, file transitioned to REMOTE — retrying path='{}'",
                     path_str
                 );
@@ -323,7 +327,7 @@ impl TieredObjectStore {
         };
         let matches = self.registry.entries_matching(&prefix_with_slash);
         if !matches.is_empty() {
-            native_bridge_common::log_info!(
+            native_bridge_common::log_debug!(
                 "TieredObjectStore: try_head_from_registry — path='{}' is a directory ({} files), returning NotFound",
                 path_str, matches.len()
             );
@@ -422,27 +426,14 @@ impl TieredObjectStore {
         path_str: &str,
         miss_ranges: &[Range<u64>],
     ) -> OsResult<Vec<Bytes>> {
-        let n = miss_ranges.len();
         if let Some((rp, store)) = self.resolve_remote(path_str) {
-            native_bridge_common::log_info!(
-                "[query::tier-store] →REMOTE path='{}' n={} (file is REMOTE in registry)",
-                path_str, n
-            );
             return store.get_ranges(&rp, miss_ranges).await;
         }
-        native_bridge_common::log_info!(
-            "[query::tier-store] →LOCAL path='{}' n={} (trying local first)",
-            path_str, n
-        );
         let result = self.local.get_ranges(location, miss_ranges).await;
         match result {
             Ok(bytes) => Ok(bytes),
             Err(ref e) => {
                 if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
-                    native_bridge_common::log_info!(
-                        "[query::tier-store] →LOCAL_THEN_REMOTE path='{}' n={} (local NotFound, retrying remote)",
-                        path_str, n
-                    );
                     store.get_ranges(&rp, miss_ranges).await
                 } else {
                     result
@@ -649,33 +640,12 @@ impl ObjectStore for TieredObjectStore {
     /// Probes cache per range, fetches only misses, populates cache on success.
     async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
         let path_str = location.as_ref();
-        let total_bytes: u64 = ranges.iter().map(|r| r.end - r.start).sum();
-        native_bridge_common::log_info!(
-            "[query::tier-store] get_ranges path='{}' n={} total_bytes={}",
-            path_str, ranges.len(), total_bytes
-        );
 
         let (mut slots, miss_indices, miss_ranges) = self.probe_cache(path_str, ranges).await;
 
         if miss_ranges.is_empty() {
             // Full cache hit — all ranges served from SSD.
-            native_bridge_common::log_info!(
-                "[query::tier-store] FULL_FOYER_HIT path='{}' n={} total_bytes={}",
-                path_str, ranges.len(), total_bytes
-            );
             return Ok(slots.into_iter().map(|o| o.unwrap()).collect());
-        }
-
-        if self.cache.is_some() {
-            native_bridge_common::log_info!(
-                "[query::tier-store] FOYER_MISS path='{}' misses={}/{} (will fetch)",
-                path_str, miss_ranges.len(), ranges.len()
-            );
-        } else {
-            native_bridge_common::log_info!(
-                "[query::tier-store] NO_CACHE path='{}' fetching={}/{}",
-                path_str, miss_ranges.len(), ranges.len()
-            );
         }
 
         let fetched = self.fetch_misses(location, path_str, &miss_ranges).await?;

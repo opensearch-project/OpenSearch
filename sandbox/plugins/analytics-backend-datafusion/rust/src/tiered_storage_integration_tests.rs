@@ -27,10 +27,10 @@ use opensearch_block_cache::range_cache::range_cache_key;
 use opensearch_block_cache::tiered_block_cache::TieredBlockCache;
 use opensearch_block_cache::traits::BlockCache;
 
-use crate::registry::traits::FileRegistry;
-use crate::registry::TieredStorageRegistry;
-use crate::tiered_object_store::TieredObjectStore;
-use crate::types::{FileLocation, TieredFileEntry};
+use opensearch_tiered_storage::registry::traits::FileRegistry;
+use opensearch_tiered_storage::registry::TieredStorageRegistry;
+use opensearch_tiered_storage::tiered_object_store::TieredObjectStore;
+use opensearch_tiered_storage::types::{FileLocation, TieredFileEntry};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -945,9 +945,6 @@ fn metadata_foyer_capacity_breach_graceful_degradation() {
     });
 }
 
-/// **Test**: Oversized metadata entries route to data cache via max_metadata_entry_size bound.
-///
-
 /// **Test 4**: Page index ranges match parquet crate computation.
 ///
 /// Our warmup code computes page index ranges by folding column_index_offset/length
@@ -1332,129 +1329,6 @@ fn restart_with_file_deleted_query_succeeds_from_foyer_only() {
 }
 
 
-/// Metadata cache does LRU eviction: oldest metadata entries are evicted when full.
-#[test]
-fn metadata_cache_lru_evicts_oldest() {
-    let data_dir = TempDir::new().unwrap();
-    let meta_dir = TempDir::new().unwrap();
-
-    // Small metadata cache: 2MB disk, 1MB blocks.
-    let data_cache = Arc::new(FoyerCache::new(
-        DISK_BYTES, data_dir.path(), BLOCK_SIZE, BUFFER_POOL, SUBMIT_QUEUE,
-        "auto", 0, 0.0, 0, false,
-    ));
-    let metadata_cache = Arc::new(FoyerCache::new(
-        2 * 1024 * 1024, meta_dir.path(), BLOCK_SIZE, BUFFER_POOL, SUBMIT_QUEUE,
-        "auto", 0, 0.0, 0, false,
-    ));
-    let cache = Arc::new(TieredBlockCache::new(data_cache, metadata_cache));
-
-    let chunk_size = 512 * 1024usize;
-
-    block_on(async {
-        // Put 6 entries (3MB total) into 2MB metadata cache
-        let mut keys = Vec::new();
-        for i in 0..6u64 {
-            let key = range_cache_key("lru_meta.parquet", i * chunk_size as u64, (i + 1) * chunk_size as u64);
-            let data = bytes::Bytes::from(vec![i as u8; chunk_size]);
-            cache.put_metadata(&key, data);
-            keys.push(key);
-        }
-
-        // Log state of each entry
-        for (i, key) in keys.iter().enumerate() {
-            let found = cache.metadata_cache().get(key).await.is_some();
-            println!("metadata entry {}: found={}", i, found);
-        }
-
-        // After flush + reclaim cycle
-        cache.wait_for_flush().await;
-        println!("--- after wait_for_flush ---");
-        for (i, key) in keys.iter().enumerate() {
-            let found = cache.metadata_cache().get(key).await.is_some();
-            println!("metadata entry {}: found={}", i, found);
-        }
-
-        // Give reclaimer time to run
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        println!("--- after 2s sleep ---");
-        let mut found_count = 0;
-        let mut evicted_count = 0;
-        for (i, key) in keys.iter().enumerate() {
-            let found = cache.metadata_cache().get(key).await.is_some();
-            println!("metadata entry {}: found={}", i, found);
-            if found { found_count += 1; } else { evicted_count += 1; }
-        }
-        println!("total: found={}, evicted={}", found_count, evicted_count);
-    });
-}
-
-/// Data cache does LRU eviction: oldest column data evicted when full.
-/// Metadata cache is unaffected by data pressure.
-#[test]
-fn data_cache_lru_evicts_oldest_metadata_unaffected() {
-    let data_dir = TempDir::new().unwrap();
-    let meta_dir = TempDir::new().unwrap();
-
-    // Small data cache: 2MB.
-    let data_cache = Arc::new(FoyerCache::new(
-        2 * 1024 * 1024, data_dir.path(), BLOCK_SIZE, BUFFER_POOL, SUBMIT_QUEUE,
-        "auto", 0, 0.0, 0, false,
-    ));
-    let metadata_cache = Arc::new(FoyerCache::new(
-        DISK_BYTES, meta_dir.path(), BLOCK_SIZE, BUFFER_POOL, SUBMIT_QUEUE,
-        "auto", 0, 0.0, 0, false,
-    ));
-    let cache = Arc::new(TieredBlockCache::new(data_cache, metadata_cache));
-
-    let chunk_size = 512 * 1024usize;
-
-    block_on(async {
-        // Put metadata entry first
-        let meta_key = range_cache_key("lru_data.parquet", 9000000, 9500000);
-        let meta_data = bytes::Bytes::from(vec![0xFF; 100]);
-        cache.put_metadata(&meta_key, meta_data.clone());
-
-        // Fill data cache: 6 × 512KB = 3MB into 2MB cache
-        let mut data_keys = Vec::new();
-        for i in 0..6u64 {
-            let key = range_cache_key("lru_data.parquet", i * chunk_size as u64, (i + 1) * chunk_size as u64);
-            let data = bytes::Bytes::from(vec![i as u8; chunk_size]);
-            cache.data_cache().put(&key, data);
-            data_keys.push(key);
-        }
-
-        // Log state immediately
-        println!("--- immediately ---");
-        for (i, key) in data_keys.iter().enumerate() {
-            let found = cache.data_cache().get(key).await.is_some();
-            println!("data entry {}: found={}", i, found);
-        }
-
-        cache.wait_for_flush().await;
-        println!("--- after wait_for_flush ---");
-        for (i, key) in data_keys.iter().enumerate() {
-            let found = cache.data_cache().get(key).await.is_some();
-            println!("data entry {}: found={}", i, found);
-        }
-
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        println!("--- after 2s sleep ---");
-        let mut found_count = 0;
-        let mut evicted_count = 0;
-        for (i, key) in data_keys.iter().enumerate() {
-            let found = cache.data_cache().get(key).await.is_some();
-            println!("data entry {}: found={}", i, found);
-            if found { found_count += 1; } else { evicted_count += 1; }
-        }
-        println!("data total: found={}, evicted={}", found_count, evicted_count);
-
-        // Metadata unaffected
-        let meta_found = cache.metadata_cache().get(&meta_key).await;
-        println!("metadata entry: found={}", meta_found.is_some());
-    });
-}
-
 /// get_opts auto-populates data Foyer on miss — repeated single-range reads
 /// hit data cache on second access (simulates CachedMetadataReader::get_bytes
 /// for column chunks in IndexedExec path).
@@ -1492,8 +1366,6 @@ fn get_opts_populates_data_cache_on_miss() {
             "second read must return same bytes from data Foyer cache");
     });
 }
-
-#[test]
 
 /// get_opts skips caching for ranges exceeding max_cache_entry_size.
 /// The threshold is configurable and dynamically updatable.
@@ -1535,4 +1407,129 @@ fn get_opts_skips_caching_for_large_ranges() {
         assert!(cache.data_cache().get(&large_key).await.is_some(),
             "after threshold increase, 4KB range must be cached");
     });
+}
+
+// ── Small-file + per-range metadata persistence (prod-gap reproduction) ──────
+//
+// Production logs (warm node, ~3 KB Parquet file) showed that after warmup the
+// metadata tier's key_index.json contained ONLY the whole-file footer key
+// (`<path>␟0-<size>`) — the column-index, offset-index, and 8-byte postscript
+// keys were missing. These tests pin the property that EVERY warmed range must
+// land in the never-evict metadata tier, and isolate the small-file footer
+// collapse that triggers the overlap.
+
+/// Compute the warmup ranges exactly as `custom_cache_manager::warmup_file_with_store`:
+///   - CI + OI page-index whole regions (via the real `compute_page_index_range`)
+///   - footer:     `[size - 64KB, size]`  (collapses to `[0, size]` for files < 64KB)
+///   - postscript: `[size - 8, size]`
+fn production_warmup_ranges(
+    metadata: &parquet::file::metadata::ParquetMetaData,
+    file_size: u64,
+) -> Vec<std::ops::Range<u64>> {
+    let mut ranges = crate::cache::custom_cache_manager::compute_page_index_range(metadata);
+    let footer_start = file_size.saturating_sub(64 * 1024);
+    ranges.push(footer_start..file_size);
+    let postscript_start = file_size.saturating_sub(8);
+    ranges.push(postscript_start..file_size);
+    ranges
+}
+
+/// In-session per-range persistence: warm a small (< 64 KB) page-indexed file
+/// exactly as production does, then assert that EACH warmed range (CI, OI, footer,
+/// postscript) is individually present in the metadata tier — not just the
+/// whole-file footer key.
+#[test]
+fn small_file_warmup_persists_every_range_to_metadata_tier() {
+    use parquet::file::reader::FileReader;
+    use parquet::file::serialized_reader::SerializedFileReader;
+
+    let parquet_dir = TempDir::new().unwrap();
+    let data_dir = TempDir::new().unwrap();
+    let meta_dir = TempDir::new().unwrap();
+
+    // 11 columns × 1 row group → a few-KB file, matching the production shape
+    // (col_count=11, rg_count=1, size ≈ 3 KB).
+    let file_size = write_page_indexed_parquet(parquet_dir.path(), "small.parquet", 1, 11);
+    assert!(file_size < 64 * 1024, "fixture must be smaller than the 64KB footer prefetch");
+
+    let cache = create_tiered_cache(data_dir.path(), meta_dir.path());
+    let store = create_store(parquet_dir.path(), cache.clone(), "small.parquet", file_size);
+
+    let file = std::fs::File::open(parquet_dir.path().join("small.parquet")).unwrap();
+    let reader = SerializedFileReader::new(file).unwrap();
+    let ranges = production_warmup_ranges(reader.metadata(), file_size);
+    assert_eq!(ranges.len(), 4, "expected CI, OI, footer, postscript ranges");
+
+    // Root-cause quirk: for a sub-64KB file the footer range is the whole file.
+    assert_eq!(ranges[2], 0..file_size, "small-file footer range collapses to the whole file");
+
+    block_on(async {
+        let path = Path::from("small.parquet");
+        let fetched = store.get_ranges(&path, &ranges).await.unwrap();
+        store.put_metadata("small.parquet", &ranges, &fetched);
+
+        for r in &ranges {
+            let key = range_cache_key("small.parquet", r.start, r.end);
+            assert!(
+                cache.metadata_cache().get(&key).await.is_some(),
+                "warmed range {}..{} ({} bytes) must be in the metadata tier \
+                 (prod showed only the footer key persisting)",
+                r.start, r.end, r.end - r.start
+            );
+        }
+    });
+}
+
+/// Restart variant — closest to the production `key_index.json` evidence. Warm all
+/// ranges into the metadata tier, drop the caches (FoyerCache::drop flushes +
+/// persists), then recreate on the same SSD dirs and assert EVERY warmed range is
+/// recovered byte-for-byte. If the small CI/OI/postscript entries are lost on Foyer
+/// SSD recovery while the larger footer survives, this fails on those ranges —
+/// reproducing the production symptom.
+#[test]
+fn small_file_warmed_ranges_survive_restart() {
+    use parquet::file::reader::FileReader;
+    use parquet::file::serialized_reader::SerializedFileReader;
+
+    let parquet_dir = TempDir::new().unwrap();
+    let data_dir = TempDir::new().unwrap();
+    let meta_dir = TempDir::new().unwrap();
+
+    let file_size = write_page_indexed_parquet(parquet_dir.path(), "small_restart.parquet", 1, 11);
+    assert!(file_size < 64 * 1024);
+
+    let file = std::fs::File::open(parquet_dir.path().join("small_restart.parquet")).unwrap();
+    let reader = SerializedFileReader::new(file).unwrap();
+    let ranges = production_warmup_ranges(reader.metadata(), file_size);
+
+    let file_bytes = std::fs::read(parquet_dir.path().join("small_restart.parquet")).unwrap();
+    let datas: Vec<bytes::Bytes> = ranges
+        .iter()
+        .map(|r| bytes::Bytes::copy_from_slice(&file_bytes[r.start as usize..r.end as usize]))
+        .collect();
+
+    // Session 1: warm all ranges, then drop → flush to SSD + persist key_index.
+    {
+        let cache = create_tiered_cache(data_dir.path(), meta_dir.path());
+        let store = create_store(parquet_dir.path(), cache.clone(), "small_restart.parquet", file_size);
+        store.put_metadata("small_restart.parquet", &ranges, &datas);
+    }
+
+    // Session 2: new instances on the same SSD dirs — Foyer recovers from disk.
+    {
+        let cache = create_tiered_cache(data_dir.path(), meta_dir.path());
+        block_on(async {
+            for (i, r) in ranges.iter().enumerate() {
+                let key = range_cache_key("small_restart.parquet", r.start, r.end);
+                let recovered = cache.metadata_cache().get(&key).await;
+                assert!(
+                    recovered.is_some(),
+                    "range[{}] {}..{} ({} bytes) must survive Foyer SSD recovery \
+                     (prod showed only the whole-file footer surviving)",
+                    i, r.start, r.end, r.end - r.start
+                );
+                assert_eq!(recovered.unwrap(), datas[i], "recovered bytes must match the warmed bytes");
+            }
+        });
+    }
 }

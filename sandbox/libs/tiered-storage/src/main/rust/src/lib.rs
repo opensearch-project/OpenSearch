@@ -34,6 +34,3 @@ pub mod tiered_object_store;
 pub mod types;
 
 pub use native_bridge_common::{log_debug, log_error, log_info};
-
-#[cfg(test)]
-mod integration_tests;

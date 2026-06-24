@@ -89,16 +89,8 @@ impl TieredBlockCache {
     pub fn put_metadata(&self, key: &CacheKey, data: Bytes) {
         let limit = self.max_metadata_entry_size.load(Ordering::Relaxed);
         if data.len() as u64 > limit {
-            native_bridge_common::log_info!(
-                "[init::foyer] metadata put SKIPPED key='{}' size={} > limit={}",
-                key.as_str(), data.len(), limit
-            );
             return;
         }
-        native_bridge_common::log_info!(
-            "[init::foyer] put METADATA_TIER key='{}' size={}",
-            key.as_str(), data.len()
-        );
         self.metadata_cache.put(key, data);
     }
 
@@ -160,24 +152,10 @@ impl BlockCache for TieredBlockCache {
             // Metadata cache first — small SSD, fast probe, never evicts.
             // On warm restart, Foyer recovers these from disk — instant hit.
             if let Some(bytes) = self.metadata_cache.get(key).await {
-                native_bridge_common::log_info!(
-                    "[query::foyer] HIT_METADATA_TIER key='{}' len={}", key.as_str(), bytes.len()
-                );
                 return Some(bytes);
             }
             // Fall through to data cache.
-            let data_result = self.data_cache.get(key).await;
-            match &data_result {
-                Some(b) => native_bridge_common::log_info!(
-                    "[query::foyer] HIT_DATA_TIER_fall_through key='{}' len={}",
-                    key.as_str(), b.len()
-                ),
-                None => native_bridge_common::log_info!(
-                    "[query::foyer] MISS_BOTH_TIERS key='{}' range_len={}",
-                    key.as_str(), key.range_len()
-                ),
-            }
-            data_result
+            self.data_cache.get(key).await
         })
     }
 
@@ -185,16 +163,8 @@ impl BlockCache for TieredBlockCache {
         // Data cache put — entries exceeding max_data_entry_size are skipped.
         let limit = self.max_data_entry_size.load(Ordering::Relaxed);
         if data.len() as u64 > limit {
-            native_bridge_common::log_info!(
-                "[query::foyer] data put SKIPPED key='{}' size={} > limit={}",
-                key.as_str(), data.len(), limit
-            );
             return;
         }
-        native_bridge_common::log_info!(
-            "[query::foyer] put DATA_TIER key='{}' size={}",
-            key.as_str(), data.len()
-        );
         self.data_cache.put(key, data);
     }
 

@@ -2859,6 +2859,8 @@ dependencies = [
  "num_cpus",
  "object_store",
  "once_cell",
+ "opensearch-block-cache",
+ "opensearch-tiered-storage",
  "parking_lot",
  "parquet",
  "proptest",
@@ -2959,23 +2961,16 @@ dependencies = [
 name = "opensearch-tiered-storage"
 version = "0.1.0"
 dependencies = [
- "arrow",
- "arrow-array",
- "arrow-schema",
  "async-trait",
  "bytes",
  "chrono",
  "dashmap 5.5.3",
- "datafusion",
  "futures",
  "native-bridge-common",
  "object_store",
  "opensearch-block-cache",
- "parquet",
- "tempfile",
  "thiserror 1.0.69",
  "tokio",
- "url",
 ]
 
 [[package]]

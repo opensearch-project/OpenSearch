@@ -100,6 +100,9 @@ criterion = { workspace = true }
 tempfile = { workspace = true }
 rand = "=0.8.6"
 proptest = { workspace = true }
+# Used only by tiered_storage_integration_tests.rs, which exercise FoyerCache /
+# TieredBlockCache directly through the TieredObjectStore.
+opensearch-block-cache = { path = "../../block-cache-foyer/src/main/rust" }
 
 [[bench]]
 name = "query_bench"
