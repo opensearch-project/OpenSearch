@@ -1129,14 +1129,12 @@ pub unsafe extern "C" fn df_execute_with_context(
     let mgr_for_spawn = Arc::clone(&mgr);
 
     // Route based on whether the session was configured for indexed execution,
-    // or if the plan projects __row_id__ (QTF query phase) under a non-ListingTable
-    // fetch strategy.
+    // or if the plan projects __row_id__ (QTF query phase). QTF row-id computation
+    // always runs in the indexed executor.
     let has_row_id = plan_bytes
         .windows(crate::ROW_ID_COLUMN_NAME.len())
         .any(|w| w == crate::ROW_ID_COLUMN_NAME.as_bytes());
-    let query_strategy = session_handle.query_config.query_strategy;
-    let use_indexed = session_handle.indexed_config.is_some()
-        || (has_row_id && query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
+    let use_indexed = session_handle.indexed_config.is_some() || has_row_id;
     if use_indexed {
         // Extract target_partitions BEFORE boxing into raw pointer (session_handle is consumed).
         let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
