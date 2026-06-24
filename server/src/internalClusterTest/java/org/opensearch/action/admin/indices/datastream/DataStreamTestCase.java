@@ -63,6 +63,14 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
         return client().execute(DataStreamsStatsAction.INSTANCE, request).get();
     }
 
+    public AcknowledgedResponse modifyDataStream(DataStreamAction... actions) throws Exception {
+        ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(List.of(actions));
+        AcknowledgedResponse response = client().admin().indices().modifyDataStream(request).get();
+        assertThat(response.isAcknowledged(), is(true));
+        performRemoteStoreTestAction();
+        return response;
+    }
+
     public RolloverResponse rolloverDataStream(String name) throws Exception {
         RolloverRequest request = new RolloverRequest(name, null);
         RolloverResponse response = client().admin().indices().rolloverIndex(request).get();

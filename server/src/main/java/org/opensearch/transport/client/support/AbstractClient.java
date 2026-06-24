@@ -217,6 +217,7 @@ import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResp
 import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.ModifyDataStreamsAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -2122,6 +2123,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request) {
             return execute(DeleteDataStreamAction.INSTANCE, request);
+        }
+
+        @Override
+        public void modifyDataStream(ModifyDataStreamsAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+            execute(ModifyDataStreamsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> modifyDataStream(ModifyDataStreamsAction.Request request) {
+            return execute(ModifyDataStreamsAction.INSTANCE, request);
         }
 
         @Override

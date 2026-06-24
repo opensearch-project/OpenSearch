@@ -51,6 +51,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.ModifyDataStreamsAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -833,6 +834,16 @@ public interface IndicesAdminClient extends OpenSearchClient {
     ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request);
 
     /**
+     * Modify the backing indices of one or more data streams
+     */
+    void modifyDataStream(ModifyDataStreamsAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Modify the backing indices of one or more data streams
+     */
+    ActionFuture<AcknowledgedResponse> modifyDataStream(ModifyDataStreamsAction.Request request);
+
+    /**
      * Get data streams
      */
     void getDataStreams(GetDataStreamAction.Request request, ActionListener<GetDataStreamAction.Response> listener);
@@ -1138,6 +1149,13 @@ public interface IndicesAdminClient extends OpenSearchClient {
     default CompletionStage<AcknowledgedResponse> deleteDataStreamAsync(DeleteDataStreamAction.Request request) {
         CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
         deleteDataStream(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Modify data stream - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> modifyDataStreamAsync(ModifyDataStreamsAction.Request request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        modifyDataStream(request, ActionListener.wrap(future::complete, future::completeExceptionally));
         return future;
     }
 
