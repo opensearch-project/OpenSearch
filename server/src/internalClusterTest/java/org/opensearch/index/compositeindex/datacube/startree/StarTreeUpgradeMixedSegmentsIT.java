@@ -51,14 +51,25 @@ public class StarTreeUpgradeMixedSegmentsIT extends OpenSearchSingleNodeTestCase
             .build();
 
         assertAcked(
-            client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings)
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX_NAME)
+                .setSettings(indexSettings)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("properties")
-                        .startObject("category").field("type", "integer").endObject()
-                        .startObject("status").field("type", "integer").endObject()
-                        .startObject("price").field("type", "double").endObject()
-                        .startObject("quantity").field("type", "integer").endObject()
+                        .startObject("category")
+                        .field("type", "integer")
+                        .endObject()
+                        .startObject("status")
+                        .field("type", "integer")
+                        .endObject()
+                        .startObject("price")
+                        .field("type", "double")
+                        .endObject()
+                        .startObject("quantity")
+                        .field("type", "integer")
+                        .endObject()
                         .endObject()
                         .endObject()
                 )
@@ -94,7 +105,9 @@ public class StarTreeUpgradeMixedSegmentsIT extends OpenSearchSingleNodeTestCase
         SearchResponse before = client().prepareSearch(INDEX_NAME)
             .setSize(0)
             .addAggregation(
-                AggregationBuilders.terms("by_category").field("category").size(10)
+                AggregationBuilders.terms("by_category")
+                    .field("category")
+                    .size(10)
                     .subAggregation(AggregationBuilders.sum("total_price").field("price"))
             )
             .get();
@@ -137,7 +150,9 @@ public class StarTreeUpgradeMixedSegmentsIT extends OpenSearchSingleNodeTestCase
         SearchResponse after = client().prepareSearch(INDEX_NAME)
             .setSize(0)
             .addAggregation(
-                AggregationBuilders.terms("by_category").field("category").size(10)
+                AggregationBuilders.terms("by_category")
+                    .field("category")
+                    .size(10)
                     .subAggregation(AggregationBuilders.sum("total_price").field("price"))
             )
             .get();

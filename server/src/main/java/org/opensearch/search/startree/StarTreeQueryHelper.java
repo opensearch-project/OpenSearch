@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -68,11 +69,8 @@ public class StarTreeQueryHelper {
      * Gets star tree values for a leaf reader context, checking both the native codec path
      * and the direct reader cache for segments where the codec was not switched.
      */
-    public static StarTreeValues getStarTreeValues(
-        LeafReaderContext context,
-        CompositeIndexFieldInfo starTree,
-        SearchContext searchContext
-    ) throws IOException {
+    public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree, SearchContext searchContext)
+        throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
         String segmentName = reader.getSegmentName();
 
@@ -84,8 +82,7 @@ public class StarTreeQueryHelper {
 
         // Path 2: Direct reader cache — segment has star tree files but codec was not switched
         if (searchContext != null) {
-            java.util.concurrent.ConcurrentHashMap<String, StarTreeDirectReader> cache =
-                searchContext.indexShard().getStarTreeDirectReaderCache();
+            ConcurrentHashMap<String, StarTreeDirectReader> cache = searchContext.indexShard().getStarTreeDirectReaderCache();
             StarTreeDirectReader directReader = cache.get(segmentName);
 
             if (directReader != null) {

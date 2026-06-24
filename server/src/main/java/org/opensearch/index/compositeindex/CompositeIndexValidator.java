@@ -14,7 +14,7 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeValidator;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
-import java.util.Locale;
+
 
 /**
  * Validation for composite indices as part of mappings
@@ -44,18 +44,12 @@ public class CompositeIndexValidator {
         boolean isCompositeFieldPresent,
         MergeReason mergeReason
     ) {
-        if (mergeReason == MergeReason.STAR_TREE_UPGRADE) {
-            // Skip the "no new composite fields during update" check for star tree upgrade.
-            // Still validate dims/metrics against existing fields.
-            StarTreeValidator.validate(mapperService, compositeIndexSettings, indexSettings);
-            return;
-        }
-        if (isCompositeFieldPresent == false && mapperService.isCompositeIndexPresent()) {
+        if (mergeReason != MergeReason.STAR_TREE_UPGRADE
+            && isCompositeFieldPresent == false
+            && mapperService.isCompositeIndexPresent()) {
             throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "Composite fields must be specified during index creation, addition of new composite fields during update is not supported"
-                )
+                "Composite fields must be specified during index creation, "
+                    + "addition of new composite fields during update is not supported"
             );
         }
         StarTreeValidator.validate(mapperService, compositeIndexSettings, indexSettings);

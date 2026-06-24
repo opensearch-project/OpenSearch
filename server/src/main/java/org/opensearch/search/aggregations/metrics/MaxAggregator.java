@@ -201,9 +201,17 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
     private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        return StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MAX.getTypeName(), value -> {
-            max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-        }, () -> maxes.set(0, max.get()));
+        return StarTreeQueryHelper.precomputeLeafUsingStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            MetricStat.MAX.getTypeName(),
+            value -> {
+                max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
+            },
+            () -> maxes.set(0, max.get())
+        );
     }
 
     @Override

@@ -201,9 +201,17 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
     private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> min = new AtomicReference<>(mins.get(0));
-        return StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MIN.getTypeName(), value -> {
-            min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
-        }, () -> mins.set(0, min.get()));
+        return StarTreeQueryHelper.precomputeLeafUsingStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            MetricStat.MIN.getTypeName(),
+            value -> {
+                min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
+            },
+            () -> mins.set(0, min.get())
+        );
     }
 
     @Override

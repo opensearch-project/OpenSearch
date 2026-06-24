@@ -15,9 +15,11 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.startree.StarTreeUpgradeAction;
 import org.opensearch.action.admin.indices.startree.StarTreeUpgradeRequest;
 import org.opensearch.action.admin.indices.startree.StarTreeUpgradeResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -201,5 +203,171 @@ public class StarTreeUpgradeForceMergeIT extends OpenSearchSingleNodeTestCase {
         // Step 13: Verify doc count preserved (deleted docs purged after merge)
         long postMergeDocCount = client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value();
         assertEquals("doc count changed after merge", baselineDocCount, postMergeDocCount);
+
+        // Step 14: Verify direct reader cache is cleaned up after force merge
+        // After merge, old segments are gone. The merged segment uses Composite912Codec natively,
+        // so no direct reader cache entries should remain (they were for non-composite segments).
+        // The cleanup is dispatched asynchronously after merge, so use assertBusy.
+        final IndexShard finalShard = shard;
+        logger.info(
+            "Direct reader cache after merge: size={}, keys={}",
+            finalShard.getStarTreeDirectReaderCache().size(),
+            finalShard.getStarTreeDirectReaderCache().keySet()
+        );
+        assertBusy(
+            () -> assertTrue(
+                "direct reader cache should be empty after force merge, but has: " + finalShard.getStarTreeDirectReaderCache().keySet(),
+                finalShard.getStarTreeDirectReaderCache().isEmpty()
+            )
+        );
+    }
+
+    /**
+     * Tests that writes succeed after star tree upgrade, and new segments use the composite codec.
+     * Validates:
+     * 1. Indexing succeeds after upgrade (engine accepts mutations via codecServiceOverride)
+     * 2. New documents are visible in search results
+     * 3. Star tree remains active (terminated_early=true) for pre-upgrade segments
+     * 4. After flush, new segment uses Composite codec
+     * 5. After force merge (all segments merged), star tree is active for all data
+     * 6. Aggregation results include both pre-upgrade and post-upgrade docs
+     */
+    public void testWritesAfterUpgrade() throws Exception {
+        String indexName = "test_writes_after_upgrade";
+
+        // Step 1: Create index with 1 shard, disable background merges
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.merge.policy.max_merged_segment", "100gb")
+            .build();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(indexSettings)
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("category")
+                        .field("type", "integer")
+                        .endObject()
+                        .startObject("price")
+                        .field("type", "double")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        // Step 2: Index initial batch and flush
+        for (int i = 0; i < 50; i++) {
+            client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("category", i % 3, "price", 10.0 + i).get();
+        }
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // Step 3: Capture baseline
+        SearchResponse baseline = client().prepareSearch(indexName)
+            .setSize(0)
+            .addAggregation(AggregationBuilders.sum("total_price").field("price"))
+            .get();
+        double baselineSum = ((Sum) baseline.getAggregations().get("total_price")).getValue();
+
+        // Step 4: Upgrade to star tree
+        StarTreeField starTreeField = new StarTreeField(
+            "test_star_tree",
+            Arrays.asList(new NumericDimension("category"), new NumericDimension("price")),
+            List.of(new Metric("price", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT))),
+            new StarTreeFieldConfiguration(10000, Collections.emptySet(), StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP)
+        );
+        StarTreeUpgradeResponse upgradeResponse = client().execute(
+            StarTreeUpgradeAction.INSTANCE,
+            new StarTreeUpgradeRequest(new String[] { indexName }, starTreeField)
+        ).actionGet();
+        assertEquals("upgrade failed", 0, upgradeResponse.getFailedShards());
+
+        // Step 5: Verify star tree active after upgrade
+        SearchResponse afterUpgrade = client().prepareSearch(indexName)
+            .setSize(0)
+            .addAggregation(AggregationBuilders.sum("total_price").field("price"))
+            .get();
+        assertTrue("star tree not active after upgrade", Boolean.TRUE.equals(afterUpgrade.isTerminatedEarly()));
+        assertEquals(baselineSum, ((Sum) afterUpgrade.getAggregations().get("total_price")).getValue(), 0.01);
+
+        // Step 6: Write new documents AFTER upgrade — these go through Composite104Codec
+        // Note: After upgrade, index.append_only.enabled=true is set, so we must use auto-generated IDs
+        double newDocsPrice = 0;
+        for (int i = 50; i < 100; i++) {
+            double price = 100.0 + i;
+            newDocsPrice += price;
+            IndexResponse response = client().prepareIndex(indexName)
+                .setSource("category", i % 3, "price", price)
+                .get();
+            assertEquals("write failed for doc " + i, RestStatus.CREATED, response.status());
+        }
+
+        // Step 7: Flush + refresh to materialize the new segment
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // Step 8: Verify new docs are visible and aggregation includes them
+        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
+        assertEquals("expected 100 docs (50 pre-upgrade + 50 post-upgrade)", 100, totalDocs);
+
+        SearchResponse afterWrites = client().prepareSearch(indexName)
+            .setSize(0)
+            .addAggregation(AggregationBuilders.sum("total_price").field("price"))
+            .get();
+        double expectedSum = baselineSum + newDocsPrice;
+        double actualSum = ((Sum) afterWrites.getAggregations().get("total_price")).getValue();
+        assertEquals("sum should include both pre and post-upgrade docs", expectedSum, actualSum, 0.01);
+
+        // Step 9: Verify new segment uses Composite codec (via codecServiceOverride)
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService(resolveIndex(indexName));
+        IndexShard shard = indexService.getShardOrNull(0);
+        assertNotNull(shard);
+
+        SegmentInfos segInfos = SegmentInfos.readLatestCommit(shard.store().directory());
+        assertTrue("expected at least 2 segments", segInfos.size() >= 2);
+
+        // Find the new segment (highest generation) — it should use composite codec
+        boolean foundCompositeSegment = false;
+        for (SegmentCommitInfo info : segInfos) {
+            if (info.info.getCodec().getName().startsWith("Composite")) {
+                foundCompositeSegment = true;
+                break;
+            }
+        }
+        assertTrue("new segment should use Composite codec after upgrade", foundCompositeSegment);
+
+        // Step 10: Force merge all into 1 segment → verifies merge fallback path works
+        ForceMergeResponse mergeResponse = client().admin()
+            .indices()
+            .prepareForceMerge(indexName)
+            .setMaxNumSegments(1)
+            .setFlush(true)
+            .get();
+        assertEquals("force merge had failures", 0, mergeResponse.getFailedShards());
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // Step 11: Verify aggregation still correct after merge
+        SearchResponse afterMerge = client().prepareSearch(indexName)
+            .setSize(0)
+            .addAggregation(AggregationBuilders.sum("total_price").field("price"))
+            .get();
+        assertTrue("star tree not active after merge", Boolean.TRUE.equals(afterMerge.isTerminatedEarly()));
+        assertEquals("sum mismatch after merge", expectedSum, ((Sum) afterMerge.getAggregations().get("total_price")).getValue(), 0.01);
+
+        // Step 12: Verify single segment with composite codec
+        SegmentInfos postMerge = SegmentInfos.readLatestCommit(shard.store().directory());
+        assertEquals("expected 1 segment after merge", 1, postMerge.size());
+        assertTrue(
+            "merged segment should use composite codec",
+            postMerge.info(0).info.getCodec().getName().startsWith("Composite")
+        );
     }
 }

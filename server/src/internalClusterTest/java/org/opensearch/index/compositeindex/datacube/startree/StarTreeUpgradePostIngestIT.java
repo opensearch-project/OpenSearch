@@ -43,12 +43,19 @@ public class StarTreeUpgradePostIngestIT extends OpenSearchSingleNodeTestCase {
             .build();
 
         assertAcked(
-            client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings)
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX_NAME)
+                .setSettings(indexSettings)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("properties")
-                        .startObject("category").field("type", "integer").endObject()
-                        .startObject("price").field("type", "double").endObject()
+                        .startObject("category")
+                        .field("type", "integer")
+                        .endObject()
+                        .startObject("price")
+                        .field("type", "double")
+                        .endObject()
                         .endObject()
                         .endObject()
                 )
@@ -57,10 +64,7 @@ public class StarTreeUpgradePostIngestIT extends OpenSearchSingleNodeTestCase {
 
         // Initial docs
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource("category", i % 5, "price", 10.0 + i)
-                .get();
+            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("category", i % 5, "price", 10.0 + i).get();
         }
         client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -84,9 +88,7 @@ public class StarTreeUpgradePostIngestIT extends OpenSearchSingleNodeTestCase {
         for (int i = 100; i < 200; i++) {
             double price = 10.0 + i;
             postIngestSum += price;
-            client().prepareIndex(INDEX_NAME)
-                .setSource("category", i % 5, "price", price)
-                .get();
+            client().prepareIndex(INDEX_NAME).setSource("category", i % 5, "price", price).get();
         }
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
 

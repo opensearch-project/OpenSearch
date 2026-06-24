@@ -32,9 +32,9 @@ import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 import java.io.Closeable;
@@ -87,17 +87,9 @@ public class StarTreeDirectReader implements CompositeIndexReader, Closeable {
         List<String> fields = new ArrayList<>();
         String starTreeSuffix = "";
 
-        String metaFileName = IndexFileNames.segmentFileName(
-            segmentInfo.name,
-            starTreeSuffix,
-            Composite912DocValuesFormat.META_EXTENSION
-        );
+        String metaFileName = IndexFileNames.segmentFileName(segmentInfo.name, starTreeSuffix, Composite912DocValuesFormat.META_EXTENSION);
 
-        String dataFileName = IndexFileNames.segmentFileName(
-            segmentInfo.name,
-            starTreeSuffix,
-            Composite912DocValuesFormat.DATA_EXTENSION
-        );
+        String dataFileName = IndexFileNames.segmentFileName(segmentInfo.name, starTreeSuffix, Composite912DocValuesFormat.DATA_EXTENSION);
 
         boolean success = false;
         try (ChecksumIndexInput metaIn = directory.openChecksumInput(metaFileName)) {
@@ -139,8 +131,9 @@ public class StarTreeDirectReader implements CompositeIndexReader, Closeable {
                     }
 
                     String compositeFieldName = metaIn.readString();
-                    CompositeMappedFieldType.CompositeFieldType compositeFieldType =
-                        CompositeMappedFieldType.CompositeFieldType.fromName(metaIn.readString());
+                    CompositeMappedFieldType.CompositeFieldType compositeFieldType = CompositeMappedFieldType.CompositeFieldType.fromName(
+                        metaIn.readString()
+                    );
 
                     switch (compositeFieldType) {
                         case STAR_TREE:
@@ -182,21 +175,12 @@ public class StarTreeDirectReader implements CompositeIndexReader, Closeable {
                             }
                             break;
                         default:
-                            throw new CorruptIndexException(
-                                "Invalid composite field type found in the file",
-                                dataIn
-                            );
+                            throw new CorruptIndexException("Invalid composite field type found in the file", dataIn);
                     }
                 }
 
                 FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields, dimensionFieldTypeMap));
-                this.readState = new SegmentReadState(
-                    directory,
-                    segmentInfo,
-                    fieldInfos,
-                    IOContext.DEFAULT,
-                    starTreeSuffix
-                );
+                this.readState = new SegmentReadState(directory, segmentInfo, fieldInfos, IOContext.DEFAULT, starTreeSuffix);
 
                 compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
                     Composite912Codec.COMPOSITE_INDEX_CODEC_NAME,
@@ -236,10 +220,7 @@ public class StarTreeDirectReader implements CompositeIndexReader, Closeable {
                     this.readState
                 );
             default:
-                throw new CorruptIndexException(
-                    "Unsupported composite index field type: ",
-                    compositeIndexFieldInfo.getType().getName()
-                );
+                throw new CorruptIndexException("Unsupported composite index field type: ", compositeIndexFieldInfo.getType().getName());
         }
     }
 

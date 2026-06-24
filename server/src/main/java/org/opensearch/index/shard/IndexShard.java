@@ -130,6 +130,7 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.composite.composite104.Composite104Codec;
 import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDirectReader;
@@ -258,8 +259,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Future;
@@ -267,7 +268,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -2524,11 +2524,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Upgrades this shard's segments to use star tree indexes via per-segment building
      * and direct SegmentInfos rewrite. No force merge is needed.
      * <p>
-     * Flow: flush → block operations → close engine → build star tree data per segment
-     * → rewrite SegmentInfos and .si files with Composite912Codec → create new engine → unblock.
+     * ProtectedFileDirectory architecture:
+     * <ul>
+     *   <li>Phase 1 (no blocking): build star tree sidecar files in background while writes proceed</li>
+     *   <li>Phase 2 (~100ms block): flush, protect star tree files from deletion, close engine,
+     *       commit star tree files into segment file sets via rewriteSegmentInfos, reopen engine,
+     *       remove file protection</li>
+     *   <li>Post-commit: populate direct reader cache, wire merge cleanup callback</li>
+     * </ul>
      * <p>
-     * Reads and writes are unavailable during the upgrade. The upgrade builds star tree data
-     * by reading doc values from each segment and writing .cid/.cim/.cidvd/.cidvm files directly.
+     * The mapping update (done before this method is called) switches the codec for new flushes.
+     * No engine restart for codec switching is needed here.
+     * <p>
+     * The ProtectedFileDirectory pattern avoids the IndexFileDeleter problem: during engine close,
+     * IndexFileDeleter tries to delete unreferenced star tree files but the Store's directory
+     * silently skips deletion for protected files. After rewriteSegmentInfos commits segments_N+1
+     * with the file references, protection is removed since files are now properly referenced.
      *
      * @param starTreeField the star tree configuration (dimensions, metrics, build parameters)
      * @return the number of segments that were upgraded
@@ -2538,117 +2549,98 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (starTreeUpgradeInProgress.compareAndSet(false, true) == false) {
             throw new IllegalStateException("star tree upgrade already in progress on shard [" + shardId + "]");
         }
-        logger.info("{} starting per-segment star tree upgrade", shardId);
+        logger.info("{} starting star tree upgrade", shardId);
 
-        final AtomicInteger upgradedCount = new AtomicInteger(0);
+        Set<String> candidateSegments = null;
+        Set<String> builtFileNames = null;
         try {
-            // First flush: reduce work needed after blocking
-            flush(new FlushRequest().force(true));
+            // === PHASE 1: Background Star Tree Build (no blocking — writes proceed) ===
+            Set<String> upgradedSegments = StarTreeUpgradeService.buildStarTreeDataForSegments(
+                store().directory(),
+                starTreeField,
+                mapperService
+            );
 
+            if (upgradedSegments.isEmpty()) {
+                logger.info("{} no segments were upgraded", shardId);
+                return 0;
+            }
+            logger.info("{} Phase 1 complete — built star tree data for {} segments", shardId, upgradedSegments.size());
+            candidateSegments = upgradedSegments;
+
+            // Collect all star tree file names that were written
+            builtFileNames = new HashSet<>();
+            for (String segName : upgradedSegments) {
+                builtFileNames.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_EXTENSION));
+                builtFileNames.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION));
+                builtFileNames.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
+                builtFileNames.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
+            }
+
+            // === PHASE 2: Commit (~100ms block) ===
+            final Set<String> protectedFiles = builtFileNames;
+            final Set<String> segmentsToCommit = upgradedSegments;
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                // Second flush: ensure all data committed before engine close.
-                flush(new FlushRequest().waitIfOngoing(true));
+                flush(new FlushRequest().force(true).waitIfOngoing(true));
 
-                // --- Swap 1: InternalEngine → ReadOnlyEngine ---
-                // Pre-capture stats to avoid translog access during ReadOnlyEngine construction.
-                final SeqNoStats capturedSeqNoStats = seqNoStats();
-                final TranslogStats capturedTranslogStats = translogStats();
-                synchronized (engineMutex) {
-                    Indexer oldIndexer = currentEngineReference.get();
-                    ReadOnlyEngine roEngine = new ReadOnlyEngine(
-                        newEngineConfig(replicationTracker), // uses stale codec — fine, ROE only reads
-                        capturedSeqNoStats,
-                        capturedTranslogStats,
-                        false, // obtainLock=false so Phase 2 can acquire write lock
-                        Function.identity(), // no reader wrapping needed
-                        false  // requireCompleteHistory=false
-                    );
-                    currentEngineReference.set(new EngineBackedIndexer(roEngine));
-                    IOUtils.close(oldIndexer);
-                    // Set codecServiceOverride AFTER old engine is closed to prevent race conditions.
-                    codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
-                }
-
-                // Track ALL candidate segments (not just successful) for cleanup on failure.
-                Set<String> allCandidateSegments = StarTreeUpgradeService.getCandidateSegmentNames(store().directory());
-                Set<String> upgradedSegments = Collections.emptySet();
+                // Protect star tree files from IndexFileDeleter during engine close
+                store().protectFilesFromDeletion(protectedFiles);
                 try {
-                    // Phase 1: build star tree files
-                    upgradedSegments = StarTreeUpgradeService.buildStarTreeDataForSegments(
-                        store().directory(),
-                        starTreeField,
-                        mapperService
-                    );
-                    // Phase 2: rewrite SegmentInfos (if any segments upgraded)
-                    if (upgradedSegments.isEmpty() == false) {
-                        StarTreeUpgradeService.rewriteSegmentInfos(store().directory(), upgradedSegments);
-                    }
-                    upgradedCount.set(upgradedSegments.size());
-                } catch (Exception e) {
-                    // Cleanup ALL candidate segments' star tree files, not just successful ones.
-                    StarTreeUpgradeService.cleanupStarTreeFiles(store().directory(), allCandidateSegments);
-                    throw e;
-                }
-
-                // --- Swap 2: ReadOnlyEngine → InternalEngine (with recovery) ---
-                Indexer newIndexer;
-                try {
+                    // Close engine — IndexFileDeleter will try to delete star tree files but they're protected
                     synchronized (engineMutex) {
-                        Indexer roIndexer = currentEngineReference.get();
-                        newIndexer = indexerFactory.createIndexer(newEngineConfig(replicationTracker));
-                        onNewEngine(newIndexer);
-                        currentEngineReference.set(newIndexer);
-                        IOUtils.close(roIndexer);
+                        Indexer oldIndexer = currentEngineReference.get();
+                        IOUtils.close(oldIndexer);
                     }
-                    // Skip translog recovery — we flushed all data before the engine swap.
-                    newIndexer.translogManager().skipTranslogRecovery();
-                } catch (Exception e) {
-                    logger.error("Failed to open new InternalEngine after upgrade, attempting recovery", e);
+
+                    // Commit star tree files into segment file sets — files exist on disk + now referenced
+                    StarTreeUpgradeService.rewriteSegmentInfos(store().directory(), segmentsToCommit);
+
+                    // Reopen engine on segments_N+1 — all referenced files exist
+                    // Set codecServiceOverride so the new engine uses Composite104Codec for
+                    // new flushes AND merge output segments. The default codecService was created
+                    // at IndexShard construction time (before composite field existed) and is immutable.
+                    codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
+                    Indexer newIndexer;
                     try {
-                        // Recovery: try with original codec (clear override)
-                        codecServiceOverride = null;
                         synchronized (engineMutex) {
-                            Indexer roIndexer = currentEngineReference.get();
                             newIndexer = indexerFactory.createIndexer(newEngineConfig(replicationTracker));
                             onNewEngine(newIndexer);
                             currentEngineReference.set(newIndexer);
-                            IOUtils.close(roIndexer);
                         }
                         newIndexer.translogManager().skipTranslogRecovery();
+                        newIndexer.refresh("star-tree-upgrade-commit");
                     } catch (Exception fatal) {
-                        logger.error("Recovery engine also failed — shard is unusable", fatal);
-                        failShard("star tree upgrade engine recovery failed", fatal);
+                        logger.error("Failed to reopen engine after star tree commit", fatal);
+                        failShard("star tree upgrade engine reopen failed", fatal);
                         throw fatal;
                     }
+                } finally {
+                    // ALWAYS remove protection — even on failure
+                    store().unprotectFilesFromDeletion(protectedFiles);
                 }
-                // Refresh outside engineMutex — non-fatal if it fails.
-                try {
-                    newIndexer.refresh("star-tree-upgrade");
-                } catch (Exception e) {
-                    logger.warn("Post-upgrade refresh failed, will retry on next cycle", e);
-                }
-                active.set(true);
-
-                // Populate direct reader cache for segments with star tree files but no codec switch.
-                populateStarTreeDirectReaderCache();
-
-                // Wire merge cleanup callback to evict stale direct reader cache entries
-                Indexer currentIndexer = currentEngineReference.get();
-                if (currentIndexer instanceof EngineBackedIndexer engineBackedIndexer
-                    && engineBackedIndexer.getEngine() instanceof InternalEngine internalEngine) {
-                    internalEngine.setDirectReaderMergeCleanupCallback(
-                        this::performDirectReaderCleanup
-                    );
-                }
-
-                // NOTE: codecServiceOverride kept for resetEngineToGlobalCheckpoint().
             });
 
-            logger.info("{} per-segment star tree upgrade completed — {} segments upgraded", shardId, upgradedCount.get());
+            // Populate direct reader cache (no blocking needed)
+            populateStarTreeDirectReaderCache();
+
+            // Wire merge cleanup callback
+            Indexer currentIndexer = currentEngineReference.get();
+            if (currentIndexer instanceof EngineBackedIndexer engineBackedIndexer
+                && engineBackedIndexer.getEngine() instanceof InternalEngine internalEngine) {
+                internalEngine.setDirectReaderMergeCleanupCallback(this::performDirectReaderCleanup);
+            }
+
+            logger.info("{} star tree upgrade completed — {} segments upgraded", shardId, upgradedSegments.size());
+            return upgradedSegments.size();
+        } catch (Exception e) {
+            // Cleanup any partially written star tree files on failure
+            if (candidateSegments != null) {
+                StarTreeUpgradeService.cleanupStarTreeFiles(store().directory(), candidateSegments);
+            }
+            throw e instanceof IOException ? (IOException) e : new IOException("star tree upgrade failed", e);
         } finally {
             starTreeUpgradeInProgress.set(false);
         }
-        return upgradedCount.get();
     }
 
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
@@ -2665,18 +2657,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Populates the direct reader cache for segments that have star tree files but whose
-     * codec was not switched to Composite912Codec (soft-delete segments with docValuesGen != -1).
-     * Reads SegmentInfos to find segments with star tree files in their file set but not using
-     * Composite912Codec.
+     * Populates the direct reader cache for segments that have star tree sidecar files but whose
+     * codec is not a composite codec (i.e., segments upgraded retroactively).
+     * <p>
+     * This method reads the latest committed SegmentInfos to find segments with .cim files
+     * in their file set that are NOT using Composite912Codec or Composite104Codec.
+     * For each such segment, it creates a {@link StarTreeDirectReader} and caches it
+     * for dual-path query resolution.
+     * <p>
+     * Called from:
+     * <ul>
+     *   <li>Phase 2 of upgradeToStarTree() — after atomic commit of star tree files</li>
+     *   <li>postRecovery() — for crash recovery when node restarts after a committed upgrade</li>
+     * </ul>
      */
     private void populateStarTreeDirectReaderCache() {
         try {
             SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(store().directory());
             for (SegmentCommitInfo commitInfo : segmentInfos) {
                 String segName = commitInfo.info.name;
-                // Skip segments already using Composite912Codec (native path handles them)
-                if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(commitInfo.info.getCodec().getName())) {
+                // Skip segments already using a composite codec (native path handles them)
+                String codecName = commitInfo.info.getCodec().getName();
+                if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(codecName)
+                    || Composite104Codec.COMPOSITE_INDEX_CODEC_NAME.equals(codecName)) {
                     continue;
                 }
                 // Check if this segment has star tree files in its file set
@@ -2697,8 +2700,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     try {
                         StarTreeDirectReader reader = new StarTreeDirectReader(store().directory(), commitInfo.info);
                         starTreeDirectReaderCache.put(segName, reader);
-                        logger.debug("Cached StarTreeDirectReader for segment {} (docValuesGen={}, codec={})",
-                            segName, commitInfo.getDocValuesGen(), commitInfo.info.getCodec().getName());
+                        logger.debug(
+                            "Cached StarTreeDirectReader for segment {} (docValuesGen={}, codec={})",
+                            segName,
+                            commitInfo.getDocValuesGen(),
+                            codecName
+                        );
                     } catch (Exception e) {
                         logger.warn("Failed to create StarTreeDirectReader for segment {}", segName, e);
                     }
@@ -2711,31 +2718,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Cleans up stale StarTreeDirectReader cache entries after a merge.
-     * Compares the cache against current SegmentInfos and removes entries
-     * for segments that no longer exist (merged away).
+     * Evicts entries for the given merged-away segment names.
      */
-    private void performDirectReaderCleanup() {
-        try {
-            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(store().directory());
-            java.util.Set<String> currentSegmentNames = new java.util.HashSet<>();
-            for (SegmentCommitInfo commitInfo : segmentInfos) {
-                currentSegmentNames.add(commitInfo.info.name);
-            }
-            for (String cachedSegName : starTreeDirectReaderCache.keySet()) {
-                if (currentSegmentNames.contains(cachedSegName) == false) {
-                    StarTreeDirectReader reader = starTreeDirectReaderCache.remove(cachedSegName);
-                    if (reader != null) {
-                        try {
-                            reader.close();
-                            logger.debug("Closed and evicted direct reader for merged-away segment {}", cachedSegName);
-                        } catch (Exception e) {
-                            logger.warn("Failed to close StarTreeDirectReader for segment {}", cachedSegName, e);
-                        }
-                    }
+    private void performDirectReaderCleanup(java.util.Set<String> mergedAwaySegments) {
+        for (String segName : mergedAwaySegments) {
+            StarTreeDirectReader reader = starTreeDirectReaderCache.remove(segName);
+            if (reader != null) {
+                try {
+                    reader.close();
+                    logger.debug("Closed and evicted direct reader for merged-away segment {}", segName);
+                } catch (Exception e) {
+                    logger.warn("Failed to close StarTreeDirectReader for segment {}", segName, e);
                 }
             }
-        } catch (Exception e) {
-            logger.warn("Failed to perform direct reader cleanup after merge", e);
         }
     }
 
@@ -2916,6 +2911,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener
             // and before moving this shard to POST_RECOVERY state (i.e., allow to read from this shard).
             getIndexer().refresh("post_recovery");
+
+            // Populate direct reader cache for crash recovery: if a prior upgrade committed segments_N+1
+            // with star tree files but the node crashed before the cache was populated, re-create cache entries.
+            populateStarTreeDirectReaderCache();
 
             // Wait for ingestion warmup if enabled (pull-based ingestion only)
             handlePullBasedIngestionWarmup(getIndexer());

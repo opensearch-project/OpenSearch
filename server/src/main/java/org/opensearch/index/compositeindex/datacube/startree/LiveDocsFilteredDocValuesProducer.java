@@ -17,6 +17,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
@@ -30,11 +31,11 @@ import java.util.Arrays;
  * <ul>
  *   <li><b>Remap mode</b> (3-arg constructor): Remaps document IDs to contiguous space
  *       (0 to numLiveDocs-1). Uses {@code advanceExact()} on the delegate. Used during
- *       star tree construction in the upgrade path.</li>
+ *       star tree construction in the upgrade path (Phase 1).</li>
  *   <li><b>Skip-only mode</b> (2-arg constructor): No remapping. Skips deleted docs during
- *       sequential {@code nextDoc()} iteration. Never calls {@code advanceExact()} on the
- *       delegate. Used during star tree construction in the merge fallback path where
- *       merge producers only support sequential access.</li>
+ *       sequential {@code nextDoc()} iteration. {@code advanceExact()} throws
+ *       {@link UnsupportedOperationException}. Used during star tree construction in the
+ *       merge fallback path where merge producers only support sequential access.</li>
  * </ul>
  *
  * @opensearch.experimental
@@ -48,8 +49,8 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
     private final int numLiveDocs;
 
     /**
-     * Remap mode constructor — used in upgrade build path.
-     * Remaps doc IDs to contiguous space. Requires delegate to support advanceExact().
+     * Remap mode constructor — used in upgrade build path (Phase 1).
+     * Remaps doc IDs to contiguous space [0, numLiveDocs). Requires delegate to support advanceExact().
      *
      * @param delegate the underlying producer to wrap
      * @param liveDocs bitset where set bits indicate live (non-deleted) documents
@@ -81,12 +82,12 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
     /**
      * Skip-only mode constructor — used in merge fallback path.
      * No remapping. Skips deleted docs during sequential nextDoc() iteration.
-     * Does NOT call advanceExact() on the delegate.
+     * advanceExact() throws {@link UnsupportedOperationException}.
      *
      * @param delegate the underlying producer to wrap
      * @param liveDocs bitset where set bits indicate live (non-deleted) documents
      */
-    public LiveDocsFilteredDocValuesProducer(DocValuesProducer delegate, Bits liveDocs) {
+    public LiveDocsFilteredDocValuesProducer(DocValuesProducer delegate, FixedBitSet liveDocs) {
         this.delegate = delegate;
         this.liveDocs = liveDocs;
         this.remappedToOriginal = null; // null signals skip-only mode
@@ -101,6 +102,50 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
         NumericDocValues inner = delegate.getNumeric(field);
         if (inner == null) return null;
+
+        if (remappedToOriginal == null) {
+            // Skip-only mode: sequential iteration, no remapping
+            return new NumericDocValues() {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    throw new UnsupportedOperationException("advanceExact not supported in skip-only mode (merge path)");
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    int doc;
+                    while ((doc = inner.nextDoc()) != NO_MORE_DOCS) {
+                        if (liveDocs.get(doc)) return doc;
+                    }
+                    return NO_MORE_DOCS;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    int doc = inner.advance(target);
+                    if (doc == NO_MORE_DOCS) return NO_MORE_DOCS;
+                    if (liveDocs.get(doc)) return doc;
+                    return nextDoc();
+                }
+
+                @Override
+                public long longValue() throws IOException {
+                    return inner.longValue();
+                }
+
+                @Override
+                public int docID() {
+                    return inner.docID();
+                }
+
+                @Override
+                public long cost() {
+                    return inner.cost();
+                }
+            };
+        }
+
+        // Remap mode: contiguous doc ID space
         return new NumericDocValues() {
             int currentRemappedId = -1;
 
@@ -180,16 +225,24 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public long nextValue() throws IOException { return inner.nextValue(); }
+                public long nextValue() throws IOException {
+                    return inner.nextValue();
+                }
 
                 @Override
-                public int docValueCount() { return inner.docValueCount(); }
+                public int docValueCount() {
+                    return inner.docValueCount();
+                }
 
                 @Override
-                public int docID() { return inner.docID(); }
+                public int docID() {
+                    return inner.docID();
+                }
 
                 @Override
-                public long cost() { return inner.cost(); }
+                public long cost() {
+                    return inner.cost();
+                }
             };
         }
 
@@ -251,6 +304,60 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
     public SortedDocValues getSorted(FieldInfo field) throws IOException {
         SortedDocValues inner = delegate.getSorted(field);
         if (inner == null) return null;
+
+        if (remappedToOriginal == null) {
+            // Skip-only mode: sequential iteration, no remapping
+            return new SortedDocValues() {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    throw new UnsupportedOperationException("advanceExact not supported in skip-only mode (merge path)");
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    int doc;
+                    while ((doc = inner.nextDoc()) != NO_MORE_DOCS) {
+                        if (liveDocs.get(doc)) return doc;
+                    }
+                    return NO_MORE_DOCS;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    int doc = inner.advance(target);
+                    if (doc == NO_MORE_DOCS) return NO_MORE_DOCS;
+                    if (liveDocs.get(doc)) return doc;
+                    return nextDoc();
+                }
+
+                @Override
+                public int ordValue() throws IOException {
+                    return inner.ordValue();
+                }
+
+                @Override
+                public org.apache.lucene.util.BytesRef lookupOrd(int ord) throws IOException {
+                    return inner.lookupOrd(ord);
+                }
+
+                @Override
+                public int getValueCount() {
+                    return inner.getValueCount();
+                }
+
+                @Override
+                public int docID() {
+                    return inner.docID();
+                }
+
+                @Override
+                public long cost() {
+                    return inner.cost();
+                }
+            };
+        }
+
+        // Remap mode: contiguous doc ID space
         return new SortedDocValues() {
             int currentRemappedId = -1;
 
@@ -284,13 +391,22 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             }
 
             @Override
-            public int nextDoc() {
-                throw new UnsupportedOperationException("Sequential access not supported in filtered view");
+            public int nextDoc() throws IOException {
+                currentRemappedId++;
+                while (currentRemappedId < numLiveDocs) {
+                    if (inner.advanceExact(remappedToOriginal[currentRemappedId])) {
+                        return currentRemappedId;
+                    }
+                    currentRemappedId++;
+                }
+                currentRemappedId = NO_MORE_DOCS;
+                return NO_MORE_DOCS;
             }
 
             @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException("Random advance not supported in filtered view");
+            public int advance(int target) throws IOException {
+                currentRemappedId = target;
+                return nextDoc();
             }
 
             @Override
@@ -331,22 +447,34 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public long nextOrd() throws IOException { return inner.nextOrd(); }
+                public long nextOrd() throws IOException {
+                    return inner.nextOrd();
+                }
 
                 @Override
-                public int docValueCount() { return inner.docValueCount(); }
+                public int docValueCount() {
+                    return inner.docValueCount();
+                }
 
                 @Override
-                public org.apache.lucene.util.BytesRef lookupOrd(long ord) throws IOException { return inner.lookupOrd(ord); }
+                public org.apache.lucene.util.BytesRef lookupOrd(long ord) throws IOException {
+                    return inner.lookupOrd(ord);
+                }
 
                 @Override
-                public long getValueCount() { return inner.getValueCount(); }
+                public long getValueCount() {
+                    return inner.getValueCount();
+                }
 
                 @Override
-                public int docID() { return inner.docID(); }
+                public int docID() {
+                    return inner.docID();
+                }
 
                 @Override
-                public long cost() { return inner.cost(); }
+                public long cost() {
+                    return inner.cost();
+                }
             };
         }
 
@@ -418,6 +546,50 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
         BinaryDocValues inner = delegate.getBinary(field);
         if (inner == null) return null;
+
+        if (remappedToOriginal == null) {
+            // Skip-only mode: sequential iteration, no remapping
+            return new BinaryDocValues() {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    throw new UnsupportedOperationException("advanceExact not supported in skip-only mode (merge path)");
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    int doc;
+                    while ((doc = inner.nextDoc()) != NO_MORE_DOCS) {
+                        if (liveDocs.get(doc)) return doc;
+                    }
+                    return NO_MORE_DOCS;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    int doc = inner.advance(target);
+                    if (doc == NO_MORE_DOCS) return NO_MORE_DOCS;
+                    if (liveDocs.get(doc)) return doc;
+                    return nextDoc();
+                }
+
+                @Override
+                public org.apache.lucene.util.BytesRef binaryValue() throws IOException {
+                    return inner.binaryValue();
+                }
+
+                @Override
+                public int docID() {
+                    return inner.docID();
+                }
+
+                @Override
+                public long cost() {
+                    return inner.cost();
+                }
+            };
+        }
+
+        // Remap mode: contiguous doc ID space
         return new BinaryDocValues() {
             int currentRemappedId = -1;
 
@@ -441,13 +613,22 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             }
 
             @Override
-            public int nextDoc() {
-                throw new UnsupportedOperationException("Sequential access not supported in filtered view");
+            public int nextDoc() throws IOException {
+                currentRemappedId++;
+                while (currentRemappedId < numLiveDocs) {
+                    if (inner.advanceExact(remappedToOriginal[currentRemappedId])) {
+                        return currentRemappedId;
+                    }
+                    currentRemappedId++;
+                }
+                currentRemappedId = NO_MORE_DOCS;
+                return NO_MORE_DOCS;
             }
 
             @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException("Random advance not supported in filtered view");
+            public int advance(int target) throws IOException {
+                currentRemappedId = target;
+                return nextDoc();
             }
 
             @Override

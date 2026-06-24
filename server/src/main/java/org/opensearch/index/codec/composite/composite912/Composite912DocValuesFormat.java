@@ -144,11 +144,7 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
      * NoSuchFileException when opening the merged segment.
      */
     private static boolean perFieldSuffixedFileExists(SegmentReadState state, String perFieldSuffix) {
-        String suffixedMetaFile = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            perFieldSuffix,
-            "dvm"
-        );
+        String suffixedMetaFile = IndexFileNames.segmentFileName(state.segmentInfo.name, perFieldSuffix, "dvm");
         try {
             state.directory.openInput(suffixedMetaFile, state.context).close();
             return true;

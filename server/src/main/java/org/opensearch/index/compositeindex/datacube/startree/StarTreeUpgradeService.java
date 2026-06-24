@@ -30,9 +30,9 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.util.Bits;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
@@ -46,12 +46,10 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -69,10 +67,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li><b>Phase 1 - Star tree data generation</b>: Iterates over each segment, reads its doc values
  *       via standard Lucene APIs, and builds star tree data structures using the existing
  *       StarTreesBuilder infrastructure. Writes .cid, .cim, .cidvd, .cidvm files via raw IndexOutput.</li>
- *   <li><b>Phase 2 - Codec switch via SegmentInfos and .si rewrite</b>: For each successfully upgraded
- *       segment, constructs a new SegmentCommitInfo with Composite912Codec, adds the star tree files
- *       to the file set, rewrites the .si file to declare the new codec, and commits segments_N+1
- *       atomically.</li>
+ *   <li><b>Phase 2 - SegmentInfos and .si rewrite</b>: For each successfully upgraded segment, adds
+ *       star tree files to the segment's file set, rewrites the .si file with the expanded file set
+ *       (same codec, no codec switch), and commits segments_N+1 atomically. Star tree data is served
+ *       via DirectReader cache until a background merge produces a native composite segment.</li>
  * </ol>
  * <p>
  * The star tree field configuration (dimensions, metrics) is provided directly as a {@link StarTreeField}
@@ -104,9 +102,9 @@ public class StarTreeUpgradeService {
      * Phase 1: Iterates segments, builds star tree files for those not already using Composite912Codec.
      *          Uses standard Lucene doc values APIs to read dimension/metric data.
      *          Writes .cid, .cim, .cidvd, .cidvm files via raw IndexOutput.
-     * Phase 2: Rewrites SegmentInfos and .si files — creates new SegmentCommitInfo objects with
-     *          Composite912Codec, adds star tree files to the file set, rewrites .si files to
-     *          declare the new codec, then commits segments_N+1.
+     * Phase 2: Rewrites SegmentInfos and .si files — adds star tree files to each upgraded segment's
+     *          file set, rewrites .si files with the expanded file set (same codec), then commits
+     *          segments_N+1 atomically.
      *
      * @param directory      the index directory containing the segments to upgrade
      * @param starTreeField  the star tree configuration parsed from the API request body
@@ -135,15 +133,21 @@ public class StarTreeUpgradeService {
     }
 
     /**
-     * Returns segment names that are candidates for star tree upgrade (not already using Composite912Codec).
+     * Returns segment names that are candidates for star tree upgrade (not already using Composite912Codec
+     * and having at least one live document).
      */
     public static Set<String> getCandidateSegmentNames(Directory directory) throws IOException {
         SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
         Set<String> candidates = new HashSet<>();
         for (SegmentCommitInfo commitInfo : segmentInfos) {
-            if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(commitInfo.info.getCodec().getName()) == false) {
-                candidates.add(commitInfo.info.name);
+            if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(commitInfo.info.getCodec().getName())) {
+                continue;
             }
+            int liveDocs = commitInfo.info.maxDoc() - commitInfo.getDelCount() - commitInfo.getSoftDelCount();
+            if (liveDocs <= 0) {
+                continue;
+            }
+            candidates.add(commitInfo.info.name);
         }
         return candidates;
     }
@@ -171,8 +175,13 @@ public class StarTreeUpgradeService {
             }
             int liveDocs = commitInfo.info.maxDoc() - commitInfo.getDelCount() - commitInfo.getSoftDelCount();
             if (liveDocs <= 0) {
-                logger.debug("Skipping segment [{}] — no live docs (maxDoc={}, delCount={}, softDelCount={})",
-                    commitInfo.info.name, commitInfo.info.maxDoc(), commitInfo.getDelCount(), commitInfo.getSoftDelCount());
+                logger.debug(
+                    "Skipping segment [{}] — no live docs (maxDoc={}, delCount={}, softDelCount={})",
+                    commitInfo.info.name,
+                    commitInfo.info.maxDoc(),
+                    commitInfo.getDelCount(),
+                    commitInfo.getSoftDelCount()
+                );
                 skippedCount.incrementAndGet();
                 continue;
             }
@@ -311,13 +320,9 @@ public class StarTreeUpgradeService {
             // Build live docs bitset manually (hard + soft deletes) since getLiveDocs() returns
             // null when DirectoryReader wraps with SoftDeletesDirectoryReaderWrapper.
             Bits liveDocs = buildLiveDocsBitset(segmentReader, commitInfo);
-            int numLiveDocs = liveDocs != null
-                ? ((org.apache.lucene.util.FixedBitSet) liveDocs).cardinality()
-                : segmentReader.maxDoc();
+            int numLiveDocs = liveDocs != null ? ((org.apache.lucene.util.FixedBitSet) liveDocs).cardinality() : segmentReader.maxDoc();
             if (liveDocs != null) {
-                docValuesProducer = new LiveDocsFilteredDocValuesProducer(
-                    docValuesProducer, liveDocs, segmentReader.maxDoc()
-                );
+                docValuesProducer = new LiveDocsFilteredDocValuesProducer(docValuesProducer, liveDocs, segmentReader.maxDoc());
             }
 
             // Build fieldProducerMap for all dimensions and metrics
@@ -469,15 +474,16 @@ public class StarTreeUpgradeService {
     }
 
     /**
-     * Phase 2: Rewrites SegmentInfos and .si files to switch upgraded segments to Composite912Codec.
+     * Phase 2: Rewrites SegmentInfos to add star tree files to upgraded segments' file sets.
      * <p>
      * For each segment in upgradedSegmentNames:
-     *   1. Create new SegmentInfo with Composite912Codec (copy all other fields from original)
-     *   2. Add star tree files (.cid, .cim, .cidvd, .cidvm) to the file set
-     *   3. Create new SegmentCommitInfo preserving delCount/softDelCount/delGen/fieldInfosGen/docValuesGen/id
-     *   4. Rewrite the .si file so Lucene uses Composite912Codec when opening the segment
-     * Segments NOT in upgradedSegmentNames are kept unchanged.
+     *   1. Add star tree files (.cid, .cim, .cidvd, .cidvm) to the segment's file set
+     *   2. Rewrite the .si file with the expanded file set (same codec, no codec switch)
+     * Segments NOT in upgradedSegmentNames are left untouched.
      * Commits segments_N+1 atomically.
+     * <p>
+     * The original codec is preserved on all segments. Star tree data is served via
+     * DirectReader cache until a background merge produces a native composite segment.
      *
      * @param directory             the index directory
      * @param upgradedSegmentNames  the set of segment names that were successfully upgraded in Phase 1
@@ -493,8 +499,13 @@ public class StarTreeUpgradeService {
         int hardDeleteCount = commitInfo.getDelCount();
         int softDeleteCount = commitInfo.getSoftDelCount();
 
-        logger.debug("buildLiveDocsBitset: segment={} hardDel={} softDel={} maxDoc={}",
-            commitInfo.info.name, hardDeleteCount, softDeleteCount, maxDoc);
+        logger.debug(
+            "buildLiveDocsBitset: segment={} hardDel={} softDel={} maxDoc={}",
+            commitInfo.info.name,
+            hardDeleteCount,
+            softDeleteCount,
+            maxDoc
+        );
 
         if (hardDeleteCount == 0 && softDeleteCount == 0) {
             return null;
@@ -524,11 +535,12 @@ public class StarTreeUpgradeService {
                         liveBits.clear(docId);
                     }
                 }
-                logger.debug("buildLiveDocsBitset: segment={} liveBits.cardinality={}",
-                    commitInfo.info.name, liveBits.cardinality());
+                logger.debug("buildLiveDocsBitset: segment={} liveBits.cardinality={}", commitInfo.info.name, liveBits.cardinality());
             } else {
-                logger.warn("buildLiveDocsBitset: segment={} __soft_deletes field returned NULL from getNumericDocValues",
-                    commitInfo.info.name);
+                logger.warn(
+                    "buildLiveDocsBitset: segment={} __soft_deletes field returned NULL from getNumericDocValues",
+                    commitInfo.info.name
+                );
             }
         }
 
@@ -538,119 +550,43 @@ public class StarTreeUpgradeService {
     public static void rewriteSegmentInfos(Directory directory, Set<String> upgradedSegmentNames) throws IOException {
         Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
         try {
-            SegmentInfos originalInfos = SegmentInfos.readLatestCommit(directory);
-        SegmentInfos newSegmentInfos = originalInfos.clone();
-        newSegmentInfos.clear();
+            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
 
-        for (SegmentCommitInfo commitInfo : originalInfos) {
-            if (upgradedSegmentNames.contains(commitInfo.info.name)) {
-                // Skip codec switch for segments with docValuesGen != -1 — field number mismatch
-                // makes codec switch incompatible. Star tree served via direct reader cache until merge.
-                if (commitInfo.getDocValuesGen() != -1) {
-                    logger.debug(
-                        "Skipping codec switch for segment {} — has doc values updates (docValuesGen={}). "
-                            + "Star tree data built but codec remains {}. Background merge will produce native composite segment.",
-                        commitInfo.info.name,
-                        commitInfo.getDocValuesGen(),
-                        commitInfo.info.getCodec().getName()
-                    );
-                    // Add star tree files to file set so IndexWriter doesn't GC them.
-                    SegmentInfo oldInfo = commitInfo.info;
-                    Set<String> files = new HashSet<>(oldInfo.files());
-                    String segName = oldInfo.name;
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_EXTENSION));
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION));
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
-                    oldInfo.setFiles(files);
+            for (SegmentCommitInfo commitInfo : segmentInfos) {
+                String segName = commitInfo.info.name;
 
-                    // Rewrite .si to persist expanded file set on disk.
-                    String siFileName = IndexFileNames.segmentFileName(segName, "", "si");
-                    directory.deleteFile(siFileName);
-                    oldInfo.getCodec().segmentInfoFormat().write(directory, oldInfo, IOContext.DEFAULT);
-
-                    newSegmentInfos.add(commitInfo);
+                if (upgradedSegmentNames.contains(segName) == false) {
                     continue;
                 }
 
-                SegmentInfo oldInfo = commitInfo.info;
-
-                // Create new SegmentInfo with Composite912Codec. Star tree files live outside .cfs;
-                // Composite912DocValuesReader falls back to segmentInfo.dir for them.
-                SegmentInfo newInfo = new SegmentInfo(
-                    oldInfo.dir,
-                    oldInfo.getVersion(),
-                    oldInfo.getMinVersion(),
-                    oldInfo.name,
-                    oldInfo.maxDoc(),
-                    oldInfo.getUseCompoundFile(),
-                    oldInfo.getHasBlocks(),
-                    new Composite912Codec(),
-                    oldInfo.getDiagnostics(),
-                    oldInfo.getId(),
-                    oldInfo.getAttributes(),
-                    oldInfo.getIndexSort()
-                );
-
-                // Add star tree files to the file set (original files + star tree files)
-                Set<String> files = new HashSet<>(oldInfo.files());
-                String segName = oldInfo.name;
+                // Add star tree files to the existing file set (no codec switch).
+                // Star tree data is served via DirectReader cache until a background merge
+                // produces a native composite segment.
+                SegmentInfo segInfo = commitInfo.info;
+                Set<String> files = new HashSet<>(segInfo.files());
                 files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_EXTENSION));
                 files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION));
                 files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
                 files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
-                newInfo.setFiles(files);
+                segInfo.setFiles(files);
 
-                // Assertions to verify no state is lost
-                assert newInfo.maxDoc() == oldInfo.maxDoc();
-                assert newInfo.getVersion().equals(oldInfo.getVersion());
-                assert Arrays.equals(newInfo.getId(), oldInfo.getId());
-                assert Objects.equals(newInfo.getIndexSort(), oldInfo.getIndexSort());
-                assert newInfo.getAttributes().equals(oldInfo.getAttributes());
-
-                // Create new SegmentCommitInfo preserving all commit metadata
-                SegmentCommitInfo newCommitInfo = new SegmentCommitInfo(
-                    newInfo,
-                    commitInfo.getDelCount(),
-                    commitInfo.getSoftDelCount(),
-                    commitInfo.getDelGen(),
-                    commitInfo.getFieldInfosGen(),
-                    commitInfo.getDocValuesGen(),
-                    commitInfo.getId()
-                );
-
-                // Copy generation-based update file sets so IndexWriter.filesExist() doesn't fail.
-                newCommitInfo.setFieldInfosFiles(commitInfo.getFieldInfosFiles());
-                newCommitInfo.setDocValuesUpdatesFiles(commitInfo.getDocValuesUpdatesFiles());
-
-                newSegmentInfos.add(newCommitInfo);
-
-                // Rewrite .si file to declare Composite912Codec so Lucene uses it when opening the segment.
+                // Rewrite .si file with expanded file set (same codec, same diagnostics)
                 String siFileName = IndexFileNames.segmentFileName(segName, "", "si");
                 directory.deleteFile(siFileName);
-                new Composite912Codec().segmentInfoFormat().write(directory, newInfo, IOContext.DEFAULT);
-            } else {
-                // Keep original SegmentCommitInfo unchanged
-                newSegmentInfos.add(commitInfo);
+                segInfo.getCodec().segmentInfoFormat().write(directory, segInfo, IOContext.DEFAULT);
             }
-        }
 
-        // Copy user data from original SegmentInfos
-        newSegmentInfos.setUserData(originalInfos.getUserData(), false);
+            // Commit segments_N+1 atomically (generation auto-incremented by commit())
+            segmentInfos.commit(directory);
+            directory.sync(segmentInfos.files(true));
+            directory.syncMetaData();
 
-        // Commit segments_N+1 atomically (generation auto-incremented by commit())
-        newSegmentInfos.commit(directory);
-        directory.sync(newSegmentInfos.files(true));
-        directory.syncMetaData();
-
-        logger.info(
-            "SegmentInfos rewrite complete — committed new segment infos for {} upgraded segments. "
-                + "Generation: {}, files: {}, directory listing: {}",
-            upgradedSegmentNames.size(),
-            newSegmentInfos.getGeneration(),
-            newSegmentInfos.files(true),
-            java.util.Arrays.toString(directory.listAll())
-        );
+            logger.info(
+                "SegmentInfos rewrite complete — committed new segment infos for {} upgraded segments. " + "Generation: {}, files: {}",
+                upgradedSegmentNames.size(),
+                segmentInfos.getGeneration(),
+                segmentInfos.files(true)
+            );
         } finally {
             writeLock.close();
         }

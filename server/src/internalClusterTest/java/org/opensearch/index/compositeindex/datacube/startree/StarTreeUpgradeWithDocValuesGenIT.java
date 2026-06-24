@@ -20,7 +20,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.aggregations.AggregationBuilders;
@@ -51,7 +50,10 @@ public class StarTreeUpgradeWithDocValuesGenIT extends OpenSearchSingleNodeTestC
             .build();
 
         assertAcked(
-            client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings)
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX_NAME)
+                .setSettings(indexSettings)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("properties")
@@ -94,8 +96,13 @@ public class StarTreeUpgradeWithDocValuesGenIT extends OpenSearchSingleNodeTestC
         SegmentInfos infos = SegmentInfos.readLatestCommit(shard.store().directory());
         boolean foundDvGen = false;
         for (SegmentCommitInfo ci : infos) {
-            logger.info("segment={} docValuesGen={} fieldInfosGen={} softDelCount={}",
-                ci.info.name, ci.getDocValuesGen(), ci.getFieldInfosGen(), ci.getSoftDelCount());
+            logger.info(
+                "segment={} docValuesGen={} fieldInfosGen={} softDelCount={}",
+                ci.info.name,
+                ci.getDocValuesGen(),
+                ci.getFieldInfosGen(),
+                ci.getSoftDelCount()
+            );
             if (ci.getDocValuesGen() != -1) {
                 foundDvGen = true;
             }
@@ -107,7 +114,9 @@ public class StarTreeUpgradeWithDocValuesGenIT extends OpenSearchSingleNodeTestC
         SearchResponse before = client().prepareSearch(INDEX_NAME)
             .setSize(0)
             .addAggregation(
-                AggregationBuilders.terms("by_day").field("day_of_week").size(10)
+                AggregationBuilders.terms("by_day")
+                    .field("day_of_week")
+                    .size(10)
                     .subAggregation(AggregationBuilders.sum("total_price").field("price"))
             )
             .get();
@@ -117,8 +126,12 @@ public class StarTreeUpgradeWithDocValuesGenIT extends OpenSearchSingleNodeTestC
         assertTrue("baseline has no buckets", beforeTerms.getBuckets().size() > 0);
         logger.info("BEFORE: {} buckets", beforeTerms.getBuckets().size());
         for (Terms.Bucket b : beforeTerms.getBuckets()) {
-            logger.info("  day={}: count={}, price={}", b.getKey(), b.getDocCount(),
-                ((Sum) b.getAggregations().get("total_price")).getValue());
+            logger.info(
+                "  day={}: count={}, price={}",
+                b.getKey(),
+                b.getDocCount(),
+                ((Sum) b.getAggregations().get("total_price")).getValue()
+            );
         }
 
         // Step 6: Run star tree upgrade
@@ -134,8 +147,12 @@ public class StarTreeUpgradeWithDocValuesGenIT extends OpenSearchSingleNodeTestC
             new StarTreeUpgradeRequest(new String[] { INDEX_NAME }, starTreeField)
         ).actionGet();
 
-        logger.info("Upgrade: total={}, successful={}, failed={}",
-            upgradeResponse.getTotalShards(), upgradeResponse.getSuccessfulShards(), upgradeResponse.getFailedShards());
+        logger.info(
+            "Upgrade: total={}, successful={}, failed={}",
+            upgradeResponse.getTotalShards(),
+            upgradeResponse.getSuccessfulShards(),
+            upgradeResponse.getFailedShards()
+        );
         assertEquals("upgrade had failures", 0, upgradeResponse.getFailedShards());
         assertEquals("upgrade not successful", 1, upgradeResponse.getSuccessfulShards());
 
@@ -147,39 +164,36 @@ public class StarTreeUpgradeWithDocValuesGenIT extends OpenSearchSingleNodeTestC
 
         logger.info("Direct reader cache size: {}", shard.getStarTreeDirectReaderCache().size());
         // At least one segment should be in the direct reader cache (the one with docValuesGen != -1)
-        assertFalse("direct reader cache is empty — docValuesGen != -1 path broken",
-            shard.getStarTreeDirectReaderCache().isEmpty());
+        assertFalse("direct reader cache is empty — docValuesGen != -1 path broken", shard.getStarTreeDirectReaderCache().isEmpty());
 
         // Step 8: Verify post-upgrade aggregation matches baseline
         SearchResponse after = client().prepareSearch(INDEX_NAME)
             .setSize(0)
             .addAggregation(
-                AggregationBuilders.terms("by_day").field("day_of_week").size(10)
+                AggregationBuilders.terms("by_day")
+                    .field("day_of_week")
+                    .size(10)
                     .subAggregation(AggregationBuilders.sum("total_price").field("price"))
             )
             .get();
 
         // Verify star tree was used
-        assertTrue("star tree not active after upgrade (terminated_early not true)",
-            Boolean.TRUE.equals(after.isTerminatedEarly()));
+        assertTrue("star tree not active after upgrade (terminated_early not true)", Boolean.TRUE.equals(after.isTerminatedEarly()));
 
         Terms afterTerms = after.getAggregations().get("by_day");
         assertNotNull("post-upgrade aggregation returned null", afterTerms);
 
         // Verify bucket counts match
-        assertEquals("bucket count mismatch",
-            beforeTerms.getBuckets().size(), afterTerms.getBuckets().size());
+        assertEquals("bucket count mismatch", beforeTerms.getBuckets().size(), afterTerms.getBuckets().size());
 
         for (Terms.Bucket beforeBucket : beforeTerms.getBuckets()) {
             Terms.Bucket afterBucket = afterTerms.getBucketByKey(beforeBucket.getKeyAsString());
             assertNotNull("missing bucket " + beforeBucket.getKey() + " after upgrade", afterBucket);
-            assertEquals("doc count mismatch for bucket " + beforeBucket.getKey(),
-                beforeBucket.getDocCount(), afterBucket.getDocCount());
+            assertEquals("doc count mismatch for bucket " + beforeBucket.getKey(), beforeBucket.getDocCount(), afterBucket.getDocCount());
 
             double beforeRevenue = ((Sum) beforeBucket.getAggregations().get("total_price")).getValue();
             double afterRevenue = ((Sum) afterBucket.getAggregations().get("total_price")).getValue();
-            assertEquals("revenue mismatch for bucket " + beforeBucket.getKey(),
-                beforeRevenue, afterRevenue, 0.01);
+            assertEquals("revenue mismatch for bucket " + beforeBucket.getKey(), beforeRevenue, afterRevenue, 0.01);
         }
 
         logger.info("ALL ASSERTIONS PASSED: docValuesGen != -1 upgrade works correctly");

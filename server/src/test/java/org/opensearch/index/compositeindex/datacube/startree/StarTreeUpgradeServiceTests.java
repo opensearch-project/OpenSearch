@@ -8,19 +8,14 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.store.BaseDirectoryWrapper;
-import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -64,8 +59,7 @@ public class StarTreeUpgradeServiceTests extends OpenSearchTestCase {
                 // Add a doc with an ID field so we can delete it
                 Document doc = new Document();
                 doc.add(new SortedNumericDocValuesField("price", 100));
-                doc.add(new org.apache.lucene.document.StringField("_id", "1",
-                    org.apache.lucene.document.Field.Store.NO));
+                doc.add(new org.apache.lucene.document.StringField("_id", "1", org.apache.lucene.document.Field.Store.NO));
                 writer.addDocument(doc);
                 writer.commit();
 
@@ -82,8 +76,7 @@ public class StarTreeUpgradeServiceTests extends OpenSearchTestCase {
             for (SegmentCommitInfo ci : infos) {
                 int liveDocs = ci.info.maxDoc() - ci.getDelCount() - ci.getSoftDelCount();
                 if (liveDocs <= 0) {
-                    assertFalse("tombstone segment should not be a candidate",
-                        candidates.contains(ci.info.name));
+                    assertFalse("tombstone segment should not be a candidate", candidates.contains(ci.info.name));
                 }
             }
         }

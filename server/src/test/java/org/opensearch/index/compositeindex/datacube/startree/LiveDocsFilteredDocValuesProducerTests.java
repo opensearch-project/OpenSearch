@@ -8,18 +8,16 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
+import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -27,8 +25,6 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link LiveDocsFilteredDocValuesProducer} in both remap and skip-only modes.
@@ -218,42 +214,64 @@ public class LiveDocsFilteredDocValuesProducerTests extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public int nextDoc() { return NO_MORE_DOCS; }
+                    public int nextDoc() {
+                        return NO_MORE_DOCS;
+                    }
 
                     @Override
-                    public long nextValue() { return values[doc]; }
+                    public long nextValue() {
+                        return values[doc];
+                    }
 
                     @Override
-                    public int docValueCount() { return 1; }
+                    public int docValueCount() {
+                        return 1;
+                    }
 
                     @Override
-                    public int docID() { return doc; }
+                    public int docID() {
+                        return doc;
+                    }
 
                     @Override
-                    public int advance(int target) { return NO_MORE_DOCS; }
+                    public int advance(int target) {
+                        return NO_MORE_DOCS;
+                    }
 
                     @Override
-                    public long cost() { return values.length; }
+                    public long cost() {
+                        return values.length;
+                    }
                 };
             }
 
             @Override
-            public NumericDocValues getNumeric(FieldInfo field) { return null; }
+            public NumericDocValues getNumeric(FieldInfo field) {
+                return null;
+            }
 
             @Override
-            public org.apache.lucene.index.BinaryDocValues getBinary(FieldInfo field) { return null; }
+            public org.apache.lucene.index.BinaryDocValues getBinary(FieldInfo field) {
+                return null;
+            }
 
             @Override
-            public org.apache.lucene.index.SortedDocValues getSorted(FieldInfo field) { return null; }
+            public org.apache.lucene.index.SortedDocValues getSorted(FieldInfo field) {
+                return null;
+            }
 
             @Override
-            public org.apache.lucene.index.SortedSetDocValues getSortedSet(FieldInfo field) { return null; }
+            public org.apache.lucene.index.SortedSetDocValues getSortedSet(FieldInfo field) {
+                return null;
+            }
 
             @Override
             public void checkIntegrity() {}
 
             @Override
-            public DocValuesSkipper getSkipper(FieldInfo field) { return null; }
+            public DocValuesSkipper getSkipper(FieldInfo field) {
+                return null;
+            }
 
             @Override
             public void close() {}
@@ -282,39 +300,59 @@ public class LiveDocsFilteredDocValuesProducerTests extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public long nextValue() { return values[doc]; }
+                    public long nextValue() {
+                        return values[doc];
+                    }
 
                     @Override
-                    public int docValueCount() { return 1; }
+                    public int docValueCount() {
+                        return 1;
+                    }
 
                     @Override
-                    public int docID() { return doc; }
+                    public int docID() {
+                        return doc;
+                    }
 
                     @Override
-                    public int advance(int target) { return NO_MORE_DOCS; }
+                    public int advance(int target) {
+                        return NO_MORE_DOCS;
+                    }
 
                     @Override
-                    public long cost() { return values.length; }
+                    public long cost() {
+                        return values.length;
+                    }
                 };
             }
 
             @Override
-            public NumericDocValues getNumeric(FieldInfo field) { return null; }
+            public NumericDocValues getNumeric(FieldInfo field) {
+                return null;
+            }
 
             @Override
-            public org.apache.lucene.index.BinaryDocValues getBinary(FieldInfo field) { return null; }
+            public org.apache.lucene.index.BinaryDocValues getBinary(FieldInfo field) {
+                return null;
+            }
 
             @Override
-            public org.apache.lucene.index.SortedDocValues getSorted(FieldInfo field) { return null; }
+            public org.apache.lucene.index.SortedDocValues getSorted(FieldInfo field) {
+                return null;
+            }
 
             @Override
-            public org.apache.lucene.index.SortedSetDocValues getSortedSet(FieldInfo field) { return null; }
+            public org.apache.lucene.index.SortedSetDocValues getSortedSet(FieldInfo field) {
+                return null;
+            }
 
             @Override
             public void checkIntegrity() {}
 
             @Override
-            public DocValuesSkipper getSkipper(FieldInfo field) { return null; }
+            public DocValuesSkipper getSkipper(FieldInfo field) {
+                return null;
+            }
 
             @Override
             public void close() {}
@@ -323,12 +361,24 @@ public class LiveDocsFilteredDocValuesProducerTests extends OpenSearchTestCase {
 
     private FieldInfo createFieldInfo(String name) {
         return new FieldInfo(
-            name, 0, false, false, false,
-            IndexOptions.NONE, DocValuesType.SORTED_NUMERIC,
+            name,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.SORTED_NUMERIC,
             DocValuesSkipIndexType.NONE,
             -1,
-            Collections.emptyMap(), 0, 0, 0, 0,
-            VectorEncoding.FLOAT32, VectorSimilarityFunction.EUCLIDEAN, false, false
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
         );
     }
 }

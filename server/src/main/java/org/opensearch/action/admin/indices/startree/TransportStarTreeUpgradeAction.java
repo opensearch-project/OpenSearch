@@ -133,7 +133,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
 
         if (allIndicesHaveStarTree) {
             // Star tree already in mapping for all indices - skip mapping update, go straight to broadcast
-            // for engine restart + force merge (handles partial retry case per Requirement 8.2)
+            // for engine restart + force merge (handles partial retry case)
             super.doExecute(task, request, listener);
             return;
         }
@@ -162,6 +162,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
 
     @Override
     protected ShardStarTreeUpgradeResult shardOperation(StarTreeUpgradeRequest request, ShardRouting shardRouting) throws IOException {
+        logger.info("[CODEC_CHECK] shardOperation START for {}", shardRouting.shardId());
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
 
         // Verify mapping is available on this node before proceeding
@@ -184,6 +185,18 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
 
         // Post-upgrade flush to clear pending translog recovery state from engine swap.
         indexShard.flush(new FlushRequest().force(false).waitIfOngoing(true));
+
+        // [CODEC_CHECK] Log the codec of each segment after upgrade + flush
+        try {
+            org.apache.lucene.index.SegmentInfos infos = org.apache.lucene.index.SegmentInfos.readLatestCommit(
+                indexShard.store().directory()
+            );
+            for (org.apache.lucene.index.SegmentCommitInfo ci : infos) {
+                logger.info("[CODEC_CHECK] segment={} codec={} maxDoc={}", ci.info.name, ci.info.getCodec().getName(), ci.info.maxDoc());
+            }
+        } catch (Exception e) {
+            logger.warn("[CODEC_CHECK] ERROR reading segment infos", e);
+        }
 
         return new ShardStarTreeUpgradeResult(shardRouting.shardId(), shardRouting.primary());
     }
@@ -261,7 +274,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         return indices;
     }
 
-    // ---- Mapping Update Logic (Task 6.3) ----
+    // ---- Mapping Update Logic ----
 
     /**
      * Submits a cluster state update that adds the star tree field to the index mapping.
@@ -522,9 +535,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Force-enable append_only and composite_index settings for star tree correctness.
                 boolean needAppendOnly = IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(indexMetadata.getSettings()) == false;
-                boolean needCompositeIndex = StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(
-                    indexMetadata.getSettings()
-                ) == false;
+                boolean needCompositeIndex = StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(indexMetadata.getSettings()) == false;
                 if (needAppendOnly || needCompositeIndex) {
                     Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
                     if (needAppendOnly) {

@@ -123,6 +123,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -1071,6 +1072,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return directory.getDirectoryFileTransferTracker();
     }
 
+    public void protectFilesFromDeletion(Set<String> fileNames) {
+        directory.addProtectedFiles(fileNames);
+    }
+
+    public void unprotectFilesFromDeletion(Set<String> fileNames) {
+        directory.removeProtectedFiles(fileNames);
+    }
+
     /**
      * A store directory
      *
@@ -1081,10 +1090,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public final DirectoryFileTransferTracker directoryFileTransferTracker;
 
+        private final Set<String> protectedFiles = ConcurrentHashMap.newKeySet();
+
         StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
             this.directoryFileTransferTracker = new DirectoryFileTransferTracker();
+        }
+
+        void addProtectedFiles(Set<String> files) {
+            protectedFiles.addAll(files);
+        }
+
+        void removeProtectedFiles(Set<String> files) {
+            protectedFiles.removeAll(files);
         }
 
         /** Estimate the cumulative size of all files in this directory in bytes. */
@@ -1104,6 +1123,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public void deleteFile(String name) throws IOException {
+            if (protectedFiles.contains(name)) {
+                return; // silently skip — file is protected during star tree upgrade
+            }
             deleteFile("StoreDirectory.deleteFile", name);
         }
 

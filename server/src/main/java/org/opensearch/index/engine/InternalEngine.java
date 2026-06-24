@@ -179,7 +179,7 @@ public class InternalEngine extends Engine {
      * Callback for cleaning up StarTreeDirectReader cache entries after a merge.
      * Set by IndexShard after upgrade. Dispatched from afterMerge() on the FLUSH thread pool.
      */
-    private volatile Runnable directReaderMergeCleanupCallback;
+    private volatile java.util.function.Consumer<java.util.Set<String>> directReaderMergeCleanupCallback;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -1711,8 +1711,9 @@ public class InternalEngine extends Engine {
 
     /**
      * Sets the callback for cleaning up StarTreeDirectReader cache entries after merges.
+     * The callback receives the set of segment names that were merged away.
      */
-    public void setDirectReaderMergeCleanupCallback(Runnable callback) {
+    public void setDirectReaderMergeCleanupCallback(java.util.function.Consumer<java.util.Set<String>> callback) {
         this.directReaderMergeCleanupCallback = callback;
     }
 
@@ -2194,12 +2195,16 @@ public class InternalEngine extends Engine {
                 }
             }
 
-            // Dispatch direct reader cache cleanup after merge
-            Runnable cleanupCallback = directReaderMergeCleanupCallback;
+            // Dispatch direct reader cache cleanup after merge — pass merged-away segment names
+            java.util.function.Consumer<java.util.Set<String>> cleanupCallback = directReaderMergeCleanupCallback;
             if (cleanupCallback != null) {
+                java.util.Set<String> mergedAwaySegments = new java.util.HashSet<>();
+                for (org.apache.lucene.index.SegmentCommitInfo info : merge.getMergedSegments()) {
+                    mergedAwaySegments.add(info.info.name);
+                }
                 engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(() -> {
                     try {
-                        cleanupCallback.run();
+                        cleanupCallback.accept(mergedAwaySegments);
                     } catch (Exception e) {
                         if (isClosed.get() == false) {
                             logger.warn("failed to clean up direct reader cache after merge", e);

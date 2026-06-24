@@ -221,13 +221,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                 // populates the dummy list of field infos to fetch doc id set iterators for respective fields.
                 // the dummy field info is used to fetch the doc id set iterators for respective fields based on field name
                 FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields, dimensionFieldTypeMap));
-                this.readState = new SegmentReadState(
-                    starTreeDir,
-                    readState.segmentInfo,
-                    fieldInfos,
-                    readState.context,
-                    starTreeSuffix
-                );
+                this.readState = new SegmentReadState(starTreeDir, readState.segmentInfo, fieldInfos, readState.context, starTreeSuffix);
 
                 // initialize star-tree doc values producer
 
