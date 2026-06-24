@@ -55,7 +55,7 @@ use super::partitioning::{
     compute_assignments, compute_assignments_one_per_segment, segments_chain_on_sort_key,
     PartitionAssignment, SegmentChunk, SegmentLayout,
 };
-use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use super::stream::{IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
@@ -571,12 +571,6 @@ impl ExecutionPlan for QueryShardExec {
         use datafusion::physical_plan::filter_pushdown::{
             FilterPushdownPhase, FilterPushdownPropagation, PushedDown,
         };
-
-        // Feature gate: when disabled, decline everything so behaviour is
-        // identical to before this feature (parent keeps its FilterExec).
-        if !self.config.query_config.indexed_dynamic_filter_pushdown {
-            return Ok(FilterPushdownPropagation::if_all(child_pushdown_result));
-        }
 
         // Only the Post phase carries dynamic filters; in Pre we own static
         // WHERE semantics via the BoolNode tree and want no interference.

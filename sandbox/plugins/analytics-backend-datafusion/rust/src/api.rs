@@ -47,7 +47,7 @@ use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess};
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
-use datafusion::execution::memory_pool::TrackConsumersPool;
+use datafusion::execution::memory_pool::{MemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
@@ -63,10 +63,16 @@ use roaring::RoaringBitmap;
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::custom_cache_manager::CustomCacheManager;
+use crate::datafusion_query_config::DatafusionQueryConfig;
+use crate::helper::{build_query_runtime_env_with_store, new_query_tracking_context};
+use crate::indexed_executor::execute_indexed_query;
 use crate::local_executor::LocalSession;
 use crate::memory::{DynamicLimitHandle, DynamicLimitPool};
+use crate::memory_guard::{per_query_spill_budget, SpillBudget};
 use crate::partition_stream::PartitionStreamSender;
-use crate::query_tracker::{self, QueryTrackingContext};
+use crate::phantom_corrector::PhantomCorrector;
+use crate::query_executor;
+use crate::query_tracker::{self, QueryTrackingContext, QueryType};
 use crate::runtime_manager::RuntimeManager;
 use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
 
@@ -857,54 +863,23 @@ pub async unsafe fn execute_query(
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
     let cpu_executor = manager.cpu_executor();
 
-    // Create per-query context — auto-registers in the global registry
+    // Create per-query context (auto-registers in the global registry) and extract
+    // its per-query memory pool overlaying the global pool.
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone(), query_tracker::QueryType::Shard);
+    let (mut query_context, query_memory_pool) = new_query_tracking_context(
+        context_id,
+        global_pool.clone(),
+        QueryType::Shard,
+    );
 
-    let query_memory_pool = query_context
-        .memory_pool()
-        .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
+    // Apply disk-pressure capping + memory budget, attaching phantom
+    // reservation/corrector to the query context.
+    let (effective_config, phantom_corrector) =
+        resolve_effective_config(shard_view, runtime, &global_pool, &query_config, &mut query_context);
 
-    // Check disk pressure: when spill is on and disk is dangerously low, reduce
-    // parallelism so each query produces less spill volume. When spill is off, disk
-    // health is irrelevant — there is no spill to throttle, so parallelism stays at
-    // the configured value. One statvfs call (~1µs) only on the enabled path.
-    let disk_capped_partitions = match crate::memory_guard::per_query_spill_budget() {
-        crate::memory_guard::SpillBudget::Critical => 1,
-        crate::memory_guard::SpillBudget::Disabled
-        | crate::memory_guard::SpillBudget::Available(_) => query_config.target_partitions,
-    };
-
-    // Acquire memory budget: reserve phantom for untracked memory.
-    // Best-effort from cached metadata (zero I/O). If not cached, skip budget
-    // — first query warms the cache, subsequent queries benefit.
-    let (effective_config, phantom_corrector) = {
-        let mut cfg = query_config.clone();
-        cfg.target_partitions = disk_capped_partitions;
-        let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, &global_pool, &cfg) {
-            cfg.target_partitions = budget.target_partitions;
-            cfg.batch_size = budget.batch_size;
-            let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
-            let estimated_batch_bytes = if budget.phantom_bytes > 0 && batches_in_pipeline > 0 {
-                budget.phantom_bytes / batches_in_pipeline
-            } else {
-                cfg.batch_size * 100 // fallback
-            };
-            let corrector = Arc::new(crate::phantom_corrector::PhantomCorrector::new_from_metadata(
-                budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
-            ));
-            query_context.set_phantom_reservation(budget.phantom_reservation);
-            Some(query_context.set_phantom_corrector(corrector))
-        } else {
-            None
-        };
-        (cfg, corrector)
-    };
-
-    // Peek at plan bytes for routing signals.
-    // - is_indexed: index_filter UDF present (indexed query path)
-    // - has_row_id: __row_id__ column requested (QTF query phase)
-    let (is_indexed, has_row_id) = inspect_plan_bytes(plan_bytes);
+    // Route to the indexed executor when the plan has an index_filter UDF or
+    // requests __row_id__ (QTF query phase); otherwise the ListingTable path.
+    let use_indexed = use_indexed_path(plan_bytes);
 
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
@@ -915,32 +890,19 @@ pub async unsafe fn execute_query(
     // in single-JVM test topologies where coordinator and data node share a gate.
 
     let query_future = async move {
-        // Routing logic:
-        // 1. Indexed query (has index_filter) → always indexed path
-        // 2. Has __row_id__ but not indexed (non-indexed + sort) → consult QueryStrategy
-        //    - ListingTable → vanilla path with ShardTableProvider + ProjectRowIdOptimizer
-        //    - IndexedPredicateOnly → indexed path (position-based row IDs)
-        //    - None → vanilla path (no row ID computation)
-        // 3. Neither → vanilla path
-        // Engine-internal point lookups pass an empty plan, so is_indexed/has_row_id are both
-        // false and this naturally resolves to the vanilla ListingTable path.
-        let use_indexed = is_indexed
-            || (has_row_id && effective_config.query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
-
         if use_indexed {
-            let qc = Arc::new(effective_config);
-            crate::indexed_executor::execute_indexed_query(
+            execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
                 shard_view,
                 runtime,
                 cpu_executor,
                 query_memory_pool,
-                qc,
+                effective_config,
                 context_id,
             ).await
         } else {
-            crate::query_executor::execute_query(
+            query_executor::execute_query(
                 shard_view.table_path.clone(),
                 shard_view.object_metas.clone(),
                 table_name.to_string(),
@@ -994,17 +956,17 @@ pub async unsafe fn fetch_by_row_ids(
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
     use crate::indexed_table::segment_info::build_segments;
-    use crate::query_executor::{build_query_runtime_env, store_url_from_table_path, wrap_stream_as_handle};
+    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle};
 
     // ── 1. Build RuntimeEnv + SessionContext ──
 
-    let runtime_env = build_query_runtime_env(runtime, &shard_view.table_path, shard_view.object_metas.as_ref())?;
-
-    // Register shard-specific object store on file:// scheme for this query.
-    runtime_env.register_object_store(
-        &url::Url::parse("file://").unwrap(),
+    let runtime_env = build_query_runtime_env_with_store(
+        runtime,
+        &shard_view.table_path,
+        shard_view.object_metas.as_ref(),
         Arc::clone(&shard_view.store),
-    );
+        None,
+    )?;
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = true;
@@ -1135,15 +1097,48 @@ pub async unsafe fn fetch_by_row_ids(
     Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime, context_id))
 }
 
-/// Inspect substrait plan bytes for routing signals.
-/// Returns (has_index_filter, has_row_id).
-fn inspect_plan_bytes(plan_bytes: &[u8]) -> (bool, bool) {
+/// Resolve the dynamic spill limit based on available disk space.
+/// Uses 80% of available space on the spill directory's filesystem.
+/// Falls back to 8GB if disk space cannot be determined.
+fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
+    const FRACTION: f64 = 0.80;
+    const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
+
+    let _ = std::fs::create_dir_all(spill_dir);
+
+    match crate::memory_guard::available_disk_space(spill_dir) {
+        Some(available) => {
+            let limit = (available as f64 * FRACTION) as u64;
+            log::info!(
+                "Dynamic spill limit: {} bytes (80% of {} available on {})",
+                limit, available, spill_dir
+            );
+            limit
+        }
+        None => {
+            log::warn!(
+                "Could not determine disk space for '{}', using fallback {}GB",
+                spill_dir, FALLBACK / (1024 * 1024 * 1024)
+            );
+            FALLBACK
+        }
+    }
+}
+
+/// Whether a shard query routes to the indexed executor (vs the ListingTable path),
+/// decided by scanning the substrait plan bytes for two needles: the `index_filter`
+/// UDF name and the `__row_id__` column name. Either one → indexed path.
+///
+/// This is a cheap byte-substring scan, not a parse. A false positive on
+/// `index_filter` takes the indexed path and then fails in `execute_indexed_query`
+/// when `classify_filter` returns `None` (no automatic retry on the ListingTable
+/// path) — unreachable in practice because the needle is not a valid DataFusion
+/// identifier a plan would otherwise contain.
+fn use_indexed_path(plan_bytes: &[u8]) -> bool {
     const INDEX_FILTER: &[u8] = b"index_filter";
     const ROW_ID: &[u8] = crate::ROW_ID_COLUMN_NAME.as_bytes();
-    (
-        plan_bytes.windows(INDEX_FILTER.len()).any(|w| w == INDEX_FILTER),
-        plan_bytes.windows(ROW_ID.len()).any(|w| w == ROW_ID),
-    )
+    plan_bytes.windows(INDEX_FILTER.len()).any(|w| w == INDEX_FILTER)
+        || plan_bytes.windows(ROW_ID.len()).any(|w| w == ROW_ID)
 }
 
 /// Best-effort budget acquisition from cached parquet metadata.
@@ -1152,17 +1147,51 @@ fn inspect_plan_bytes(plan_bytes: &[u8]) -> (bool, bool) {
 /// If cached: extracts the schema + measured row bytes, acquires budget.
 /// If not cached: returns None (first query — skip budget, warm cache).
 /// Zero I/O in all cases.
-/// Best-effort budget acquisition from cached parquet metadata.
-///
-/// Looks up the first file's ParquetMetaData from the file metadata cache.
-/// If cached: extracts the schema + measured row bytes, acquires budget.
-/// If not cached: returns None (first query — skip budget, warm cache).
-/// Zero I/O in all cases.
+fn resolve_effective_config(
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    global_pool: &Arc<dyn MemoryPool>,
+    query_config: &DatafusionQueryConfig,
+    query_context: &mut QueryTrackingContext,
+) -> (Arc<DatafusionQueryConfig>, Option<Arc<PhantomCorrector>>) {
+    // Disk pressure: when spill is on and disk is dangerously low, cap parallelism
+    // to 1 so each query produces less spill volume. When spill is off, disk health
+    // is irrelevant — no spill to throttle. One statvfs call (~1µs) only when enabled.
+    let disk_capped_partitions = match per_query_spill_budget() {
+        SpillBudget::Critical => 1,
+        SpillBudget::Disabled | SpillBudget::Available(_) => query_config.target_partitions,
+    };
+
+    // Acquire memory budget: reserve phantom for untracked memory. Best-effort from
+    // cached metadata (zero I/O); if not cached, skip budget (first query warms the
+    // cache, subsequent queries benefit).
+    let mut cfg = query_config.clone();
+    cfg.target_partitions = disk_capped_partitions;
+    let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, global_pool, &cfg) {
+        cfg.target_partitions = budget.target_partitions;
+        cfg.batch_size = budget.batch_size;
+        let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
+        let estimated_batch_bytes = if budget.phantom_bytes > 0 && batches_in_pipeline > 0 {
+            budget.phantom_bytes / batches_in_pipeline
+        } else {
+            cfg.batch_size * 100 // fallback
+        };
+        let corrector = Arc::new(PhantomCorrector::new_from_metadata(
+            budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
+        ));
+        query_context.set_phantom_reservation(budget.phantom_reservation);
+        Some(query_context.set_phantom_corrector(corrector))
+    } else {
+        None
+    };
+    (Arc::new(cfg), corrector)
+}
+
 fn try_acquire_budget_from_cache(
     shard_view: &ShardView,
     runtime: &DataFusionRuntime,
-    pool: &Arc<dyn datafusion::execution::memory_pool::MemoryPool>,
-    config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    pool: &Arc<dyn MemoryPool>,
+    config: &DatafusionQueryConfig,
 ) -> Option<crate::query_budget::QueryMemoryBudget> {
     use datafusion::execution::cache::CacheAccessor;
     use parquet::arrow::parquet_to_arrow_schema;

@@ -177,7 +177,7 @@ async fn run_two_segment_query(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -390,7 +390,7 @@ async fn run_two_segment_query_witness(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -601,7 +601,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -1110,7 +1110,7 @@ async fn run_wide_segments(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -1469,7 +1469,7 @@ async fn run_wide_segments_with_stats_pruning(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),

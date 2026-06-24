@@ -28,6 +28,7 @@ pub mod cross_rt_stream;
 pub mod datafusion_query_config;
 pub mod executor;
 pub mod ffm;
+pub mod helper;
 pub mod indexed_executor;
 pub mod indexed_table;
 pub mod io;
