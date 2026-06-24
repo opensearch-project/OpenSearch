@@ -81,6 +81,8 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         populateMetadataFields(input);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+
         input.addField(valField, 10);
         expectThrows(MapperParsingException.class, () -> input.addField(valField, 20));
     }

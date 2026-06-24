@@ -40,7 +40,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
-    Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
     private long rowId = -1;
     private boolean isClosed = false;
 
@@ -54,7 +54,6 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
         }
-
         if (dedup.add(fieldType) == false) {
             throw new MapperParsingException(
                 "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
