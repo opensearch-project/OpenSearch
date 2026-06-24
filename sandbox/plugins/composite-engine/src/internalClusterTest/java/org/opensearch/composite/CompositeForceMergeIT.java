@@ -97,6 +97,7 @@ public class CompositeForceMergeIT extends OpenSearchIntegTestCase {
         assertEquals(docsPerCycle * cycles, getTotalDocCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/22307")
     public void testForceMergeWithMaxNumSegmentsGreaterThanOne() throws Exception {
         client().admin()
             .indices()
