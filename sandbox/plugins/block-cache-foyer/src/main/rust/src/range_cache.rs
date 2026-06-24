@@ -127,6 +127,17 @@ pub(crate) fn key_byte_size(raw_key: &str) -> i64 {
     0
 }
 
+/// Parse the `(start, end)` byte range from a raw cache key: `"path\x1Fstart-end"`.
+/// Returns `None` for non-range keys or malformed suffixes.
+pub(crate) fn parse_range(raw_key: &str) -> Option<(u64, u64)> {
+    let sep_pos = raw_key.find(SEPARATOR)?;
+    let range_part = &raw_key[sep_pos + SEPARATOR.len_utf8()..];
+    let dash_pos = range_part.find('-')?;
+    let start = range_part[..dash_pos].parse::<u64>().ok()?;
+    let end = range_part[dash_pos + 1..].parse::<u64>().ok()?;
+    Some((start, end))
+}
+
 // ── key_byte_size unit tests ──────────────────────────────────────────────────
 
 #[cfg(test)]
