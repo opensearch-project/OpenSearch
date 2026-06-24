@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -180,6 +181,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private NativeAllocatorPoolStats nativeAllocatorStats;
 
+    @Nullable
+    private ActionConcurrencyLimiterStats concurrencyLimiterStats;
+
     /**
      * Process-level native-memory estimate captured on the data node hosting this {@code NodeStats}.
      * Computed once in {@link org.opensearch.node.NodeService#stats} via
@@ -295,6 +299,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             // BWC: V_3_7_0 wrote AnalyticsBackendNativeMemoryStats here; read and discard.
             in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
         }
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            concurrencyLimiterStats = in.readOptionalWriteable(ActionConcurrencyLimiterStats::new);
+        } else {
+            concurrencyLimiterStats = null;
+        }
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
             totalEstimatedNativeBytes = in.readLong();
         } else {
@@ -336,6 +345,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable NodeCacheStats nodeCacheStats,
         @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
         @Nullable NativeAllocatorPoolStats nativeAllocatorStats,
+        @Nullable ActionConcurrencyLimiterStats concurrencyLimiterStats,
         long totalEstimatedNativeBytes
     ) {
         super(node);
@@ -371,6 +381,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
         this.nativeAllocatorStats = nativeAllocatorStats;
+        this.concurrencyLimiterStats = concurrencyLimiterStats;
         this.totalEstimatedNativeBytes = totalEstimatedNativeBytes;
     }
 
@@ -557,6 +568,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return nativeAllocatorStats;
     }
 
+    @Nullable
+    public ActionConcurrencyLimiterStats getConcurrencyLimiterStats() {
+        return concurrencyLimiterStats;
+    }
+
     /**
      * Returns the process-level native-memory estimate captured on this node
      * (RssAnon - JVM heap committed - JVM non-heap committed), or {@code -1} when the probe
@@ -640,6 +656,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             // BWC: V_3_7_0 expects AnalyticsBackendNativeMemoryStats here; write null.
             out.writeOptionalWriteable(null);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalWriteable(concurrencyLimiterStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             out.writeLong(totalEstimatedNativeBytes);
@@ -763,6 +782,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
+        }
+        if (getConcurrencyLimiterStats() != null) {
+            getConcurrencyLimiterStats().toXContent(builder, params);
         }
         // total_estimated_bytes ≈ RssAnon - JVM heap committed - JVM non-heap committed.
         // native_memory: unified view of all native memory pools and jemalloc stats.
