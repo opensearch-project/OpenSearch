@@ -39,8 +39,8 @@ public final class DatafusionSettings {
     // ── New indexed query settings ──
 
     /** Number of rows per batch in the indexed query execution path. */
-    public static final Setting<Integer> INDEXED_BATCH_SIZE = Setting.intSetting(
-        "datafusion.indexed.batch_size",
+    public static final Setting<Integer> BATCH_SIZE = Setting.intSetting(
+        "datafusion.batch_size",
         8192,
         1,
         Setting.Property.NodeScope,
@@ -48,44 +48,29 @@ public final class DatafusionSettings {
     );
 
     /**
-     * Whether DataFusion applies residual predicate pushdown during parquet decode
-     * on the indexed path. When true, narrow row-granular selections benefit from
-     * decode-time filtering via {@code RowFilter}. When false (default), the indexed
-     * stream handles filtering externally via bitmap-based row selection.
-     * <p>
-     * Note: ideally this decision should be taken by the planner on a per-query basis
-     * (e.g., based on filter shape and estimated selectivity). This setting acts as
-     * the node-wide default until per-query planner support is added.
+     * Whether DataFusion applies its own decode-time predicate pushdown on the
+     * ListingTable (non-indexed) query path. Maps to DataFusion's
+     * {@code execution.parquet.pushdown_filters} session option.
      */
-    public static final Setting<Boolean> INDEXED_PARQUET_PUSHDOWN_FILTERS = Setting.boolSetting(
-        "datafusion.indexed.parquet_pushdown_filters",
+    public static final Setting<Boolean> LISTING_TABLE_PUSHDOWN_FILTERS = Setting.boolSetting(
+        "datafusion.listing_table.pushdown_filters",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     /**
-     * Whether to use parquet bloom filters for row-group pruning on the indexed read path.
-     * When true, equality predicates are checked against the SBBF (Split Block Bloom Filter)
-     * embedded in the parquet footer before invoking the expensive FFM collector call.
-     * If the bloom filter proves absence, the row group is skipped entirely.
+     * Whether the indexed stream asks parquet to apply the residual predicate during
+     * decode (via {@code RowFilter} pushdown). When true (default), narrow row-granular
+     * selections benefit from decode-time filtering; when false, the indexed stream
+     * handles filtering externally via bitmap-based row selection.
+     * <p>
+     * Note: ideally this decision should be taken by the planner on a per-query basis
+     * (e.g., based on filter shape and estimated selectivity). This setting acts as
+     * the node-wide default until per-query planner support is added.
      */
-    public static final Setting<Boolean> INDEXED_BLOOM_FILTER_ON_READ = Setting.boolSetting(
-        "datafusion.indexed.bloom_filter_on_read",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Whether the indexed scan accepts runtime dynamic filters (TopK / join)
-     * pushed down via physical filter pushdown and uses them to prune row groups
-     * whose parquet statistics cannot satisfy the tightening predicate. On by
-     * default; turn off to A/B the performance impact. When off, the scan
-     * declines the pushdown and behaves exactly as before this feature.
-     */
-    public static final Setting<Boolean> INDEXED_DYNAMIC_FILTER_PUSHDOWN = Setting.boolSetting(
-        "datafusion.indexed.dynamic_filter_pushdown",
+    public static final Setting<Boolean> INDEXED_PUSHDOWN_FILTERS = Setting.boolSetting(
+        "datafusion.indexed.pushdown_filters",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -122,76 +107,44 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
-    // Strategy constants for CollectorCallStrategy
-    public static final String STRATEGY_FULL_RANGE = "full_range";
-    public static final String STRATEGY_TIGHTEN_OUTER_BOUNDS = "tighten_outer_bounds";
-    public static final String STRATEGY_PAGE_RANGE_SPLIT = "page_range_split";
-
     /**
-     * How the SingleCollectorEvaluator narrows collector doc ranges relative to
-     * page-pruning results. Valid values: full_range, tighten_outer_bounds, page_range_split.
-     * Default is page_range_split — only one collector, so multiple FFM calls per RG is acceptable.
+     * Pins the indexed stream's per-row-group {@code min_skip_run} strategy instead of
+     * letting candidate selectivity decide. Accepts:
+     * <ul>
+     *   <li>{@code "none"} (default) — selectivity heuristic decides (wire {@code -1});</li>
+     *   <li>{@code "row_selection"} — force row-granular selection, {@code min_skip_run = 1} (wire {@code 0});</li>
+     *   <li>{@code "boolean_mask"} — force a single whole-RG select (wire {@code 1}).</li>
+     * </ul>
+     * Node-wide override intended for benchmarking/diagnostics; production normally
+     * leaves this at {@code "none"}.
      */
-    public static final Setting<String> INDEXED_SINGLE_COLLECTOR_STRATEGY = Setting.simpleString(
-        "datafusion.indexed.single_collector_strategy",
-        STRATEGY_PAGE_RANGE_SPLIT,
-        value -> {
-            switch (value) {
-                case STRATEGY_FULL_RANGE:
-                case STRATEGY_TIGHTEN_OUTER_BOUNDS:
-                case STRATEGY_PAGE_RANGE_SPLIT:
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                        "datafusion.indexed.single_collector_strategy must be one of "
-                            + "[full_range, tighten_outer_bounds, page_range_split], got: "
-                            + value
-                    );
-            }
-        },
+    public static final Setting<String> INDEXED_FORCE_STRATEGY = Setting.simpleString(
+        "datafusion.indexed.force_strategy",
+        "none",
+        DatafusionSettings::validateForceStrategy,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    /**
-     * How the bitmap tree evaluator narrows collector doc ranges when multiple collectors
-     * are present. Valid values: full_range, tighten_outer_bounds, page_range_split.
-     * Default is tighten_outer_bounds — multiple collectors make page_range_split expensive.
-     */
-    public static final Setting<String> INDEXED_TREE_COLLECTOR_STRATEGY = Setting.simpleString(
-        "datafusion.indexed.tree_collector_strategy",
-        STRATEGY_TIGHTEN_OUTER_BOUNDS,
-        value -> {
-            switch (value) {
-                case STRATEGY_FULL_RANGE:
-                case STRATEGY_TIGHTEN_OUTER_BOUNDS:
-                case STRATEGY_PAGE_RANGE_SPLIT:
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                        "datafusion.indexed.tree_collector_strategy must be one of "
-                            + "[full_range, tighten_outer_bounds, page_range_split], got: "
-                            + value
-                    );
-            }
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    private static void validateForceStrategy(String value) {
+        forceStrategyToWire(value);
+    }
 
-    /**
-     * Maximum number of Collector-leaf FFM calls issued in parallel per row-group
-     * prefetch. 1 = fully sequential (lowest CPU, fastest short-circuit). Higher
-     * values sacrifice short-circuit savings in AND/OR groups but reduce latency
-     * for independent collector leaves.
-     */
-    public static final Setting<Integer> INDEXED_MAX_COLLECTOR_PARALLELISM = Setting.intSetting(
-        "datafusion.indexed.max_collector_parallelism",
-        1,
-        1,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    /** Maps the {@link #INDEXED_FORCE_STRATEGY} string to the Rust wire code (-1/0/1). */
+    static int forceStrategyToWire(String value) {
+        switch (value) {
+            case "none":
+                return -1;
+            case "row_selection":
+                return 0;
+            case "boolean_mask":
+                return 1;
+            default:
+                throw new IllegalArgumentException(
+                    "Setting [datafusion.indexed.force_strategy] must be one of [none, row_selection, boolean_mask], got [" + value + "]"
+                );
+        }
+    }
 
     // ── Concurrency gate settings ──
 
@@ -216,47 +169,6 @@ public final class DatafusionSettings {
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    // Query strategy constants
-    public static final String QUERY_STRATEGY_NONE = "none";
-    public static final String QUERY_STRATEGY_LISTING_TABLE = "listing_table";
-    public static final String QUERY_STRATEGY_INDEXED = "indexed";
-
-    /**
-     * Query strategy for query-then-fetch (QTF) row ID computation.
-     * <p>
-     * Controls how shard-global row IDs are computed when the query projects {@code __row_id__}.
-     * <ul>
-     *   <li>{@code none} — No global row ID computation. Reads {@code __row_id__} as a regular
-     *       column from parquet (per-file 0-based values, NOT shard-global). Useful for debugging.</li>
-     *   <li>{@code listing_table} — Uses ShardTableProvider with a {@code row_base} partition column.
-     *       Reads {@code __row_id__} from parquet and adds the file's cumulative row offset via
-     *       ProjectRowIdOptimizer ({@code __row_id__ + row_base = global_id}). Works with standard
-     *       DataFusion ListingTable scan path.</li>
-     *   <li>{@code indexed} — Uses the indexed pipeline (segment partitioning, PositionMap).
-     *       Computes row IDs from position ({@code global_base + rg.first_row + position_in_rg}).
-     *       Zero I/O for the row ID column. Fastest path when the indexed executor is available.</li>
-     * </ul>
-     * Default: {@code indexed}.
-     */
-    public static final Setting<String> INDEXED_QUERY_STRATEGY = Setting.simpleString(
-        "datafusion.indexed.query_strategy",
-        QUERY_STRATEGY_INDEXED,
-        value -> {
-            switch (value) {
-                case QUERY_STRATEGY_NONE:
-                case QUERY_STRATEGY_LISTING_TABLE:
-                case QUERY_STRATEGY_INDEXED:
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                        "datafusion.indexed.query_strategy must be one of " + "[none, listing_table, indexed], got: " + value
-                    );
-            }
-        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -312,16 +224,12 @@ public final class DatafusionSettings {
         CONCURRENCY_DATANODE_MULTIPLIER,
 
         // Indexed query settings — per-query tuning knobs for the indexed execution path
-        INDEXED_BATCH_SIZE,
-        INDEXED_PARQUET_PUSHDOWN_FILTERS,
-        INDEXED_BLOOM_FILTER_ON_READ,
+        BATCH_SIZE,
+        LISTING_TABLE_PUSHDOWN_FILTERS,
+        INDEXED_PUSHDOWN_FILTERS,
         INDEXED_MIN_SKIP_RUN_DEFAULT,
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
-        INDEXED_SINGLE_COLLECTOR_STRATEGY,
-        INDEXED_TREE_COLLECTOR_STRATEGY,
-        INDEXED_MAX_COLLECTOR_PARALLELISM,
-        INDEXED_QUERY_STRATEGY,
-        INDEXED_DYNAMIC_FILTER_PUSHDOWN
+        INDEXED_FORCE_STRATEGY
     );
 
     // ── Snapshot management ──
@@ -354,17 +262,13 @@ public final class DatafusionSettings {
         this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
 
         this.snapshot = WireConfigSnapshot.builder()
-            .batchSize(INDEXED_BATCH_SIZE.get(settings))
+            .batchSize(BATCH_SIZE.get(settings))
             .targetPartitions(deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount))
-            .parquetPushdownFilters(INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings))
-            .bloomFilterOnRead(INDEXED_BLOOM_FILTER_ON_READ.get(settings))
+            .listingTablePushdownFilters(LISTING_TABLE_PUSHDOWN_FILTERS.get(settings))
+            .indexedPushdownFilters(INDEXED_PUSHDOWN_FILTERS.get(settings))
             .minSkipRunDefault(INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings))
             .minSkipRunSelectivityThreshold(INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings))
-            .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
-            .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
-            .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
-            .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
-            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
+            .forceStrategy(forceStrategyToWire(INDEXED_FORCE_STRATEGY.get(settings)))
             .build();
 
         registerListeners(clusterSettings);
@@ -379,31 +283,27 @@ public final class DatafusionSettings {
         this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
 
         this.snapshot = WireConfigSnapshot.builder()
-            .batchSize(INDEXED_BATCH_SIZE.get(settings))
+            .batchSize(BATCH_SIZE.get(settings))
             .targetPartitions(deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount))
-            .parquetPushdownFilters(INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings))
-            .bloomFilterOnRead(INDEXED_BLOOM_FILTER_ON_READ.get(settings))
+            .listingTablePushdownFilters(LISTING_TABLE_PUSHDOWN_FILTERS.get(settings))
+            .indexedPushdownFilters(INDEXED_PUSHDOWN_FILTERS.get(settings))
             .minSkipRunDefault(INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings))
             .minSkipRunSelectivityThreshold(INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings))
-            .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
-            .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
-            .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
-            .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
-            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
+            .forceStrategy(forceStrategyToWire(INDEXED_FORCE_STRATEGY.get(settings)))
             .build();
     }
 
     void registerListeners(ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_BATCH_SIZE, newValue -> {
+        clusterSettings.addSettingsUpdateConsumer(BATCH_SIZE, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).batchSize(newValue).build();
         });
 
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_PARQUET_PUSHDOWN_FILTERS, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).parquetPushdownFilters(newValue).build();
+        clusterSettings.addSettingsUpdateConsumer(LISTING_TABLE_PUSHDOWN_FILTERS, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).listingTablePushdownFilters(newValue).build();
         });
 
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_BLOOM_FILTER_ON_READ, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).bloomFilterOnRead(newValue).build();
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_PUSHDOWN_FILTERS, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).indexedPushdownFilters(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_MIN_SKIP_RUN_DEFAULT, newValue -> {
@@ -414,24 +314,8 @@ public final class DatafusionSettings {
             snapshot = WireConfigSnapshot.builder(snapshot).minSkipRunSelectivityThreshold(newValue).build();
         });
 
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_SINGLE_COLLECTOR_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).singleCollectorStrategy(strategyToWireValue(newValue)).build();
-        });
-
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_TREE_COLLECTOR_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).treeCollectorStrategy(strategyToWireValue(newValue)).build();
-        });
-
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_MAX_COLLECTOR_PARALLELISM, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).maxCollectorParallelism(newValue).build();
-        });
-
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_QUERY_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).queryStrategy(queryStrategyToWireValue(newValue)).build();
-        });
-
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_DYNAMIC_FILTER_PUSHDOWN, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).indexedDynamicFilterPushdown(newValue).build();
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_FORCE_STRATEGY, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).forceStrategy(forceStrategyToWire(newValue)).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {
@@ -455,37 +339,6 @@ public final class DatafusionSettings {
      */
     public WireConfigSnapshot getSnapshot() {
         return snapshot;
-    }
-
-    /**
-     * Converts a strategy string to its wire format integer value.
-     * <p>
-     * Mapping: full_range = 0, tighten_outer_bounds = 1, page_range_split = 2.
-     */
-    static int strategyToWireValue(String strategy) {
-        switch (strategy) {
-            case STRATEGY_FULL_RANGE:
-                return 0;
-            case STRATEGY_TIGHTEN_OUTER_BOUNDS:
-                return 1;
-            case STRATEGY_PAGE_RANGE_SPLIT:
-                return 2;
-            default:
-                throw new IllegalArgumentException("Unknown strategy: " + strategy);
-        }
-    }
-
-    static int queryStrategyToWireValue(String strategy) {
-        switch (strategy) {
-            case QUERY_STRATEGY_NONE:
-                return 0;
-            case QUERY_STRATEGY_LISTING_TABLE:
-                return 1;
-            case QUERY_STRATEGY_INDEXED:
-                return 2;
-            default:
-                throw new IllegalArgumentException("Unknown fetch strategy: " + strategy);
-        }
     }
 
     /**
