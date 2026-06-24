@@ -2850,6 +2850,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-substrait",
  "fancy-regex",
+ "foyer",
  "futures",
  "jsonpath-rust",
  "libc",

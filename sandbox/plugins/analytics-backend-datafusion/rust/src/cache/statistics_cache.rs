@@ -6,22 +6,18 @@
  * compatible open source license.
  */
 
-use crate::eviction_policy::{
-    create_policy, CacheError, CachePolicy, CacheResult, PolicyType,
-};
+use crate::eviction_policy::{CacheResult, PolicyType};
+use crate::cache::foyer_backed_cache::FoyerBackedCache;
 use arrow_array::Array;
 use datafusion::common::stats::{ColumnStatistics, Precision};
 use datafusion::common::ScalarValue;
-use dashmap::DashMap;
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::cache::cache_manager::{CachedFileMetadata, FileStatisticsCache, FileStatisticsCacheEntry};
 use datafusion::execution::cache::TableScopedPath;
 use datafusion::common::TableReference;
 use datafusion::physical_plan::Statistics;
 use object_store::{path::Path, ObjectMeta};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use std::fs::File;
 use arrow_schema::SchemaRef;
@@ -113,50 +109,27 @@ impl StatisticsMemorySize for Statistics {
     }
 }
 
-/// Combined memory state: per-key sizes + total.
-/// Protected by a single mutex to eliminate nested-lock deadlock risk.
-struct MemoryState {
-    tracker: HashMap<String, usize>,
-    total: usize,
-}
-
-/// Combined memory tracking and policy-based eviction cache
+/// Memory-tracking statistics cache, now backed by a byte-bounded foyer cache.
 ///
-/// This cache leverages DashMap's built-in concurrency from DefaultFileStatisticsCache
-/// and adds memory tracking + policy-based eviction on top.
+/// Previously a hand-rolled `DashMap + Mutex<MemoryState> + Box<dyn CachePolicy>`; now a thin
+/// layer over [`FoyerBackedCache`] keyed by `Path`. Byte cost per entry is the cached
+/// `Statistics::memory_size()`, so the configured size limit keeps its byte semantics and foyer
+/// enforces it at the hard cap (the prior soft 0.8/0.6 threshold knobs are gone — foyer evicts
+/// exactly at the limit). Policy is fixed at construction (LRU/LFU); runtime policy swap and
+/// manual `evict` were test-only and have been dropped.
 pub struct CustomStatisticsCache {
-    /// The underlying DataFusion statistics cache (DashMap-based, already thread-safe)
-    inner_cache: DashMap<Path, CachedFileMetadata>,
-    /// Current eviction policy. `Mutex` guards atomic swaps in `set_policy`;
-    /// hot-path callers clone the `Arc` while holding the lock briefly, then call
-    /// through the clone without holding the lock.
-    policy: Mutex<Arc<dyn CachePolicy>>,
-    /// Size limit for the cache in bytes
-    size_limit: AtomicUsize,
-    /// Eviction threshold (0.0 to 1.0)
-    eviction_threshold: f64,
-    /// Combined memory tracking state
-    memory_state: Arc<Mutex<MemoryState>>,
-    /// Cache hit count (thread-safe)
-    hit_count: AtomicUsize,
-    /// Cache miss count (thread-safe)
-    miss_count: AtomicUsize,
+    inner: FoyerBackedCache<Path, CachedFileMetadata>,
 }
 
 impl CustomStatisticsCache {
-    /// Create a new custom statistics cache
-    pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
+    /// Create a new custom statistics cache. `policy_type` selects LRU or LFU; the
+    /// `_eviction_threshold` is accepted for call-site compatibility but unused (foyer evicts at
+    /// the hard byte cap).
+    pub fn new(policy_type: PolicyType, size_limit: usize, _eviction_threshold: f64) -> Self {
         Self {
-            inner_cache: DashMap::new(),
-            policy: Mutex::new(create_policy(policy_type).expect("statistics cache requires Lru or Lfu")),
-            size_limit: AtomicUsize::new(size_limit),
-            eviction_threshold,
-            memory_state: Arc::new(Mutex::new(MemoryState {
-                tracker: HashMap::new(),
-                total: 0,
-            })),
-            hit_count: AtomicUsize::new(0),
-            miss_count: AtomicUsize::new(0),
+            inner: FoyerBackedCache::new(size_limit, policy_type, |_k, v: &CachedFileMetadata| {
+                v.statistics.memory_size()
+            }),
         }
     }
 
@@ -165,24 +138,19 @@ impl CustomStatisticsCache {
         Self::new(PolicyType::Lru, 100 * 1024 * 1024, 0.8) // 100MB default
     }
 
-    /// Get the underlying cache for compatibility
-    pub fn inner(&self) -> &DashMap<Path, CachedFileMetadata> {
-        &self.inner_cache
-    }
-
     /// Get total memory consumed by all cached statistics
     pub fn memory_consumed(&self) -> usize {
-        self.memory_state.lock().map(|guard| guard.total).unwrap_or(0)
+        self.inner.used_bytes()
     }
 
     /// Get cache hit count
     pub fn hit_count(&self) -> usize {
-        self.hit_count.load(Ordering::Relaxed)
+        self.inner.stats().hits as usize
     }
 
     /// Get cache miss count
     pub fn miss_count(&self) -> usize {
-        self.miss_count.load(Ordering::Relaxed)
+        self.inner.stats().misses as usize
     }
 
     /// Get cache hit rate (returns value between 0.0 and 1.0)
@@ -195,98 +163,35 @@ impl CustomStatisticsCache {
 
     /// Reset hit and miss counters
     pub fn reset_stats(&self) {
-        self.hit_count.store(0, Ordering::Relaxed);
-        self.miss_count.store(0, Ordering::Relaxed);
+        self.inner.reset_stats();
     }
 
-    /// Clone the policy Arc without holding the Mutex. Hot-path callers use this
-    /// so they don't hold the lock while calling policy methods.
-    fn policy(&self) -> Arc<dyn CachePolicy> {
-        self.policy.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    pub fn is_enabled(&self) -> bool {
+        self.inner.is_enabled()
     }
 
-    /// Update the cache size limit
+    /// Enable/disable at runtime. Disabling clears the cache to free native heap immediately.
+    pub fn set_enabled(&self, enabled: bool) {
+        self.inner.set_enabled(enabled);
+    }
+
+    /// Update the cache size limit (foyer evicts down to the new cap as needed).
     pub fn update_size_limit(&self, new_limit: usize) -> CacheResult<()> {
-        self.size_limit.store(new_limit, Ordering::Relaxed);
-        let current_size = self.current_size()?;
-        if current_size > new_limit {
-            let target_eviction = current_size - (new_limit as f64 * self.eviction_threshold) as usize;
-            let candidates = self.policy().select_for_eviction(target_eviction);
-            for candidate_key in candidates {
-                if let Ok(path) = self.parse_key_to_path(&candidate_key) {
-                    self.remove_internal(&path);
-                }
-            }
-        }
+        self.inner.set_limit(new_limit);
         Ok(())
     }
 
-    /// Switch to a different eviction policy, rebuilding state from current entries.
-    pub fn set_policy(&self, policy_type: PolicyType) -> CacheResult<()> {
-        let entries: Vec<(String, usize)> = {
-            let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
-                reason: format!("Failed to acquire memory_state lock: {}", e),
-            })?;
-            state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
-        };
-        let new_policy = create_policy(policy_type).expect("statistics cache requires Lru or Lfu");
-        for (key, size) in entries {
-            new_policy.on_insert(&key, size);
-        }
-        let mut guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
-            reason: format!("Failed to acquire policy lock: {}", e),
-        })?;
-        *guard = new_policy;
-        Ok(())
-    }
-
-    /// Get current policy name
-    pub fn policy_name(&self) -> CacheResult<String> {
-        Ok(self.policy().policy_name().to_string())
-    }
-
-    /// Get current cache size according to policy (uses actual memory consumption)
+    /// Get current cache size (actual memory consumption).
     pub fn current_size(&self) -> CacheResult<usize> {
         Ok(self.memory_consumed())
     }
 
     /// Get current size limit in bytes (configured cap, not utilization)
     pub fn current_size_limit(&self) -> usize {
-        self.size_limit.load(Ordering::Relaxed)
+        self.inner.stats().limit_bytes
     }
 
-    /// Manually trigger eviction.
-    pub fn evict(&mut self, target_size: usize) -> CacheResult<usize> {
-        if target_size == 0 { return Ok(0); }
-        let candidates = self.policy().select_for_eviction(target_size);
-
-        let mut freed_size = 0;
-        for key in candidates {
-            let entry_size = {
-                let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
-                    reason: format!("Failed to acquire memory_state lock: {}", e),
-                })?;
-                state.tracker.get(&key).copied().unwrap_or(0)
-            };
-
-            if entry_size > 0 {
-                if let Ok(path) = self.parse_key_to_path(&key) {
-                    if self.inner_cache.remove(&path).is_some() {
-                        if let Ok(mut state) = self.memory_state.lock() {
-                            state.tracker.remove(&key);
-                            state.total = state.total.saturating_sub(entry_size);
-                        }
-                        self.policy().on_remove(&key);
-                        freed_size += entry_size;
-                    }
-                    if freed_size >= target_size { break; }
-                }
-            }
-        }
-        Ok(freed_size)
-    }
-
-    /// Convenience method: put statistics with associated metadata (replaces old put_with_extra)
+    /// Convenience method: put statistics with associated metadata.
     pub fn put_statistics(
         &self,
         k: &Path,
@@ -301,26 +206,6 @@ impl CustomStatisticsCache {
     pub fn get_statistics(&self, k: &Path) -> Option<Arc<Statistics>> {
         self.get(k).map(|c| c.statistics)
     }
-
-    /// Parse cache key back to Path
-    fn parse_key_to_path(&self, key: &str) -> CacheResult<Path> {
-        Ok(Path::from(key))
-    }
-
-    /// Remove entry internally (works with &self since inner_cache is thread-safe)
-    fn remove_internal(&self, k: &Path) -> Option<CachedFileMetadata> {
-        let key = k.to_string();
-        let result = self.inner_cache.remove(k);
-        if result.is_some() {
-            if let Ok(mut state) = self.memory_state.lock() {
-                if let Some(old_size) = state.tracker.remove(&key) {
-                    state.total = state.total.saturating_sub(old_size);
-                }
-            }
-            self.policy().on_remove(&key);
-        }
-        result.map(|x| x.1)
-    }
 }
 
 // Path-keyed core operations. DF54 keys the FileStatisticsCache by
@@ -331,97 +216,35 @@ impl CustomStatisticsCache {
 // trait's `&TableScopedPath` methods, so existing callers keep working unchanged.
 impl CustomStatisticsCache {
     pub fn get(&self, k: &Path) -> Option<CachedFileMetadata> {
-        let result = self.inner_cache.get(k);
-
-        if result.is_some() {
-            self.hit_count.fetch_add(1, Ordering::Relaxed);
-            let key = k.to_string();
-            let memory_size = {
-                let state = self.memory_state.lock();
-                state.map(|s| s.tracker.get(&key).copied().unwrap_or(0)).unwrap_or(0)
-            };
-            self.policy().on_access(&key, memory_size);
-        } else {
-            self.miss_count.fetch_add(1, Ordering::Relaxed);
-        }
-
-        result.map(|s| s.value().clone())
+        // hit/miss are tracked inside FoyerBackedCache::get.
+        self.inner.get(k)
     }
 
     pub fn put(&self, k: &Path, v: CachedFileMetadata) -> Option<CachedFileMetadata> {
-        let key = k.to_string();
-        let memory_size = v.statistics.memory_size();
-
-        let current_size = self.memory_state.lock()
-            .map(|s| s.total)
-            .unwrap_or(0);
-
-        let eviction_candidates = {
-            let size_limit = self.size_limit.load(Ordering::Relaxed);
-            let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
-            if current_size + memory_size > threshold {
-                let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
-                self.policy().select_for_eviction(target_eviction)
-            } else { vec![] }
-        };
-
-        for candidate_key in eviction_candidates {
-            if let Ok(path) = self.parse_key_to_path(&candidate_key) {
-                self.remove_internal(&path);
-            }
-        }
-
-        let result = self.inner_cache.insert(k.clone(), v);
-
-        if let Ok(mut state) = self.memory_state.lock() {
-            if let Some(old_size) = state.tracker.get(&key) {
-                state.total = state.total.saturating_sub(*old_size);
-            }
-            state.tracker.insert(key.clone(), memory_size);
-            state.total += memory_size;
-        }
-
-        self.policy().on_insert(&key, memory_size);
-        result
+        // foyer doesn't surface the displaced entry, and no caller inspects it.
+        self.inner.insert(k.clone(), v);
+        None
     }
 
     pub fn remove(&self, k: &Path) -> Option<CachedFileMetadata> {
-        let key = k.to_string();
-        let result = self.inner_cache.remove(k);
-        if result.is_some() {
-            if let Ok(mut state) = self.memory_state.lock() {
-                if let Some(old_size) = state.tracker.remove(&key) {
-                    state.total = state.total.saturating_sub(old_size);
-                }
-            }
-            self.policy().on_remove(&key);
-        }
-        result.map(|x| x.1)
+        self.inner.remove(k)
     }
 
     pub fn contains_key(&self, k: &Path) -> bool {
-        self.inner_cache.get(k).is_some()
+        self.inner.contains(k)
     }
 
     pub fn len(&self) -> usize {
-        self.memory_state.lock().map(|s| s.tracker.len()).unwrap_or(0)
+        self.inner.len()
     }
 
     pub fn clear(&self) {
-        self.inner_cache.clear();
-        if let Ok(mut state) = self.memory_state.lock() {
-            state.tracker.clear();
-            state.total = 0;
-        }
-        self.policy().clear();
+        self.inner.clear();
         self.reset_stats();
     }
 
     pub fn name(&self) -> String {
-        format!(
-            "CustomStatisticsCache({})",
-            self.policy_name().unwrap_or_else(|_| "unknown".to_string())
-        )
+        "CustomStatisticsCache(foyer)".to_string()
     }
 }
 
@@ -460,7 +283,7 @@ impl CacheAccessor<TableScopedPath, CachedFileMetadata> for CustomStatisticsCach
 
 impl FileStatisticsCache for CustomStatisticsCache {
     fn cache_limit(&self) -> usize {
-        self.size_limit.load(Ordering::Relaxed)
+        self.current_size_limit()
     }
 
     fn update_cache_limit(&self, limit: usize) {
@@ -565,7 +388,7 @@ mod tests {
     #[test]
     fn test_custom_stats_cache_creation() {
         let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
-        assert_eq!(cache.policy_name().unwrap(), "lru");
+        assert_eq!(cache.name(), "CustomStatisticsCache(foyer)");
         assert_eq!(cache.memory_consumed(), 0);
         assert_eq!(cache.len(), 0);
     }
@@ -600,35 +423,18 @@ mod tests {
     }
 
     #[test]
-    fn test_manual_eviction_with_memory_tracking() {
-        let mut cache = CustomStatisticsCache::with_default_config();
-        for i in 0..5 {
+    fn test_byte_bounded_eviction() {
+        // Small cap: inserting many entries must keep memory at/under the limit (foyer evicts
+        // at the hard byte cap; the prior manual `evict`/policy-swap knobs are gone).
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 2000, 0.8);
+        for i in 0..50 {
             let path = create_test_path(&format!("file{}", i));
             let meta = create_test_meta(&path);
             let stats = Arc::new(create_test_statistics());
             cache.put_statistics(&path, stats, &meta);
         }
-        let memory_before = cache.memory_consumed();
-        assert!(memory_before > 0);
-        let freed = cache.evict(memory_before / 2).unwrap();
-        assert!(freed > 0);
-        assert!(cache.memory_consumed() < memory_before);
-    }
-
-    #[test]
-    fn test_policy_switching_with_memory() {
-        let cache = CustomStatisticsCache::with_default_config();
-        for i in 0..3 {
-            let path = create_test_path(&format!("file{}", i));
-            let meta = create_test_meta(&path);
-            let stats = Arc::new(create_test_statistics());
-            cache.put_statistics(&path, stats, &meta);
-        }
-        let memory_before = cache.memory_consumed();
-        assert_eq!(cache.policy_name().unwrap(), "lru");
-        cache.set_policy(PolicyType::Lfu).unwrap();
-        assert_eq!(cache.policy_name().unwrap(), "lfu");
-        assert_eq!(cache.memory_consumed(), memory_before);
+        assert!(cache.memory_consumed() <= 2000, "memory={} > cap", cache.memory_consumed());
+        assert!(cache.len() > 0);
     }
 
     #[test]

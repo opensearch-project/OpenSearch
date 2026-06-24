@@ -306,9 +306,7 @@ mod tests {
     }
 
     fn fresh_cache() -> Arc<dyn FileMetadataCache> {
-        Arc::new(crate::cache::MutexFileMetadataCache::new(
-            datafusion::execution::cache::DefaultFilesMetadataCache::new(64 * 1024 * 1024),
-        ))
+        Arc::new(crate::cache::MutexFileMetadataCache::with_limit(64 * 1024 * 1024))
     }
 
     fn metrics() -> ExecutionPlanMetricsSet {

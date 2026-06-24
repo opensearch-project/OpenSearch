@@ -204,11 +204,8 @@ public final class DatafusionSettings {
         DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP,
         DATAFUSION_MEMORY_POOL_MIN,
 
-        // Cache settings — metadata, statistics, column index, offset index configuration
-        CacheSettings.METADATA_CACHE_EVICTION_TYPE,
-        CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
-        CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE,
-        CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE,
+        // Cache settings — metadata, statistics, column index, offset index configuration.
+        // Eviction policy is fixed at S3-FIFO (not configurable), so no eviction-type settings.
         CacheSettings.METADATA_CACHE_ENABLED,
         CacheSettings.STATISTICS_CACHE_ENABLED,
         CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,

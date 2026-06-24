@@ -131,6 +131,8 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_UPDATE_SIZE_LIMIT;
+    private static final MethodHandle CACHE_MANAGER_SET_ENABLED;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
@@ -406,7 +408,8 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_create_cache(mgr_ptr, type_ptr, type_len, size_limit, eviction_ptr, eviction_len)
+        // i64 df_create_cache(mgr_ptr, type_ptr, type_len, size_limit)
+        // Eviction policy is fixed (S3-FIFO) in native code and no longer passed from Java.
         CREATE_CACHE = linker.downcallHandle(
             lib.find("df_create_cache").orElseThrow(),
             FunctionDescriptor.of(
@@ -414,8 +417,6 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -509,6 +510,28 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_UPDATE_SIZE_LIMIT = linker.downcallHandle(
+            lib.find("df_cache_manager_update_size_limit").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_SET_ENABLED = linker.downcallHandle(
+            lib.find("df_cache_manager_set_enabled").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -1607,11 +1630,37 @@ public final class NativeBridge {
         }
     }
 
-    public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit, String evictionType) {
+    /**
+     * Updates the byte size-limit of an already-created METADATA or STATISTICS cache at runtime.
+     * The foyer-backed cache resizes in place (evicting down to the new cap if shrinking). CI/OI
+     * caches use {@link #setColumnIndexCacheLimit} / {@link #setOffsetIndexCacheLimit} instead.
+     */
+    public static void updateCacheSizeLimit(long cacheManagerPtr, String cacheType, long newLimitBytes) {
         try (var call = new NativeCall()) {
             var type = call.str(cacheType);
-            var eviction = call.str(evictionType);
-            call.invoke(CREATE_CACHE, cacheManagerPtr, type.segment(), type.len(), sizeLimit, eviction.segment(), eviction.len());
+            call.invoke(CACHE_MANAGER_UPDATE_SIZE_LIMIT, cacheManagerPtr, type.segment(), type.len(), newLimitBytes);
+        }
+    }
+
+    /**
+     * Enables or disables a METADATA / STATISTICS cache at runtime. Disabling clears the cache to
+     * free native heap; while disabled, lookups return misses without serving or counting.
+     */
+    public static void setCacheEnabled(long runtimePtr, String cacheType, boolean enabled) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CACHE_MANAGER_SET_ENABLED, runtimePtr, type.segment(), type.len(), enabled ? 1L : 0L);
+        }
+    }
+
+    /**
+     * Creates a cache of the given type with a byte limit. The eviction policy is fixed at
+     * S3-FIFO in native code and is no longer configurable.
+     */
+    public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CREATE_CACHE, cacheManagerPtr, type.segment(), type.len(), sizeLimit);
         }
     }
 

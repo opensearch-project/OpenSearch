@@ -20,6 +20,7 @@ import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
 import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -591,6 +592,17 @@ public class DataFusionPlugin extends Plugin
                     CacheSettings.STATISTICS_CACHE_PERCENT
                 )
             );
+        // Runtime enable/disable of the foyer-backed metadata + statistics caches. Disabling
+        // clears the cache (frees native heap); re-enabling starts serving fresh entries.
+        // Registered after dataFusionService is started, so it is always non-null here.
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            CacheSettings.METADATA_CACHE_ENABLED,
+            enabled -> dataFusionService.setCacheEnabled(CacheUtils.CacheType.METADATA.getCacheTypeName(), enabled)
+        );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            CacheSettings.STATISTICS_CACHE_ENABLED,
+            enabled -> dataFusionService.setCacheEnabled(CacheUtils.CacheType.STATISTICS.getCacheTypeName(), enabled)
+        );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SCOPED_PAGE_INDEX_ENABLED, enabled -> {
@@ -874,19 +886,21 @@ public class DataFusionPlugin extends Plugin
         long oiLimit = total * oiPct / 100;
         long statsLimit = total * statsPct / 100;
         logger.info(
-            "Updating cache limits: footer_metadata={} bytes (node restart required), "
-                + "column_index={} bytes, offset_index={} bytes, statistics={} bytes (node restart required)",
+            "Updating cache limits: footer_metadata={} bytes, column_index={} bytes, "
+                + "offset_index={} bytes, statistics={} bytes",
             metaLimit,
             ciLimit,
             oiLimit,
             statsLimit
         );
-        // CI and OI limits take effect immediately via FFI.
-        // Footer metadata and statistics cache limits require a node restart
-        // (no runtime FFI to update the Java-side DefaultFilesMetadataCache limits).
-        // TODO: add df_update_metadata_cache_limit FFI to make them dynamic.
+        // CI and OI limits take effect immediately via the dedicated page-index FFI.
         NativeBridge.setColumnIndexCacheLimit(ciLimit);
         NativeBridge.setOffsetIndexCacheLimit(oiLimit);
+        // Footer-metadata and statistics caches are now foyer-backed and resize in place at
+        // runtime via df_cache_manager_update_size_limit (foyer evicts down to the new cap).
+        // This consumer is registered after the service starts, so it is always non-null here.
+        dataFusionService.updateCacheSizeLimit(CacheUtils.CacheType.METADATA.getCacheTypeName(), metaLimit);
+        dataFusionService.updateCacheSizeLimit(CacheUtils.CacheType.STATISTICS.getCacheTypeName(), statsLimit);
     }
 
     /**

@@ -37,6 +37,10 @@ tokio-stream = { workspace = true }
 parking_lot = { workspace = true }
 once_cell = { workspace = true }
 dashmap = { workspace = true }
+# In-memory cache backing the unified metadata/statistics/page-index caches.
+# Provides byte-bounded, sharded, lock-free eviction (LRU/LFU/FIFO/S3-FIFO/Sieve)
+# so we don't hand-maintain eviction policies. Same version block-cache-foyer uses.
+foyer = "=0.22.3"
 log = { workspace = true }
 num_cpus = { workspace = true }
 native-bridge-common = { workspace = true }

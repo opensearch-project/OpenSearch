@@ -26,6 +26,7 @@
 
 pub mod custom_cache_manager;
 pub mod eviction_policy;
+pub mod foyer_backed_cache;
 pub mod metadata_cache;
 pub mod page_index;
 pub mod statistics_cache;
@@ -33,5 +34,6 @@ pub mod statistics_cache;
 // Flat re-exports so existing call sites keep working without path changes.
 pub use custom_cache_manager::CustomCacheManager;
 pub use eviction_policy::{CachePolicy, CacheResult, PolicyType, create_policy};
+pub use foyer_backed_cache::{FoyerBackedCache, FoyerCacheStats, WeighterFn};
 pub use metadata_cache::{MutexFileMetadataCache, CACHE_TYPE_METADATA, CACHE_TYPE_STATS, CACHE_TYPE_COLUMN_INDEX, CACHE_TYPE_OFFSET_INDEX};
 pub use statistics_cache::{CustomStatisticsCache, compute_parquet_statistics};

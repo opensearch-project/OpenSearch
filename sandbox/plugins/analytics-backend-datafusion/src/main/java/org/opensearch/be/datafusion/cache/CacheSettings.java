@@ -15,7 +15,6 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
-import java.util.Locale;
 
 /**
  * Settings for the DataFusion parquet caches.
@@ -47,22 +46,6 @@ import java.util.Locale;
  */
 public class CacheSettings {
 
-    public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.metadata.cache.eviction.type",
-        "LRU",
-        CacheSettings::validateEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<String> STATISTICS_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.statistics.cache.eviction.type",
-        "LRU",
-        CacheSettings::validateEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final String METADATA_CACHE_ENABLED_KEY = "datafusion.metadata.cache.enabled";
     public static final Setting<Boolean> METADATA_CACHE_ENABLED = Setting.boolSetting(
         METADATA_CACHE_ENABLED_KEY,
@@ -79,31 +62,10 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Eviction policy for the scoped ColumnIndex cache.
-     * Currently only {@code FIFO} is supported — the CI/OI caches use a lock-free
-     * read design (FIFO insert-order eviction under a single write lock).
-     * {@code S3_FIFO} will be added as a follow-up.
-     */
-    public static final Setting<String> COLUMN_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.column_index.cache.eviction.type",
-        "FIFO",
-        CacheSettings::validateScopedEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Eviction policy for the scoped OffsetIndex cache.
-     * Currently only {@code FIFO} is supported.
-     */
-    public static final Setting<String> OFFSET_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
-        "datafusion.offset_index.cache.eviction.type",
-        "FIFO",
-        CacheSettings::validateScopedEvictionType,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    // Eviction policy is no longer configurable: every DataFusion cache uses S3-FIFO
+    // (scan-resistant), fixed in native code. The former
+    // datafusion.{metadata,statistics,column_index,offset_index}.cache.eviction.type settings
+    // have been removed.
 
     // Page-cache total budget (9% of node.native_memory.limit on warm nodes, 3% otherwise)
 
@@ -234,31 +196,5 @@ public class CacheSettings {
         int percent = DiscoveryNode.isWarmNode(settings) ? 9 : 3;
         long total = Math.max(nativeLimit.getBytes() * percent / 100, 0L);
         return total + "b";
-    }
-
-    /** Validates eviction type for metadata/statistics caches (LRU or LFU via CachePolicy). */
-    private static String validateEvictionType(String value) {
-        String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("LRU") && !upper.equals("LFU")) {
-            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU' or 'LFU'.");
-        }
-        return upper;
-    }
-
-    /**
-     * Validates eviction type for the scoped CI/OI caches.
-     * Only {@code FIFO} is supported today; {@code S3_FIFO} will be added as a follow-up.
-     */
-    private static String validateScopedEvictionType(String value) {
-        String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("FIFO")) {
-            throw new IllegalArgumentException(
-                "Invalid eviction type '"
-                    + value
-                    + "' for scoped page-index cache. "
-                    + "Only 'FIFO' is supported. S3_FIFO support is planned as a follow-up."
-            );
-        }
-        return upper;
     }
 }

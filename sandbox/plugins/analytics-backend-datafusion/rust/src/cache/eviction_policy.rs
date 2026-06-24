@@ -62,11 +62,21 @@ pub trait CachePolicy: Send + Sync {
 ///
 /// One enum for all caches means `df_create_cache` parses the Java-supplied
 /// eviction string once and routes uniformly without separate enums per family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// [`S3Fifo`](CacheEvictionPolicy::S3Fifo) is the **default** (`#[default]`): it is the
+/// scan-resistant policy we tuned and is the configured default for every cache (see the
+/// `datafusion.*.cache.eviction.type` settings). A cache's policy is fixed when the cache is
+/// constructed — there is no runtime re-policy API; changing the setting takes effect on restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CacheEvictionPolicy {
     Lru,
     Lfu,
     Fifo,
+    /// Scan-resistant S3-FIFO — the default policy. Provided natively by foyer
+    /// (`FoyerBackedCache`), not the hand-written [`CachePolicy`] trait, so `create_policy`
+    /// returns `None` for it and callers route to the foyer-backed cache instead.
+    #[default]
+    S3Fifo,
 }
 
 /// Backward-compatible alias — will be removed once all call sites are migrated.
@@ -304,7 +314,9 @@ pub fn create_policy(policy_type: CacheEvictionPolicy) -> Option<Arc<dyn CachePo
     match policy_type {
         CacheEvictionPolicy::Lru  => Some(Arc::new(LruPolicy::new())),
         CacheEvictionPolicy::Lfu  => Some(Arc::new(LfuPolicy::new())),
-        CacheEvictionPolicy::Fifo => None,
+        // FIFO routes to BoundedCache's ScopedEvictionPolicy; S3-FIFO routes to
+        // the foyer-backed cache. Neither uses the hand-written CachePolicy trait.
+        CacheEvictionPolicy::Fifo | CacheEvictionPolicy::S3Fifo => None,
     }
 }
 
