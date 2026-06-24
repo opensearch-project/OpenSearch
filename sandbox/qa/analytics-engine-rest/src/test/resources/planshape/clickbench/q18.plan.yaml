@@ -1,8 +1,49 @@
-# Generated via -Dplan.generate=write.
+# No sort → no shard-side TopK: head without sort is arbitrary limit, not TopK.
+# DynamicFilter scrubbed: runtime TopK boundary pushed into DataSourceExec predicate.
 query: q18
 ppl_file: q18.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$2], UserID=[$0], SearchPhrase=[$1], viableBackends=[[lucene, datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], count()=[SUM($2)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
+                  OpenSearchAggregate(group=[{0, 1}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+                    OpenSearchProject(UserID=[$97], SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
+        OpenSearchAggregate(group=[{0, 1}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+          OpenSearchProject(UserID=[$97], SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$2], UserID=[$0], SearchPhrase=[$1], viableBackends=[[lucene, datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], count()=[SUM($2)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase, count(Int64(1))[count]@2 as count()]
+        SortPreservingMergeExec: [UserID@0 ASC, SearchPhrase@1 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[UserID@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ <scrubbed> ], pruning_predicate=<scrubbed>, required_guarantees=[]
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.count())@0 as count(), UserID@1 as UserID, SearchPhrase@2 as SearchPhrase]
+        SortPreservingMergeExec: [UserID@1 ASC, SearchPhrase@2 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[UserID@1 ASC, SearchPhrase@2 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[sum(input-0.count())@2 as sum(input-0.count()), UserID@0 as UserID, SearchPhrase@1 as SearchPhrase]
+              AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[sum(input-0.count())]
+                RepartitionExec: partitioning=Hash([UserID@0, SearchPhrase@1], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[sum(input-0.count())]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      StreamingTableExec: partition_sizes=1, projection=[UserID, SearchPhrase, count()]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
@@ -27,13 +68,13 @@ plans:
               AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
                 RepartitionExec: partitioning=Hash([UserID@0, SearchPhrase@1], 4), input_partitions=1
                   AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ UserID@89 IS NULL OR UserID@89 < 360248176629955237 OR UserID@89 = 360248176629955237 AND (SearchPhrase@63 IS NULL OR SearchPhrase@63 < ) ], pruning_predicate=UserID_null_count@0 > 0 OR UserID_null_count@0 != row_count@2 AND UserID_min@1 < 360248176629955237 OR UserID_null_count@0 != row_count@2 AND UserID_min@1 <= 360248176629955237 AND 360248176629955237 <= UserID_max@3 AND (SearchPhrase_null_count@4 > 0 OR SearchPhrase_null_count@4 != row_count@2 AND SearchPhrase_min@5 < ), required_guarantees=[]
+                    DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ <scrubbed> ], pruning_predicate=<scrubbed>, required_guarantees=[]
     shard_physical_nseg: |
       ProjectionExec: expr=[count(Int64(1))@0 as count(), UserID@1 as UserID, SearchPhrase@2 as SearchPhrase]
         SortPreservingMergeExec: [UserID@1 ASC, SearchPhrase@2 ASC], fetch=10
           SortExec: TopK(fetch=10), expr=[UserID@1 ASC, SearchPhrase@2 ASC], preserve_partitioning=[true]
             ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), UserID@0 as UserID, SearchPhrase@1 as SearchPhrase]
               AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
-                RepartitionExec: partitioning=Hash([UserID@0, SearchPhrase@1], 4), input_partitions=3
+                RepartitionExec: partitioning=Hash([UserID@0, SearchPhrase@1], 4), input_partitions=2
                   AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ UserID@89 IS NULL OR UserID@89 < 360248176629955237 OR UserID@89 = 360248176629955237 AND (SearchPhrase@63 IS NULL OR SearchPhrase@63 < ) ], pruning_predicate=UserID_null_count@0 > 0 OR UserID_null_count@0 != row_count@2 AND UserID_min@1 < 360248176629955237 OR UserID_null_count@0 != row_count@2 AND UserID_min@1 <= 360248176629955237 AND 360248176629955237 <= UserID_max@3 AND (SearchPhrase_null_count@4 > 0 OR SearchPhrase_null_count@4 != row_count@2 AND SearchPhrase_min@5 < ), required_guarantees=[]
+                    DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ <scrubbed> ], pruning_predicate=<scrubbed>, required_guarantees=[]

@@ -1,8 +1,39 @@
-# Generated via -Dplan.generate=write.
+# AVG decomposed to SUM+COUNT at PARTIAL, recombined with CASE WHEN null-guard at coordinator.
+# 4 partial aggregates shipped for 3 user-visible aggregates (avg expansion).
 query: q3
 ppl_file: q3.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchProject(sum(AdvEngineID)=[$0], count()=[$1], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($2):DOUBLE), $3))], viableBackends=[[datafusion]])
+        OpenSearchProject(sum(AdvEngineID)=[$0], count()=[CAST($1):BIGINT NOT NULL], $f2=[$2], $f3=[CAST($3):BIGINT NOT NULL], viableBackends=[[datafusion]])
+          OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[SUM($1)], $f2=[SUM($2)], $f3=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[COUNT()], agg#2=[SUM($1)], agg#3=[COUNT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
+                OpenSearchProject(AdvEngineID=[$0], ResolutionWidth=[$69], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[COUNT()], agg#2=[SUM($1)], agg#3=[COUNT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
+        OpenSearchProject(AdvEngineID=[$0], ResolutionWidth=[$69], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchProject(sum(AdvEngineID)=[$0], count()=[$1], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($2):DOUBLE), $3))], viableBackends=[[datafusion]])
+        OpenSearchProject(sum(AdvEngineID)=[$0], count()=[CAST($1):BIGINT NOT NULL], $f2=[$2], $f3=[CAST($3):BIGINT NOT NULL], viableBackends=[[datafusion]])
+          OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[SUM($1)], $f2=[SUM($2)], $f3=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      AggregateExec: mode=Partial, gby=[], aggr=[sum(<scrubbed>.AdvEngineID) as sum(AdvEngineID), count(1) as count(), sum(<scrubbed>.ResolutionWidth) as $f2, count(<scrubbed>.ResolutionWidth) as $f3]
+        DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID, ResolutionWidth], file_type=parquet
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.sum(AdvEngineID))@0 as sum(AdvEngineID), sum(input-0.count())@1 as count(), CASE WHEN sum(input-0.$f3)@3 = 0 THEN NULL ELSE CAST(sum(input-0.$f2)@2 AS Float64) / CAST(sum(input-0.$f3)@3 AS Float64) END as avg(ResolutionWidth)]
+        AggregateExec: mode=Final, gby=[], aggr=[sum(input-0.sum(AdvEngineID)), sum(input-0.count()), sum(input-0.$f2), sum(input-0.$f3)]
+          CoalescePartitionsExec
+            AggregateExec: mode=Partial, gby=[], aggr=[sum(input-0.sum(AdvEngineID)), sum(input-0.count()), sum(input-0.$f2), sum(input-0.$f3)]
+              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                StreamingTableExec: partition_sizes=1, projection=[sum(AdvEngineID), count(), $f2, $f3]
   prod1s:
     post_cbo: |
       OpenSearchProject(sum(AdvEngineID)=[$0], count()=[$1], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($2):DOUBLE), $3))], viableBackends=[[datafusion]])

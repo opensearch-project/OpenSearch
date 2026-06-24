@@ -1,8 +1,49 @@
-# Generated via -Dplan.generate=write.
+# High-cardinality text-field grouping: URL (keyword) on datafusion with TopK.
+# Structurally simplest TopK plan — single key, single agg, 3x fetch.
 query: q34
 ppl_file: q34.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$1], URL=[$0], viableBackends=[[lucene, datafusion]])
+            OpenSearchAggregate(group=[{0}], c=[SUM($1)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
+                  OpenSearchAggregate(group=[{0}], c=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+                    OpenSearchProject(URL=[$85], viableBackends=[[lucene, datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
+        OpenSearchAggregate(group=[{0}], c=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+          OpenSearchProject(URL=[$85], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$1], URL=[$0], viableBackends=[[lucene, datafusion]])
+            OpenSearchAggregate(group=[{0}], c=[SUM($1)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[URL@0 as URL, count(Int64(1))[count]@1 as c]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, URL@0 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST, URL@0 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[URL@0 as URL], aggr=[count(Int64(1))]
+              DataSourceExec: file_groups={<scrubbed>}, projection=[URL], file_type=parquet
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.c)@0 as c, URL@1 as URL]
+        SortPreservingMergeExec: [sum(input-0.c)@0 DESC NULLS LAST, URL@1 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[sum(input-0.c)@0 DESC NULLS LAST, URL@1 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[sum(input-0.c)@1 as sum(input-0.c), URL@0 as URL]
+              AggregateExec: mode=FinalPartitioned, gby=[URL@0 as URL], aggr=[sum(input-0.c)]
+                RepartitionExec: partitioning=Hash([URL@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[URL@0 as URL], aggr=[sum(input-0.c)]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      StreamingTableExec: partition_sizes=1, projection=[URL, c]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
@@ -34,6 +75,6 @@ plans:
           SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST, URL@1 ASC], preserve_partitioning=[true]
             ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), URL@0 as URL]
               AggregateExec: mode=FinalPartitioned, gby=[URL@0 as URL], aggr=[count(Int64(1))]
-                RepartitionExec: partitioning=Hash([URL@0], 4), input_partitions=3
+                RepartitionExec: partitioning=Hash([URL@0], 4), input_partitions=2
                   AggregateExec: mode=Partial, gby=[URL@0 as URL], aggr=[count(Int64(1))]
                     DataSourceExec: file_groups={<scrubbed>}, projection=[URL], file_type=parquet

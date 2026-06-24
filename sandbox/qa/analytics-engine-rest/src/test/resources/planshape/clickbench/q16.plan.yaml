@@ -1,8 +1,49 @@
-# Generated via -Dplan.generate=write.
+# Baseline TopK pattern: single group key, single aggregate, 3x fetch multiplier.
+# Double-sort at coordinator (inner fetch=10, outer fetch=10000 safety ceiling).
 query: q16
 ppl_file: q16.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$1], UserID=[$0], viableBackends=[[lucene, datafusion]])
+            OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
+                  OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+                    OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
+        OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
+          OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$1], UserID=[$0], viableBackends=[[lucene, datafusion]])
+            OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[UserID@0 as UserID, count(Int64(1))[count]@1 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, UserID@0 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST, UserID@0 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
+              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.count())@0 as count(), UserID@1 as UserID]
+        SortPreservingMergeExec: [sum(input-0.count())@0 DESC NULLS LAST, UserID@1 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[sum(input-0.count())@0 DESC NULLS LAST, UserID@1 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[sum(input-0.count())@1 as sum(input-0.count()), UserID@0 as UserID]
+              AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID], aggr=[sum(input-0.count())]
+                RepartitionExec: partitioning=Hash([UserID@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[UserID@0 as UserID], aggr=[sum(input-0.count())]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      StreamingTableExec: partition_sizes=1, projection=[UserID, count()]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
@@ -34,6 +75,6 @@ plans:
           SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST, UserID@1 ASC], preserve_partitioning=[true]
             ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), UserID@0 as UserID]
               AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
-                RepartitionExec: partitioning=Hash([UserID@0], 4), input_partitions=3
+                RepartitionExec: partitioning=Hash([UserID@0], 4), input_partitions=2
                   AggregateExec: mode=Partial, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
                     DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet

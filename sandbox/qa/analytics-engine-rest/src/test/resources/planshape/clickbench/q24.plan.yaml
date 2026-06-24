@@ -1,8 +1,44 @@
-# Generated via -Dplan.generate=write.
+# Sort without aggregation: LIKE filter + sort by EventTime + head 10.
+# Scan-filter-sort-limit pipeline, no group-by, tests sort pushdown to shard.
 query: q24
 ppl_file: q24.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchLateMaterialization(aboveAnchorPhysicalFields=[[AdvEngineID, Age, BrowserCountry, BrowserLanguage, CLID, ClientEventTime, ClientIP, ClientTimeZone, CodeVersion, ConnectTiming, CookieEnable, CounterClass, CounterID, DNSTiming, DontCountHits, EventDate, EventTime, FUniqID, FetchTiming, FlashMajor, FlashMinor, FlashMinor2, FromTag, GoodEvent, HID, HTTPError, HasGCLID, HistoryLength, HitColor, IPNetworkID, Income, Interests, IsArtifical, IsDownload, IsEvent, IsLink, IsMobile, IsNotBounce, IsOldCounter, IsParameter, IsRefresh, JavaEnable, JavascriptEnable, LocalEventTime, MobilePhone, MobilePhoneModel, NetMajor, NetMinor, OS, OpenerName, OpenstatAdID, OpenstatCampaignID, OpenstatServiceName, OpenstatSourceID, OriginalURL, PageCharset, ParamCurrency, ParamCurrencyID, ParamOrderID, ParamPrice, Params, Referer, RefererCategoryID, RefererHash, RefererRegionID, RegionID, RemoteIP, ResolutionDepth, ResolutionHeight, ResolutionWidth, ResponseEndTiming, ResponseStartTiming, Robotness, SearchEngineID, SearchPhrase, SendTiming, Sex, SilverlightVersion1, SilverlightVersion2, SilverlightVersion3, SilverlightVersion4, SocialSourceNetworkID, SocialSourcePage, Title, TraficSourceID, URL, URLCategoryID, URLHash, URLRegionID, UTMCampaign, UTMContent, UTMMedium, UTMSource, UTMTerm, UserAgent, UserAgentMajor, UserAgentMinor, UserID, WatchID, WindowClientHeight, WindowClientWidth, WindowName, WithHash]], viableBackends=[[datafusion]])
+          OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($1, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($1, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+      [LATE_MATERIALIZATION chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchLateMaterialization(aboveAnchorPhysicalFields=[[AdvEngineID, Age, BrowserCountry, BrowserLanguage, CLID, ClientEventTime, ClientIP, ClientTimeZone, CodeVersion, ConnectTiming, CookieEnable, CounterClass, CounterID, DNSTiming, DontCountHits, EventDate, EventTime, FUniqID, FetchTiming, FlashMajor, FlashMinor, FlashMinor2, FromTag, GoodEvent, HID, HTTPError, HasGCLID, HistoryLength, HitColor, IPNetworkID, Income, Interests, IsArtifical, IsDownload, IsEvent, IsLink, IsMobile, IsNotBounce, IsOldCounter, IsParameter, IsRefresh, JavaEnable, JavascriptEnable, LocalEventTime, MobilePhone, MobilePhoneModel, NetMajor, NetMinor, OS, OpenerName, OpenstatAdID, OpenstatCampaignID, OpenstatServiceName, OpenstatSourceID, OriginalURL, PageCharset, ParamCurrency, ParamCurrencyID, ParamOrderID, ParamPrice, Params, Referer, RefererCategoryID, RefererHash, RefererRegionID, RegionID, RemoteIP, ResolutionDepth, ResolutionHeight, ResolutionWidth, ResponseEndTiming, ResponseStartTiming, Robotness, SearchEngineID, SearchPhrase, SendTiming, Sex, SilverlightVersion1, SilverlightVersion2, SilverlightVersion3, SilverlightVersion4, SocialSourceNetworkID, SocialSourcePage, Title, TraficSourceID, URL, URLCategoryID, URLHash, URLRegionID, UTMCampaign, UTMContent, UTMMedium, UTMSource, UTMTerm, UserAgent, UserAgentMajor, UserAgentMinor, UserID, WatchID, WindowClientHeight, WindowClientWidth, WindowName, WithHash]], viableBackends=[[datafusion]])
+        OpenSearchStageInputScan(childStageId=[1], viableBackends=[[datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchStageInputScan(childStageId=[2], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      SortExec: TopK(fetch=10), expr=[EventTime@0 ASC], preserve_partitioning=[false]
+        CooperativeExec
+          QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      SortPreservingMergeExec: [EventTime@0 ASC], fetch=10
+        SortExec: TopK(fetch=10), expr=[EventTime@0 ASC], preserve_partitioning=[true]
+          QueryShardExec: partitions=2, segments=2, ordering=unsorted
+    coord_physical: |
+      SortExec: TopK(fetch=10), expr=[EventTime@0 ASC], preserve_partitioning=[false]
+        StreamingTableExec: partition_sizes=1, projection=[EventTime, URL, __row_id__, ___ugsi]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
@@ -22,4 +58,4 @@ plans:
     shard_physical_nseg: |
       SortPreservingMergeExec: [EventTime@16 ASC], fetch=10
         SortExec: TopK(fetch=10), expr=[EventTime@16 ASC], preserve_partitioning=[true]
-          QueryShardExec: partitions=2, segments=3, ordering=unsorted
+          QueryShardExec: partitions=2, segments=2, ordering=unsorted

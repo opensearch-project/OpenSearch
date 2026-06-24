@@ -1,8 +1,39 @@
-# Generated via -Dplan.generate=write.
+# Pure avg decomposition: ships exactly 2 partial values (SUM, COUNT) for one aggregate.
+# Division expression in final Project forces datafusion-only (lucene cannot evaluate).
 query: q4
 ppl_file: q4.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
+        OpenSearchProject($f0=[$0], $f1=[CAST($1):BIGINT NOT NULL], viableBackends=[[datafusion]])
+          OpenSearchAggregate(group=[{}], $f0=[SUM($0)], $f1=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
+                OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
+        OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
+        OpenSearchProject($f0=[$0], $f1=[CAST($1):BIGINT NOT NULL], viableBackends=[[datafusion]])
+          OpenSearchAggregate(group=[{}], $f0=[SUM($0)], $f1=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      AggregateExec: mode=Partial, gby=[], aggr=[sum(<scrubbed>.UserID) as $f0, count(<scrubbed>.UserID) as $f1]
+        DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+    coord_physical: |
+      ProjectionExec: expr=[CASE WHEN sum(input-0.$f1)@1 = 0 THEN NULL ELSE CAST(sum(input-0.$f0)@0 AS Float64) / CAST(sum(input-0.$f1)@1 AS Float64) END as avg(UserID)]
+        AggregateExec: mode=Final, gby=[], aggr=[sum(input-0.$f0), sum(input-0.$f1)]
+          CoalescePartitionsExec
+            AggregateExec: mode=Partial, gby=[], aggr=[sum(input-0.$f0), sum(input-0.$f1)]
+              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                StreamingTableExec: partition_sizes=1, projection=[$f0, $f1]
   prod1s:
     post_cbo: |
       OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])

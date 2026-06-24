@@ -1,8 +1,39 @@
-# Generated via -Dplan.generate=write.
+# Multi-column sort (EventTime, SearchPhrase) with != filter and projection.
+# Composite sort key pushdown without aggregation.
 query: q27
 ppl_file: q27.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$16], sort1=[$74], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchSort(sort0=[$16], sort1=[$74], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
+                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchSort(sort0=[$16], sort1=[$74], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$16], sort1=[$74], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      SortExec: TopK(fetch=10), expr=[EventTime@16 ASC, SearchPhrase@74 ASC], preserve_partitioning=[false]
+        CooperativeExec
+          QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      SortPreservingMergeExec: [EventTime@16 ASC, SearchPhrase@74 ASC], fetch=10
+        SortExec: TopK(fetch=10), expr=[EventTime@16 ASC, SearchPhrase@74 ASC], preserve_partitioning=[true]
+          QueryShardExec: partitions=2, segments=2, ordering=unsorted
+    coord_physical: |
+      ProjectionExec: expr=[SearchPhrase@1 as SearchPhrase]
+        SortExec: TopK(fetch=10), expr=[EventTime@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[false]
+          StreamingTableExec: partition_sizes=1, projection=[EventTime, SearchPhrase]
   prod1s:
     post_cbo: |
       OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
@@ -24,4 +55,4 @@ plans:
       ProjectionExec: expr=[SearchPhrase@1 as SearchPhrase]
         SortPreservingMergeExec: [EventTime@0 ASC, SearchPhrase@1 ASC], fetch=10
           SortExec: TopK(fetch=10), expr=[EventTime@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[true]
-            QueryShardExec: partitions=2, segments=3, ordering=unsorted
+            QueryShardExec: partitions=2, segments=2, ordering=unsorted

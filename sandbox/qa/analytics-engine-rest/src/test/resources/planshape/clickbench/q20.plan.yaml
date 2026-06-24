@@ -1,8 +1,41 @@
-# Generated via -Dplan.generate=write.
+# Point lookup: UserID equality filter delegated to lucene (chosen_backend=lucene).
+# Single-stage scan-filter-project, no aggregation, no coordinator reduce.
 query: q20
 ppl_file: q20.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
+            OpenSearchProject(UserID=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], CAST(435090932899640449:BIGINT):BIGINT)], viableBackends=[[datafusion]])
+              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($97, 435090932899640449))], viableBackends=[[datafusion]])
+                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchProject(UserID=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], CAST(435090932899640449:BIGINT):BIGINT)], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($97, 435090932899640449))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[435090932899640449 as UserID]
+        CoalescePartitionsExec: fetch=10000
+          FilterExec: UserID@0 = 435090932899640449, fetch=10000
+            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[435090932899640449 as UserID]
+        CoalescePartitionsExec: fetch=10000
+          FilterExec: UserID@0 = 435090932899640449, fetch=10000
+            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
+    coord_physical: |
+      StreamingTableExec: partition_sizes=1, projection=[UserID], fetch=10000
   prod1s:
     post_cbo: |
       OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
@@ -25,5 +58,5 @@ plans:
       ProjectionExec: expr=[435090932899640449 as UserID]
         CoalescePartitionsExec: fetch=10000
           FilterExec: UserID@0 = 435090932899640449, fetch=10000
-            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3
+            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
               DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]

@@ -1,8 +1,55 @@
-# Generated via -Dplan.generate=write.
+# Multi-key grouped dc: (MobilePhone, MobilePhoneModel) with multi-column sort.
+# HLL sketch merge with 2 group keys and composite sort order.
 query: q12
 ppl_file: q12.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(u=[$2], MobilePhone=[$0], MobilePhoneModel=[$1], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], u=[APPROX_COUNT_DISTINCT($2)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchProject(MobilePhone=[$0], MobilePhoneModel=[$1], u=[$2], viableBackends=[[datafusion]])
+                  OpenSearchSort(sort0=[$3], sort1=[$0], sort2=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
+                    OpenSearchProject(MobilePhone=[$0], MobilePhoneModel=[$1], u=[$2], __reduce_eval_2=[reduce_eval('approx_distinct', $2)], viableBackends=[[datafusion]])
+                      OpenSearchAggregate(group=[{0, 1}], u=[APPROX_COUNT_DISTINCT($2)], mode=[PARTIAL], viableBackends=[[datafusion]])
+                        OpenSearchProject(MobilePhone=[$44], MobilePhoneModel=[$45], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($45, ''))], viableBackends=[[lucene, datafusion]])
+                            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchProject(MobilePhone=[$0], MobilePhoneModel=[$1], u=[$2], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$3], sort1=[$0], sort2=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
+          OpenSearchProject(MobilePhone=[$0], MobilePhoneModel=[$1], u=[$2], __reduce_eval_2=[reduce_eval('approx_distinct', $2)], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], u=[APPROX_COUNT_DISTINCT($2)], mode=[PARTIAL], viableBackends=[[datafusion]])
+              OpenSearchProject(MobilePhone=[$44], MobilePhoneModel=[$45], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($45, ''))], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(u=[$2], MobilePhone=[$0], MobilePhoneModel=[$1], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], u=[APPROX_COUNT_DISTINCT($2)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)@2 as u]
+        SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)[hll_registers]@2 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@2) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
+              AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                  QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)@2 as u]
+        SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)[hll_registers]@2 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@2) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
+              AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                  QueryShardExec: partitions=2, segments=2, ordering=unsorted
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
@@ -42,4 +89,4 @@ plans:
                   RepartitionExec: partitioning=Hash([MobilePhone@0, MobilePhoneModel@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
                       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                        QueryShardExec: partitions=2, segments=3, ordering=unsorted
+                        QueryShardExec: partitions=2, segments=2, ordering=unsorted

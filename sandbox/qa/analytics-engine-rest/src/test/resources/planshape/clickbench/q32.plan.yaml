@@ -1,8 +1,63 @@
-# Generated via -Dplan.generate=write.
+# Same as q31 but grouped by (WatchID, ClientIP) — higher cardinality group keys.
+# Mixed aggregates (count + sum + avg) with TopK.
 query: q32
 ppl_file: q32.ppl
-applies: [prod1s]
+applies: [prod2s, prod1s]
 plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[$4], WatchID=[$0], ClientIP=[$1], viableBackends=[[datafusion]])
+            OpenSearchProject(WatchID=[$0], ClientIP=[$1], c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($4):DOUBLE), $5))], viableBackends=[[datafusion]])
+              OpenSearchAggregate(group=[{0, 1}], c=[SUM($2)], sum(IsRefresh)=[SUM($3)], $f4=[SUM($4)], $f5=[SUM($5)], mode=[FINAL], viableBackends=[[datafusion]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchSort(sort0=[$2], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
+                    OpenSearchAggregate(group=[{0, 1}], c=[COUNT()], sum(IsRefresh)=[SUM($2)], agg#2=[SUM($3)], agg#3=[COUNT($3)], mode=[PARTIAL], viableBackends=[[datafusion]])
+                      OpenSearchProject(WatchID=[$98], ClientIP=[$6], IsRefresh=[$40], ResolutionWidth=[$69], viableBackends=[[lucene, datafusion]])
+                        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
+                          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      OpenSearchSort(sort0=[$2], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0, 1}], c=[COUNT()], sum(IsRefresh)=[SUM($2)], agg#2=[SUM($3)], agg#3=[COUNT($3)], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(WatchID=[$98], ClientIP=[$6], IsRefresh=[$40], ResolutionWidth=[$69], viableBackends=[[lucene, datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
+              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[$4], WatchID=[$0], ClientIP=[$1], viableBackends=[[datafusion]])
+            OpenSearchProject(WatchID=[$0], ClientIP=[$1], c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($4):DOUBLE), $5))], viableBackends=[[datafusion]])
+              OpenSearchAggregate(group=[{0, 1}], c=[SUM($2)], sum(IsRefresh)=[SUM($3)], $f4=[SUM($4)], $f5=[SUM($5)], mode=[FINAL], viableBackends=[[datafusion]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[WatchID@0 as WatchID, ClientIP@1 as ClientIP, count(Int64(1))[count]@2 as c, sum(<scrubbed>.IsRefresh)[sum]@3 as sum(IsRefresh), sum(<scrubbed>.ResolutionWidth)[sum]@4 as $f4, count(<scrubbed>.ResolutionWidth)[count]@5 as $f5]
+        SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
+              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
+                  QueryShardExec: partitions=1, segments=1, ordering=unsorted
+    shard_physical_nseg: |
+      ProjectionExec: expr=[WatchID@0 as WatchID, ClientIP@1 as ClientIP, count(Int64(1))[count]@2 as c, sum(<scrubbed>.IsRefresh)[sum]@3 as sum(IsRefresh), sum(<scrubbed>.ResolutionWidth)[sum]@4 as $f4, count(<scrubbed>.ResolutionWidth)[count]@5 as $f5]
+        SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
+              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
+                  QueryShardExec: partitions=2, segments=2, ordering=unsorted
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.c)@0 as c, sum(input-0.sum(IsRefresh))@1 as sum(IsRefresh), CASE WHEN sum(input-0.$f5) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f4) / sum(input-0.$f5) END@2 as avg(ResolutionWidth), WatchID@3 as WatchID, ClientIP@4 as ClientIP]
+        SortPreservingMergeExec: [sum(input-0.c)@0 DESC NULLS LAST], fetch=10
+          SortExec: TopK(fetch=10), expr=[sum(input-0.c)@0 DESC NULLS LAST], preserve_partitioning=[true]
+            ProjectionExec: expr=[sum(input-0.c)@2 as sum(input-0.c), sum(input-0.sum(IsRefresh))@3 as sum(input-0.sum(IsRefresh)), CASE WHEN sum(input-0.$f5)@5 = 0 THEN NULL ELSE CAST(sum(input-0.$f4)@4 AS Float64) / CAST(sum(input-0.$f5)@5 AS Float64) END as CASE WHEN sum(input-0.$f5) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f4) / sum(input-0.$f5) END, WatchID@0 as WatchID, ClientIP@1 as ClientIP]
+              AggregateExec: mode=FinalPartitioned, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[sum(input-0.c), sum(input-0.sum(IsRefresh)), sum(input-0.$f4), sum(input-0.$f5)]
+                RepartitionExec: partitioning=Hash([WatchID@0, ClientIP@1], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[sum(input-0.c), sum(input-0.sum(IsRefresh)), sum(input-0.$f4), sum(input-0.$f5)]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      StreamingTableExec: partition_sizes=1, projection=[WatchID, ClientIP, c, sum(IsRefresh), $f4, $f5]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
@@ -44,4 +99,4 @@ plans:
                   AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
                     RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
                       ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
-                        QueryShardExec: partitions=2, segments=3, ordering=unsorted
+                        QueryShardExec: partitions=2, segments=2, ordering=unsorted
