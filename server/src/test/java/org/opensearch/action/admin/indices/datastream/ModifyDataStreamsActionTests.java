@@ -65,7 +65,10 @@ public class ModifyDataStreamsActionTests extends org.opensearch.test.OpenSearch
         assertThat(ds.getIndices().size(), equalTo(3));
         // new backing index is added to the front so the existing write index stays last
         assertThat(ds.getIndices().get(0).getName(), equalTo("standalone-index"));
-        assertThat(ds.getIndices().get(ds.getIndices().size() - 1).getName(), equalTo(DataStream.getDefaultBackingIndexName(DATA_STREAM, 2)));
+        assertThat(
+            ds.getIndices().get(ds.getIndices().size() - 1).getName(),
+            equalTo(DataStream.getDefaultBackingIndexName(DATA_STREAM, 2))
+        );
         // generation is unchanged when adding a backing index
         assertThat(ds.getGeneration(), equalTo(2L));
         // the added index is now hidden
@@ -120,7 +123,10 @@ public class ModifyDataStreamsActionTests extends org.opensearch.test.OpenSearch
         ClusterState afterReAdd = modify(afterRemove, List.of(DataStreamAction.addBackingIndex(DATA_STREAM, "standalone-index")));
 
         IndexMetadata reAdded = afterReAdd.metadata().index("standalone-index");
-        assertThat(afterReAdd.metadata().dataStreams().get(DATA_STREAM).getIndices().stream().map(i -> i.getName()).toList(), hasItem("standalone-index"));
+        assertThat(
+            afterReAdd.metadata().dataStreams().get(DATA_STREAM).getIndices().stream().map(i -> i.getName()).toList(),
+            hasItem("standalone-index")
+        );
         assertTrue(IndexMetadata.INDEX_HIDDEN_SETTING.get(reAdded.getSettings()));
         // mapping is unchanged on re-add, so the mapping version must NOT move (node asserts bump implies content change)
         assertThat(reAdded.getMappingVersion(), equalTo(adapted.getMappingVersion()));

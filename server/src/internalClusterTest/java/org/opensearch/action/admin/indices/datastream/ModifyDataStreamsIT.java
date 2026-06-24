@@ -63,13 +63,7 @@ public class ModifyDataStreamsIT extends DataStreamTestCase {
         createDataStream("logs-demo");
 
         // an externally created index (arbitrary name) with a @timestamp field
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("restored-001")
-                .setMapping("@timestamp", "type=date")
-                .get()
-        );
+        assertAcked(client().admin().indices().prepareCreate("restored-001").setMapping("@timestamp", "type=date").get());
 
         modifyDataStream(DataStreamAction.addBackingIndex("logs-demo", "restored-001"));
 
@@ -89,7 +83,9 @@ public class ModifyDataStreamsIT extends DataStreamTestCase {
             ExecutionException.class,
             () -> client().admin()
                 .indices()
-                .modifyDataStream(new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex("logs-demo", ".ds-logs-demo-000001"))))
+                .modifyDataStream(
+                    new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex("logs-demo", ".ds-logs-demo-000001")))
+                )
                 .get()
         );
         // the request may be handled on a remote cluster-manager node, in which case the cause is wrapped in a

@@ -339,7 +339,12 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         // an index with aliases cannot become a backing index, as aliases and data streams cannot point at the same index
         if (index.getAliases().isEmpty() == false) {
             throw new IllegalArgumentException(
-                "cannot add index [" + indexName + "] to data stream [" + dataStreamName + "] because it has aliases " + index.getAliases().keySet()
+                "cannot add index ["
+                    + indexName
+                    + "] to data stream ["
+                    + dataStreamName
+                    + "] because it has aliases "
+                    + index.getAliases().keySet()
             );
         }
 
