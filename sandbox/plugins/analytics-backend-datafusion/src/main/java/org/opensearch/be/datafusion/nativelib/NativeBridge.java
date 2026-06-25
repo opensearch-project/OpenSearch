@@ -132,6 +132,7 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_UPDATE_SIZE_LIMIT;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
@@ -522,6 +523,17 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_UPDATE_SIZE_LIMIT = linker.downcallHandle(
+            lib.find("df_cache_manager_update_size_limit").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -1690,6 +1702,13 @@ public final class NativeBridge {
             var file = call.str(filePath);
             long result = call.invoke(CACHE_MANAGER_CONTAINS_BY_TYPE, runtimePtr, type.segment(), type.len(), file.segment(), file.len());
             return result != 0;
+        }
+    }
+
+    public static void cacheManagerUpdateSizeLimit(long runtimePtr, String cacheType, long newLimit) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CACHE_MANAGER_UPDATE_SIZE_LIMIT, runtimePtr, type.segment(), type.len(), newLimit);
         }
     }
 
