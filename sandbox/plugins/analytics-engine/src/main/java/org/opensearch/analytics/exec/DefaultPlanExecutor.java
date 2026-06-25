@@ -18,6 +18,7 @@ import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -411,8 +412,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // immediately. The listener is wrapped to convert backend-specific exceptions.
         ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(listener::onResponse, e -> {
             Exception converted = e instanceof Exception ex ? contextProvider.convertException(ex) : new RuntimeException(e);
-            // If convertException returned unrecognized 500 — redact internal details and log the original.
-            if (converted == e && isInternalError(converted)) {
+            // A typed status (e.g. a 429 breaker) often arrives buried in a wrapper —
+            // ShardFragmentStageExecution reports shard failures as RuntimeException("Stage N failed", cause),
+            // so isInternalError (top-level only) would redact it to a generic 500 and drop the chain. Surface
+            // the buried status-bearing exception directly so 429/503 reach the client instead of an opaque 500.
+            Exception statusBearing = statusBearingCause(converted);
+            if (statusBearing != null) {
+                listener.onFailure(statusBearing);
+            } else if (converted == e && isInternalError(converted)) {
                 AnalyticsQueryTask queryTask = (AnalyticsQueryTask) task;
                 String queryId = queryTask.getQueryId();
                 String identifier = "unassigned".equals(queryId)
@@ -464,6 +471,19 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
      */
     private static boolean isInternalError(Exception e) {
         return ExceptionsHelper.status(e) == RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    /**
+     * Walks the cause/suppressed chain for a typed {@link OpenSearchException} carrying a non-500 status
+     * (e.g. a 429 breaker wrapped as {@code RuntimeException("Stage N failed", cbe)}). Returns it so the
+     * real status reaches the client instead of being redacted to a generic 500; null when the failure is
+     * genuinely internal and the redaction path should run.
+     */
+    static Exception statusBearingCause(Exception converted) {
+        return ExceptionsHelper.<OpenSearchException>unwrapCausesAndSuppressed(
+            converted,
+            t -> t instanceof OpenSearchException ose && ose.status() != RestStatus.INTERNAL_SERVER_ERROR
+        ).map(t -> (Exception) t).orElse(null);
     }
 
     /**

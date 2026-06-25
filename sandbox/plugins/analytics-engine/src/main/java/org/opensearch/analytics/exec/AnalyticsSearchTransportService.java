@@ -30,6 +30,7 @@ import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActio
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportChannel;
@@ -200,7 +201,7 @@ public class AnalyticsSearchTransportService {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    channel.sendResponse(e);
+                    channel.sendResponse(AnalyticsTransportErrors.toWireError(e));
                 } catch (Exception sendException) {
                     throw new RuntimeException(sendException);
                 }
@@ -218,8 +219,13 @@ public class AnalyticsSearchTransportService {
         } catch (Exception ignore) {}
     }
 
-    Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+    Transport.Connection getConnection(DiscoveryNode node) {
+        if (node == null) {
+            // The target left the cluster between planning and dispatch. Surface a clean
+            // ConnectTransportException instead of letting a null node reach the connection
+            // manager, where it NPEs ("Cannot invoke Object.hashCode() because key is null").
+            throw new ConnectTransportException(null, "target node left the cluster before dispatch");
+        }
         return transportService.getConnection(node);
     }
 
@@ -344,7 +350,7 @@ public class AnalyticsSearchTransportService {
                     // Loop exited because nextResponse() returned null — the stream drained fully.
                     terminatedCleanly = true;
                 } catch (Exception e) {
-                    listener.onFailure(e);
+                    listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
                     // Release any batches the loop still owns and never delivered.
                     closeResponseQuietly(last);
@@ -375,7 +381,7 @@ public class AnalyticsSearchTransportService {
             @Override
             public void handleException(TransportException e) {
                 try {
-                    listener.onFailure(e);
+                    listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
                     pending.finishAndRunNext();
                 }
@@ -385,11 +391,11 @@ public class AnalyticsSearchTransportService {
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
         pending.tryRun(() -> {
             try {
-                Transport.Connection connection = getConnection(null, targetNode.getId());
+                Transport.Connection connection = getConnection(targetNode);
                 transportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
-                    listener.onFailure(e);
+                    listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
                     pending.finishAndRunNext();
                 }
