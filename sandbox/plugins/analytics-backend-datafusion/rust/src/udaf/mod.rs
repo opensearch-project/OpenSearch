@@ -13,6 +13,7 @@
 use datafusion::execution::context::SessionContext;
 
 pub mod approx_distinct_safe;
+mod hll;
 pub mod internal_pattern;
 pub mod list_merge;
 pub mod os_count_distinct;
