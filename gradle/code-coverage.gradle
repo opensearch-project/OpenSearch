@@ -9,7 +9,17 @@
 apply plugin: 'jacoco'
 
 repositories {
-  mavenCentral()
+  maven {
+    url = "https://ci.opensearch.org/maven2/"
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
 }
 
 allprojects {
