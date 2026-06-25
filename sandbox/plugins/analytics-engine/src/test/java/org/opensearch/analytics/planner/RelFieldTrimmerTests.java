@@ -297,6 +297,38 @@ public class RelFieldTrimmerTests extends BasePlannerRulesTests {
         assertBottomProjectColsAnyOrder(trimmed, "f0");
     }
 
+    /**
+     * Alias-only top Project (1:1 refs, renamed) over an Aggregate — the shape PPL {@code transpose}
+     * leaves behind as its final RENAME over the PIVOT. RelFieldTrimmer drops such a trivial top
+     * Project, which silently renames the query's output columns (e.g. {@code column}→{@code f0}).
+     * {@code trimFields} must re-impose the original output names (mirrors Calcite RelRoot.project),
+     * else the executor can't find the expected columns in the result batch (Q82 HTTP 500 regression).
+     */
+    public void testTrims_aliasOnlyTopProject_preservesOutputNames() {
+        TableScan scan = stubScan(mockTable("t", COLS));
+        LogicalProject wide = allColumnsProject(scan);
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            wide,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "c"
+        );
+        // Aggregate exposes [f0, c]; the alias-only Project renames them to the query's output names.
+        LogicalAggregate agg = LogicalAggregate.create(wide, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+        LogicalProject rename = LogicalProject.create(agg, List.of(), List.of(ref(agg, 0), ref(agg, 1)), List.of("column", "total"));
+
+        RelNode trimmed = PlannerImpl.trimFields(rename);
+        // The output schema the executor sees must keep the renamed names, not the trimmer's underlying ones.
+        assertEquals(
+            "trimFields must preserve the original output column names:\n" + RelOptUtil.toString(trimmed),
+            List.of("column", "total"),
+            trimmed.getRowType().getFieldNames()
+        );
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private LogicalProject allColumnsProject(RelNode input) {
