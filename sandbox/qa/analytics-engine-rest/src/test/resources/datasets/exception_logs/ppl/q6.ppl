@@ -1,0 +1,1 @@
+source=exception_logs | where level='ERROR' | stats count() as error_count by service_name, application_id | sort - error_count

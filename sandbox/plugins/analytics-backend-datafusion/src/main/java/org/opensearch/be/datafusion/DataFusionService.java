@@ -12,16 +12,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheUtils;
+import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.SpillStats;
+import org.opensearch.be.datafusion.stats.SpillStatsCollector;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Node-level service managing the DataFusion native runtime lifecycle.
@@ -37,12 +37,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
 
     private final long memoryPoolLimit;
-    private final long spillMemoryLimit;
+    /**
+     * Mirrors the dynamic {@code datafusion.spill_memory_limit_bytes} setting and the
+     * native runtime's spill cap. Updated by {@link #setSpillMemoryLimit(long)}; surfaced
+     * as {@code spill.disk_reserved_bytes} via {@link #buildSpillStats()}. Volatile so
+     * stats readers see updates from the cluster-settings consumer thread without locking.
+     */
+    private volatile long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
+    private final double datanodeMultiplier;
+    private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
-
-    private volatile ExecutorService drainExecutor;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
@@ -55,15 +61,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillMemoryLimit = builder.spillMemoryLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
+        this.datanodeMultiplier = builder.datanodeMultiplier;
+        this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
-    }
-
-    public Executor getDrainExecutor() {
-        ExecutorService exec = drainExecutor;
-        if (exec == null) {
-            throw new IllegalStateException("DataFusionService has not been started");
-        }
-        return exec;
     }
 
     /** Creates a new builder. */
@@ -71,20 +71,44 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return new Builder();
     }
 
+    /**
+     * Returns the number of available CPU threads used for the dedicated executor.
+     * This is the value used to compute concurrency gate permit counts (cpu_threads × multiplier).
+     */
+    public static int cpuThreadCount() {
+        return Runtime.getRuntime().availableProcessors();
+    }
+
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
-        NativeBridge.initTokioRuntimeManager(cpuThreads);
-        this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
-        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+        NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+        logger.debug(
+            "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
+            cpuThreads,
+            datanodeMultiplier,
+            coordinatorMultiplier
+        );
 
         long cacheManagerPtr = 0L;
+        NativeCacheManagerHandle cacheHandle = null;
         if (clusterSettings != null) {
-            cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
+            cacheHandle = CacheUtils.createCacheConfig(clusterSettings);
+            cacheManagerPtr = cacheHandle.getPointer();
         }
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
-        this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        try {
+            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            if (cacheHandle != null) {
+                cacheHandle.markConsumed();
+            }
+            this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        } catch (Exception e) {
+            if (cacheHandle != null) {
+                cacheHandle.close();
+            }
+            throw e;
+        }
 
         if (clusterSettings != null) {
             this.cacheManager = new CacheManager(runtimeHandle);
@@ -99,22 +123,16 @@ public class DataFusionService extends AbstractLifecycleComponent {
         try {
             releaseRuntime();
         } finally {
-            try {
-                ExecutorService exec = drainExecutor;
-                if (exec != null) {
-                    exec.shutdown();
-                    drainExecutor = null;
-                }
-            } finally {
-                NativeBridge.shutdownTokioRuntimeManager();
-            }
+            NativeBridge.shutdownTokioRuntimeManager();
         }
+
         logger.debug("DataFusion service stopped");
     }
 
     @Override
     protected void doClose() throws IOException {
         releaseRuntime();
+        NativeBridge.shutdownTokioRuntimeManager();
     }
 
     /**
@@ -144,6 +162,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return NativeBridge.getMemoryPoolLimit(getNativeRuntime().get());
     }
 
+    /** Returns [usage_bytes, tripped_count] from the native memory pool. Single FFM call. */
+    public long[] getMemoryPoolStats() {
+        return NativeBridge.getMemoryPoolStats(getNativeRuntime().get());
+    }
+
     /**
      * Sets the memory pool limit at runtime. Takes effect for new allocations only.
      * Existing reservations that exceed the new limit are NOT reclaimed.
@@ -157,6 +180,42 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns true if the loaded native library can update the spill cap at runtime.
+     * When false, {@link #setSpillMemoryLimit(long)} will throw and cluster-state
+     * updates of {@code datafusion.spill_memory_limit_bytes} have no live effect.
+     */
+    public boolean isSpillLimitDynamic() {
+        return NativeBridge.isSpillLimitDynamic();
+    }
+
+    /**
+     * Sets the spill memory limit at runtime. Requires {@link #isSpillLimitDynamic()};
+     * otherwise throws {@link UnsupportedOperationException}. Also updates the Java-side
+     * mirror used by {@link #buildSpillStats()} so {@code spill.disk_reserved_bytes}
+     * reflects the new value on the next stats read.
+     */
+    public void setSpillMemoryLimit(long newLimitBytes) {
+        NativeBridge.setSpillLimit(getNativeRuntime().get(), newLimitBytes);
+        this.spillMemoryLimit = newLimitBytes;
+    }
+
+    /**
+     * Returns the spill directory this service was configured with. Empty string
+     * means spill is disabled (DataFusion built with {@code DiskManagerMode::Disabled}).
+     */
+    public String getSpillDirectory() {
+        return spillDirectory;
+    }
+
+    /**
+     * Returns the spill memory limit (in bytes) this service was configured with.
+     * Surfaced for the {@code spill.disk_reserved_bytes} stat.
+     */
+    public long getSpillMemoryLimit() {
+        return spillMemoryLimit;
+    }
+
+    /**
      * Returns the latest native executor stats, collected fresh from JNI on every call.
      *
      * @return the current {@link DataFusionStats}
@@ -165,7 +224,25 @@ public class DataFusionService extends AbstractLifecycleComponent {
         if (runtimeHandle == null) {
             throw new IllegalStateException("DataFusionService has not been started");
         }
-        return NativeBridge.stats();
+        DataFusionStats nativeStats = NativeBridge.stats(runtimeHandle.get());
+        SpillStats spill = buildSpillStats();
+        return new DataFusionStats(
+            nativeStats.getNativeExecutorsStats(),
+            nativeStats.getFragmentExecutorGateStats(),
+            nativeStats.getAdaptiveBudgetStats(),
+            spill,
+            nativeStats.getCacheStats(),
+            nativeStats.getSearchStats()
+        );
+    }
+
+    /**
+     * Builds a {@link SpillStats} snapshot from the configured spill directory and the
+     * configured spill memory limit. Package-private so unit tests can verify the wiring
+     * without starting the native runtime.
+     */
+    SpillStats buildSpillStats() {
+        return SpillStatsCollector.collect(spillDirectory, spillMemoryLimit);
     }
     // Cache management (node-level, delegates to native runtime)
 
@@ -186,6 +263,23 @@ public class DataFusionService extends AbstractLifecycleComponent {
             NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filePaths.toArray(new String[0]));
         } catch (Exception e) {
             logger.warn("Failed to register new files with native cache", e);
+        }
+    }
+
+    /**
+     * Warmup files through the TieredObjectStore — reads metadata via the store
+     * (populating Foyer caches) and puts into heap cache. For warm nodes where
+     * files are on S3, this routes through the registry to remote storage.
+     *
+     * @param filePaths absolute paths of the files to warm
+     * @param storeBoxPtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer from TieredStorageBridge.getObjectStoreBoxPtr
+     */
+    public void onFilesAddedWithStore(Collection<String> filePaths, long storeBoxPtr) {
+        if (filePaths == null || filePaths.isEmpty()) return;
+        try {
+            NativeBridge.cacheManagerAddFilesWithStore(runtimeHandle.get(), storeBoxPtr, filePaths.toArray(new String[0]));
+        } catch (Exception e) {
+            logger.warn("Failed to warmup files with store", e);
         }
     }
 
@@ -219,6 +313,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
+        private double datanodeMultiplier = 1.0;
+        private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
 
         private Builder() {}
@@ -256,6 +352,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
+            return this;
+        }
+
+        /** Sets the datanode concurrency gate multiplier. */
+        public Builder datanodeMultiplier(double multiplier) {
+            this.datanodeMultiplier = multiplier;
+            return this;
+        }
+
+        /** Sets the coordinator concurrency gate multiplier. */
+        public Builder coordinatorMultiplier(double multiplier) {
+            this.coordinatorMultiplier = multiplier;
             return this;
         }
 

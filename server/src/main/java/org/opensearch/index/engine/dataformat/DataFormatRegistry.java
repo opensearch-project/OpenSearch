@@ -13,9 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
@@ -46,6 +49,12 @@ public class DataFormatRegistry {
     private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
+
+    /** The single registered document lookup provider (engine-backed get-by-id execution), or {@code null} if none. */
+    private final DocumentLookupProvider documentLookupProvider;
+
+    /** The single registered document metadata resolver (id-to-row-location), or {@link DocumentMetadataResolver#NOOP} if none. */
+    private final DocumentMetadataResolver documentMetadataResolver;
 
     private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
 
@@ -83,6 +92,38 @@ public class DataFormatRegistry {
         this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
         this.dataFormats = Map.copyOf(dataFormats);
         this.readerManagerBuilders = Map.copyOf(readerManagerBuilders);
+
+        List<DocumentLookupProvider> lookupProviders = pluginsService.filterPlugins(DocumentLookupProvider.class);
+        if (lookupProviders.size() > 1) {
+            throw new IllegalStateException("multiple DocumentLookupProvider implementations registered: " + lookupProviders);
+        }
+        this.documentLookupProvider = lookupProviders.isEmpty() ? null : lookupProviders.getFirst();
+
+        List<DocumentMetadataResolver> resolvers = pluginsService.filterPlugins(DocumentMetadataResolver.class);
+        if (resolvers.size() > 1) {
+            throw new IllegalStateException("multiple DocumentMetadataResolver implementations registered: " + resolvers);
+        }
+        this.documentMetadataResolver = resolvers.isEmpty() ? DocumentMetadataResolver.NOOP : resolvers.getFirst();
+    }
+
+    /**
+     * Returns the single registered {@link DocumentLookupProvider} that backs the engine's
+     * get-by-id / version-resolution path, or {@code null} when no provider is registered.
+     *
+     * @return the document lookup provider, or null
+     */
+    public DocumentLookupProvider getDocumentLookupProvider() {
+        return documentLookupProvider;
+    }
+
+    /**
+     * Returns the single registered {@link DocumentMetadataResolver} that maps an {@code _id}
+     * to its row location, or {@link DocumentMetadataResolver#NOOP} when none is registered.
+     *
+     * @return the document metadata resolver (never null)
+     */
+    public DocumentMetadataResolver getDocumentMetadataResolver() {
+        return documentMetadataResolver;
     }
 
     /**
@@ -180,6 +221,33 @@ public class DataFormatRegistry {
             }
         }
         return Map.of();
+    }
+
+    /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats.
+     * Each format in priority order claims the capabilities it supports for the field type.
+     * If any requested capability remains unclaimed, a {@link org.opensearch.index.mapper.MapperParsingException} is thrown.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        plugin.assignCapabilities(fieldType, indexSettings, this);
     }
 
     /**

@@ -18,7 +18,6 @@
 //! 3.0`); no legacy IT covers this edge case, so every existing fixture still
 //! passes. Tracked for follow-up cross-engine alignment.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -60,9 +59,6 @@ impl Default for JsonExtendUdf {
 }
 
 impl ScalarUDFImpl for JsonExtendUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

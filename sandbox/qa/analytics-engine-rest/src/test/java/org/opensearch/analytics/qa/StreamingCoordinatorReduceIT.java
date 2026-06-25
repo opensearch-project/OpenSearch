@@ -40,15 +40,15 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex();
         indexDeterministicDocs();
 
-        Map<String, Object> result = executePPL("source = " + INDEX);
+        Map<String, Object> result = executePpl("source = " + INDEX);
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 'value', got " + columns, columns.contains("value"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
 
         int expectedRows = NUM_SHARDS * DOCS_PER_SHARD;
@@ -81,7 +81,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         // Expected: AVG(0, 1, ..., total-1) = (total - 1) / 2.0
         double expected = (total - 1) / 2.0;
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats avg(value) as a");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats avg(value) as a");
         List<List<Object>> rows = scalarRows(result, "a");
 
         double actual = ((Number) rows.get(0).get(0)).doubleValue();
@@ -102,7 +102,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         indexValuedDocs(i -> i); // all distinct
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats dc(value) as dc");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats dc(value) as dc");
         List<List<Object>> rows = scalarRows(result, "dc");
 
         long actual = ((Number) rows.get(0).get(0)).longValue();
@@ -132,7 +132,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         }
         double expected = Math.sqrt(sumSquares / total);
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats stddev_pop(value) as s");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats stddev_pop(value) as s");
         List<List<Object>> rows = scalarRows(result, "s");
 
         double actual = ((Number) rows.get(0).get(0)).doubleValue();
@@ -158,7 +158,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         }
         double expected = Math.sqrt(sumSquares / (total - 1));
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats stddev_samp(value) as s");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats stddev_samp(value) as s");
         List<List<Object>> rows = scalarRows(result, "s");
 
         double actual = ((Number) rows.get(0).get(0)).doubleValue();
@@ -183,7 +183,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         }
         double expected = sumSquares / total;
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats var_pop(value) as v");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats var_pop(value) as v");
         List<List<Object>> rows = scalarRows(result, "v");
 
         double actual = ((Number) rows.get(0).get(0)).doubleValue();
@@ -208,7 +208,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         }
         double expected = sumSquares / (total - 1);
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats var_samp(value) as v");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats var_samp(value) as v");
         List<List<Object>> rows = scalarRows(result, "v");
 
         double actual = ((Number) rows.get(0).get(0)).doubleValue();
@@ -220,7 +220,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(valueFn.applyAsInt(i)).append("}\n");
         }
 
@@ -235,12 +235,12 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
     /** Local copy of {@code CoordinatorReduceIT.scalarRows} (the original is package-private). */
     private static List<List<Object>> scalarRows(Map<String, Object> result, String columnName) {
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain '" + columnName + "', got " + columns, columns.contains(columnName));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -261,7 +261,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -285,7 +285,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(VALUE).append("}\n");
         }
 
@@ -297,10 +297,4 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 }

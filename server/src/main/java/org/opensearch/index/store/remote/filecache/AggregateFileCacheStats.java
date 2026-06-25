@@ -133,11 +133,15 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return blockFileCacheStats;
     }
 
-    FileCacheStats getFullFileCacheStats() {
+    public FileCacheStats getOverallFileCacheStats() {
+        return overallFileCacheStats;
+    }
+
+    public FileCacheStats getFullFileCacheStats() {
         return fullFileCacheStats;
     }
 
-    FileCacheStats getPinnedFileCacheStats() {
+    public FileCacheStats getPinnedFileCacheStats() {
         return pinnedFileCacheStats;
     }
 

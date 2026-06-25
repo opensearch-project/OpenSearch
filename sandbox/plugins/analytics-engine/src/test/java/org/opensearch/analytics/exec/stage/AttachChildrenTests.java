@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -91,12 +92,14 @@ public class AttachChildrenTests extends OpenSearchTestCase {
     }
 
     /**
-     * Early-termination contract: when a parent cancels its own child (e.g. coordinator-side
-     * LIMIT satisfied, stop the shard stream), the child transitions to CANCELLED. The
-     * cascade must NOT propagate that cancel back to the parent — the parent is the one
-     * who issued the cancel and must stay RUNNING.
+     * Cancelled-child contract: the cascade closes the parent's per-child input (so a parent reduce
+     * drain blocked on {@code streamNext} sees EOF and unwinds) AND propagates cancel to the parent
+     * so it reaches a terminal state. Without the propagation the parent strands in RUNNING, its
+     * pending count never drains, the root never mirrors to the query, and the coordinator task is
+     * never unregistered (the phantom-task leak). The parent must NOT be scheduled (nothing to run)
+     * and must NOT be failed (cancel is not a failure).
      */
-    public void testCancelledChildIsNotPropagatedToParent() {
+    public void testCancelledChildClosesInputAndPropagatesCancelToParent() {
         StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild cancelled = new FakeChild(5);  // no failure recorded
 
@@ -105,7 +108,10 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         parent.attachChildren(List.of(cancelled), scheduler);
         cancelled.fire(StageExecution.State.CANCELLED);
 
-        verify(parent, never()).cancel(any());
+        // EOF released to the reduce input (the leak fix).
+        verify(parent).closeChildInput(eq(5));
+        // Cancel IS propagated so the parent reaches terminal (phantom-task fix); not failed, not metadata-consumed.
+        verify(parent).cancel(any());
         verify(parent, never()).failWithCause(any());
         verify(parent, never()).consumeChildMetadata(any());
     }
@@ -131,6 +137,143 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         assertEquals("parent must reach FAILED from child failure", StageExecution.State.FAILED, parent.fakeState);
         assertNotNull("still-running sibling must have been cancelled", stillRunning.cancelReason);
         assertNull("already-terminal sibling must not be re-cancelled", alreadyDone.cancelReason);
+    }
+
+    // ---- Phantom-task probes: does a CANCELLED child strand the parent (never terminal)? ----
+    // A parent that never reaches terminal never fires mirrorRootStateToQuery → the coordinator
+    // query task never unregisters → phantom task (observed as a query/ppl task stuck for hours
+    // with zero CPU). These tests pin which child-state combinations strand the parent.
+
+    /** PROBE 1: one child CANCELLED, sibling still RUNNING. Does the parent ever reach terminal? */
+    public void testCancelledChildWithRunningSiblingDoesNotStrandParent() {
+        FakeChild cancelled = new FakeChild(1);
+        FakeChild stillRunning = new FakeChild(2); // stays RUNNING, never fires terminal
+        FakeParent parent = new FakeParent(99);
+
+        parent.attachChildren(List.of(cancelled, stillRunning), stage -> {});
+        cancelled.fire(StageExecution.State.CANCELLED);
+
+        assertTrue(
+            "parent must reach a terminal state after a child is cancelled; otherwise the coordinator "
+                + "query task never unregisters (phantom). parent state="
+                + parent.fakeState,
+            parent.fakeState.isTerminal()
+        );
+    }
+
+    /** PROBE 2: ALL children CANCELLED (full bottom-up cancel of leaves). Parent terminal? */
+    public void testAllChildrenCancelledDrivesParentTerminal() {
+        FakeChild a = new FakeChild(1);
+        FakeChild b = new FakeChild(2);
+        FakeParent parent = new FakeParent(99);
+
+        parent.attachChildren(List.of(a, b), stage -> {});
+        a.fire(StageExecution.State.CANCELLED);
+        b.fire(StageExecution.State.CANCELLED);
+
+        assertTrue(
+            "parent must reach a terminal state when all children are cancelled. parent state=" + parent.fakeState,
+            parent.fakeState.isTerminal()
+        );
+    }
+
+    /**
+     * PROBE 3: one CANCELLED + one SUCCEEDED. The cancelled child must still account for its pending
+     * slot so the count drains to 0; with a cancelled child present the parent reaches CANCELLED
+     * (terminal) rather than being scheduled — there is nothing left to run.
+     */
+    public void testCancelledPlusSucceededChildDrivesParentTerminalNotScheduled() {
+        FakeChild cancelled = new FakeChild(1);
+        FakeChild succeeded = new FakeChild(2);
+        FakeParent parent = new FakeParent(99);
+        AtomicReference<StageExecution> scheduled = new AtomicReference<>();
+
+        parent.attachChildren(List.of(cancelled, succeeded), scheduled::set);
+        cancelled.fire(StageExecution.State.CANCELLED);
+        succeeded.fire(StageExecution.State.SUCCEEDED);
+
+        assertTrue(
+            "parent must reach a terminal state (not strand) once all children are accounted for; " + "parent state=" + parent.fakeState,
+            parent.fakeState.isTerminal()
+        );
+        assertEquals("parent with a cancelled child must terminate as CANCELLED", StageExecution.State.CANCELLED, parent.fakeState);
+        assertNull("parent must NOT be scheduled when a child was cancelled", scheduled.get());
+    }
+
+    /**
+     * Eager (streaming) parents must be scheduled as soon as the first child transitions
+     * to RUNNING — they need to run concurrently with their children's feeds (e.g. a
+     * streaming reduce whose drain pulls native output while children push batches).
+     * Waiting for all-children-SUCCEEDED would deadlock on a bounded input mpsc.
+     */
+    public void testEagerParentSchedulesOnFirstChildRunning() {
+        StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
+        org.mockito.Mockito.when(parent.schedulesEagerly()).thenReturn(true);
+        FakeChild childA = new FakeChild(1);
+        childA.fakeState = StageExecution.State.CREATED;
+        FakeChild childB = new FakeChild(2);
+        childB.fakeState = StageExecution.State.CREATED;
+
+        AtomicReference<StageExecution> scheduled = new AtomicReference<>();
+        Consumer<StageExecution> scheduler = scheduled::set;
+
+        parent.attachChildren(List.of(childA, childB), scheduler);
+
+        assertNull("not scheduled until any child enters RUNNING", scheduled.get());
+        childA.fire(StageExecution.State.RUNNING);
+        assertSame("eager parent scheduled on first child RUNNING", parent, scheduled.get());
+
+        // Subsequent RUNNING transitions on other children must not re-schedule.
+        scheduled.set(null);
+        childB.fire(StageExecution.State.RUNNING);
+        assertNull("subsequent child RUNNING must not re-schedule", scheduled.get());
+    }
+
+    /**
+     * Per-input EOF hook fires on every child SUCCEEDED, regardless of scheduling mode.
+     * Backends without per-child resources inherit the default {@code closeChildInput}
+     * no-op; this test guards against re-introducing an eager-mode gate that would
+     * silently drop the signal for a future buffered multi-input backend.
+     */
+    public void testCloseChildInputFiresOnEveryChildSucceededRegardlessOfMode() {
+        StageExecution defaultParent = mock(StageExecution.class, CALLS_REAL_METHODS);
+        FakeChild a = new FakeChild(11);
+        FakeChild b = new FakeChild(22);
+        defaultParent.attachChildren(List.of(a, b), stage -> {});
+        a.fireSucceeded();
+        b.fireSucceeded();
+        verify(defaultParent).closeChildInput(eq(11));
+        verify(defaultParent).closeChildInput(eq(22));
+
+        StageExecution eagerParent = mock(StageExecution.class, CALLS_REAL_METHODS);
+        org.mockito.Mockito.when(eagerParent.schedulesEagerly()).thenReturn(true);
+        FakeChild c = new FakeChild(33);
+        c.fakeState = StageExecution.State.CREATED;
+        eagerParent.attachChildren(List.of(c), stage -> {});
+        c.fire(StageExecution.State.RUNNING);
+        c.fire(StageExecution.State.SUCCEEDED);
+        verify(eagerParent).closeChildInput(eq(33));
+    }
+
+    /**
+     * Default (non-streaming) parents keep today's contract: scheduled only when all
+     * children SUCCEEDED. A child reaching RUNNING must not trigger the parent.
+     */
+    public void testDefaultParentDoesNotScheduleOnChildRunning() {
+        StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
+        // default schedulesEagerly() == false
+        FakeChild child = new FakeChild(1);
+        child.fakeState = StageExecution.State.CREATED;
+
+        AtomicReference<StageExecution> scheduled = new AtomicReference<>();
+        Consumer<StageExecution> scheduler = scheduled::set;
+
+        parent.attachChildren(List.of(child), scheduler);
+        child.fire(StageExecution.State.RUNNING);
+
+        assertNull("default-mode parent must NOT schedule on child RUNNING", scheduled.get());
+        child.fire(StageExecution.State.SUCCEEDED);
+        assertSame("default-mode parent scheduled on all-SUCCEEDED", parent, scheduled.get());
     }
 
     /**

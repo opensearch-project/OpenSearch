@@ -13,6 +13,7 @@
 //! is paid once per test, then many iterations run cheap tree
 //! generation + execution against the same file.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, Int32Array};
@@ -104,7 +105,10 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
-        });
+            global_base: 0,
+                    sort_min: None,
+            sort_max: None,
+});
         global_first_row += seg_rows as i64;
     }
     LoadedSegment {
@@ -210,32 +214,36 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let cfg_target_partitions = _corpus.config.target_partitions;
     let cfg_min_skip_run = _corpus.config.min_skip_run_override;
 
+    // Build per-leaf PruningPredicates the same way indexed_executor.rs
+    // does in production, so our harness exercises real page-pruning
+    // behavior instead of silently falling back to universe bitmaps.
+    let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+    collect_predicate_exprs_harness(&bool_tree, &mut leaf_exprs);
+    let pruning_predicates: Arc<
+        std::collections::HashMap<
+            usize,
+            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+        >,
+    > = Arc::new(
+        leaf_exprs
+            .iter()
+            .filter_map(|expr| {
+                crate::indexed_table::page_pruner::build_pruning_predicate(expr, loaded.schema.clone())
+                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+            })
+            .collect(),
+    );
+
     let factory: EvaluatorFactory = {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&bool_tree);
         let schema = loaded.schema.clone();
-        // Build per-leaf PruningPredicates the same way indexed_executor.rs
-        // does in production, so our harness exercises real page-pruning
-        // behavior instead of silently falling back to universe bitmaps.
-        let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
-        collect_predicate_exprs_harness(&bool_tree, &mut leaf_exprs);
-        let pruning_predicates: Arc<
-            std::collections::HashMap<
-                usize,
-                Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-            >,
-        > = Arc::new(
-            leaf_exprs
-                .iter()
-                .filter_map(|expr| {
-                    crate::indexed_table::page_pruner::build_pruning_predicate(expr, schema.clone())
-                        .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
-                })
-                .collect(),
-        );
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        let pruning_predicates = Arc::clone(&pruning_predicates);
+        Arc::new(move |segment, chunk, stream_metrics, stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
+                .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -263,6 +271,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                     crate::indexed_table::eval::CollectorCallStrategy::FullRange,
                     crate::indexed_table::eval::CollectorCallStrategy::PageRangeSplit,
                 ][seed as usize % 3],
+                stats_prune_tree: stats_prune_tree.cloned(), rg_index_to_pos,
             });
             Ok(eval)
         })
@@ -274,8 +283,12 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(cfg_target_partitions.max(1))
         .force_strategy(force_strategy)
-        .force_pushdown(force_pushdown)
         .batch_size(cfg_batch_size.unwrap_or([128, 1024, 8192][seed as usize % 3]));
+    // `force_pushdown` overrides the node-wide indexed_pushdown_filters default;
+    // `None` leaves the default in place.
+    if let Some(push) = force_pushdown {
+        qcb = qcb.indexed_pushdown_filters(push);
+    }
     if let Some(msr) = cfg_min_skip_run {
         qcb = qcb.min_skip_run_default(msr);
     }
@@ -289,6 +302,15 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
+        emit_row_ids: false,
+        prune_tree_config: Some((
+            Arc::clone(&bool_tree),
+            Arc::clone(&pruning_predicates),
+            loaded.schema.clone(),
+        )),
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -382,7 +404,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         let schema = schema.clone();
         let residual_pp = residual_pp.clone();
         let residual_physical = residual_physical.clone();
-        Arc::new(move |segment, _chunk, stream_metrics| {
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&collector)),
@@ -399,6 +421,10 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 std::sync::Arc::new(std::collections::HashMap::new()),
                 segment.writer_generation,
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
+                None,
+                    None,
+                    std::collections::HashMap::new(),
             ));
             let _ = segment;
             Ok(eval)
@@ -436,7 +462,6 @@ async fn run_single_collector_query(
         if let Some(ref pp) = pushdown_predicate {
             let _ = pp.apply(|node| {
                 if let Some(col) = node
-                    .as_any()
                     .downcast_ref::<datafusion::physical_expr::expressions::Column>()
                 {
                     indices.insert(col.index());
@@ -453,7 +478,7 @@ async fn run_single_collector_query(
     let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(force_strategy)
-        .force_pushdown(Some(true))
+        .indexed_pushdown_filters(true)
         .batch_size([128, 1024, 8192][loaded.segments.len() % 3]);
     if let Some(msr) = min_skip_run_override {
         qcb = qcb.min_skip_run_default(msr);
@@ -468,6 +493,11 @@ async fn run_single_collector_query(
         pushdown_predicate,
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -542,7 +572,7 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
     fn lift_phys_to_logical(
         expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
     ) -> Option<Expr> {
-        let any = expr.as_any();
+        let any = expr.as_ref();
         if let Some(bin) = any.downcast_ref::<PhysBinaryExpr>() {
             let l = lift_phys_to_logical(bin.left())?;
             let r = lift_phys_to_logical(bin.right())?;
@@ -661,12 +691,16 @@ async fn run_with_factory_plan(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
-    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+    let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(force_strategy)
-        .force_pushdown(force_pushdown)
-        .batch_size([256, 1024, 8192][loaded.segments.len() % 3])
-        .build();
+        .batch_size([256, 1024, 8192][loaded.segments.len() % 3]);
+    // `force_pushdown` overrides the node-wide indexed_pushdown_filters default;
+    // `None` leaves the default in place.
+    if let Some(push) = force_pushdown {
+        qcb = qcb.indexed_pushdown_filters(push);
+    }
+    let qc = qcb.build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
@@ -675,7 +709,12 @@ async fn run_with_factory_plan(
         evaluator_factory: factory,
         pushdown_predicate,
         query_config: Arc::new(qc),
-        predicate_columns: vec![], // run_with_factory_plan is low-level; caller controls projection
+        predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -733,7 +772,6 @@ fn collect_predicate_column_indices(tree: &BoolNode) -> Vec<usize> {
     for expr in &exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node
-                .as_any()
                 .downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
@@ -1330,7 +1368,7 @@ mod tests {
             }
         }
         walk(plan, &mut set);
-        set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+        set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::Dev)
             .map(|v| v.as_usize())
             .unwrap_or(0)
     }

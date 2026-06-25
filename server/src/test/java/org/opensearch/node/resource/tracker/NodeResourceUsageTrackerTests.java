@@ -119,14 +119,17 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
     }
 
     public void testNativeMemoryLimitAndBufferDynamicUpdate() throws Exception {
+        // Default for node.native_memory.limit is now ram - heap (machine-dependent), so the
+        // "limit=0 bytes" baseline this test wants to start from must be set explicitly.
+        Settings unconfiguredAc = Settings.builder().put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "0b").build();
         NodeResourceUsageTracker tracker = new NodeResourceUsageTracker(
             mock(FsService.class),
             threadPool,
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            unconfiguredAc,
+            new ClusterSettings(unconfiguredAc, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try {
-            // Defaults: limit=0 bytes, buffer=0 percent.
+            // Explicitly unconfigured: limit=0 bytes, buffer=0 percent.
             assertThat(tracker.getResourceTrackerSettings().getNativeMemoryLimitBytes(), equalTo(0L));
             assertThat(tracker.getResourceTrackerSettings().getNativeMemoryBufferPercent(), equalTo(0));
 
@@ -156,5 +159,31 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
         } finally {
             tracker.close();
         }
+    }
+
+    /**
+     * Exercises {@link ResourceTrackerSettings#deriveNativeMemoryLimitDefault(long, long)}
+     * fallback paths so the {@code "0b"} branch is covered without depending on the
+     * test machine's RAM/heap configuration. The single-arg overload that reads from
+     * {@link org.opensearch.monitor.os.OsProbe} delegates to this one.
+     */
+    public void testDeriveNativeMemoryLimitDefaultFallbackPaths() {
+        // Probe returned 0 (restricted container, /proc/meminfo unreadable).
+        assertEquals("unknown ram → unconfigured", "0b", ResourceTrackerSettings.deriveNativeMemoryLimitDefault(0, 1L << 30));
+        // Negative ram (defensive against probe quirks).
+        assertEquals("negative ram → unconfigured", "0b", ResourceTrackerSettings.deriveNativeMemoryLimitDefault(-1, 1L << 30));
+        // Heap >= ram (degenerate config, e.g. -Xmx larger than container limit).
+        long ram = 8L * 1024 * 1024 * 1024;
+        assertEquals("heap >= ram → unconfigured", "0b", ResourceTrackerSettings.deriveNativeMemoryLimitDefault(ram, ram));
+        assertEquals("heap > ram → unconfigured", "0b", ResourceTrackerSettings.deriveNativeMemoryLimitDefault(ram, ram + 1));
+        // Happy path: 64 GB / 16 GB heap → 80% of (RAM - heap) = 79% of 48 GB.
+        long sixtyFourGB = 64L * 1024 * 1024 * 1024;
+        long sixteenGB = 16L * 1024 * 1024 * 1024;
+        long expected = (sixtyFourGB - sixteenGB) * 80 / 100;
+        assertEquals(
+            "happy path → 80% of (ram - heap)",
+            expected + "b",
+            ResourceTrackerSettings.deriveNativeMemoryLimitDefault(sixtyFourGB, sixteenGB)
+        );
     }
 }

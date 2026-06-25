@@ -13,6 +13,7 @@ import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.QueryScheduler;
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -20,7 +21,9 @@ import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -160,7 +163,9 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
         );
         QueryDAG dag = new QueryDAG("q-test", rootStage);
         QueryContext ctx = QueryContext.forTest(dag, task, listeners);
-        new QueryScheduler(builder).execute(ctx, userListener);
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        new QueryScheduler(builder, transportService).execute(ctx, userListener);
     }
 
     private static Stage stageWithId(int id) {
@@ -199,7 +204,7 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {
+        public void onStageSuccess(String queryId, int stageId, String stageType, long tookInNanos, long rowsProcessed) {
             events.add("onStageSuccess:" + stageId);
         }
 
@@ -235,7 +240,7 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
 
         @Override
         protected List<StageTask> materializeTasks() {
-            return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {}));
+            return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), l -> l.onResponse(null)));
         }
 
         @Override

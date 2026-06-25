@@ -10,7 +10,9 @@ package org.opensearch.parquet.fields.core.data.number;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.util.Float16;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -116,6 +118,55 @@ public class NumberParquetFieldTests extends OpenSearchTestCase {
         HalfFloatParquetField field = new HalfFloatParquetField();
         ArrowType.FloatingPoint type = (ArrowType.FloatingPoint) field.getArrowType();
         assertEquals(FloatingPointPrecision.HALF, type.getPrecision());
+    }
+
+    public void testHalfFloatFieldAddToGroup() {
+        // 7.3 → fp16 → fp32 round-trip should land within fp16 precision (~3 decimal digits).
+        HalfFloatParquetField field = new HalfFloatParquetField();
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.HALF_FLOAT);
+        ManagedVSR vsr = createVSR("half-float-test", field, "val");
+        field.createField(ft, vsr, 7.3);
+        vsr.setRowCount(1);
+        Float2Vector vec = (Float2Vector) vsr.getVector("val");
+        // Value should round-trip to the closest fp16 representation of 7.3 (≈ 7.296875),
+        // not stay at the integer 7 (the pre-fix bug) and not collapse to a tiny subnormal.
+        assertEquals(7.3f, Float16.toFloat(vec.get(0)), 0.005f);
+        cleanupVSR(vsr);
+    }
+
+    public void testHalfFloatFieldAddToGroupPreservesFractional() {
+        HalfFloatParquetField field = new HalfFloatParquetField();
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.HALF_FLOAT);
+        ManagedVSR vsr = createVSR("half-float-fractional-test", field, "val");
+        field.createField(ft, vsr, 1.5);
+        vsr.setRowCount(1);
+        Float2Vector vec = (Float2Vector) vsr.getVector("val");
+        // 1.5 is exactly representable in fp16, so this round-trips with zero error.
+        assertEquals(1.5f, Float16.toFloat(vec.get(0)), 0.0f);
+        cleanupVSR(vsr);
+    }
+
+    public void testHalfFloatFieldAddToGroupNegative() {
+        // Sign and magnitude both preserved.
+        HalfFloatParquetField field = new HalfFloatParquetField();
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.HALF_FLOAT);
+        ManagedVSR vsr = createVSR("half-float-negative-test", field, "val");
+        field.createField(ft, vsr, -2.5);
+        vsr.setRowCount(1);
+        Float2Vector vec = (Float2Vector) vsr.getVector("val");
+        assertEquals(-2.5f, Float16.toFloat(vec.get(0)), 0.0f);
+        cleanupVSR(vsr);
+    }
+
+    public void testHalfFloatFieldAddToGroupZero() {
+        HalfFloatParquetField field = new HalfFloatParquetField();
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.HALF_FLOAT);
+        ManagedVSR vsr = createVSR("half-float-zero-test", field, "val");
+        field.createField(ft, vsr, 0.0);
+        vsr.setRowCount(1);
+        Float2Vector vec = (Float2Vector) vsr.getVector("val");
+        assertEquals(0.0f, Float16.toFloat(vec.get(0)), 0.0f);
+        cleanupVSR(vsr);
     }
 
     public void testShortFieldArrowType() {

@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -29,6 +31,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
@@ -36,6 +39,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
@@ -45,6 +49,7 @@ import io.substrait.extension.SimpleExtension;
  * batches, same downstream assertion — exercises the buffered-batch handoff path instead of the
  * streaming sender path.
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
 
     public void testInputIdConstantMatchesDesign() {
@@ -78,6 +83,10 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 4L, 5L, 6L }));
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 7L, 8L, 9L }));
+                // Memtable runs the reduce work in reduce() now; close() is cleanup-only.
+                PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+                sink.reduce(reduceDone);
+                reduceDone.actionGet(10, TimeUnit.SECONDS);
             } finally {
                 sink.close();
             }

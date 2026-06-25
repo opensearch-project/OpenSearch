@@ -115,3 +115,41 @@ Do not reuse or close it — the framework transfers its buffers and closes it o
 Batches can be produced in parallel. Each batch must have its own `VectorSchemaRoot`
 (created from the channel's allocator). The framework serializes the transfer and send
 on the executor thread. The producer can queue batches without waiting for each to flush.
+
+## Application Metadata
+
+Each `ArrowBatchResponse` can carry an opaque `byte[]` of application metadata that
+travels on the same Flight frame as its data — Arrow Flight's
+`OutboundStreamListener.putNext(ArrowBuf metadata)` is what's used on the wire. The
+transport does not interpret these bytes; encoding and decoding are the action's
+responsibility.
+
+Typical uses:
+- **Per-batch metadata** keyed to *this* batch's data — row offsets, watermarks,
+  batch-level stats.
+- **Stream-terminal payloads** — attach to the last batch only. Profiling counters,
+  cumulative stats, summary blobs.
+
+```java
+// send-side: attach to the last batch
+boolean isLast = (b == batchCount - 1);
+if (isLast && profile) {
+    byte[] profileBytes = serializeProfile(...);
+    channel.sendResponseBatch(new MyQueryResponse(root, profileBytes));
+} else {
+    channel.sendResponseBatch(new MyQueryResponse(root));
+}
+
+// receive-side: read on every batch, act when present
+while ((r = stream.nextResponse()) != null) {
+    consume(r.getRoot());
+    byte[] meta = r.getMetadata();
+    if (meta != null) handleProfile(meta);
+}
+```
+
+Lifecycle: bytes are copied off the Flight wire buffer into a `byte[]` owned by the
+response, so the metadata outlives the stream cursor.
+
+The metadata channel is exposed on `ArrowBatchResponse` and is only available on the
+native Arrow path. The byte-serialized path does not surface it.

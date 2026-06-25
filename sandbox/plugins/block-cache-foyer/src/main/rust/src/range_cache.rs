@@ -110,6 +110,93 @@ pub fn range_cache_key(path: &str, start: u64, end: u64) -> CacheKey {
 // Add new helpers here when additional cache consumers are integrated.
 // For example, block_cache_key() for Lucene IndexInput block caching.
 
+/// Parse byte size from a raw Foyer key string: `"path\x1Fstart-end"` → `end - start`.
+/// Equals `data.len()` for any correctly-formed `put()` call.
+/// Returns `0` for non-range keys (no [`SEPARATOR`]) — safe default.
+pub(crate) fn key_byte_size(raw_key: &str) -> i64 {
+    if let Some(sep_pos) = raw_key.find(SEPARATOR) {
+        let range_part = &raw_key[sep_pos + SEPARATOR.len_utf8()..];
+        if let Some(dash_pos) = range_part.find('-') {
+            let start_str = &range_part[..dash_pos];
+            let end_str   = &range_part[dash_pos + 1..];
+            if let (Ok(start), Ok(end)) = (start_str.parse::<u64>(), end_str.parse::<u64>()) {
+                return end.saturating_sub(start) as i64;
+            }
+        }
+    }
+    0
+}
+
+// ── key_byte_size unit tests ──────────────────────────────────────────────────
+
+#[cfg(test)]
+mod key_byte_size_tests {
+    use super::*;
+
+    #[test]
+    fn key_byte_size_returns_range_len_for_valid_key() {
+        // Normal range key: 0-4096 → 4096 bytes.
+        let key = range_cache_key("/data/file.parquet", 0, 4096);
+        assert_eq!(key_byte_size(key.as_str()), 4096);
+    }
+
+    #[test]
+    fn key_byte_size_non_zero_start() {
+        let key = range_cache_key("/data/file.parquet", 1024, 8192);
+        assert_eq!(key_byte_size(key.as_str()), 7168);
+    }
+
+    #[test]
+    fn key_byte_size_single_byte_range() {
+        let key = range_cache_key("/data/file.parquet", 99, 100);
+        assert_eq!(key_byte_size(key.as_str()), 1);
+    }
+
+    #[test]
+    fn key_byte_size_zero_length_range() {
+        // start == end → 0 bytes.
+        let key = range_cache_key("/data/file.parquet", 100, 100);
+        assert_eq!(key_byte_size(key.as_str()), 0);
+    }
+
+    #[test]
+    fn key_byte_size_inverted_range_returns_zero() {
+        // start > end → saturating_sub → 0 (not negative, not panic).
+        let key = range_cache_key("/data/file.parquet", 200, 100);
+        assert_eq!(key_byte_size(key.as_str()), 0);
+    }
+
+    #[test]
+    fn key_byte_size_no_separator_returns_zero() {
+        // Non-range key (no \x1F) — returns 0 safely.
+        assert_eq!(key_byte_size("data/file.parquet"), 0);
+        assert_eq!(key_byte_size(""), 0);
+    }
+
+    #[test]
+    fn key_byte_size_malformed_range_returns_zero() {
+        // Has separator but range part is not "start-end" — returns 0, no panic.
+        assert_eq!(key_byte_size("data/file.parquet\x1Fbadformat"), 0);
+        assert_eq!(key_byte_size("data/file.parquet\x1F"), 0);
+        assert_eq!(key_byte_size("data/file.parquet\x1F100-"), 0);
+        assert_eq!(key_byte_size("data/file.parquet\x1F-200"), 0);
+        assert_eq!(key_byte_size("data/file.parquet\x1Fabc-def"), 0);
+    }
+
+    #[test]
+    fn key_byte_size_matches_put_data_len() {
+        // Verify the core invariant: for a correctly-formed put, data.len() == key_byte_size.
+        // put_range stores exactly (end - start) bytes.
+        let start = 1024u64;
+        let end = 8192u64;
+        let expected_size = (end - start) as usize;
+        let data = vec![0xABu8; expected_size];
+        assert_eq!(data.len(), expected_size);
+        let key = range_cache_key("/data/file.parquet", start, end);
+        assert_eq!(key_byte_size(key.as_str()) as usize, expected_size);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -35,6 +35,7 @@ import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.FieldMemoryStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -56,4 +57,22 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
     }
+
+    // onRemoval without a matching onCache pushes memorySize negative; writeVLong then throws.
+    public void testRemovalWithoutMatchingCacheGoesNegativeAndFailsSerialization() {
+        ShardFieldData data = new ShardFieldData();
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        long bytes = 2_895_512L;
+
+        data.onRemoval(shardId, "foo", true, bytes);
+
+        FieldDataStats stats = data.stats("*");
+        assertEquals(-bytes, stats.getMemorySizeInBytes());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> stats.writeTo(out));
+        assertTrue(e.getMessage().contains("Negative longs unsupported"));
+        assertTrue(e.getMessage().contains("-2895512"));
+    }
+
 }

@@ -14,7 +14,6 @@
 //! Values always push as `Value::String` — nested `json_object` / `json_array`
 //! results arrive already stringified and append as strings, matching legacy.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -56,9 +55,6 @@ impl Default for JsonAppendUdf {
 }
 
 impl ScalarUDFImpl for JsonAppendUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

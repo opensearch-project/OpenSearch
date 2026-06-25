@@ -141,25 +141,21 @@ public class JoinRuleTests extends BasePlannerRulesTests {
         );
     }
 
-    public void testPureNonEquiJoinDoesNotMatch() {
-        // left.k < right.k — no equi-condition, the rule's analyzeCondition().leftKeys is empty.
+    public void testPureNonEquiJoinMatches() {
+        // left.k < right.k — no equi conjunct. The rule used to reject pure non-equi
+        // joins; it now accepts them so DataFusion can pick a NestedLoopJoin strategy
+        // downstream. Surfaces in RelDecorrelator output for correlated subqueries
+        // with non-equi correlation predicates (e.g. WHERE outer.id > inner.uid).
         RexNode lt = rexBuilder.makeCall(
             SqlStdOperatorTable.LESS_THAN,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 2)
         );
-        // Non-equi inner join — the rule doesn't match, so the LogicalJoin survives through
-        // HEP marking. The downstream Volcano stage may not be able to plan it (no rule to
-        // turn LogicalJoin into something with a coord-side execution path), which surfaces
-        // as a planner failure. We only assert that whatever does come back is NOT an
-        // OpenSearchJoin — i.e. our rule did not (incorrectly) match a pure non-equi join.
-        try {
-            RelNode result = runJoin(JoinRelType.INNER, lt);
-            assertFalse("rule must not match pure non-equi inner joins", containsOpenSearchJoin(result));
-        } catch (RuntimeException expected) {
-            // Volcano can't plan a non-equi join through OpenSearch — that's fine; the
-            // important thing is that our rule didn't pick it up.
-        }
+        RelNode result = runJoin(JoinRelType.INNER, lt);
+        assertTrue(
+            "rule must match pure non-equi inner joins (DataFusion executes them as NestedLoopJoin)",
+            containsOpenSearchJoin(result)
+        );
     }
 
     private void assertNonInnerJoinDoesNotMatch(JoinRelType joinType) {

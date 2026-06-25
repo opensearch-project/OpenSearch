@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "severity",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      1,
+      "CRITICAL"
+    ],
+    [
+      1,
+      "DEBUG"
+    ],
+    [
+      3,
+      "ERROR"
+    ],
+    [
+      3,
+      "INFO"
+    ],
+    [
+      1,
+      "WARN"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

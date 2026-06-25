@@ -1,0 +1,1 @@
+source=test_data | eval min = minute_of_hour(timestamp) | fields timestamp, min | head 3

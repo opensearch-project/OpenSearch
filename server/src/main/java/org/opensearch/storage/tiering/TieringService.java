@@ -18,6 +18,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -42,6 +43,7 @@ import org.opensearch.storage.action.tiering.CancelTieringRequest;
 import org.opensearch.storage.action.tiering.IndexTieringRequest;
 import org.opensearch.storage.action.tiering.status.model.TieringStatus;
 import org.opensearch.storage.common.tiering.TieringRejectionException;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_WRITE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
@@ -145,10 +148,26 @@ public abstract class TieringService implements ClusterStateListener {
     }
 
     /** Returns the settings to add when tiering starts. @return the tiering start settings */
-    protected abstract Settings getTieringStartSettingsToAdd();
+    protected abstract Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata);
 
     /** Returns the index tier settings to restore after cancellation. @return the settings to restore */
-    protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation();
+    protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata);
+
+    /** Returns the ClusterBlocks.Builder with tier-specific block changes for tier start. Only called for DFA indices. */
+    protected abstract ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    );
+
+    /** Returns the ClusterBlocks.Builder with tier-specific block changes for a cancel. Default is a no-op. */
+    protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        return blocksBuilder;
+    }
 
     /** Returns the key for tiering start time. @return the tiering start time key */
     protected abstract String getTieringStartTimeKey();
@@ -218,6 +237,9 @@ public abstract class TieringService implements ClusterStateListener {
                     )
                 );
                 processTieringInProgress(event.state(), source);
+            }
+            if (event.routingTableChanged()) {
+                removeWriteBlockForCancelledDfaIndices(event.state());
             }
         }
     }
@@ -381,10 +403,18 @@ public abstract class TieringService implements ClusterStateListener {
 
                     updateIndexMetadataForTieringCancel(metadataBuilder, indexMetadata);
 
-                    ClusterState updatedState = ClusterState.builder(currentState)
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
                         .metadata(metadataBuilder)
                         .routingTable(routingTableBuilder.build())
-                        .build();
+                        .blocks(
+                            getIndexTierClusterBlocksToRestoreAfterCancellation(
+                                ClusterBlocks.builder().blocks(currentState.blocks()),
+                                index.getName(),
+                                indexMetadata
+                            )
+                        );
+
+                    ClusterState updatedState = stateBuilder.build();
 
                     // Trigger reroute to move shards back to original state
                     return allocationService.reroute(updatedState, source);
@@ -471,11 +501,18 @@ public abstract class TieringService implements ClusterStateListener {
                     final IndexMetadata indexMetadata = currentState.metadata().index(index);
 
                     updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, indexMetadata, index);
-
-                    ClusterState updatedState = ClusterState.builder(currentState)
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
                         .metadata(metadataBuilder)
                         .routingTable(routingTableBuilder.build())
-                        .build();
+                        .blocks(
+                            getTieringStartClusterBlocksToAdd(
+                                ClusterBlocks.builder().blocks(currentState.blocks()),
+                                index.getName(),
+                                indexMetadata
+                            )
+                        );
+
+                    ClusterState updatedState = stateBuilder.build();
 
                     // now, reroute to trigger shard relocation
                     return allocationService.reroute(updatedState, source);
@@ -528,8 +565,9 @@ public abstract class TieringService implements ClusterStateListener {
         final Index index
     ) {
         try {
-            // 1. Build settings
-            Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings()).put(getTieringStartSettingsToAdd());
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(indexMetadata.getSettings())
+                .put(getTieringStartSettingsToAdd(indexMetadata));
 
             // 2. Handle replica updates if needed
             int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
@@ -595,28 +633,48 @@ public abstract class TieringService implements ClusterStateListener {
      */
     void updateIndexMetadataForTieringCancel(final Metadata.Builder metadataBuilder, final IndexMetadata indexMetadata) {
         try {
-            // 1. Build settings - remove tiering-specific settings
+            // 1. Build settings - remove tiering-specific settings and disable auto-expand.
+            // write-block settings only for DFA indices.
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(indexMetadata.getSettings())
-                .put(getIndexTierSettingsToRestoreAfterCancellation());
+                .put(getIndexTierSettingsToRestoreAfterCancellation(indexMetadata));
 
-            // 2. Restore original replica count if it was modified
-            // During tiering start, if replicas > 1, they were set to 1
-            // We need to restore the original count, but we don't have it stored
-            // For safety, we'll leave replicas as they are since we can't reliably determine the original count
-            // This is a limitation that could be improved by storing original settings in custom metadata
-
-            // 3. Build and update metadata
+            // 2. Build and update metadata
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
                 .settings(indexSettingsBuilder)
                 .settingsVersion(1 + indexMetadata.getSettingsVersion());
 
-            // 4. Remove tiering custom metadata
+            // 3. Remove tiering custom metadata
             indexMetadataBuilder.removeCustom(TIERING_CUSTOM_KEY);
             metadataBuilder.put(indexMetadataBuilder);
         } catch (Exception e) {
             throw new OpenSearchException("Failed to update index metadata for tiering cancellation", e);
         }
+    }
+
+    /**
+     * Runs tiering validation synchronously before any cluster state mutation.
+     *
+     * <p>Used by the DFA (pluggable dataformat) tiering path to validate BEFORE adding the
+     * read-only block or running pre-tiering sync. This prevents expensive and side-effecting
+     * operations (flush, remote store sync) from running when validation would reject the request.
+     *
+     * <p>Note: validation also runs inside the cluster state task (in {@link #tier}) for
+     * double-safety against TOCTOU races. This preflight call is an additional early gate.
+     *
+     * @param state current cluster state at the time of the request
+     * @param index index to be tiered
+     * @throws RuntimeException if validation fails — same exceptions as thrown by {@link #validateTieringRequest}
+     */
+    public void preflightValidate(final ClusterState state, final Index index) {
+        validateTieringRequest(
+            state,
+            clusterInfoService,
+            tieringIndices,
+            maxConcurrentTieringRequests,
+            jvmActiveUsageThresholdPercent,
+            index
+        );
     }
 
     /**
@@ -627,7 +685,12 @@ public abstract class TieringService implements ClusterStateListener {
      * @param currentState current cluster state
      */
     void validateTieringCancelRequest(final Index index, final IndexMetadata indexMetadata, final ClusterState currentState) {
-        if (!tieringIndices.contains(index)) {
+        // Accept the index as cancellable if it is tracked in the in-memory set OR its persisted tiering
+        // state shows a migration in progress. The in-memory set is per-cluster-manager and starts empty
+        // on a newly elected cluster-manager; until it is rebuilt from cluster state
+        // (reconstructInProgressTieringRequests), the persisted INDEX_TIERING_STATE is what lets cancel
+        // reach a mid-migration index. (The cluster state itself is durable and not lost across failover.)
+        if (!tieringIndices.contains(index) && !isMigrationInProgress(indexMetadata)) {
             throw new IllegalArgumentException("Index [" + index + "] is not currently undergoing tiering operation");
         }
         if (indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), "").equals(getTargetTieringState().toString())) {
@@ -638,6 +701,18 @@ public abstract class TieringService implements ClusterStateListener {
         if (currentState.routingTable().hasIndex(index) == false) {
             throw new IllegalArgumentException("Index [" + index + "] deleted before tiering cancellation");
         }
+    }
+
+    /**
+     * Returns true if the index's persisted tiering state indicates a migration is in progress
+     * (HOT_TO_WARM or WARM_TO_HOT), as opposed to a terminal HOT/WARM state.
+     */
+    private static boolean isMigrationInProgress(final IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return false;
+        }
+        final String state = indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        return IndexModule.TieringState.HOT_TO_WARM.name().equals(state) || IndexModule.TieringState.WARM_TO_HOT.name().equals(state);
     }
 
     /**
@@ -682,6 +757,93 @@ public abstract class TieringService implements ClusterStateListener {
             }
         }
         return tieringStatusList;
+    }
+
+    /**
+     * Lifts the write block from DFA indices whose H2W cancel completed but the block was intentionally
+     * kept to prevent writes reaching warm-node shards that still run a read-only engine.
+     *
+     * <p>Called on every routing-table or metadata change. It removes the block only when:
+     * <ol>
+     *   <li>The index is NOT in {@code tieringIndices} (cancel completed, no active tiering)</li>
+     *   <li>The index is a DFA index</li>
+     *   <li>{@code INDEX_TIERING_STATE=HOT} (cancel reverted the tier state)</li>
+     *   <li>{@code INDEX_BLOCKS_WRITE=true} (block still set from H2W preparation)</li>
+     *   <li>All shards are {@code started} on HOT nodes (writable engine is live)</li>
+     * </ol>
+     */
+    private void removeWriteBlockForCancelledDfaIndices(final ClusterState clusterState) {
+        Set<Index> indicesToUnblock = new HashSet<>();
+        for (IndexMetadata indexMetadata : clusterState.metadata()) {
+            // Only act on indices that are NOT currently tiering
+            if (tieringIndices.contains(indexMetadata.getIndex())) {
+                continue;
+            }
+            if (!TieringUtils.isDfaIndex(indexMetadata)) {
+                continue;
+            }
+            // Must be in HOT state (cancel succeeded) with write block still present
+            String tieringState = indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), "");
+            boolean hasWriteBlock = INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
+            if (!IndexModule.TieringState.HOT.toString().equals(tieringState) || !hasWriteBlock) {
+                continue;
+            }
+            // All shards must be started on hot nodes before we re-enable writes
+            if (!clusterState.routingTable().hasIndex(indexMetadata.getIndex())) {
+                continue;
+            }
+            List<ShardRouting> shards = clusterState.routingTable().allShards(indexMetadata.getIndex().getName());
+            boolean allOnHot = shards.stream()
+                .allMatch(
+                    s -> (s.unassigned() && !s.primary())
+                        || (s.started() && isShardStateValidForTier(s, clusterState, IndexModule.TieringState.HOT))
+                );
+            if (allOnHot) {
+                indicesToUnblock.add(indexMetadata.getIndex());
+            }
+        }
+        if (indicesToUnblock.isEmpty()) {
+            return;
+        }
+        clusterService.submitStateUpdateTask(
+            "remove-write-block-after-h2w-cancel for " + indicesToUnblock,
+            new ClusterStateUpdateTask(Priority.NORMAL) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+                    ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+                    for (Index index : indicesToUnblock) {
+                        IndexMetadata indexMetadata = currentState.metadata().index(index);
+                        if (indexMetadata == null) continue;
+                        // Re-check conditions inside the task to guard against TOCTOU
+                        String tieringState = indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), "");
+                        boolean hasWriteBlock = INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
+                        if (!IndexModule.TieringState.HOT.toString().equals(tieringState) || !hasWriteBlock) {
+                            continue;
+                        }
+                        Settings.Builder settingsBuilder = Settings.builder()
+                            .put(indexMetadata.getSettings())
+                            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
+                        metadataBuilder.put(
+                            IndexMetadata.builder(indexMetadata)
+                                .settings(settingsBuilder)
+                                .settingsVersion(1 + indexMetadata.getSettingsVersion())
+                        );
+                        blocksBuilder.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
+                        logger.info("Removed write block for DFA index [{}] after H2W cancel — all shards on hot", index.getName());
+                    }
+                    return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocksBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage("Failed to remove write block after H2W cancel for indices {}", indicesToUnblock),
+                        e
+                    );
+                }
+            }
+        );
     }
 
     private TieringStatus constructTieringStatus(Index index, boolean shardLevelStatus, boolean isDetailedFlagEnabled) {

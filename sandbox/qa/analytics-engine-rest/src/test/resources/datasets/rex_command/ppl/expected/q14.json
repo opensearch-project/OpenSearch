@@ -1,0 +1,30 @@
+{
+  "schema": [
+    {
+      "name": "source",
+      "type": "string"
+    },
+    {
+      "name": "destination",
+      "type": "string"
+    },
+    {
+      "name": "proto",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "192.168.1.1",
+      "10.0.0.5",
+      "TCP"
+    ],
+    [
+      "10.0.0.100",
+      "172.16.0.1",
+      "UDP"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

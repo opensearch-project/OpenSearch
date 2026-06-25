@@ -22,7 +22,7 @@ import java.util.List;
 public class CacheManager {
     private static final Logger logger = LogManager.getLogger(CacheManager.class);
 
-    NativeRuntimeHandle runtimeHandle;
+    private final NativeRuntimeHandle runtimeHandle;
 
     public CacheManager(NativeRuntimeHandle runtimeHandle) {
         this.runtimeHandle = runtimeHandle;

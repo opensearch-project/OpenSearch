@@ -1,0 +1,1 @@
+source=exception_logs | where `exception.exception_message` like '%SQLTransientConnectionException%' or `exception.exception_message` like '%SQLException%' | stats count() as sql_errors by service_name

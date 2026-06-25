@@ -26,7 +26,7 @@ import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
@@ -39,7 +39,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Resilience / fault-injection suite for the analytics-engine coordinator
  * (a.k.a. stage scheduler —
- * {@link org.opensearch.analytics.exec.stage.ShardFragmentStageExecutionFactory}).
+ * {@link org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecutionFactory}).
  *
  * <p>Covers four failure domains:
  * <ul>
@@ -157,7 +157,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -280,7 +280,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
 
         for (int i = 0; i < TOTAL_DOCS; i++) {
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();
@@ -324,7 +324,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         assertTrue("index creation must be acknowledged", response.isAcknowledged());
         ensureGreen(name);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(name).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(name).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(name).get();
         client().admin().indices().prepareFlush(name).get();
@@ -1070,7 +1070,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         assertTrue("index creation must be acknowledged", response.isAcknowledged());
         ensureGreen(name);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(name).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(name).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(name).get();
     }

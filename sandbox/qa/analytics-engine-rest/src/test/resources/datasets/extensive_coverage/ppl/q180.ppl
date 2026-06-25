@@ -1,0 +1,1 @@
+source=test_data | eval ln_val = ln(value) | fields value, ln_val | head 3

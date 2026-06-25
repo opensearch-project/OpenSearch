@@ -9,7 +9,11 @@
 package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.common.Nullable;
 
 /**
  * Shared context available to all planner rules.
@@ -22,21 +26,60 @@ public class PlannerContext {
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
+    @Nullable
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
+    private final boolean preferMetadataDriver;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
+    // Cluster settings the planner consults at planning time (oversampling factor + delegation
+    // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
+    // instance via setPlannerSettings before planning.
+    private PlannerSettings plannerSettings = PlannerSettings.defaults();
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
-        this(capabilityRegistry, clusterState, false);
+        this(capabilityRegistry, clusterState, null, false, true);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
+        this(capabilityRegistry, clusterState, null, profilingEnabled, true);
+    }
+
+    public PlannerContext(
+        CapabilityRegistry capabilityRegistry,
+        ClusterState clusterState,
+        @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean profilingEnabled
+    ) {
+        this(capabilityRegistry, clusterState, indexNameExpressionResolver, profilingEnabled, true);
+    }
+
+    public PlannerContext(
+        CapabilityRegistry capabilityRegistry,
+        ClusterState clusterState,
+        @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean profilingEnabled,
+        boolean preferMetadataDriver
+    ) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
         this.profilingEnabled = profilingEnabled;
+        this.preferMetadataDriver = preferMetadataDriver;
         this.annotationIdCounter = 0;
+    }
+
+    /**
+     * The cluster-level index name expression resolver, when available. Null in unit tests
+     * that don't exercise alias/wildcard expansion; callers that need it for production
+     * paths should fail fast on null. The resolver belongs to the OpenSearch server lifecycle
+     * and is provided to {@code DefaultPlanExecutor} via Guice.
+     */
+    @Nullable
+    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return indexNameExpressionResolver;
     }
 
     /** True when {@link PlannerImpl#runAllOptimizations} should attach a {@link RuleProfilingListener}. */
@@ -62,11 +105,36 @@ public class PlannerContext {
         return capabilityRegistry;
     }
 
+    /** Per-backend delegation block-list consulted at marking time. Never null (defaults to empty). */
+    public DelegationBlockList getDelegationBlockList() {
+        return plannerSettings.getDelegationBlockList();
+    }
+
+    /** Inject the live, settings-backed planner settings. Called by {@code DefaultPlanExecutor} before planning. */
+    public void setPlannerSettings(PlannerSettings plannerSettings) {
+        this.plannerSettings = plannerSettings;
+    }
+
     public ClusterState getClusterState() {
         return clusterState;
     }
 
+    public double getOversamplingFactor() {
+        return plannerSettings.getOversamplingFactor();
+    }
+
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {
         return distributionTraitDef;
+    }
+
+    /**
+     * Mirrors the {@code analytics.planner.prefer_metadata_driver} cluster setting at planning
+     * time. When {@code false}, {@code OpenSearchTableScanRule} skips the permissive
+     * metadata-only-driver gate, so the metadata backend (Lucene today) is never admitted as a
+     * scan alternative — value-producing peers handle every shape, no late-stage alternative
+     * pruning needed.
+     */
+    public boolean preferMetadataDriver() {
+        return preferMetadataDriver;
     }
 }

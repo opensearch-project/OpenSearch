@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.test.OpenSearchTestCase;
@@ -150,7 +151,7 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
     /** Base owns the start template: materializeTasks → publishTasksAndStart. */
     public void testStartPublishesMaterializedTasksAndTransitionsToRunning() {
         TestStageExecution exec = new TestStageExecution(mockStage(7));
-        StageTask task = new LocalStageTask(new StageTaskId(7, 0), () -> {});
+        StageTask task = new LocalStageTask(new StageTaskId(7, 0), l -> l.onResponse(null));
         exec.materializeReturn = List.of(task);
 
         exec.start();

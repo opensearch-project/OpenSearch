@@ -25,8 +25,11 @@ use super::table_provider::SegmentFileInfo;
 use std::sync::Arc;
 
 use datafusion::catalog::Session;
+use datafusion::common::ScalarValue;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
+use datafusion::execution::cache::cache_manager::FileMetadataCache;
+use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 
 /// Parquet footer kv key under which the writer stamps the writer generation.
 /// Must match `parquet-data-format`'s `WRITER_GENERATION_KEY`.
@@ -50,6 +53,8 @@ pub async fn build_segments(
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
     writer_generations: &[i64],
+    metadata_cache: Arc<dyn FileMetadataCache>,
+    sort_fields: &[String],
 ) -> Result<(Vec<SegmentFileInfo>, arrow::datatypes::SchemaRef), String> {
     if object_metas.len() != writer_generations.len() {
         return Err(format!(
@@ -64,6 +69,7 @@ pub async fn build_segments(
     }
 
     let mut segments = Vec::with_capacity(object_metas.len());
+    let mut cumulative_rows: u64 = 0;
 
     for (seg_ord, meta) in object_metas.iter().enumerate() {
         // Per-segment parquet metadata (RG info, page index) — still needed
@@ -71,10 +77,17 @@ pub async fn build_segments(
         // RuntimeEnv that `infer_schema` uses below shares this data when
         // both are pointed at the same object location, so this isn't a
         // duplicated cold fetch in practice.
-        let (_file_schema, size, pq_meta) =
-            parquet_bridge::load_parquet_metadata(Arc::clone(&store), &meta.location)
-                .await
-                .map_err(|e| format!("parquet metadata {}: {}", meta.location, e))?;
+        // `meta` is the authoritative listing snapshot — pass it through so the
+        // footer load resolves from cache without a redundant `head()` syscall
+        // per segment.
+        let (file_schema, size, pq_meta) = parquet_bridge::load_parquet_metadata_with_meta(
+            Arc::clone(&store),
+            &meta.location,
+            meta.clone(),
+            Arc::clone(&metadata_cache),
+        )
+        .await
+        .map_err(|e| format!("parquet metadata {}: {}", meta.location, e))?;
 
         let mut row_groups = Vec::new();
         let mut offset: i64 = 0;
@@ -88,6 +101,8 @@ pub async fn build_segments(
             offset += num_rows;
         }
         let max_doc = offset;
+        let global_base = cumulative_rows;
+        cumulative_rows += max_doc as u64;
 
         let writer_generation = writer_generations[seg_ord];
 
@@ -97,6 +112,17 @@ pub async fn build_segments(
         #[cfg(debug_assertions)]
         debug_assert_footer_generation_matches_catalog(&pq_meta, writer_generation, &meta.location);
 
+        // Compute per-segment min/max on the LEAD `index.sort.field` column.
+        // None,None when no sort field is configured, when the column isn't in this
+        // file's schema, when the type isn't supported by `StatisticsConverter`, or
+        // when any RG is missing stats. The per-RG min/max → segment min/max
+        // aggregation mirrors what DataFusion's `validated_output_ordering` does
+        // at `file_scan_config.rs:1347-1363` (chain check).
+        let (sort_min, sort_max) = match sort_fields.first() {
+            Some(lead) => compute_segment_sort_bounds(lead, &file_schema, &pq_meta),
+            None => (None, None),
+        };
+
         segments.push(SegmentFileInfo {
             writer_generation,
             max_doc,
@@ -104,6 +130,9 @@ pub async fn build_segments(
             parquet_size: size,
             row_groups,
             metadata: pq_meta,
+            global_base,
+            sort_min,
+            sort_max,
         });
     }
 
@@ -116,7 +145,9 @@ pub async fn build_segments(
     //      primitives (recursively merged for Struct/List/Union).
     //   5. Apply `binary_as_string` and `force_view_types` transforms
     //      if configured.
-    let format = ParquetFormat::default();
+    // Use Utf8View — ParquetOpener's apply_file_schema_type_coercions keeps the file/table
+    // schemas aligned, so QTF's coordinator-declared Utf8View matches the produced batches.
+    let format = ParquetFormat::default().with_force_view_types(true);
     let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
         .await
         .map_err(|e| format!("infer_schema union: {}", e))?;
@@ -165,15 +196,113 @@ fn debug_assert_footer_generation_matches_catalog(
     );
 }
 
+/// Read per-RG min/max stats for `lead_field` from the parquet footer and
+/// reduce them to a per-segment (min-of-mins, max-of-maxes) pair.
+///
+/// Returns `(None, None)` when:
+/// - `lead_field` is absent from this file's arrow schema (segment was
+///   written before that field existed),
+/// - `StatisticsConverter::try_new` rejects the type (logical types whose
+///   parquet-side stats can't decode losslessly),
+/// - any RG lacks stats for the column (one missing RG → "can't chain").
+///
+/// Mirrors how DataFusion's `MinMaxStatistics::new_from_files` aggregates
+/// per-file stats; we operate at the RG-within-a-segment granularity instead.
+fn compute_segment_sort_bounds(
+    lead_field: &str,
+    file_schema: &arrow::datatypes::SchemaRef,
+    pq_meta: &ParquetMetaData,
+) -> (Option<ScalarValue>, Option<ScalarValue>) {
+    if file_schema.index_of(lead_field).is_err() {
+        return (None, None);
+    }
+
+    let converter = match StatisticsConverter::try_new(
+        lead_field,
+        file_schema,
+        pq_meta.file_metadata().schema_descr(),
+    ) {
+        Ok(c) => c,
+        Err(_) => return (None, None),
+    };
+
+    let row_groups = pq_meta.row_groups();
+    if row_groups.is_empty() {
+        return (None, None);
+    }
+
+    let mins = match converter.row_group_mins(row_groups.iter()) {
+        Ok(arr) => arr,
+        Err(_) => return (None, None),
+    };
+    let maxes = match converter.row_group_maxes(row_groups.iter()) {
+        Ok(arr) => arr,
+        Err(_) => return (None, None),
+    };
+
+    // If any RG lacks stats, both arrays will have null entries at that
+    // position. Treat that as "can't chain" — a single missing RG poisons the
+    // whole-segment claim because we can't prove a chain across RGs.
+    if mins.null_count() > 0 || maxes.null_count() > 0 {
+        return (None, None);
+    }
+
+    // Reduce the per-RG stat arrays to (min-of-mins, max-of-maxes) by walking
+    // the rows as ScalarValues. We can't use arrow::compute::min/max directly
+    // because the result type isn't a ScalarValue without a per-DataType match.
+    // ScalarValue's PartialOrd handles all the supported types we'd see in a
+    // sort key (Int64/Date32/Date64/Timestamp/Utf8/etc.).
+    let mut acc_min: Option<ScalarValue> = None;
+    for i in 0..mins.len() {
+        let v = match ScalarValue::try_from_array(&*mins, i) {
+            Ok(v) => v,
+            Err(_) => return (None, None),
+        };
+        acc_min = Some(match acc_min.take() {
+            Some(prev) => match prev.partial_cmp(&v) {
+                Some(std::cmp::Ordering::Less) | Some(std::cmp::Ordering::Equal) => prev,
+                Some(std::cmp::Ordering::Greater) => v,
+                None => return (None, None),
+            },
+            None => v,
+        });
+    }
+
+    let mut acc_max: Option<ScalarValue> = None;
+    for i in 0..maxes.len() {
+        let v = match ScalarValue::try_from_array(&*maxes, i) {
+            Ok(v) => v,
+            Err(_) => return (None, None),
+        };
+        acc_max = Some(match acc_max.take() {
+            Some(prev) => match prev.partial_cmp(&v) {
+                Some(std::cmp::Ordering::Greater) | Some(std::cmp::Ordering::Equal) => prev,
+                Some(std::cmp::Ordering::Less) => v,
+                None => return (None, None),
+            },
+            None => v,
+        });
+    }
+
+    (acc_min, acc_max)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow_array::{Int32Array, RecordBatch, StringArray};
+    use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
     use object_store::{local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt};
     use tempfile::tempdir;
+
+    /// Mirror of what `CacheManager::try_new` auto-installs when no custom
+    /// metadata cache is configured.
+    fn default_metadata_cache() -> Arc<dyn FileMetadataCache> {
+        Arc::new(DefaultFilesMetadataCache::new(50 * 1024 * 1024))
+    }
 
     /// Write a parquet file with the given schema + arrays into `dir`
     /// under `filename`. Returns the absolute filesystem path.
@@ -239,9 +368,16 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
         let gens: Vec<i64> = (0..metas.len() as i64).collect();
-        let (segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens)
-            .await
-            .unwrap();
+        let (segments, merged) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            &gens,
+            default_metadata_cache(),
+            &[],
+        )
+        .await
+        .unwrap();
 
         assert_eq!(segments.len(), 2);
         assert_eq!(merged.fields().len(), 2);
@@ -289,9 +425,16 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
         let gens: Vec<i64> = (0..metas.len() as i64).collect();
-        let (_segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens)
-            .await
-            .unwrap();
+        let (_segments, merged) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            &gens,
+            default_metadata_cache(),
+            &[],
+        )
+        .await
+        .unwrap();
 
         let names: Vec<&str> = merged.fields().iter().map(|f| f.name().as_str()).collect();
         assert_eq!(
@@ -349,12 +492,26 @@ mod tests {
         let gens_ab: Vec<i64> = (0..metas_ab.len() as i64).collect();
         let gens_ba: Vec<i64> = (0..metas_ba.len() as i64).collect();
 
-        let (_, schema_ab) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ab, &gens_ab)
-            .await
-            .unwrap();
-        let (_, schema_ba) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ba, &gens_ba)
-            .await
-            .unwrap();
+        let (_, schema_ab) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas_ab,
+            &gens_ab,
+            default_metadata_cache(),
+            &[],
+        )
+        .await
+        .unwrap();
+        let (_, schema_ba) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas_ba,
+            &gens_ba,
+            default_metadata_cache(),
+            &[],
+        )
+        .await
+        .unwrap();
 
         let fields_ab: Vec<&str> = schema_ab
             .fields()
@@ -398,7 +555,15 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
         let gens: Vec<i64> = (0..metas.len() as i64).collect();
-        let result = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens).await;
+        let result = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            &gens,
+            default_metadata_cache(),
+            &[],
+        )
+        .await;
         assert!(
             result.is_err(),
             "conflicting Int32 / Int64 on same field name must fail at schema-union time"

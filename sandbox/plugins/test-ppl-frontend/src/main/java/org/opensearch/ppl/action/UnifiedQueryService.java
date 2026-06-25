@@ -16,8 +16,10 @@ import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.sql.api.UnifiedQueryContext;
 import org.opensearch.sql.api.UnifiedQueryPlanner;
 import org.opensearch.sql.executor.QueryType;
@@ -40,11 +42,11 @@ public class UnifiedQueryService {
     private static final String DEFAULT_CATALOG = "opensearch";
 
     private final QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor;
-    private final EngineContext engineContext;
+    private final EngineContextProvider contextProvider;
 
-    public UnifiedQueryService(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor, EngineContext engineContext) {
+    public UnifiedQueryService(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor, EngineContextProvider contextProvider) {
         this.planExecutor = planExecutor;
-        this.engineContext = engineContext;
+        this.contextProvider = contextProvider;
     }
 
     /**
@@ -52,33 +54,56 @@ public class UnifiedQueryService {
      * PPL text → RelNode → planExecutor.execute() → PPLResponse.
      */
     public PPLResponse execute(String pplText) {
-        // Extract tables from the SchemaPlus into a plain AbstractSchema.
-        // SchemaPlus wraps CalciteSchema — passing it to catalog() causes double-nesting
-        // where tables become inaccessible. A plain Schema avoids this.
-        SchemaPlus schemaPlus = engineContext.getSchema();
-        Map<String, Table> tableMap = new HashMap<>();
-        for (String tableName : schemaPlus.getTableNames()) {
-            tableMap.put(tableName, schemaPlus.getTable(tableName));
-        }
-        AbstractSchema flatSchema = new AbstractSchema() {
+        return execute(pplText, false);
+    }
+
+    /**
+     * Executes a PPL query with profiling: PPL text → RelNode →
+     * planExecutor.executeWithProfile() → PPLResponse with profile.
+     */
+    public PPLResponse executeWithProfile(String pplText) {
+        return execute(pplText, true);
+    }
+
+    private PPLResponse execute(String pplText, boolean profile) {
+        // Wrap the SchemaPlus in a delegating AbstractSchema that preserves lazy table resolution.
+        // The underlying OpenSearchSchemaBuilder resolves wildcard/comma/exclusion expressions
+        // lazily via getTable(name) — a static copy would lose that.
+        SchemaPlus schemaPlus = contextProvider.getContext().schema();
+        AbstractSchema delegatingSchema = new AbstractSchema() {
             @Override
             protected Map<String, Table> getTableMap() {
-                return tableMap;
+                return new HashMap<>() {
+                    {
+                        for (String tableName : schemaPlus.getTableNames()) {
+                            super.put(tableName, schemaPlus.getTable(tableName));
+                        }
+                    }
+
+                    @Override
+                    public Table get(Object key) {
+                        Table t = super.get(key);
+                        if (t == null && key instanceof String name) {
+                            t = schemaPlus.getTable(name);
+                            if (t != null) super.put(name, t);
+                        }
+                        return t;
+                    }
+                };
             }
         };
 
         logger.info(
-            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, tableMap: {}, engineContext class: {}",
+            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, contextProvider class: {}",
             schemaPlus.getClass().getName(),
             schemaPlus.getTableNames(),
-            tableMap.keySet(),
-            engineContext.getClass().getName()
+            contextProvider.getClass().getName()
         );
 
         try (
             UnifiedQueryContext context = UnifiedQueryContext.builder()
                 .language(QueryType.PPL)
-                .catalog(DEFAULT_CATALOG, flatSchema)
+                .catalog(DEFAULT_CATALOG, delegatingSchema)
                 .defaultNamespace(DEFAULT_CATALOG)
                 // The unified PPL parser reuses the v2 AstBuilder, which gates Calcite-only
                 // commands (table, regex, rex, convert) on plugins.calcite.enabled. The unified
@@ -93,14 +118,6 @@ public class UnifiedQueryService {
             UnifiedQueryPlanner planner = new UnifiedQueryPlanner(context);
             RelNode logicalPlan = planner.plan(pplText);
 
-            // Execute directly via the back-end engine — no Janino compilation needed.
-            // The executor API is async; this test frontend keeps a sync surface, so we bridge
-            // via PlainActionFuture. The block happens off the transport thread (the executor
-            // forks to SEARCH internally), so this is safe for test/IT use.
-            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
-            planExecutor.execute(logicalPlan, null, future);
-            Iterable<Object[]> results = future.actionGet();
-
             // Extract column names from the RelNode's row type
             List<RelDataTypeField> fields = logicalPlan.getRowType().getFieldList();
             List<String> columns = new ArrayList<>(fields.size());
@@ -108,12 +125,38 @@ public class UnifiedQueryService {
                 columns.add(field.getName());
             }
 
-            // Collect result rows
+            QueryRequestContext baseCtx = contextProvider.getContext();
+            QueryRequestContext queryCtx = new QueryRequestContext(baseCtx.clusterState(), baseCtx.schema(), pplText);
+
+            if (profile) {
+                PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
+                planExecutor.executeWithProfile(logicalPlan, queryCtx, future);
+                ProfiledResult result = future.actionGet();
+
+                if (result.isSuccess() == false) {
+                    Throwable failure = result.failure();
+                    if (failure instanceof RuntimeException re) throw re;
+                    throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
+                }
+
+                List<Object[]> rows = new ArrayList<>();
+                for (Object[] row : result.rows()) {
+                    rows.add(row);
+                }
+                return new PPLResponse(columns, rows, result.profile());
+            }
+
+            // Non-profile path: use execute() directly so exception conversion
+            // (e.g. CircuitBreakingException) is handled by DefaultPlanExecutor's
+            // convertingListener without being wrapped in ProfiledResult.
+            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+            planExecutor.execute(logicalPlan, queryCtx, future);
+            Iterable<Object[]> results = future.actionGet();
+
             List<Object[]> rows = new ArrayList<>();
             for (Object[] row : results) {
                 rows.add(row);
             }
-
             return new PPLResponse(columns, rows);
         } catch (Exception e) {
             if (e instanceof RuntimeException) {

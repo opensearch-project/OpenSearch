@@ -51,6 +51,29 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         assertFalse(handle.isOpen());
     }
 
+    public void testServiceStartWithEmptySpillDirectory() {
+        // Empty spillDirectory triggers DiskManagerMode::Disabled in Rust. The runtime
+        // must build successfully (memory-only execution); spill-attempting queries will
+        // fail with a "DiskManager is disabled" error, but plain runtime construction
+        // and shutdown are unaffected.
+        ensureTokioInit();
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(64 * 1024 * 1024)
+            .spillMemoryLimit(0L)
+            .spillDirectory("")
+            .cpuThreads(2)
+            .build();
+        service.start();
+
+        NativeRuntimeHandle handle = service.getNativeRuntime();
+        assertNotNull(handle);
+        assertTrue(handle.isOpen());
+        assertTrue(handle.get() != 0);
+
+        service.stop();
+        assertFalse(handle.isOpen());
+    }
+
     public void testGetNativeRuntimeBeforeStartThrows() {
         DataFusionService service = DataFusionService.builder().build();
         expectThrows(IllegalStateException.class, service::getNativeRuntime);
@@ -143,12 +166,18 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
     public void testPluginRegistersAllCacheSettings() {
         List<Setting<?>> settings = new DataFusionPlugin().getSettings();
-        assertTrue(settings.contains(CacheSettings.METADATA_CACHE_SIZE_LIMIT));
-        assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT));
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_EVICTION_TYPE));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE));
+        assertTrue(settings.contains(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE));
+        assertTrue(settings.contains(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE));
         assertTrue(settings.contains(CacheSettings.METADATA_CACHE_ENABLED));
         assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_ENABLED));
+        assertTrue(settings.contains(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED));
+        assertTrue(settings.contains(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE));
+        assertTrue(settings.contains(CacheSettings.FOOTER_METADATA_CACHE_PERCENT));
+        assertTrue(settings.contains(CacheSettings.OFFSET_INDEX_CACHE_PERCENT));
+        assertTrue(settings.contains(CacheSettings.COLUMN_INDEX_CACHE_PERCENT));
+        assertTrue(settings.contains(CacheSettings.STATISTICS_CACHE_PERCENT));
     }
 
     public void testNativeBridgeCacheManagerLifecycle() {
@@ -179,14 +208,38 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         NativeBridge.closeGlobalRuntime(runtimePtr);
     }
 
+    public void testCacheManagerHandleConsumedAfterRuntimeCreation() {
+        ensureTokioInit();
+        var handle = new org.opensearch.be.datafusion.cache.NativeCacheManagerHandle(NativeBridge.createCustomCacheManager());
+        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024, "LRU");
+
+        long ptrBefore = handle.getPointer();
+        assertTrue(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
+
+        Path spillDir = createTempDir("spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, handle.getPointer(), spillDir.toString(), 32 * 1024 * 1024);
+        handle.markConsumed();
+
+        assertFalse(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
+        expectThrows(IllegalStateException.class, handle::getPointer);
+
+        NativeBridge.closeGlobalRuntime(runtimePtr);
+    }
+
     private ClusterSettings createCacheClusterSettings(Settings settings) {
         Set<Setting<?>> all = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         all.add(CacheSettings.METADATA_CACHE_ENABLED);
-        all.add(CacheSettings.METADATA_CACHE_SIZE_LIMIT);
         all.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         all.add(CacheSettings.STATISTICS_CACHE_ENABLED);
-        all.add(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT);
         all.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
+        all.add(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE);
+        all.add(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE);
+        all.add(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
+        all.add(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
+        all.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
+        all.add(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
+        all.add(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        all.add(CacheSettings.STATISTICS_CACHE_PERCENT);
         all.add(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT);
         all.add(DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT);
         return new ClusterSettings(settings, all);

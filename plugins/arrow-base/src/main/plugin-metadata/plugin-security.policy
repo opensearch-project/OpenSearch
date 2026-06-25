@@ -9,25 +9,27 @@
 grant {
   // Memory access
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "getClassLoader";
 
-  // Arrow runtime properties
+  // Arrow system properties
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
   permission java.util.PropertyPermission "arrow.enable_null_check_for_get", "write";
   permission java.util.PropertyPermission "arrow.enable_unsafe_memory_access", "write";
   permission java.util.PropertyPermission "arrow.memory.debug.allocator", "write";
 
-  // Netty runtime properties
+  // Netty system properties
   permission java.util.PropertyPermission "io.netty.tryReflectionSetAccessible", "write";
   permission java.util.PropertyPermission "io.netty.allocator.numDirectArenas", "write";
   permission java.util.PropertyPermission "io.netty.noUnsafe", "write";
   permission java.util.PropertyPermission "io.netty.tryUnsafe", "write";
 
-  permission java.lang.RuntimePermission "modifyThreadGroup";
-  permission java.lang.RuntimePermission "modifyThread";
+  // Netty needs socket access for its transport internals
   permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
 
-  // Reflection access needed by Arrow
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  permission java.lang.RuntimePermission "getClassLoader";
+  // Thread management needed by Netty and the rebalancer
+  permission java.lang.RuntimePermission "modifyThreadGroup";
+  permission java.lang.RuntimePermission "modifyThread";
+  permission java.lang.RuntimePermission "setContextClassLoader";
 };

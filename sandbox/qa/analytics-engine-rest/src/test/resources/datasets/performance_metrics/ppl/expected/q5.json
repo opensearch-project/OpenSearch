@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "high_util_count",
+      "type": "bigint"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "region",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      16,
+      "host1",
+      null
+    ],
+    [
+      4,
+      "host2",
+      null
+    ],
+    [
+      6,
+      "host3",
+      null
+    ],
+    [
+      7,
+      "host4",
+      null
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

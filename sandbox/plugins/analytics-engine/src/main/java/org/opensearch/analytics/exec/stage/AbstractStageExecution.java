@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @opensearch.internal
  */
-abstract class AbstractStageExecution implements StageExecution {
+public abstract class AbstractStageExecution implements StageExecution {
 
     private static final Logger logger = LogManager.getLogger(AbstractStageExecution.class);
 
@@ -44,7 +44,9 @@ abstract class AbstractStageExecution implements StageExecution {
     protected TaskRunner<?> runner = TaskRunner.NONE;
     private final AtomicReference<State> state = new AtomicReference<>(State.CREATED);
     private final AtomicReference<Exception> failure = new AtomicReference<>();
+    // state listeners are for stage to stage wiring.
     private final List<StageStateListener> stateListeners = new CopyOnWriteArrayList<>();
+    // operation listeners - for metrics / observability callbacks.
     private final List<AnalyticsOperationListener> operationListeners;
     private final String queryId;
     private final AnalyticsQueryTask parentTask;
@@ -249,6 +251,7 @@ abstract class AbstractStageExecution implements StageExecution {
                 l -> l.onStageSuccess(
                     queryId,
                     sid,
+                    stageType,
                     metrics.getEndTimeMs() > 0 && metrics.getStartTimeMs() > 0
                         ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L
                         : 0,

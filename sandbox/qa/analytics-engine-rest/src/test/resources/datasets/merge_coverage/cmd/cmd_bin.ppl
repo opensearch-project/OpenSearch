@@ -1,0 +1,1 @@
+source=%INDEX% | bin amount span=5 | stats count() by amount

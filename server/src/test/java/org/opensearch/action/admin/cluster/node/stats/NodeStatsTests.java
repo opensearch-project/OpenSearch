@@ -97,6 +97,7 @@ import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -1047,11 +1048,15 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
+            null,
             segmentReplicationRejectionStats,
             null,
             admissionControlStats,
             nodeCacheStats,
-            remoteStoreNodeStats
+            remoteStoreNodeStats,
+            null,
+            -1L
         );
     }
 
@@ -1507,6 +1512,229 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new SearchRequestStats(clusterSettings),
                 new StatusCounterStats()
             );
+        }
+    }
+
+    /**
+     * Older nodes (pre-V_3_7_0) don't write the native-allocator stats payload. The version
+     * gate must keep them round-tripping cleanly: the receiver should see {@code null}.
+     */
+    public void testNativeAllocatorStatsBwcEmptyOnOldVersion() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats original = newNodeStatsWithNativeAllocator(node, stats);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_6_0);
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_6_0);
+                NodeStats roundtripped = new NodeStats(in);
+                assertNull("native allocator stats must be null when written by an older node", roundtripped.getNativeAllocatorStats());
+                assertEquals(
+                    "totalEstimatedNativeBytes must default to -1 when written by a pre-V_3_7_0 node",
+                    -1L,
+                    roundtripped.getTotalEstimatedNativeBytes()
+                );
+            }
+        }
+    }
+
+    /**
+     * Round-trip on the current wire version — the typed allocator stats payload must
+     * survive serialize/deserialize unchanged.
+     */
+    public void testNativeAllocatorStatsRoundTripCurrentVersion() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(
+                new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L),
+                new NativeAllocatorPoolStats.PoolStats("ingest", 200L, 400L, 4096L),
+                new NativeAllocatorPoolStats.PoolStats("query", 300L, 600L, 2048L)
+            )
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats original = newNodeStatsWithNativeAllocator(node, stats);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.CURRENT);
+                NodeStats roundtripped = new NodeStats(in);
+                NativeAllocatorPoolStats decoded = roundtripped.getNativeAllocatorStats();
+                assertNotNull("native allocator stats must round-trip on current wire version", decoded);
+                assertEquals(1024L, decoded.getNativeAllocatedBytes());
+                assertEquals(2048L, decoded.getNativeResidentBytes());
+                assertEquals(3, decoded.getPools().size());
+                assertEquals("flight", decoded.getPools().get(0).getName());
+                assertEquals(100L, decoded.getPools().get(0).getAllocatedBytes());
+                assertEquals(200L, decoded.getPools().get(0).getPeakBytes());
+                assertEquals(2048L, decoded.getPools().get(0).getLimitBytes());
+            }
+        }
+    }
+
+    /**
+     * Renders {@code NodeStats.toXContent} when {@code nativeAllocatorStats} is non-null and
+     * asserts the JSON shape: a top-level {@code native_memory} block with
+     * {@code runtime.allocated_bytes}/{@code runtime.resident_bytes} and grouped {@code memory_pools}.
+     */
+    public void testNativeAllocatorStatsXContentRendersInsideNativeMemory() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats nodeStats = newNodeStatsWithNativeAllocator(node, stats);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        nodeStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        Map<String, Object> root = xContentBuilderToMap(builder);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+        assertNotNull("native_memory wrapper must be opened when allocator stats are present", nativeMemory);
+
+        // Runtime stats are nested under "runtime"
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtime = (Map<String, Object>) nativeMemory.get("runtime");
+        assertNotNull("runtime block must be present", runtime);
+        assertEquals(1024L, ((Number) runtime.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) runtime.get("resident_bytes")).longValue());
+
+        // Pools are grouped under "memory_pools"
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pools = (Map<String, Object>) nativeMemory.get("memory_pools");
+        assertNotNull("memory_pools block must be present", pools);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> flight = (Map<String, Object>) pools.get("flight");
+        assertNotNull("flight pool must be present in memory_pools", flight);
+        assertEquals(100L, ((Number) flight.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
+    }
+
+    /**
+     * total_estimated_bytes must be captured on the data node hosting this NodeStats and survive
+     * the wire round-trip; the coordinator must NOT re-read its own OsProbe at toXContent time.
+     * Constructs a NodeStats with a specific (non-realistic) value, serializes / deserializes,
+     * renders, and asserts the rendered value matches the constructed value verbatim.
+     */
+    public void testTotalEstimatedNativeBytesPreservedAcrossWireAndRender() throws IOException {
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        long sentinel = 4_026_531_840L; // distinctive value, unlikely to match coordinator RSS
+
+        // Build via the existing helper so the test is robust against future ctor argument churn.
+        NodeStats original = newNodeStatsWithNativeAllocator(node, null, sentinel);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        original.writeTo(out);
+        try (StreamInput in = out.bytes().streamInput()) {
+            in.setVersion(Version.CURRENT);
+            NodeStats roundtripped = new NodeStats(in);
+            assertEquals("totalEstimatedNativeBytes must round-trip on the wire", sentinel, roundtripped.getTotalEstimatedNativeBytes());
+
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            roundtripped.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            Map<String, Object> root = xContentBuilderToMap(builder);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+            assertNotNull("native_memory must always be emitted", nativeMemory);
+            assertEquals(
+                "total_estimated_bytes in the rendered JSON must be the sentinel value, not OsProbe re-read",
+                sentinel,
+                ((Number) nativeMemory.get("total_estimated_bytes")).longValue()
+            );
+        }
+    }
+
+    private static NodeStats newNodeStatsWithNativeAllocator(DiscoveryNode node, NativeAllocatorPoolStats nativeAllocatorStats) {
+        return newNodeStatsWithNativeAllocator(node, nativeAllocatorStats, -1L);
+    }
+
+    private static NodeStats newNodeStatsWithNativeAllocator(
+        DiscoveryNode node,
+        NativeAllocatorPoolStats nativeAllocatorStats,
+        long totalEstimatedNativeBytes
+    ) {
+        return new NodeStats(
+            node,
+            0L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null, // blockCacheOnlyStats
+            null,
+            null,
+            null,
+            null,
+            null,
+            null, // nodeCacheStats
+            null,
+            nativeAllocatorStats,
+            totalEstimatedNativeBytes
+        );
+    }
+
+    /**
+     * Verifies that {@code fileCacheOnlyStats} and {@code blockCacheOnlyStats} are serialized on V_3_7_0+
+     * and skipped (null) when deserializing from an older-version stream.
+     */
+    public void testFileCacheDetailedStatsVersionGate() throws IOException {
+        NodeStats nodeStats = createNodeStats();
+
+        // V_3_7_0: fields are written and read back (null or non-null, just no deserialization error)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_7_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_7_0);
+                NodeStats deserialized = new NodeStats(in);
+                // fileCacheOnlyStats and blockCacheOnlyStats may be null (createNodeStats doesn't set them),
+                // but deserialization must not throw
+                assertNull(deserialized.getFileCacheOnlyStats());
+                assertNull(deserialized.getBlockCacheOnlyStats());
+            }
+        }
+
+        // Pre-V_3_7_0: fields are not written; deserialization must not throw and fields must be null
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_2_18_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_18_0);
+                NodeStats deserialized = new NodeStats(in);
+                assertNull(deserialized.getFileCacheOnlyStats());
+                assertNull(deserialized.getBlockCacheOnlyStats());
+            }
         }
     }
 }

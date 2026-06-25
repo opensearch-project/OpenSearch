@@ -37,7 +37,7 @@ public class PrimaryTermFieldType extends MappedFieldType {
     public static PrimaryTermFieldType INSTANCE = new PrimaryTermFieldType();
 
     private PrimaryTermFieldType() {
-        super(SeqNoFieldMapper.PRIMARY_TERM_NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+        super(SeqNoFieldMapper.PRIMARY_TERM_NAME, false, false, true, TextSearchInfo.NONE, Map.of());
     }
 
     @Override

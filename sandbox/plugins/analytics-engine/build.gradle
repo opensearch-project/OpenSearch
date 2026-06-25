@@ -19,7 +19,8 @@ opensearchplugin {
   classname = 'org.opensearch.analytics.AnalyticsPlugin'
   // Extend arrow-base so analytics-engine shares one Arrow classloader with any peer plugin
   // (arrow-flight-rpc, analytics-backend-datafusion, parquet-data-format, …). Cross-plugin
-  // Arrow types (VectorSchemaRoot, ArrowBatchResponse) only work when loaded by the same classloader
+  // Arrow types (VectorSchemaRoot, ArrowBatchResponse) only work when loaded by the same classloader.
+  // arrow-base exposes ArrowNativeAllocator + the SPI used to source the query pool.
   extendedPlugins = ['arrow-base']
 }
 
@@ -62,6 +63,9 @@ dependencies {
   // as api deps, so a compileOnly project dep pulls them onto the compile classpath while
   // keeping them out of the bundled plugin zip (arrow-base ships them at runtime via the
   // extendedPlugins classloader chain, giving us a shared Arrow class identity for zero-copy).
+  // arrow-base ships the ArrowNativeAllocator + SPI types this plugin calls into.
+  // compileOnly because at runtime the parent plugin (extendedPlugins above) exposes them.
+  compileOnly project(':libs:opensearch-arrow-spi')
   compileOnly project(':plugins:arrow-base')
 
   // Guava — required at compile time because Calcite base classes expose guava types.
@@ -100,7 +104,7 @@ dependencies {
 
   // Unit tests run on a flat classpath (no plugin classloader), so pull arrow-base's runtime
   // jars in via the project dep — tests then use the same Arrow + Netty allocator as production.
-  testRuntimeOnly project(':plugins:arrow-base')
+  testImplementation project(':plugins:arrow-base')
 
   // Arrow Flight streaming transport for ITs
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
@@ -213,7 +217,6 @@ test {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
 
 // Arrow/Flight requires these JVM flags
@@ -226,5 +229,4 @@ internalClusterTest {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }

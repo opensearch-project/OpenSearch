@@ -14,6 +14,7 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -104,6 +105,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                     future.completeExceptionally(FlightErrorMapper.fromFlightException(e));
                 } catch (Exception e) {
                     future.completeExceptionally(new StreamException(StreamErrorCode.INTERNAL, "Stream open/prefetch failed", e));
+                } finally {
+                    // If close() ran while we were opening/prefetching, it may have missed the stream
+                    // we just published. Re-close here so the prefetched first-batch root is released
+                    // (FlightStream.close() is idempotent).
+                    if (closed) {
+                        closeStreamQuietly();
+                    }
                 }
             });
         }
@@ -125,7 +133,10 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
             VectorSchemaRoot streamRoot = flightStream.getRoot();
             currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(streamRoot);
-            try (VectorStreamInput input = newStreamInput(streamRoot)) {
+            // Flight owns getLatestMetadata()'s buffer until the next next() call;
+            // we copy off so the response can outlive the stream cursor.
+            byte[] metadata = readMetadata();
+            try (VectorStreamInput input = newStreamInput(streamRoot, metadata)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
             }
@@ -146,10 +157,26 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         return currentBatchSize;
     }
 
-    private VectorStreamInput newStreamInput(VectorSchemaRoot streamRoot) {
+    private VectorStreamInput newStreamInput(VectorSchemaRoot streamRoot, byte[] metadata) {
         return isNativeHandler
-            ? VectorStreamInput.forNativeArrow(streamRoot, namedWriteableRegistry)
+            ? VectorStreamInput.forNativeArrow(streamRoot, namedWriteableRegistry, metadata)
             : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
+    }
+
+    private byte[] readMetadata() {
+        return copyMetadata(flightStream.getLatestMetadata());
+    }
+
+    /**
+     * Copies an Arrow Flight metadata buffer into a {@code byte[]} the consumer owns, or
+     * returns {@code null} if the buffer is absent/empty. Package-private for testing.
+     */
+    static byte[] copyMetadata(ArrowBuf buf) {
+        if (buf == null || buf.readableBytes() == 0) return null;
+        int len = (int) buf.readableBytes();
+        byte[] copy = new byte[len];
+        buf.getBytes(0, copy);
+        return copy;
     }
 
     @Override
@@ -167,11 +194,18 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     @Override
     public void close() {
         if (closed) return;
+        // Set closed=true before closing so a prefetch still in flight re-checks it and self-closes
+        // the stream it publishes (covers close() racing ahead of flightStream being set).
         closed = true;
+        closeStreamQuietly();
+    }
 
-        if (flightStream != null) {
+    /** Closes the flight stream if present, swallowing the benign already-closed error. Idempotent. */
+    private void closeStreamQuietly() {
+        FlightStream stream = flightStream;
+        if (stream != null) {
             try {
-                flightStream.close();
+                stream.close();
             } catch (IllegalStateException ignore) {} catch (Exception e) {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error closing flight stream", e);
             }

@@ -8,7 +8,6 @@
 
 //! crc32(input): CRC-32 (IEEE 802.3 polynomial) of the UTF-8 byte stream of `input`.
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -65,10 +64,6 @@ impl Hash for Crc32Udf {
 }
 
 impl ScalarUDFImpl for Crc32Udf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "crc32"
     }

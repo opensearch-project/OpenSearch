@@ -27,7 +27,6 @@
 //! * `span <= 0` → null (Java returns null, matches).
 //! * Any null input → null (null propagation, matches Java's `NullPolicy.ANY`).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -69,9 +68,6 @@ impl Default for SpanBucketUdf {
 }
 
 impl ScalarUDFImpl for SpanBucketUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "span_bucket"
     }
