@@ -1056,6 +1056,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             nodeCacheStats,
             remoteStoreNodeStats,
             null,
+            null,
             -1L
         );
     }
@@ -1700,6 +1701,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null, // nodeCacheStats
             null,
             nativeAllocatorStats,
+            null, // concurrencyLimiterStats
             totalEstimatedNativeBytes
         );
     }
