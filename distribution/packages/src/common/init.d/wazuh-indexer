@@ -48,6 +48,7 @@ fi
 # Sets the default values for wazuh-indexer variables used in this script
 OPENSEARCH_HOME="/usr/share/$NAME"
 MAX_OPEN_FILES=65535
+MAX_LOCKED_MEMORY=unlimited
 MAX_MAP_COUNT=262144
 OPENSEARCH_PATH_CONF="/etc/$NAME"
 

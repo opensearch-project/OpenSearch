@@ -38,3 +38,4 @@ plugins.security.restapi.roles_enabled:
 plugins.security.system_indices.enabled: true
 plugins.security.system_indices.indices: [".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-reports-*", ".opensearch-notifications-*", ".replication-metadata-store", ".wazuh-internal-state"]
 cluster.default_number_of_replicas: 0
+bootstrap.memory_lock: true

@@ -53,6 +53,9 @@ LimitAS=infinity
 # Specifies the maximum file size
 LimitFSIZE=infinity
 
+# Specifies the maximum locked-in-memory address space
+LimitMEMLOCK=infinity
+
 # Disable timeout logic and wait until process is stopped
 TimeoutStopSec=0
 
