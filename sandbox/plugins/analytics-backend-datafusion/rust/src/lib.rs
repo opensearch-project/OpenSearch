@@ -31,7 +31,6 @@ pub mod ffm;
 pub mod helper;
 pub mod indexed_executor;
 pub mod indexed_table;
-pub mod io;
 pub mod local_executor;
 pub mod memory;
 pub mod memory_guard;
@@ -49,6 +48,7 @@ pub mod shard_table_provider;
 pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
+
 pub mod udaf;
 pub mod udf;
 pub mod udwf;

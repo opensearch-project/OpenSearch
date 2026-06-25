@@ -18,7 +18,6 @@ use tokio::{
     task::{AbortHandle, JoinSet},
 };
 
-use crate::io::register_io_runtime;
 // DedicatedExecutor — runs CPU-bound DataFusion work on its own tokio runtime.
 // Based on InfluxDB's executor pattern.
 // https://github.com/apache/datafusion/blob/main/datafusion-examples/examples/query_planning/thread_pools.rs
@@ -264,15 +263,12 @@ impl DedicatedExecutor {
         let notify_shutdown_captured = Arc::clone(&notify_shutdown);
         let (tx_shutdown, rx_shutdown) = tokio::sync::oneshot::channel();
         let (tx_handle, rx_handle) = std::sync::mpsc::channel();
-        let io_handle = tokio::runtime::Handle::try_current().ok();
 
         let thread = std::thread::Builder::new()
             .name(format!("{name} driver"))
             .spawn(move || {
-                register_io_runtime(io_handle.clone());
                 let mut runtime_builder = runtime_builder;
                 let runtime = runtime_builder
-                    .on_thread_start(move || register_io_runtime(io_handle.clone()))
                     .build()
                     .expect("Creating tokio runtime");
 
