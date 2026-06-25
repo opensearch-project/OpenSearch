@@ -129,7 +129,7 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
             if (call.getAggregation() == SqlStdOperatorTable.APPROX_COUNT_DISTINCT) {
                 for (int argIdx : call.getArgList()) {
                     SqlTypeName typeName = fields.get(argIdx).getType().getSqlTypeName();
-                    if (typeName == SqlTypeName.TINYINT || typeName == SqlTypeName.SMALLINT) {
+                    if (typeName == SqlTypeName.TINYINT || typeName == SqlTypeName.SMALLINT || typeName == SqlTypeName.BOOLEAN) {
                         needsWiden = true;
                         break;
                     }
@@ -149,7 +149,7 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
             RelDataTypeField field = fields.get(i);
             RexNode ref = rexBuilder.makeInputRef(input, i);
             SqlTypeName typeName = field.getType().getSqlTypeName();
-            if (typeName == SqlTypeName.TINYINT || typeName == SqlTypeName.SMALLINT) {
+            if (typeName == SqlTypeName.TINYINT || typeName == SqlTypeName.SMALLINT || typeName == SqlTypeName.BOOLEAN) {
                 ref = rexBuilder.makeCast(intType, ref);
             }
             projects.add(ref);

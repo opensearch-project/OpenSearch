@@ -8,6 +8,9 @@
 
 package org.opensearch.analytics.qa;
 
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +89,50 @@ public class DistinctCountIT extends AnalyticsRestTestCase {
 
     public void testDc_integer_withFilter() throws Exception {
         assertDcWithFilterAccurate("RegionID", "GoodEvent = 1");
+    }
+
+    // ── boolean field (requires custom index) ─────────────────────────────────
+
+    public void testDc_boolean() throws Exception {
+        String boolIdx = "dc_bool_test";
+        try {
+            client().performRequest(new Request("DELETE", "/" + boolIdx));
+        } catch (Exception ignored) { }
+
+        Request create = new Request("PUT", "/" + boolIdx);
+        create.setJsonEntity(
+            "{\"settings\":{\"number_of_shards\":2,\"number_of_replicas\":0,"
+                + "\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"]},"
+                + "\"mappings\":{\"properties\":{\"active\":{\"type\":\"boolean\"},\"score\":{\"type\":\"integer\"}}}}"
+        );
+        client().performRequest(create);
+
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"active\":").append(i % 3 != 0).append(",\"score\":").append(i).append("}\n");
+        }
+        Request bulkReq = new Request("POST", "/" + boolIdx + "/_bulk");
+        bulkReq.setJsonEntity(bulk.toString());
+        bulkReq.addParameter("refresh", "true");
+        bulkReq.setOptions(bulkReq.getOptions().toBuilder()
+            .addHeader("Content-Type", "application/x-ndjson").build());
+        client().performRequest(bulkReq);
+
+        Request flush = new Request("POST", "/" + boolIdx + "/_flush");
+        flush.addParameter("force", "true");
+        client().performRequest(flush);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dc = executePpl("source=" + boolIdx + " | stats distinct_count(active) as dc");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) dc.get("datarows");
+        int dcVal = ((Number) rows.get(0).get(0)).intValue();
+        logger.info("dc(boolean active): {}", dcVal);
+        assertEquals("dc(boolean) must return 2 (true + false)", 2, dcVal);
     }
 
     // ── grouped dc ──────────────────────────────────────────────────────────────
