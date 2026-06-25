@@ -500,7 +500,13 @@ public class DataFormatAwareEngine implements Indexer {
                         refreshLock.unlock();
                     }
                 }
-            }, shardId, engineConfig.getIndexSettings(), engineConfig.getThreadPool());
+            },
+                this::activateThrottling,
+                this::deactivateThrottling,
+                shardId,
+                engineConfig.getIndexSettings(),
+                engineConfig.getThreadPool()
+            );
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
