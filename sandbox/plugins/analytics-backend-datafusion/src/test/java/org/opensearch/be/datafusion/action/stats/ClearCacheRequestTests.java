@@ -27,6 +27,7 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertFalse(req.isColumn());
         assertFalse(req.isOffset());
+        assertFalse(req.isStatistics());
         assertTrue("no flags set → isClearAll()", req.isClearAll());
     }
 
@@ -36,6 +37,7 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         assertTrue(req.isFooter());
         assertFalse(req.isColumn());
         assertFalse(req.isOffset());
+        assertFalse(req.isStatistics());
         assertFalse("footer=true → not clear-all", req.isClearAll());
     }
 
@@ -45,6 +47,7 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertTrue(req.isColumn());
         assertFalse(req.isOffset());
+        assertFalse(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 
@@ -54,6 +57,17 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertFalse(req.isColumn());
         assertTrue(req.isOffset());
+        assertFalse(req.isStatistics());
+        assertFalse(req.isClearAll());
+    }
+
+    public void testSetStatisticsOnlyIsNotClearAll() {
+        ClearCacheNodesRequest req = new ClearCacheNodesRequest();
+        req.setStatistics(true);
+        assertFalse(req.isFooter());
+        assertFalse(req.isColumn());
+        assertFalse(req.isOffset());
+        assertTrue(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 
@@ -62,7 +76,7 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         req.setFooter(true);
         req.setColumn(true);
         req.setOffset(true);
-        // isClearAll() is false when any flag is explicitly set — caller chose specific caches
+        req.setStatistics(true);
         assertFalse(req.isClearAll());
     }
 
@@ -71,6 +85,7 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         original.setFooter(true);
         original.setColumn(false);
         original.setOffset(true);
+        original.setStatistics(true);
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -80,23 +95,33 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         assertEquals(original.isFooter(), deserialized.isFooter());
         assertEquals(original.isColumn(), deserialized.isColumn());
         assertEquals(original.isOffset(), deserialized.isOffset());
+        assertEquals(original.isStatistics(), deserialized.isStatistics());
         assertEquals(original.isClearAll(), deserialized.isClearAll());
     }
 
     // ── ClearCacheNodeRequest ─────────────────────────────────────────────────
 
     public void testNodeRequestIsClearAllWhenNoFlagsSet() {
-        ClearCacheNodeRequest req = new ClearCacheNodeRequest(false, false, false);
+        ClearCacheNodeRequest req = new ClearCacheNodeRequest(false, false, false, false);
         assertTrue(req.isClearAll());
     }
 
     public void testNodeRequestIsNotClearAllWhenFlagSet() {
-        ClearCacheNodeRequest req = new ClearCacheNodeRequest(true, false, false);
+        ClearCacheNodeRequest req = new ClearCacheNodeRequest(true, false, false, false);
+        assertFalse(req.isClearAll());
+    }
+
+    public void testNodeRequestStatisticsFlag() {
+        ClearCacheNodeRequest req = new ClearCacheNodeRequest(false, false, false, true);
+        assertFalse(req.isFooter());
+        assertFalse(req.isColumn());
+        assertFalse(req.isOffset());
+        assertTrue(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 
     public void testNodeRequestRoundTrip() throws IOException {
-        ClearCacheNodeRequest original = new ClearCacheNodeRequest(false, true, true);
+        ClearCacheNodeRequest original = new ClearCacheNodeRequest(false, true, true, true);
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -106,6 +131,7 @@ public class ClearCacheRequestTests extends OpenSearchTestCase {
         assertFalse(deserialized.isFooter());
         assertTrue(deserialized.isColumn());
         assertTrue(deserialized.isOffset());
+        assertTrue(deserialized.isStatistics());
         assertFalse(deserialized.isClearAll());
     }
 }

@@ -759,7 +759,8 @@ pub fn get_reduce_target_partitions() -> usize {
 /// `filenames` are kept in the order supplied by the caller.
 ///
 /// `store_ptr`: 0 = use default LocalFileSystem (hot path),
-/// >0 = Box<Arc<dyn ObjectStore>> pointer (routes reads through TieredObjectStore).
+/// >0 = `Box<Arc<dyn MetadataCachingStore>>` pointer (routes reads through TieredObjectStore;
+///       trait upcasts to `dyn ObjectStore` for DataFusion APIs that take `Arc<dyn ObjectStore>`).
 pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
@@ -788,14 +789,27 @@ pub fn create_reader(
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 
     // Resolve the object store: if store_ptr > 0, clone the Arc from the boxed pointer.
+    // Pointer type is `Arc<dyn MetadataCachingStore>` (since 2026-06); trait-upcast to
+    // `Arc<dyn ObjectStore>` for the DataFusion APIs below.
     // Otherwise use default LocalFileSystem.
     let store: Arc<dyn ObjectStore> = if store_ptr > 0 {
-        let boxed = unsafe { &*(store_ptr as *const Arc<dyn ObjectStore>) };
-        Arc::clone(boxed)
+        let boxed = unsafe {
+            &*(store_ptr as *const Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>)
+        };
+        // Bind first, then trait-upcast at the let-binding boundary
+        // (Arc::clone alone can't infer the supertrait return type).
+        let mc_arc: Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore> =
+            Arc::clone(boxed);
+        mc_arc
     } else {
         let default_rt = RuntimeEnvBuilder::new().build()?;
         default_rt.object_store(&table_url)?
     };
+
+    // A Java-supplied store (store_ptr > 0) is a remote/warm store: fetch the whole
+    // page-index region so query range keys match eager warm-population (warm hits).
+    // The default LocalFileSystem has no warm tier → keep the narrow scoped fetch.
+    crate::cache::page_index::set_whole_region_fetch_enabled(store_ptr > 0);
 
     let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
         store.as_ref(),
@@ -1545,12 +1559,14 @@ fn derive_schema_from_partial_plan(
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
-    // Engine-native-merge (HLL): Partial has Binary fields that differ from the top (Int64).
-    // Use Partial schema + Root.names so coordinator sees the correct Binary wire type.
-    // All other plans: use top schema directly (matches main behavior).
+    // Engine-native-merge: Partial state types differ from Final output (Binary HLL sketches,
+    // or List state for sub-32-bit bitmap accumulators). Use Partial schema + Root.names so
+    // the coordinator sees the correct wire type.
     if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
-        let has_binary = partial_schema.fields().iter().any(|f| matches!(f.data_type(), arrow::datatypes::DataType::Binary));
-        if has_binary && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+        let has_nontrivial_state = partial_schema.fields().iter().any(|f| {
+            matches!(f.data_type(), arrow::datatypes::DataType::Binary | arrow::datatypes::DataType::List(_))
+        });
+        if has_nontrivial_state && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
             use arrow::datatypes::{Field, Schema};
             let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
             let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())

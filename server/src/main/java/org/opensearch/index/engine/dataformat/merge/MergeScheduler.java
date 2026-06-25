@@ -48,8 +48,11 @@ public class MergeScheduler {
     private final MergeHandler mergeHandler;
     private final BiConsumer<MergeResult, OneMerge> applyMergeChanges;
     private final Runnable onMergeFailureCleanup;
+    private final Runnable activateThrottling;
+    private final Runnable deactivateThrottling;
     private final ThreadPool threadPool;
     private final AtomicInteger activeMerges = new AtomicInteger(0);
+    private final AtomicBoolean isThrottling = new AtomicBoolean(false);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final Semaphore forceMergeLock = new Semaphore(1);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
@@ -75,6 +78,8 @@ public class MergeScheduler {
      * @param mergeHandler          the handler that selects and executes merges
      * @param applyMergeChanges     callback to apply merge results (e.g., update the catalog)
      * @param onMergeFailureCleanup callback invoked when a merge fails and cleanup is performed
+     * @param activateThrottling    callback to activate indexing throttle when merge pressure is high
+     * @param deactivateThrottling  callback to deactivate indexing throttle when merge pressure subsides
      * @param shardId               the shard this scheduler is associated with
      * @param indexSettings         the index settings providing merge scheduler configuration
      * @param threadPool            the OpenSearch thread pool for executing merge tasks
@@ -83,6 +88,8 @@ public class MergeScheduler {
         MergeHandler mergeHandler,
         BiConsumer<MergeResult, OneMerge> applyMergeChanges,
         Runnable onMergeFailureCleanup,
+        Runnable activateThrottling,
+        Runnable deactivateThrottling,
         ShardId shardId,
         IndexSettings indexSettings,
         ThreadPool threadPool
@@ -90,6 +97,8 @@ public class MergeScheduler {
         this.mergeHandler = mergeHandler;
         this.applyMergeChanges = applyMergeChanges;
         this.onMergeFailureCleanup = onMergeFailureCleanup;
+        this.activateThrottling = activateThrottling;
+        this.deactivateThrottling = deactivateThrottling;
         this.threadPool = threadPool;
         logger = Loggers.getLogger(getClass(), shardId);
         this.indexSettings = indexSettings;
@@ -138,6 +147,7 @@ public class MergeScheduler {
         if (!isFrozen()) {
             mergeHandler.findAndRegisterMerges();
         }
+        evaluateThrottle();
         executeMerge();
     }
 
@@ -343,6 +353,7 @@ public class MergeScheduler {
                 // uncaught exception on the merge thread pool.
             } finally {
                 activeMerges.decrementAndGet();
+                evaluateThrottle();
                 // Fire all drain listeners if all merges completed and none pending
                 if (isFrozen() && activeMerges.get() == 0 && !mergeHandler.hasPendingMerges() && !onDrainedListeners.isEmpty()) {
                     List<Runnable> listeners = List.copyOf(onDrainedListeners);
@@ -392,6 +403,29 @@ public class MergeScheduler {
             throw e instanceof IOException ? (IOException) e : new IOException(e);
         } finally {
             mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
+        }
+    }
+
+    private synchronized void evaluateThrottle() {
+        int numMergesInFlight = activeMerges.get() + mergeHandler.getPendingMergeCount();
+        if (numMergesInFlight > maxMergeCount) {
+            if (isThrottling.getAndSet(true) == false) {
+                logger.info("now throttling indexing: numMergesInFlight={}, maxMergeCount={}", numMergesInFlight, maxMergeCount);
+                try {
+                    activateThrottling.run();
+                } catch (Exception e) {
+                    logger.warn("exception in activateThrottling callback", e);
+                }
+            }
+        } else if (numMergesInFlight < maxMergeCount) {
+            if (isThrottling.getAndSet(false)) {
+                logger.info("stop throttling indexing: numMergesInFlight={}, maxMergeCount={}", numMergesInFlight, maxMergeCount);
+                try {
+                    deactivateThrottling.run();
+                } catch (Exception e) {
+                    logger.warn("exception in deactivateThrottling callback", e);
+                }
+            }
         }
     }
 }

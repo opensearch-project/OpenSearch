@@ -59,6 +59,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -231,7 +232,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         );
         assertTrue("Exception message should include the count", thrown.getMessage().contains("5"));
         // Permit should still be released via finally block
-        verify(mockPermit).close();
+        verify(mockPermit, timeout(5000)).close();
     }
 
     /**
@@ -245,7 +246,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         expectThrows(IOException.class, () -> executeShardOperation(mockIndexShard, primaryShardRouting));
 
         // Verify permit was released despite the exception
-        verify(mockPermit).close();
+        verify(mockPermit, timeout(5000)).close();
     }
 
     /**
@@ -355,8 +356,8 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         TimeValue effectiveTimeout = TimeValue.timeValueMillis(mergeTimeoutMillis);
         AtomicBoolean completed = new AtomicBoolean(false);
 
-        // Schedule timeout
-        Scheduler.ScheduledCancellable timeout = threadPool.schedule(() -> {
+        // Schedule timeout (named `timeoutTask` to avoid shadowing the Mockito.timeout static import)
+        Scheduler.ScheduledCancellable timeoutTask = threadPool.schedule(() -> {
             if (completed.compareAndSet(false, true)) {
                 int activeMerges = indexShard.getActiveMergeCount();
                 boolean hasPendingMerges = indexShard.hasPendingMerges();
@@ -373,7 +374,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         // Non-blocking merge wait
         indexShard.onMergesDrained(() -> {
             if (completed.compareAndSet(false, true)) {
-                timeout.cancel();
+                timeoutTask.cancel();
                 try {
                     completeSyncAndFlushForTest(indexShard, shardRouting);
                     listener.onResponse(null);
@@ -447,7 +448,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             verify(mockIndexShard).refresh("prepare_tiering");
             verify(mockIndexShard).waitForRemoteStoreSync();
 
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }
@@ -503,7 +504,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             verify(mockIndexShard).refresh("prepare_tiering");
             verify(mockIndexShard).waitForRemoteStoreSync();
 
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }
@@ -559,7 +560,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             assertTrue("Message should report pending merges as yes", timeoutEx.getMessage().contains("pending: yes"));
             assertTrue("Timeout message should contain timeout value", timeoutEx.getMessage().contains("100ms"));
 
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }
@@ -729,7 +730,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             executeShardOperationAsync(mockIndexShard, primaryShardRouting, listener, testThreadPool, TimeValue.timeValueSeconds(30));
 
             assertTrue("Listener should fire", latch.await(5, TimeUnit.SECONDS));
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }
@@ -764,7 +765,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             executeShardOperationAsync(mockIndexShard, primaryShardRouting, listener, testThreadPool, TimeValue.timeValueMillis(100));
 
             assertTrue("Listener should fire after timeout", latch.await(5, TimeUnit.SECONDS));
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }
@@ -811,7 +812,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             assertNotNull("Should have received a failure", failureRef.get());
             assertTrue("Should be IOException", failureRef.get() instanceof IOException);
 
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }
@@ -957,7 +958,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             assertTrue("Message should report pending merges as yes", timeoutEx.getMessage().contains("pending: yes"));
             assertTrue("Message should contain the configured timeout", timeoutEx.getMessage().contains("50ms"));
 
-            verify(mockPermit).close();
+            verify(mockPermit, timeout(5000)).close();
         } finally {
             terminate(testThreadPool);
         }

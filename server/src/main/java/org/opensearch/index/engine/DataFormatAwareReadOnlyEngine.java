@@ -35,6 +35,7 @@ import org.opensearch.index.engine.exec.DocumentLookupSupport;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
+import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
@@ -185,16 +186,22 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             readerManagersRef = Map.copyOf(aggregated);
             this.readerManagers = readerManagersRef;
 
-            // Register reader managers as catalog snapshot lifecycle listeners so they are notified
-            // (via installSnapshot → afterRefresh) BEFORE latestCatalogSnapshot is swapped. This
-            // guarantees readers are updated before the snapshot becomes externally visible.
-            List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>(readerManagersRef.values());
+            // Register reader managers as BOTH files listeners and snapshot lifecycle listeners.
+            // Files listeners make IndexFileDeleter fire onFilesAdded for the committed snapshot
+            // at open, eagerly warming the metadata cache before the first query; snapshot
+            // listeners build the reader before latestCatalogSnapshot is swapped.
+            Map<String, FilesListener> filesListeners = new HashMap<>();
+            List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>();
+            for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagersRef.entrySet()) {
+                filesListeners.put(entry.getKey().name(), entry.getValue());
+                snapshotListeners.add(entry.getValue());
+            }
 
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
                 new NoOpCatalogSnapshotDeletionPolicy(),
                 compositeDeleter,
-                Map.of(),
+                filesListeners,
                 snapshotListeners,
                 store.shardPath(),
                 committer
