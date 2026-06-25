@@ -1,5 +1,5 @@
 # URLHash equality in deep multi-predicate conjunction.
-# Tests hash-value equality filter with (WindowClientWidth, WindowClientHeight) grouping.
+# Tests hash-value long equality with (WindowClientWidth, WindowClientHeight) grouping.
 query: q42
 ppl_file: q42.ppl
 applies: [prod2s, prod1s]

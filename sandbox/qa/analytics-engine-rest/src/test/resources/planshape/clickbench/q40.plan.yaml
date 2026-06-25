@@ -1,5 +1,5 @@
 # CASE expression in eval: conditional Referer/URL assignment.
-# Tests CASE WHEN pushdown into grouped TopK with 5 group keys and offset.
+# Tests CASE WHEN pushdown into grouped TopK with 5 group keys and offset; parquet DataSourceExec.
 query: q40
 ppl_file: q40.ppl
 applies: [prod2s, prod1s]

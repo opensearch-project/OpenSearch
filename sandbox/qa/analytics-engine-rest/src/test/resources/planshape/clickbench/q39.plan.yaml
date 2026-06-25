@@ -1,6 +1,5 @@
-# OFFSET: head 10 from 5 → effective limit 15, shard TopK fetch=45 (3x); tests fetch+offset pushdown.
-# Unlike q37/q38, all predicates are numeric/date ([datafusion]) — no keyword filter to delegate, so it
-# scans parquet (DataSourceExec, tree_shape=NONE) rather than a lucene QueryShardExec.
+# OFFSET: head 10 from 5 → effective limit 15, shard TopK fetch=45 (3x).
+# All predicates numeric/date ([datafusion]); parquet DataSourceExec, tree_shape=NONE.
 query: q39
 ppl_file: q39.ppl
 applies: [prod2s, prod1s]

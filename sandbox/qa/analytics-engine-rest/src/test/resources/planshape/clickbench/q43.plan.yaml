@@ -1,5 +1,5 @@
 # date_format eval + narrow date range + grouped count + sort by derived column.
-# Tests temporal formatting expression pushdown with multi-predicate filter and offset.
+# Temporal formatting expression pushdown with multi-predicate filter and offset.
 query: q43
 ppl_file: q43.ppl
 applies: [prod2s, prod1s]

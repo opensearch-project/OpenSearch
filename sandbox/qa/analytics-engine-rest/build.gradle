@@ -105,11 +105,6 @@ def configureAnalyticsCluster = { cluster ->
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
 
-    // Override default block-list to empty for integration tests so all predicate shapes
-    // are exercised with delegation enabled. Production clusters retain the default
-    // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
-    cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
-
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
@@ -118,6 +113,8 @@ def configureAnalyticsCluster = { cluster ->
 testClusters.integTest {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+    // Override block-list to empty so FilterDelegationGoldenIT exercises all predicate shapes.
+    setting 'analytics.delegation.lucene.blocked_predicates', '[]'
 }
 
 integTest {
@@ -142,11 +139,35 @@ integTest {
     exclude '**/SpillCleanupOnBootIT.class'
     exclude '**/YmlOversamplingIT.class'
     exclude '**/*NoMergeIT.class'
+    exclude '**/planshape/*IT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
     // when ITs provision their indices lazily. Keep the OpenSearchTestBasePlugin
     // defaults (single fork, no maxParallelForks override).
+}
+
+// ── Plan-shape variant: 2 nodes, production-default blocked_predicates ───────
+// Runs plan-shape golden ITs with the production delegation blocklist (NOT the
+// empty override used by the default integTest cluster for FilterDelegationGoldenIT).
+task integTestPlanShape(type: RestIntegTestTask) {
+    description = 'Runs plan-shape golden ITs with production-default delegation blocklist'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.planshape.*IT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+    ['plan.generate', 'plan.combos'].each { k ->
+        if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
+    }
+    systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
+}
+check.dependsOn(integTestPlanShape)
+
+testClusters.integTestPlanShape {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
 }
 
 // ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────

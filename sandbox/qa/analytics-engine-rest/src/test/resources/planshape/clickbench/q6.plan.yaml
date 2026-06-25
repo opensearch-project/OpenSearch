@@ -1,5 +1,5 @@
-# dc(SearchPhrase): keyword field's implicit IS NOT NULL is lucene-delegated ([lucene, datafusion]),
-# so the shard scans via QueryShardExec (tree_shape=CONJUNCTIVE) — vs q5's numeric dc(UserID) on parquet DataSourceExec.
+# dc(SearchPhrase): implicit IS NOT NULL blocked from lucene (production blocklist).
+# Parquet DataSourceExec with pruning_predicate for null-count stats.
 query: q6
 ppl_file: q6.ppl
 applies: [prod2s, prod1s]
@@ -9,14 +9,14 @@ plans:
       OpenSearchAggregate(group=[{}], dc(SearchPhrase)=[APPROX_COUNT_DISTINCT($0)], mode=[FINAL], viableBackends=[[datafusion]])
         OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
           OpenSearchAggregate(group=[{}], dc(SearchPhrase)=[APPROX_COUNT_DISTINCT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
-            OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
-              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], IS NOT NULL($74))], viableBackends=[[lucene, datafusion]])
+            OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
+              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($74))], viableBackends=[[datafusion]])
                 OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], dc(SearchPhrase)=[APPROX_COUNT_DISTINCT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
-        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
-          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], IS NOT NULL($74))], viableBackends=[[lucene, datafusion]])
+        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($74))], viableBackends=[[datafusion]])
             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], dc(SearchPhrase)=[APPROX_COUNT_DISTINCT($0)], mode=[FINAL], viableBackends=[[datafusion]])
@@ -24,35 +24,39 @@ plans:
           OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
-        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-          QueryShardExec: partitions=1, segments=1, ordering=unsorted
+        FilterExec: SearchPhrase@0 IS NOT NULL
+          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+            DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 IS NOT NULL, pruning_predicate=SearchPhrase_null_count@1 != row_count@0, required_guarantees=[]
     shard_physical_nseg: |
       AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
-        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-          QueryShardExec: partitions=2, segments=2, ordering=unsorted
+        FilterExec: SearchPhrase@0 IS NOT NULL
+          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+            DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 IS NOT NULL, pruning_predicate=SearchPhrase_null_count@1 != row_count@0, required_guarantees=[]
   prod1s:
     post_cbo: |
       OpenSearchAggregate(group=[{}], dc(SearchPhrase)=[APPROX_COUNT_DISTINCT($0)], mode=[SINGLE], viableBackends=[[datafusion]])
-        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
-          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], IS NOT NULL($74))], viableBackends=[[lucene, datafusion]])
+        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($74))], viableBackends=[[datafusion]])
             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], dc(SearchPhrase)=[APPROX_COUNT_DISTINCT($0)], mode=[SINGLE], viableBackends=[[datafusion]])
-        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
-          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], IS NOT NULL($74))], viableBackends=[[lucene, datafusion]])
+        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($74))], viableBackends=[[datafusion]])
             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       RelabelExec: schema=Schema { fields: [Field { name: "dc(SearchPhrase)", data_type: Int64, nullable: true }], metadata: {} }
         AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
           CoalescePartitionsExec
             AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                QueryShardExec: partitions=1, segments=1, ordering=unsorted
+              FilterExec: SearchPhrase@0 IS NOT NULL
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 IS NOT NULL, pruning_predicate=SearchPhrase_null_count@1 != row_count@0, required_guarantees=[]
     shard_physical_nseg: |
       RelabelExec: schema=Schema { fields: [Field { name: "dc(SearchPhrase)", data_type: Int64, nullable: true }], metadata: {} }
         AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
           CoalescePartitionsExec
             AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                QueryShardExec: partitions=2, segments=2, ordering=unsorted
+              FilterExec: SearchPhrase@0 IS NOT NULL
+                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 IS NOT NULL, pruning_predicate=SearchPhrase_null_count@1 != row_count@0, required_guarantees=[]

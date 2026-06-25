@@ -1,5 +1,5 @@
 # IN predicate + RefererHash equality in multi-predicate conjunction.
-# Tests IN-list filter with grouped count TopK and offset.
+# All numeric/date filters; parquet DataSourceExec with grouped TopK and offset.
 query: q41
 ppl_file: q41.ppl
 applies: [prod2s, prod1s]

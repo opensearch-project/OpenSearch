@@ -1,5 +1,5 @@
-# != filter forces datafusion-only backend (not lucene-viable).
-# Triple parquet pushdown: predicate, pruning_predicate (min/max stats), required_guarantees (page-level).
+# != filter on numeric AdvEngineID: blocked from lucene delegation (production blocklist).
+# Triple parquet pushdown: predicate, pruning_predicate (min/max stats), required_guarantees.
 query: q2
 ppl_file: q2.ppl
 applies: [prod2s, prod1s]

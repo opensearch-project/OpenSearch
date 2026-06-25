@@ -263,15 +263,16 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
             testCase.workload.name() + "/" + testCase.queryId, k -> new LinkedHashMap<>());
         yamlByCombo.put(testCase.comboName, comboYaml);
 
+        Path out = Path.of(resourcesDir, testCase.workload.goldenResourcePath(testCase.queryId));
+        String header = preserveExistingHeader(out);
+
         StringBuilder doc = new StringBuilder();
-        doc.append("# Generated via -Dplan.generate=write.\n");
+        doc.append(header);
         doc.append("query: ").append(testCase.queryId).append('\n');
         doc.append("ppl_file: ").append(testCase.queryId).append(".ppl\n");
         doc.append("applies: [").append(String.join(", ", yamlByCombo.keySet())).append("]\n");
         doc.append("plans:\n");
         yamlByCombo.values().forEach(doc::append);
-
-        Path out = Path.of(resourcesDir, testCase.workload.goldenResourcePath(testCase.queryId));
         try {
             Files.createDirectories(out.getParent());
             Files.writeString(out, doc.toString());
@@ -283,6 +284,29 @@ public abstract class PlanShapeGoldenTestBase extends AnalyticsRestTestCase {
 
     /** "workload/queryId" -> (comboName -> that combo's rendered YAML), accumulated across a generate run. */
     private static final Map<String, Map<String, String>> GENERATED_YAML_BY_QUERY = new ConcurrentHashMap<>();
+
+    /**
+     * Read leading {@code #} comment lines from an existing golden file to preserve hand-authored
+     * annotations across regeneration. Returns empty string if no file or no comments exist.
+     */
+    private static String preserveExistingHeader(Path goldenFile) {
+        if (Files.exists(goldenFile) == false) {
+            return "";
+        }
+        try {
+            StringBuilder header = new StringBuilder();
+            for (String line : Files.readAllLines(goldenFile)) {
+                if (line.startsWith("#")) {
+                    header.append(line).append('\n');
+                } else {
+                    break;
+                }
+            }
+            return header.toString();
+        } catch (IOException e) {
+            return "";
+        }
+    }
 
     /** Assert one captured plan-shape layer against its expected text (present text, or empty = expected absent). */
     private void assertPlanShapeLayer(Optional<String> expected, Optional<String> actual, String layerLabel) {

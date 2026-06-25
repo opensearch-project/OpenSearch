@@ -1,6 +1,5 @@
-# Point lookup: numeric UserID equality is NOT lucene-delegable ([datafusion]); pushed into the parquet
-# DataSourceExec as predicate + pruning_predicate + required_guarantees=[UserID in (...)].
-# No aggregation (fields projection); the coordinator stage only gathers/limits shard rows.
+# Point lookup: numeric UserID equality pushed into parquet DataSourceExec.
+# predicate + pruning_predicate + required_guarantees=[UserID in (...)]; no aggregation.
 query: q20
 ppl_file: q20.ppl
 applies: [prod2s, prod1s]

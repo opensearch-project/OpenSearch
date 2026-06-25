@@ -1,4 +1,4 @@
-# High-cardinality grouping by URL (keyword), no filter → parquet DataSourceExec, datafusion with TopK.
+# High-cardinality grouping by URL (keyword), no filter → parquet DataSourceExec with TopK.
 # Structurally simplest TopK plan — single key, single agg, 3x fetch.
 query: q34
 ppl_file: q34.ppl

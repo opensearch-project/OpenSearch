@@ -1,5 +1,5 @@
 # dc → APPROX_COUNT_DISTINCT with HLL sketch merge across shards.
-# Implicit IS NOT NULL filter injected by optimizer, pushed to parquet pruning_predicate.
+# Implicit IS NOT NULL filter blocked from lucene (production blocklist); parquet predicate pushdown.
 query: q5
 ppl_file: q5.ppl
 applies: [prod2s, prod1s]

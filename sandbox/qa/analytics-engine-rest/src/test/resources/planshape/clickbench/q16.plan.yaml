@@ -1,4 +1,4 @@
-# Baseline TopK pattern: single group key, single aggregate, 3x fetch multiplier.
+# Baseline TopK pattern: single group key, single aggregate, 3x fetch multiplier (30 for head 10).
 # Double-sort at coordinator (inner fetch=10, outer fetch=10000 safety ceiling).
 query: q16
 ppl_file: q16.ppl
