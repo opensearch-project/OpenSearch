@@ -349,6 +349,10 @@ public class ActionConcurrencyLimiterRegistry {
             this.algorithm = cfg.algorithm;
             this.partitioned = newPartitioned;
             if (newState != null) {
+                LimiterState prev = state.get();
+                if (prev != null && prev.isWarmedUp()) {
+                    newState.warmedUp = true;
+                }
                 state.set(newState);
             }
             this.mode = cfg.mode;
@@ -578,7 +582,7 @@ public class ActionConcurrencyLimiterRegistry {
             cfg.initialLimit = val.getAsInt("initial", 20);
             cfg.maxLimit = val.getAsInt("max", 200);
             onAliasReconfigured(alias, cfg);
-        }, (alias, val) -> {});
+        }, (alias, val) -> validateLimitConfig(val));
         clusterSettings.addAffixUpdateConsumer(WARMUP_DURATION_SETTING, (alias, val) -> {
             aliasConfigs.computeIfAbsent(alias, k -> new AliasConfig()).warmupMillis = val.getMillis();
             onAliasReconfigured(alias, aliasConfigs.get(alias));
@@ -587,12 +591,12 @@ public class ActionConcurrencyLimiterRegistry {
             AliasConfig cfg = aliasConfigs.computeIfAbsent(alias, k -> new AliasConfig());
             cfg.aimdBackoffRatio = val.getAsDouble("backoff_ratio", 0.9);
             onAliasReconfigured(alias, cfg);
-        }, (alias, val) -> {});
+        }, (alias, val) -> validateAimdConfig(val));
         clusterSettings.addAffixUpdateConsumer(GRADIENT2_CONFIG_SETTING, (alias, val) -> {
             AliasConfig cfg = aliasConfigs.computeIfAbsent(alias, k -> new AliasConfig());
             cfg.gradient2RttTolerance = val.getAsDouble("rtt_tolerance", 1.5);
             onAliasReconfigured(alias, cfg);
-        }, (alias, val) -> {});
+        }, (alias, val) -> validateGradient2Config(val));
         clusterSettings.addAffixUpdateConsumer(VEGAS_CONFIG_SETTING, (alias, val) -> {
             AliasConfig cfg = aliasConfigs.computeIfAbsent(alias, k -> new AliasConfig());
             cfg.vegasUpDriftFactor = val.getAsInt("updrift_factor", 1);
@@ -600,14 +604,14 @@ public class ActionConcurrencyLimiterRegistry {
             cfg.vegasDecreaseBarrier = val.getAsInt("decrease_barrier", 1);
             cfg.vegasBaselineResetLoadThreshold = val.getAsDouble("baseline_reset_load_threshold", 0.5);
             onAliasReconfigured(alias, cfg);
-        }, (alias, val) -> {});
+        }, (alias, val) -> validateVegasConfig(val));
         clusterSettings.addAffixUpdateConsumer(BURST_CONFIG_SETTING, (alias, val) -> {
             AliasConfig cfg = aliasConfigs.computeIfAbsent(alias, k -> new AliasConfig());
             cfg.burstCapacity = val.getAsInt("capacity", 0);
             cfg.burstCloseAfter = val.getAsInt("close_after", 5);
             cfg.burstOpenAfter = val.getAsInt("open_after", 5);
             onAliasReconfigured(alias, cfg);
-        }, (alias, val) -> {});
+        }, (alias, val) -> validateBurstConfig(val));
         // partitions list and partition.* group are validated together (cross-field rules need
         // both), so they share one compound consumer. The validator runs on update only and
         // rejects a bad PUT with HTTP 400.
@@ -658,6 +662,68 @@ public class ActionConcurrencyLimiterRegistry {
     // -------------------------------------------------------------------------
     // Internal
     // -------------------------------------------------------------------------
+
+    static void validateLimitConfig(Settings group) {
+        int initial = group.getAsInt("initial", 20);
+        int max = group.getAsInt("max", 200);
+        if (initial < 1) {
+            throw new IllegalArgumentException("limit.initial must be >= 1 but got " + initial);
+        }
+        if (max < 1) {
+            throw new IllegalArgumentException("limit.max must be >= 1 but got " + max);
+        }
+        if (max < initial) {
+            throw new IllegalArgumentException("limit.max [" + max + "] must be >= limit.initial [" + initial + "]");
+        }
+    }
+
+    static void validateVegasConfig(Settings group) {
+        int upDrift = group.getAsInt("updrift_factor", 1);
+        int incBarrier = group.getAsInt("increase_barrier", 1);
+        int decBarrier = group.getAsInt("decrease_barrier", 1);
+        double threshold = group.getAsDouble("baseline_reset_load_threshold", 0.5);
+        if (upDrift < 1) {
+            throw new IllegalArgumentException("vegas.updrift_factor must be >= 1 but got " + upDrift);
+        }
+        if (incBarrier < 1) {
+            throw new IllegalArgumentException("vegas.increase_barrier must be >= 1 but got " + incBarrier);
+        }
+        if (decBarrier < 1) {
+            throw new IllegalArgumentException("vegas.decrease_barrier must be >= 1 but got " + decBarrier);
+        }
+        if (threshold < 0.0 || threshold > 1.0) {
+            throw new IllegalArgumentException("vegas.baseline_reset_load_threshold must be in [0.0, 1.0] but got " + threshold);
+        }
+    }
+
+    static void validateBurstConfig(Settings group) {
+        int capacity = group.getAsInt("capacity", 0);
+        int closeAfter = group.getAsInt("close_after", 5);
+        int openAfter = group.getAsInt("open_after", 5);
+        if (capacity < 0) {
+            throw new IllegalArgumentException("burst.capacity must be >= 0 but got " + capacity);
+        }
+        if (closeAfter < 1) {
+            throw new IllegalArgumentException("burst.close_after must be >= 1 but got " + closeAfter);
+        }
+        if (openAfter < 1) {
+            throw new IllegalArgumentException("burst.open_after must be >= 1 but got " + openAfter);
+        }
+    }
+
+    static void validateAimdConfig(Settings group) {
+        double backoff = group.getAsDouble("backoff_ratio", 0.9);
+        if (backoff < 0.5 || backoff >= 1.0) {
+            throw new IllegalArgumentException("aimd.backoff_ratio must be in [0.5, 1.0) but got " + backoff);
+        }
+    }
+
+    static void validateGradient2Config(Settings group) {
+        double rttTolerance = group.getAsDouble("rtt_tolerance", 1.5);
+        if (rttTolerance < 1.0) {
+            throw new IllegalArgumentException("gradient2.rtt_tolerance must be >= 1.0 but got " + rttTolerance);
+        }
+    }
 
     /**
      * Validates the partition configuration for one alias at update time so invalid config is
@@ -813,6 +879,7 @@ public class ActionConcurrencyLimiterRegistry {
     }
 
     private synchronized void onAliasReconfigured(String alias, AliasConfig cfg) {
+        boolean reconfigured = true;
         if (cfg.actionName.isEmpty()) {
             limiters.remove(alias);
         } else {
@@ -820,9 +887,7 @@ public class ActionConcurrencyLimiterRegistry {
             try {
                 inst.reconfigure(cfg);
             } catch (RuntimeException e) {
-                // A bad configuration (e.g. invalid partition percentages) must not crash the
-                // cluster settings applier thread. Log and keep the previous limiter state so
-                // the node stays healthy; the operator can correct the setting and retry.
+                reconfigured = false;
                 LOG.error(
                     "Failed to apply concurrency limit config for alias [{}] action [{}]; " + "keeping previous configuration. Error: {}",
                     alias,
@@ -832,7 +897,9 @@ public class ActionConcurrencyLimiterRegistry {
             }
         }
         rebuildReverseMap();
-        notifyMetricsListener(alias);
+        if (reconfigured) {
+            notifyMetricsListener(alias);
+        }
     }
 
     private void rebuildReverseMap() {
