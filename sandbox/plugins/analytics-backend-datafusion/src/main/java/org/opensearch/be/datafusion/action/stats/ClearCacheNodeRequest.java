@@ -20,11 +20,13 @@ public class ClearCacheNodeRequest extends TransportRequest {
     private boolean footer;
     private boolean column;
     private boolean offset;
+    private boolean statistics;
 
-    public ClearCacheNodeRequest(boolean footer, boolean column, boolean offset) {
+    public ClearCacheNodeRequest(boolean footer, boolean column, boolean offset, boolean statistics) {
         this.footer = footer;
         this.column = column;
         this.offset = offset;
+        this.statistics = statistics;
     }
 
     public ClearCacheNodeRequest(StreamInput in) throws IOException {
@@ -32,6 +34,7 @@ public class ClearCacheNodeRequest extends TransportRequest {
         this.footer = in.readBoolean();
         this.column = in.readBoolean();
         this.offset = in.readBoolean();
+        this.statistics = in.readBoolean();
     }
 
     @Override
@@ -40,6 +43,7 @@ public class ClearCacheNodeRequest extends TransportRequest {
         out.writeBoolean(footer);
         out.writeBoolean(column);
         out.writeBoolean(offset);
+        out.writeBoolean(statistics);
     }
 
     public boolean isFooter() {
@@ -54,7 +58,11 @@ public class ClearCacheNodeRequest extends TransportRequest {
         return offset;
     }
 
+    public boolean isStatistics() {
+        return statistics;
+    }
+
     public boolean isClearAll() {
-        return !footer && !column && !offset;
+        return !footer && !column && !offset && !statistics;
     }
 }

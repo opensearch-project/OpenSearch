@@ -218,7 +218,6 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .bloomFilterFpp(ParquetSettings.BLOOM_FILTER_FPP.get(settings))
             .bloomFilterNdv(ParquetSettings.BLOOM_FILTER_NDV.get(settings))
             .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
-            .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
             .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
             .rowGroupMaxBytes(ParquetSettings.ROW_GROUP_MAX_BYTES.get(settings).getBytes())
             .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
