@@ -383,7 +383,13 @@ public class PlannerImpl {
         // trimmer's stock handlers reject some valid shapes via IllegalArgumentException (e.g.
         // RelBuilder.sortLimit on a non-literal OFFSET) — fall back rather than fail the query.
         try {
-            return new RelFieldTrimmer(null, relBuilder).trim(input);
+            RelNode trimmed = new RelFieldTrimmer(null, relBuilder).trim(input);
+            // trim() asserts an identity ref-mapping at the root, so field count/order are preserved
+            // but names can drift (it drops alias-only top Projects, e.g. transpose's RENAME). Re-impose
+            // the original output names — same contract as Calcite's RelRoot.project()/RelBuilder.rename().
+            trimmed = relBuilder.push(trimmed).rename(input.getRowType().getFieldNames()).build();
+            RelNodeUtils.logPlan(LOGGER, "After field trimming", trimmed);
+            return trimmed;
         } catch (IllegalArgumentException e) {
             LOGGER.warn("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
             return input;
