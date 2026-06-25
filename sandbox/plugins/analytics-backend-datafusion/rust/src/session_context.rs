@@ -58,7 +58,7 @@ pub struct SessionContextHandle {
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
     /// IO runtime handle for bloom filter reads and other async I/O dispatched
-    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    /// from CPU executor threads.
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
