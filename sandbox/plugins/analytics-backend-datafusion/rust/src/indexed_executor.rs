@@ -262,12 +262,24 @@ fn collect_predicate_exprs(tree: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>
     }
 }
 
+/// Collect leaf predicate exprs from the extraction tree in a single traversal.
+fn collect_leaf_exprs(extraction: Option<&ExtractionResult>) -> Vec<Arc<dyn PhysicalExpr>> {
+    let Some(e) = extraction else { return vec![] };
+    let mut exprs = Vec::new();
+    collect_predicate_exprs(&e.tree, &mut exprs);
+    exprs
+}
+
 fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Vec<usize> {
     let Some(e) = extraction else { return vec![] };
     let mut exprs = Vec::new();
     collect_predicate_exprs(&e.tree, &mut exprs);
+    collect_predicate_column_indices_from_exprs(&exprs)
+}
+
+fn collect_predicate_column_indices_from_exprs(exprs: &[Arc<dyn PhysicalExpr>]) -> Vec<usize> {
     let mut indices = HashSet::new();
-    for expr in &exprs {
+    for expr in exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node.downcast_ref::<Column>() {
                 indices.insert(col.index());
@@ -325,6 +337,26 @@ fn collect_plan_column_names(plan: &datafusion::logical_expr::LogicalPlan) -> Ve
         Ok(TreeNodeRecursion::Continue)
     });
     names.into_iter().collect()
+}
+
+/// Build the `prune_tree_config` tuple from a BoolNode tree and schema.
+/// Builds per-leaf PruningPredicates from pre-collected leaf exprs.
+fn build_prune_tree_config(
+    tree: &Arc<BoolNode>,
+    schema: &SchemaRef,
+    leaf_exprs: &[Arc<dyn PhysicalExpr>],
+) -> Option<(Arc<BoolNode>, Arc<HashMap<usize, Arc<PruningPredicate>>>, SchemaRef)> {
+    let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
+        .iter()
+        .filter_map(|expr| {
+            build_pruning_predicate(expr, Arc::clone(schema))
+                .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+        })
+        .collect();
+    if leaf_predicates.is_empty() {
+        return None;
+    }
+    Some((Arc::clone(tree), Arc::new(leaf_predicates), Arc::clone(schema)))
 }
 
 /// For a tree classified as `SingleCollector`, walk it to find the single
@@ -955,23 +987,9 @@ async unsafe fn execute_indexed_with_context_inner(
         FilterClass::Tree => None,
     };
 
-    let mut prune_tree_config = extraction.as_ref().and_then(|e| {
-        let mut leaf_exprs: Vec<Arc<dyn PhysicalExpr>> = Vec::new();
-        collect_predicate_exprs(&e.tree, &mut leaf_exprs);
-        let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
-            .iter()
-            .filter_map(|expr| {
-                build_pruning_predicate(expr, schema.clone())
-                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
-            })
-            .collect();
-        if leaf_predicates.is_empty() {
-            return None;
-        }
-        Some((Arc::new(e.tree.clone()), Arc::new(leaf_predicates), schema.clone()))
-    });
+    let leaf_exprs = collect_leaf_exprs(extraction.as_ref());
 
-    let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
+    let predicate_columns = collect_predicate_column_indices_from_exprs(&leaf_exprs);
 
     // Augment each segment's footer-only metadata with a scoped page index so
     // the indexed PagePruner can page-prune. Both predicate (→ ColumnIndex) and
@@ -1007,7 +1025,7 @@ async unsafe fn execute_indexed_with_context_inner(
         }
     }
 
-    let factory: EvaluatorFactory = match classification {
+    let (factory, prune_tree_config): (EvaluatorFactory, _) = match classification {
         FilterClass::None => {
             // Predicate-only scan: page-pruned universe, residual applied in
             // on_batch_mask. Also covers an unfoldable constant (e.g. mktime('...') >
@@ -1015,6 +1033,9 @@ async unsafe fn execute_indexed_with_context_inner(
             // residual (pushdown is Exact, so DataFusion drops the FilterExec).
             // Previously errored here when emit_row_ids was false (indexed path only).
             let schema_for_pruner = schema.clone();
+            let prune_tree_config = extraction
+                .as_ref()
+                .and_then(|e| build_prune_tree_config(&e.tree, &schema_for_pruner, &leaf_exprs));
             let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction.as_ref().and_then(|e| {
                 residual_bool_to_physical_expr(&e.tree)
             });
@@ -1022,7 +1043,7 @@ async unsafe fn execute_indexed_with_context_inner(
                 .as_ref()
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
-            Arc::new(
+            (Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
@@ -1041,7 +1062,7 @@ async unsafe fn execute_indexed_with_context_inner(
                         ));
                     Ok(eval)
                 },
-            )
+            ), prune_tree_config)
         }
         FilterClass::SingleCollector => {
             let extraction = extraction.as_ref().ok_or_else(|| {
@@ -1050,6 +1071,7 @@ async unsafe fn execute_indexed_with_context_inner(
                 )
             })?;
             let schema_for_pruner = schema.clone();
+            let prune_tree_config = build_prune_tree_config(&extraction.tree, &schema_for_pruner, &leaf_exprs);
 
             // Correctness-delegated provider (eager). `None` when the query has only
             // performance-delegated leaves and no Collector at all.
@@ -1101,7 +1123,7 @@ async unsafe fn execute_indexed_with_context_inner(
             let call_strategy = CollectorCallStrategy::PageRangeSplit;
             let bloom_store = Arc::clone(&store);
             let bloom_schema = schema.clone();
-            Arc::new(
+            (Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
@@ -1160,7 +1182,7 @@ async unsafe fn execute_indexed_with_context_inner(
                         ));
                     Ok(eval)
                 },
-            )
+            ), prune_tree_config)
         }
         FilterClass::Tree => {
             let extraction = extraction.ok_or_else(|| {
@@ -1172,7 +1194,7 @@ async unsafe fn execute_indexed_with_context_inner(
             // same-kind connectives. Flatten after push_not_down so the
             // connective changes from De Morgan (e.g. NOT(AND(...)) -> OR(NOT...))
             // get absorbed into the surrounding Or if applicable.
-            let tree = extraction.tree.push_not_down().flatten();
+            let tree = Arc::try_unwrap(extraction.tree).unwrap().push_not_down().flatten();
             // One provider per Collector leaf (DFS order).
             let leaf_ids = tree.collector_leaves();
             let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
@@ -1211,13 +1233,13 @@ async unsafe fn execute_indexed_with_context_inner(
             // Build prune_tree_config from the normalized tree. This ensures
             // StatsPruneTree children indices align with ResolvedNode children
             // (same push_not_down + flatten normalization applied above).
-            prune_tree_config = if pruning_predicates.is_empty() {
+            let prune_tree_config = if pruning_predicates.is_empty() {
                 None
             } else {
                 Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema_for_pruner.clone()))
             };
 
-            Arc::new(
+            (Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     // Build one collector per Collector leaf for this chunk.
                     let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
@@ -1267,7 +1289,7 @@ async unsafe fn execute_indexed_with_context_inner(
                     });
                     Ok(eval)
                 },
-            )
+            ), prune_tree_config)
         }
     };
 
