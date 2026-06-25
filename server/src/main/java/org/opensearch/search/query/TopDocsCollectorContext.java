@@ -868,13 +868,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             // Filter-only query: all documents score 0.0 (BoostQuery^0.0).
             // No need to score — just collect first N doc-IDs and count total hits.
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return new FilterOnlyTopDocsCollectorContext(
-                reader,
-                query,
-                numDocs,
-                searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
-            );
+            return new FilterOnlyTopDocsCollectorContext(reader, query, numDocs, searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
@@ -961,13 +955,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         private final int numHits;
         private FilterOnlyCollector filterCollector;
 
-        FilterOnlyTopDocsCollectorContext(
-            IndexReader reader,
-            Query query,
-            int numHits,
-            int trackTotalHitsUpTo,
-            boolean hasFilterCollector
-        ) throws IOException {
+        FilterOnlyTopDocsCollectorContext(IndexReader reader, Query query, int numHits, int trackTotalHitsUpTo, boolean hasFilterCollector)
+            throws IOException {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.numHits = numHits;
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
@@ -1023,9 +1012,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int totalHitsCount = hitCount >= 0 ? hitCount : filterCollector.totalHits;
             TotalHits.Relation relation = (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE)
                 ? TotalHits.Relation.EQUAL_TO
-                : (totalHitsCount >= trackTotalHitsUpTo
-                    ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-                    : TotalHits.Relation.EQUAL_TO);
+                : (totalHitsCount >= trackTotalHitsUpTo ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO);
             ScoreDoc[] scoreDocs = filterCollector.collectedDocs.toArray(new ScoreDoc[0]);
             TopDocs topDocs = new TopDocs(new TotalHits(totalHitsCount, relation), scoreDocs);
             float maxScore = scoreDocs.length > 0 ? 0.0f : Float.NaN;
