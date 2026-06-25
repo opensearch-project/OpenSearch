@@ -1050,10 +1050,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 forceRefreshes.close();
 
                 boolean syncTranslog = (isRemoteTranslogEnabled() || this.isMigratingToRemote())
-                    && Durability.ASYNC == indexSettings.getTranslogDurability();
-                // Since all the index permits are acquired at this point, the translog buffer will not change.
-                // It is safe to perform sync of translogs now as this will ensure for remote-backed indexes, the
-                // translogs has been uploaded to the remote store.
+                    && (Durability.ASYNC == indexSettings.getTranslogDurability() || indexSettings.isPluggableDataFormatEnabled());
+                // Force a final, blocking translog upload to remote for ALL remote-backed indexes before draining
+                // uploads below. This must run for REQUEST durability too, not just ASYNC: with REQUEST the freshest
+                // acked ops may still be in the buffered upload path and not yet on remote. If we drained without
+                // this sync, the pending upload would hit the drained syncPermit, no-op (TLOG-SKIP), and those acked
+                // ops would never reach remote, silently lost on handoff since the target recovers from remote.
                 if (syncTranslog) {
                     maybeSync();
                 }
