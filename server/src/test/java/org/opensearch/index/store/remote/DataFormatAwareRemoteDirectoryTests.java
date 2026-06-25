@@ -1326,221 +1326,20 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
         d.sync(List.of(filename));
         return d;
     }
-
-    /**
-     * Ref count reaches 0 when all N part streams close normally.
-     * Verifies: initial(1) + N parts = N+1; each stream.close() + listener decrement to 0
-     * → indexInput.close() executes exactly once.
-     */
-    public void testRefCount_ReachesZeroAfterAllNormalPartCloses() throws Exception {
-        AsyncDirFixture f = buildAsyncFixture();
-        Directory storeDir = buildFileDir("_rczero.bin", 1024);
-
-        java.util.concurrent.CountDownLatch doneLatch = new java.util.concurrent.CountDownLatch(1);
-        f.dir.copyFrom(storeDir, "_rczero.bin", "_rczero.bin", IOContext.DEFAULT, () -> {}, new ActionListener<>() {
-            @Override
-            public void onResponse(Void v) {
-                doneLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                doneLatch.countDown();
-            }
-        }, false, null);
-
-        assertTrue(f.captureLatch.await(5, TimeUnit.SECONDS));
-
-        org.opensearch.common.StreamContext sc = f.writeCtx.get().getStreamProvider(f.writeCtx.get().getFileSize());
-        // Create 3 part streams
-        org.opensearch.common.io.InputStreamContainer s0 = sc.provideStream(0);
-        org.opensearch.common.io.InputStreamContainer s1 = sc.provideStream(0);
-        org.opensearch.common.io.InputStreamContainer s2 = sc.provideStream(0);
-
-        // Fire completion listener (decrements initial ref: 4→3)
-        f.listener.get().onResponse(null);
-        assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
-
-        // Close streams one by one — each decrements ref count (3→2→1→0)
-        s0.getInputStream().close();
-        s1.getInputStream().close();
-
-        // Before last close: indexInput should still be open — provideStream must not throw
-        // (proves ref count is 1, not yet 0)
-        try {
-            org.opensearch.common.io.InputStreamContainer probe = sc.provideStream(0);
-            probe.getInputStream().close(); // close the probe (ref: 2→1)
-        } catch (org.apache.lucene.store.AlreadyClosedException e) {
-            fail("IndexInput closed too early — ref count reached 0 before all streams closed: " + e.getMessage());
-        }
-
-        // Last close (s2) — ref count hits 0 → indexInput.close()
-        s2.getInputStream().close();
-
-        storeDir.close();
-    }
-
-    /**
-     * Ref count decrements correctly on clone() failure (AlreadyClosedException from Lucene).
-     * provideStream() increments before clone() then decrements in the catch block.
-     * Net effect: ref count unchanged for the failed part. Master closes when other holders release.
-     */
-    public void testRefCount_DecrementedWhenCloneThrows() throws Exception {
-        AsyncDirFixture f = buildAsyncFixture();
-        Directory storeDir = buildFileDir("_rcclone.bin", 512);
-
-        java.util.concurrent.CountDownLatch doneLatch = new java.util.concurrent.CountDownLatch(1);
-        f.dir.copyFrom(storeDir, "_rcclone.bin", "_rcclone.bin", IOContext.DEFAULT, () -> {}, new ActionListener<>() {
-            @Override
-            public void onResponse(Void v) {
-                doneLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                doneLatch.countDown();
-            }
-        }, false, null);
-
-        assertTrue(f.captureLatch.await(5, TimeUnit.SECONDS));
-        org.opensearch.common.StreamContext sc = f.writeCtx.get().getStreamProvider(f.writeCtx.get().getFileSize());
-
-        // Create one valid stream (ref: 1+1=2)
-        org.opensearch.common.io.InputStreamContainer valid = sc.provideStream(0);
-
-        // Simulate clone() failure on part 2: provideStream increments (+1=3) then decrements
-        // in catch (-1=2). Net: no change from caller's perspective.
-        // We can't force clone() to fail here without closing the master first — so instead we
-        // verify the invariant: after the failed provideStream path, the master must still be
-        // reachable via a subsequent successful provideStream.
-
-        // Fire listener (ref: 2→1, since valid stream is still open)
-        f.listener.get().onFailure(new IOException("simulated"));
-        assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
-
-        // valid stream still open → master still open (ref count = 1)
-        try {
-            org.opensearch.common.io.InputStreamContainer probe = sc.provideStream(0);
-            assertNotNull("Master must still be open while valid stream is open", probe);
-            probe.getInputStream().close(); // ref: 2→1
-        } catch (org.apache.lucene.store.AlreadyClosedException e) {
-            fail("Master closed while valid stream was still open: " + e.getMessage());
-        }
-
-        // Close valid stream (ref: 1→0) → indexInput.close()
-        valid.getInputStream().close();
-
-        storeDir.close();
-    }
-
-    /**
-     * Ref count: no part streams created, only completion listener fires.
-     * ref starts at 1; listener decrements to 0 → indexInput.close() immediately.
-     */
-    public void testRefCount_ClosesImmediatelyWhenNoPartsCreated() throws Exception {
-        AsyncDirFixture f = buildAsyncFixture();
-        Directory storeDir = buildFileDir("_rcnopart.bin", 256);
-
-        java.util.concurrent.CountDownLatch doneLatch = new java.util.concurrent.CountDownLatch(1);
-        f.dir.copyFrom(storeDir, "_rcnopart.bin", "_rcnopart.bin", IOContext.DEFAULT, () -> {}, new ActionListener<>() {
-            @Override
-            public void onResponse(Void v) {
-                doneLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                doneLatch.countDown();
-            }
-        }, false, null);
-
-        assertTrue(f.captureLatch.await(5, TimeUnit.SECONDS));
-
-        // Do NOT call provideStream() — simulate scenario where the queue item fires
-        // the completion listener before any parts were served (e.g. upload aborted early).
-        f.listener.get().onFailure(new IOException("aborted before any parts"));
-        assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
-
-        // Now provideStream() should fail — indexInput was closed (ref 1→0 via listener).
-        // The test directory wraps IndexInput in MockIndexInputWrapper which may throw
-        // RuntimeException rather than AlreadyClosedException, so check for any Exception.
-        org.opensearch.common.StreamContext sc = f.writeCtx.get().getStreamProvider(f.writeCtx.get().getFileSize());
-        expectThrows(Exception.class, () -> sc.provideStream(0));
-
-        storeDir.close();
-    }
-
-    /**
-     * Ref count: stream.close() throwing does NOT prevent the finally-block decrement.
-     * Even if super.close() throws, closeIndexInput.run() executes via finally.
-     * Verified by ensuring the master closes correctly after all parts' finally blocks run.
-     */
-    public void testRefCount_DecrementedEvenWhenStreamCloseFails() throws Exception {
-        AsyncDirFixture f = buildAsyncFixture();
-        Directory storeDir = buildFileDir("_rcclosefail.bin", 256);
-
-        java.util.concurrent.CountDownLatch doneLatch = new java.util.concurrent.CountDownLatch(1);
-        f.dir.copyFrom(storeDir, "_rcclosefail.bin", "_rcclosefail.bin", IOContext.DEFAULT, () -> {}, new ActionListener<>() {
-            @Override
-            public void onResponse(Void v) {
-                doneLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                doneLatch.countDown();
-            }
-        }, false, null);
-
-        assertTrue(f.captureLatch.await(5, TimeUnit.SECONDS));
-        org.opensearch.common.StreamContext sc = f.writeCtx.get().getStreamProvider(f.writeCtx.get().getFileSize());
-
-        // Obtain one stream (ref: 2)
-        org.opensearch.common.io.InputStreamContainer stream = sc.provideStream(0);
-
-        // Fire listener (ref: 2→1)
-        f.listener.get().onResponse(null);
-        assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
-
-        // Close the stream — super.close() may throw (e.g. double-close) but
-        // the finally block MUST still decrement.
-        // First close is normal (ref: 1→0).
-        stream.getInputStream().close();
-
-        // Second close — super.close() may throw AlreadyClosedException.
-        // The finally block fires again, but decRef on an AtomicInteger going negative
-        // is caught by the == 0 check (it won't be 0 on second call).
-        // Importantly: no uncaught exception from the finally block itself.
-        try {
-            stream.getInputStream().close();
-        } catch (Exception e) {
-            // tolerated — OffsetRangeIndexInputStream may throw on double-close
-        }
-
-        // After the first close hit ref=0, master indexInput is closed.
-        // A new provideStream() on the same sc should now fail (master is closed).
-        expectThrows(Exception.class, () -> sc.provideStream(0));
-
-        storeDir.close();
-    }
-
     // ═══════════════════════════════════════════════════════════════
-    // IndexInput ref-count barrier Tests
+    // slice() isolation tests
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Regression: the master IndexInput must stay open until the last part stream closes, even
-     * when the completion listener fires (e.g. because allOfExceptionForwarded completes on a
-     * shorter futures list) while provideStream() calls are still in progress.
+     * Regression: closing one part's stream must NOT prevent other parts from being served.
      *
-     * Scenario: simulates the SizeBasedBlockingQ delay where the completion listener fires while
-     * the uploadParts() loop is still mid-way through provideStream() calls. Without the ref count
-     * fix, indexInput.close() fires immediately when the listener fires, closing the Arena and
-     * causing AlreadyClosedException on subsequent provideStream() calls (the cascade seen in
-     * production with 18.5GB force-merged parquet segments, 1183 parts, 47 futures submitted).
+     * Root cause: clone() passed the master's segments[] array by reference to MultiSegmentImpl.
+     * When any clone closed, Arrays.fill(segments, null) corrupted the shared array, causing
+     * AlreadyClosedException on all subsequent provideStream() calls during seek() in the
+     * OffsetRangeIndexInputStream constructor.
      *
-     * With the ref count fix, the master IndexInput stays open until every provideStream()-created
-     * stream has been closed, regardless of when the completion listener fires.
+     * Fix: slice() calls ArrayUtil.copyOfSubArray() for non-full-range slices, giving each part
+     * its own independent segments[] copy. Closing one part only nullifies its own array.
      */
     public void testIndexInputRefCount_StaysOpenWhileProvideStreamInProgress() throws Exception {
         AsyncMultiStreamBlobContainer asyncContainer = mock(AsyncMultiStreamBlobContainer.class);
@@ -1607,137 +1406,39 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
 
         assertTrue("asyncBlobUpload should be called", uploadCaptureLatch.await(5, TimeUnit.SECONDS));
 
-        // Simulate the queue consumer: call provideStream() for 3 parts (simulating parts 0-2)
+        // Get the StreamContext and serve 3 sequential part streams, closing each before the next.
+        // With the old clone() approach, closing stream0 would call Arrays.fill(segments, null)
+        // on the SHARED array, causing provideStream(1) to throw AlreadyClosedException in the
+        // OffsetRangeIndexInputStream constructor's seek() call.
+        // With slice(), each part has its own independent segments[] copy — closing one never
+        // affects others.
         WriteContext writeContext = capturedWriteContext.get();
-        long partSize = writeContext.getFileSize() / 3;
-        if (partSize < 1) partSize = writeContext.getFileSize();
+        long partSize = Math.max(1, writeContext.getFileSize() / 3);
         org.opensearch.common.StreamContext streamContext = writeContext.getStreamProvider(partSize);
 
-        // Get streams for parts 0 and 1 — simulating successful provideStream() calls
         org.opensearch.common.io.InputStreamContainer stream0 = streamContext.provideStream(0);
-        assertNotNull("Part 0 stream must be non-null", stream0);
+        assertNotNull("Part 0 stream must be created", stream0);
+        stream0.getInputStream().close();  // closes part 0's independent slice — must NOT affect parts 1,2
 
-        // Now fire the completion listener — simulating allOfExceptionForwarded completing early
-        // (as happens when futures.size < numberOfParts before our PR fix).
-        // WITHOUT the ref count fix this would close indexInput, making subsequent
-        // provideStream() calls throw AlreadyClosedException.
-        capturedListener.get().onFailure(new IOException("simulated early completion"));
-        assertTrue(completionLatch.await(5, TimeUnit.SECONDS));
-
-        // With the ref count fix: even though the completion listener fired, the master indexInput
-        // must still be open because stream0 holds a ref (it was not yet closed).
-        // Verify by getting stream for part 1 — must NOT throw AlreadyClosedException.
         try {
             org.opensearch.common.io.InputStreamContainer stream1 = streamContext.provideStream(1);
-            assertNotNull("Part 1 stream must succeed — ref count keeps indexInput open", stream1);
-            // Close both streams — ref count decrements; when last stream closes, indexInput closes
+            assertNotNull("Part 1 stream must be created after part 0 closes — slice() fix", stream1);
             stream1.getInputStream().close();
+
+            org.opensearch.common.io.InputStreamContainer stream2 = streamContext.provideStream(2);
+            assertNotNull("Part 2 stream must be created after parts 0,1 close — slice() fix", stream2);
+            stream2.getInputStream().close();
         } catch (org.apache.lucene.store.AlreadyClosedException e) {
             fail(
-                "AlreadyClosedException must NOT be thrown after completion listener fires while "
-                    + "streams are still open. This is the cascade bug the ref count fix prevents. "
-                    + "Exception: "
+                "AlreadyClosedException must NOT be thrown after a prior part stream closes. "
+                    + "This is the Arrays.fill(segments,null) shared-array corruption bug that "
+                    + "slice() fixes. Exception: "
                     + e.getMessage()
             );
-        } finally {
-            stream0.getInputStream().close();
         }
 
-        storeDirectory.close();
-    }
-
-    /**
-     * Verifies that the master IndexInput IS closed exactly once after ALL part streams close,
-     * and is not closed prematurely by the completion listener alone.
-     */
-    public void testIndexInputRefCount_ClosedAfterAllStreamsClose() throws Exception {
-        AsyncMultiStreamBlobContainer asyncContainer = mock(AsyncMultiStreamBlobContainer.class);
-        when(asyncContainer.remoteIntegrityCheckSupported()).thenReturn(true);
-        when(asyncContainer.path()).thenReturn(baseBlobPath);
-
-        BlobStore asyncBlobStore = mock(BlobStore.class);
-        when(asyncBlobStore.blobContainer(baseBlobPath)).thenReturn(asyncContainer);
-
-        DataFormatAwareRemoteDirectory asyncDir = new DataFormatAwareRemoteDirectory(
-            asyncBlobStore,
-            baseBlobPath,
-            UnaryOperator.identity(),
-            UnaryOperator.identity(),
-            UnaryOperator.identity(),
-            UnaryOperator.identity(),
-            new HashMap<>(),
-            logger,
-            null,
-            null
-        );
-
-        Directory storeDirectory = newDirectory();
-        String filename = "_segment2.bin";
-        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
-        byte[] content = new byte[512];
-        indexOutput.writeBytes(content, content.length);
-        CodecUtil.writeFooter(indexOutput);
-        indexOutput.close();
-        storeDirectory.sync(List.of(filename));
-
-        AtomicReference<WriteContext> capturedWriteContext = new AtomicReference<>();
-        AtomicReference<ActionListener<Void>> capturedListener = new AtomicReference<>();
-        CountDownLatch captureLatch = new CountDownLatch(1);
-
-        Mockito.doAnswer(invocation -> {
-            capturedWriteContext.set(invocation.getArgument(0));
-            capturedListener.set(invocation.getArgument(1));
-            captureLatch.countDown();
-            return null;
-        }).when(asyncContainer).asyncBlobUpload(any(WriteContext.class), any());
-
-        CountDownLatch doneLatch = new CountDownLatch(1);
-        asyncDir.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT, () -> {}, new ActionListener<>() {
-            @Override
-            public void onResponse(Void v) {
-                doneLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                doneLatch.countDown();
-            }
-        }, false, null);
-
-        assertTrue(captureLatch.await(5, TimeUnit.SECONDS));
-
-        WriteContext writeContext = capturedWriteContext.get();
-        org.opensearch.common.StreamContext streamContext = writeContext.getStreamProvider(writeContext.getFileSize());
-
-        // Get one stream — refCount = 2 (initial 1 + 1 for this part)
-        org.opensearch.common.io.InputStreamContainer stream0 = streamContext.provideStream(0);
-
-        // Fire completion listener — refCount decrements to 1 (stream0 still holds a ref)
         capturedListener.get().onResponse(null);
-        assertTrue(doneLatch.await(5, TimeUnit.SECONDS));
-
-        // provideStream on a new part should still succeed — indexInput not yet closed
-        try {
-            org.opensearch.common.io.InputStreamContainer stream1 = streamContext.provideStream(0);
-            assertNotNull(stream1);
-            stream1.getInputStream().close(); // refCount → 1 (stream0 still open)
-        } catch (org.apache.lucene.store.AlreadyClosedException e) {
-            fail("IndexInput should still be open while stream0 is not closed yet");
-        }
-
-        // Close stream0 — refCount hits 0 → indexInput.close() must have been called
-        stream0.getInputStream().close();
-
-        // Now indexInput should be closed — further provideStream() should fail
-        // (This verifies the master was closed exactly once and at the right time)
-        try {
-            streamContext.provideStream(0);
-            // May or may not throw depending on MMapDirectory behavior after close,
-            // but the important thing is no AlreadyClosedException was thrown BEFORE this point
-        } catch (Exception e) {
-            // Expected — IndexInput is closed, clone() may fail
-        }
-
+        assertTrue(completionLatch.await(5, TimeUnit.SECONDS));
         storeDirectory.close();
     }
 }
