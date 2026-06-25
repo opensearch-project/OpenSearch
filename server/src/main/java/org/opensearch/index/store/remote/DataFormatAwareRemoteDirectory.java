@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 /**
@@ -385,13 +386,53 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             boolean remoteIntegrityEnabled = (targetContainer instanceof AsyncMultiStreamBlobContainer)
                 && ((AsyncMultiStreamBlobContainer) targetContainer).remoteIntegrityCheckSupported();
 
-            lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+            final boolean effectiveLowPriority = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+            lowPriorityUpload = effectiveLowPriority;
 
-            RemoteTransferContainer.OffsetRangeInputStreamSupplier supplier = lowPriorityUpload
-                ? (size, position) -> lowPriorityUploadRateLimiter.apply(
-                    new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
-                )
-                : (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(indexInput.clone(), size, position));
+            // Ref count governing indexInput's lifetime across the async SizeBasedBlockingQ delay.
+            //
+            // The master IndexInput (arena != null) must stay open until every part clone has
+            // finished its upload: closing the master calls arena.close(), which invalidates the
+            // MemorySegments backing all clones, causing AlreadyClosedException on the next access.
+            //
+            // Start at 1 (held by the completion listener). Each provideStream() call increments
+            // by 1; the corresponding OffsetRangeIndexInputStream.close() decrements. The
+            // completion listener's runAfter also decrements. When the count reaches 0 the master
+            // is closed exactly once.
+            final AtomicInteger indexInputRefCount = new AtomicInteger(1);
+            final Runnable closeIndexInput = () -> {
+                if (indexInputRefCount.decrementAndGet() == 0) {
+                    try {
+                        indexInput.close();
+                    } catch (IOException e) {
+                        logger.warn(() -> new ParameterizedMessage("Error closing IndexInput for file [{}]", src), e);
+                    }
+                }
+            };
+
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier supplier = (size, position) -> {
+                // Increment before clone so that the master cannot be closed between the incRef
+                // and the clone() call even if another thread races to decRef to 0.
+                indexInputRefCount.incrementAndGet();
+                try {
+                    IndexInput clone = indexInput.clone();
+                    OffsetRangeIndexInputStream stream = new OffsetRangeIndexInputStream(clone, size, position) {
+                        @Override
+                        public void close() throws IOException {
+                            try {
+                                super.close();  // closes the clone via OffsetRangeRefCount
+                            } finally {
+                                closeIndexInput.run();  // decRef master
+                            }
+                        }
+                    };
+                    return effectiveLowPriority ? lowPriorityUploadRateLimiter.apply(stream) : uploadRateLimiter.apply(stream);
+                } catch (Exception e) {
+                    // clone() failed — decRef immediately so the master can be released
+                    closeIndexInput.run();
+                    throw e;
+                }
+            };
 
             RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 src,
@@ -404,12 +445,18 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
                 remoteIntegrityEnabled
             );
 
+            // Pass closeIndexInput as the indexInput close action.
+            // createCompletionListener wraps it in runAfter — fires after remoteTransferContainer
+            // is closed (runBefore) and after the outer listener fires, so ordering is:
+            // 1. remoteTransferContainer.close() — sets readBlock, stops new reads
+            // 2. listener.onResponse/onFailure — notifies caller
+            // 3. closeIndexInput.run() — decrements master ref, closes if last holder
             ActionListener<Void> completionListener = createCompletionListener(
                 src,
                 postUploadRunner,
                 listener,
                 remoteTransferContainer,
-                indexInput
+                closeIndexInput
             );
 
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
@@ -496,7 +543,7 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
         Runnable postUploadRunner,
         ActionListener<Void> listener,
         RemoteTransferContainer remoteTransferContainer,
-        IndexInput indexInput
+        Runnable onClose
     ) {
         ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
             try {
@@ -530,13 +577,9 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             }
         });
 
-        completionListener = ActionListener.runAfter(completionListener, () -> {
-            try {
-                indexInput.close();
-            } catch (IOException e) {
-                logger.warn("Error closing IndexInput", e);
-            }
-        });
+        if (onClose != null) {
+            completionListener = ActionListener.runAfter(completionListener, onClose);
+        }
 
         return completionListener;
     }

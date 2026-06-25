@@ -393,14 +393,9 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         CompletableFuture<Void> result = asyncTransferManager.uploadObject(
             s3AsyncClient,
             buildUploadRequest(true, 3376132981L),
-            new StreamContext(
-                (partIdx, partSize, position) -> {
-                    throw new IOException("Already closed: MemorySegmentIndexInput(path=\"_merged_430d.parquet\")");
-                },
-                ByteSizeUnit.MB.toBytes(1),
-                ByteSizeUnit.MB.toBytes(1),
-                5
-            ),
+            new StreamContext((partIdx, partSize, position) -> {
+                throw new IOException("Already closed: MemorySegmentIndexInput(path=\"_merged_430d.parquet\")");
+            }, ByteSizeUnit.MB.toBytes(1), ByteSizeUnit.MB.toBytes(1), 5),
             new StatsMetricPublisher()
         );
 
