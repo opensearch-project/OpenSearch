@@ -518,6 +518,192 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         assertTrue(listener.inactive.isEmpty());
     }
 
+    public void testMetricsListenerNotFiredOnReconfigureFailure() {
+        Settings s = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(s);
+        ActionConcurrencyLimiterRegistry registry = newRegistry(s, cs);
+
+        RecordingMetricsListener listener = new RecordingMetricsListener();
+        registry.setMetricsListener(listener);
+        assertEquals(1, listener.active.size()); // initial replay
+
+        int activeCountBefore = listener.active.size();
+
+        // Change algorithm — this is a successful reconfigure, listener should fire
+        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.algorithm", "aimd").build());
+        assertEquals(activeCountBefore + 1, listener.active.size());
+    }
+
+    public void testLimitChangePreservesWarmupExpired() {
+        Settings s = Settings.builder()
+            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 1)
+            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 1)
+            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .build();
+        ClusterSettings cs = clusterSettings(s);
+        ActionConcurrencyLimiterRegistry registry = newRegistry(s, cs);
+
+        // Warmup is 0s so it's already expired — limiter should reject
+        Optional<Limiter.Listener> first = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(first.isPresent());
+        assertFalse("should reject after warmup expired", registry.tryAcquire("indices:data/read/search", null, null).isPresent());
+        first.get().onSuccess();
+
+        // Now change limit — this triggers reconfigure. Warmup should stay expired.
+        cs.applySettings(
+            Settings.builder()
+                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 2)
+                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 2)
+                .build()
+        );
+
+        // Fill up the new limit (2 slots)
+        Optional<Limiter.Listener> t1 = registry.tryAcquire("indices:data/read/search", null, null);
+        Optional<Limiter.Listener> t2 = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(t1.isPresent());
+        assertTrue(t2.isPresent());
+
+        // Third should be rejected (not pass-through via warmup restart)
+        assertFalse(
+            "warmup should not restart on limit change — should still reject",
+            registry.tryAcquire("indices:data/read/search", null, null).isPresent()
+        );
+
+        t1.get().onSuccess();
+        t2.get().onSuccess();
+    }
+
+    // -------------------------------------------------------------------------
+    // setting validation
+    // -------------------------------------------------------------------------
+
+    private static String rootCauseMessage(Throwable t) {
+        while (t.getCause() != null) {
+            t = t.getCause();
+        }
+        return t.getMessage();
+    }
+
+    public void testInvalidInitialLimitRejected() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        newRegistry(initial, cs);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 0).build()
+            )
+        );
+        assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("limit.initial must be >= 1"));
+    }
+
+    public void testMaxLimitBelowInitialRejected() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        newRegistry(initial, cs);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder()
+                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 50)
+                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 10)
+                    .build()
+            )
+        );
+        assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("limit.max"));
+    }
+
+    public void testInvalidVegasBaselineThresholdRejected() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        newRegistry(initial, cs);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder()
+                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.vegas.baseline_reset_load_threshold", 2.0)
+                    .build()
+            )
+        );
+        assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("baseline_reset_load_threshold must be in [0.0, 1.0]"));
+    }
+
+    public void testInvalidBurstCapacityRejected() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        newRegistry(initial, cs);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.burst.capacity", -1).build()
+            )
+        );
+        assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("burst.capacity must be >= 0"));
+    }
+
+    public void testInvalidAimdBackoffRatioRejected() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        newRegistry(initial, cs);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.aimd.backoff_ratio", 0.3).build()
+            )
+        );
+        assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("aimd.backoff_ratio must be in [0.5, 1.0)"));
+    }
+
+    public void testInvalidGradient2RttToleranceRejected() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        newRegistry(initial, cs);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.gradient2.rtt_tolerance", 0.5).build()
+            )
+        );
+        assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("gradient2.rtt_tolerance must be >= 1.0"));
+    }
+
+    public void testValidConfigAccepted() {
+        Settings initial = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(initial);
+        ActionConcurrencyLimiterRegistry registry = newRegistry(initial, cs);
+
+        // All valid values — should not throw
+        cs.applySettings(
+            Settings.builder()
+                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 10)
+                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 100)
+                .build()
+        );
+        cs.applySettings(
+            Settings.builder()
+                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.vegas.updrift_factor", 2)
+                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.vegas.baseline_reset_load_threshold", 0.8)
+                .build()
+        );
+        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.burst.capacity", 5).build());
+        cs.applySettings(
+            Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.aimd.backoff_ratio", 0.9).build()
+        );
+        cs.applySettings(
+            Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.gradient2.rtt_tolerance", 2.0).build()
+        );
+
+        assertTrue(registry.hasLimiterFor("indices:data/read/search"));
+    }
+
     // -------------------------------------------------------------------------
     // Removing config entirely
     // -------------------------------------------------------------------------
