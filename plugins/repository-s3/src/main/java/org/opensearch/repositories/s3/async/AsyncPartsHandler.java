@@ -116,6 +116,7 @@ public class AsyncPartsHandler {
                     semaphore
                 );
             } catch (Exception ex) {
+                futures.add(CompletableFuture.failedFuture(ex));
                 if (semaphore != null) {
                     semaphore.release();
                 }

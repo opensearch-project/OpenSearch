@@ -229,7 +229,12 @@ public final class AsyncTransferManager {
             return;
         }
 
-        CompletableFutureUtils.allOfExceptionForwarded(futures.toArray(CompletableFuture[]::new)).thenApply(resp -> {
+        CompletableFutureUtils.allOfExceptionForwarded(futures.toArray(CompletableFuture[]::new)).handle((resp, t) -> {
+            if (t != null) {
+                returnFuture.completeExceptionally(t);
+                AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
+                return null;
+            }
             try {
                 uploadRequest.getUploadFinalizer().accept(true);
             } catch (IOException e) {
