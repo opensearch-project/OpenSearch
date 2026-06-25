@@ -634,6 +634,54 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         assertEquals("both join levels are binary tiers below the gather", 2, binaryTiers);
     }
 
+    /**
+     * sf=10 q3 BLOCKER regression: a filtered scan feeding a join must stay a SHARD producer, not become a
+     * coordinator reduce. CBO gathers the scan (ER) under the filter; the pass peels that ER, and the filter
+     * (transparent, shard-local child) must RIDE on the shards — so the join's shuffle wraps
+     * {@code Shuffle(Filter(scan))} with NO ExchangeReducer between the filter and the scan. The bug: the
+     * filter was gathered (step 3b), producing {@code Shuffle(Filter(ER(scan)))} → DAGBuilder cut a
+     * coordinator ReduceStageExecution as the shuffle producer, which never ships → worker timeout.
+     */
+    public void testEnforcementPass_filteredScanJoinInputStaysShardProducer() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        // a_idx | where status > 5 | join on status = b.status b_idx
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode filterCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeLiteral(5, intType, false)
+        );
+        RelNode filtered = org.apache.calcite.rel.logical.LogicalFilter.create(aScan, filterCond);
+        int aCols = filtered.getRowType().getFieldCount();
+        RexNode joinCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, aCols)
+        );
+        RelNode logical = LogicalJoin.create(filtered, bScan, List.of(), joinCond, Set.of(), JoinRelType.INNER);
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+
+        // The filter feeding the join must sit DIRECTLY over the scan under its shuffle — no ER between them.
+        org.opensearch.analytics.planner.rel.OpenSearchFilter filter = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchFilter.class
+        ).stream().findFirst().orElseThrow(() -> new AssertionError("no filter in enforced plan"));
+        assertTrue(
+            "filtered-scan join input must stay shard-local: Filter directly over the scan (no gather ER between)",
+            unwrap(filter.getInput(0)) instanceof org.opensearch.analytics.planner.rel.OpenSearchTableScan
+        );
+        // And the filter is under a ShuffleExchange (the join shuffles it from the shards).
+        boolean filterUnderShuffle = findAll(enforced, OpenSearchShuffleExchange.class).stream()
+            .anyMatch(sh -> !findAll(sh, org.opensearch.analytics.planner.rel.OpenSearchFilter.class).isEmpty());
+        assertTrue("the filtered scan is shuffled (join hash-ships it from the shards)", filterUnderShuffle);
+    }
+
     /** Builds {@code Project(status, COUNT() OVER ())} over a 3-way INNER join — a global-window-frame
      *  RexOver above the join, which requires fully-gathered (SINGLETON) input. */
     private RelNode makeWindowOverThreeWayJoin(PlannerContext context) {
@@ -684,6 +732,41 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         assertTrue(
             "non-decomposable agg must GATHER its distributed-join input (ER), NOT ride per-partition on the worker",
             unwrap(agg.getInput(0)) instanceof OpenSearchExchangeReducer
+        );
+    }
+
+    /**
+     * sf=10 bucket-A BLOCKER regression: a JOIN whose input is a GATHERED sub-stage (a decorrelated
+     * subquery's aggregate — TPC-H q4 `exists`→SEMI, q22 `not exists`→ANTI, q2/q15 scalar subqueries) must
+     * NOT be distributed. {@code Join(Aggregate(Join(A,B)), C)} — the top join's left input is an aggregate
+     * over a join, which the pass gathers to COORDINATOR+SINGLETON (a ReduceStageExecution at DAG time). A
+     * reduce stage emits to its parent sink and CANNOT ship a hash shuffle, so distributing the top join
+     * would leave its worker awaiting a producer that never fires (`ShuffleScanHandler timed out`). The
+     * shippable-producer gate (step 3d) must keep the TOP join coord-centric: its inputs are NOT shuffled.
+     * (The inner A⋈B join is shard-local on both sides, so it may still distribute — that's fine.)
+     */
+    public void testEnforcementPass_joinOverGatheredAggregateStaysCoordCentric() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode logical = makeJoinOverAggregateOverJoin(context); // Join(Aggregate(Join(A,B)), C)
+        RelNode cbo = runPlanner(logical, context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+
+        // The TOP join (the one whose left input is the aggregate) must have NEITHER input shuffled — it
+        // gathers and runs coord-centric. Identify it as the join that contains the OpenSearchAggregate.
+        OpenSearchJoin topJoin = findAll(enforced, OpenSearchJoin.class).stream()
+            .filter(j -> !findAll(j, org.opensearch.analytics.planner.rel.OpenSearchAggregate.class).isEmpty())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no join-over-aggregate found"));
+        assertFalse(
+            "top join's left input (the gathered aggregate sub-stage) must NOT be shuffled",
+            unwrap(topJoin.getInput(0)) instanceof OpenSearchShuffleExchange
+        );
+        assertFalse(
+            "top join's right input must NOT be shuffled either (join stays coord-centric when a producer can't ship)",
+            unwrap(topJoin.getInput(1)) instanceof OpenSearchShuffleExchange
         );
     }
 

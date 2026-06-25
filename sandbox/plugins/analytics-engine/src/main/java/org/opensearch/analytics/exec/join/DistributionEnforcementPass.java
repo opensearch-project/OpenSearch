@@ -178,10 +178,20 @@ public final class DistributionEnforcementPass {
         // aggregates were already handled by step 3c above (PARTIAL/FINAL split); a non-decomposable one must
         // fall through to step 3b's gather → coordinator-centric SINGLE aggregate (correct). (codex re-review
         // BLOCKER: step 3a rode non-decomposable aggregates on workers.)
+        // The transparent op rides its child's distribution when the child is either (a) already
+        // WORKER+HASH distributed (a lower join/cascade — keep the cascade going), OR (b) SHARD-LOCAL (a
+        // scan or shard-local filter/project). Case (b) is the q3 fix (found on sf=10): a
+        // `customer | where mktsegment='BUILDING'` filter feeds a join. CBO gathered the scan (ER) under the
+        // filter; the pass peels that ER so the filter's child is the SHARD scan. The filter must STAY
+        // shard-local (propagate SHARD+RANDOM) so the parent join's forceShuffle wraps `Shuffle(Filter(scan))`
+        // and DAGBuilder cuts a SHARD-FRAGMENT producer that hash-ships from the shards — exactly the legacy
+        // path. If instead we gathered the filter here (step 3b), DAGBuilder would cut a coordinator
+        // ReduceStageExecution as the producer, which runs the reduce but never ships a shuffle → the worker
+        // awaits a producer that never fires → `ShuffleScanHandler timed out for input-N`.
         boolean rowTransparent = n instanceof OpenSearchProject || n instanceof OpenSearchFilter;
         if (rowTransparent
             && n.getInputs().size() == 1
-            && isPartitioned(childDists.get(0))
+            && (isPartitioned(childDists.get(0)) || isShardLocal(childDists.get(0)))
             && aware.requiredInputDistribution(0, partitionCount, traitDef) == null) {
             RelNode rebuilt = copyWithInputs(n, childContents);
             return new Visited(rebuilt, childDists.get(0));
@@ -209,6 +219,37 @@ public final class DistributionEnforcementPass {
             }
             RelNode rebuilt = copyWithInputs(n, regathered);
             return new Visited(rebuilt, traitDef.coordSingleton());
+        }
+
+        // 3d. Shippable-producer gate for a JOIN tier boundary. Distributing a join shuffles BOTH its
+        // inputs into binary shuffle PRODUCER stages. A producer can only SHIP a hash shuffle if its
+        // content runs as a SHARD_FRAGMENT (shard-local scan/filter/project chain) or is itself an
+        // already-distributed WORKER tier — those execute a leaf fragment and ship partitions. A join
+        // input whose tracked distribution is COORDINATOR+SINGLETON is a GATHERED sub-stage (a
+        // decorrelated subquery's aggregate — TPC-H q4 `exists`→SEMI, q22 `not exists`→ANTI, q2/q15
+        // scalar subqueries): DAGBuilder cuts it as a ReduceStageExecution, which emits to its parent
+        // sink and CANNOT ship a shuffle → the worker awaits a producer that never fires
+        // (`ShuffleScanHandler timed out for input-N`). The general dispatch does not yet drive a
+        // "reduce-then-shuffle" producer, so if EITHER join input is non-shippable we do NOT distribute
+        // this join — gather both inputs and run it coordinator-centric (correct, the legacy fallback).
+        // The "only distribute what dispatch can run" discipline. (sf=10 bucket A.)
+        if (n instanceof OpenSearchJoin) {
+            boolean allInputsShippable = true;
+            for (OpenSearchDistribution cd : childDists) {
+                if (!isPartitioned(cd) && !isShardLocal(cd)) {
+                    allInputsShippable = false;
+                    break;
+                }
+            }
+            if (!allInputsShippable) {
+                List<RelNode> regathered = new ArrayList<>(childContents.size());
+                for (int i = 0; i < childContents.size(); i++) {
+                    regathered.add(gatherIfNeeded(childContents.get(i), childDists.get(i)));
+                }
+                RelNode rebuilt = copyWithInputs(n, regathered);
+                LOGGER.debug("enforce: join {} has a non-shippable (gathered sub-stage) input → coord-centric", n.getRelTypeName());
+                return new Visited(rebuilt, traitDef.coordSingleton());
+            }
         }
 
         // 3c. SINGLE decomposable aggregate — Variant A (NO group-key shuffle), mirroring the legacy
@@ -432,6 +473,16 @@ public final class DistributionEnforcementPass {
         }
         return dist.getType() == org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED
             && dist.getLocality() == OpenSearchDistribution.Locality.WORKER;
+    }
+
+    /**
+     * True iff {@code dist} is SHARD-resident (a table scan or shard-local filter/project output, before any
+     * exchange). A transparent op over a shard-local child rides on the shards (stays shard-local) rather
+     * than gathering — so a parent join can hash-ship it from the shards via a SHARD-FRAGMENT producer. (The
+     * q3 fix: a filtered scan feeding a join must remain a shard producer, not become a coordinator reduce.)
+     */
+    private static boolean isShardLocal(OpenSearchDistribution dist) {
+        return dist != null && dist.getLocality() == OpenSearchDistribution.Locality.SHARD;
     }
 
     /** Largest {@link OpenSearchTableScan} row count in {@code node}'s subtree (0 when no scan / unknown). */
