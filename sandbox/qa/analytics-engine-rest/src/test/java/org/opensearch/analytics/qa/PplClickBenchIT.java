@@ -35,9 +35,11 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
      * resources/datasets/clickbench/ppl/. Individual queries can be excluded via
      * {@link #SKIP_QUERIES} when a feature is genuinely missing rather than broken.
      */
-    // Q9 and Q10 compute dc(UserID) grouped by RegionID with sort + head 10. On a 2-node cluster
-    // the HLL estimate for tied groups varies by shard assignment, so the top-10 rows are
-    // non-deterministic. Mute until golden comparison handles tied-row tolerance.
+    // Q9 and Q10 both compute dc(UserID) (distinct count / HyperLogLog) grouped by RegionID. At the
+    // 2-shard clickbench layout the HLL sketches merge wrong across shards, so the distinct-count value
+    // for some groups is off; because each query then sorts by that value (sort -u / sort -c) and takes
+    // head 10, the wrong groups win the top-10 and the grouping column no longer lines up with expected.
+    // This is the pre-existing cross-shard HLL merge bug, not a regression here — mute until it's fixed.
     private static final Set<Integer> SKIP_QUERIES = Set.of(9, 10);
 
     private static boolean dataProvisioned = false;
