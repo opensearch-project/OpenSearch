@@ -313,6 +313,26 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
     ) throws IOException {
         final DataStream dataStream = validateDataStream(builder, dataStreamName);
+
+        // an index whose name matches this data stream's backing-index naming pattern with a generation counter greater than
+        // the stream's current generation cannot be added: it would collide with a future backing index produced by a rollover
+        // and make the metadata invalid (Metadata.Builder.validateDataStreams would later throw IllegalStateException -> HTTP 500)
+        final String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-";
+        if (indexName.startsWith(backingIndexPrefix)
+            && Metadata.NUMBER_PATTERN.matcher(indexName.substring(backingIndexPrefix.length())).matches()
+            && IndexMetadata.parseIndexNameCounter(indexName) > dataStream.getGeneration()) {
+            throw new IllegalArgumentException(
+                "cannot add index ["
+                    + indexName
+                    + "] to data stream ["
+                    + dataStreamName
+                    + "] because its name conflicts with a future backing index of the data stream "
+                    + "(current generation ["
+                    + dataStream.getGeneration()
+                    + "])"
+            );
+        }
+
         final IndexMetadata index = validateIndex(builder, indexName);
 
         // an index that is already a backing index of this data stream cannot be added again

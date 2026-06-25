@@ -248,6 +248,20 @@ public class ModifyDataStreamsActionTests extends org.opensearch.test.OpenSearch
         assertThat(e.getMessage(), containsString("is already a backing index of data stream [other-data-stream]"));
     }
 
+    public void testAddIndexWithGenerationConflictNameFails() {
+        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(DATA_STREAM, 2)), List.of());
+        // an index whose name matches the backing-index naming pattern but with a counter greater than the stream's
+        // current generation would collide with a future rollover-created backing index; the request must be rejected with a
+        // 400 (IllegalArgumentException) up front rather than failing the cluster state build with a 500 (IllegalStateException)
+        String conflictingName = DataStream.getDefaultBackingIndexName(DATA_STREAM, 99);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> modify(cs, List.of(DataStreamAction.addBackingIndex(DATA_STREAM, conflictingName)))
+        );
+        assertThat(e.getMessage(), containsString("conflicts with a future backing index"));
+    }
+
     public void testMultipleActionsAppliedAtomically() {
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(DATA_STREAM, 3)), List.of("standalone-index"));
         String indexToRemove = DataStream.getDefaultBackingIndexName(DATA_STREAM, 1);
