@@ -162,7 +162,6 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
 
     @Override
     protected ShardStarTreeUpgradeResult shardOperation(StarTreeUpgradeRequest request, ShardRouting shardRouting) throws IOException {
-        logger.info("[CODEC_CHECK] shardOperation START for {}", shardRouting.shardId());
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
 
         // Verify mapping is available on this node before proceeding
@@ -185,18 +184,6 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
 
         // Post-upgrade flush to clear pending translog recovery state from engine swap.
         indexShard.flush(new FlushRequest().force(false).waitIfOngoing(true));
-
-        // [CODEC_CHECK] Log the codec of each segment after upgrade + flush
-        try {
-            org.apache.lucene.index.SegmentInfos infos = org.apache.lucene.index.SegmentInfos.readLatestCommit(
-                indexShard.store().directory()
-            );
-            for (org.apache.lucene.index.SegmentCommitInfo ci : infos) {
-                logger.info("[CODEC_CHECK] segment={} codec={} maxDoc={}", ci.info.name, ci.info.getCodec().getName(), ci.info.maxDoc());
-            }
-        } catch (Exception e) {
-            logger.warn("[CODEC_CHECK] ERROR reading segment infos", e);
-        }
 
         return new ShardStarTreeUpgradeResult(shardRouting.shardId(), shardRouting.primary());
     }

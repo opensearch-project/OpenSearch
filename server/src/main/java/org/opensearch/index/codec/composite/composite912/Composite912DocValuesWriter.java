@@ -166,10 +166,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
 
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        // Log all numeric fields during merge to debug __soft_deletes
-        if (mergeState.get() != null) {
-            System.out.println("[STAR_TREE_MERGE_DEBUG] addNumericField called: " + field.name);
-        }
         // Eagerly build live docs bitset from __soft_deletes BEFORE delegate consumes the iterator.
         // The producer is a one-shot anonymous class from Lucene's merge machinery —
         // once delegate.addNumericField() consumes it, getNumeric() returns an exhausted iterator.
@@ -191,15 +187,9 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                     if (liveBits.cardinality() < mergedMaxDoc) {
                         mergedLiveDocsBitset = liveBits;
                     }
-                    System.out.println("[STAR_TREE_MERGE_DEBUG] __soft_deletes captured: mergedMaxDoc=" + mergedMaxDoc
-                        + " softDelCount=" + softDelCount + " liveCount=" + liveBits.cardinality()
-                        + " bitsetSet=" + (mergedLiveDocsBitset != null));
-                } else {
-                    System.out.println("[STAR_TREE_MERGE_DEBUG] __soft_deletes: softDelDV=" + (softDelDV != null)
-                        + " mergedMaxDoc=" + mergedMaxDoc);
                 }
             } catch (IOException e) {
-                System.out.println("[STAR_TREE_MERGE_DEBUG] __soft_deletes IOException: " + e.getMessage());
+                // soft deletes capture failed; proceed without live docs filtering
             }
         }
 
@@ -357,19 +347,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     @Override
     public void merge(MergeState mergeState) throws IOException {
         this.mergeState.compareAndSet(null, mergeState);
-        try {
-            java.nio.file.Files.writeString(java.nio.file.Path.of("/tmp/merge_debug.log"),
-                "[MERGE_DEBUG] merge() called maxDoc=" + mergeState.segmentInfo.maxDoc()
-                + " producers=" + mergeState.docValuesProducers.length + "\n",
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-        } catch (Exception ignored) {}
         super.merge(mergeState);
-        try {
-            java.nio.file.Files.writeString(java.nio.file.Path.of("/tmp/merge_debug.log"),
-                "[MERGE_DEBUG] after super.merge: mergedFieldProducerMap.size=" + mergedFieldProducerMap.size()
-                + " mergedLiveDocsBitset=" + (mergedLiveDocsBitset != null ? "card=" + mergedLiveDocsBitset.cardinality() : "null") + "\n",
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-        } catch (Exception ignored) {}
         mergeCompositeFields(mergeState);
     }
 
@@ -389,16 +367,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
      */
     private void mergeStarTreeFields(MergeState mergeState) throws IOException {
         Map<String, List<StarTreeValues>> starTreeSubsPerField = new HashMap<>();
-        try {
-            StringBuilder sb = new StringBuilder("[MERGE_DEBUG] mergeStarTreeFields: " + mergeState.docValuesProducers.length + " producers\n");
-            for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-                sb.append("  source[").append(i).append("] class=")
-                    .append(mergeState.docValuesProducers[i] == null ? "null" : mergeState.docValuesProducers[i].getClass().getName())
-                    .append(" isComposite=").append(mergeState.docValuesProducers[i] instanceof CompositeIndexReader).append("\n");
-            }
-            java.nio.file.Files.writeString(java.nio.file.Path.of("/tmp/merge_debug.log"), sb.toString(),
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-        } catch (Exception ignored) {}
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             CompositeIndexReader reader = null;
             if (mergeState.docValuesProducers[i] == null) {
@@ -481,9 +449,6 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             if (hasAllCompositeFields) {
                 Map<String, DocValuesProducer> fieldProducerMapForMerge = buildFieldProducerMapFromMergeState(mergeState);
                 FixedBitSet mergedLiveDocs = mergedLiveDocsBitset;
-                System.out.println("[STAR_TREE_MERGE_DEBUG] mergeStarTreeFields fallback: mergedLiveDocs="
-                    + (mergedLiveDocs != null ? "cardinality=" + mergedLiveDocs.cardinality() : "null")
-                    + " fieldCount=" + fieldProducerMapForMerge.size());
                 Map<String, DocValuesProducer> buildProducerMap;
                 if (mergedLiveDocs != null) {
                     buildProducerMap = new HashMap<>();
