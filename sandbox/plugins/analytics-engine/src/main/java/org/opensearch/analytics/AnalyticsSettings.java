@@ -155,16 +155,19 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Per-strategy sub-toggle for hash-shuffle <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
-     * strategy emitted by {@code OpenSearchAggregateShuffleSplitRule}: PARTIAL on shards →
-     * hash-shuffle on group keys → FINAL on data-node workers in parallel).
+     * Per-strategy sub-toggle for distributed <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
+     * strategy): a decomposable {@code GROUP BY} over a distributed join is split PARTIAL (on the join's
+     * worker tier, per-partition) + FINAL (gathered to the coordinator) by the general post-CBO pass
+     * {@code DistributionEnforcementPass}, instead of gathering the whole join output and aggregating
+     * serially on the coordinator.
      *
      * <p>Gated under {@link #MPP_ENABLED}: this only has effect when MPP is on. When {@code true}
-     * (default — preserves current behavior), eligible {@code GROUP BY} aggregates may run the
-     * parallel worker-tier shuffle. When {@code false}, the shuffle-aggregate split rule stays out
-     * and aggregates route through the coordinator-centric PARTIAL+gather+FINAL path instead —
-     * exactly as if MPP were off, but scoped to aggregation only (joins still use MPP). Useful as a
-     * targeted kill switch when an agg-shuffle-specific issue is seen, without disabling MPP joins.
+     * (default — preserves current behavior), eligible aggregates over a distributed join run the
+     * PARTIAL-on-worker / FINAL-on-coordinator split. When {@code false}, the enforcement pass does NOT
+     * split the aggregate: it gathers the (possibly distributed) child and runs the SINGLE aggregate
+     * coordinator-centric — exactly as if MPP were off, but scoped to aggregation only. Distributed JOINS
+     * are unaffected (a join below the aggregate still runs on its worker tier). Useful as a targeted kill
+     * switch when an agg-specific issue is seen, without disabling MPP joins.
      */
     public static final Setting<Boolean> MPP_SHUFFLE_AGGREGATE_ENABLED = Setting.boolSetting(
         "analytics.mpp.shuffle.aggregate.enabled",

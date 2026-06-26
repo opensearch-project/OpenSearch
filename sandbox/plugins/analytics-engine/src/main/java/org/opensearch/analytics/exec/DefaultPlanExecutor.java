@@ -415,7 +415,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 plan,
                 plannerContext.getDistributionTraitDef(),
                 shufflePartitions,
-                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings)
+                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
+                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings)
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;

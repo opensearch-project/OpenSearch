@@ -103,7 +103,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
-            /* minRows */ 1L
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true
         );
 
         // Binary-tier lowering: BOTH joins sit over two ShuffleExchange inputs (no N-ary collapse).
@@ -139,7 +140,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
-            /* minRows */ 1L
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true
         );
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
@@ -164,6 +166,50 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
+     * Per-strategy sub-toggle ({@code analytics.mpp.shuffle.aggregate.enabled=false}): the SAME
+     * agg-over-3-way shape as {@link #testEnforcementPass_aggOverThreeWayJoinSplitsAndCascades}, but with
+     * the aggregate sub-toggle OFF. The pass must NOT split the aggregate (no PARTIAL/FINAL) — it stays a
+     * single SINGLE aggregate on the coordinator over a gather — while the JOIN cascade below is unaffected
+     * and still distributes. Guards the "disable distributed aggregation, keep MPP joins" contract.
+     */
+    public void testEnforcementPass_aggSubToggleOffKeepsAggCoordCentricButJoinsDistribute() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ false
+        );
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        long partials = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL).count();
+        long finals = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.FINAL).count();
+        long singles = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.SINGLE).count();
+        assertEquals("sub-toggle off: NO PARTIAL aggregate (no split)", 0, partials);
+        assertEquals("sub-toggle off: NO FINAL aggregate (no split)", 0, finals);
+        assertEquals("sub-toggle off: the SINGLE aggregate stays whole on the coordinator", 1, singles);
+
+        // The JOIN cascade below is still distributed — only the aggregate split is suppressed.
+        List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
+        assertEquals("two joins in the 3-way cascade", 2, joins.size());
+        long binaryTierJoins = joins.stream()
+            .filter(
+                j -> unwrap(j.getInput(0)) instanceof OpenSearchShuffleExchange
+                    && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
+            )
+            .count();
+        assertEquals("joins still distribute when only the agg sub-toggle is off", 2, binaryTierJoins);
+    }
+
+    /**
      * Option B coverage the rewriters CANNOT do (1): a LEFT-outer 3-way join. The current cascade is
      * INNER-only; the enforcement pass co-partitions outer joins too (null-fill is partition-local for a
      * hash-partitioned outer join). Asserts the cascade still forms over a LEFT top join.
@@ -178,7 +224,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
-            /* minRows */ 1L
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true
         );
 
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
@@ -211,7 +258,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
-            /* minRows */ 1L
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true
         );
 
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
@@ -244,7 +292,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
-            /* minRows */ 1_000_000L
+            /* minRows */ 1_000_000L,
+            /* shuffleAggregateEnabled */ true
         );
 
         assertTrue("no shuffle for a join below the row floor", findAll(enforced, OpenSearchShuffleExchange.class).isEmpty());
@@ -333,6 +382,184 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             "the root aggregate is the FINAL",
             org.opensearch.analytics.planner.rel.AggregateMode.FINAL,
             rootAggs.get(0).getMode()
+        );
+    }
+
+    /**
+     * Aggregate-decomposition regression (ported from the deleted {@code DistributedAggOverJoinTests}): a
+     * {@code COUNT() by g} over a distributed join must split so the PARTIAL keeps COUNT but the FINAL
+     * re-merges via SUM over the partial-count state column. COUNT is NOT its own reducer — running COUNT on
+     * the coordinator over already-counted partial rows would count ROWS, not sum the partials, double/under-
+     * counting across partitions. The split rule pre-decomposes via {@code FinalAggCallBuilder.buildFinalCalls},
+     * which {@code DistributionEnforcementPass.splitAggregate} reuses; this asserts the decomposition survives
+     * into the enforced plan.
+     */
+    public void testEnforcementPass_aggOverJoinDecomposesCountToSumOnFinal() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context); // COUNT() by col0
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggOfMode(
+            enforced,
+            org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate finalAgg = aggOfMode(
+            enforced,
+            org.opensearch.analytics.planner.rel.AggregateMode.FINAL
+        );
+        assertNotNull("a decomposable agg over a distributed join must split (PARTIAL present)", partial);
+        assertNotNull("a decomposable agg over a distributed join must split (FINAL present)", finalAgg);
+
+        assertEquals(
+            "PARTIAL keeps COUNT",
+            "COUNT",
+            partial.getAggCallList().get(0).getAggregation().getName().toUpperCase(java.util.Locale.ROOT)
+        );
+        assertEquals(
+            "FINAL re-merges COUNT via SUM (FinalAggCallBuilder swap — else cross-partition counts are wrong)",
+            "SUM",
+            finalAgg.getAggCallList().get(0).getAggregation().getName().toUpperCase(java.util.Locale.ROOT)
+        );
+        int groupCount = finalAgg.getGroupSet().cardinality();
+        assertEquals(
+            "FINAL arg rebased to the partial-state column (groupCount + 0), not the original input ordinal",
+            groupCount,
+            (int) finalAgg.getAggCallList().get(0).getArgList().get(0)
+        );
+    }
+
+    /**
+     * SUM is its own reducer: PARTIAL and FINAL are both SUM, but FINAL's arg must still be rebased to the
+     * partial-state column (groupCount + 0), not the original input ordinal. Ported from
+     * {@code DistributedAggOverJoinTests#testDistributedAggOverJoin_sumPreservedThroughSplit}.
+     */
+    public void testEnforcementPass_aggOverJoinSumRebasedThroughSplit() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeSumByGroupOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggOfMode(
+            enforced,
+            org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate finalAgg = aggOfMode(
+            enforced,
+            org.opensearch.analytics.planner.rel.AggregateMode.FINAL
+        );
+        assertNotNull("SUM by g over a distributed join must split", partial);
+        assertNotNull("SUM by g over a distributed join must split", finalAgg);
+        assertEquals("PARTIAL SUM", "SUM", partial.getAggCallList().get(0).getAggregation().getName().toUpperCase(java.util.Locale.ROOT));
+        assertEquals(
+            "FINAL re-merges SUM via SUM",
+            "SUM",
+            finalAgg.getAggCallList().get(0).getAggregation().getName().toUpperCase(java.util.Locale.ROOT)
+        );
+        int groupCount = finalAgg.getGroupSet().cardinality();
+        assertEquals(
+            "FINAL SUM arg rebased to the partial-state column",
+            groupCount,
+            (int) finalAgg.getAggCallList().get(0).getArgList().get(0)
+        );
+    }
+
+    /**
+     * Empty-group aggregate over a large join must STILL distribute (the TPC-H q2/q11 scalar-subquery shape:
+     * {@code stats sum(x)} with NO {@code by}). The aggregate OUTPUT is one row, but the JOIN OUTPUT feeding
+     * it is huge — gathering the whole join to the coordinator before the SINGLE aggregate runs is the OOM
+     * surface. So the pass must split: PARTIAL on the worker (per-partition), FINAL on the coordinator. Ported
+     * from {@code DistributedAggOverJoinTests#testEmptyGroupAggregateOverJoin_distributes}.
+     */
+    public void testEnforcementPass_emptyGroupAggOverJoinDistributes() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeEmptyGroupSumOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggOfMode(
+            enforced,
+            org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate finalAgg = aggOfMode(
+            enforced,
+            org.opensearch.analytics.planner.rel.AggregateMode.FINAL
+        );
+        assertNotNull(
+            "empty-group SUM over a large join must distribute (the join-output gather is what OOMs, not the "
+                + "one-row aggregate output)",
+            partial
+        );
+        assertNotNull("empty-group SUM over a large join must produce a FINAL on the coordinator", finalAgg);
+        assertTrue("PARTIAL keeps the empty group set", partial.getGroupSet().isEmpty());
+        // Storage-completeness invariant for the empty-group FINAL (possibly wrapped in a cast Project).
+        assertStorageComplete("empty-group enforced plan", enforced);
+    }
+
+    /**
+     * Storage-completeness regression (the sf=10 q5/q10 "RexInputRef[N] has no matching FieldStorageInfo
+     * entry" crash): every {@link org.opensearch.analytics.planner.rel.OpenSearchRelNode} in the enforced
+     * agg-over-join plan must report one {@code FieldStorageInfo} per output column. The original bug was a
+     * leaf returning {@code List.of()} that truncated the storage union, throwing at fragment conversion.
+     * Shape assertions miss this — only a per-node {@code getOutputFieldStorage().size() == fieldCount} check
+     * catches it. Ported from {@code DistributedAggOverJoinTests#…everyNodeReportsCompleteFieldStorage}.
+     */
+    public void testEnforcementPass_aggOverJoinEveryNodeReportsCompleteFieldStorage() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeSumByGroupOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        assertStorageComplete("enforced agg-over-join plan", enforced);
+    }
+
+    /**
+     * A global Sort above the aggregate is a coordinator post-aggregate op: it must stay on the coordinator
+     * (above the rebuilt FINAL), NOT ride on the worker per-partition (sorting per partition then merging is
+     * wrong for a global sort). Asserts PARTIAL on the worker tier and the Sort on the coordinator root.
+     * Ported from {@code DistributedAggOverJoinTests#…sortAboveAggregateReplayedOnCoordinator}.
+     */
+    public void testGeneralShuffle_sortAboveAggOverJoinStaysOnCoordinator() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeSortedSumByGroupOverThreeWayJoin(context), context);
+        List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
+        assertFalse("the sorted agg-over-join must still distribute", levels.isEmpty());
+
+        ShuffleEnrichment.WorkerLevel top = levels.get(levels.size() - 1);
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> workerAggs = findAll(
+            top.worker().getFragment(),
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        assertEquals("top worker carries the PARTIAL", 1, workerAggs.size());
+        assertEquals(
+            "worker aggregate is PARTIAL",
+            org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL,
+            workerAggs.get(0).getMode()
+        );
+        assertTrue(
+            "no Sort on the worker (per-partition sort + merge would be wrong for a global sort)",
+            findAll(top.worker().getFragment(), org.opensearch.analytics.planner.rel.OpenSearchSort.class).isEmpty()
+        );
+
+        Stage root = structure.dag().rootStage();
+        assertFalse(
+            "the global Sort must stay on the coordinator (above FINAL)",
+            findAll(root.getFragment(), org.opensearch.analytics.planner.rel.OpenSearchSort.class).isEmpty()
+        );
+        assertEquals(
+            "coordinator carries the FINAL",
+            org.opensearch.analytics.planner.rel.AggregateMode.FINAL,
+            aggOfMode(root.getFragment(), org.opensearch.analytics.planner.rel.AggregateMode.FINAL).getMode()
         );
     }
 
@@ -500,7 +727,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeAggregateGroupedOnNonJoinKey(context);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
             enforced,
@@ -548,7 +775,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeWindowOverThreeWayJoin(context);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         // The window-bearing project must sit over a gather, not a partitioned join.
         OpenSearchProject windowProject = findAll(enforced, OpenSearchProject.class).stream()
@@ -605,7 +832,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
         RelNode logical = LogicalJoin.create(filtered, bScan, List.of(), joinCond, Set.of(), JoinRelType.INNER);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         // The filter feeding the join must sit DIRECTLY over the scan under its shuffle — no ER between them.
         org.opensearch.analytics.planner.rel.OpenSearchFilter filter = findAll(
@@ -660,7 +887,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeDistinctCountOverThreeWayJoin(context);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
             enforced,
@@ -692,7 +919,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeJoinOverAggregateOverJoin(context); // Join(Aggregate(Join(A,B)), C)
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         // The TOP join (the one whose left input is the aggregate) must have NEITHER input shuffled — it
         // gathers and runs coord-centric. Identify it as the join that contains the OpenSearchAggregate.
@@ -755,7 +982,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
-            /* minRows */ 1L
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true
         );
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
@@ -833,7 +1061,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
         RelNode logical = LogicalJoin.create(l, r, List.of(), cond, Set.of(), JoinRelType.INNER);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
@@ -899,7 +1127,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             findAll(cbo, OpenSearchBroadcastExchange.class).isEmpty()
         );
 
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         assertEquals(
             "general pass must preserve the CBO broadcast exchange (1):\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced),
@@ -930,7 +1158,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         // The mixed shape: a preserved broadcast AND a shuffle in the same enforced DAG. (Exact counts depend
         // on CBO's per-join choice; the contract is that broadcast is NOT stripped and shuffle still forms.)
@@ -961,7 +1189,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
         // Find the stage whose fragment contains an OpenSearchBroadcastScan AND a shard TableScan — the
@@ -1096,6 +1324,78 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             rexBuilder.makeInputRef(intType, aggCols)
         );
         return LogicalJoin.create(agg, cScan, List.of(), aggcCond, Set.of(), JoinRelType.INNER);
+    }
+
+    /** {@code SUM(size) by status} over the 3-way join — SUM is its own reducer (PARTIAL=FINAL=SUM). */
+    private RelNode makeSumByGroupOverThreeWayJoin(PlannerContext context) {
+        RelNode join = makeThreeWayJoin(context);
+        AggregateCall sumCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            join,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
+    }
+
+    /** {@code stats sum(size)} (empty group) over the 3-way join — the q2/q11 scalar-subquery shape. SUM
+     *  over an empty group infers NULLABLE (no rows → null), unlike the grouped case. */
+    private RelNode makeEmptyGroupSumOverThreeWayJoin(PlannerContext context) {
+        RelNode join = makeThreeWayJoin(context);
+        AggregateCall sumCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            join,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            "total"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
+    }
+
+    /** {@code SUM(size) by status | sort total desc} over the 3-way join — models q5's
+     *  {@code … | stats sum(...) by n_name | sort - revenue}. The Sort is a coordinator post-agg op. */
+    private RelNode makeSortedSumByGroupOverThreeWayJoin(PlannerContext context) {
+        RelNode agg = makeSumByGroupOverThreeWayJoin(context);
+        // Sort by the aggregate output column (index 1 = "total") descending.
+        org.apache.calcite.rel.RelCollation collation = org.apache.calcite.rel.RelCollations.of(
+            new org.apache.calcite.rel.RelFieldCollation(1, org.apache.calcite.rel.RelFieldCollation.Direction.DESCENDING)
+        );
+        return org.apache.calcite.rel.logical.LogicalSort.create(agg, collation, null, null);
+    }
+
+    /** First {@link org.opensearch.analytics.planner.rel.OpenSearchAggregate} of the given mode in
+     *  {@code root}'s tree, or null. */
+    private org.opensearch.analytics.planner.rel.OpenSearchAggregate aggOfMode(
+        RelNode root,
+        org.opensearch.analytics.planner.rel.AggregateMode mode
+    ) {
+        return findAll(root, org.opensearch.analytics.planner.rel.OpenSearchAggregate.class).stream()
+            .filter(a -> a.getMode() == mode)
+            .findFirst()
+            .orElse(null);
+    }
+
+    /** Asserts every {@link org.opensearch.analytics.planner.rel.OpenSearchRelNode} in {@code root}'s tree
+     *  reports one {@code FieldStorageInfo} per output column — the invariant a short list violates with
+     *  "RexInputRef[N] has no matching FieldStorageInfo entry" at fragment conversion. */
+    private void assertStorageComplete(String where, RelNode root) {
+        for (org.opensearch.analytics.planner.rel.OpenSearchRelNode osRel : findAll(
+            root,
+            org.opensearch.analytics.planner.rel.OpenSearchRelNode.class
+        )) {
+            int cols = ((RelNode) osRel).getRowType().getFieldCount();
+            int storage = osRel.getOutputFieldStorage().size();
+            assertEquals(
+                where + ": " + ((RelNode) osRel).getRelTypeName() + " must report FieldStorageInfo for every output column",
+                cols,
+                storage
+            );
+        }
     }
 
     private PlannerContext buildMppContext(Map<String, Integer> shardCounts, Map<String, Long> rowCounts) {

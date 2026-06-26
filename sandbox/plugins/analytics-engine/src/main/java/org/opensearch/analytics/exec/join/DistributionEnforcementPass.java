@@ -68,11 +68,13 @@ import java.util.Map;
  * then the parent re-enforces its own requirement on that content. The root keeps its final SINGLETON
  * gather (the query result must land on the coordinator).
  *
- * <p><b>Scope (v1).</b> This pass places exchanges. The {@code Aggregate} SINGLE→PARTIAL/FINAL split that a
- * distributed aggregate needs is handled separately (the existing {@code FinalAggCallBuilder} machinery);
- * v1 wires the join cascade + shuffle/broadcast placement and leaves aggregate splitting to a follow-on
- * within B1. Gated behind {@code analytics.mpp.cbo_native_cascade}; the legacy rewriters remain the
- * default until sf=10 parity is proven (B3).
+ * <p><b>Aggregate split.</b> Besides placing exchanges, the pass performs the {@code Aggregate}
+ * SINGLE→PARTIAL/FINAL split a distributed aggregate needs (step 3c, {@link #splitAggregate} via the
+ * {@code FinalAggCallBuilder} machinery): when an aggregate's child is already distributed, PARTIAL rides
+ * the child's worker and FINAL gathers to the coordinator (the q5/q10 shape). This split is the sole
+ * distributed-aggregate path — the legacy {@code OpenSearchAggregateShuffleSplitRule} CBO alternative is
+ * gone. It honors the {@code analytics.mpp.shuffle.aggregate.enabled} sub-toggle: when off, the aggregate
+ * gathers and runs coordinator-centric while distributed JOINS are unaffected.
  *
  * @opensearch.internal
  */
@@ -83,11 +85,18 @@ public final class DistributionEnforcementPass {
     private final OpenSearchDistributionTraitDef traitDef;
     private final int partitionCount;
     private final long minRows;
+    private final boolean shuffleAggregateEnabled;
 
-    public DistributionEnforcementPass(OpenSearchDistributionTraitDef traitDef, int partitionCount, long minRows) {
+    public DistributionEnforcementPass(
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled
+    ) {
         this.traitDef = traitDef;
         this.partitionCount = partitionCount;
         this.minRows = minRows;
+        this.shuffleAggregateEnabled = shuffleAggregateEnabled;
     }
 
     /** Result of visiting a node: the (possibly rewritten) rel and the distribution it actually outputs. */
@@ -103,12 +112,21 @@ public final class DistributionEnforcementPass {
      * @param minRows        size floor: an operator is distributed only when its larger scan subtree
      *                       exceeds this many rows (keeps small joins/aggregates coordinator-centric, the
      *                       same gate the legacy rewriters apply). {@code <= 0} disables the floor.
+     * @param shuffleAggregateEnabled per-strategy sub-toggle ({@code analytics.mpp.shuffle.aggregate.enabled}):
+     *                       when {@code false}, a decomposable SINGLE aggregate is NOT split PARTIAL/FINAL —
+     *                       it gathers and runs coordinator-centric, leaving distributed JOINS unaffected.
      */
-    public static RelNode enforce(RelNode plan, OpenSearchDistributionTraitDef traitDef, int partitionCount, long minRows) {
+    public static RelNode enforce(
+        RelNode plan,
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled
+    ) {
         if (partitionCount <= 1) {
             return plan;
         }
-        DistributionEnforcementPass pass = new DistributionEnforcementPass(traitDef, partitionCount, minRows);
+        DistributionEnforcementPass pass = new DistributionEnforcementPass(traitDef, partitionCount, minRows, shuffleAggregateEnabled);
         // Root demand is SINGLETON — the query result must land on the coordinator. This seeds the
         // top-down demand-flow; a transparent op directly under the root passes it through so its child
         // sees the SINGLETON demand (matching the prior behavior where the root gather handled it).
@@ -300,16 +318,20 @@ public final class DistributionEnforcementPass {
         // (no exchange), FINAL gathers. This is the q5/q10 shape and works for group-key == OR != the
         // join key, and for the empty-group case.
         // - child NOT distributed (bare scan) → distributing the aggregate itself would need a group-key
-        // shuffle + a single-input agg worker tier, which the general dispatch does NOT yet drive
-        // (that's the legacy HASH_SHUFFLE_AGG path, gated off under the toggle). Rather than emit an
-        // un-wireable agg-shuffle, GATHER and run the SINGLE aggregate on the coordinator (coord-centric,
-        // correct). Generalizing dispatch to agg-consumer shuffle edges is the documented next step.
+        // shuffle + a single-input agg worker tier, which the general dispatch does NOT yet drive. Rather
+        // than emit an un-wireable agg-shuffle, GATHER and run the SINGLE aggregate on the coordinator
+        // (coord-centric, correct). Generalizing dispatch to agg-consumer shuffle edges is the next step.
         if (n instanceof OpenSearchAggregate agg
             && agg.getMode() == AggregateMode.SINGLE
             && aware.requiredInputDistribution(0, partitionCount, traitDef) != null) {
             RelNode childContent = childContents.get(0);
             OpenSearchDistribution childDist = childDists.get(0);
-            if (isPartitioned(childDist)) {
+            // Per-strategy sub-toggle (analytics.mpp.shuffle.aggregate.enabled): when off, do NOT split the
+            // aggregate PARTIAL/FINAL — gather the (possibly distributed) child and run the SINGLE aggregate
+            // coordinator-centric. This is the documented "disable distributed aggregation, keep MPP joins"
+            // semantics: a join BELOW still distributes (its worker tier is untouched); only the aggregate's
+            // own parallel split is suppressed. Default true → byte-identical to the split path (q5/q10).
+            if (shuffleAggregateEnabled && isPartitioned(childDist)) {
                 return splitAggregate(agg, childContent);
             }
             RelNode gathered = gatherIfNeeded(childContent, childDist);

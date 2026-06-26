@@ -96,10 +96,10 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * the split is conservative in those shapes — distributed parallelism is traded for
      * correctness.
      *
-     * <p>Public so the M3 hash-shuffle aggregate path ({@link OpenSearchAggregateShuffleSplitRule})
-     * AND the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass}) share the
-     * same correctness gates — both use an identical PARTIAL/FINAL safety check, so STATE_EXPANDING /
-     * DISTINCT / cross-family-non-prefix shapes stay coordinator-centric in every path.
+     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * shares the same correctness gates as this coord-centric split — both use an identical PARTIAL/FINAL
+     * safety check, so STATE_EXPANDING / DISTINCT / cross-family-non-prefix shapes stay coordinator-centric
+     * in every path.
      */
     public static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
@@ -350,8 +350,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
      * row-type check on transformTo passes.
      *
-     * <p>Public so {@link OpenSearchAggregateShuffleSplitRule} and the general post-CBO
-     * distribution-enforcement pass ({@code DistributionEnforcementPass}) can call it.
+     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * can call it.
      */
     public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
         List<AggregateCall> rebuilt = null;
