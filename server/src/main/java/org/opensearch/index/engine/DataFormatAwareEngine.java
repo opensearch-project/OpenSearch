@@ -1112,7 +1112,6 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             } finally {
                 notifyRefreshListenersAfter(refreshed);
-                versionMap.afterRefresh(refreshed);
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
