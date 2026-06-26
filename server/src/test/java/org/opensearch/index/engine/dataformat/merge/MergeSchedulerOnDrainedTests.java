@@ -67,7 +67,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         scheduler.onDrained(() -> listenerCalled.set(true));
@@ -84,7 +93,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         scheduler.onDrained(() -> listenerCalled.set(true));
@@ -101,7 +119,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         AtomicInteger callCount = new AtomicInteger(0);
 
@@ -177,7 +204,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         CountDownLatch latch = new CountDownLatch(3);
         AtomicInteger callCount = new AtomicInteger(0);
@@ -223,7 +259,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         // First call to hasPendingMerges returns true (first check fails, goes to add),
         // second call returns false (double-check succeeds, fires the listener)
@@ -248,7 +293,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         // Register listeners individually via the double-check path.
         // Each onDrained call is independent — if one listener throws during its own
@@ -285,7 +339,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         assertTrue("hasPendingMerges should delegate to handler when handler reports true", scheduler.hasPendingMerges());
 
@@ -302,7 +365,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         assertEquals("Active merge count should be 0 initially", 0, scheduler.getActiveMergeCount());
     }
@@ -336,7 +408,16 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        MergeScheduler scheduler = new MergeScheduler(
+            mockHandler,
+            (result, merge) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            testShardId,
+            indexSettings,
+            threadPool
+        );
 
         // Register an onDrained listener BEFORE triggering merges.
         // Reset hasPendingMerges stub for the full flow:
@@ -416,7 +497,7 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
         when(mockHandler.hasPendingMerges()).thenReturn(false);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
-        return new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+        return new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, () -> {}, () -> {}, testShardId, indexSettings, threadPool);
     }
 
     /**

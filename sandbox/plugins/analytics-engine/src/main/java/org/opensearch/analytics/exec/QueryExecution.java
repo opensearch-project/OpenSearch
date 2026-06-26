@@ -9,16 +9,21 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.tasks.CancellableTask;
+import org.opensearch.transport.stream.StreamException;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -123,7 +128,6 @@ public class QueryExecution {
     public void close() {
         if (closed.compareAndSet(false, true) == false) return;
         runQuietly("terminal sink close", this::closeTerminalSink);
-        // TODO: Re-evaluate this per query child allocator
         logAllocatorState();
         runQuietly("query context close", config::close);
     }
@@ -181,14 +185,41 @@ public class QueryExecution {
      * The root stage's failure is preferred; otherwise the first captured failure across the
      * graph (the failing stage is often a child reduce/shard stage that cascaded up).
      *
+     * <p>Two memory-pressure failures are re-typed to {@link CircuitBreakingException} (HTTP 429)
+     * before being returned, so back-pressure is reported as 429 and {@code FailAwareWeightedRouting}
+     * skips replica retry (preventing retry storms):
+     * <ul>
+     *   <li><b>Breaker buried in the cause chain</b> — a {@link CircuitBreakingException} wrapped by an
+     *       outer exception is unwrapped and surfaced directly so {@code status()} = 429 (PR #22275).
+     *   <li><b>Arrow allocator exhaustion</b> — {@link OutOfMemoryException} from {@code BufferAllocator}
+     *       is allocation back-pressure (rejected against {@code native.allocator.pool.query.max}), NOT a
+     *       JVM {@code OutOfMemoryError}; {@link #arrowOomAsBreaker} translates it to a 429, covering both
+     *       the in-process path (class identity intact) and the cross-Flight-RPC path, where the wire
+     *       envelope strips the class to a {@code StreamException} carrying Arrow's
+     *       {@code "Unable to allocate buffer"} marker.
+     * </ul>
+     *
      * <p>Only when NO stage captured a failure is the terminal a genuine external cancel
      * (client disconnect, admin task cancel) — then {@code TaskCancelledException} is the
      * honest answer. The final synthetic fallback covers a CANCELLED/FAILED terminal with no
      * recorded cause at all.
+     *
+     * <p>TODO: replace this reactive translation with proactive circuit-breaking via Arrow's
+     * {@code AllocationListener} — wired to register against the parent breaker, so the budget check
+     * happens at allocation request time and a {@code CircuitBreakingException} is raised natively
+     * (no unwrap dance). Until then, this is the chokepoint.
      */
     private Exception terminalCause(State terminal) {
         Exception failure = firstStageFailure();
         if (failure != null) {
+            Throwable breaker = ExceptionsHelper.unwrap(failure, CircuitBreakingException.class);
+            if (breaker != null) {
+                return (CircuitBreakingException) breaker;
+            }
+            CircuitBreakingException arrowOom = arrowOomAsBreaker(failure);
+            if (arrowOom != null) {
+                return arrowOom;
+            }
             return failure;
         }
         if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
@@ -210,6 +241,40 @@ public class QueryExecution {
             }
         }
         return null;
+    }
+
+    /**
+     * If {@code failure}'s cause chain carries an Arrow allocator exhaustion — either as a real
+     * {@link OutOfMemoryException} (in-process) or as a {@link StreamException} whose message contains
+     * Arrow's allocator-refusal marker (post-Flight-RPC, where the wire envelope stripped the class) —
+     * return a fresh {@link CircuitBreakingException} (HTTP 429). Otherwise {@code null}.
+     *
+     * <p>Arrow's {@code OutOfMemoryException} is the allocator's budget-refusal signal, not a JVM OOM,
+     * so it belongs in the same 429/back-pressure class as {@code CircuitBreakingException}. The string
+     * marker is Arrow's stable {@code BaseAllocator.wrapForeignAllocation} message ("Unable to allocate
+     * buffer ... due to memory limit"); this is the only producer of that exact prefix in Arrow Java.
+     */
+    private static CircuitBreakingException arrowOomAsBreaker(Throwable failure) {
+        Throwable arrowOom = ExceptionsHelper.unwrap(failure, OutOfMemoryException.class);
+        if (arrowOom != null) {
+            return wrapAsBreaker("native memory allocation rejected: " + arrowOom.getMessage(), failure);
+        }
+        Throwable streamFailure = ExceptionsHelper.unwrap(failure, StreamException.class);
+        if (streamFailure instanceof StreamException se && carriesArrowOomMessage(se)) {
+            return wrapAsBreaker("native memory allocation rejected: " + se.getMessage(), failure);
+        }
+        return null;
+    }
+
+    private static boolean carriesArrowOomMessage(StreamException se) {
+        String msg = se.getMessage();
+        return msg != null && msg.contains("Unable to allocate buffer");
+    }
+
+    private static CircuitBreakingException wrapAsBreaker(String message, Throwable cause) {
+        CircuitBreakingException cbe = new CircuitBreakingException(message, CircuitBreaker.Durability.TRANSIENT);
+        cbe.initCause(cause);
+        return cbe;
     }
 
     /** Releases buffered terminal-sink batches. Arrow leak/double-release surfaces via {@link #runQuietly}. */

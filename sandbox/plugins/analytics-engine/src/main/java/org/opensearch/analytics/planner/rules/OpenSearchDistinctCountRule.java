@@ -19,6 +19,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.RelBuilder;
 
 import java.util.ArrayList;
@@ -58,9 +59,14 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
             }
         }
         if (!changed) return;
+
+        // Widen sub-32-bit integer args to INTEGER so DataFusion uses HLL (Binary state)
+        // instead of its bitmap accumulator (List state) which our exchange contract doesn't support.
+        RelNode input = widenSmallIntArgs(ruleCall, agg.getInput(), rewritten);
+
         LogicalAggregate replacement = (LogicalAggregate) agg.copy(
             agg.getTraitSet(),
-            agg.getInput(),
+            input,
             agg.getGroupSet(),
             agg.getGroupSets(),
             rewritten
@@ -109,6 +115,48 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
         return call.getAggregation() != SqlStdOperatorTable.APPROX_COUNT_DISTINCT
             && "APPROX_COUNT_DISTINCT".equals(call.getAggregation().getName())
             && call.getArgList().size() == 1;
+    }
+
+    /**
+     * If any APPROX_COUNT_DISTINCT arg references a sub-32-bit integer column (TINYINT/SMALLINT),
+     * insert a Project that casts those columns to INTEGER. This forces DataFusion to use the
+     * HLL accumulator (Binary state) instead of the bitmap accumulator (List state).
+     */
+    private static RelNode widenSmallIntArgs(RelOptRuleCall ruleCall, RelNode input, List<AggregateCall> calls) {
+        List<RelDataTypeField> fields = input.getRowType().getFieldList();
+        boolean needsWiden = false;
+        for (AggregateCall call : calls) {
+            if (call.getAggregation() == SqlStdOperatorTable.APPROX_COUNT_DISTINCT) {
+                for (int argIdx : call.getArgList()) {
+                    SqlTypeName typeName = fields.get(argIdx).getType().getSqlTypeName();
+                    if (typeName == SqlTypeName.TINYINT || typeName == SqlTypeName.SMALLINT) {
+                        needsWiden = true;
+                        break;
+                    }
+                }
+            }
+            if (needsWiden) break;
+        }
+        if (!needsWiden) return input;
+
+        RelBuilder builder = ruleCall.builder();
+        builder.push(input);
+        RexBuilder rexBuilder = builder.getRexBuilder();
+        RelDataType intType = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.INTEGER);
+        List<RexNode> projects = new ArrayList<>(fields.size());
+        List<String> names = new ArrayList<>(fields.size());
+        for (int i = 0; i < fields.size(); i++) {
+            RelDataTypeField field = fields.get(i);
+            RexNode ref = rexBuilder.makeInputRef(input, i);
+            SqlTypeName typeName = field.getType().getSqlTypeName();
+            if (typeName == SqlTypeName.TINYINT || typeName == SqlTypeName.SMALLINT) {
+                ref = rexBuilder.makeCast(intType, ref);
+            }
+            projects.add(ref);
+            names.add(field.getName());
+        }
+        builder.project(projects, names, true);
+        return builder.build();
     }
 
     private static AggregateCall rewriteToApprox(AggregateCall call, LogicalAggregate agg) {

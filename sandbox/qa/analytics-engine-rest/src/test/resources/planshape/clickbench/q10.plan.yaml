@@ -1,0 +1,76 @@
+# Most complex aggregate combo: 5 partials (sum + count + sum-for-avg + count-for-avg + HLL).
+# TopK on count column with fetch=30, AVG + dc coexist in grouped FinalPartitioned aggregate.
+query: q10
+ppl_file: q10.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[$3], dc(UserID)=[$4], RegionID=[$0], viableBackends=[[datafusion]])
+            OpenSearchProject(RegionID=[$0], sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($3):DOUBLE), $4))], dc(UserID)=[$5], viableBackends=[[datafusion]])
+              OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[SUM($2)], $f3=[SUM($3)], $f4=[SUM($4)], dc(UserID)=[APPROX_COUNT_DISTINCT($5)], mode=[FINAL], viableBackends=[[datafusion]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchSort(sort0=[$2], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
+                    OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[COUNT()], agg#2=[SUM($2)], agg#3=[COUNT($2)], dc(UserID)=[APPROX_COUNT_DISTINCT($3)], mode=[PARTIAL], viableBackends=[[datafusion]])
+                      OpenSearchProject(RegionID=[$65], AdvEngineID=[$0], ResolutionWidth=[$69], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$2], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[COUNT()], agg#2=[SUM($2)], agg#3=[COUNT($2)], dc(UserID)=[APPROX_COUNT_DISTINCT($3)], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(RegionID=[$65], AdvEngineID=[$0], ResolutionWidth=[$69], UserID=[$97], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[$3], dc(UserID)=[$4], RegionID=[$0], viableBackends=[[datafusion]])
+            OpenSearchProject(RegionID=[$0], sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($3):DOUBLE), $4))], dc(UserID)=[$5], viableBackends=[[datafusion]])
+              OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[SUM($2)], $f3=[SUM($3)], $f4=[SUM($4)], dc(UserID)=[APPROX_COUNT_DISTINCT($5)], mode=[FINAL], viableBackends=[[datafusion]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[RegionID@0 as RegionID, sum(<scrubbed>.AdvEngineID)[sum]@1 as sum(AdvEngineID), count(Int64(1))[count]@2 as c, sum(<scrubbed>.ResolutionWidth)[sum]@3 as $f3, count(<scrubbed>.ResolutionWidth)[count]@4 as $f4, approx_distinct(<scrubbed>.UserID)[hll_registers]@5 as dc(UserID)]
+        SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST, RegionID@0 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST, RegionID@0 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[sum(<scrubbed>.AdvEngineID), count(Int64(1)), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth), approx_distinct(<scrubbed>.UserID)]
+              DataSourceExec: file_groups={<scrubbed>}, projection=[RegionID, AdvEngineID, ResolutionWidth, UserID], file_type=parquet
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[$3], dc(UserID)=[$4], RegionID=[$0], viableBackends=[[datafusion]])
+            OpenSearchProject(RegionID=[$0], sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($3):DOUBLE), $4))], dc(UserID)=[$5], viableBackends=[[datafusion]])
+              OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[COUNT()], agg#2=[SUM($2)], agg#3=[COUNT($2)], dc(UserID)=[APPROX_COUNT_DISTINCT($3)], mode=[SINGLE], viableBackends=[[datafusion]])
+                OpenSearchProject(RegionID=[$65], AdvEngineID=[$0], ResolutionWidth=[$69], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$1], sort1=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[$3], dc(UserID)=[$4], RegionID=[$0], viableBackends=[[datafusion]])
+            OpenSearchProject(RegionID=[$0], sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($3):DOUBLE), $4))], dc(UserID)=[$5], viableBackends=[[datafusion]])
+              OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[COUNT()], agg#2=[SUM($2)], agg#3=[COUNT($2)], dc(UserID)=[APPROX_COUNT_DISTINCT($3)], mode=[SINGLE], viableBackends=[[datafusion]])
+                OpenSearchProject(RegionID=[$65], AdvEngineID=[$0], ResolutionWidth=[$69], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "sum(AdvEngineID)", data_type: Int64, nullable: true }, Field { name: "c", data_type: Int64 }, Field { name: "avg(ResolutionWidth)", data_type: Float64, nullable: true }, Field { name: "dc(UserID)", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
+        ProjectionExec: expr=[sum(<scrubbed>.AdvEngineID)@0 as sum(AdvEngineID), count(Int64(1))@1 as c, CASE WHEN count(<scrubbed>.ResolutionWidth) = Int64(0) THEN Float64(NULL) ELSE sum(<scrubbed>.ResolutionWidth) / count(<scrubbed>.ResolutionWidth) END@2 as avg(ResolutionWidth), approx_distinct(<scrubbed>.UserID)@3 as dc(UserID), RegionID@4 as RegionID]
+          SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, RegionID@4 ASC], fetch=10
+            SortExec: TopK(fetch=10), expr=[count(Int64(1))@1 DESC NULLS LAST, RegionID@4 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[sum(<scrubbed>.AdvEngineID)@1 as sum(<scrubbed>.AdvEngineID), count(Int64(1))@2 as count(Int64(1)), CASE WHEN count(<scrubbed>.ResolutionWidth)@4 = 0 THEN NULL ELSE CAST(sum(<scrubbed>.ResolutionWidth)@3 AS Float64) / CAST(count(<scrubbed>.ResolutionWidth)@4 AS Float64) END as CASE WHEN count(<scrubbed>.ResolutionWidth) = Int64(0) THEN Float64(NULL) ELSE sum(<scrubbed>.ResolutionWidth) / count(<scrubbed>.ResolutionWidth) END, approx_distinct(<scrubbed>.UserID)@5 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
+                AggregateExec: mode=FinalPartitioned, gby=[RegionID@0 as RegionID], aggr=[sum(<scrubbed>.AdvEngineID), count(Int64(1)), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth), approx_distinct(<scrubbed>.UserID)]
+                  RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=1
+                    AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[sum(<scrubbed>.AdvEngineID), count(Int64(1)), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth), approx_distinct(<scrubbed>.UserID)]
+                      DataSourceExec: file_groups={<scrubbed>}, projection=[RegionID, AdvEngineID, ResolutionWidth, UserID], file_type=parquet
+    shard_physical_nseg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "sum(AdvEngineID)", data_type: Int64, nullable: true }, Field { name: "c", data_type: Int64 }, Field { name: "avg(ResolutionWidth)", data_type: Float64, nullable: true }, Field { name: "dc(UserID)", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
+        ProjectionExec: expr=[sum(<scrubbed>.AdvEngineID)@0 as sum(AdvEngineID), count(Int64(1))@1 as c, CASE WHEN count(<scrubbed>.ResolutionWidth) = Int64(0) THEN Float64(NULL) ELSE sum(<scrubbed>.ResolutionWidth) / count(<scrubbed>.ResolutionWidth) END@2 as avg(ResolutionWidth), approx_distinct(<scrubbed>.UserID)@3 as dc(UserID), RegionID@4 as RegionID]
+          SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, RegionID@4 ASC], fetch=10
+            SortExec: TopK(fetch=10), expr=[count(Int64(1))@1 DESC NULLS LAST, RegionID@4 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[sum(<scrubbed>.AdvEngineID)@1 as sum(<scrubbed>.AdvEngineID), count(Int64(1))@2 as count(Int64(1)), CASE WHEN count(<scrubbed>.ResolutionWidth)@4 = 0 THEN NULL ELSE CAST(sum(<scrubbed>.ResolutionWidth)@3 AS Float64) / CAST(count(<scrubbed>.ResolutionWidth)@4 AS Float64) END as CASE WHEN count(<scrubbed>.ResolutionWidth) = Int64(0) THEN Float64(NULL) ELSE sum(<scrubbed>.ResolutionWidth) / count(<scrubbed>.ResolutionWidth) END, approx_distinct(<scrubbed>.UserID)@5 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
+                AggregateExec: mode=FinalPartitioned, gby=[RegionID@0 as RegionID], aggr=[sum(<scrubbed>.AdvEngineID), count(Int64(1)), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth), approx_distinct(<scrubbed>.UserID)]
+                  RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=2
+                    AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[sum(<scrubbed>.AdvEngineID), count(Int64(1)), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth), approx_distinct(<scrubbed>.UserID)]
+                      DataSourceExec: file_groups={<scrubbed>}, projection=[RegionID, AdvEngineID, ResolutionWidth, UserID], file_type=parquet

@@ -199,6 +199,15 @@ public interface AnalyticsSearchBackendPlugin {
     }
 
     /**
+     * Cooperatively cancels in-flight backend work for {@code contextId} (e.g. fire the per-context
+     * cancellation token). Called from a task cancellation listener for the fetch path, which —
+     * unlike the query path's {@code SearchExecEngine} — returns an opaque {@link EngineResultStream}.
+     * Implementations must signal the native execution to unwind, not close the stream cross-thread
+     * (that races the in-flight pull). No-op for an unknown {@code contextId}; default no-op.
+     */
+    default void cancelByContext(long contextId) {}
+
+    /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.
      *
      * <p>Called by the engine when a fragment execution fails. If the backend recognizes

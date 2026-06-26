@@ -169,11 +169,11 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
 
         // First doc: foo inferred as long
-        client().prepareIndex(indexName).setId("1").setSource("foo", 3).get();
+        client().prepareIndex(indexName).setSource("foo", 3).get();
 
         // Second doc: foo as text — should fail
         try {
-            client().prepareIndex(indexName).setId("2").setSource("foo", "bar").get();
+            client().prepareIndex(indexName).setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (Exception e) {
             assertTrue(
@@ -294,16 +294,10 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             indexThreads[i] = new Thread(() -> {
                 try {
                     startLatch.await();
-                    IndexResponse respA = client().prepareIndex(indexName)
-                        .setId("a_" + threadId)
-                        .setSource("fieldA_" + threadId, "valueA_" + threadId)
-                        .get();
+                    IndexResponse respA = client().prepareIndex(indexName).setSource("fieldA_" + threadId, "valueA_" + threadId).get();
                     assert respA.status() == RestStatus.CREATED : "index a_" + threadId + " failed: " + respA.status();
                     Thread.sleep(1000);
-                    IndexResponse respB = client().prepareIndex(indexName)
-                        .setId("b_" + threadId)
-                        .setSource("fieldB_" + threadId, "valueB_" + threadId)
-                        .get();
+                    IndexResponse respB = client().prepareIndex(indexName).setSource("fieldB_" + threadId, "valueB_" + threadId).get();
                     assert respB.status() == RestStatus.CREATED : "index b_" + threadId + " failed: " + respB.status();
                     Thread.sleep(1000);
                     client().admin().indices().prepareRefresh(indexName).get();

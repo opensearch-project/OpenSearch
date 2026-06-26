@@ -88,21 +88,22 @@ public class AnalyticsQueryTask extends SearchTask {
      */
     public void setOnCancelCallback(Runnable callback) {
         onCancelCallback.set(callback);
+        // Cancel may have arrived before this install — fire inline if so. onCancelled() is one-shot
+        // (it clears the slot via getAndSet(null)), so a callback installed after cancellation would
+        // otherwise never fire — losing cancel semantics across the broadcast-capture → residual-dispatch
+        // handoff in UnifiedDispatch. Mirrors AnalyticsShardTask.setCancellationListener.
         if (callback != null && isCancelled()) {
-            try {
-                callback.run();
-            } catch (Exception e) {
-                logger.warn(
-                    new ParameterizedMessage("[AnalyticsQueryTask] late-install onCancel callback failed for queryId={}", queryId),
-                    e
-                );
-            }
+            runCallbackOnce();
         }
     }
 
     @Override
     protected void onCancelled() {
-        Runnable cb = onCancelCallback.get();
+        runCallbackOnce();
+    }
+
+    private void runCallbackOnce() {
+        Runnable cb = onCancelCallback.getAndSet(null);
         if (cb != null) {
             try {
                 cb.run();

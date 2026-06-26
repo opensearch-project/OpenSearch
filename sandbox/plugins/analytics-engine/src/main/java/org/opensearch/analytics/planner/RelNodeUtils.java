@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -200,6 +201,27 @@ public class RelNodeUtils {
     }
 
     /**
+     * Finds all nodes of the given type reachable from {@code node} (walks the full tree, all inputs).
+     * Unlike {@link #findNode} (which returns only the topmost match via the first-input chain), this
+     * sees every match — e.g. a WHERE filter below an Aggregate AND a HAVING filter above it, which
+     * do not merge (FILTER_MERGE does not cross the Aggregate). Order is pre-order (topmost first).
+     *
+     * <p>Functionally equivalent to {@link #findNodes}; retained as a distinct entry point for callers
+     * that read better with this name (e.g. {@code FragmentConversionDriver}'s filter collection).
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> List<T> findAllNodes(RelNode node, Class<T> type) {
+        List<T> out = new ArrayList<>();
+        if (type.isInstance(node)) {
+            out.add((T) node);
+        }
+        for (RelNode input : node.getInputs()) {
+            out.addAll(findAllNodes(input, type));
+        }
+        return out;
+    }
+
+    /**
      * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
      * searching all inputs. Returns {@code null} if none is present.
      */
@@ -245,7 +267,15 @@ public class RelNodeUtils {
         }
         if (node instanceof TableScan scan) {
             List<String> names = scan.getTable().getQualifiedName();
-            indices.add(names.get(names.size() - 1));
+            String tableName = names.get(names.size() - 1);
+            // PPL multi-source queries (source=a,b) produce a single TableScan with a
+            // comma-delimited table name. Split so each index is evaluated independently
+            // by the security filter — same logic as IndexResolution.
+            for (String idx : Strings.splitStringByCommaToArray(tableName)) {
+                if (!idx.isEmpty()) {
+                    indices.add(idx);
+                }
+            }
         }
         for (RelNode input : node.getInputs()) {
             if (!collectIndices(input, indices, depth + 1)) {

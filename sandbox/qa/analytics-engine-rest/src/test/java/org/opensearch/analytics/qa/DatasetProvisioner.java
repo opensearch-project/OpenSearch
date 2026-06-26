@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -38,16 +40,53 @@ public final class DatasetProvisioner {
 
     private static final Logger logger = LogManager.getLogger(DatasetProvisioner.class);
 
+    /**
+     * How the dataset's documents are laid out into parquet segments per shard — a controlled axis
+     * for plan-shape tests, where the shard DataFusion physical plan can legitimately differ with
+     * segment count (e.g. the scan's {@code input_partitions}). The {@code suffix} disambiguates the
+     * per-layout index name.
+     */
+    public enum SegmentLayout {
+        /** Exactly one segment per shard: single bulk + flush, then force-merge to one segment. */
+        SINGLE_SEGMENT("1seg"),
+        /**
+         * Exactly {@link #MULTI_SEGMENT_COUNT} segments per shard: bulk in that many flushed parts.
+         * Parquet flush→segment is 1:1, so N parts give exactly N segments — deterministically pinning
+         * the scan's {@code input_partitions}. No force-merge: it caps "at most N" and could collapse
+         * tiny segments to 1; the default TieredMergePolicy won't auto-merge so few either.
+         */
+        MULTI_SEGMENT("nseg");
+
+        /** Short tag for the per-layout index name (e.g. {@code parquet_hits_2s_1seg}). */
+        public final String suffix;
+
+        SegmentLayout(String suffix) {
+            this.suffix = suffix;
+        }
+    }
+
+    /** The per-shard segment count produced by {@link SegmentLayout#MULTI_SEGMENT} (one flush each). */
+    public static final int MULTI_SEGMENT_COUNT = 2;
+
     private DatasetProvisioner() {
         // utility class
     }
 
     /**
-     * Provision the dataset into the cluster with parquet as the primary data format.
+     * Provision the dataset into the cluster with parquet as the primary data format. Segment layout
+     * is left to the engine (single bulk + flush); pass a {@link SegmentLayout} to control it.
      */
     public static void provision(RestClient client, Dataset dataset, int numberOfShards) throws IOException {
+        provision(client, dataset, numberOfShards, null);
+    }
+
+    /**
+     * Provision the dataset, optionally pinning the per-shard segment layout via {@code layout}
+     * ({@code null} = single bulk + flush, engine-decided segment count).
+     */
+    public static void provision(RestClient client, Dataset dataset, int numberOfShards, SegmentLayout layout) throws IOException {
         for (String indexName : dataset.indexNames) {
-            provisionIndex(client, dataset, indexName, numberOfShards);
+            provisionIndex(client, dataset, indexName, numberOfShards, layout);
         }
     }
 
@@ -56,11 +95,12 @@ public final class DatasetProvisioner {
     }
 
     /**
-     * Provision the dataset with {@code numberOfShards} overriding the value in the mapping.
-     * Pass {@code 0} to keep the mapping's value. Used by tests that need multi-shard
-     * coverage of planner paths (exchange insertion, sort split, etc.).
+     * Provision one index. {@code numberOfShards} overrides the mapping's value ({@code 0} keeps it).
+     * {@code layout} pins the per-shard segment layout ({@code null} = single bulk + flush, engine-
+     * decided). Used by tests needing multi-shard / multi-segment coverage of planner paths.
      */
-    private static void provisionIndex(RestClient client, Dataset dataset, String indexName, int numberOfShards) throws IOException {
+    private static void provisionIndex(RestClient client, Dataset dataset, String indexName, int numberOfShards, SegmentLayout layout)
+        throws IOException {
         // Delete if exists
         try {
             client.performRequest(new Request("DELETE", "/" + indexName));
@@ -81,28 +121,29 @@ public final class DatasetProvisioner {
         createIndex.setJsonEntity(indexBody);
         client.performRequest(createIndex);
 
-        // Bulk ingest
+        // Bulk ingest. The segment layout decides how the rows are committed into parquet segments.
         String bulkPath = dataset.indexNames.size() == 1
             ? dataset.bulkResourcePath()
             : "datasets/" + dataset.name + "/bulk_" + indexName + ".json";
         String bulkBody = loadResource(bulkPath);
-        Request bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
-        bulkRequest.setJsonEntity(bulkBody);
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setOptions(
-            bulkRequest.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build()
-        );
-        Response bulkResponse = client.performRequest(bulkRequest);
-        assertEquals("Bulk insert failed", 200, bulkResponse.getStatusLine().getStatusCode());
 
-        // Log bulk response for debugging
-        String responseBody = new String(bulkResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
-        logger.info("Bulk response for index [{}]: {}", indexName, responseBody);
-
-        // Flush to commit parquet files to disk
-        Request flushRequest = new Request("POST", "/" + indexName + "/_flush");
-        flushRequest.addParameter("force", "true");
-        client.performRequest(flushRequest);
+        if (layout == SegmentLayout.MULTI_SEGMENT) {
+            // Split the ndjson into MULTI_SEGMENT_COUNT parts at action/source boundaries; flush
+            // after each. Each flush is one parquet segment (1:1), so every shard ends up with
+            // exactly that many segments. No force-merge — it would only risk collapsing them
+            // (see SegmentLayout.MULTI_SEGMENT). Background merge leaves so few segments alone.
+            for (String part : splitNdjson(bulkBody, MULTI_SEGMENT_COUNT)) {
+                bulkAndFlush(client, indexName, part);
+            }
+        } else {
+            bulkAndFlush(client, indexName, bulkBody);
+            if (layout == SegmentLayout.SINGLE_SEGMENT) {
+                // Collapse every shard to exactly one parquet segment so the shard physical plan is
+                // deterministic (no per-shard divergence from differing segment counts).
+                forceMergeAndFlush(client, indexName, 1);
+            }
+            // layout == null: leave segment count to the engine (legacy non-plan-shape callers).
+        }
 
         // Wait for index health. wait_for_status=yellow only guarantees primaries are assigned, not
         // that every shard copy is active and done initializing — on a multi-node cluster a search
@@ -119,6 +160,82 @@ public final class DatasetProvisioner {
         logger.info("Dataset [{}] provisioned into index [{}]", dataset.name, indexName);
     }
 
+    /** Bulk-ingest one ndjson body (refresh=true) and force a flush so its segment is committed. */
+    private static void bulkAndFlush(RestClient client, String indexName, String ndjson) throws IOException {
+        Request bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        bulkRequest.setJsonEntity(ndjson);
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setOptions(
+            bulkRequest.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build()
+        );
+        Response bulkResponse = client.performRequest(bulkRequest);
+        assertEquals("Bulk insert failed", 200, bulkResponse.getStatusLine().getStatusCode());
+        String responseBody = new String(bulkResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+        logger.info("Bulk response for index [{}]: {}", indexName, responseBody);
+
+        Request flushRequest = new Request("POST", "/" + indexName + "/_flush");
+        flushRequest.addParameter("force", "true");
+        client.performRequest(flushRequest);
+    }
+
+    /** Force-merge every shard to exactly {@code maxSegments} parquet segments, then flush. */
+    private static void forceMergeAndFlush(RestClient client, String indexName, int maxSegments) throws IOException {
+        Request merge = new Request("POST", "/" + indexName + "/_forcemerge");
+        merge.addParameter("max_num_segments", Integer.toString(maxSegments));
+        client.performRequest(merge);
+        Request flush = new Request("POST", "/" + indexName + "/_flush");
+        flush.addParameter("force", "true");
+        client.performRequest(flush);
+    }
+
+    /**
+     * Split an ndjson bulk body into {@code parts} non-empty chunks at action/source line
+     * boundaries. The bulk format alternates an action line ({@code {"index":{}}}) and a source
+     * line, so every cut must land on an even document boundary to keep each chunk self-contained.
+     * Each chunk, flushed on its own, becomes one parquet segment.
+     */
+    private static List<String> splitNdjson(String ndjson, int parts) {
+        List<String> docLines = new ArrayList<>();
+        for (String line : ndjson.split("\n")) {
+            if (!line.isEmpty()) {
+                docLines.add(line);
+            }
+        }
+        int pairCount = docLines.size() / 2; // (action, source) pairs
+        // Each part is flushed into its own segment, so we need at least one doc per part — otherwise
+        // we'd silently produce fewer segments than requested and the shard plan's input_partitions
+        // wouldn't match the golden. Fail loudly instead.
+        if (pairCount < parts) {
+            throw new IllegalArgumentException(
+                "dataset has " + pairCount + " doc(s), too few for a " + parts + "-segment layout (need >= " + parts + ")"
+            );
+        }
+        int pairsPerPart = Math.max(1, (int) Math.ceil((double) pairCount / parts));
+        List<String> chunks = new ArrayList<>();
+        StringBuilder chunk = new StringBuilder();
+        int pairsInChunk = 0;
+        for (int i = 0; i < docLines.size(); i += 2) {
+            chunk.append(docLines.get(i)).append('\n');
+            if (i + 1 < docLines.size()) {
+                chunk.append(docLines.get(i + 1)).append('\n');
+            }
+            if (++pairsInChunk == pairsPerPart && chunks.size() < parts - 1) {
+                chunks.add(chunk.toString());
+                chunk = new StringBuilder();
+                pairsInChunk = 0;
+            }
+        }
+        if (chunk.length() > 0) {
+            chunks.add(chunk.toString());
+        }
+        return chunks;
+    }
+
+    // TODO(plan-shape): both this and injectParquetSettings mutate the index settings by string/regex
+    // rewriting the raw mapping JSON — brittle (depends on the literal "number_of_shards" token) and
+    // it means a combo's SettingsCombo.indexSettings map can't drive arbitrary index knobs. Replace
+    // with: parse mapping JSON -> merge a settings map (mapping defaults + parquet + combo.indexSettings)
+    // -> re-serialize. Shared by ~15 ITs, so do it as its own change and re-verify them.
     /**
      * Replace the {@code number_of_shards} value in the mapping body. Matches the form
      * {@code "number_of_shards": <int>} produced by the canonical dataset mappings.

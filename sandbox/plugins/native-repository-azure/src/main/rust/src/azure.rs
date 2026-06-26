@@ -60,6 +60,16 @@ pub fn build(
         builder = builder.with_retry(retry);
     }
 
+    // If the analytics engine has installed a dedicated IO runtime, route HTTP
+    // requests (and response-body streaming) onto it via SpawnedReqwestConnector
+    // — DataFusion's `thread_pools` example mechanism. This keeps network IO and
+    // its completion work (TLS, body assembly) off the CPU runtime that drives
+    // query decode. No-op when no IO runtime is installed (e.g. unit tests).
+    if let Some(io) = native_bridge_common::io_runtime::io_handle() {
+        builder = builder
+            .with_http_connector(object_store::client::SpawnedReqwestConnector::new(io));
+    }
+
     Ok(Arc::new(builder.build()?))
 }
 

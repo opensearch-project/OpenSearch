@@ -121,25 +121,64 @@ def configureAnalyticsCluster = { cluster ->
 }
 
 // ── Default integTest cluster ────────────────────────────────────────────────
-// TODO: enable numberOfNodes = 2 once partial aggs is handled
 testClusters.integTest {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+    // Override block-list to empty so FilterDelegationGoldenIT exercises all predicate shapes.
+    setting 'analytics.delegation.lucene.blocked_predicates', '[]'
 }
 
 integTest {
     systemProperty 'tests.security.manager', 'false'
+    // Forward plan-shape harness props to the forked test JVM (see PlanShapeGoldenTestBase):
+    //   -Dplan.generate=write  capture + write q{N}.plan.yaml to the source tree
+    //   -Dplan.generate=print  capture + log the block (read-only peek, no write)
+    //   (flag absent           = assertion mode: compare capture vs golden)
+    //   -Dplan.combos=...       override which named combos run (else combos.yaml defaults)
+    ['plan.generate', 'plan.combos'].each { k ->
+        if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
+    }
+    // Source resources dir, so -Dplan.generate writes goldens to the source tree (not build/).
+    systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
+    testLogging {
+        exceptionFormat = 'full'
+    }
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
     exclude '**/SpillStatsEnabledIT.class'
     exclude '**/SpillCleanupOnBootIT.class'
     exclude '**/YmlOversamplingIT.class'
+    exclude '**/*NoMergeIT.class'
+    exclude '**/planshape/*IT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
     // when ITs provision their indices lazily. Keep the OpenSearchTestBasePlugin
     // defaults (single fork, no maxParallelForks override).
+}
+
+// ── Plan-shape variant: 2 nodes, production-default blocked_predicates ───────
+// Runs plan-shape golden ITs with the production delegation blocklist (NOT the
+// empty override used by the default integTest cluster for FilterDelegationGoldenIT).
+task integTestPlanShape(type: RestIntegTestTask) {
+    description = 'Runs plan-shape golden ITs with production-default delegation blocklist'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.planshape.*IT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+    ['plan.generate', 'plan.combos'].each { k ->
+        if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
+    }
+    systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
+}
+check.dependsOn(integTestPlanShape)
+
+testClusters.integTestPlanShape {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
 }
 
 // ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────
@@ -193,6 +232,30 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+}
+
+// ── No-merge variant: 2 nodes, parquet segment merge disabled ────────────────
+// Runs every *NoMergeIT with the dataformat merge gate turned off. The gate
+// (DataFormatAwareEngine.MERGE_ENABLED_PROPERTY) defaults to ENABLED, so background
+// merges would otherwise collapse per-flush parquet segments. Tests that need each
+// flush to persist as its own segment (e.g. to exercise multi-segment / schema-drift
+// behavior) belong here — name them with the *NoMergeIT suffix. They are excluded from
+// the default integTest above so they only run under this merge-disabled cluster.
+task integTestNoMerge(type: RestIntegTestTask) {
+    description = 'Runs *NoMergeIT tests with parquet segment merge disabled'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.*NoMergeIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestNoMerge)
+
+testClusters.integTestNoMerge {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    systemProperty 'opensearch.pluggable.dataformat.merge.enabled', 'false'
 }
 
 // ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──

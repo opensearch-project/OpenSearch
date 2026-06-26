@@ -224,4 +224,91 @@ public class MergeHandlerTests extends OpenSearchTestCase {
         assertSame(result, actual);
         verify(merger).merge(any(MergeInput.class));
     }
+
+    /**
+     * Verifies that {@code findForceMerges} excludes segments that are already being merged
+     * by a background merge. Without this fix, a concurrent force merge + background merge
+     * could pick the same segments, causing the Lucene secondary to merge fewer docs than
+     * parquet (row count mismatch).
+     */
+    public void testFindForceMergesExcludesAlreadyMergingSegments() throws Exception {
+        Segment s1 = seg(1);
+        Segment s2 = seg(2);
+        Segment s3 = seg(3);
+        Segment s4 = seg(4);
+
+        MergeHandler handler = newHandler(snapshotWith(s1, s2, s3, s4));
+
+        // Simulate merge policy returning all segments as force merge candidates
+        when(mergePolicy.findForceMergeCandidates(any(), any(Integer.class))).thenReturn(List.of(List.of(s1, s2, s3, s4)));
+
+        // Register a background merge for segments [s1, s2] — marks them as currently merging
+        OneMerge backgroundMerge = new OneMerge(List.of(s1, s2));
+        handler.registerMerge(backgroundMerge);
+
+        // Now findForceMerges should exclude s1 and s2 since they're already merging
+        var forceMerges = handler.findForceMerges(1);
+
+        // The force merge group [s1, s2, s3, s4] contains merging segments → should be filtered out
+        assertTrue("Force merge should not pick segments already being merged by background merge", forceMerges.isEmpty());
+    }
+
+    /**
+     * Verifies that {@code findForceMerges} returns candidates when no segments overlap
+     * with currently merging segments.
+     */
+    public void testFindForceMergesReturnsNonConflictingCandidates() throws Exception {
+        Segment s1 = seg(1);
+        Segment s2 = seg(2);
+        Segment s3 = seg(3);
+        Segment s4 = seg(4);
+
+        MergeHandler handler = newHandler(snapshotWith(s1, s2, s3, s4));
+
+        // Merge policy returns two groups: [s1, s2] and [s3, s4]
+        when(mergePolicy.findForceMergeCandidates(any(), any(Integer.class))).thenReturn(List.of(List.of(s1, s2), List.of(s3, s4)));
+
+        // Register background merge for [s1, s2]
+        OneMerge backgroundMerge = new OneMerge(List.of(s1, s2));
+        handler.registerMerge(backgroundMerge);
+
+        // findForceMerges should return only the non-conflicting group [s3, s4]
+        var forceMerges = handler.findForceMerges(1);
+
+        assertEquals("Should return 1 non-conflicting merge group", 1, forceMerges.size());
+        OneMerge remaining = forceMerges.iterator().next();
+        assertEquals(2, remaining.getSegmentsToMerge().size());
+        assertTrue(remaining.getSegmentsToMerge().contains(s3));
+        assertTrue(remaining.getSegmentsToMerge().contains(s4));
+    }
+
+    /**
+     * Verifies that {@code findForceMerges} does NOT register conflicting merge groups
+     * in currentlyMergingSegments. Only non-conflicting groups should be registered.
+     */
+    public void testFindForceMergesOnlyRegistersNonConflictingGroups() throws Exception {
+        Segment s1 = seg(1);
+        Segment s2 = seg(2);
+        Segment s3 = seg(3);
+
+        MergeHandler handler = newHandler(snapshotWith(s1, s2, s3));
+
+        // Merge policy returns two groups: [s1, s2] (will conflict) and [s3] (won't conflict)
+        when(mergePolicy.findForceMergeCandidates(any(), any(Integer.class))).thenReturn(List.of(List.of(s1, s2), List.of(s3)));
+
+        // Register background merge for s1 — makes [s1, s2] group conflicting
+        handler.registerMerge(new OneMerge(List.of(s1)));
+
+        // findForceMerges should only return and register [s3]
+        var forceMerges = handler.findForceMerges(1);
+        assertEquals(1, forceMerges.size());
+
+        // s2 should NOT be stuck in currentlyMergingSegments
+        // Verify by registering a merge containing s2 — should succeed
+        OneMerge s2Merge = new OneMerge(List.of(s2));
+        handler.registerMerge(s2Merge);
+        // background s1 is pending (from registerMerge), force s3 is NOT pending (only in currentlyMerging),
+        // newly registered s2 is pending → 2 pending total
+        assertEquals(2, handler.getPendingMergeCount());
+    }
 }

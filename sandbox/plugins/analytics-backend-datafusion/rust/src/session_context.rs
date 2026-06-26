@@ -30,8 +30,10 @@ use log::error;
 use object_store::ObjectMeta;
 
 use crate::api::{DataFusionRuntime, ShardView};
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::query_tracker::QueryTrackingContext;
+use crate::scoped_index_optimizer::ScopedPageIndexOptimizer;
 
 /// Opaque handle holding a configured SessionContext between FFM calls.
 pub struct SessionContextHandle {
@@ -56,7 +58,7 @@ pub struct SessionContextHandle {
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
     /// IO runtime handle for bloom filter reads and other async I/O dispatched
-    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    /// from CPU executor threads.
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
@@ -214,7 +216,7 @@ pub async unsafe fn create_session_context(
     let phantom = phantom_reservation.map(|b| b.phantom_reservation);
 
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
@@ -233,17 +235,15 @@ pub async unsafe fn create_session_context(
             datafusion::physical_optimizer::optimizer::PhysicalOptimizer::new().rules
         });
 
-    // For ListingTable query strategy:
-    // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
-    // 2. Add ProjectRowIdOptimizer (physical) — computes __row_id__ + row_base.
-    if query_config.query_strategy == crate::datafusion_query_config::QueryStrategy::ListingTable {
-        state_builder = state_builder
-            .with_analyzer_rule(
-                Arc::new(crate::project_row_id_analyzer::ProjectRowIdAnalyzer::new())
-            )
-            .with_physical_optimizer_rule(
-                Arc::new(crate::project_row_id_optimizer::ProjectRowIdOptimizer)
-            );
+    // Install the scoped page-index reader factory on every parquet scan.
+    // Also, this SHOULD be the last optimizer to see all projections / predicates
+    if page_index::is_scoped_page_index_enabled() {
+        state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
+            ScopedPageIndexOptimizer::new(
+                Arc::clone(&shard_view.store),
+                runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+            ),
+        ));
     }
 
     let state = state_builder.build();
@@ -279,6 +279,26 @@ pub async unsafe fn create_session_context(
     // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
     // empty-shard-aware schema inference + plan widening happens just below; no infer_schema here.
     let register_name = resolve_register_name(table_name, plan_bytes);
+
+    // Pre-warm the metadata cache footer-only before infer_schema fires.
+    // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
+    // on a cache miss — fetching full page index bytes. By pre-warming here with
+    // PageIndexPolicy::Skip via load_parquet_metadata, every infer_schema call becomes
+    // a cache hit and never touches the page index bytes.
+    // Cache key is meta.location (Path) — same key infer_schema uses.
+    // Empty shard: loop is a no-op; infer_schema is also skipped below.
+    {
+        let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+        for meta in shard_view.object_metas.as_ref() {
+            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
+                Arc::clone(&shard_view.store),
+                &meta.location,
+                meta.clone(),
+                Arc::clone(&metadata_cache),
+            )
+            .await;
+        }
+    }
 
     // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
     // below populates columns from the substrait base_schema.

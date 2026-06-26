@@ -218,5 +218,57 @@ public final class FoyerBlockCacheSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Fraction of the total Foyer disk budget allocated to the metadata cache.
+     *
+     * <p>The remaining {@code (1 - ratio)} goes to the data cache. Applied against the
+     * total Foyer disk bytes computed from {@code block_cache.foyer.size}.
+     *
+     * <p>Example: 400&nbsp;GB Foyer budget, {@code metadata_cache_ratio=5%} →
+     * metadata cache gets 20&nbsp;GB, data cache gets 380&nbsp;GB.
+     *
+     * <p>Default: {@code 5%}. Set to {@code 0%} to disable tiered caching (single
+     * data-only cache). Accepts a percentage (e.g. {@code 5%}) or a ratio (e.g. {@code 0.05}).
+     *
+     * <p>Range: [0%, 50%). Values &ge; 50% are rejected — metadata should never consume
+     * more than half the SSD budget.
+     */
+    public static final Setting<String> METADATA_CACHE_RATIO_SETTING = new Setting<>(
+        "block_cache.foyer.metadata_cache_ratio",
+        "5%",
+        value -> {
+            try {
+                RatioValue ratio = RatioValue.parseRatioValue(value);
+                if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 0.5) {
+                    throw new IllegalArgumentException("[block_cache.foyer.metadata_cache_ratio] must be in [0%, 50%); got: " + value);
+                }
+                return value;
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    "[block_cache.foyer.metadata_cache_ratio] must be a percentage (e.g. 5%) or ratio (e.g. 0.05); got: " + value,
+                    e
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Block size for the metadata cache's Foyer disk tier.
+     *
+     * <p>Metadata entries (page indexes, offset indexes) are typically small (KB–MB range).
+     * A smaller block size than the data cache avoids wasting SSD space on internal
+     * fragmentation for these small entries.
+     *
+     * <p>Default: 8&nbsp;MB. Range: [1&nbsp;MB, 128&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> METADATA_BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.metadata_block_size",
+        new ByteSizeValue(8, ByteSizeUnit.MB),
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
     private FoyerBlockCacheSettings() {}
 }

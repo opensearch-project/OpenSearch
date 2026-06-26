@@ -643,6 +643,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BootstrapSettings.MEMORY_LOCK_SETTING,
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                 BootstrapSettings.CTRLHANDLER_SETTING,
+                BootstrapSettings.SERIAL_FILTER_SETTING,
                 KeyStoreWrapper.SEED_SETTING,
                 IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                 IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
@@ -837,6 +838,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT,
                 NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT,
                 NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT,
 
                 // Concurrent segment search settings
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated

@@ -116,7 +116,11 @@ public class FragmentConversionDriver {
             // Derive filter tree shape BEFORE stripping (annotations must be intact). The deriver
             // mirrors the combiner's post-combine shape so the data node's classification matches
             // the tree it actually receives.
-            OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
+            // Pushdown+merge rules leave delegated annotations only in the bottommost (WHERE) filter;
+            // a HAVING stays in a separate un-delegated filter above the Aggregate. Pick the WHERE,
+            // not findNode's topmost (HAVING → NO_DELEGATION → collector skipped → over-count).
+            List<OpenSearchFilter> filters = RelNodeUtils.findAllNodes(plan.resolvedFragment(), OpenSearchFilter.class);
+            OpenSearchFilter filter = filters.isEmpty() ? null : filters.getLast();
             FilterTreeShape treeShape = filter != null
                 ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
                 : FilterTreeShape.NO_DELEGATION;
