@@ -33,29 +33,18 @@ import org.opensearch.analytics.exec.action.AnalyticsClearShuffleResponse;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
-import org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor;
-import org.opensearch.analytics.exec.agg.HashShuffleAggregateDispatch;
-import org.opensearch.analytics.exec.join.BroadcastDispatch;
-import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter;
-import org.opensearch.analytics.exec.join.CascadeShuffleDispatch;
-import org.opensearch.analytics.exec.join.CascadeShufflePlanRewriter;
-import org.opensearch.analytics.exec.join.DistributedAggOverJoinDispatch;
-import org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter;
 import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.exec.join.GeneralShuffleDAGRewriter;
-import org.opensearch.analytics.exec.join.GeneralShuffleDispatch;
-import org.opensearch.analytics.exec.join.HashShuffleDispatch;
-import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
+import org.opensearch.analytics.exec.join.UnifiedDispatch;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
-import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -66,11 +55,7 @@ import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.planner.rel.OpenSearchFilter;
-import org.opensearch.analytics.planner.rel.OpenSearchJoin;
-import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.BroadcastSizeExceededException;
@@ -123,16 +108,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
-
-    // ABSOLUTE bottom-join row floor for the agg-over-join shuffle seed: only seed a join whose larger
-    // input exceeds this many rows. Deliberately NOT derived from the coordinator buffer limit — the
-    // decision "this join is big enough that pushing a PARTIAL below the gather helps" depends on the
-    // join's own size, not on how large the coordinator buffer happens to be (raising the buffer to 1 GiB
-    // for distributed-agg FINAL gathers must NOT suppress the seed: 8M fact rows still benefit from
-    // distribution). 1M rows is well below any fact table that needs distributing (TPC-H partsupp = 8M,
-    // lineitem = 60M) and well above trivial joins that gather cheaply. The seed is correctness-safe at
-    // any size; the floor only avoids needless shuffles of small joins.
-    private static final long MIN_AGG_OVER_JOIN_BOTTOM_ROWS = 1_000_000L;
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
@@ -375,34 +350,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
             )
-            // Cascade kill switch must follow dynamic updates too — the rewrite is gated on this in
-            // executeInternal below; without the overlay a PUT /_cluster/settings to disable cascade
-            // would be ignored and the rewrite would keep firing on the node-bootstrap default (true).
-            .put(
-                AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED)
-            )
-            // Distributed-agg-over-cascade kill switch must follow dynamic updates too — the dispatch
-            // branch below gates on it; without the overlay a PUT /_cluster/settings disable would be
-            // ignored and the rewrite would keep firing on the node-bootstrap default (true).
-            .put(
-                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED)
-            )
-            // General-scheduler (Option B) toggle must follow dynamic updates too — executeInternal gates
-            // both the enforcement pass AND the GeneralShuffleDispatch routing on it; without the overlay a
-            // PUT /_cluster/settings to enable/disable it would be ignored and the node-bootstrap default
-            // (false) would win, so the sf=10 toggle-on validation could never switch the path on.
-            .put(
-                AnalyticsSettings.MPP_CBO_NATIVE_CASCADE.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_CBO_NATIVE_CASCADE)
-            )
             // The general-scheduler row floor must follow dynamic updates too — the enforce() call gates
             // distribute-vs-coord on it; the cluster ITs lower it (small datasets) to exercise the
             // distributed path, so a static node-bootstrap read would pin the 1M default and never distribute.
             .put(
-                AnalyticsSettings.MPP_CBO_NATIVE_CASCADE_MIN_ROWS.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_CBO_NATIVE_CASCADE_MIN_ROWS)
+                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS)
             )
             .put(
                 AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
@@ -443,21 +396,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
         plannerContext.setBroadcastEligible(!broadcastDisabled);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
-        // Cascaded hash-shuffle: post-CBO, turn a multi-way join's coordinator-gathered inputs
-        // into hash-shuffle inputs so DAGBuilder cuts a cascaded shuffle DAG (each join level its
-        // own worker tier) instead of leaving the outer join COORDINATOR_CENTRIC → ReduceSize
-        // overflow at scale. CBO is not shuffle-cascade-native (it only shuffles a join over two
-        // pure shard scans); the rewrite extends an existing lower-level shuffle upward. Gated on
-        // MPP + the cascade sub-toggle; the rewriter itself only fires on a join whose subtree
-        // already shuffles, so small-probe joins CBO kept coord-centric are untouched.
-        // Option B (experimental, off by default): the general post-CBO distribution-enforcement pass
-        // REPLACES the enumerated shape-matchers (CascadeShufflePlanRewriter / seedAggOverJoinBottomShuffle
-        // / splitThetaJoinOverAggInputs / DistributedAggOverJoinRewriter). It places exchanges by the
-        // OpenSearchDistribution.satisfies() algebra, so the cascade / agg-over-join / outer / mixed-key /
-        // scalar-subquery shapes all emerge generically. While the toggle is off, the legacy rewriters
-        // below run unchanged (production path). See MPP-GENERAL-SCHEDULING-DESIGN.md.
-        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings) && AnalyticsSettings.MPP_CBO_NATIVE_CASCADE.get(perQuerySettings)) {
-            int cascadePartitions = MppShufflePartitions.resolve(
+        // General post-CBO distribution-enforcement pass (Option B — the only MPP scheduler). Volcano CBO
+        // gathers every join to COORDINATOR+SINGLETON (its cost gate knows only 3 fixed localities), so its
+        // output is the degenerate "gather everything" plan. This pass walks that plan and places exchanges
+        // by the OpenSearchDistribution.satisfies() algebra — the cascade, agg-over-join, outer-join,
+        // mixed-key, broadcast, and scalar-subquery shapes all emerge generically, with no per-shape code.
+        // UnifiedDispatch then runs whatever it distributes. Below the size floor the pass is a no-op and the
+        // query stays coordinator-centric (CBO's cheap choice for small joins). See
+        // MPP-GENERAL-SCHEDULING-DESIGN.md.
+        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)) {
+            int shufflePartitions = MppShufflePartitions.resolve(
                 perQuerySettings,
                 planningState,
                 capabilityRegistry,
@@ -466,202 +414,48 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             plan = DistributionEnforcementPass.enforce(
                 plan,
                 plannerContext.getDistributionTraitDef(),
-                cascadePartitions,
-                AnalyticsSettings.MPP_CBO_NATIVE_CASCADE_MIN_ROWS.get(perQuerySettings)
+                shufflePartitions,
+                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings)
             );
-        } else if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)
-            && AnalyticsSettings.MPP_SHUFFLE_CASCADE_ENABLED.get(perQuerySettings)) {
-                int cascadePartitions = MppShufflePartitions.resolve(
-                    perQuerySettings,
-                    planningState,
-                    capabilityRegistry,
-                    ((OpenSearchRelNode) plan).getViableBackends()
-                );
-                // Seed the agg-over-join shape (q2/q11) FIRST: when a decomposable aggregate sits above a
-                // multi-way INNER join whose large×small bottom join CBO kept coordinator-centric, shuffle
-                // that bottom join so the cascade extend + DistributedAggOverJoinRewriter can push a PARTIAL
-                // below the coordinator gather (the proven q5/q10 path). CBO won't shuffle a large×small
-                // bottom join itself — broadcasting the small side still gathers the large join output to
-                // SINGLETON for the parent dimension join — so the PARTIAL push is the only thing that caps
-                // the gather. Gated additionally on the aggregate-over-join toggle (the seed is pointless
-                // without that rewriter) and a row floor tied to the coordinator buffer (don't shuffle a
-                // bottom join small enough to gather safely).
-                //
-                // SELF-VALIDATING: the seed shuffles a bottom join the RelNode-level shape check accepts, but
-                // canPushPartial also applies DAG-level gates (each dimension must be a reducer-fed
-                // StageInputScan) the seed can't fully replicate pre-DAG. Keep the seeded plan ONLY if it
-                // yields a dispatchable distributed-agg-over-join DAG; otherwise revert to the un-seeded plan
-                // so an un-acceptable seed can't leave an orphaned shuffle that the generic HashShuffleDispatch
-                // would mis-lift (the "No table named input-N" failure). Then the existing extend runs on the
-                // chosen plan.
-                if (AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)) {
-                    long minBottomJoinRows = MIN_AGG_OVER_JOIN_BOTTOM_ROWS;
-                    RelNode seeded = CascadeShufflePlanRewriter.seedAggOverJoinBottomShuffle(plan, cascadePartitions, minBottomJoinRows);
-                    if (seeded != plan) {
-                        // First try the scalar-subquery theta-split (q2/q11): when the root is a theta join over
-                        // TWO agg-over-join subtrees, cut each into its own child stage so each distributes
-                        // independently. SELF-VALIDATING: keep the split plan only if BOTH cut children are
-                        // distributable (canPushPartial per child); else fall through to the single-subtree path.
-                        RelNode split = CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs(seeded);
-                        boolean tookSplit = false;
-                        if (split != seeded) {
-                            RelNode splitExtended = CascadeShufflePlanRewriter.rewrite(split, cascadePartitions);
-                            QueryDAG trialDag = DAGBuilder.build(
-                                splitExtended,
-                                capabilityRegistry,
-                                clusterService,
-                                indexNameExpressionResolver
-                            );
-                            List<Stage> distributableChildren = trialDag.rootStage()
-                                .getChildStages()
-                                .stream()
-                                .filter(child -> DistributedAggOverJoinRewriter.canPushPartial(trialDag, child))
-                                .toList();
-                            if (distributableChildren.size() >= 2) {
-                                plan = split;
-                                tookSplit = true;
-                            } else {
-                                logger.debug("theta agg-over-join split produced <2 distributable children; trying single-subtree path");
-                            }
-                        }
-                        // Single-subtree path (q11-main / q5 / q10): keep the seeded plan only if it yields a
-                        // dispatchable distributed-agg-over-join DAG; else revert to un-seeded (so an
-                        // un-acceptable seed can't orphan a shuffle the generic HashShuffleDispatch mis-lifts).
-                        if (!tookSplit) {
-                            RelNode seededExtended = CascadeShufflePlanRewriter.rewrite(seeded, cascadePartitions);
-                            QueryDAG trialDag = DAGBuilder.build(
-                                seededExtended,
-                                capabilityRegistry,
-                                clusterService,
-                                indexNameExpressionResolver
-                            );
-                            if (DistributedAggOverJoinRewriter.canPushPartial(trialDag)) {
-                                plan = seeded;
-                            } else {
-                                logger.debug("agg-over-join seed produced a non-distributable DAG; reverting to un-seeded plan");
-                            }
-                        }
-                    }
-                }
-                plan = CascadeShufflePlanRewriter.rewrite(plan, cascadePartitions);
-            }
-        // When the general post-CBO scheduler is on (Option B), the enforced DAG carries its own
-        // exchanges and a pre-split aggregate. Route it to the single GeneralShuffleDispatch path,
-        // bypassing the legacy shape-router (JoinStrategyAdvisor.observe + the dispatch* flags below)
-        // entirely. Computed here so the legacy routing block stays inert under the toggle.
-        final boolean cboNativeCascade = AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)
-            && AnalyticsSettings.MPP_CBO_NATIVE_CASCADE.get(perQuerySettings);
+        }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 
-        // Join strategy resolution under the CBO-driven model:
-        // - The Volcano CBO already chose between coord-centric, broadcast, and hash-shuffle
-        // by ranking alternatives produced by the three split rules under the cost model
-        // (see OpenSearchJoin{,Hash,Broadcast}JoinSplitRule + OpenSearchBroadcastExchange /
-        // OpenSearchShuffleExchange cost functions). DAGBuilder cut at the chosen exchange
-        // RelNodes and tagged stages BROADCAST_BUILD / BROADCAST_PROBE / SHUFFLE_*.
-        // - The advisor here is read-only: it inspects role tags so we know which dispatch
-        // path to invoke and which counter to increment. No decisions, no mutations.
-        //
-        // Counter recording sits BEFORE the plan-side pipeline (PlanForker / BackendPlanAdapter /
-        // FragmentConversionDriver) so the strategy that CBO picked is observable even when
-        // backend conversion fails for a not-yet-wired shape (e.g. HASH_SHUFFLE before the
-        // M2 producer is filled). The "routed" claim is honest: counter reflects what the
-        // dispatcher would route IF execution proceeds — partial wiring failures don't hide
-        // the planner's decision from /_analytics/_strategies observers.
-        final MppStrategy joinStrategy = JoinStrategyAdvisor.observe(dag);
-        final Stage broadcastBuild = JoinStrategyAdvisor.findBroadcastBuild(dag);
-        final Stage broadcastProbe = JoinStrategyAdvisor.findBroadcastProbe(dag);
-        final Stage shuffleLeft = JoinStrategyAdvisor.findShuffleScanLeft(dag);
-        final Stage shuffleRight = JoinStrategyAdvisor.findShuffleScanRight(dag);
-        final Stage shuffleAggProducer = AggregateStrategyAdvisor.findAggregateShuffleProducer(dag);
+        // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
+        // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and
+        // tagged stages SHUFFLE_*/BROADCAST_BUILD. The single UnifiedDispatch path runs whatever the DAG
+        // distributes — a shuffle cascade, a preserved CBO broadcast, or a mixed broadcast-under-shuffle —
+        // by capturing broadcasts (inject-as-instruction) then promoting shuffle worker tiers. A DAG the
+        // size floor kept fully coordinator-centric distributes nothing → UnifiedDispatch is a plain execute.
         final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
-        // Under the general post-CBO scheduler (Option B) every legacy shape-routed dispatcher is
-        // suppressed: the enforced DAG carries its own exchanges + pre-split aggregate, so the legacy
-        // rewriters (which expect the CBO-gathered shape) would MISFIRE on it — e.g.
-        // CascadeShuffleDAGRewriter would try to re-lift stages the pass already distributed. The general
-        // path (dispatchGeneralShuffle, below) takes over. The legacy flags also feed the metrics block,
-        // so gating them here keeps that honest too (the general path records its own strategy).
-        final boolean dispatchBroadcast = !cboNativeCascade
-            && joinStrategy == MppStrategy.BROADCAST
-            && broadcastBuild != null
-            && broadcastProbe != null
-            && isQueryScheduler;
-        final boolean dispatchHashShuffle = !cboNativeCascade
-            && joinStrategy == MppStrategy.HASH_SHUFFLE
-            && shuffleLeft != null
-            && shuffleRight != null
-            && isQueryScheduler;
-        // Cascade: a multi-way join where every level shuffles (>1 join-over-two-shuffles stage).
-        // The single-level HashShuffleDispatch only lifts one join; the cascade dispatcher lifts
-        // every level into its own worker tier. Detected structurally so a plain 2-way shuffle join
-        // keeps the simpler path.
-        final boolean dispatchCascadeShuffle = dispatchHashShuffle && CascadeShuffleDAGRewriter.isCascade(dag);
-        // Distributed aggregation over a join (q5/q10 multi-way cascade; q2/q11 single bottom join with
-        // dimension joins above): an Aggregate(SINGLE) over dimension joins over a hash-shuffle bottom
-        // join. Push a PARTIAL onto the top worker (dimensions broadcast in) and keep FINAL on the
-        // coordinator. canPushPartial validates the FULL shape itself (decomposable agg, partition-
-        // preserving path, exactly one liftable join-over-two-shuffles, broadcastable dims) — it needs a
-        // single liftable join, NOT a multi-LEVEL cascade — so it is gated on dispatchHashShuffle (a
-        // shuffle join exists), NOT dispatchCascadeShuffle (>1 shuffle level). A q5/q10 multi-way cascade
-        // and a q2/q11 single bottom join both satisfy it; takes precedence over both the plain cascade
-        // and the single-level HashShuffleDispatch (which can't lift the dimension joins). See
-        // DistributedAggOverJoinRewriter.
-        final boolean dispatchDistributedAggOverJoin = dispatchHashShuffle
-            && AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
-            && DistributedAggOverJoinRewriter.canPushPartial(dag);
-        // Multi-subtree distributed agg over a scalar-subquery theta join (q2/q11): the coordinator root
-        // is a theta join (NO equi key, so dispatchHashShuffle is false for the root) over TWO child
-        // stages that were each cut by splitThetaJoinOverAggInputs and are each independently a
-        // distributable agg-over-join subtree. Detected by ≥2 root children passing canPushPartial; each
-        // child is dispatched as its own distributed-agg phase, then the coordinator runs the theta join
-        // over the two FINAL outputs. Gated on the same toggle.
-        // Shape gate: only take this multi-subtree path when the coordinator root fragment IS a
-        // no-equi-key theta OpenSearchJoin (the q2/q11 scalar-subquery shape that
-        // splitThetaJoinOverAggInputs cut) — NOT merely "≥2 distributable children". Without this, an
-        // unrelated coordinator plan with two distributable children (e.g. a UNION of two aggregates)
-        // would be wrongly stolen from its proper hash-shuffle/cascade dispatch.
-        final List<Stage> distributableThetaChildren = !cboNativeCascade
-            && AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED.get(perQuerySettings)
-            && isQueryScheduler
-            && isThetaJoinRoot(dag.rootStage())
-                ? dag.rootStage().getChildStages().stream().filter(c -> DistributedAggOverJoinRewriter.canPushPartial(dag, c)).toList()
-                : List.of();
-        final boolean dispatchMultiSubtreeDistributedAgg = distributableThetaChildren.size() >= 2;
-        final boolean dispatchHashShuffleAggregate = !cboNativeCascade && shuffleAggProducer != null && isQueryScheduler;
-        // General post-CBO scheduler (Option B): the enforced DAG has at least one join-over-two-shuffles
-        // stage to promote to a worker tier. Takes precedence over every legacy dispatcher (all gated off
-        // above under the toggle). A toggle-on DAG the size-floor kept fully coord-centric has no such stage
-        // → falls through to plain scheduler.execute.
-        final boolean dispatchGeneralShuffle = cboNativeCascade && isQueryScheduler && GeneralShuffleDAGRewriter.hasDistributedJoin(dag);
+        final boolean dagHasBroadcast = MppStrategy.findBroadcastBuild(dag) != null;
+        final boolean dagHasDistributedJoin = GeneralShuffleDAGRewriter.hasDistributedJoin(dag);
+        final boolean dispatchGeneralShuffle = isQueryScheduler && (dagHasDistributedJoin || dagHasBroadcast);
         // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
-        // buffers may be populated on data nodes (join shuffle, cascade, or shuffle-aggregate all cut
-        // a HASH_DISTRIBUTED exchange in the DAG). Drives the terminal cleanup broadcast: skip it for
-        // the common non-shuffle query so we don't fan O(data-nodes) no-op RPCs on every analytics
-        // query. Computed from the DAG (not the dispatch flags) so a shuffle plan that falls back to
-        // coord-centric at dispatch still cleans up any buffers a partially-run producer created.
+        // buffers may be populated on data nodes. Drives the terminal cleanup broadcast: skip it for the
+        // common non-shuffle query so we don't fan O(data-nodes) no-op RPCs on every analytics query.
         final boolean planUsesShuffle = dagHasHashExchange(dag);
 
-        if (JoinStrategyAdvisor.containsJoin(dag)) {
+        // Record the dispatched strategy for /_analytics/_strategies. The general path distributes via
+        // broadcast and/or hash-shuffle worker tiers; record BROADCAST when the DAG preserved a CBO
+        // broadcast (even if a shuffle rides above it), HASH_SHUFFLE for a pure shuffle, else
+        // COORDINATOR_CENTRIC. Recorded BEFORE the plan-side pipeline so the decision is observable even if
+        // a later conversion fails.
+        if (MppStrategy.containsJoin(dag)) {
             MppStrategy routedStrategy;
-            if (dispatchGeneralShuffle) {
-                // The general scheduler distributes via hash-shuffle worker tiers; record HASH_SHUFFLE so
-                // /_analytics/_strategies reflects the distributed dispatch the toggle-on path took.
-                routedStrategy = MppStrategy.HASH_SHUFFLE;
-            } else if (dispatchBroadcast) {
+            if (dispatchGeneralShuffle && dagHasBroadcast) {
                 routedStrategy = MppStrategy.BROADCAST;
-            } else if (dispatchHashShuffle) {
+            } else if (dispatchGeneralShuffle) {
                 routedStrategy = MppStrategy.HASH_SHUFFLE;
             } else {
                 routedStrategy = MppStrategy.COORDINATOR_CENTRIC;
             }
             mppStrategyMetrics.recordDispatch(routedStrategy);
-        } else if (AggregateStrategyAdvisor.containsFinalAggregate(dag)) {
-            // Agg-shaped query (FINAL aggregate present, no join): record the dispatch shape so
-            // /_analytics/_strategies surfaces whether the M3 worker tier actually fired vs.
-            // fell back to coord-centric (e.g. when the SHUFFLE_SCAN_AGG producer is absent
-            // because CBO picked the coord-centric alternative).
-            MppStrategy routedStrategy = dispatchHashShuffleAggregate ? MppStrategy.HASH_SHUFFLE_AGG : MppStrategy.COORDINATOR_CENTRIC;
+        } else if (MppStrategy.containsFinalAggregate(dag)) {
+            // Agg-shaped query (FINAL aggregate present, no join): a distributed aggregate is pre-split by
+            // the enforcement pass into PARTIAL(worker)/FINAL(coord) and runs via the shuffle worker tier;
+            // record HASH_SHUFFLE_AGG when the DAG distributes, else COORDINATOR_CENTRIC.
+            MppStrategy routedStrategy = dagHasDistributedJoin ? MppStrategy.HASH_SHUFFLE_AGG : MppStrategy.COORDINATOR_CENTRIC;
             mppStrategyMetrics.recordDispatch(routedStrategy);
         }
 
@@ -675,16 +469,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         final long planningTimeMs = profile ? TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
-        if (joinStrategy == MppStrategy.HASH_SHUFFLE && !dispatchHashShuffle) {
+        if ((dagHasDistributedJoin || dagHasBroadcast) && !isQueryScheduler) {
             logger.info(
-                "[DefaultPlanExecutor] HASH_SHUFFLE plan-shape produced but dispatch ineligible (left={}, right={}, scheduler={}); falling back to single-pass execution.",
-                shuffleLeft != null,
-                shuffleRight != null,
-                scheduler.getClass().getSimpleName()
-            );
-        } else if (joinStrategy == MppStrategy.BROADCAST && !dispatchBroadcast) {
-            logger.info(
-                "[DefaultPlanExecutor] BROADCAST plan-shape produced but scheduler is {}, not QueryScheduler; falling back to single-pass execution.",
+                "[DefaultPlanExecutor] distributed plan-shape produced but scheduler is {}, not QueryScheduler; "
+                    + "falling back to single-pass execution.",
                 scheduler.getClass().getSimpleName()
             );
         }
@@ -836,18 +624,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         try {
             if (dispatchGeneralShuffle) {
                 dispatchGeneralShuffle(dag, context, execRef, batchesListener);
-            } else if (dispatchBroadcast) {
-                dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
-            } else if (dispatchMultiSubtreeDistributedAgg) {
-                dispatchMultiSubtreeDistributedAgg(dag, distributableThetaChildren, context, execRef, batchesListener);
-            } else if (dispatchDistributedAggOverJoin) {
-                dispatchDistributedAggOverJoin(dag, context, execRef, batchesListener);
-            } else if (dispatchCascadeShuffle) {
-                dispatchCascadeShuffle(dag, context, execRef, batchesListener);
-            } else if (dispatchHashShuffle) {
-                dispatchHashShuffle(dag, shuffleLeft, shuffleRight, context, execRef, batchesListener);
-            } else if (dispatchHashShuffleAggregate) {
-                dispatchHashShuffleAggregate(dag, shuffleAggProducer, context, execRef, batchesListener);
             } else {
                 // execRef read by profile listener after execution completes
                 execRef.set(scheduler.execute(context, batchesListener));
@@ -860,135 +636,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     /**
-     * Runs the broadcast-join path against a CBO-produced DAG. The DAG already has the
-     * broadcast shape — root → probe stage → build stage — because the cost model picked the
-     * broadcast alternative emitted by {@link
-     * org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule} and DAGBuilder
-     * cut at the resulting {@link org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange}.
-     * No DAG rewrite is needed.
-     *
-     * <p>Pass 1 runs the build stage with a backend-supplied capture sink; pass 2 runs probe +
-     * root after enriching the probe stage's plan alternatives with a {@link
-     * org.opensearch.analytics.spi.BroadcastInjectionInstructionNode} carrying the captured IPC
-     * bytes. Failures surface via {@code terminal.onFailure(...)}.
-     */
-    private void dispatchBroadcast(
-        QueryDAG dag,
-        Stage build,
-        Stage probe,
-        QueryContext context,
-        AtomicReference<QueryExecution> execRef,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
-    ) {
-        Stage root = dag.rootStage();
-        // Pick a capture sink from the first reduce-capable backend. For a single-backend
-        // deployment (DataFusion) this is the only candidate and mirrors DAGBuilder's reduce
-        // sink provider lookup.
-        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
-            capabilityRegistry,
-            ((OpenSearchRelNode) root.getFragment()).getViableBackends()
-        );
-        if (reduceViable.isEmpty()) {
-            throw new IllegalStateException("No reduce-capable backend for broadcast capture sink");
-        }
-        final String captureBackendId = reduceViable.get(0);
-        QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        BroadcastDispatch dispatch = new BroadcastDispatch(qscheduler.getStageExecutionBuilder(), qscheduler);
-
-        // Runtime byte cap from settings — the sink fails the dispatcher's terminal listener
-        // when accumulated buffer size exceeds this, preventing runaway broadcast payloads
-        // from blowing up coordinator memory.
-        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
-        // Per-build capture-sink factory: each broadcast build gets a sink built for ITS output
-        // rowType (multi-broadcast queries resolve several builds). The build's RelDataType lets
-        // the backend build a fallback Arrow schema for the IPC header so an all-empty build payload
-        // still registers a memtable with the real row type — the probe-side join's NamedScan binds
-        // correctly and INNER joins produce zero matches rather than failing.
-        dispatch.run(
-            context,
-            dag,
-            build,
-            probe,
-            root,
-            buildStage -> capabilityRegistry.getBackend(captureBackendId)
-                .getExchangeSinkProvider()
-                .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),
-            execRef::set,
-            terminal
-        );
-    }
-
-    /**
-     * Runs the hash-shuffle path against a CBO-produced DAG. The DAG already has the shuffle
-     * shape — root with two SHUFFLE_SCAN_* producer children — because the cost model picked
-     * the hash alternative emitted by {@link
-     * org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule} and DAGBuilder cut at
-     * the resulting {@link org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange}s and
-     * tagged the children. Pre-allocates per-partition shuffle buffers, attaches per-side
-     * ShuffleProducerInstructionNodes to the producers and ShuffleScanInstructionNodes to the
-     * consumer, then hands off to the standard scheduler for concurrent dispatch.
-     */
-    private void dispatchHashShuffle(
-        QueryDAG dag,
-        Stage leftProducer,
-        Stage rightProducer,
-        QueryContext context,
-        AtomicReference<QueryExecution> execRef,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
-    ) {
-        // Both producers share the same parent (the consumer / join stage). We find it via the
-        // root walk: the consumer is the parent of both producers; for a CBO-produced
-        // hash-shuffle DAG with no extra wrappers the consumer IS the root, but for
-        // wrappers-above-join shapes (Sort, Project) the consumer is whichever ancestor
-        // contains both producers as its direct child stages. Walk from the root.
-        Stage consumer = findConsumerStage(dag.rootStage(), leftProducer, rightProducer);
-        if (consumer == null) {
-            throw new IllegalStateException(
-                "HashShuffleDispatch: could not locate consumer stage that holds both shuffle producers as children"
-            );
-        }
-        QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry).run(
-            context,
-            dag,
-            leftProducer,
-            rightProducer,
-            consumer,
-            execRef::set,
-            terminal,
-            preferMetadataDriver
-        );
-    }
-
-    /**
-     * Runs the CASCADED hash-shuffle path: a multi-way join where every level shuffles. Delegates to
-     * {@link CascadeShuffleDispatch}, which rewrites the DAG into a chain of worker tiers (each join
-     * level → one worker; intermediate workers consume the level below and produce to the level
-     * above) and enriches every level's shuffle instructions. Unlike {@link #dispatchHashShuffle},
-     * there is no single (left, right, consumer) triple — the dispatcher walks all levels.
-     */
-    private void dispatchCascadeShuffle(
-        QueryDAG dag,
-        QueryContext context,
-        AtomicReference<QueryExecution> execRef,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
-    ) {
-        QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new CascadeShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry, preferMetadataDriver).run(
-            context,
-            dag,
-            execRef::set,
-            terminal
-        );
-    }
-
-    /**
-     * Runs the GENERAL post-CBO scheduler path (Option B). The DAG was produced by
-     * {@link DistributionEnforcementPass}: it already carries every shuffle exchange and a pre-split
-     * aggregate ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link GeneralShuffleDispatch}, which
-     * promotes each join-over-two-shuffles stage to a worker tier in place (the PARTIAL aggregate rides on
-     * the worker), enriches the per-level shuffle instructions, and dispatches. One path for any join
-     * depth / shape / type — no shape recognition, no broadcast build/inject.
+     * Runs the GENERAL post-CBO scheduler path. The DAG was produced by {@link DistributionEnforcementPass}:
+     * it already carries every shuffle/broadcast exchange and a pre-split aggregate
+     * ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link UnifiedDispatch}, which captures any broadcast
+     * builds (injecting each as an instruction on its consumer stage), then promotes the shuffle worker
+     * tiers and dispatches — one path for any join depth / shape / type, with no per-shape recognition.
      */
     private void dispatchGeneralShuffle(
         QueryDAG dag,
@@ -997,161 +649,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new GeneralShuffleDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver).run(
+        // UnifiedDispatch discovers any BROADCAST_BUILD stages itself, captures them, injects each as a
+        // broadcast instruction on its consumer stage, then dispatches the broadcast-free DAG (shuffle
+        // promotion if it still distributes a join). Broadcast is an instruction, not a stage role, so a
+        // stage that is both a broadcast consumer AND a shuffle producer (q3/q8/q9) runs without conflict.
+        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver).run(
             context,
             dag,
+            UnifiedDispatch.captureSinkFactory(context, dag, capabilityRegistry, clusterService),
             execRef::set,
             terminal
         );
-    }
-
-    /**
-     * Runs the distributed-aggregation-over-cascade-join path (q5/q10). Delegates to
-     * {@link DistributedAggOverJoinDispatch}, which rewrites the DAG so the cascade top worker carries
-     * the pre-aggregate pipeline + {@code Aggregate(PARTIAL)} (dimension tables broadcast into the
-     * worker), leaving {@code Aggregate(FINAL) → Sort} on the coordinator. Phase 1 builds + captures
-     * each dimension's Arrow IPC; phase 2 injects it into the worker and runs the cascade. Uses the
-     * same backend capture-sink factory as {@link #dispatchBroadcast}.
-     */
-    private void dispatchDistributedAggOverJoin(
-        QueryDAG dag,
-        QueryContext context,
-        AtomicReference<QueryExecution> execRef,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
-    ) {
-        Stage root = dag.rootStage();
-        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
-            capabilityRegistry,
-            ((OpenSearchRelNode) root.getFragment()).getViableBackends()
-        );
-        if (reduceViable.isEmpty()) {
-            throw new IllegalStateException("No reduce-capable backend for distributed-agg-over-join dimension capture sink");
-        }
-        final String captureBackendId = reduceViable.get(0);
-        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
-        QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new DistributedAggOverJoinDispatch(
-            qscheduler.getStageExecutionBuilder(),
-            qscheduler,
-            clusterService,
-            shuffleBufferManager,
-            capabilityRegistry,
-            preferMetadataDriver
-        ).run(
-            context,
-            dag,
-            buildStage -> capabilityRegistry.getBackend(captureBackendId)
-                .getExchangeSinkProvider()
-                .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),
-            execRef::set,
-            terminal
-        );
-    }
-
-    /**
-     * True iff {@code rootStage}'s fragment is a no-equi-key (theta) {@link OpenSearchJoin} after peeling
-     * the coordinator post-join ops ({@code Sort}/{@code Project}/{@code Filter}) — the q2/q11
-     * scalar-subquery shape that {@code splitThetaJoinOverAggInputs} cuts. Gates the multi-subtree
-     * distributed-agg route so an unrelated two-distributable-child plan (e.g. a coordinator UNION of two
-     * aggregates) is NOT preempted from its proper dispatch path.
-     */
-    private static boolean isThetaJoinRoot(Stage rootStage) {
-        RelNode n = RelNodeUtils.unwrapHep(rootStage.getFragment());
-        while (n instanceof OpenSearchSort || n instanceof OpenSearchProject || n instanceof OpenSearchFilter) {
-            if (n.getInputs().size() != 1) {
-                return false;
-            }
-            n = RelNodeUtils.unwrapHep(n.getInput(0));
-        }
-        return n instanceof OpenSearchJoin join && join.analyzeCondition().leftKeys.isEmpty();
-    }
-
-    /**
-     * Runs the MULTI-SUBTREE distributed-aggregation path (TPC-H q2/q11 scalar subquery): the coordinator
-     * root is a theta join over {@code distributableThetaChildren} (two agg-over-join subtrees cut by
-     * {@code CascadeShufflePlanRewriter.splitThetaJoinOverAggInputs}). Each child is rewritten + dispatched
-     * as its own distributed-agg phase; the coordinator then runs the theta join over the two FINAL
-     * outputs. Same backend capture-sink factory as the single-subtree path.
-     */
-    private void dispatchMultiSubtreeDistributedAgg(
-        QueryDAG dag,
-        List<Stage> distributableThetaChildren,
-        QueryContext context,
-        AtomicReference<QueryExecution> execRef,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
-    ) {
-        Stage root = dag.rootStage();
-        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
-            capabilityRegistry,
-            ((OpenSearchRelNode) root.getFragment()).getViableBackends()
-        );
-        if (reduceViable.isEmpty()) {
-            throw new IllegalStateException("No reduce-capable backend for multi-subtree distributed-agg dimension capture sink");
-        }
-        final String captureBackendId = reduceViable.get(0);
-        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
-        QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new DistributedAggOverJoinDispatch(
-            qscheduler.getStageExecutionBuilder(),
-            qscheduler,
-            clusterService,
-            shuffleBufferManager,
-            capabilityRegistry,
-            preferMetadataDriver
-        ).runMultiSubtree(
-            context,
-            dag,
-            distributableThetaChildren,
-            buildStage -> capabilityRegistry.getBackend(captureBackendId)
-                .getExchangeSinkProvider()
-                .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),
-            execRef::set,
-            terminal
-        );
-    }
-
-    /**
-     * Runs the hash-shuffle aggregate path against a CBO-produced DAG. The DAG's producer child
-     * stage is tagged {@link Stage.StageRole#SHUFFLE_SCAN_AGG} by {@code DAGBuilder.cutShuffle}
-     * when the shuffle's parent is an {@link org.opensearch.analytics.planner.rel.OpenSearchAggregate}.
-     * The dispatcher lifts the FINAL aggregate into a worker stage via
-     * {@link org.opensearch.analytics.exec.agg.HashShuffleAggregateDAGRewriter}, attaches the
-     * single-side shuffle instructions, and hands off to the scheduler.
-     */
-    private void dispatchHashShuffleAggregate(
-        QueryDAG dag,
-        Stage producer,
-        QueryContext context,
-        AtomicReference<QueryExecution> execRef,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
-    ) {
-        Stage consumer = findAggregateConsumerStage(dag.rootStage(), producer);
-        if (consumer == null) {
-            throw new IllegalStateException(
-                "HashShuffleAggregateDispatch: could not locate consumer stage that holds the agg-shuffle producer as a child"
-            );
-        }
-        QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new HashShuffleAggregateDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry).run(
-            context,
-            dag,
-            producer,
-            consumer,
-            execRef::set,
-            terminal,
-            preferMetadataDriver
-        );
-    }
-
-    /** Walks {@code stage}'s subtree looking for the parent of {@code producer}. */
-    private static Stage findAggregateConsumerStage(Stage stage, Stage producer) {
-        if (stage == null) return null;
-        if (stage.getChildStages().contains(producer)) return stage;
-        for (Stage child : stage.getChildStages()) {
-            Stage found = findAggregateConsumerStage(child, producer);
-            if (found != null) return found;
-        }
-        return null;
     }
 
     /** True if any stage in the DAG carries a HASH-distributed exchange — i.e. the plan can populate
@@ -1291,21 +799,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         } catch (Exception e) {
             logger.debug(new ParameterizedMessage("[query-{}] could not schedule shuffle cleanup retry to {}", queryId, node.getId()), e);
         }
-    }
-
-    /** Walks {@code stage}'s subtree looking for the stage whose direct {@code childStages} list
-     *  contains both producers. */
-    private static Stage findConsumerStage(Stage stage, Stage left, Stage right) {
-        if (stage == null) return null;
-        List<Stage> children = stage.getChildStages();
-        if (children.contains(left) && children.contains(right)) {
-            return stage;
-        }
-        for (Stage child : children) {
-            Stage found = findConsumerStage(child, left, right);
-            if (found != null) return found;
-        }
-        return null;
     }
 
     /**

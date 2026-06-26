@@ -80,7 +80,7 @@ public class QueryScheduler implements Scheduler {
      * when {@code start()} transitions straight to a terminal (empty target resolution →
      * SUCCEEDED; concurrent cancel → CANCELLED).
      *
-     * <p>Public for join-strategy dispatchers (e.g. {@code BroadcastDispatch}) that need to run
+     * <p>Public for the MPP dispatcher ({@code UnifiedDispatch}) which needs to run
      * a single stage in isolation with a caller-supplied output sink, outside the normal
      * {@link QueryExecution} graph traversal. Those callers reuse this method rather than
      * inlining the dispatch loop so future scheduler enhancements (in-flight caps, retry-aware

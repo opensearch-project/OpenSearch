@@ -16,29 +16,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end tests for the GENERAL post-CBO scheduler (Option B) on a real 2-data-node cluster — B3
- * validation for the {@code analytics.mpp.cbo_native_cascade} path
- * ({@code DistributionEnforcementPass} + {@code GeneralShuffleDAGRewriter} + {@code GeneralShuffleDispatch}).
+ * End-to-end tests for the GENERAL post-CBO scheduler on a real multi-data-node cluster
+ * ({@code DistributionEnforcementPass} + {@code GeneralShuffleDAGRewriter} + {@code UnifiedDispatch}).
  *
  * <p>Where the JVM tests assert DAG/promotion SHAPE against a mock backend (no fragment convertor), this
  * exercises the ACTUAL execution: the DataFusion native backend, the hash-shuffle transport, in-place
  * worker promotion (binary tiers), and PARTIAL-aggregate-on-worker → coordinator-FINAL. The contract is
- * row-multiset PARITY between three runs of every shape:
+ * row-multiset PARITY between two runs of every shape:
  * <ol>
  *   <li><b>baseline</b> — {@code analytics.mpp.enabled=false} (every join coordinator-centric);</li>
- *   <li><b>legacy MPP</b> — {@code mpp.enabled=true}, {@code cbo_native_cascade=false} (the shipped
- *       enumerated rewriters: cascade / agg-over-join);</li>
- *   <li><b>general</b> — {@code mpp.enabled=true}, {@code cbo_native_cascade=true} (the new pass).</li>
+ *   <li><b>general</b> — {@code mpp.enabled=true} (the only MPP scheduler — the general post-CBO pass).</li>
  * </ol>
- * All three must produce identical row multisets. The general run additionally must advance the
- * HASH_SHUFFLE strategy counter (it distributes via worker tiers).
+ * Both must produce identical row multisets. The general run additionally must advance the HASH_SHUFFLE
+ * strategy counter (it distributes via worker tiers).
  *
- * <p>The shapes are exactly those B2 newly enables generically: a multi-way INNER cascade, an aggregate
- * over a multi-way join (PARTIAL on the worker), and — the gap the legacy INNER-only cascade cannot do —
- * a LEFT-outer multi-way join.
+ * <p>The shapes: a multi-way INNER cascade, an aggregate over a multi-way join (PARTIAL on the worker), and
+ * a LEFT-outer multi-way join (outer joins co-partition; null-fill is partition-local).
  *
  * <p>Data: three parquet indices keyed on {@code id}, each multi-shard, each large enough that the size
- * floor distributes the join (partitionCount = 2 data nodes &gt; 1).
+ * floor distributes the join (partitionCount = data nodes &gt; 1).
  */
 public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
 
@@ -46,10 +42,10 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
     private static final String B_INDEX = "gen_b";
     private static final String C_INDEX = "gen_c";
     private static final int SHARDS = 3;
-    /** Large enough that the cost model + the pass's row floor distribute the join. The general pass's
-     *  MIN_AGG_OVER_JOIN_BOTTOM_ROWS floor is 1M, but the join-distribution floor here is the CBO cost
-     *  race; 5000 each makes shuffle clearly win over coord-centric for the multi-way shape, matching
-     *  {@link HashShuffleJoinIT}'s sizing. */
+    /** Large enough that the cost model + the pass's row floor distribute the join. The pass's size floor
+     *  (analytics.mpp.distribute.min_rows) defaults to 1M, but each test lowers it to 1 via runGeneral so
+     *  this 5000-row data clears it; 5000 each makes shuffle clearly win over coord-centric for the
+     *  multi-way shape, matching {@link HashShuffleJoinIT}'s sizing. */
     private static final int ROW_COUNT = 5_000;
     private static final int CATEGORIES = 4;
 
@@ -58,8 +54,7 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
     @Override
     public void tearDown() throws Exception {
         resetSetting("analytics.mpp.enabled");
-        resetSetting("analytics.mpp.cbo_native_cascade");
-        resetSetting("analytics.mpp.cbo_native_cascade.min_distributed_rows");
+        resetSetting("analytics.mpp.distribute.min_rows");
         resetSetting("analytics.mpp.broadcast.probe_estimate");
         super.tearDown();
     }
@@ -80,19 +75,17 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
             + C_INDEX;
 
         Run baseline = runBaseline(ppl);
-        Run legacy = runLegacyMpp(ppl);
         Run general = runGeneral(ppl);
 
         assertEquals("baseline 3-way INNER: N matching ids", ROW_COUNT, baseline.rows.size());
         assertCounterAdvanced("general scheduler distributes the 3-way join (HASH_SHUFFLE)", general.hashShuffleDelta);
-        assertRowMultisetEquals("3-way INNER: legacy MPP must match coord-centric baseline", baseline.rows, legacy.rows);
         assertRowMultisetEquals("3-way INNER: GENERAL scheduler must match coord-centric baseline", baseline.rows, general.rows);
     }
 
     /**
      * Aggregate over a three-way join ({@code A ⋈ B ⋈ C | stats sum(amount) by category}) — the q5/q10
      * class. The general pass splits the aggregate into PARTIAL (on the top worker, per-partition) + FINAL
-     * (on the coordinator). Parity across all three runs.
+     * (on the coordinator). Parity baseline vs general.
      */
     public void testAggOverThreeWayJoin_generalMatchesBaseline() throws IOException {
         ensureDataProvisioned();
@@ -107,21 +100,18 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
             + " | sort category";
 
         Run baseline = runBaseline(ppl);
-        Run legacy = runLegacyMpp(ppl);
         Run general = runGeneral(ppl);
 
         assertEquals("baseline agg-over-3-way: one row per category", CATEGORIES, baseline.rows.size());
         assertCounterAdvanced("general scheduler distributes the agg-over-join (HASH_SHUFFLE)", general.hashShuffleDelta);
-        assertRowMultisetEquals("agg-over-3-way: legacy MPP must match baseline", baseline.rows, legacy.rows);
         assertRowMultisetEquals("agg-over-3-way: GENERAL scheduler must match baseline", baseline.rows, general.rows);
     }
 
     /**
-     * LEFT-outer three-way join — the coverage GAP the legacy cascade cannot distribute (INNER-only). The
-     * general scheduler co-partitions outer joins too (null-fill is partition-local). With matching ids on
-     * all sides the LEFT-outer output equals the INNER output for this data, but the test still catches
-     * "general path produces different rows than baseline" because parity is multiset-strict — and it
-     * proves a multi-way LEFT-outer runs end-to-end on the worker tier at all.
+     * LEFT-outer three-way join. The general scheduler co-partitions outer joins too (null-fill is
+     * partition-local). With matching ids on all sides the LEFT-outer output equals the INNER output for
+     * this data, but parity is multiset-strict — and it proves a multi-way LEFT-outer runs end-to-end on
+     * the worker tier at all.
      */
     public void testLeftOuterThreeWayJoin_generalMatchesBaseline() throws IOException {
         ensureDataProvisioned();
@@ -146,10 +136,10 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Kill-switch parity for the general scheduler: flipping {@code cbo_native_cascade} on a multi-way join
-     * must yield identical rows. Guards the toggle as a clean emergency revert.
+     * Kill-switch parity: flipping {@code analytics.mpp.enabled} on a multi-way join must yield identical
+     * rows. Guards the MPP_ENABLED gate as a clean emergency revert to coordinator-centric.
      */
-    public void testCboNativeCascadeKillSwitchParity() throws IOException {
+    public void testMppEnabledKillSwitchParity() throws IOException {
         ensureDataProvisioned();
         applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = "
@@ -160,9 +150,9 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
             + C_INDEX;
 
         Run general = runGeneral(ppl);
-        Run legacy = runLegacyMpp(ppl);
+        Run baseline = runBaseline(ppl);
 
-        assertRowMultisetEquals("general vs legacy MPP must produce identical rows", legacy.rows, general.rows);
+        assertRowMultisetEquals("general (mpp on) vs baseline (mpp off) must produce identical rows", baseline.rows, general.rows);
     }
 
     // ─── run helpers (each sets the gates, snapshots the HASH_SHUFFLE counter, runs) ────────────
@@ -170,24 +160,15 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
     /** Coord-centric baseline: MPP off. */
     private Run runBaseline(String ppl) throws IOException {
         applySetting("analytics.mpp.enabled", "false");
-        resetSetting("analytics.mpp.cbo_native_cascade");
         return execute(ppl);
     }
 
-    /** Legacy MPP rewriters: MPP on, general scheduler off. */
-    private Run runLegacyMpp(String ppl) throws IOException {
-        applySetting("analytics.mpp.enabled", "true");
-        applySetting("analytics.mpp.cbo_native_cascade", "false");
-        return execute(ppl);
-    }
-
-    /** General post-CBO scheduler: MPP on, general scheduler on. Lower the row floor to 1 so the small IT
+    /** General post-CBO scheduler: MPP on (the only MPP path). Lower the row floor to 1 so the small IT
      *  dataset (5000 rows/index) clears it and the join actually distributes — the production default is 1M
      *  (sized for sf=10 fact tables), far above this test data. */
     private Run runGeneral(String ppl) throws IOException {
         applySetting("analytics.mpp.enabled", "true");
-        applySetting("analytics.mpp.cbo_native_cascade", "true");
-        applySetting("analytics.mpp.cbo_native_cascade.min_distributed_rows", "1");
+        applySetting("analytics.mpp.distribute.min_rows", "1");
         return execute(ppl);
     }
 

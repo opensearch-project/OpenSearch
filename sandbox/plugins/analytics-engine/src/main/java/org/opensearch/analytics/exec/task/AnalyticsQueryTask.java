@@ -84,7 +84,7 @@ public class AnalyticsQueryTask extends SearchTask {
      * {@code setOnCancelCallback} is called, run the new callback immediately on the
      * caller's thread. {@link #onCancelled()} is one-shot, so without replay a callback
      * installed after cancellation would never fire — losing cancel semantics across the
-     * pass-1 → pass-2 handoff in {@code BroadcastDispatch}.
+     * broadcast-capture → residual-dispatch handoff in {@code UnifiedDispatch}.
      */
     public void setOnCancelCallback(Runnable callback) {
         onCancelCallback.set(callback);

@@ -342,7 +342,7 @@ public class DAGBuilder {
      * <p>When the parent is an {@link org.opensearch.analytics.planner.rel.OpenSearchJoin} the
      * cutter tags the child stage {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
      * {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} based on whether the shuffle feeds input 0 or 1
-     * — {@code HashShuffleDispatch} consumes that tag to assign the {@code "left"} / {@code "right"}
+     * — {@code ShuffleEnrichment} consumes that tag to assign the {@code "left"} / {@code "right"}
      * side label on each producer's instruction. For other parents (Aggregate, intermediate Project)
      * the role stays at the default {@link Stage.StageRole#SHARD_SOURCE} since there is no
      * join-side semantics to encode.
@@ -365,13 +365,21 @@ public class DAGBuilder {
         RelNode childFragment = sever(shuffle.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
 
         int childStageId = counter[0]++;
-        // Leaf shuffle producers run on shard nodes (the input is a shard scan); intermediate
-        // ones run on whatever locality the inner subtree produces. Same logic as cutAtExchange.
-        TargetResolver targetResolver = grandchildren.isEmpty()
+        // Decide the producer's locality by whether its fragment has a shard scan — NOT by child-stage
+        // count alone (the same rule cutBroadcast uses). A shuffle producer that scans a shard table runs on
+        // the shards and ships its hash partition, EVEN when it also has a grandchild stage feeding it — the
+        // broadcast-under-shuffle case: the producer fragment is Join(BroadcastScan, shardScan) whose only
+        // grandchild is the BROADCAST_BUILD side-input (injected as an instruction, not a streamed child).
+        // Without this, such a producer fell into the `grandchildren non-empty → reduce` branch and, once the
+        // build child is stripped at dispatch (its output is injected), became a childless COORDINATOR_REDUCE
+        // ("expected at least one child"). A fragment with no shard scan genuinely runs at the coordinator
+        // and consumes its grandchildren via an ExchangeSinkProvider.
+        boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
+        TargetResolver targetResolver = fragmentHasShardScan
             ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
             : null;
         ExchangeSinkProvider childSinkProvider = null;
-        if (!grandchildren.isEmpty()) {
+        if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, shuffle.getViableBackends());
             childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }
@@ -384,7 +392,7 @@ public class DAGBuilder {
             targetResolver
         );
         // Tag join-side role when the shuffle feeds an OpenSearchJoin's left or right input.
-        // HashShuffleDispatch reads this to assemble the {@code side="left"|"right"} label on
+        // ShuffleEnrichment reads this to assemble the {@code side="left"|"right"} label on
         // each producer's ShuffleProducerInstructionNode and to compose the worker fragment's
         // two NamedScans (one per side).
         if (parent instanceof OpenSearchJoin) {

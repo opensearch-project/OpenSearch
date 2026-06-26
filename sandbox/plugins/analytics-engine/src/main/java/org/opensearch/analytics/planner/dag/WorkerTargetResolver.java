@@ -19,8 +19,8 @@ import java.util.List;
  * Hash-shuffle worker {@link TargetResolver}. Returns one {@link WorkerExecutionTarget} per
  * partition: target {@code p} routes to {@code targetWorkerNodeIds.get(p)} and carries
  * {@code partitionIndex == p}. The list of node ids is supplied at construction time by
- * {@code HashShuffleDispatch} so producers and consumer agree on which partition lives where
- * (the same list is also stamped on every {@code ShuffleProducerInstructionNode}).
+ * {@code UnifiedDispatch}/{@code ShuffleEnrichment} so producers and consumer agree on which partition
+ * lives where (the same list is also stamped on every {@code ShuffleProducerInstructionNode}).
  *
  * @opensearch.internal
  */

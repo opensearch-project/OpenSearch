@@ -47,11 +47,10 @@ import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
  *       own output.</li>
  * </ul>
  *
- * <p>The rule competes with {@link OpenSearchJoinSplitRule} via Volcano's cost model. The
- * advisor (post-CBO) inspects which alternative survived and tags stages accordingly; today
- * the cost difference is structural (HASH+HASH vs SINGLETON+SINGLETON), and the strategy
- * selector at {@link org.opensearch.analytics.exec.join.JoinStrategyAdvisor} time decides
- * whether to dispatch the HASH plan based on row counts.
+ * <p>The rule competes with {@link OpenSearchJoinSplitRule} via Volcano's cost model. The chosen
+ * alternative becomes a {@code OpenSearchShuffleExchange} the post-CBO distribution-enforcement pass
+ * ({@code DistributionEnforcementPass}) promotes into a worker tier; below the size floor the join
+ * stays coordinator-centric.
  *
  * @opensearch.internal
  */

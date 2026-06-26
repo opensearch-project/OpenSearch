@@ -97,9 +97,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * correctness.
      *
      * <p>Public so the M3 hash-shuffle aggregate path ({@link OpenSearchAggregateShuffleSplitRule})
-     * AND the distributed-agg-over-cascade path
-     * ({@link org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter}) share the same
-     * correctness gates — all three use an identical PARTIAL/FINAL safety check, so STATE_EXPANDING /
+     * AND the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass}) share the
+     * same correctness gates — both use an identical PARTIAL/FINAL safety check, so STATE_EXPANDING /
      * DISTINCT / cross-family-non-prefix shapes stay coordinator-centric in every path.
      */
     public static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
@@ -351,8 +350,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
      * row-type check on transformTo passes.
      *
-     * <p>Public so {@link OpenSearchAggregateShuffleSplitRule} and
-     * {@link org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter} can call it.
+     * <p>Public so {@link OpenSearchAggregateShuffleSplitRule} and the general post-CBO
+     * distribution-enforcement pass ({@code DistributionEnforcementPass}) can call it.
      */
     public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
         List<AggregateCall> rebuilt = null;
@@ -387,9 +386,9 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
 
     /**
      * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
-     * {@code Project} so FINAL can re-project them. Public so
-     * {@link org.opensearch.analytics.exec.join.DistributedAggOverJoinRewriter} shares the exact
-     * capture the coord-centric split uses (keeps PARTIAL/FINAL literal handling identical).
+     * {@code Project} so FINAL can re-project them. Public so the general post-CBO distribution-enforcement
+     * pass ({@code DistributionEnforcementPass}) shares the exact capture the coord-centric split uses
+     * (keeps PARTIAL/FINAL literal handling identical).
      */
     public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
         if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {

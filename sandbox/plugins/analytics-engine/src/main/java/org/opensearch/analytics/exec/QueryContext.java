@@ -30,8 +30,9 @@ import java.util.concurrent.Executors;
  * Per-query context — immutable config (DAG, executor, parent task) + lazy per-query
  * resources (Arrow buffer allocator, virtual-thread executor for LOCAL tasks).
  *
- * <p>Phased dispatchers (e.g. M1 {@code BroadcastDispatch}) need a derived context pointing at
- * a different DAG that still shares this context's allocator + lazy executor. Use
+ * <p>The phased MPP dispatcher ({@code UnifiedDispatch}) needs a derived context pointing at
+ * a different DAG (e.g. the broadcast-free residual after build capture) that still shares this
+ * context's allocator + lazy executor. Use
  * {@link #withDag(QueryDAG)} for that. The derived context is non-owning: only the original
  * context's {@link #close()} releases the allocator + shuts down the executor.
  *

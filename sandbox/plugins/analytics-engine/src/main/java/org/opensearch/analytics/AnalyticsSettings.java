@@ -135,88 +135,21 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Per-strategy sub-toggle for <em>cascaded</em> hash-shuffle joins (multi-way joins where each
-     * binary join level runs as its own worker tier, the inner worker producing a shuffle to the
-     * outer worker). When {@code true} (default), a post-CBO RelNode rewrite
-     * ({@code CascadeShufflePlanRewriter}) turns each {@code OpenSearchJoin}'s coordinator-gathered
-     * inputs into hash-shuffle inputs so {@code DAGBuilder} cuts a cascaded shuffle DAG, and the
-     * recursive {@code HashShuffleDispatch} lifts every join level into a worker. When {@code false},
-     * only the bottom join shuffles and the outer join coordinator-reduces (pre-cascade behavior) —
-     * a kill switch if a cascade-specific issue is seen. Gated under {@link #MPP_ENABLED}.
-     */
-    public static final Setting<Boolean> MPP_SHUFFLE_CASCADE_ENABLED = Setting.boolSetting(
-        "analytics.mpp.shuffle.cascade.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * TRANSITIONAL migration flag (default {@code false}) — NOT a permanent knob. Routes multi-way-join
-     * scheduling through the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass},
-     * Option B — Spark/Presto's {@code EnsureRequirements}/{@code AddExchanges} model) instead of the
-     * enumerated shape-matchers ({@code CascadeShufflePlanRewriter} / {@code DistributedAggOverJoinRewriter} / …).
-     * The pass places exchanges by the {@code OpenSearchDistribution.satisfies()} algebra, so the cascade,
-     * agg-over-join, outer-join, mixed-key, and scalar-subquery shapes all emerge with no per-shape code.
-     *
-     * <p><b>Why it's false today, and when it goes away.</b> It stays {@code false} ONLY until the pass is
-     * proven at sf=10 to reproduce the rewriters' results (row-parity vs DuckDB on q3/q5/q10/q11) — until
-     * then the legacy rewriters are the trusted production path and this is the kill switch. The END STATE
-     * (B3 in {@code MPP-GENERAL-SCHEDULING-DESIGN.md}) is: flip the default to {@code true}, DELETE the
-     * rewriters + shape-routing, keep this toggle for one release as an emergency revert, then remove it
-     * entirely. There is no intended steady state where both paths coexist — that would re-create the
-     * per-shape maintenance burden the refactor exists to eliminate.
-     */
-    public static final Setting<Boolean> MPP_CBO_NATIVE_CASCADE = Setting.boolSetting(
-        "analytics.mpp.cbo_native_cascade",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Size floor for the general post-CBO scheduler ({@link #MPP_CBO_NATIVE_CASCADE}): a join/aggregate is
-     * distributed onto a worker tier only when its larger scan subtree exceeds this many rows (or a deeper
-     * operator already distributed — the cascade continues upward regardless). Below the floor the operator
-     * stays coordinator-centric, matching CBO's cheap choice for small joins — distribution adds shuffle
-     * overhead that only pays off at scale.
+     * Size floor for the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass},
+     * the only MPP scheduler): a join/aggregate is distributed onto a worker tier only when its larger scan
+     * subtree exceeds this many rows (or a deeper operator already distributed — the cascade continues upward
+     * regardless). Below the floor the operator stays coordinator-centric, matching CBO's cheap choice for
+     * small joins — distribution adds shuffle overhead that only pays off at scale.
      *
      * <p>Default {@code 1_000_000}: well below any TPC-H fact table that needs distributing (partsupp 8M,
-     * lineitem 60M) and well above trivial joins that gather cheaply. Replaces the formerly-hardcoded
-     * {@code MIN_AGG_OVER_JOIN_BOTTOM_ROWS} constant in {@code DefaultPlanExecutor}; exposed as a setting so
-     * the floor is tunable per workload AND so integration tests on small datasets can lower it to exercise
-     * the distributed path (the JVM tests use {@code minRows=1}; the cluster ITs set this to a small value).
-     * Only consulted when {@link #MPP_CBO_NATIVE_CASCADE} is {@code true}.
+     * lineitem 60M) and well above trivial joins that gather cheaply. Exposed as a setting so the floor is
+     * tunable per workload AND so integration tests on small datasets can lower it to exercise the
+     * distributed path (the JVM tests use {@code minRows=1}; the cluster ITs set this to a small value).
      */
-    public static final Setting<Long> MPP_CBO_NATIVE_CASCADE_MIN_ROWS = Setting.longSetting(
-        "analytics.mpp.cbo_native_cascade.min_distributed_rows",
+    public static final Setting<Long> MPP_DISTRIBUTE_MIN_ROWS = Setting.longSetting(
+        "analytics.mpp.distribute.min_rows",
         1_000_000L,
         0L,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Per-strategy sub-toggle for <em>distributed aggregation over a cascade join</em> (the q5/q10
-     * shape: {@code Sort? → stats … by … → dimension-joins → bottom hash-shuffle join}). When
-     * {@code true} (default, under {@link #MPP_ENABLED} + {@link #MPP_SHUFFLE_CASCADE_ENABLED}), a
-     * post-CBO DAG rewrite ({@code DistributedAggOverJoinRewriter}) pushes a PARTIAL aggregate onto
-     * the cascade top worker — moving the dimension joins onto the worker as BROADCAST inputs so the
-     * worker runs the whole pre-aggregate pipeline per partition — and leaves the FINAL aggregate
-     * (plus Sort) on the coordinator. This caps the coordinator gather at {@code N × #distinct-groups}
-     * partial rows instead of the full {@code ~1.7M} post-join rows, so q5/q10 at sf=10 stop OOMing
-     * the coordinator with {@code ReduceSizeExceededException}.
-     *
-     * <p>When {@code false}, the aggregate stays a SINGLE on the coordinator over the gathered join
-     * output (pre-distributed-agg behavior) — a kill switch if a distributed-agg-specific issue is
-     * seen, without disabling the cascade join lift itself. Only SUM/COUNT/MIN/MAX/AVG-class
-     * decomposable aggregates over an all-INNER cascade are pushed; STATE_EXPANDING /
-     * COUNT(DISTINCT) / percentile shapes stay coordinator-centric regardless (the shared
-     * {@code OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit} gate).
-     */
-    public static final Setting<Boolean> MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED = Setting.boolSetting(
-        "analytics.mpp.shuffle.aggregate_over_join.enabled",
-        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -316,10 +249,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
-        MPP_SHUFFLE_CASCADE_ENABLED,
-        MPP_CBO_NATIVE_CASCADE,
-        MPP_CBO_NATIVE_CASCADE_MIN_ROWS,
-        MPP_SHUFFLE_AGGREGATE_OVER_JOIN_ENABLED,
+        MPP_DISTRIBUTE_MIN_ROWS,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,
         MPP_SHUFFLE_SPILL_MAX_BYTES,

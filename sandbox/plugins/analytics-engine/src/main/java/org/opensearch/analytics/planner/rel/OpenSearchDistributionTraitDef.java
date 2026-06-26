@@ -332,6 +332,31 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         );
     }
 
+    /**
+     * Builds an {@link OpenSearchBroadcastExchange} that replicates {@code rel} to every probe-side worker —
+     * UNCONDITIONALLY (no {@code satisfies()} short-circuit). The distribution enforcement pass (Option B)
+     * calls this directly to PRESERVE a broadcast decision CBO already made: when CBO's cost model picked the
+     * broadcast alternative for a small-build join, the pass re-wraps the visited build content in a fresh
+     * broadcast exchange (rather than peeling it and re-driving the join through the shuffle algebra, which
+     * would lose the broadcast optimization). The resulting {@code Join(BroadcastExchange(build), probe)}
+     * shape is identical to {@code OpenSearchBroadcastJoinSplitRule}'s, so {@code DAGBuilder.cutBroadcast} +
+     * the unified dispatcher execute it unchanged. {@link #buildEnforcer} keeps the satisfies-gated behavior
+     * for the bottom-up convert path; this is the explicit "replicate here" primitive.
+     *
+     * @param probeNodeEstimate replica count (= probe-side data-node estimate); carried verbatim from the
+     *     CBO exchange so the cost/transport semantics match the legacy broadcast plan.
+     */
+    public OpenSearchBroadcastExchange buildBroadcastExchange(RelNode rel, int probeNodeEstimate) {
+        List<String> viableBackends = resolveViableBackendsFromRel(rel);
+        return new OpenSearchBroadcastExchange(
+            rel.getCluster(),
+            rel.getTraitSet().replace(broadcast(probeNodeEstimate)),
+            rel,
+            probeNodeEstimate,
+            viableBackends
+        );
+    }
+
     @Override
     public boolean canConvert(RelOptPlanner planner, OpenSearchDistribution fromTrait, OpenSearchDistribution toTrait) {
         return true;

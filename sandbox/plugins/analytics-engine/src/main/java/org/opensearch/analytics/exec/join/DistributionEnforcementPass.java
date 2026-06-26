@@ -43,12 +43,23 @@ import java.util.Map;
  *
  * <p><b>Why this generalizes.</b> Bottom-up Volcano gathers every join to {@code COORDINATOR+SINGLETON}
  * (its cost gate knows only 3 fixed localities), so the CBO output is the degenerate "gather everything"
- * plan. This pass walks that plan bottom-up and, for each {@link DistributionAware} operator, asks each
+ * plan. This pass walks that plan and, for each {@link DistributionAware} operator, asks each
  * input's {@link DistributionAware#requiredInputDistribution required} distribution and inserts an
  * exchange ONLY where the input's {@link DistributionAware#deriveOutputDistribution actual} distribution
  * does not {@code satisfy()} it. A co-partitioned child needs no exchange — so the multi-tier cascade,
  * agg-over-join, and scalar-subquery shapes all emerge from the {@code satisfies()} algebra, for any join
  * depth / key pattern / tree shape, with no per-shape code.
+ *
+ * <p><b>Demand flows DOWN, actual flows UP (the Presto {@code AddExchanges} shape).</b> {@link #visit} is a
+ * single recursion that is BOTH directions at once: it takes the parent's required distribution as the
+ * {@code demand} argument (top-down) and returns the subtree's derived distribution (bottom-up) — exactly
+ * Presto's {@code InternalPlanVisitor<PlanWithProperties, PreferredProperties>}. A {@code DistributionAware}
+ * operator passes each child {@code requiredInputDistribution(i)} as that child's demand; a row-transparent
+ * Project/Filter (no requirement of its own) passes the parent's demand straight through and RIDES whatever
+ * the child returns. This is why a filtered scan feeding a join stays shard-local and an intermediate
+ * Project between two join tiers rides the lower worker — both emerge from demand-flow, not a special-case
+ * "is the child partitioned or shard-local?" heuristic. Only transparent ops and the root gather consume
+ * the incoming demand; joins/aggregates derive their children's demands internally.
  *
  * <p><b>Peel-then-re-enforce.</b> CBO already inserted an {@link OpenSearchExchangeReducer} gather on each
  * distributed operator's inputs. The pass treats the CBO exchanges
@@ -98,7 +109,10 @@ public final class DistributionEnforcementPass {
             return plan;
         }
         DistributionEnforcementPass pass = new DistributionEnforcementPass(traitDef, partitionCount, minRows);
-        Visited root = pass.visit(plan);
+        // Root demand is SINGLETON — the query result must land on the coordinator. This seeds the
+        // top-down demand-flow; a transparent op directly under the root passes it through so its child
+        // sees the SINGLETON demand (matching the prior behavior where the root gather handled it).
+        Visited root = pass.visit(plan, traitDef.coordSingleton());
         // The query result must be SINGLETON at the coordinator. If the root already produces SINGLETON
         // (the common case — its top op gathered), no enforcer is added; otherwise gather it.
         OpenSearchDistribution coordSingleton = traitDef.coordSingleton();
@@ -112,18 +126,20 @@ public final class DistributionEnforcementPass {
     }
 
     /**
-     * Bottom-up visit. Returns the rewritten subtree rooted at {@code node} plus the distribution it
-     * outputs. Peels a CBO exchange wrapper to recover the underlying content + distribution (the parent
-     * re-enforces). For a {@link DistributionAware} operator, enforces each input's required distribution.
+     * Visit carrying {@code demand} (the parent's required distribution for this subtree, top-down) and
+     * returning the rewritten subtree plus the distribution it actually outputs (bottom-up). Peels a CBO
+     * exchange wrapper to recover the underlying content + distribution (the parent re-enforces). For a
+     * {@link DistributionAware} operator, derives each input's own demand and enforces it. A row-transparent
+     * Project/Filter passes {@code demand} straight to its child and rides whatever the child returns.
      */
-    private Visited visit(RelNode node) {
+    private Visited visit(RelNode node, OpenSearchDistribution demand) {
         RelNode n = RelNodeUtils.unwrapHep(node);
 
         // 1. CBO exchange wrapper: peel it, recover the input's content + actual distribution. The parent
         // that consumes this node will re-enforce its own requirement, re-inserting an exchange only if
-        // the recovered actual distribution doesn't satisfy it.
+        // the recovered actual distribution doesn't satisfy it. The demand flows through the peel unchanged.
         if (n instanceof OpenSearchExchangeReducer || n instanceof OpenSearchShuffleExchange || n instanceof OpenSearchBroadcastExchange) {
-            return visit(((RelNode) n).getInput(0));
+            return visit(((RelNode) n).getInput(0), demand);
         }
 
         // 2. Leaf scan: its trait carries the actual (SHARD) distribution; nothing to enforce below.
@@ -131,11 +147,30 @@ public final class DistributionEnforcementPass {
             return new Visited(n, distributionOf(n));
         }
 
-        // 3. Recurse into children first (bottom-up).
+        // 3a-pre. Row-transparent passthrough (Project/Filter with no requirement of its own): pass the
+        // INCOMING demand straight down to the child and RIDE whatever the child returns. This is the
+        // demand-flow realization of the old "ride a partitioned-or-shard-local child" heuristic — but
+        // derived from the algebra, not a special case: a transparent op preserves rows, so its child's
+        // distribution IS its output, and its child's demand IS its own incoming demand. Covers BOTH the q3
+        // filtered-scan-stays-shard-local case (demand flows to the scan, which stays SHARD) AND the
+        // intermediate-Project-rides-the-lower-worker case (demand flows to the lower join's output, which
+        // stays WORKER+HASH) with one rule. A window/pinned Project does NOT reach here — it imposes a
+        // SINGLETON requirement (requiredInputDistribution != null), so it is handled by the generic step 4.
+        boolean rowTransparent = (n instanceof OpenSearchProject || n instanceof OpenSearchFilter) && n.getInputs().size() == 1;
+        if (rowTransparent && n instanceof DistributionAware ta && ta.requiredInputDistribution(0, partitionCount, traitDef) == null) {
+            Visited child = visit(n.getInput(0), demand);
+            RelNode rebuilt = copyWithInputs(n, List.of(child.rel));
+            return new Visited(rebuilt, child.actualDistribution);
+        }
+
+        // 3. Recurse into children. Each child's demand is derived below per operator; for the recursion
+        // here we don't yet know it (joins/aggregates compute per-input demands), so we visit with a null
+        // (ANY) demand to recover each child's content + actual distribution, then enforce per-input demands
+        // in step 4. (A null demand means "no constraint" — the child still gathers/rides per ITS subtree.)
         List<RelNode> childContents = new ArrayList<>(n.getInputs().size());
         List<OpenSearchDistribution> childDists = new ArrayList<>(n.getInputs().size());
         for (RelNode input : n.getInputs()) {
-            Visited v = visit(input);
+            Visited v = visit(input, null);
             childContents.add(v.rel);
             childDists.add(v.actualDistribution);
         }
@@ -153,49 +188,12 @@ public final class DistributionEnforcementPass {
             return new Visited(rebuilt, traitDef.coordSingleton());
         }
 
-        // 3a. Transparent-passthrough fast path: a single-input op that imposes NO requirement (a row-wise
-        // Project / Filter) over a PARTITIONED child must RIDE on its child's worker, not gather it. This
-        // MUST run BEFORE the 3b floor/no-requirement gate below — that gate's {@code !imposesRequirement}
-        // branch was written for a pure-theta JOIN (gather both inputs, stay coordinator) and would otherwise
-        // wrongly gather a transparent Project over a distributed bottom join, cutting the join into a
-        // separate gather-fed stage that never ships its shuffle (the q3 intermediate-Project worker-timeout
-        // — found on the cluster, reproduced by testGeneralShuffle_intermediateProjectRidesOnWorker).
-        //
-        // We propagate the child's distribution VERBATIM rather than calling deriveOutputDistribution (whose
-        // Project key-remap has a Calcite mapping-direction bug — see [[enforcement-pass-stale-trait]]). The
-        // verbatim propagation is conservatively correct for the ride decision: if a Project reorders the
-        // hash key columns, the NEXT tier boundary (a join keying on the moved column) re-shuffles to the
-        // exact columns it needs via forceShuffle, so a slightly-wrong propagated key list never produces a
-        // mis-partitioned worker join — at worst an extra (correct) re-shuffle. Keeping the partitioning is
-        // what avoids the spurious gather; the precise key positions only affect whether the parent CAN
-        // reuse it (a future N-ary-transport optimization that doesn't apply to the binary-tier path, where
-        // every join input is re-shuffled anyway).
-        //
-        // RESTRICTED to genuinely ROW-TRANSPARENT operators (Project / Filter). An OpenSearchAggregate must
-        // NEVER ride a partitioned child here: a NON-decomposable SINGLE aggregate (percentile / TAKE / LIST
-        // / residual DISTINCT) is split-ineligible so its requiredInputDistribution is null — but riding it
-        // per-partition with no FINAL merge gives silently-wrong (per-partition) results. Decomposable SINGLE
-        // aggregates were already handled by step 3c above (PARTIAL/FINAL split); a non-decomposable one must
-        // fall through to step 3b's gather → coordinator-centric SINGLE aggregate (correct). (codex re-review
-        // BLOCKER: step 3a rode non-decomposable aggregates on workers.)
-        // The transparent op rides its child's distribution when the child is either (a) already
-        // WORKER+HASH distributed (a lower join/cascade — keep the cascade going), OR (b) SHARD-LOCAL (a
-        // scan or shard-local filter/project). Case (b) is the q3 fix (found on sf=10): a
-        // `customer | where mktsegment='BUILDING'` filter feeds a join. CBO gathered the scan (ER) under the
-        // filter; the pass peels that ER so the filter's child is the SHARD scan. The filter must STAY
-        // shard-local (propagate SHARD+RANDOM) so the parent join's forceShuffle wraps `Shuffle(Filter(scan))`
-        // and DAGBuilder cuts a SHARD-FRAGMENT producer that hash-ships from the shards — exactly the legacy
-        // path. If instead we gathered the filter here (step 3b), DAGBuilder would cut a coordinator
-        // ReduceStageExecution as the producer, which runs the reduce but never ships a shuffle → the worker
-        // awaits a producer that never fires → `ShuffleScanHandler timed out for input-N`.
-        boolean rowTransparent = n instanceof OpenSearchProject || n instanceof OpenSearchFilter;
-        if (rowTransparent
-            && n.getInputs().size() == 1
-            && (isPartitioned(childDists.get(0)) || isShardLocal(childDists.get(0)))
-            && aware.requiredInputDistribution(0, partitionCount, traitDef) == null) {
-            RelNode rebuilt = copyWithInputs(n, childContents);
-            return new Visited(rebuilt, childDists.get(0));
-        }
+        // (The transparent-passthrough Project/Filter ride is handled BEFORE the child loop, in step 3a-pre,
+        // via demand-flow: a transparent op passes the parent's demand to its child and rides whatever the
+        // child returns — covering both the q3 filtered-scan-stays-shard-local and the intermediate-Project-
+        // rides-the-lower-worker cases without the old "is the child partitioned-or-shard-local?" heuristic.
+        // A NON-decomposable SINGLE aggregate never reaches that branch — it is an OpenSearchAggregate, not a
+        // Project/Filter — so it correctly falls through to step 3b's gather → coordinator-centric.)
 
         // 3b. Size floor: distribute this operator only when it is worth it — either a child is ALREADY
         // distributed (a deeper op cleared the floor; keep the cascade going), or this operator's own scan
@@ -219,6 +217,45 @@ public final class DistributionEnforcementPass {
             }
             RelNode rebuilt = copyWithInputs(n, regathered);
             return new Visited(rebuilt, traitDef.coordSingleton());
+        }
+
+        // 3b-bcast. PRESERVE a broadcast decision CBO already made. When CBO's cost model picked the
+        // broadcast alternative for this join, one input arrives wrapped in an OpenSearchBroadcastExchange
+        // (the small build side); the step-3 child loop peeled it, so childContents[buildIdx] is the build's
+        // inner content. Re-emit the SAME Join(BroadcastExchange(build), probe) shape rather than peeling it
+        // and re-driving the join through the shuffle algebra (which would repartition BOTH sides and lose
+        // the optimization). The shape is identical to OpenSearchBroadcastJoinSplitRule's, so
+        // DAGBuilder.cutBroadcast tags the build BROADCAST_BUILD and emits an OpenSearchBroadcastScan in the
+        // consumer fragment. There is NO willFeedJoin / shape gate: UnifiedDispatch resolves broadcast by
+        // CAPTURING each build and INJECTING it as a BroadcastInjectionInstructionNode on whatever stage
+        // consumes it (shard leaf, shuffle producer, or worker), then dispatches the broadcast-free DAG. So a
+        // broadcast whose output feeds a shuffle join (q3/q8/q9) and a broadcast build that is itself a
+        // producer subtree (q17) both run — the broadcast is just an instruction, never a second stage role.
+        // Gated to a SHARD-local probe: a CBO broadcast plan always keeps the probe SHARD-local; if the probe
+        // came back partitioned this isn't the broadcast-probe shape — fall through to normal shuffle handling.
+        if (n instanceof OpenSearchJoin) {
+            int buildIdx = -1;
+            for (int i = 0; i < n.getInputs().size(); i++) {
+                if (RelNodeUtils.unwrapHep(n.getInput(i)) instanceof OpenSearchBroadcastExchange) {
+                    buildIdx = i;
+                    break;
+                }
+            }
+            if (buildIdx >= 0) {
+                int probeIdx = buildIdx == 0 ? 1 : 0;
+                if (isShardLocal(childDists.get(probeIdx))) {
+                    OpenSearchBroadcastExchange cboBuild = (OpenSearchBroadcastExchange) RelNodeUtils.unwrapHep(n.getInput(buildIdx));
+                    RelNode newBuild = traitDef.buildBroadcastExchange(childContents.get(buildIdx), cboBuild.getProbeNodeEstimate());
+                    List<RelNode> joinInputs = new ArrayList<>(2);
+                    joinInputs.add(buildIdx == 0 ? newBuild : childContents.get(probeIdx));
+                    joinInputs.add(buildIdx == 0 ? childContents.get(probeIdx) : newBuild);
+                    RelNode rebuilt = copyWithInputs(n, joinInputs);
+                    LOGGER.debug("enforce: join {} preserves CBO broadcast (build input {})", n.getRelTypeName(), buildIdx);
+                    // Worker join runs at the probe's SHARD distribution (alongside the probe scan); the
+                    // parent gathers it to the coordinator (the legacy broadcast plan's shape).
+                    return new Visited(rebuilt, childDists.get(probeIdx));
+                }
+            }
         }
 
         // 3d. Shippable-producer gate for a JOIN tier boundary. Distributing a join shuffles BOTH its
@@ -418,14 +455,6 @@ public final class DistributionEnforcementPass {
         return isTierBoundary ? traitDef.buildShuffleExchange(childContent, required) : traitDef.buildEnforcer(childContent, required);
     }
 
-    /**
-     * True iff {@code aware} (a single-input transparent op — Project/Filter — that imposes no requirement
-     * on input {@code i}) would PRESERVE the child's WORKER+HASH partitioning in its output, i.e. it can
-     * ride on the child's worker rather than forcing a gather. Asks {@code deriveOutputDistribution} with
-     * {@code childDist} in the single input slot and checks the result is still partitioned. A window/pinned
-     * Project does not reach here (it imposes a SINGLETON requirement, so {@code required != null}); this is
-     * the row-wise Project / Filter path.
-     */
     /**
      * Gathers {@code rel} to COORDINATOR+SINGLETON unless its TRACKED distribution {@code actual} already
      * satisfies SINGLETON. Decides off {@code actual} (the pass's tracked distribution), then forces the

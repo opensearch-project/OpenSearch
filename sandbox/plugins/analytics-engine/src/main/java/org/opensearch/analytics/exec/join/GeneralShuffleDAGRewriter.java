@@ -10,7 +10,7 @@ package org.opensearch.analytics.exec.join;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
-import org.opensearch.analytics.exec.join.CascadeShuffleDAGRewriter.WorkerLevel;
+import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerLevel;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
@@ -37,30 +37,25 @@ import java.util.function.Supplier;
 
 /**
  * DAG rewriter for the GENERAL post-CBO scheduler (Option B — see {@code MPP-GENERAL-SCHEDULING-DESIGN.md}).
- * Sibling of {@link CascadeShuffleDAGRewriter}, but for the DAG that {@link DistributionEnforcementPass}
- * produces (under {@code analytics.mpp.cbo_native_cascade}) rather than {@code CascadeShufflePlanRewriter}.
+ * Promotes the join-over-two-shuffles stages of the DAG that {@link DistributionEnforcementPass} produces
+ * into worker tiers.
  *
- * <p><b>Why a separate rewriter — the structural difference.</b> The legacy cascade rewriter assumes the
- * topmost join sits INLINE in the root reduce fragment (CBO gathers every join to the coordinator), so it
- * must LIFT that join into a brand-new worker stage. The enforcement pass instead does binary-tier lowering:
- * it shuffles every distributed join input (even a co-partitioned one — the binary shuffle transport
- * delivers exactly two named inputs per worker), and it pre-splits a distributed aggregate into
- * {@code FINAL(ER(PARTIAL(...)))}. So by the time {@code DAGBuilder} cuts at the exchanges, EVERY
- * shuffle-fed join is ALREADY its own stage below a coordinator reduce (the root ER, or
- * {@code FINAL_Agg(ER(...))}), with its {@code PARTIAL} aggregate (if any) already sitting above it in the
- * SAME stage fragment. Worker promotion is therefore IN-PLACE — rebuild each such stage with a
- * {@link WorkerTargetResolver} + worker sink + instruction-handler factory, keeping its fragment and
- * children unchanged — with no top-lift and no agg-split surgery. That keeps the PARTIAL on the worker for
- * free (it runs per-partition, ships {@code SINGLETON} to the coordinator's FINAL).
+ * <p><b>In-place worker promotion.</b> The enforcement pass does binary-tier lowering: it shuffles every
+ * distributed join input (even a co-partitioned one — the binary shuffle transport delivers exactly two
+ * named inputs per worker), and it pre-splits a distributed aggregate into {@code FINAL(ER(PARTIAL(...)))}.
+ * So by the time {@code DAGBuilder} cuts at the exchanges, EVERY shuffle-fed join is ALREADY its own stage
+ * below a coordinator reduce (the root ER, or {@code FINAL_Agg(ER(...))}), with its {@code PARTIAL}
+ * aggregate (if any) already sitting above it in the SAME stage fragment. Worker promotion is therefore
+ * IN-PLACE — rebuild each such stage with a {@link WorkerTargetResolver} + worker sink + instruction-handler
+ * factory, keeping its fragment and children unchanged — with no top-lift and no agg-split surgery. That
+ * keeps the PARTIAL on the worker for free (it runs per-partition, ships {@code SINGLETON} to the FINAL).
  *
- * <p>Reuses {@link WorkerLevel} and {@link CascadeShuffleDispatch#enrichLevels} verbatim — the per-level
- * shuffle producer/scan/worker-setup instruction wiring is identical to the cascade's. Only the structural
- * surgery differs.
+ * <p>Produces {@link ShuffleEnrichment.WorkerLevel} descriptors; {@link UnifiedDispatch} then calls
+ * {@link ShuffleEnrichment#enrichLevels} to attach each level's shuffle producer/scan/worker instructions.
  *
- * <p><b>Outer joins.</b> Unlike {@code CascadeShuffleDAGRewriter.findLiftableJoin} (INNER-only), this
- * rewriter promotes a join of ANY type over two shuffles — the enforcement pass already established that a
- * hash-partitioned outer/semi/anti join's null-fill / existence test is partition-local (standard
- * Spark/Presto). Worker-side execution of non-INNER tiered hash joins is validated at sf=10 (B3).
+ * <p><b>Outer joins.</b> Promotes a join of ANY type over two shuffles — the enforcement pass already
+ * established that a hash-partitioned outer/semi/anti join's null-fill / existence test is partition-local
+ * (standard Spark/Presto). Worker-side execution of non-INNER tiered hash joins is validated at sf=10.
  *
  * @opensearch.internal
  */
@@ -76,7 +71,7 @@ public final class GeneralShuffleDAGRewriter {
 
     /** Result of {@link #rewriteStructure}: the rewritten DAG plus a deferred builder for the per-level
      *  worker descriptors (built after the caller runs the convert pipeline so non-top stages carry
-     *  resolved plan alternatives). Mirrors {@link CascadeShuffleDAGRewriter.Structure}. */
+     *  resolved plan alternatives). */
     public record Structure(QueryDAG dag, Supplier<List<WorkerLevel>> levelBuilder) {
         public List<WorkerLevel> buildLevels() {
             return levelBuilder.get();
@@ -104,8 +99,7 @@ public final class GeneralShuffleDAGRewriter {
     /**
      * Promotes every join-over-two-shuffles stage in {@code dag} to a {@link Stage.StageRole#SHUFFLE_WORKER}
      * tier in place, rebuilds the DAG, re-runs the full {@code forkAll → adaptAll → selectAll → convertAll}
-     * pipeline (mirroring {@code CascadeShuffleDAGRewriter.rewrite}), and returns the worker levels for
-     * instruction enrichment.
+     * pipeline, and returns the worker levels for instruction enrichment.
      */
     public static Rewritten rewrite(
         QueryDAG dag,
@@ -128,8 +122,7 @@ public final class GeneralShuffleDAGRewriter {
     /**
      * The structural half of {@link #rewrite}: in-place worker promotion + DAG rebuild WITHOUT the convert
      * pipeline. Returns the new DAG plus a deferred level builder. Split out so unit tests can validate the
-     * worker-tier shape against a mock backend that has no fragment convertor (mirrors
-     * {@code CascadeShuffleDAGRewriter.rewriteStructure}).
+     * worker-tier shape against a mock backend that has no fragment convertor.
      */
     public static Structure rewriteStructure(QueryDAG dag, CapabilityRegistry registry, NodeListResolver nodeResolver) {
         Stage root = dag.rootStage();
@@ -158,7 +151,7 @@ public final class GeneralShuffleDAGRewriter {
 
         // Resolve each level's target node list EXACTLY ONCE, keyed by stage id, and reuse it for BOTH the
         // worker's WorkerTargetResolver AND the producer instructions' targets — resolving twice risks the
-        // two diverging on a cluster-state change (the CascadeShuffleDAGRewriter "resolve once" rule).
+        // two diverging on a cluster-state change (the "resolve once" rule).
         Map<Integer, List<String>> nodesByStageId = new HashMap<>();
         for (Stage s : joinShuffleStages) {
             JoinShuffleInfo d = descriptors.get(s.getStageId());
@@ -253,8 +246,7 @@ public final class GeneralShuffleDAGRewriter {
      * Extracts the join's two shuffle inputs' producer stage ids + keys. Defense-in-depth: each side's
      * shuffle must be partitioned on THIS join's equi keys, and both sides must agree on the partition count
      * — the enforcement pass guarantees this (it builds each shuffle from the join's per-side keys), but a
-     * future DAG-shape change must not silently promote a mis-keyed shuffle into a worker (mirrors
-     * {@code CascadeShuffleDAGRewriter.analyzeJoinShuffle}).
+     * future DAG-shape change must not silently promote a mis-keyed shuffle into a worker.
      */
     private static JoinShuffleInfo analyze(Stage stage) {
         OpenSearchJoin join = findJoinOverTwoShuffles(stage.getFragment());
