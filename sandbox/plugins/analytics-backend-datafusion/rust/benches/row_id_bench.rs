@@ -22,8 +22,7 @@ use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
 use object_store::{ObjectStore, ObjectStoreExt};
 use opensearch_datafusion::api::DataFusionRuntime;
-use opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig;
-use opensearch_datafusion::memory::DynamicLimitPool;
+use opensearch_datafusion::datafusion_query_config::{DatafusionQueryConfig, InternalSearch};
 use opensearch_datafusion::query_executor;
 use opensearch_datafusion::runtime_manager::RuntimeManager;
 use std::sync::Arc;
@@ -46,17 +45,12 @@ fn bench_file() -> String {
 }
 
 fn setup() -> (RuntimeManager, DataFusionRuntime) {
-    let mgr = RuntimeManager::new(4);
+    let mgr = RuntimeManager::new(4, 1.5, 1.5);
     let runtime_env = RuntimeEnvBuilder::new()
         .with_memory_pool(Arc::new(GreedyMemoryPool::new(2 * 1024 * 1024 * 1024)))
         .build()
         .unwrap();
-    let (_, handle) = DynamicLimitPool::new(2 * 1024 * 1024 * 1024);
-    let df_runtime = DataFusionRuntime {
-        runtime_env,
-        custom_cache_manager: None,
-        dynamic_limit_handle: handle,
-    };
+    let df_runtime = DataFusionRuntime::new_for_bench(runtime_env);
     (mgr, df_runtime)
 }
 
@@ -113,6 +107,7 @@ fn bench_clickbench(c: &mut Criterion) {
     use opensearch_datafusion::indexed_table::table_provider::{
         IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
     };
+    use parquet::file::metadata::PageIndexPolicy;
 
     let (mgr, df_runtime) = setup();
     let file = bench_file();
@@ -123,8 +118,11 @@ fn bench_clickbench(c: &mut Criterion) {
     let path = std::path::Path::new(&file);
     let size = std::fs::metadata(path).unwrap().len();
     let fh = std::fs::File::open(path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&fh, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &fh,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
+    )
+    .unwrap();
     let parquet_schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -148,6 +146,8 @@ fn bench_clickbench(c: &mut Criterion) {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
+        sort_min: None,
+        sort_max: None,
     };
 
     // Schema with ___row_id appended (virtual column)
@@ -208,14 +208,19 @@ fn bench_clickbench(c: &mut Criterion) {
                         &config,
                         0,
                         Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                        None,
+                        &[],
+                        &[],
+                        InternalSearch::Off,
                     )
                     .await
                     .unwrap();
                     let mut stream = unsafe {
                         Box::from_raw(
-                            ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
-                                opensearch_datafusion::cross_rt_stream::CrossRtStream,
-                            >,
+                            ptr
+                                as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
+                                    opensearch_datafusion::cross_rt_stream::CrossRtStream,
+                                >,
                         )
                     };
                     let mut rows = 0u64;
@@ -263,7 +268,7 @@ fn bench_clickbench(c: &mut Criterion) {
                         let factory: opensearch_datafusion::indexed_table::table_provider::EvaluatorFactory = {
                             let tree = Arc::clone(&tree);
                             let schema = schema.clone();
-                            Arc::new(move |seg, _chunk, _sm| {
+                            Arc::new(move |seg, _chunk, _sm, stats_prune_tree| {
                                 let resolved = tree.resolve(&[])?;
                                 let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&seg.metadata)));
                                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -281,6 +286,8 @@ fn bench_clickbench(c: &mut Criterion) {
                                         opensearch_datafusion::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(_sm),
                                     ),
                                     collector_strategy: opensearch_datafusion::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                                    stats_prune_tree: stats_prune_tree.cloned(),
+                                    rg_index_to_pos: std::collections::HashMap::new(),
                                 });
                                 Ok(eval)
                             })
@@ -302,6 +309,10 @@ fn bench_clickbench(c: &mut Criterion) {
                             }),
                             predicate_columns: vec![search_phrase_idx],
                             emit_row_ids: true,
+                            prune_tree_config: None,
+                            sort_fields: vec![],
+                            sort_orders: vec![],
+                            cancellation_token: None,
                         }));
 
                         let ctx = datafusion::prelude::SessionContext::new();
@@ -353,7 +364,7 @@ fn bench_clickbench(c: &mut Criterion) {
                         let factory: opensearch_datafusion::indexed_table::table_provider::EvaluatorFactory = {
                             let tree = Arc::clone(&tree);
                             let schema = schema.clone();
-                            Arc::new(move |seg, _chunk, _sm| {
+                            Arc::new(move |seg, _chunk, _sm, stats_prune_tree| {
                                 let resolved = tree.resolve(&[])?;
                                 let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&seg.metadata)));
                                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -371,6 +382,8 @@ fn bench_clickbench(c: &mut Criterion) {
                                         opensearch_datafusion::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(_sm),
                                     ),
                                     collector_strategy: opensearch_datafusion::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                                    stats_prune_tree: stats_prune_tree.cloned(),
+                                    rg_index_to_pos: std::collections::HashMap::new(),
                                 });
                                 Ok(eval)
                             })
@@ -392,6 +405,10 @@ fn bench_clickbench(c: &mut Criterion) {
                             }),
                             predicate_columns: vec![search_phrase_idx],
                             emit_row_ids: false,
+                            prune_tree_config: None,
+                            sort_fields: vec![],
+                            sort_orders: vec![],
+                            cancellation_token: None,
                         }));
 
                         let ctx = datafusion::prelude::SessionContext::new();

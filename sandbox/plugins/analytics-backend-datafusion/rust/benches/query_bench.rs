@@ -7,6 +7,7 @@ use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
 use object_store::{ObjectStore, ObjectStoreExt};
 use opensearch_datafusion::api::DataFusionRuntime;
+use opensearch_datafusion::datafusion_query_config::{DatafusionQueryConfig, InternalSearch};
 use opensearch_datafusion::query_executor;
 use opensearch_datafusion::runtime_manager::RuntimeManager;
 use std::sync::Arc;
@@ -51,7 +52,7 @@ fn setup() -> (RuntimeManager, DataFusionRuntime, tempfile::TempDir) {
     (mgr, df_runtime, tmp)
 }
 
-fn get_substrait(mgr: &RuntimeManager, df: &DataFusionRuntime, dir: &str, sql: &str) -> Vec<u8> {
+fn get_substrait(mgr: &RuntimeManager, _df: &DataFusionRuntime, dir: &str, sql: &str) -> Vec<u8> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
@@ -93,43 +94,48 @@ fn bench_execute_query(c: &mut Criterion) {
         let plan = get_substrait(&mgr, &df_runtime, dir, "SELECT id, value FROM t");
         let url = ListingTableUrl::parse(dir).unwrap();
 
-        c.bench_with_input(
-            BenchmarkId::new("execute_query", rows),
-            &rows,
-            |b, _| {
-                b.to_async(mgr.io_runtime.as_ref()).iter(|| {
-                    let url = url.clone();
-                    let metas = metas.clone();
-                    let plan = plan.clone();
-                    let exec = mgr.cpu_executor();
-                    async {
-                        let ptr = query_executor::execute_query(
-                            url,
-                            metas,
-                            "t".into(),
-                            plan,
-                            &df_runtime,
-                            exec,
-                            None,
-                            &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(),
-                            0,
-                            Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
-                        ).await.unwrap();
-                        // Consume and free the stream
-                        let mut stream = unsafe {
-                            Box::from_raw(ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
-                                opensearch_datafusion::cross_rt_stream::CrossRtStream,
-                            >)
-                        };
-                        let mut count = 0u64;
-                        while let Some(batch) = stream.try_next().await.unwrap() {
-                            count += batch.num_rows() as u64;
-                        }
-                        count
+        c.bench_with_input(BenchmarkId::new("execute_query", rows), &rows, |b, _| {
+            b.to_async(mgr.io_runtime.as_ref()).iter(|| {
+                let url = url.clone();
+                let metas = metas.clone();
+                let plan = plan.clone();
+                let exec = mgr.cpu_executor();
+                async {
+                    let ptr = query_executor::execute_query(
+                        url,
+                        metas,
+                        "t".into(),
+                        plan,
+                        &df_runtime,
+                        exec,
+                        None,
+                        &DatafusionQueryConfig::test_default(),
+                        0,
+                        Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                        None,
+                        &[],
+                        &[],
+                        InternalSearch::Off,
+                    )
+                    .await
+                    .unwrap();
+                    // Consume and free the stream
+                    let mut stream = unsafe {
+                        Box::from_raw(
+                            ptr
+                                as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
+                                    opensearch_datafusion::cross_rt_stream::CrossRtStream,
+                                >,
+                        )
+                    };
+                    let mut count = 0u64;
+                    while let Some(batch) = stream.try_next().await.unwrap() {
+                        count += batch.num_rows() as u64;
                     }
-                });
-            },
-        );
+                    count
+                }
+            });
+        });
     }
     mgr.cpu_executor.shutdown();
     std::mem::forget(mgr);
@@ -158,10 +164,13 @@ fn bench_stream_next(c: &mut Criterion) {
                     &df_runtime,
                     exec,
                     None,
-                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
-                    ),
+                    &DatafusionQueryConfig::test_default(),
                     0,
                     Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                    None,
+                    &[],
+                    &[],
+                    InternalSearch::Off,
                 )
                 .await
                 .unwrap();
@@ -208,10 +217,13 @@ fn bench_aggregation(c: &mut Criterion) {
                     &df_runtime,
                     exec,
                     None,
-                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
-                    ),
+                    &DatafusionQueryConfig::test_default(),
                     0,
                     Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                    None,
+                    &[],
+                    &[],
+                    InternalSearch::Off,
                 )
                 .await
                 .unwrap();
