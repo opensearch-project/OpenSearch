@@ -1,0 +1,113 @@
+# HAVING clause: grouped aggregate + post-agg filter (c > 5) + avg(length(URL)).
+# != filter blocked; two-phase: aggregate, then filter on result, then TopK sort.
+query: q28
+ppl_file: q28.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[25], viableBackends=[[datafusion]])
+          OpenSearchProject(l=[$1], c=[$2], CounterID=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=7, backends=[datafusion], >($2, 5))], viableBackends=[[datafusion]])
+              OpenSearchProject(CounterID=[$0], l=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($1):DOUBLE), $2))], c=[$3], viableBackends=[[datafusion]])
+                OpenSearchAggregate(group=[{0}], $f1=[SUM($1)], $f2=[SUM($2)], c=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
+                  OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchSort(sort0=[$1], dir0=[DESC-nulls-last], fetch=[75], viableBackends=[[datafusion]])
+                      OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT($1)], c=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+                        OpenSearchProject(CounterID=[$12], $f2=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], CHAR_LENGTH($85))], viableBackends=[[datafusion]])
+                          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($85, ''))], viableBackends=[[datafusion]])
+                            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], dir0=[DESC-nulls-last], fetch=[75], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT($1)], c=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(CounterID=[$12], $f2=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], CHAR_LENGTH($85))], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($85, ''))], viableBackends=[[datafusion]])
+              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[25], viableBackends=[[datafusion]])
+          OpenSearchProject(l=[$1], c=[$2], CounterID=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=7, backends=[datafusion], >($2, 5))], viableBackends=[[datafusion]])
+              OpenSearchProject(CounterID=[$0], l=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($1):DOUBLE), $2))], c=[$3], viableBackends=[[datafusion]])
+                OpenSearchAggregate(group=[{0}], $f1=[SUM($1)], $f2=[SUM($2)], c=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
+                  OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[CounterID@0 as CounterID, sum(character_length(<scrubbed>.URL))[sum]@1 as $f1, count(character_length(<scrubbed>.URL))[count]@2 as $f2, count(Int64(1))[count]@3 as c]
+        SortPreservingMergeExec: [sum(character_length(<scrubbed>.URL))@1 DESC NULLS LAST], fetch=75
+          SortExec: TopK(fetch=75), expr=[sum(character_length(<scrubbed>.URL))@1 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[CounterID@0 as CounterID], aggr=[sum(character_length(<scrubbed>.URL)), count(character_length(<scrubbed>.URL)), count(Int64(1))]
+              ProjectionExec: expr=[CounterID@0 as CounterID, character_length(URL@1) as character_length(<scrubbed>.URL)]
+                FilterExec: URL@1 != 
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                    DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, URL], file_type=parquet, predicate=URL@27 != , pruning_predicate=URL_null_count@2 != row_count@3 AND (URL_min@0 !=  OR  != URL_max@1), required_guarantees=[URL not in ()]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[CounterID@0 as CounterID, sum(character_length(<scrubbed>.URL))[sum]@1 as $f1, count(character_length(<scrubbed>.URL))[count]@2 as $f2, count(Int64(1))[count]@3 as c]
+        SortPreservingMergeExec: [sum(character_length(<scrubbed>.URL))@1 DESC NULLS LAST], fetch=75
+          SortExec: TopK(fetch=75), expr=[sum(character_length(<scrubbed>.URL))@1 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=Partial, gby=[CounterID@0 as CounterID], aggr=[sum(character_length(<scrubbed>.URL)), count(character_length(<scrubbed>.URL)), count(Int64(1))]
+              ProjectionExec: expr=[CounterID@0 as CounterID, character_length(URL@1) as character_length(<scrubbed>.URL)]
+                FilterExec: URL@1 != 
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                    DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, URL], file_type=parquet, predicate=URL@27 != , pruning_predicate=URL_null_count@2 != row_count@3 AND (URL_min@0 !=  OR  != URL_max@1), required_guarantees=[URL not in ()]
+    coord_physical: |
+      ProjectionExec: expr=[CASE WHEN sum(input-0.$f2) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f1) / sum(input-0.$f2) END@0 as l, sum(input-0.c)@1 as c, CounterID@2 as CounterID]
+        SortPreservingMergeExec: [CASE WHEN sum(input-0.$f2) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f1) / sum(input-0.$f2) END@0 DESC NULLS LAST], fetch=25
+          SortExec: TopK(fetch=25), expr=[CASE WHEN sum(input-0.$f2) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f1) / sum(input-0.$f2) END@0 DESC NULLS LAST], preserve_partitioning=[true]
+            FilterExec: sum(input-0.c)@1 > 5
+              ProjectionExec: expr=[CASE WHEN sum(input-0.$f2)@2 = 0 THEN NULL ELSE CAST(sum(input-0.$f1)@1 AS Float64) / CAST(sum(input-0.$f2)@2 AS Float64) END as CASE WHEN sum(input-0.$f2) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f1) / sum(input-0.$f2) END, sum(input-0.c)@3 as sum(input-0.c), CounterID@0 as CounterID]
+                AggregateExec: mode=FinalPartitioned, gby=[CounterID@0 as CounterID], aggr=[sum(input-0.$f1), sum(input-0.$f2), sum(input-0.c)]
+                  RepartitionExec: partitioning=Hash([CounterID@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[CounterID@0 as CounterID], aggr=[sum(input-0.$f1), sum(input-0.$f2), sum(input-0.c)]
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        StreamingTableExec: partition_sizes=1, projection=[CounterID, $f1, $f2, c]
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[25], viableBackends=[[datafusion]])
+          OpenSearchProject(l=[$1], c=[$2], CounterID=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=7, backends=[datafusion], >($2, 5))], viableBackends=[[datafusion]])
+              OpenSearchProject(CounterID=[$0], l=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($1):DOUBLE), $2))], c=[$3], viableBackends=[[datafusion]])
+                OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT($1)], c=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+                  OpenSearchProject(CounterID=[$12], $f2=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], CHAR_LENGTH($85))], viableBackends=[[datafusion]])
+                    OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($85, ''))], viableBackends=[[datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[25], viableBackends=[[datafusion]])
+          OpenSearchProject(l=[$1], c=[$2], CounterID=[$0], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=7, backends=[datafusion], >($2, 5))], viableBackends=[[datafusion]])
+              OpenSearchProject(CounterID=[$0], l=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($1):DOUBLE), $2))], c=[$3], viableBackends=[[datafusion]])
+                OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT($1)], c=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+                  OpenSearchProject(CounterID=[$12], $f2=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], CHAR_LENGTH($85))], viableBackends=[[datafusion]])
+                    OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($85, ''))], viableBackends=[[datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END@0 as l, count(Int64(1))@1 as c, CounterID@2 as CounterID]
+        SortPreservingMergeExec: [CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END@0 DESC NULLS LAST], fetch=25
+          SortExec: TopK(fetch=25), expr=[CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END@0 DESC NULLS LAST], preserve_partitioning=[true]
+            FilterExec: count(Int64(1))@1 > 5
+              ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.URL))@2 = 0 THEN NULL ELSE CAST(sum(character_length(<scrubbed>.URL))@1 AS Float64) / CAST(count(character_length(<scrubbed>.URL))@2 AS Float64) END as CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END, count(Int64(1))@3 as count(Int64(1)), CounterID@0 as CounterID]
+                AggregateExec: mode=FinalPartitioned, gby=[CounterID@0 as CounterID], aggr=[sum(character_length(<scrubbed>.URL)), count(character_length(<scrubbed>.URL)), count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([CounterID@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[CounterID@0 as CounterID], aggr=[sum(character_length(<scrubbed>.URL)), count(character_length(<scrubbed>.URL)), count(Int64(1))]
+                      ProjectionExec: expr=[CounterID@0 as CounterID, character_length(URL@1) as character_length(<scrubbed>.URL)]
+                        FilterExec: URL@1 != 
+                          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                            DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, URL], file_type=parquet, predicate=URL@27 != , pruning_predicate=URL_null_count@2 != row_count@3 AND (URL_min@0 !=  OR  != URL_max@1), required_guarantees=[URL not in ()]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END@0 as l, count(Int64(1))@1 as c, CounterID@2 as CounterID]
+        SortPreservingMergeExec: [CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END@0 DESC NULLS LAST], fetch=25
+          SortExec: TopK(fetch=25), expr=[CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END@0 DESC NULLS LAST], preserve_partitioning=[true]
+            FilterExec: count(Int64(1))@1 > 5
+              ProjectionExec: expr=[CASE WHEN count(character_length(<scrubbed>.URL))@2 = 0 THEN NULL ELSE CAST(sum(character_length(<scrubbed>.URL))@1 AS Float64) / CAST(count(character_length(<scrubbed>.URL))@2 AS Float64) END as CASE WHEN count(character_length(<scrubbed>.URL)) = Int64(0) THEN Float64(NULL) ELSE sum(character_length(<scrubbed>.URL)) / count(character_length(<scrubbed>.URL)) END, count(Int64(1))@3 as count(Int64(1)), CounterID@0 as CounterID]
+                AggregateExec: mode=FinalPartitioned, gby=[CounterID@0 as CounterID], aggr=[sum(character_length(<scrubbed>.URL)), count(character_length(<scrubbed>.URL)), count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([CounterID@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[CounterID@0 as CounterID], aggr=[sum(character_length(<scrubbed>.URL)), count(character_length(<scrubbed>.URL)), count(Int64(1))]
+                      ProjectionExec: expr=[CounterID@0 as CounterID, character_length(URL@1) as character_length(<scrubbed>.URL)]
+                        FilterExec: URL@1 != 
+                          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                            DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, URL], file_type=parquet, predicate=URL@27 != , pruning_predicate=URL_null_count@2 != row_count@3 AND (URL_min@0 !=  OR  != URL_max@1), required_guarantees=[URL not in ()]
