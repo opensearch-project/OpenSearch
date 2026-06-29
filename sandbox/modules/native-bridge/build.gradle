@@ -26,3 +26,4 @@ tasks.named('internalClusterTest').configure {
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   systemProperty 'tests.security.manager', 'false'
 }
+

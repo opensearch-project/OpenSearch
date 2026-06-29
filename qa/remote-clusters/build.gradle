@@ -98,3 +98,4 @@ tasks.named("check").configure { dependsOn "integTest" }
 tasks.named("composeUp").configure {
   dependsOn preProcessFixture
 }
+

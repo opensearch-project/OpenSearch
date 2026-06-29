@@ -94,3 +94,4 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
 }
+

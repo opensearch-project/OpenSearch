@@ -48,3 +48,4 @@ dependencies {
 test {
   systemProperty 'tests.security.manager', 'false'
 }
+

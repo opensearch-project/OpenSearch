@@ -39,3 +39,4 @@ dependencies {
   compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
   testImplementation project(":test:framework")
 }
+

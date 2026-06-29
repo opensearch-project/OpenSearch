@@ -9,3 +9,4 @@ dependencies {
 }
 
 apply plugin: 'opensearch.internal-cluster-test'
+

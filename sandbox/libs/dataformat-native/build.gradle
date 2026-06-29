@@ -129,3 +129,4 @@ tasks.named('thirdPartyAudit').configure {
         'org.osgi.framework.wiring.BundleWiring'
     )
 }
+

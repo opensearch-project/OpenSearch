@@ -36,3 +36,4 @@ configure(project('painless-allowlist')) {
     }
   }
 }
+

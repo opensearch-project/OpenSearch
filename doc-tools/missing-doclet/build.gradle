@@ -9,3 +9,4 @@ tasks.withType(JavaCompile) {
   options.compilerArgs += ["--release", targetCompatibility.toString()]
   options.encoding = "UTF-8"
 }
+

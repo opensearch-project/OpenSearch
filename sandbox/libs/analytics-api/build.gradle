@@ -28,3 +28,4 @@ dependencies {
   compileOnlyApi 'org.apiguardian:apiguardian-api:1.1.2'
   compileOnlyApi 'org.checkerframework:checker-qual:3.43.0'
 }
+

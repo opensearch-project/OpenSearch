@@ -38,3 +38,4 @@ restResources {
     includeCore '_common', 'indices', 'index', 'cluster', 'search'
   }
 }
+

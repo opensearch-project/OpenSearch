@@ -66,3 +66,4 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.osgi.framework.wiring.BundleWire',
   'org.osgi.framework.wiring.BundleWiring'
 )
+

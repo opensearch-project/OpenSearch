@@ -88,3 +88,4 @@ subprojects { Project platformProject ->
     hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
   }
 }
+

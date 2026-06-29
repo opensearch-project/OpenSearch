@@ -45,3 +45,4 @@ restResources {
 dependencies {
   compileOnly project(':modules:lang-painless')
 }
+

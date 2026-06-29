@@ -34,3 +34,4 @@
  */
 
 apply plugin: 'opensearch.standalone-test'
+

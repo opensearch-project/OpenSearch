@@ -10,3 +10,4 @@
  */
 
 project.ext.shouldTestDocker = true
+

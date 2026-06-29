@@ -87,3 +87,4 @@ tasks.named("bundlePlugin").configure {
     into 'config'
   }
 }
+

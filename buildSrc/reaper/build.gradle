@@ -22,3 +22,4 @@ jar {
     attributes 'Main-Class': 'org.opensearch.gradle.reaper.Reaper'
   }
 }
+

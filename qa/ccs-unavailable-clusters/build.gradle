@@ -35,3 +35,4 @@ apply plugin: 'opensearch.test-with-dependencies'
 dependencies {
   testImplementation project(":client:rest-high-level")
 }
+

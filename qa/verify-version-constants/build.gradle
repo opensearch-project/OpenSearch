@@ -83,3 +83,4 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
 //tasks.named("check").configure {
 //  dependsOn verifyDocsLuceneVersion
 //}
+

@@ -53,3 +53,4 @@ tasks.test {
     jvmArgs += ["--add-opens", "java.base/java.nio.channels=ALL-UNNAMED"]
     jvmArgs += ["--add-opens", "java.base/java.net=ALL-UNNAMED"]
 }
+

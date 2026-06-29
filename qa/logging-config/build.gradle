@@ -49,3 +49,4 @@ integTest {
 test {
   systemProperty 'tests.security.manager', 'false'
 }
+

@@ -26,3 +26,4 @@ subprojects {
     it.onlyIf { BuildParams.isSnapshotBuild() }
   }
 }
+

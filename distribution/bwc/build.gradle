@@ -48,3 +48,4 @@ BuildParams.getBwcVersions().forPreviousUnreleased { unreleasedVersion ->
         }
     }
 }
+

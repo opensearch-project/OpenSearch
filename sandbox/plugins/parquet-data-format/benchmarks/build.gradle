@@ -87,3 +87,4 @@ run.jvmArgs += [
 run.environment += [
   'RUST_BACKTRACE': 'full'
 ]
+

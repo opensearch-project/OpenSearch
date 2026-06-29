@@ -89,3 +89,4 @@ tasks.register("writeTestJavaPolicy") {
       ].join("\n"))
   }
 }
+

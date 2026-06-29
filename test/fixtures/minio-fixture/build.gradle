@@ -30,3 +30,4 @@
 apply plugin: 'opensearch.test.fixtures'
 
 description = 'Fixture for MinIO Storage service'
+

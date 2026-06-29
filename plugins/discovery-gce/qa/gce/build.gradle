@@ -84,3 +84,4 @@ testClusters.yamlRestTest {
   // use gce fixture for API calls instead of https://www.googleapis.com
   setting 'cloud.gce.root_url', { "http://${gceFixture.addressAndPort}" }, IGNORE_VALUE
 }
+

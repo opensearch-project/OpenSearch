@@ -119,3 +119,4 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.slf4j.Logger',
   'org.slf4j.LoggerFactory'
 )
+

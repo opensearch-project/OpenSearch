@@ -67,3 +67,4 @@ spotless {
     targetExclude 'src/jmh/generated/**/*.java'
   }
 }
+

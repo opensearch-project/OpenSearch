@@ -47,3 +47,4 @@ restResources {
       'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
   }
 }
+

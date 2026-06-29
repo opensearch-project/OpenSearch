@@ -33,3 +33,4 @@ tasks.register("noConfigAfterExecution") {
     buildResourcesTask.get().copy('foo')
   }
 }
+

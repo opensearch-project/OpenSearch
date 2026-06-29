@@ -46,3 +46,4 @@ testClusters.all {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:lang-mustache'
 }
+

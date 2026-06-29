@@ -384,3 +384,4 @@ task azureThirdPartyDefaultXmlTest(type: Test) {
 }
 
 check.dependsOn(azureThirdPartyTest, azureThirdPartyDefaultXmlTest)
+

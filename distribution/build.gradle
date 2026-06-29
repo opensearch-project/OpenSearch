@@ -707,3 +707,4 @@ subprojects {
     "${configuration.name}" project(path: subproject.path, configuration:'default')
   }
 }
+

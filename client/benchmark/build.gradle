@@ -58,3 +58,4 @@ dependencies {
 // No licenses for our benchmark deps (we don't ship benchmarks)
 tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
+

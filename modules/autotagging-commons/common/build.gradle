@@ -25,3 +25,4 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /commons-collections.*/, to: 'commons-collections'
 }
+

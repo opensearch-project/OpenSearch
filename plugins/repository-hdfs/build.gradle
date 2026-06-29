@@ -435,3 +435,4 @@ thirdPartyAudit {
 tasks.withType(JavaForkOptions) {
   systemProperty "java.util.concurrent.ForkJoinPool.common.threadFactory", "org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory"
 }
+

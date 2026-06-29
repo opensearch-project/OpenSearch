@@ -12,3 +12,4 @@ opensearchplugin {
   description = 'Pull-based ingestion plugin to read from local files for testing'
   classname = 'org.opensearch.plugin.ingestion.fs.FilePlugin'
 }
+

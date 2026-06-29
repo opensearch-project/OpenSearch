@@ -20,3 +20,4 @@ tasks.register("launchReaper") {
     reaper.unregister('test')
   }
 }
+

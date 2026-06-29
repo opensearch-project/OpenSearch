@@ -607,3 +607,4 @@ def getGitShaFromJar(String jarPath) {
     }
     return sha
 }
+

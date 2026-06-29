@@ -136,3 +136,4 @@ testClusters.yamlRestTestContainerCredentials {
 
 // Extra config for InstanceProfile
 ec2FixtureInstanceProfile.env 'ACTIVATE_INSTANCE_PROFILE', true
+

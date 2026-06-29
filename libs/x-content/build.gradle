@@ -68,3 +68,4 @@ tasks.named("dependencyLicenses").configure {
 }
 
 jarHell.enabled = false
+

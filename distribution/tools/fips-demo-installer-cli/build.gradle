@@ -34,3 +34,4 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("missingJavadoc").configure { it.enabled = false }
 tasks.named("loggerUsageCheck").configure { it.enabled = false }
+

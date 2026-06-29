@@ -144,3 +144,4 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }
+

@@ -124,3 +124,4 @@ thirdPartyAudit {
     'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil$MemoryAccessor',
   )
 }
+

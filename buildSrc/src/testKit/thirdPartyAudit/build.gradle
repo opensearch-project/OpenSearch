@@ -60,3 +60,4 @@ tasks.register("absurd", ThirdPartyAuditTask) {
   targetCompatibility = JavaVersion.VERSION_21
   signatureFile = file('third-party-audit-absurd.txt')
 }
+

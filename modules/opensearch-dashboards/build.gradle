@@ -41,3 +41,4 @@ dependencies {
 testClusters.all {
   module ':modules:reindex'
 }
+

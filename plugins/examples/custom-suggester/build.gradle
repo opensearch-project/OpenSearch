@@ -44,3 +44,4 @@ testClusters.all {
 
 // this plugin has no unit tests, only rest tests
 tasks.test.enabled = false
+

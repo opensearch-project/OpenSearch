@@ -46,3 +46,4 @@ dependenciesInfo.enabled = false
 
 // no unit tests
 test.enabled = false
+

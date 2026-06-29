@@ -371,3 +371,4 @@ tasks.register('restTest', Test) {
     // Inherit OpenSearch test base properties
     systemProperty 'tests.artifact', 'analytics-engine-rest'
 }
+

@@ -87,3 +87,4 @@ spotless {
 
 // Add support for incubator modules on supported Java versions.
 run.jvmArgs += ['--add-modules=jdk.incubator.vector']
+

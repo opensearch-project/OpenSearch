@@ -58,3 +58,4 @@ testingConventions {
 javadoc.enabled = false
 loggerUsageCheck.enabled = false
 jarHell.enabled = false
+

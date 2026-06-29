@@ -259,3 +259,4 @@ tasks.each {
     it.dependsOn project(':libs:agent-sm:agent').tasks.named('assemble')
   }
 }
+

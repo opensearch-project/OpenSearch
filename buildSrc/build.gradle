@@ -372,3 +372,4 @@ class VersionPropertiesLoader {
     loadedProps.put("opensearch", opensearch)
   }
 }
+

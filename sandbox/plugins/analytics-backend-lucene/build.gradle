@@ -99,3 +99,4 @@ tasks.withType(JavaCompile).configureEach {
 
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
+

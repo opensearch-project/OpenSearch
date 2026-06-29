@@ -107,3 +107,4 @@ TaskProvider testJar = tasks.register("testJar", Jar) {
 artifacts {
   testArtifacts testJar
 }
+

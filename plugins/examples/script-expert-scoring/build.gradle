@@ -39,3 +39,4 @@ opensearchplugin {
 }
 
 test.enabled = false
+

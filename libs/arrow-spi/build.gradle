@@ -23,3 +23,4 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named('forbiddenApisTest').configure {
     replaceSignatureFiles 'jdk-signatures'
 }
+

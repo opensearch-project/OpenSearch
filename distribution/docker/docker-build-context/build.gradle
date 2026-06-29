@@ -23,3 +23,4 @@ tasks.register("buildDockerBuildContext", Tar) {
 }
 
 tasks.named("assemble").configure { dependsOn "buildDockerBuildContext" }
+

@@ -303,3 +303,4 @@ dockerCompose {
     environment.put("FIPS_GENERATE_TRUSTSTORE", "true")
   }
 }
+

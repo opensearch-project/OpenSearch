@@ -48,3 +48,4 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
     throw new InvalidModelException("Modules cannot contain config files")
   }
 }
+

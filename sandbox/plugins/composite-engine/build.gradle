@@ -65,3 +65,4 @@ dependencies {
   // Netty4 HTTP transport for ITs that use the low-level RestClient (e.g., DataFormatStatsIT, *DataFormatApi*IT).
   internalClusterTestImplementation project(':modules:transport-netty4')
 }
+

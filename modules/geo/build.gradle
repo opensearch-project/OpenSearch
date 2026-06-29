@@ -51,3 +51,4 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:rawtypes'
   options.compilerArgs -= '-Xlint:unchecked'
 }
+

@@ -36,3 +36,4 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 jarHell.enabled = false
+

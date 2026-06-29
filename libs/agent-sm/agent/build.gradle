@@ -106,3 +106,4 @@ tasks.check {
 tasks.named('assemble') {
   dependsOn prepareAgent
 }
+

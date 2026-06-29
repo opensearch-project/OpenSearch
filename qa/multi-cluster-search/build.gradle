@@ -67,3 +67,4 @@ tasks.register("integTest") {
 tasks.named("test").configure { enabled = false }// no unit tests for multi-cluster-search, only integration tests
 
 tasks.named("check").configure { dependsOn("integTest") }
+

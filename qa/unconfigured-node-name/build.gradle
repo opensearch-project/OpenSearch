@@ -42,3 +42,4 @@ integTest {
   nonInputProperties.systemProperty 'tests.logfile',
     "${-> testClusters.integTest.singleNode().getServerLog()}"
 }
+

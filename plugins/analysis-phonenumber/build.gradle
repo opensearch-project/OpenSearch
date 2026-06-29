@@ -19,3 +19,4 @@ opensearchplugin {
 dependencies {
   implementation "com.googlecode.libphonenumber:libphonenumber:8.13.45"
 }
+

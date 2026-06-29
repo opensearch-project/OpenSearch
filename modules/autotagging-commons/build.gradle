@@ -19,3 +19,4 @@ dependencies {
     exclude group: 'org.opensearch', module: 'opensearch-core'
   }
 }
+

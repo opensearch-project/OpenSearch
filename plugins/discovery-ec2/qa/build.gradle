@@ -10,3 +10,4 @@
  */
 
 group = "${group}.plugins.discovery-ec2.qa"
+

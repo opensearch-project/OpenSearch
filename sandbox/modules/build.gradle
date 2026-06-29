@@ -17,3 +17,4 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
     noticeFile = rootProject.file('NOTICE.txt')
   }
 }
+

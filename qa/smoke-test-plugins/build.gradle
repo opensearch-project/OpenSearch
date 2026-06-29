@@ -61,3 +61,4 @@ processTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
+
