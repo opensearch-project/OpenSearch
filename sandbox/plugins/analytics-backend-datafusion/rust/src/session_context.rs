@@ -24,6 +24,7 @@ use datafusion::{
     execution::memory_pool::MemoryPool,
     execution::runtime_env::RuntimeEnvBuilder,
     execution::SessionStateBuilder,
+    physical_plan::ExecutionPlan,
     prelude::*,
 };
 use log::error;
@@ -205,6 +206,9 @@ pub async unsafe fn create_session_context(
     }
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
+    if has_partial_aggregate {
+        config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
+    }
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
     // file-group partitioner so `output_ordering` can propagate from the scan.
     if !shard_view.sort_fields.is_empty() {
@@ -448,6 +452,7 @@ pub async fn prepare_partial_plan(
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+
     // Strip first on the raw physical plan so `force_aggregate_mode(Partial)` can find the
     // Final/Partial pair without a RelabelExec wrapper at the root pre-empting the walk.
     // Then derive `target_schema` and wrap with RelabelExec from the stripped plan's actual
@@ -461,6 +466,7 @@ pub async fn prepare_partial_plan(
     handle.prepared_plan = Some(stripped);
     Ok(())
 }
+
 
 /// Attempt to acquire a memory budget using cached parquet metadata.
 /// Returns None on cache miss or if the budget system is not configured.

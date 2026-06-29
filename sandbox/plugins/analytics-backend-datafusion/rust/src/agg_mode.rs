@@ -16,7 +16,7 @@ use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptim
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
 use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::projection::ProjectionExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{ExecutionPlan, ExecutionPlanProperties};
 use datafusion_common::Result;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -78,9 +78,26 @@ fn force_aggregate_mode(
         // Mode mismatch — strip this node
         match target {
             AggregateMode::Partial => {
-                // Current node is Final; find the Partial subtree below
-                if let Some(partial_subtree) = find_partial_input(Arc::clone(agg.input())) {
-                    return Ok(partial_subtree);
+                // Current node is Final/FinalPartitioned. When the Partial below has
+                // multiple output partitions (intra-shard parallelism), we need to
+                // keep the hash-repartition + merge so TopK sees complete per-key
+                // partial results. Replace the Final with PartialReduce (merges
+                // partial states but outputs partial state, not finalized values).
+                if let Some(partial_below) = find_partial_input(Arc::clone(agg.input())) {
+                    if partial_below.output_partitioning().partition_count() > 1 {
+                        // Rebuild as PartialReduce, keeping the repartition + partial subtree
+                        let new_agg = AggregateExec::try_new(
+                            AggregateMode::PartialReduce,
+                            agg.group_expr().clone(),
+                            agg.aggr_expr().to_vec(),
+                            agg.filter_expr().to_vec(),
+                            Arc::clone(agg.input()),  // keeps RepartitionExec(Hash) → Partial
+                            agg.input_schema(),
+                        )?;
+                        return Ok(Arc::new(new_agg));
+                    }
+                    // Single partition — no merge needed, strip as before
+                    return Ok(partial_below);
                 }
                 // If no Partial found below, the input itself is the Partial
                 Ok(Arc::clone(agg.input()))
