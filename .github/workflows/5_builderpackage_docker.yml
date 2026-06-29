@@ -1,6 +1,11 @@
 run-name: Build Wazuh Indexer Docker image | ${{ inputs.id }}
 name: (5.x) Build Docker image
 
+env:
+  CI_DEV_INTERNAL_BUCKET: s3://xdrsiem-ci-dev-internal
+  CI_ARTIFACTS_REPO: wazuh-indexer
+  CI_ARTIFACTS_WORKFLOW: 5_builderpackage_indexer
+
 # This workflow runs when any of the following occur:
 # - Run manually
 # - Invoked from another workflow
@@ -61,6 +66,9 @@ on:
       QUAY_TOKEN:
         required: true
         description: "Quay.io token"
+      AWS_INDEXER_ACTIONS_ROLE:
+        required: true
+        description: "AWS IAM OIDC role for S3 access"
 
 # ==========================
 # Bibliography
@@ -95,6 +103,7 @@ jobs:
   build-and-push-docker-image:
     permissions:
       contents: read
+      id-token: write
     needs: [call-build-workflow]
     runs-on:
       - codebuild-github-actions-codebuild-runner-indexer-amd-${{ github.run_id }}-${{ github.run_attempt }}
@@ -114,12 +123,25 @@ jobs:
           platforms=$(echo '${{ inputs.architecture }}' | jq -r '[.[] | if . == "x64" then "linux/amd64" elif . == "arm64" then "linux/arm64" else empty end] | join(",")')
           echo "platforms=${platforms}" >> "$GITHUB_OUTPUT"
 
-      - name: Download tarballs
-        uses: actions/download-artifact@v8
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          path: ${{ env.docker_path }}
-          pattern: "wazuh-indexer_*linux*"
-          merge-multiple: true
+          role-to-assume: ${{ secrets.AWS_INDEXER_ACTIONS_ROLE }}
+          aws-region: "us-east-1"
+
+      - name: Download tarballs
+        run: |
+          mkdir -p "${{ env.docker_path }}"
+          s3_base="${{ env.CI_DEV_INTERNAL_BUCKET }}/${{ env.CI_ARTIFACTS_REPO }}/${{ env.CI_ARTIFACTS_WORKFLOW }}"
+          zip_name="artifacts_${{ github.run_id }}.zip"
+          aws s3 cp "${s3_base}/${zip_name}" "${{ env.docker_path }}/${zip_name}"
+
+          if [ ! -f "${{ env.docker_path }}/${zip_name}" ]; then
+            echo "::error::No indexer artifact ZIP found in S3 at ${s3_base}/${zip_name}"
+            exit 1
+          fi
+
+          unzip -j -o "${{ env.docker_path }}/${zip_name}" '*/wazuh-indexer_*linux*.tar.gz' -d "${{ env.docker_path }}"
 
       - name: Display structure of downloaded files
         run: ls -lR ${{ env.docker_path }}
