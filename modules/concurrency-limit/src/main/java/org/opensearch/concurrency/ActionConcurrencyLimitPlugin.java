@@ -57,11 +57,8 @@ public class ActionConcurrencyLimitPlugin extends Plugin implements ActionPlugin
      * HTTP request header that the {@code byHeader} partition resolver reads to determine a
      * request's partition. Registered via {@link #getRestHeaders()} so it is copied from the
      * REST request into the transport {@link org.opensearch.common.util.concurrent.ThreadContext},
-     * where the action filter can read it.
-     * <p>
-     * Note: REST headers must be registered at node startup. Only this fixed header name is
-     * propagated; configuring {@code partition.resolver.byHeader.name} to a different value will
-     * not work unless that header is also registered here.
+     * where the action filter can read it. This is the only header the {@code byHeader} resolver
+     * reads; it is not configurable.
      */
     public static final String TIER_HEADER = "X-Request-Tier";
 

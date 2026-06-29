@@ -170,7 +170,6 @@ public class ActionConcurrencyLimiterRegistry {
      *   <li>{@code <name>.percent} — share of total limit (0.0–1.0)</li>
      *   <li>{@code <name>.delay_ms} — optional reject-delay for this partition</li>
      *   <li>{@code resolver} — resolver type ({@code byHeader}, {@code fixed})</li>
-     *   <li>{@code resolver.byHeader.name} — header name for {@code byHeader} resolver</li>
      *   <li>{@code resolver.fixed.partition} — target partition for {@code fixed} resolver</li>
      * </ul>
      */
