@@ -127,7 +127,7 @@ dependencies {
   api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.10'
   constraints {
     api('org.codehaus.plexus:plexus-utils') {
-      version { strictly '3.5.1' }
+      version { strictly '3.6.1' }
       because 'plexus-utils 4.x is incompatible with Java 11'
     }
   }
