@@ -150,11 +150,15 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
         RangeQueryConstraint query = constraint("1970/01/01", "1970/01/02", true, false);
 
         assertTrue(
-            evaluators.canMatch(new DateRangeFieldDomain("@timestamp", "0", "86399999", true, "test", "yyyy/MM/dd", null), query, context)
+            evaluators.canMatch(
+                new DateRangeFieldDomain("@timestamp", "0", "86399999", true, "test", "yyyy/MM/dd", "milliseconds"),
+                query,
+                context
+            )
         );
         assertFalse(
             evaluators.canMatch(
-                new DateRangeFieldDomain("@timestamp", "86400000", "172799999", true, "test", "yyyy/MM/dd", null),
+                new DateRangeFieldDomain("@timestamp", "86400000", "172799999", true, "test", "yyyy/MM/dd", "milliseconds"),
                 query,
                 context
             )
@@ -165,7 +169,11 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
         RangeQueryConstraint query = constraint("@timestamp", "1970|01|01", null, true, true, "yyyy|MM|dd", null, null);
 
         assertFalse(
-            evaluators.canMatch(new DateRangeFieldDomain("@timestamp", "-1", "-1", true, "test", "yyyy/MM/dd", null), query, context)
+            evaluators.canMatch(
+                new DateRangeFieldDomain("@timestamp", "-1", "-1", true, "test", "yyyy/MM/dd", "milliseconds"),
+                query,
+                context
+            )
         );
     }
 
@@ -175,21 +183,7 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
         assertTrue(evaluators.canMatch(bounds(100L, 200L, true), constraint("now--", "now", true, true), context));
         assertTrue(
             evaluators.canMatch(
-                new DateRangeFieldDomain("@timestamp", "100", "200", true, "test", "[", null),
-                constraint(300L, 400L, true, true),
-                context
-            )
-        );
-        assertTrue(
-            evaluators.canMatch(
-                new DateRangeFieldDomain("@timestamp", "bad", "200", true, "test", null, null),
-                constraint(300L, 400L, true, true),
-                context
-            )
-        );
-        assertTrue(
-            evaluators.canMatch(
-                new DateRangeFieldDomain("@timestamp", "200", "100", true, "test", null, null),
+                new DateRangeFieldDomain("@timestamp", "100", "200", true, "test", "[", "milliseconds"),
                 constraint(300L, 400L, true, true),
                 context
             )
@@ -197,13 +191,6 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
         assertTrue(evaluators.canMatch(bounds(100L, 200L, true), constraint("other_field", 300L, 400L, true, true), context));
         assertTrue(evaluators.canMatch(new UnsupportedFieldDomain("@timestamp"), constraint(300L, 400L, true, true), context));
         assertTrue(evaluators.canMatch(bounds(100L, 200L, true), (QueryConstraint) () -> "@timestamp", context));
-        assertTrue(
-            evaluators.canMatch(
-                new DateRangeFieldDomain("@timestamp", "100", "200", true, "test", null, "unsupported"),
-                constraint(300L, 400L, true, true),
-                context
-            )
-        );
         assertTrue(
             evaluators.canMatch(
                 bounds(100L, 200L, true),

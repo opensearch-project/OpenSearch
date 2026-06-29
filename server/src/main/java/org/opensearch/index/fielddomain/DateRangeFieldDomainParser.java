@@ -8,12 +8,17 @@
 
 package org.opensearch.index.fielddomain;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * Reader and writer for {@link DateRangeFieldDomain} custom metadata.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class DateRangeFieldDomainParser implements FieldDomainParser<DateRangeFieldDomain> {
     private static final String KEY_MIN = "min";
     private static final String KEY_MAX = "max";

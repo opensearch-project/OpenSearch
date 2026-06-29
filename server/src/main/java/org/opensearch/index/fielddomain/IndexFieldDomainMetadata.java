@@ -9,6 +9,7 @@
 package org.opensearch.index.fielddomain;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +21,10 @@ import java.util.Optional;
  *
  * The metadata is stored as a flat {@code Map<String, String>} under {@link IndexMetadata#getCustomData(String)}.
  * This class is the single place that translates between that wire shape and typed {@link FieldDomain} objects.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class IndexFieldDomainMetadata {
     /**
      * Custom metadata key used on {@link IndexMetadata}.
@@ -51,6 +55,9 @@ public final class IndexFieldDomainMetadata {
 
     /**
      * Parses field domains for a single field from index custom metadata.
+     *
+     * This method is intentionally lenient for search-time consumers: missing, malformed, or unsupported metadata for
+     * the requested field returns {@link Optional#empty()} so callers can fall back to conservative behavior.
      *
      * @param customData custom metadata map stored under {@link #CUSTOM_KEY}
      * @param field field name to parse

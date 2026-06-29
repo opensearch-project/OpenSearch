@@ -27,10 +27,15 @@ import java.util.Optional;
 public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator {
     /**
      * Returns {@code false} only when the query date range is provably disjoint from the finalized index date range.
+     * Unfinalized domains are treated as potentially matching, even though the pruning service also filters them before
+     * calling evaluators.
      */
     @Override
     public boolean canMatch(FieldDomain domain, QueryConstraint constraint, FieldDomainEvaluationContext context) {
         if (!(domain instanceof DateRangeFieldDomain dateRangeDomain) || !(constraint instanceof RangeQueryConstraint rangeConstraint)) {
+            return true;
+        }
+        if (dateRangeDomain.finalized() == false) {
             return true;
         }
 
@@ -173,9 +178,7 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
 
     private static DateFieldMapper.Resolution resolveResolution(DateRangeFieldDomain domain) {
         if (domain.resolution() == null || domain.resolution().isEmpty()) {
-            // Match DateFieldMapper's default date resolution. Metadata publishers for date_nanos domains must publish
-            // an explicit nanoseconds resolution.
-            return DateFieldMapper.Resolution.MILLISECONDS;
+            return null;
         }
 
         String configured = domain.resolution().toLowerCase(Locale.ROOT);

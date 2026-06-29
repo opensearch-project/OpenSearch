@@ -8,6 +8,8 @@
 
 package org.opensearch.index.fielddomain;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +18,13 @@ import java.util.Optional;
 
 /**
  * Registry that maps field-domain metadata type names to parsers.
+ *
+ * The default registry currently contains only built-in parsers. Plugin registration for additional parser and evaluator
+ * implementations is not wired yet.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class FieldDomainParserRegistry {
 
     private static final FieldDomainParserRegistry DEFAULT = new FieldDomainParserRegistry(
@@ -100,7 +108,10 @@ public final class FieldDomainParserRegistry {
 
     /**
      * Typed parser registration entry.
+     *
+     * @opensearch.experimental
      */
+    @ExperimentalApi
     public static final class Entry<T extends FieldDomain> {
         private final Class<T> domainClass;
         private final FieldDomainParser<T> parser;

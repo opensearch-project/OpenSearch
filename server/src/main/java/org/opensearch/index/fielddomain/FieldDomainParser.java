@@ -8,6 +8,8 @@
 
 package org.opensearch.index.fielddomain;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -16,7 +18,10 @@ import java.util.Optional;
  *
  * Implementations convert between typed field-domain objects and the flat {@code Map<String, String>} stored in
  * {@link org.opensearch.cluster.metadata.IndexMetadata} custom data.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface FieldDomainParser<T extends FieldDomain> {
     /**
      * Metadata type handled by this parser.

@@ -75,7 +75,9 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
                     "fields.@timestamp.max",
                     "200",
                     "fields.@timestamp.finalized",
-                    "not-a-boolean"
+                    "not-a-boolean",
+                    "fields.@timestamp.resolution",
+                    "milliseconds"
                 ),
                 "@timestamp"
             ).isEmpty()
@@ -118,7 +120,7 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertTrue(METADATA.fromCustomData(customData, "event.ingested").isEmpty());
     }
 
-    public void testFromCustomDataReadsDateRangeDomainWithOptionalFieldsOmitted() {
+    public void testFromCustomDataReadsDateRangeDomainWithOptionalSourceAndFormatOmitted() {
         Optional<FieldDomain> maybeDomain = METADATA.fromCustomData(
             Map.of(
                 "fields.@timestamp.type",
@@ -128,7 +130,9 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
                 "fields.@timestamp.max",
                 "200",
                 "fields.@timestamp.finalized",
-                "true"
+                "true",
+                "fields.@timestamp.resolution",
+                "milliseconds"
             ),
             "@timestamp"
         );
@@ -137,7 +141,76 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         DateRangeFieldDomain domain = (DateRangeFieldDomain) maybeDomain.get();
         assertNull(domain.source());
         assertNull(domain.format());
-        assertNull(domain.resolution());
+        assertThat(domain.resolution(), equalTo("milliseconds"));
+    }
+
+    public void testFromCustomDataReturnsEmptyForInvalidDateRangeValues() {
+        assertTrue(
+            METADATA.fromCustomData(
+                Map.of(
+                    "fields.@timestamp.type",
+                    "date_range",
+                    "fields.@timestamp.min",
+                    "bad",
+                    "fields.@timestamp.max",
+                    "200",
+                    "fields.@timestamp.finalized",
+                    "true",
+                    "fields.@timestamp.resolution",
+                    "milliseconds"
+                ),
+                "@timestamp"
+            ).isEmpty()
+        );
+        assertTrue(
+            METADATA.fromCustomData(
+                Map.of(
+                    "fields.@timestamp.type",
+                    "date_range",
+                    "fields.@timestamp.min",
+                    "200",
+                    "fields.@timestamp.max",
+                    "100",
+                    "fields.@timestamp.finalized",
+                    "true",
+                    "fields.@timestamp.resolution",
+                    "milliseconds"
+                ),
+                "@timestamp"
+            ).isEmpty()
+        );
+        assertTrue(
+            METADATA.fromCustomData(
+                Map.of(
+                    "fields.@timestamp.type",
+                    "date_range",
+                    "fields.@timestamp.min",
+                    "100",
+                    "fields.@timestamp.max",
+                    "200",
+                    "fields.@timestamp.finalized",
+                    "true",
+                    "fields.@timestamp.resolution",
+                    "unsupported"
+                ),
+                "@timestamp"
+            ).isEmpty()
+        );
+        assertTrue(
+            METADATA.fromCustomData(
+                Map.of(
+                    "fields.@timestamp.type",
+                    "date_range",
+                    "fields.@timestamp.min",
+                    "100",
+                    "fields.@timestamp.max",
+                    "200",
+                    "fields.@timestamp.finalized",
+                    "true"
+                ),
+                "@timestamp"
+            ).isEmpty()
+        );
     }
 
     public void testToCustomDataWritesDateRangeDomain() {
@@ -179,6 +252,7 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertThat(customData.get("fields.@timestamp.min"), equalTo("100"));
         assertThat(customData.get("fields.@timestamp.max"), equalTo("200"));
         assertThat(customData.get("fields.@timestamp.finalized"), equalTo("true"));
+        assertThat(customData.get("fields.@timestamp.resolution"), equalTo("milliseconds"));
     }
 
     public void testPutFieldDomainReplacesOnlyTargetFieldMetadata() {

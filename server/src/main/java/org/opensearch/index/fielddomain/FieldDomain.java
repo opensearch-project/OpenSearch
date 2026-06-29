@@ -8,6 +8,8 @@
 
 package org.opensearch.index.fielddomain;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Index-level metadata describing the value domain of one field in one concrete index.
  *
@@ -19,7 +21,10 @@ package org.opensearch.index.fielddomain;
  * routing decisions, request planning, or search optimizations. Implementations are type-specific, and consumers are
  * responsible for interpreting only the domain types they understand. Incomplete, stale, unsupported, or untrusted
  * domains must be treated conservatively by consumers.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface FieldDomain {
     /**
      * Field name this domain describes.

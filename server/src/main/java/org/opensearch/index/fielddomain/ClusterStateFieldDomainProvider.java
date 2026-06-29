@@ -10,6 +10,7 @@ package org.opensearch.index.fielddomain;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.Map;
 import java.util.Objects;
@@ -17,7 +18,10 @@ import java.util.Optional;
 
 /**
  * Reads field-domain metadata from {@link IndexMetadata} custom data in cluster state.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class ClusterStateFieldDomainProvider implements FieldDomainProvider {
     private final IndexFieldDomainMetadata metadata;
 

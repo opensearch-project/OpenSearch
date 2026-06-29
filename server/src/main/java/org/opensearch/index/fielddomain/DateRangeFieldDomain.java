@@ -8,6 +8,10 @@
 
 package org.opensearch.index.fielddomain;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.mapper.DateFieldMapper;
+
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -15,12 +19,17 @@ import java.util.Objects;
  *
  * The stored min/max values are serialized as strings so the cluster-state custom metadata remains a simple
  * {@code Map<String, String>}. The evaluator interprets them using the configured resolution.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class DateRangeFieldDomain implements FieldDomain {
     /**
      * Metadata type for date range field domains.
      */
     public static final String TYPE = "date_range";
+
+    private static final String DEFAULT_RESOLUTION = DateFieldMapper.Resolution.MILLISECONDS.name().toLowerCase(Locale.ROOT);
 
     private final String field;
     private final String min;
@@ -40,7 +49,7 @@ public final class DateRangeFieldDomain implements FieldDomain {
      * @param source optional producer identifier
      */
     public DateRangeFieldDomain(String field, long min, long max, boolean finalized, String source) {
-        this(field, Long.toString(min), Long.toString(max), finalized, source, null, null);
+        this(field, Long.toString(min), Long.toString(max), finalized, source, null, DEFAULT_RESOLUTION);
     }
 
     /**
@@ -52,16 +61,17 @@ public final class DateRangeFieldDomain implements FieldDomain {
      * @param finalized whether this domain is trusted as complete for consumers that require finalized metadata
      * @param source optional producer identifier
      * @param format optional date format used by the bound producer
-     * @param resolution optional date resolution, for example milliseconds or nanoseconds
+     * @param resolution date resolution, for example milliseconds or nanoseconds
      */
     public DateRangeFieldDomain(String field, String min, String max, boolean finalized, String source, String format, String resolution) {
         this.field = requireNonEmpty(field, "field");
         this.min = requireNonEmpty(min, "min");
         this.max = requireNonEmpty(max, "max");
+        validateBounds(this.min, this.max);
         this.finalized = finalized;
         this.source = source;
         this.format = format;
-        this.resolution = resolution;
+        this.resolution = normalizeResolution(resolution);
     }
 
     @Override
@@ -123,5 +133,33 @@ public final class DateRangeFieldDomain implements FieldDomain {
             throw new IllegalArgumentException(name + " must not be empty");
         }
         return value;
+    }
+
+    private static void validateBounds(String min, String max) {
+        long parsedMin;
+        long parsedMax;
+        try {
+            parsedMin = Long.parseLong(min);
+            parsedMax = Long.parseLong(max);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("date range field domain bounds must be numeric long values", e);
+        }
+        if (parsedMin > parsedMax) {
+            throw new IllegalArgumentException("date range field domain min must be less than or equal to max");
+        }
+    }
+
+    private static String normalizeResolution(String resolution) {
+        if (resolution == null || resolution.isBlank()) {
+            throw new IllegalArgumentException("resolution must not be null or empty");
+        }
+
+        String configured = resolution.toLowerCase(Locale.ROOT);
+        for (DateFieldMapper.Resolution dateResolution : DateFieldMapper.Resolution.values()) {
+            if (dateResolution.name().toLowerCase(Locale.ROOT).equals(configured) || dateResolution.type().equals(configured)) {
+                return dateResolution.name().toLowerCase(Locale.ROOT);
+            }
+        }
+        throw new IllegalArgumentException("unsupported date range field domain resolution [" + resolution + "]");
     }
 }
