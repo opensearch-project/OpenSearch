@@ -61,7 +61,7 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
 
     /**
      * Three-way INNER equi-join on a shared key ({@code A ⋈ B ⋈ C on id}). The general scheduler lowers
-     * this to two binary worker tiers (B2 binary-tier lowering): bottom A⋈B worker, top (A⋈B)⋈C worker.
+     * this to two binary worker tiers: bottom A⋈B worker, top (A⋈B)⋈C worker.
      * Parity across baseline / legacy-MPP / general; general advances HASH_SHUFFLE.
      */
     public void testThreeWayInnerJoin_generalMatchesBaseline() throws IOException {
@@ -191,7 +191,7 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
         createParquetIndex(A_INDEX, SHARDS, "{\"id\": {\"type\": \"integer\"}, \"amount\": {\"type\": \"integer\"}}");
         StringBuilder aBulk = new StringBuilder();
         for (int i = 0; i < ROW_COUNT; i++) {
-            aBulk.append("{\"index\":{\"_id\":\"a").append(i).append("\"}}\n");
+            aBulk.append("{\"index\":{}}\n");
             aBulk.append("{\"id\":").append(i).append(",\"amount\":").append((i % 100) + 1).append("}\n");
         }
         bulkAndRefresh(A_INDEX, aBulk.toString());
@@ -200,7 +200,7 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
         createParquetIndex(B_INDEX, SHARDS, "{\"id\": {\"type\": \"integer\"}, \"label\": {\"type\": \"keyword\"}}");
         StringBuilder bBulk = new StringBuilder();
         for (int i = 0; i < ROW_COUNT; i++) {
-            bBulk.append("{\"index\":{\"_id\":\"b").append(i).append("\"}}\n");
+            bBulk.append("{\"index\":{}}\n");
             bBulk.append("{\"id\":").append(i).append(",\"label\":\"lbl-").append(i % 7).append("\"}\n");
         }
         bulkAndRefresh(B_INDEX, bBulk.toString());
@@ -209,7 +209,7 @@ public class GeneralSchedulerJoinIT extends AnalyticsRestTestCase {
         createParquetIndex(C_INDEX, SHARDS, "{\"id\": {\"type\": \"integer\"}, \"category\": {\"type\": \"keyword\"}}");
         StringBuilder cBulk = new StringBuilder();
         for (int i = 0; i < ROW_COUNT; i++) {
-            cBulk.append("{\"index\":{\"_id\":\"c").append(i).append("\"}}\n");
+            cBulk.append("{\"index\":{}}\n");
             cBulk.append("{\"id\":").append(i).append(",\"category\":\"cat-").append(i % CATEGORIES).append("\"}\n");
         }
         bulkAndRefresh(C_INDEX, cBulk.toString());

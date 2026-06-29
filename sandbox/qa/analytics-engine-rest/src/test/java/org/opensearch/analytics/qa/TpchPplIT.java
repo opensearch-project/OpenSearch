@@ -102,9 +102,25 @@ public class TpchPplIT extends BasePplIT {
         }
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        // analytics.mpp.enabled is applied cluster-wide (transient) in onBeforeQuery; reset it so the
+        // setting does not leak onto subsequent test classes (the shared 2-node cluster persists across
+        // ITs, and an un-reset mpp.enabled=true would route later coord-centric suites — e.g. the
+        // TwoShard* reduce tests — onto the MPP distributed path they are not written for).
+        resetSetting("analytics.mpp.enabled");
+        super.tearDown();
+    }
+
     private void applySetting(String key, String value) throws IOException {
         Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("{\"transient\": {\"" + key + "\": " + value + "}}");
+        client().performRequest(request);
+    }
+
+    private void resetSetting(String key) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{\"transient\": {\"" + key + "\": null}}");
         client().performRequest(request);
     }
 

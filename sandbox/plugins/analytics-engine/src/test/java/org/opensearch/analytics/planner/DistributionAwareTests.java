@@ -29,10 +29,10 @@ import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import java.util.List;
 
 /**
- * Unit tests for the {@link DistributionAware} algebra (Option B B0). Each operator's
+ * Unit tests for the {@link DistributionAware} algebra. Each operator's
  * {@code requiredInputDistribution} / {@code deriveOutputDistribution} is a pure function over
  * {@link OpenSearchDistribution}, so it is tested in isolation — no planner run, no DAG. These are the
- * building blocks the post-CBO enforcement pass (B1) composes; getting them right per-operator is the
+ * building blocks the post-CBO enforcement pass composes; getting them right per-operator is the
  * keystone of shape-complete scheduling.
  */
 public class DistributionAwareTests extends BasePlannerRulesTests {

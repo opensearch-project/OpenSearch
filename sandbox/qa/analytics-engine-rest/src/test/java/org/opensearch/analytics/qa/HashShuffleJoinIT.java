@@ -52,6 +52,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         // handler-side awaitReady timeout (5s default) caps wall-clock so each test method
         // finishes inside ~10s even when the producer-side stub leaves the consumer waiting.
         resetSetting("analytics.mpp.enabled");
+        resetSetting("analytics.mpp.distribute.min_rows");
         resetSetting("analytics.mpp.broadcast.probe_estimate");
         super.tearDown();
     }
@@ -304,7 +305,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         StringBuilder leftBulk = new StringBuilder();
         // Both sides have ids 0..LEFT_ROW_COUNT-1 so an INNER equi-join produces N matches.
         for (int i = 0; i < LEFT_ROW_COUNT; i++) {
-            leftBulk.append("{\"index\":{\"_id\":\"l").append(i).append("\"}}\n");
+            leftBulk.append("{\"index\":{}}\n");
             leftBulk.append("{\"id\":").append(i).append(",\"amount\":").append((i + 1) * 10).append("}\n");
         }
         bulkAndRefresh(LEFT_INDEX, leftBulk.toString());
@@ -312,7 +313,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         createParquetIndex(RIGHT_INDEX, RIGHT_SHARDS, "{\"id\": {\"type\": \"integer\"}, \"category\": {\"type\": \"keyword\"}}");
         StringBuilder rightBulk = new StringBuilder();
         for (int i = 0; i < RIGHT_ROW_COUNT; i++) {
-            rightBulk.append("{\"index\":{\"_id\":\"r").append(i).append("\"}}\n");
+            rightBulk.append("{\"index\":{}}\n");
             rightBulk.append("{\"id\":").append(i).append(",\"category\":\"cat-").append(i % 4).append("\"}\n");
         }
         bulkAndRefresh(RIGHT_INDEX, rightBulk.toString());
@@ -370,6 +371,9 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     private StrategyDelta runWithMppAndCounters(String ppl, boolean mppEnabled) throws IOException {
         applySetting("analytics.mpp.enabled", String.valueOf(mppEnabled));
+        // Small IT data sits below the production distribute floor (1M); lower it so the join/agg
+        // distributes and the HASH_SHUFFLE strategy fires (matches GeneralSchedulerJoinIT).
+        applySetting("analytics.mpp.distribute.min_rows", "1");
         long broadcastBefore = readStrategyCounter("BROADCAST");
         long hashBefore = readStrategyCounter("HASH_SHUFFLE");
         List<List<Object>> rows = executePplRows(ppl);

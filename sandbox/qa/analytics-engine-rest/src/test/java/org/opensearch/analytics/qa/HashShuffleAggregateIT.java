@@ -54,6 +54,7 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
     @Override
     public void tearDown() throws Exception {
         resetSetting("analytics.mpp.enabled");
+        resetSetting("analytics.mpp.distribute.min_rows");
         resetSetting("analytics.mpp.shuffle.aggregate.enabled");
         resetSetting("analytics.mpp.broadcast.probe_estimate");
         super.tearDown();
@@ -73,10 +74,13 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         StrategyDelta shuffle = runWithMppAndCounters(ppl, /* mpp */ true);
 
         assertEquals("HASH_SHUFFLE_AGG counter must NOT advance when mpp.enabled=false", 0L, baseline.hashShuffleAggDelta);
-        assertCounterAdvanced(
-            "HASH_SHUFFLE_AGG fires when mpp.enabled=true for high-cardinality GROUP BY",
-            shuffle.hashShuffleAggDelta
-        );
+        // A BARE GROUP BY (no join below) is NOT worker-parallelized — the general
+        // post-CBO pass only distributes an aggregate whose child is already distributed (agg-over-join,
+        // q5/q10). A standalone high-cardinality GROUP BY runs PARTIAL-on-shard / FINAL-on-coordinator
+        // (coordinator-centric), so HASH_SHUFFLE_AGG does NOT advance. The load-bearing guarantee is
+        // row-multiset parity with the baseline, asserted below. (The old HASH_SHUFFLE_AGG-fires
+        // expectation predates the removal of OpenSearchAggregateShuffleSplitRule.)
+        assertEquals("bare GROUP BY is coordinator-centric: HASH_SHUFFLE_AGG must NOT advance", 0L, shuffle.hashShuffleAggDelta);
 
         assertEquals("baseline: 5000 unique user_ids → 5000 group rows", HIGH_ROW_COUNT, baseline.rows.size());
         assertEquals("shuffle: 5000 unique user_ids → 5000 group rows", HIGH_ROW_COUNT, shuffle.rows.size());
@@ -100,7 +104,9 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         StrategyDelta mppOn = runWithMppAndCounters(ppl, /* mpp */ true);
 
         assertEquals("HASH_SHUFFLE_AGG counter must NOT advance when mpp.enabled=false", 0L, mppOff.hashShuffleAggDelta);
-        assertCounterAdvanced("HASH_SHUFFLE_AGG fires when mpp.enabled=true", mppOn.hashShuffleAggDelta);
+        // Bare GROUP BY is coordinator-centric (see testHighCardinalityGroupBy). Kill-switch parity is
+        // the guarantee — identical rows mpp-off vs mpp-on; HASH_SHUFFLE_AGG advances in neither.
+        assertEquals("bare GROUP BY is coordinator-centric: HASH_SHUFFLE_AGG must NOT advance", 0L, mppOn.hashShuffleAggDelta);
 
         assertRowMultisetEquals(
             "high-card stats: kill-switch parity (mpp on vs off must produce identical rows)",
@@ -142,6 +148,9 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         StrategyDelta baseline = runWithMppAndCounters(ppl, /* mpp */ false);
 
         applySetting("analytics.mpp.enabled", "true");
+        // Clear the distribute floor so the suppression is attributable to the agg sub-toggle, not the
+        // size floor (small IT data would otherwise stay coord-centric regardless).
+        applySetting("analytics.mpp.distribute.min_rows", "1");
         applySetting("analytics.mpp.shuffle.aggregate.enabled", "false");
         long before = readStrategyCounter("HASH_SHUFFLE_AGG");
         List<List<Object>> rows = executePplRows(ppl);
@@ -186,7 +195,9 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         StrategyDelta shuffle = runWithMppAndCounters(ppl, /* mpp */ true);
 
         assertEquals("HASH_SHUFFLE_AGG counter must NOT advance when mpp.enabled=false", 0L, baseline.hashShuffleAggDelta);
-        assertCounterAdvanced("HASH_SHUFFLE_AGG fires for multi-agg high-card GROUP BY", shuffle.hashShuffleAggDelta);
+        // Bare GROUP BY is coordinator-centric (no worker-parallel agg without a join below); the multi-aggCall
+        // correctness guarantee is row-multiset parity, asserted below. HASH_SHUFFLE_AGG does NOT advance.
+        assertEquals("bare GROUP BY is coordinator-centric: HASH_SHUFFLE_AGG must NOT advance", 0L, shuffle.hashShuffleAggDelta);
 
         assertEquals("baseline: 5000 unique user_ids → 5000 group rows", HIGH_ROW_COUNT, baseline.rows.size());
         assertRowMultisetEquals(
@@ -210,7 +221,9 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         StrategyDelta shuffle = runWithMppAndCounters(ppl, /* mpp */ true);
 
         assertEquals("HASH_SHUFFLE_AGG counter must NOT advance when mpp.enabled=false", 0L, baseline.hashShuffleAggDelta);
-        assertCounterAdvanced("HASH_SHUFFLE_AGG fires for stats-then-filter", shuffle.hashShuffleAggDelta);
+        // Bare GROUP BY (even with a post-aggregate filter) is coordinator-centric; the plan-shape guarantee
+        // is row-multiset parity, asserted below. HASH_SHUFFLE_AGG does NOT advance.
+        assertEquals("bare GROUP BY is coordinator-centric: HASH_SHUFFLE_AGG must NOT advance", 0L, shuffle.hashShuffleAggDelta);
 
         // amount = (i+1)×10, so total > 1000 picks user_ids 100..4999 (4900 groups).
         assertEquals("post-filter total > 1000 keeps 4900 groups", 4900, baseline.rows.size());
@@ -272,7 +285,7 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         );
         StringBuilder highBulk = new StringBuilder();
         for (int i = 0; i < HIGH_ROW_COUNT; i++) {
-            highBulk.append("{\"index\":{\"_id\":\"h").append(i).append("\"}}\n");
+            highBulk.append("{\"index\":{}}\n");
             highBulk.append("{\"user_id\":").append(i).append(",\"amount\":").append((i + 1) * 10).append("}\n");
         }
         bulkAndRefresh(HIGH_INDEX, highBulk.toString());
@@ -283,7 +296,7 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         createParquetIndex(LOW_INDEX, 1, "{\"category\": {\"type\": \"integer\"}, \"amount\": {\"type\": \"integer\"}}");
         StringBuilder lowBulk = new StringBuilder();
         for (int i = 0; i < LOW_ROW_COUNT; i++) {
-            lowBulk.append("{\"index\":{\"_id\":\"l").append(i).append("\"}}\n");
+            lowBulk.append("{\"index\":{}}\n");
             lowBulk.append("{\"category\":").append(i % 4).append(",\"amount\":").append((i + 1) * 10).append("}\n");
         }
         bulkAndRefresh(LOW_INDEX, lowBulk.toString());
@@ -298,7 +311,7 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         );
         StringBuilder rightBulk = new StringBuilder();
         for (int i = 0; i < HIGH_ROW_COUNT; i++) {
-            rightBulk.append("{\"index\":{\"_id\":\"r").append(i).append("\"}}\n");
+            rightBulk.append("{\"index\":{}}\n");
             rightBulk.append("{\"user_id\":").append(i).append(",\"category\":\"cat-").append(i % 4).append("\"}\n");
         }
         bulkAndRefresh(JOIN_RIGHT_INDEX, rightBulk.toString());
@@ -347,6 +360,9 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
 
     private StrategyDelta runWithMppAndCounters(String ppl, boolean mppEnabled) throws IOException {
         applySetting("analytics.mpp.enabled", String.valueOf(mppEnabled));
+        // Small IT data sits below the production distribute floor (1M); lower it so the join/agg
+        // distributes and the HASH_SHUFFLE strategy fires (matches GeneralSchedulerJoinIT).
+        applySetting("analytics.mpp.distribute.min_rows", "1");
         long before = readStrategyCounter("HASH_SHUFFLE_AGG");
         List<List<Object>> rows = executePplRows(ppl);
         long after = readStrategyCounter("HASH_SHUFFLE_AGG");
@@ -368,10 +384,6 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
             }
         }
         return total;
-    }
-
-    private static void assertCounterAdvanced(String message, long delta) {
-        assertTrue(message + " (counter delta was " + delta + ")", delta > 0);
     }
 
     private record StrategyDelta(List<List<Object>> rows, long hashShuffleAggDelta) {}

@@ -299,10 +299,10 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         assertTrue("no shuffle for a join below the row floor", findAll(enforced, OpenSearchShuffleExchange.class).isEmpty());
     }
 
-    // ── GeneralShuffleDAGRewriter (B2): in-place worker promotion of the enforced DAG ──────────────
+    // ── GeneralShuffleDAGRewriter: in-place worker promotion of the enforced DAG ──────────────
 
     /**
-     * B2: the enforced 3-way join DAG, promoted by {@link GeneralShuffleDAGRewriter}. Binary-tier lowering
+     * The enforced 3-way join DAG, promoted by {@link GeneralShuffleDAGRewriter}. Binary-tier lowering
      * made BOTH joins their own join-over-two-shuffles stage, so the rewriter promotes TWO worker tiers in
      * place (each {@code SHUFFLE_WORKER} + {@code WORKER_FRAGMENT}). The deepest worker consumes two leaf
      * scan shuffles; the top worker consumes the deepest worker (as a producer) + a leaf scan shuffle.
@@ -342,7 +342,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * B2: the enforced agg-over-3-way DAG. The pass pre-split the aggregate into
+     * The enforced agg-over-3-way DAG. The pass pre-split the aggregate into
      * {@code FINAL(ER(PARTIAL(...)))}; DAGBuilder cut the ER, so the PARTIAL sits in the SAME stage as the
      * top join. {@link GeneralShuffleDAGRewriter} promotes that stage to a worker IN PLACE — so the PARTIAL
      * aggregate rides on the top worker (runs per-partition), and the FINAL stays on the coordinator. Asserts
@@ -564,7 +564,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * B2 coverage the legacy cascade CANNOT do: a BUSHY (non-left-deep) tree {@code (A⋈B) ⋈ (C⋈D)} on a
+     * Coverage the legacy cascade CANNOT do: a BUSHY (non-left-deep) tree {@code (A⋈B) ⋈ (C⋈D)} on a
      * shared key. The legacy {@code deepestInnerEquiJoin} walk assumes a left-deep chain (one bottom join,
      * one probe per level) and bails on a bushy tree; the general pass is a plain bottom-up visitor, so it
      * distributes BOTH sub-joins and the top join with no special code → THREE binary worker tiers, the top
@@ -595,7 +595,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * B2 regression (the q3 intermediate-Project worker-timeout, found at sf-scale on the cluster): a 3-way
+     * Regression (the q3 intermediate-Project worker-timeout, found at sf-scale on the cluster): a 3-way
      * join with an explicit row-wise Project BETWEEN the two join levels — the real PPL plan shape, where
      * each join's output is renamed by a Project. The intermediate Project must RIDE on the bottom join's
      * worker (propagate its HASH partitioning), NOT gather it to the coordinator — gathering would cut the

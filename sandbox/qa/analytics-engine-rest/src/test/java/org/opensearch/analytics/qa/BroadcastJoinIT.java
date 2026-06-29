@@ -61,6 +61,7 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
     public void tearDown() throws Exception {
         // Reset MPP gate to default after every test so a failure doesn't leak state.
         resetSetting("analytics.mpp.enabled");
+        resetSetting("analytics.mpp.distribute.min_rows");
         super.tearDown();
     }
 
@@ -275,7 +276,7 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
         createParquetIndex(DIM_INDEX, DIM_SHARDS, "{\"id\": {\"type\": \"integer\"}, \"category\": {\"type\": \"keyword\"}}");
         StringBuilder dimBulk = new StringBuilder();
         for (Map.Entry<Integer, String> entry : DIM_CATEGORIES.entrySet()) {
-            dimBulk.append("{\"index\":{\"_id\":\"d").append(entry.getKey()).append("\"}}\n");
+            dimBulk.append("{\"index\":{}}\n");
             dimBulk.append("{\"id\":").append(entry.getKey()).append(",\"category\":\"").append(entry.getValue()).append("\"}\n");
         }
         bulkAndRefresh(DIM_INDEX, dimBulk.toString());
@@ -286,7 +287,7 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
         for (int i = 0; i < expectedFactRowCount(); i++) {
             int id = (i % 6) + 1;
             int amount = (i + 1) * 10;
-            factBulk.append("{\"index\":{\"_id\":\"f").append(i).append("\"}}\n");
+            factBulk.append("{\"index\":{}}\n");
             factBulk.append("{\"id\":").append(id).append(",\"amount\":").append(amount).append("}\n");
         }
         bulkAndRefresh(FACT_INDEX, factBulk.toString());
@@ -350,6 +351,9 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
     /** Helper used by the runnable theta test. */
     private List<List<Object>> runWithMpp(String ppl, boolean mppEnabled) throws IOException {
         applySetting("analytics.mpp.enabled", String.valueOf(mppEnabled));
+        // Small IT data sits below the production distribute floor (1M); lower it so the join actually
+        // distributes and the BROADCAST/HASH_SHUFFLE strategy fires (matches GeneralSchedulerJoinIT).
+        applySetting("analytics.mpp.distribute.min_rows", "1");
         return executePplRows(ppl);
     }
 
@@ -362,6 +366,9 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
      */
     private StrategyDelta runWithMppAndStrategyDelta(String ppl, boolean mppEnabled) throws IOException {
         applySetting("analytics.mpp.enabled", String.valueOf(mppEnabled));
+        // Small IT data sits below the production distribute floor (1M); lower it so the join actually
+        // distributes and the BROADCAST/HASH_SHUFFLE strategy fires (matches GeneralSchedulerJoinIT).
+        applySetting("analytics.mpp.distribute.min_rows", "1");
         long before = readBroadcastCounter();
         List<List<Object>> rows = executePplRows(ppl);
         long after = readBroadcastCounter();
