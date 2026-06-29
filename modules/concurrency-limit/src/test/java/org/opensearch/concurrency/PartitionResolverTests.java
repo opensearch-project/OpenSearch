@@ -12,6 +12,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -29,6 +30,23 @@ public class PartitionResolverTests extends OpenSearchTestCase {
 
     private static SearchRequest plainSearch() {
         return new SearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+    }
+
+    // -------------------------------------------------------------------------
+    // byHeader
+    // -------------------------------------------------------------------------
+
+    public void testByHeaderReadsTierHeader() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(ActionConcurrencyLimitPlugin.TIER_HEADER, "premium");
+        PartitionResolver r = PartitionResolver.build("byHeader", Settings.EMPTY, threadContext);
+        assertEquals("premium", r.resolve(ctxFor(plainSearch())));
+    }
+
+    public void testByHeaderReturnsNullWhenHeaderMissing() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        PartitionResolver r = PartitionResolver.build("byHeader", Settings.EMPTY, threadContext);
+        assertNull(r.resolve(ctxFor(plainSearch())));
     }
 
     // -------------------------------------------------------------------------
