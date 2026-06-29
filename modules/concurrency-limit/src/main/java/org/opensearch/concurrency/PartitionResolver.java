@@ -54,32 +54,21 @@ public interface PartitionResolver {
     // -------------------------------------------------------------------------
 
     /**
-     * Reads a named HTTP header from the thread context. The header value must match
-     * a configured partition name exactly (case-sensitive). Requests without the
-     * header, or with an unrecognised value, fall through to {@code unknownPartition}.
-     * <p>
-     * Configuration: {@code partition.resolver.byHeader.name = X-Request-Tier}
-     * <p>
-     * <b>Important:</b> only headers registered at node startup via
-     * {@link ActionConcurrencyLimitPlugin#getRestHeaders()} are propagated into the
-     * transport {@link ThreadContext}. By default this resolver reads
-     * {@link ActionConcurrencyLimitPlugin#TIER_HEADER}. Configuring a different header
-     * name will silently resolve to {@code null} (→ {@code unknownPartition}) unless that
-     * header is also registered in {@code getRestHeaders()}.
+     * Reads the {@link ActionConcurrencyLimitPlugin#TIER_HEADER X-Request-Tier} header
+     * from the thread context. The header value must match a configured partition name
+     * exactly (case-sensitive). Requests without the header, or with an unrecognised
+     * value, fall through to {@code unknownPartition}.
      */
     final class ByHeaderPartitionResolver implements PartitionResolver {
-        private final String headerName;
         private final ThreadContext threadContext;
 
         ByHeaderPartitionResolver(Settings config, ThreadContext threadContext) {
-            this.headerName = config.get("name", ActionConcurrencyLimitPlugin.TIER_HEADER);
             this.threadContext = threadContext;
         }
 
         @Override
         public String resolve(SearchRequestContext ctx) {
-            // ThreadContext carries registered REST headers into the transport action handler.
-            return threadContext.getHeader(headerName);
+            return threadContext.getHeader(ActionConcurrencyLimitPlugin.TIER_HEADER);
         }
     }
 
