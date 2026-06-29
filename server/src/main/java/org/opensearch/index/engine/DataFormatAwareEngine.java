@@ -500,13 +500,7 @@ public class DataFormatAwareEngine implements Indexer {
                         refreshLock.unlock();
                     }
                 }
-            },
-                this::activateThrottling,
-                this::deactivateThrottling,
-                shardId,
-                engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()
-            );
+            }, shardId, engineConfig.getIndexSettings(), engineConfig.getThreadPool());
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -1112,7 +1106,6 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             } finally {
                 notifyRefreshListenersAfter(refreshed);
-                versionMap.afterRefresh(refreshed);
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }

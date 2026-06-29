@@ -217,6 +217,9 @@ pub async unsafe fn create_session_context(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
+    if has_partial_aggregate {
+        config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
+    }
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
@@ -936,5 +939,31 @@ mod tests {
         assert!(Arc::ptr_eq(&got_a, &store_a), "env_a must resolve to its own store");
         assert!(Arc::ptr_eq(&got_b, &store_b), "env_b must resolve to its own store");
         assert!(!Arc::ptr_eq(&got_a, &got_b), "per-query stores must be independent across queries");
+    }
+
+    #[test]
+    fn test_skip_partial_agg_disabled_when_has_partial_aggregate() {
+        // When has_partial_aggregate=true, skip_partial must be disabled (threshold=1.0)
+        let mut config = SessionConfig::new();
+        let has_partial = true;
+        if has_partial {
+            config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
+        }
+        assert_eq!(
+            config.options().execution.skip_partial_aggregation_probe_ratio_threshold,
+            1.0,
+            "skip_partial must be disabled (1.0) for multi-shard"
+        );
+    }
+
+    #[test]
+    fn test_skip_partial_agg_default_when_single_shard() {
+        // When has_partial_aggregate=false, skip_partial retains DF default (0.8)
+        let config = SessionConfig::new();
+        assert_eq!(
+            config.options().execution.skip_partial_aggregation_probe_ratio_threshold,
+            0.8,
+            "single-shard must retain DF default threshold"
+        );
     }
 }
