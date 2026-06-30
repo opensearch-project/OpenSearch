@@ -181,6 +181,35 @@ public final class DistributionEnforcementPass {
             return new Visited(rebuilt, child.actualDistribution);
         }
 
+        // 3a-agg. PRESERVE a CBO-emitted PARTIAL/FINAL split that is already correctly placed. When CBO's
+        // cost model picked the two-phase aggregate, it emits FINAL(ExchangeReducer(PARTIAL(input))): the
+        // PARTIAL runs per-shard on the partitioned input, the ER gathers the partials, the FINAL merges on
+        // the coordinator. This is the right shape — the bottom-up walk must NOT relocate that exchange.
+        // - A PARTIAL aggregate RIDES its child's distribution (runs shard-local on the partitioned input),
+        // exactly like a row-transparent op: do not gather its input (that would defeat the split and
+        // leave the FINAL reading raw rows where it expects partial state → the HLL Utf8View→Binary cast
+        // and count-state index errors).
+        // - A FINAL aggregate sitting DIRECTLY over a CBO ExchangeReducer (the coordinator-gather split)
+        // re-gathers its peeled PARTIAL to SINGLETON, re-inserting the reducer BETWEEN them so DAGBuilder
+        // cuts the PARTIAL into its own shard stage and the FINAL's input becomes a StageInputScan (the
+        // shape DistributedAggregateRewriter expects to retype the HLL state column). The FINAL branch is
+        // scoped to a child ExchangeReducer ON PURPOSE: a FINAL over a SHUFFLE exchange (a worker-tier
+        // hash-aggregate, were CBO ever to emit one) is NOT a coordinator gather and must fall through to
+        // the generic step-4 enforcement so its shuffle is preserved, not collapsed to a reducer here.
+        if (n instanceof OpenSearchAggregate cboAgg) {
+            if (cboAgg.getMode() == AggregateMode.PARTIAL) {
+                Visited child = visit(n.getInput(0), null);
+                RelNode rebuilt = copyWithInputs(n, List.of(child.rel));
+                return new Visited(rebuilt, child.actualDistribution);
+            }
+            if (cboAgg.getMode() == AggregateMode.FINAL && RelNodeUtils.unwrapHep(n.getInput(0)) instanceof OpenSearchExchangeReducer) {
+                Visited child = visit(n.getInput(0), null);
+                RelNode gatheredPartial = gatherIfNeeded(child.rel, child.actualDistribution);
+                RelNode rebuilt = copyWithInputs(n, List.of(gatheredPartial));
+                return new Visited(rebuilt, traitDef.coordSingleton());
+            }
+        }
+
         // 3. Recurse into children. Each child's demand is derived below per operator; for the recursion
         // here we don't yet know it (joins/aggregates compute per-input demands), so we visit with a null
         // (ANY) demand to recover each child's content + actual distribution, then enforce per-input demands
@@ -194,13 +223,17 @@ public final class DistributionEnforcementPass {
         }
 
         if (!(n instanceof DistributionAware aware)) {
-            // Not distribution-aware: rebuild over the (peeled) children, but it imposes no requirement and
-            // has no derivable output distribution — a parent that needs partitioning will demand its own
-            // exchange. Re-gather each child to SINGLETON so a non-aware op still sees coordinator inputs
-            // (conservative: matches the CBO-gathered baseline for operators the algebra doesn't model).
+            // Not distribution-aware (e.g. OpenSearchSort): rebuild over the (peeled) children, but it imposes
+            // no requirement and has no derivable output distribution — a parent that needs partitioning will
+            // demand its own exchange. Re-gather each child to SINGLETON so a non-aware op still sees
+            // coordinator inputs (conservative: matches the CBO-gathered baseline). Sink the reducer below any
+            // leading row-transparent Project so a computed-column Project (e.g. `eval r = round(int)`, whose
+            // Calcite-declared type may differ from the backend runtime type) stays with this op in the reduce
+            // stage instead of being stranded below the cut, where its declared StageInputScan type would
+            // clash with the gathered data (the round() Int32-vs-Float64 substrait mismatch).
             List<RelNode> regathered = new ArrayList<>(childContents.size());
             for (int i = 0; i < childContents.size(); i++) {
-                regathered.add(gatherIfNeeded(childContents.get(i), childDists.get(i)));
+                regathered.add(gatherSinkingProjects(childContents.get(i), childDists.get(i)));
             }
             RelNode rebuilt = copyWithInputs(n, regathered);
             return new Visited(rebuilt, traitDef.coordSingleton());
@@ -229,9 +262,18 @@ public final class DistributionEnforcementPass {
             }
         }
         if (!imposesRequirement || (!anyChildDistributed && !aboveFloor)) {
+            // An aggregate that gathers here (e.g. a non-decomposable percentile, whose
+            // requiredInputDistribution is null) keeps its literal-arg Projects in its own fragment: sink the
+            // reducer below them so DAGBuilder doesn't strand the percentile literal in the child stage. Other
+            // operators gather their inputs plainly.
+            boolean isAggregate = n instanceof OpenSearchAggregate;
             List<RelNode> regathered = new ArrayList<>(childContents.size());
             for (int i = 0; i < childContents.size(); i++) {
-                regathered.add(gatherIfNeeded(childContents.get(i), childDists.get(i)));
+                regathered.add(
+                    isAggregate
+                        ? gatherSinkingProjects(childContents.get(i), childDists.get(i))
+                        : gatherIfNeeded(childContents.get(i), childDists.get(i))
+                );
             }
             RelNode rebuilt = copyWithInputs(n, regathered);
             return new Visited(rebuilt, traitDef.coordSingleton());
@@ -334,7 +376,7 @@ public final class DistributionEnforcementPass {
             if (shuffleAggregateEnabled && isPartitioned(childDist)) {
                 return splitAggregate(agg, childContent);
             }
-            RelNode gathered = gatherIfNeeded(childContent, childDist);
+            RelNode gathered = gatherSinkingProjects(childContent, childDist);
             return new Visited(copyWithInputs(n, List.of(gathered)), traitDef.coordSingleton());
         }
 
@@ -375,13 +417,17 @@ public final class DistributionEnforcementPass {
                 newInputs.add(childContent);
                 enforcedChildDists.add(childDist);
             } else if (required.getType() == org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
-                // A SINGLETON requirement (a window / pinned OpenSearchProject that needs fully-gathered
-                // input) over a distributed child must be GATHERED. Force buildReducer from the TRACKED
-                // distribution — NOT buildEnforcer/forceShuffle, whose satisfies() check trusts the child's
-                // stale CBO coordSingleton trait and would skip the ER, leaving the window running
-                // per-partition (silently wrong global-window result — the codex BLOCKER). gatherIfNeeded is
-                // a no-op when the child is genuinely already SINGLETON.
-                RelNode landed = gatherIfNeeded(childContent, childDist);
+                // A SINGLETON requirement (a window / pinned OpenSearchProject / global Sort that needs
+                // fully-gathered input) over a distributed child must be GATHERED. Force buildReducer from the
+                // TRACKED distribution — NOT buildEnforcer/forceShuffle, whose satisfies() check trusts the
+                // child's stale CBO coordSingleton trait and would skip the ER, leaving the consumer running
+                // per-partition (silently wrong global result — the codex BLOCKER). gatherIfNeeded is a no-op
+                // when the child is genuinely already SINGLETON. The reducer is sunk BELOW any leading
+                // row-transparent Project so a computed-column Project (e.g. `eval r = round(x)`, whose
+                // Calcite-declared type may differ from the backend's runtime type) stays in the consumer's
+                // fragment instead of being stranded below the cut, where its declared StageInputScan type
+                // would clash with the gathered data (the round() Int32-vs-Float64 substrait mismatch).
+                RelNode landed = gatherSinkingProjects(childContent, childDist);
                 newInputs.add(landed);
                 enforcedChildDists.add(landed == childContent ? childDist : traitDef.coordSingleton());
                 LOGGER.debug("enforce: {} input {} → SINGLETON gather", n.getRelTypeName(), i);
@@ -486,6 +532,53 @@ public final class DistributionEnforcementPass {
     private RelNode gatherIfNeeded(RelNode rel, OpenSearchDistribution actual) {
         if (actual != null && actual.satisfies(traitDef.coordSingleton())) {
             return rel;
+        }
+        return traitDef.buildReducer(rel);
+    }
+
+    /**
+     * Gathers {@code rel} to SINGLETON like {@link #gatherIfNeeded}, but sinks the reducer BELOW any leading
+     * row-transparent {@link OpenSearchProject} chain so those Projects stay in the SAME fragment as their
+     * consumer (the aggregate / sort / window that triggered the gather), rather than being stranded in the
+     * child stage when {@code DAGBuilder} cuts at the reducer.
+     *
+     * <p>Two failures this prevents, both from a Project landing below the cut while its consumer lands above:
+     * <ul>
+     *   <li><b>Aggregate literal args.</b> The PPL frontend materializes an aggregate's literal config args
+     *       (e.g. {@code percentile(x, 50)}'s {@code 50}, its type-flag) as constant columns in a Project
+     *       directly below the aggregate. Stranding that Project makes the reduce fragment see the percentile
+     *       arg as a plain {@code StageInputScan} column, not a literal → "APPROX_PERCENTILE_CONT must be a
+     *       literal".</li>
+     *   <li><b>Computed-column type drift.</b> A Project column whose Calcite-declared type differs from the
+     *       backend's runtime type (e.g. {@code eval r = round(int)} — Calcite infers INTEGER, DataFusion's
+     *       {@code round} returns FLOAT64) is fine within one fragment, but once it crosses a cut the
+     *       {@code StageInputScan} declares the stale Calcite type while the gathered data carries the
+     *       backend type → Substrait "Field has a different type" mismatch.</li>
+     * </ul>
+     * Keeping the Project with its consumer reproduces the single-fragment shape the coordinator-centric /
+     * mpp-off path produces, where neither mismatch can arise.
+     *
+     * <p>Only leading {@code Project}s are descended (row-wise, so running them above the gather on the
+     * coordinator is semantically identical and merely ships a few extra columns). The descent stops at the
+     * first non-Project — a Filter, scan, join, or exchange — placing the reducer there; a Filter thus stays
+     * BELOW the gather (runs shard-side, ships fewer rows).
+     */
+    private RelNode gatherSinkingProjects(RelNode rel, OpenSearchDistribution actual) {
+        if (actual != null && actual.satisfies(traitDef.coordSingleton())) {
+            return rel;
+        }
+        return sinkReducerBelowProjects(rel);
+    }
+
+    /**
+     * Places the gather reducer below any leading row-transparent {@link OpenSearchProject} chain (see
+     * {@link #gatherSinkingProjects}). Walks down single-input Projects (no {@code RexOver}), rebuilding them
+     * above the reducer, and inserts the reducer at the first non-Project node.
+     */
+    private RelNode sinkReducerBelowProjects(RelNode rel) {
+        if (rel instanceof OpenSearchProject project && !project.containsOver() && project.getInputs().size() == 1) {
+            RelNode child = RelNodeUtils.unwrapHep(project.getInput(0));
+            return copyWithInputs(project, List.of(sinkReducerBelowProjects(child)));
         }
         return traitDef.buildReducer(rel);
     }
