@@ -43,6 +43,7 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.shard.ShardId;
@@ -64,8 +65,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BytesRestResponseTests extends OpenSearchTestCase {
 
@@ -74,13 +73,16 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
      * HTTP 413 instead of surfacing a raw {@link ArithmeticException} from Lucene.
      */
     public void testToBytesArrayMapsOverflowGuardFailureToRequestEntityTooLarge() {
-        String content = mock(String.class);
-        when(content.length()).thenReturn((Integer.MAX_VALUE / 3) + 1);
+        int overflowingLength = (Integer.MAX_VALUE / 3) + 1;
+        IllegalArgumentException cause = expectThrows(
+            IllegalArgumentException.class,
+            () -> BytesArray.ensureUTF16LengthIsValidForUTF8Encoding(overflowingLength)
+        );
 
-        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> BytesRestResponse.toBytesArray(content));
+        OpenSearchStatusException exception = BytesRestResponse.overflowGuardFailureToRequestEntityTooLarge(cause);
 
         assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, exception.status());
-        assertTrue(exception.getCause() instanceof IllegalArgumentException);
+        assertSame(cause, exception.getCause());
     }
 
     class UnknownException extends Exception {

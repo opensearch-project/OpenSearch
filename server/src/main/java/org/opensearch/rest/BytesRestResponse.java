@@ -93,8 +93,12 @@ public class BytesRestResponse extends RestResponse {
         try {
             return new BytesArray(content);
         } catch (IllegalArgumentException e) {
-            throw new OpenSearchStatusException(e.getMessage(), RestStatus.REQUEST_ENTITY_TOO_LARGE, e);
+            throw overflowGuardFailureToRequestEntityTooLarge(e);
         }
+    }
+
+    static OpenSearchStatusException overflowGuardFailureToRequestEntityTooLarge(IllegalArgumentException e) {
+        return new OpenSearchStatusException(e.getMessage(), RestStatus.REQUEST_ENTITY_TOO_LARGE, e);
     }
 
     /**
