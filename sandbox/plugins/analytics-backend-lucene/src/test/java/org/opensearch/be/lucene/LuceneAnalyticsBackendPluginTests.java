@@ -340,7 +340,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Optional<InstructionNode> createPartialAggregateNode() {
+                public Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK) {
                     return Optional.empty();
                 }
 

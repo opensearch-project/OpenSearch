@@ -62,8 +62,8 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     }
 
     @Override
-    public Optional<InstructionNode> createPartialAggregateNode() {
-        return Optional.of(new PartialAggregateInstructionNode());
+    public Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK) {
+        return Optional.of(new PartialAggregateInstructionNode(hasTopK));
     }
 
     @Override

@@ -33,6 +33,7 @@ public class PlannerContext {
     private final boolean preferMetadataDriver;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
+    private boolean topKApplied;
     // Cluster settings the planner consults at planning time (oversampling factor + delegation
     // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
     // instance via setPlannerSettings before planning.
@@ -136,5 +137,13 @@ public class PlannerContext {
      */
     public boolean preferMetadataDriver() {
         return preferMetadataDriver;
+    }
+
+    public void setTopKApplied(boolean topKApplied) {
+        this.topKApplied = topKApplied;
+    }
+
+    public boolean isTopKApplied() {
+        return topKApplied;
     }
 }

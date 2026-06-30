@@ -39,6 +39,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private QueryCachingPolicy queryCachingPolicy;
     private ShardId shardId;
     private boolean hasPartialAggregate;
+    private boolean hasTopK;
 
     /**
      * Constructs an execution context.
@@ -152,5 +153,19 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
 
     public void setHasPartialAggregate(boolean hasPartialAggregate) {
         this.hasPartialAggregate = hasPartialAggregate;
+    }
+
+    /**
+     * Whether the fragment contains a TopK sort (Sort with a non-null fetch/limit).
+     * When true, the backend must force target_partitions=1 to prevent CSS from splitting the
+     * shard data across partitions, each independently truncating to the TopK limit before
+     * the coordinator merge.
+     */
+    public boolean hasTopK() {
+        return hasTopK;
+    }
+
+    public void setHasTopK(boolean hasTopK) {
+        this.hasTopK = hasTopK;
     }
 }

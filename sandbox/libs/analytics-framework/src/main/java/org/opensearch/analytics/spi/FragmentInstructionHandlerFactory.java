@@ -50,8 +50,14 @@ public interface FragmentInstructionHandlerFactory {
         boolean requestsRowIds
     );
 
-    /** Creates a partial aggregate instruction node. */
-    Optional<InstructionNode> createPartialAggregateNode();
+    /**
+     * Creates a partial aggregate instruction node.
+     *
+     * @param hasTopK whether the shard fragment contains a TopK sort (Sort with non-null fetch).
+     *                When true the backend should force target_partitions=1 to prevent CSS from
+     *                splitting data across partitions and independently truncating each.
+     */
+    Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK);
 
     /** Creates a final aggregate instruction node for coordinator reduce. */
     Optional<InstructionNode> createFinalAggregateNode();

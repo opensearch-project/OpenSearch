@@ -76,6 +76,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     0,
                     true,
                     context.hasPartialAggregate(),
+                    context.hasTopK(),
                     segment.address(),
                     context.getFragmentBytes()
                 );
@@ -87,6 +88,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     tableName,
                     contextId,
                     context.hasPartialAggregate(),
+                    context.hasTopK(),
                     segment.address(),
                     context.getFragmentBytes()
                 );

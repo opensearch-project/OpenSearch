@@ -434,6 +434,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_BYTE,   // hasPartialAggregate (0/1)
+                ValueLayout.JAVA_BYTE,   // hasTopK (0/1)
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
@@ -452,6 +453,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_BYTE,   // requestsRowIds (0/1) — QTF query phase signal
                 ValueLayout.JAVA_BYTE,   // hasPartialAggregate (0/1)
+                ValueLayout.JAVA_BYTE,   // hasTopK (0/1)
                 ValueLayout.JAVA_LONG,   // queryConfigPtr
                 ValueLayout.ADDRESS,     // planBytes (multi-index schema widening)
                 ValueLayout.JAVA_LONG    // planLen
@@ -1406,6 +1408,9 @@ public final class NativeBridge {
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      * @param hasPartialAggregate whether the fragment contains a partial aggregate — signals Rust to
      *                            exclude the CombinePartialFinalAggregate optimizer rule
+     * @param hasTopK whether the fragment contains a TopK sort (Sort with non-null fetch) — when
+     *                combined with a partial aggregate, signals Rust to force target_partitions=1
+     *                so CSS does not split the shard data and independently truncate each partition
      * @param planBytes Substrait plan bytes — used to widen the registered schema for multi-index
      *                  queries (null-filling columns this shard omits). Empty = skip widening.
      */
@@ -1415,6 +1420,7 @@ public final class NativeBridge {
         String tableName,
         long contextId,
         boolean hasPartialAggregate,
+        boolean hasTopK,
         long queryConfigPtr,
         byte[] planBytes
     ) {
@@ -1434,6 +1440,7 @@ public final class NativeBridge {
                 contextId,
                 queryConfigPtr,
                 (byte) (hasPartialAggregate ? 1 : 0),
+                (byte) (hasTopK ? 1 : 0),
                 planSegment,
                 planLen
             );
@@ -1449,6 +1456,9 @@ public final class NativeBridge {
      * @param tableName the logical table name (alias/pattern) to register the table under
      * @param hasPartialAggregate whether the fragment contains a partial aggregate — signals Rust to
      *                            exclude the CombinePartialFinalAggregate optimizer rule
+     * @param hasTopK whether the fragment contains a TopK sort (Sort with non-null fetch) — when
+     *                combined with a partial aggregate, signals Rust to force target_partitions=1
+     *                so CSS does not split the shard data and independently truncate each partition
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      * @param planBytes Substrait plan bytes for multi-index schema widening (empty = skip)
      */
@@ -1461,6 +1471,7 @@ public final class NativeBridge {
         int delegatedPredicateCount,
         boolean requestsRowIds,
         boolean hasPartialAggregate,
+        boolean hasTopK,
         long queryConfigPtr,
         byte[] planBytes
     ) {
@@ -1482,6 +1493,7 @@ public final class NativeBridge {
                 delegatedPredicateCount,
                 (byte) (requestsRowIds ? 1 : 0),
                 (byte) (hasPartialAggregate ? 1 : 0),
+                (byte) (hasTopK ? 1 : 0),
                 queryConfigPtr,
                 planSegment,
                 planLen

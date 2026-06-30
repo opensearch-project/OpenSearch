@@ -31,6 +31,8 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.InstructionType;
+import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
@@ -234,7 +236,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                     boolean hasPartialAggregate = resolved.plan()
                         .getInstructions()
                         .stream()
-                        .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE);
+                        .anyMatch(n -> n.type() == InstructionType.SETUP_PARTIAL_AGGREGATE);
                     FragmentExecutionStats stats = new FragmentExecutionStats(
                         rowsProduced,
                         usedSecondaryIndex,
@@ -434,9 +436,10 @@ public class AnalyticsSearchService implements AutoCloseable {
         try {
             ShardScanExecutionContext ctx = buildContext(request, readerContext.getReader(), resolved.plan, shard, task);
             ctx.setHasPartialAggregate(
-                resolved.plan.getInstructions()
-                    .stream()
-                    .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE)
+                resolved.plan.getInstructions().stream().anyMatch(n -> n.type() == InstructionType.SETUP_PARTIAL_AGGREGATE)
+            );
+            ctx.setHasTopK(
+                resolved.plan.getInstructions().stream().anyMatch(n -> n instanceof PartialAggregateInstructionNode p && p.hasTopK())
             );
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 

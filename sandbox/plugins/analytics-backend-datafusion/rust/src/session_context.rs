@@ -63,6 +63,9 @@ pub struct SessionContextHandle {
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
+    /// True when the shard fragment contains a TopK sort. Used in `prepare_partial_plan`
+    /// to replace Final with PartialReduce so CSS partitions merge before TopK truncation.
+    pub(crate) has_topk: bool,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
     /// Phantom reservation holding pool capacity for untracked memory.
@@ -146,6 +149,7 @@ pub async unsafe fn create_session_context(
     table_name: &str,
     context_id: i64,
     has_partial_aggregate: bool,
+    has_topk: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
@@ -382,6 +386,7 @@ pub async unsafe fn create_session_context(
         query_config,
         io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
+        has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
     };
@@ -410,10 +415,11 @@ pub async unsafe fn create_session_context_indexed(
     delegated_predicate_count: i32,
     requests_row_ids: bool,
     has_partial_aggregate: bool,
+    has_topk: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, has_partial_aggregate, query_config, plan_bytes).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, has_partial_aggregate, has_topk, query_config, plan_bytes).await?;
 
     // Augment with indexed config. The delegation marker UDFs (index_filter, delegation_possible)
     // are now registered for every session by udf::register_all (via create_session_context above);
@@ -459,7 +465,7 @@ pub async fn prepare_partial_plan(
     // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
     // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
     // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
-    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial, handle.has_topk)?;
 
     let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
     let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
@@ -685,6 +691,7 @@ mod tests {
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
+            has_topk: false,
             prepared_plan: None,
             phantom_reservation: None,
         };
