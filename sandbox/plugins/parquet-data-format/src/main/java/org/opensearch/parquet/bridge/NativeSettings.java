@@ -28,7 +28,6 @@ public class NativeSettings {
     private final Double bloomFilterFpp;
     private final Long bloomFilterNdv;
     private final Long sortInMemoryThresholdBytes;
-    private final Integer sortBatchSize;
     private final Integer rowGroupMaxRows;
     private final Long rowGroupMaxBytes;
     private final Integer mergeBatchSize;
@@ -55,7 +54,6 @@ public class NativeSettings {
         this.bloomFilterFpp = builder.bloomFilterFpp;
         this.bloomFilterNdv = builder.bloomFilterNdv;
         this.sortInMemoryThresholdBytes = builder.sortInMemoryThresholdBytes;
-        this.sortBatchSize = builder.sortBatchSize;
         this.rowGroupMaxRows = builder.rowGroupMaxRows;
         this.rowGroupMaxBytes = builder.rowGroupMaxBytes;
         this.mergeBatchSize = builder.mergeBatchSize;
@@ -122,10 +120,6 @@ public class NativeSettings {
 
     public Long getSortInMemoryThresholdBytes() {
         return sortInMemoryThresholdBytes;
-    }
-
-    public Integer getSortBatchSize() {
-        return sortBatchSize;
     }
 
     public Integer getRowGroupMaxRows() {
@@ -199,7 +193,6 @@ public class NativeSettings {
         private Double bloomFilterFpp;
         private Long bloomFilterNdv;
         private Long sortInMemoryThresholdBytes;
-        private Integer sortBatchSize;
         private Integer rowGroupMaxRows;
         private Long rowGroupMaxBytes;
         private Integer mergeBatchSize;
@@ -262,11 +255,6 @@ public class NativeSettings {
 
         public Builder sortInMemoryThresholdBytes(Long v) {
             this.sortInMemoryThresholdBytes = v;
-            return this;
-        }
-
-        public Builder sortBatchSize(Integer v) {
-            this.sortBatchSize = v;
             return this;
         }
 

@@ -752,7 +752,7 @@ public class IndicesService extends AbstractLifecycleComponent
             null,
             null,
             null,
-            null
+            new DataFormatRegistry(pluginsService)
         );
     }
 
@@ -1234,7 +1234,12 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
-        return new EngineConfigFactory(this.pluginsService, idxSettings);
+        return new EngineConfigFactory(
+            this.pluginsService,
+            idxSettings,
+            dataFormatRegistry.getDocumentLookupProvider(),
+            dataFormatRegistry.getDocumentMetadataResolver()
+        );
     }
 
     private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {

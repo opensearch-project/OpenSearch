@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -157,18 +158,38 @@ public class CatalogSnapshotManager implements Closeable {
         Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
 
         // All source segments must exist in the current snapshot
-        assert segmentList.containsAll(segmentsToRemove) : "merge source segments must all exist in the current catalog snapshot";
+        if (!segmentList.containsAll(segmentsToRemove)) {
+            throw new IllegalStateException(
+                "Merge source segments must all exist in the current catalog snapshot. Missing: "
+                    + segmentsToRemove.stream()
+                        .filter(s -> !segmentList.contains(s))
+                        .map(s -> "gen=" + s.generation())
+                        .collect(java.util.stream.Collectors.joining(", "))
+            );
+        }
 
         // Merged segment generation must not collide with any segment that will be retained
-        assert segmentList.stream()
-            .filter(s -> segmentsToRemove.contains(s) == false)
-            .noneMatch(s -> s.generation() == segmentToAdd.generation()) : "merged segment generation ["
-                + segmentToAdd.generation()
-                + "] collides with a retained segment generation";
+        if (segmentList.stream().filter(s -> !segmentsToRemove.contains(s)).anyMatch(s -> s.generation() == segmentToAdd.generation())) {
+            throw new IllegalStateException(
+                "Merged segment generation [" + segmentToAdd.generation() + "] collides with a retained segment generation"
+            );
+        }
 
         // Row count conservation: merged output must have the same total rows as the inputs
-        assert assertRowCountConservation(segmentsToRemove, segmentToAdd)
-            : "merged segment row count must equal sum of source segment row counts";
+        if (!assertRowCountConservation(segmentsToRemove, segmentToAdd)) {
+            long inputRows = segmentsToRemove.stream()
+                .flatMap(s -> s.dfGroupedSearchableFiles().values().stream())
+                .mapToLong(WriterFileSet::numRows)
+                .sum();
+            long outputRows = segmentToAdd.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).sum();
+            throw new IllegalStateException(
+                "Merged segment row count mismatch: input segments have "
+                    + inputRows
+                    + " total rows but merged output has "
+                    + outputRows
+                    + " rows"
+            );
+        }
 
         boolean inserted = false;
         int newSegIdx = 0;
@@ -276,7 +297,7 @@ public class CatalogSnapshotManager implements Closeable {
         // one of the writers dropped or duplicated rows during a single refresh —
         // exactly the class of bug that silently produced different match/LIKE
         // counts at query time.
-        assert assertPerSegmentCrossFormatRowCountParity(refreshedSegments) : "per-segment row count must be equal across all formats";
+        verifyPerSegmentCrossFormatRowCountParity(refreshedSegments);
         installSnapshot(newSnapshot);
     }
 
@@ -673,7 +694,7 @@ public class CatalogSnapshotManager implements Closeable {
      * single refresh — which produces silent correctness issues like different counts
      * from {@code match} vs {@code LIKE} over the same field.
      */
-    private boolean assertPerSegmentCrossFormatRowCountParity(List<Segment> segments) {
+    private void verifyPerSegmentCrossFormatRowCountParity(List<Segment> segments) {
         for (Segment seg : segments) {
             long expected = -1L;
             String referenceFormat = null;
@@ -683,18 +704,19 @@ public class CatalogSnapshotManager implements Closeable {
                     expected = rows;
                     referenceFormat = entry.getKey();
                 } else if (rows != expected) {
-                    logger.error(
-                        "Per-segment row count mismatch at generation {}: format [{}] has {} rows but format [{}] has {} rows",
-                        seg.generation(),
-                        referenceFormat,
-                        expected,
-                        entry.getKey(),
-                        rows
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "Per-segment row count mismatch at generation %s: format [%s] has %s rows but format [%s] has %s rows",
+                            seg.generation(),
+                            referenceFormat,
+                            expected,
+                            entry.getKey(),
+                            rows
+                        )
                     );
-                    return false;
                 }
             }
         }
-        return true;
     }
 }

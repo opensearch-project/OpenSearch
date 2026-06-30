@@ -55,7 +55,7 @@ use super::partitioning::{
     compute_assignments, compute_assignments_one_per_segment, segments_chain_on_sort_key,
     PartitionAssignment, SegmentChunk, SegmentLayout,
 };
-use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use super::stream::{IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
@@ -113,7 +113,7 @@ pub type EvaluatorFactory = Arc<
             &SegmentFileInfo,
             &SegmentChunk,
             &StreamMetrics,
-            Option<&StatsPruneTree>,
+            Option<&Arc<StatsPruneTree>>,
         ) -> Result<Arc<dyn RowGroupBitsetSource>, String>
         + Send
         + Sync,
@@ -195,7 +195,7 @@ pub struct IndexedTableConfig {
     /// Query-level data for building StatsPruneTree per segment.
     /// (BoolNode tree, prebuilt PruningPredicates keyed by Arc ptr, schema)
     pub prune_tree_config: Option<(
-        BoolNode,
+        Arc<BoolNode>,
         Arc<std::collections::HashMap<usize, Arc<PruningPredicate>>>,
         SchemaRef,
     )>,
@@ -206,6 +206,10 @@ pub struct IndexedTableConfig {
     /// matches the wire format from `DataFusionPlugin`). Same length as
     /// `sort_fields` (validated at index creation).
     pub sort_orders: Vec<String>,
+    /// Per-query cancellation token (from the global `QUERY_REGISTRY`). Threaded
+    /// down to `IndexReader` so the scan cooperatively stops when the query task
+    /// is cancelled. `None` for untracked queries (`context_id == 0`) and tests.
+    pub cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -572,12 +576,6 @@ impl ExecutionPlan for QueryShardExec {
             FilterPushdownPhase, FilterPushdownPropagation, PushedDown,
         };
 
-        // Feature gate: when disabled, decline everything so behaviour is
-        // identical to before this feature (parent keeps its FilterExec).
-        if !self.config.query_config.indexed_dynamic_filter_pushdown {
-            return Ok(FilterPushdownPropagation::if_all(child_pushdown_result));
-        }
-
         // Only the Post phase carries dynamic filters; in Pre we own static
         // WHERE semantics via the BoolNode tree and want no interference.
         if phase != FilterPushdownPhase::Post {
@@ -646,9 +644,9 @@ impl ExecutionPlan for QueryShardExec {
             // Build stats prune tree for segment/RG/subtree-level pruning.
             let stats_prune_tree = self.config.prune_tree_config.as_ref().map(|(tree, preds, schema)| {
                 let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
-                StatsPruneTree::build_from_bool_node(
+                Arc::new(StatsPruneTree::build_from_bool_node(
                     tree, preds, &segment.metadata, schema, &rg_indices,
-                )
+                ))
             });
 
             // Segment-level skip: if no RG in the chunk can match, skip entirely.
@@ -705,6 +703,7 @@ impl ExecutionPlan for QueryShardExec {
                 emit_row_ids: self.config.emit_row_ids,
                 row_id_output_index: self.row_id_output_index,
                 dynamic_filter: dynamic_filter.clone(),
+                cancellation_token: self.config.cancellation_token.clone(),
             };
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
@@ -834,6 +833,7 @@ mod tests {
             prune_tree_config: None,
             sort_fields: vec![],
             sort_orders: vec![],
+            cancellation_token: None,
         }
     }
 

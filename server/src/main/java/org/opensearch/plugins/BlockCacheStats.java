@@ -62,10 +62,41 @@ import java.io.IOException;
  */
 @ExperimentalApi
 public record BlockCacheStats(long hits, long misses, long hitBytes, long missBytes, long evictions, long evictionBytes, long removed,
-    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes, long activeInBytes)
+    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes, long activeInBytes, BlockCacheTieredStats tieredStats)
     implements
         Writeable,
         ToXContentFragment {
+
+    public BlockCacheStats(
+        long hits,
+        long misses,
+        long hitBytes,
+        long missBytes,
+        long evictions,
+        long evictionBytes,
+        long removed,
+        long removedBytes,
+        long memoryBytesUsed,
+        long diskBytesUsed,
+        long totalBytes,
+        long activeInBytes
+    ) {
+        this(
+            hits,
+            misses,
+            hitBytes,
+            missBytes,
+            evictions,
+            evictionBytes,
+            removed,
+            removedBytes,
+            memoryBytesUsed,
+            diskBytesUsed,
+            totalBytes,
+            activeInBytes,
+            null
+        );
+    }
 
     public BlockCacheStats(StreamInput in) throws IOException {
         this(
@@ -80,7 +111,8 @@ public record BlockCacheStats(long hits, long misses, long hitBytes, long missBy
             in.readLong(),
             in.readLong(),
             in.readLong(),
-            in.readLong()
+            in.readLong(),
+            in.getVersion().onOrAfter(org.opensearch.Version.V_3_8_0) ? in.readOptionalWriteable(BlockCacheTieredStats::new) : null
         );
     }
 
@@ -98,19 +130,21 @@ public record BlockCacheStats(long hits, long misses, long hitBytes, long missBy
         out.writeLong(diskBytesUsed);
         out.writeLong(totalBytes);
         out.writeLong(activeInBytes);
+        if (out.getVersion().onOrAfter(org.opensearch.Version.V_3_8_0)) {
+            out.writeOptionalWriteable(tieredStats);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("block_cache");
-        // over_all_stats: aggregate across all block cache implementations (today only Foyer)
         renderBlockCacheSubStats(builder, "over_all_stats");
-        // full_file_stats: not supported in Foyer yet
         renderFullFileSubStats(builder, "full_file_stats");
-        // block_file_stats: Foyer's own stats
         renderBlockCacheSubStats(builder, "block_file_stats");
-        // pinned_file_stats: not supported in Foyer yet
         renderPinnedSubStats(builder, "pinned_file_stats");
+        if (tieredStats != null) {
+            tieredStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -119,16 +153,15 @@ public record BlockCacheStats(long hits, long misses, long hitBytes, long missBy
         builder.startObject(name);
         builder.field("active_in_bytes", activeInBytes);
         builder.field("used_in_bytes", diskBytesUsed + memoryBytesUsed);
-        builder.field("pinned_in_bytes", 0); // not supported in Foyer yet
+        builder.field("pinned_in_bytes", 0);
         builder.field("evictions_in_bytes", evictionBytes);
         builder.field("removed_in_bytes", removedBytes);
-        builder.field("active_percent", 0); // not supported in Foyer yet
+        builder.field("active_percent", 0);
         builder.field("hit_count", hits);
         builder.field("miss_count", misses);
         builder.endObject();
     }
 
-    // full_file_stats and pinned_file_stats are not supported in Foyer yet — rendered as zeros
     private static void renderFullFileSubStats(XContentBuilder builder, String name) throws IOException {
         builder.startObject(name);
         builder.field("active_in_bytes", 0);

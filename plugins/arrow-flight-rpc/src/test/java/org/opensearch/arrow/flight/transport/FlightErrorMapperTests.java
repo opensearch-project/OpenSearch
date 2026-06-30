@@ -46,6 +46,24 @@ public class FlightErrorMapperTests extends OpenSearchTestCase {
         assertFalse(rendered, rendered.contains("application/grpc"));
     }
 
+    /**
+     * Round-trip: a StreamException's message + error code must survive toFlightException → back. The
+     * immutable-builder bug (CallStatus.withDescription's return value discarded) dropped the description,
+     * leaving callers with gRPC's placeholder ("Internal error [task_id=N]") and no message.
+     */
+    public void testToFlightExceptionPreservesDescriptionAndErrorCode() {
+        StreamException original = new StreamException(StreamErrorCode.RESOURCE_EXHAUSTED, "memory budget exhausted on shard");
+
+        FlightRuntimeException flightException = FlightErrorMapper.toFlightException(original);
+        StreamException roundTripped = FlightErrorMapper.fromFlightException(flightException);
+
+        assertEquals(StreamErrorCode.RESOURCE_EXHAUSTED, roundTripped.getErrorCode());
+        assertTrue(
+            "description must survive the round-trip, got: " + roundTripped.getMessage(),
+            roundTripped.getMessage() != null && roundTripped.getMessage().contains("memory budget exhausted on shard")
+        );
+    }
+
     public void testFromFlightExceptionWithNoMetadata() {
         FlightRuntimeException flightException = CallStatus.UNAVAILABLE.withDescription("unavailable").toRuntimeException();
 

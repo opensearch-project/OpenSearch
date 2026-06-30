@@ -208,7 +208,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
         // Three distinct vals, each repeated → 1, 2, 3, 1, 2, 3.
         for (int i = 0; i < TOTAL_DOCS; i++) {
             int val = (i % 3) + 1;
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("val", val).get();
+            client().prepareIndex(INDEX).setSource("val", val).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();
@@ -235,7 +235,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
 
         Object[][] docs = { { "GET", 100 }, { "POST", 50 }, { "GET", 200 }, { "GET", 300 } };
         for (int i = 0; i < docs.length; i++) {
-            client().prepareIndex("http_logs").setId(String.valueOf(i)).setSource("verb", docs[i][0], "size", docs[i][1]).get();
+            client().prepareIndex("http_logs").setSource("verb", docs[i][0], "size", docs[i][1]).get();
         }
         client().admin().indices().prepareRefresh("http_logs").get();
         client().admin().indices().prepareFlush("http_logs").get();

@@ -87,13 +87,13 @@ public class DateNanosUDTPrecisionIT extends AnalyticsRestTestCase {
 
     private void indexDocs() throws Exception {
         // 4 docs, two distinct dates, spread across shards by id parity. basic_date is yyyymmdd.
-        String bulk = "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"1\"}}\n"
+        String bulk = "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
             + "{\"d\":\"20240101\"}\n"
-            + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"2\"}}\n"
+            + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
             + "{\"d\":\"20240102\"}\n"
-            + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"3\"}}\n"
+            + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
             + "{\"d\":\"20240103\"}\n"
-            + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"4\"}}\n"
+            + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
             + "{\"d\":\"20240104\"}\n";
         Request bulkReq = new Request("POST", "/_bulk");
         bulkReq.addParameter("refresh", "true");

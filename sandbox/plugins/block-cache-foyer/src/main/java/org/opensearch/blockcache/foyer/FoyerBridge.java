@@ -38,6 +38,7 @@ public final class FoyerBridge {
     private static final Logger logger = LogManager.getLogger(FoyerBridge.class);
 
     private static final MethodHandle FOYER_CREATE_CACHE;
+    private static final MethodHandle FOYER_CREATE_TIERED_CACHE;
     private static final MethodHandle FOYER_DESTROY_CACHE;
     private static final MethodHandle FOYER_SNAPSHOT_STATS;
     private static final MethodHandle FOYER_EVICT_PREFIX;
@@ -65,6 +66,34 @@ public final class FoyerBridge {
                 ValueLayout.JAVA_LONG,   // sweep_interval_secs: u64 (0 = disabled)
                 ValueLayout.JAVA_DOUBLE, // sweep_threshold_ratio: f64 (0.0 = disabled)
                 ValueLayout.JAVA_LONG    // persist_interval_secs: u64 (0 = disabled)
+            )
+        );
+
+        // foyer_create_tiered_cache(data_disk, data_dir_ptr, data_dir_len, data_block_size,
+        // data_buffer_pool, data_submit_queue, meta_disk, meta_dir_ptr, meta_dir_len,
+        // meta_block_size, meta_buffer_pool, meta_submit_queue, io_engine_ptr, io_engine_len,
+        // sweep_interval, sweep_threshold, persist_interval) -> i64
+        FOYER_CREATE_TIERED_CACHE = linker.downcallHandle(
+            lib.find("foyer_create_tiered_cache").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: opaque i64 fat pointer
+                ValueLayout.JAVA_LONG,   // data_disk_bytes
+                ValueLayout.ADDRESS,     // data_dir_ptr
+                ValueLayout.JAVA_LONG,   // data_dir_len
+                ValueLayout.JAVA_LONG,   // data_block_size_bytes
+                ValueLayout.JAVA_LONG,   // data_buffer_pool_size_bytes
+                ValueLayout.JAVA_LONG,   // data_submit_queue_size_threshold_bytes
+                ValueLayout.JAVA_LONG,   // meta_disk_bytes
+                ValueLayout.ADDRESS,     // meta_dir_ptr
+                ValueLayout.JAVA_LONG,   // meta_dir_len
+                ValueLayout.JAVA_LONG,   // meta_block_size_bytes
+                ValueLayout.JAVA_LONG,   // meta_buffer_pool_size_bytes
+                ValueLayout.JAVA_LONG,   // meta_submit_queue_size_threshold_bytes
+                ValueLayout.ADDRESS,     // io_engine_ptr
+                ValueLayout.JAVA_LONG,   // io_engine_len
+                ValueLayout.JAVA_LONG,   // sweep_interval_secs
+                ValueLayout.JAVA_DOUBLE, // sweep_threshold_ratio
+                ValueLayout.JAVA_LONG    // persist_interval_secs
             )
         );
 
@@ -138,8 +167,8 @@ public final class FoyerBridge {
         );
 
         logger.info(
-            "FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats, "
-                + "foyer_evict_prefix, foyer_clear_cache, foyer_update_sweep_threshold, "
+            "FFM downcall handles resolved: foyer_create_cache, foyer_create_tiered_cache, foyer_destroy_cache, "
+                + "foyer_snapshot_stats, foyer_evict_prefix, foyer_clear_cache, foyer_update_sweep_threshold, "
                 + "foyer_update_sweep_interval, foyer_update_persist_interval"
         );
     }
@@ -206,6 +235,86 @@ public final class FoyerBridge {
                 submitQueueSizeThresholdBytes,
                 ioEngine,
                 diskDir
+            );
+            return ptr;
+        }
+    }
+
+    /**
+     * Create a tiered Foyer block cache with separate data and metadata SSDs.
+     *
+     * <p>Returns a {@code Box<Arc<dyn BlockCache>>} fat pointer that can be passed
+     * directly as {@code cache_box_ptr} to {@code ts_create_tiered_object_store}.
+     *
+     * @param dataDiskBytes              data cache disk capacity in bytes
+     * @param dataDiskDir                directory for data cache files
+     * @param dataBlockSizeBytes         data cache block size in bytes
+     * @param dataBufferPoolSizeBytes    data cache buffer pool size in bytes
+     * @param dataSubmitQueueSizeBytes   data cache submit queue threshold in bytes
+     * @param metaDiskBytes              metadata cache disk capacity in bytes
+     * @param metaDiskDir                directory for metadata cache files
+     * @param metaBlockSizeBytes         metadata cache block size in bytes
+     * @param metaBufferPoolSizeBytes    metadata cache buffer pool size in bytes
+     * @param metaSubmitQueueSizeBytes   metadata cache submit queue threshold in bytes
+     * @param ioEngine                   I/O engine for both caches
+     * @param sweepIntervalSecs          sweep interval for both caches; 0 = disabled
+     * @param sweepThresholdRatio        sweep threshold for both caches; 0.0 = always
+     * @param persistIntervalSecs        persist interval for both caches; 0 = disabled
+     * @return opaque handle; always positive on success
+     */
+    public static long createTieredCache(
+        long dataDiskBytes,
+        String dataDiskDir,
+        long dataBlockSizeBytes,
+        long dataBufferPoolSizeBytes,
+        long dataSubmitQueueSizeBytes,
+        long metaDiskBytes,
+        String metaDiskDir,
+        long metaBlockSizeBytes,
+        long metaBufferPoolSizeBytes,
+        long metaSubmitQueueSizeBytes,
+        String ioEngine,
+        long sweepIntervalSecs,
+        double sweepThresholdRatio,
+        long persistIntervalSecs
+    ) {
+        try (var call = new NativeCall()) {
+            var dataDir = call.str(dataDiskDir);
+            var metaDir = call.str(metaDiskDir);
+            var engine = call.str(ioEngine);
+            long ptr = call.invoke(
+                FOYER_CREATE_TIERED_CACHE,
+                dataDiskBytes,
+                dataDir.segment(),
+                dataDir.len(),
+                dataBlockSizeBytes,
+                dataBufferPoolSizeBytes,
+                dataSubmitQueueSizeBytes,
+                metaDiskBytes,
+                metaDir.segment(),
+                metaDir.len(),
+                metaBlockSizeBytes,
+                metaBufferPoolSizeBytes,
+                metaSubmitQueueSizeBytes,
+                engine.segment(),
+                engine.len(),
+                sweepIntervalSecs,
+                sweepThresholdRatio,
+                persistIntervalSecs
+            );
+            if (ptr <= 0) {
+                throw new IllegalStateException("foyer_create_tiered_cache returned an invalid handle");
+            }
+            logger.info(
+                "Foyer tiered block cache created: dataDisk={}, metaDisk={}, dataBlockSize={}, metaBlockSize={}, "
+                    + "ioEngine={}, dataDir={}, metaDir={}",
+                dataDiskBytes,
+                metaDiskBytes,
+                dataBlockSizeBytes,
+                metaBlockSizeBytes,
+                ioEngine,
+                dataDiskDir,
+                metaDiskDir
             );
             return ptr;
         }

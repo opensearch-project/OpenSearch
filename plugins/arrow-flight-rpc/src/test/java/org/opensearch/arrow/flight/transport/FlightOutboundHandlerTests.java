@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.flight.CallStatus;
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
@@ -26,6 +28,8 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StatsTracker;
 import org.opensearch.transport.TransportMessageListener;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -45,6 +50,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,7 +76,6 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         mockFlightChannel = mock(FlightServerChannel.class);
         when(mockFlightChannel.getExecutor()).thenReturn(executor);
         when(mockFlightChannel.getAllocator()).thenReturn(mock(BufferAllocator.class));
-        when(mockFlightChannel.getRoot()).thenReturn(mock(VectorSchemaRoot.class));
 
         mockListener = mock(TransportMessageListener.class);
         handler.setMessageListener(mockListener);
@@ -213,40 +218,27 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         assertEquals("Caller's thread context should be preserved after completeStream", HEADER_VALUE, threadContext.getHeader(HEADER_KEY));
     }
 
-    // --- Native Arrow branch in processBatchTask ---
+    // --- processBatchTask delegates to the channel ---
+    // The channel owns the stream root (create/transfer/adopt/free) and builds the header internally;
+    // these tests verify delegation + listener notification. Root ownership is covered in
+    // FlightServerChannelTests.
 
-    public void testProcessBatchTaskNativeArrowFirstBatch() throws Exception {
+    public void testProcessBatchTaskDelegatesToChannelSendBatch() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 42);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
-
-            // First batch: streamRoot is null, so it should be created
-            when(mockFlightChannel.getRoot()).thenReturn(null);
+            VectorSchemaRoot producerRoot = newSingleIntRoot(allocator, 42);
 
             CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<Exception> error = new AtomicReference<>();
-
             doAnswer(invocation -> {
                 latch.countDown();
                 return null;
             }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
 
+            // The channel takes the response; the handler must not touch its root.
+            AtomicReference<TransportResponse> sent = new AtomicReference<>();
             doAnswer(invocation -> {
-                // Verify the output has a root with transferred data
-                VectorStreamOutput out = invocation.getArgument(1);
-                VectorSchemaRoot sentRoot = out.getRoot();
-                assertNotNull(sentRoot);
-                assertEquals(1, sentRoot.getRowCount());
-                assertEquals(42, ((IntVector) sentRoot.getVector("val")).get(0));
-                // Clean up the stream root created by the handler
-                sentRoot.close();
+                sent.set(invocation.getArgument(0));
                 return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+            }).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
 
             TestArrowResponse response = new TestArrowResponse(producerRoot);
             handler.sendResponseBatch(
@@ -262,44 +254,55 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             );
 
             assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
-            assertNull("No error expected", error.get());
+            verify(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+            assertSame("handler should pass the response straight to the channel", response, sent.get());
+            // Channel mock did not consume buffers; free the producer root so teardown is clean.
+            producerRoot.close();
         }
     }
 
-    public void testProcessBatchTaskNativeArrowWithExistingStreamRoot() throws Exception {
-        try (RootAllocator allocator = new RootAllocator()) {
-            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+    public void testProcessBatchTaskNonArrowResponseDelegatesToSendBatch() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
 
-            // Simulate existing stream root (second batch scenario)
-            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
+        doAnswer(invocation -> null).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
 
-            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
-            IntVector vec = (IntVector) producerRoot.getVector("val");
-            vec.allocateNew();
-            vec.setSafe(0, 99);
-            vec.setValueCount(1);
-            producerRoot.setRowCount(1);
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            mock(FlightTransportChannel.class),
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
 
-            CountDownLatch latch = new CountDownLatch(1);
+        assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+    }
 
-            doAnswer(invocation -> {
-                VectorStreamOutput out = invocation.getArgument(1);
-                VectorSchemaRoot sentRoot = out.getRoot();
-                // Should reuse the existing stream root
-                assertSame(streamRoot, sentRoot);
-                assertEquals(1, sentRoot.getRowCount());
-                assertEquals(99, ((IntVector) sentRoot.getVector("val")).get(0));
-                return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+    // --- Hand-off discipline: a batch that never reaches the channel must be released (S7) ---
 
-            doAnswer(invocation -> {
-                latch.countDown();
-                return null;
-            }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
+    /**
+     * When the back-pressure gate throws (cancel/timeout), the batch is never submitted, so the
+     * handler must free the source root via releaseUnsent and must NOT submit the task.
+     */
+    public void testSendResponseBatchReleasesSourceWhenGateThrows() {
+        ExecutorService submitTrap = mock(ExecutorService.class);
+        when(mockFlightChannel.getExecutor()).thenReturn(submitTrap);
 
-            TestArrowResponse response = new TestArrowResponse(producerRoot);
-            handler.sendResponseBatch(
+        StreamException cancelled = StreamException.cancelled("client gone");
+        doThrow(cancelled).when(mockFlightChannel).awaitReadyOrThrow();
+
+        TransportResponse response = mock(TransportResponse.class);
+        StreamException thrown = expectThrows(
+            StreamException.class,
+            () -> handler.sendResponseBatch(
                 Version.CURRENT,
                 Collections.emptySet(),
                 mockFlightChannel,
@@ -309,11 +312,257 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 response,
                 false,
                 false
-            );
+            )
+        );
 
-            assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
-            streamRoot.close();
-        }
+        assertSame(cancelled, thrown);
+        verify(mockFlightChannel).releaseUnsent(response); // freed on the failed-handoff path
+        verify(submitTrap, never()).execute(any());        // not submitted after the gate failed
+    }
+
+    /**
+     * When the executor rejects the task (e.g. shutdown), the batch never runs, so the handler must
+     * free the source root via releaseUnsent.
+     */
+    public void testSendResponseBatchReleasesSourceWhenExecutorRejects() {
+        ExecutorService rejectingExecutor = mock(ExecutorService.class);
+        when(mockFlightChannel.getExecutor()).thenReturn(rejectingExecutor);
+        doThrow(new RejectedExecutionException("shutting down")).when(rejectingExecutor).execute(any());
+
+        TransportResponse response = mock(TransportResponse.class);
+        expectThrows(
+            RejectedExecutionException.class,
+            () -> handler.sendResponseBatch(
+                Version.CURRENT,
+                Collections.emptySet(),
+                mockFlightChannel,
+                mock(FlightTransportChannel.class),
+                1L,
+                "test-action",
+                response,
+                false,
+                false
+            )
+        );
+
+        verify(mockFlightChannel).releaseUnsent(response);
+    }
+
+    /** A successful hand-off must NOT also release the source (it is owned by sendBatch's finally). */
+    public void testSendResponseBatchDoesNotReleaseOnSuccessfulHandoff() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
+        doAnswer(invocation -> null).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+        TransportResponse response = mock(TransportResponse.class);
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            mock(FlightTransportChannel.class),
+            1L,
+            "test-action",
+            response,
+            false,
+            false
+        );
+
+        assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel, never()).releaseUnsent(any());
+    }
+
+    // --- failStream: a batch send failure fails the stream instead of hanging the consumer ---
+
+    public void testProcessBatchTaskFailureSendsErrorAndReleasesChannel() throws Exception {
+        doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+        FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+        CountDownLatch notified = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            notified.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            transportChannel,
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        assertTrue("failed batch send must terminate the stream", notified.await(5, TimeUnit.SECONDS));
+        // Stream is failed BEFORE the listener is notified (consumer sees an error, not a hang).
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(mockFlightChannel, transportChannel, mockListener);
+        inOrder.verify(mockFlightChannel).sendError(any(), any(Exception.class));
+        inOrder.verify(transportChannel).releaseChannel(true);
+        inOrder.verify(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+    }
+
+    public void testProcessBatchTaskFlightRuntimeExceptionFailsStreamWithMappedError() throws Exception {
+        FlightRuntimeException flightError = CallStatus.INTERNAL.withDescription("flight send failed").toRuntimeException();
+        doThrow(flightError).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+        FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+        CountDownLatch notified = new CountDownLatch(1);
+        AtomicReference<Object> notifiedArg = new AtomicReference<>();
+        doAnswer(invocation -> {
+            notifiedArg.set(invocation.getArgument(2));
+            notified.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            transportChannel,
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        assertTrue("FlightRuntimeException must terminate the stream", notified.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel).sendError(any(), any(Exception.class));
+        verify(transportChannel).releaseChannel(true);
+        assertTrue("listener should receive the mapped StreamException", notifiedArg.get() instanceof StreamException);
+    }
+
+    public void testFailStreamSwallowsSendErrorFailureAndStillReleases() throws Exception {
+        doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+        // sendError itself fails (consumer already gone) — must be swallowed.
+        doThrow(new RuntimeException("sendError failed too")).when(mockFlightChannel).sendError(any(), any(Exception.class));
+
+        FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+        CountDownLatch released = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            released.countDown();
+            return null;
+        }).when(transportChannel).releaseChannel(true);
+
+        CountDownLatch notified = new CountDownLatch(1);
+        AtomicReference<Object> notifiedArg = new AtomicReference<>();
+        doAnswer(invocation -> {
+            notifiedArg.set(invocation.getArgument(2));
+            notified.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            transportChannel,
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        assertTrue("channel must still be released after sendError fails", released.await(5, TimeUnit.SECONDS));
+        assertTrue("listener must still be notified after sendError fails", notified.await(5, TimeUnit.SECONDS));
+        verify(transportChannel).releaseChannel(true);
+        // The sendError failure must not be lost: it is attached as a suppressed exception on the
+        // original cause that the listener receives.
+        assertTrue("listener arg must be the original cause", notifiedArg.get() instanceof Exception);
+        Throwable[] suppressed = ((Throwable) notifiedArg.get()).getSuppressed();
+        assertEquals("the sendError failure must be attached as suppressed", 1, suppressed.length);
+        assertEquals("sendError failed too", suppressed[0].getMessage());
+    }
+
+    public void testFailStreamWithNullTransportChannelDoesNotThrow() throws Exception {
+        doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+        CountDownLatch notified = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            notified.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            null,
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        assertTrue("stream must still be failed and the listener notified", notified.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel).sendError(any(), any(Exception.class));
+    }
+
+    /**
+     * A non-Exception {@code Throwable} from the send (e.g. OOM / AssertionError after the channel
+     * adopted the stream root) must still release the channel so its close()-posted stream-root free
+     * runs — the batch task is non-terminal, so {@code BatchTask.close()} would not release it. The
+     * {@code Throwable} must not be swallowed.
+     */
+    public void testProcessBatchTaskThrowableReleasesChannel() throws Exception {
+        doThrow(new AssertionError("putNext boom")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+        FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+        CountDownLatch released = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            released.countDown();
+            return null;
+        }).when(transportChannel).releaseChannel(true);
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            transportChannel,
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        // The Throwable path must release the channel (-> close() -> stream-root free) even though
+        // failStream is not invoked for a non-Exception Throwable.
+        assertTrue("channel must be released on a non-Exception Throwable", released.await(5, TimeUnit.SECONDS));
+        verify(transportChannel).releaseChannel(true);
+    }
+
+    /** With no transport channel, the Throwable path must close the channel directly (still frees the root). */
+    public void testProcessBatchTaskThrowableClosesChannelWhenNoTransportChannel() throws Exception {
+        doThrow(new AssertionError("putNext boom")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+        CountDownLatch closed = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            closed.countDown();
+            return null;
+        }).when(mockFlightChannel).close();
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            null,
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        assertTrue("channel must be closed directly when there is no transport channel", closed.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel).close();
     }
 
     // --- processCompleteTask error path ---
@@ -391,14 +640,11 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         ExecutorService submitTrap = mock(ExecutorService.class);
         when(mockFlightChannel.getExecutor()).thenReturn(submitTrap);
 
-        org.opensearch.transport.stream.StreamException timeoutEx = new org.opensearch.transport.stream.StreamException(
-            org.opensearch.transport.stream.StreamErrorCode.TIMED_OUT,
-            "consumer not ready"
-        );
+        StreamException timeoutEx = new StreamException(StreamErrorCode.TIMED_OUT, "consumer not ready");
         doThrow(timeoutEx).when(mockFlightChannel).awaitReadyOrThrow();
 
-        org.opensearch.transport.stream.StreamException thrown = expectThrows(
-            org.opensearch.transport.stream.StreamException.class,
+        StreamException thrown = expectThrows(
+            StreamException.class,
             () -> handler.sendResponseBatch(
                 Version.CURRENT,
                 Collections.emptySet(),
@@ -413,7 +659,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         );
         assertSame(timeoutEx, thrown);
         // Crucially: we must not have submitted the BatchTask after the gate failed.
-        verify(submitTrap, org.mockito.Mockito.never()).execute(any());
+        verify(submitTrap, never()).execute(any());
     }
 
     public void testBatchTaskCloseWithIsErrorCallsReleaseChannelWithTrue() {
@@ -439,7 +685,18 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         verify(mockTransportChannel).releaseChannel(true);
     }
 
-    // --- Test helper ---
+    // --- Test helpers ---
+
+    private static VectorSchemaRoot newSingleIntRoot(BufferAllocator allocator, int value) {
+        Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+        VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
+        IntVector vec = (IntVector) root.getVector("val");
+        vec.allocateNew();
+        vec.setSafe(0, value);
+        vec.setValueCount(1);
+        root.setRowCount(1);
+        return root;
+    }
 
     static class TestArrowResponse extends ArrowBatchResponse {
         TestArrowResponse(VectorSchemaRoot root) {
