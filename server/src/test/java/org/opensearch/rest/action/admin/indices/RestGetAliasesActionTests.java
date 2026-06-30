@@ -32,31 +32,40 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.rest.FakeRestChannel;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.core.rest.RestStatus.OK;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RestGetAliasesActionTests extends OpenSearchTestCase {
 
@@ -176,42 +185,83 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 
-    @SuppressWarnings("unchecked")
+    // NodeClient#admin() is final, so it cannot be mocked directly: https://github.com/mockito/mockito/issues/146
+    // Instead we use a real NoOpNodeClient (overriding doExecute) and a real TestThreadPool whose
+    // MANAGEMENT executor is wrapped to record the thread that actually runs the dispatched work.
     public void testProcessResponseForksToManagementThreadPool() throws Exception {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        ExecutorService managementExecutor = mock(ExecutorService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        when(threadPool.executor(ThreadPool.Names.MANAGEMENT)).thenReturn(managementExecutor);
-        when(threadPool.relativeTimeInMillis()).thenReturn(0L);
+        final AtomicReference<String> executingThreadName = new AtomicReference<>();
+        final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ExecutorService executor(String name) {
+                final ExecutorService delegate = super.executor(name);
+                if (ThreadPool.Names.MANAGEMENT.equals(name) == false) {
+                    return delegate;
+                }
+                return new AbstractExecutorService() {
+                    @Override
+                    public void execute(Runnable command) {
+                        delegate.execute(() -> {
+                            executingThreadName.set(Thread.currentThread().getName());
+                            command.run();
+                        });
+                    }
 
-        // Wire up a NodeClient mock so we can capture the ActionListener
-        org.opensearch.transport.client.AdminClient adminClient = mock(org.opensearch.transport.client.AdminClient.class);
-        org.opensearch.transport.client.IndicesAdminClient indicesClient = mock(org.opensearch.transport.client.IndicesAdminClient.class);
-        org.opensearch.transport.client.node.NodeClient nodeClient = mock(org.opensearch.transport.client.node.NodeClient.class);
-        when(nodeClient.admin()).thenReturn(adminClient);
-        when(adminClient.indices()).thenReturn(indicesClient);
-        when(nodeClient.threadPool()).thenReturn(threadPool);
+                    @Override
+                    public void shutdown() {
+                        delegate.shutdown();
+                    }
 
-        RestGetAliasesAction action = new RestGetAliasesAction(threadPool);
-        org.opensearch.rest.RestRequest request = new org.opensearch.test.rest.FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(org.opensearch.rest.RestRequest.Method.GET)
-            .withPath("/_aliases")
-            .build();
-        org.opensearch.rest.RestChannel channel = mock(org.opensearch.rest.RestChannel.class);
-        when(channel.newBuilder()).thenReturn(MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON));
+                    @Override
+                    public List<Runnable> shutdownNow() {
+                        return delegate.shutdownNow();
+                    }
 
-        // prepareRequest registers the listener with indicesClient.getAliases(...)
-        action.handleRequest(request, channel, nodeClient);
+                    @Override
+                    public boolean isShutdown() {
+                        return delegate.isShutdown();
+                    }
 
-        // Capture the listener and fire onResponse to trigger processResponse
-        org.mockito.ArgumentCaptor<org.opensearch.core.action.ActionListener> captor =
-            org.mockito.ArgumentCaptor.forClass(org.opensearch.core.action.ActionListener.class);
-        verify(indicesClient).getAliases(any(), captor.capture());
-        captor.getValue().onResponse(new GetAliasesResponse(Collections.emptyMap()));
+                    @Override
+                    public boolean isTerminated() {
+                        return delegate.isTerminated();
+                    }
 
-        // The key assertion: response work was forked to MANAGEMENT, not run on the transport thread
-        verify(threadPool).executor(eq(ThreadPool.Names.MANAGEMENT));
-        verify(managementExecutor).execute(any(Runnable.class));
+                    @Override
+                    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+                        return delegate.awaitTermination(timeout, unit);
+                    }
+                };
+            }
+        };
+        try {
+            final NodeClient client = new NoOpNodeClient(threadPool) {
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    listener.onResponse((Response) new GetAliasesResponse(Collections.emptyMap()));
+                }
+            };
+
+            final RestGetAliasesAction action = new RestGetAliasesAction(threadPool);
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+                .withPath("/_aliases")
+                .build();
+            final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+            final String callingThreadName = Thread.currentThread().getName();
+
+            action.handleRequest(request, channel, client);
+
+            // The key assertion: response work ran on the MANAGEMENT pool, not on the calling (transport) thread.
+            assertBusy(() -> assertThat(channel.responses().get(), equalTo(1)));
+            assertThat(channel.errors().get(), equalTo(0));
+            assertThat(executingThreadName.get(), notNullValue());
+            assertThat(executingThreadName.get(), not(equalTo(callingThreadName)));
+            assertThat(executingThreadName.get(), containsString("[" + ThreadPool.Names.MANAGEMENT + "]"));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
     }
 }

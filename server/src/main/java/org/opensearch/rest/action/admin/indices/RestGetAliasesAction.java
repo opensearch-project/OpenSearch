@@ -79,7 +79,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetAliasesAction.class);
     static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
+        "Parameter [master_timeout] is deprecated and will be removed in 4.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
