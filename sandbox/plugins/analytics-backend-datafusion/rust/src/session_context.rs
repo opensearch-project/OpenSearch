@@ -205,14 +205,14 @@ pub async unsafe fn create_session_context(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
-    if has_partial_aggregate {
+    // Disable DataFusion's adaptive skip-partial-aggregation when TopK is active:
+    // if DF abandons partial agg midstream, the partial state sent to the coordinator
+    // would be incomplete, causing TopK to see partial group counts and produce wrong results.
+    if has_topk {
         config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
     }
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
-    if has_partial_aggregate {
-        config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
-    }
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
     // file-group partitioner so `output_ordering` can propagate from the scan.
     if !shard_view.sort_fields.is_empty() {

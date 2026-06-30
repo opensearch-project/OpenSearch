@@ -83,10 +83,12 @@ fn force_aggregate_mode(
         match target {
             AggregateMode::Partial => {
                 // Current node is Final/FinalPartitioned.
-                // When TopK is active, replace with PartialReduce instead of stripping.
-                // PartialReduce keeps agg.input() (RepartitionExec(Hash) → Partial(×N))
-                // so CSS partitions are merged by group key before TopK truncation.
-                if has_topk {
+                // When TopK is active and the input has multiple partitions (CSS), replace
+                // with PartialReduce instead of stripping. PartialReduce keeps agg.input()
+                // (RepartitionExec(Hash) → Partial(×N)) so CSS partitions are merged by
+                // group key before TopK truncation. Skip when input_partitions=1 — PartialReduce
+                // over a single partition is redundant and adds unnecessary overhead.
+                if has_topk && agg.input().output_partitioning().partition_count() > 1 {
                     return Ok(Arc::new(AggregateExec::try_new(
                         AggregateMode::PartialReduce,
                         agg.group_expr().clone(),
