@@ -292,28 +292,25 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         AtomicReference<String> capturedParentAction = new AtomicReference<>();
         Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> systemGeneratedRequestProcessors =
             new HashMap<>();
-        systemGeneratedRequestProcessors.put(
-            "action_aware_processor",
-            new SystemGeneratedProcessor.SystemGeneratedFactory<>() {
-                @Override
-                public boolean shouldGenerate(ProcessorGenerationContext context) {
-                    capturedParentAction.set(context.parentAction());
-                    return false;
-                }
-
-                @Override
-                public SearchRequestProcessor create(
-                    Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
-                    String tag,
-                    String description,
-                    boolean ignoreFailure,
-                    Map<String, Object> config,
-                    Processor.PipelineContext pipelineContext
-                ) {
-                    return null;
-                }
+        systemGeneratedRequestProcessors.put("action_aware_processor", new SystemGeneratedProcessor.SystemGeneratedFactory<>() {
+            @Override
+            public boolean shouldGenerate(ProcessorGenerationContext context) {
+                capturedParentAction.set(context.parentAction());
+                return false;
             }
-        );
+
+            @Override
+            public SearchRequestProcessor create(
+                Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
+                String tag,
+                String description,
+                boolean ignoreFailure,
+                Map<String, Object> config,
+                Processor.PipelineContext pipelineContext
+            ) {
+                return null;
+            }
+        });
 
         SearchPipelineService service = createWithProcessors(
             buildBaseProcessors().request,
@@ -339,28 +336,25 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         AtomicReference<String> capturedParentAction = new AtomicReference<>("sentinel");
         Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> systemGeneratedRequestProcessors =
             new HashMap<>();
-        systemGeneratedRequestProcessors.put(
-            "action_aware_processor",
-            new SystemGeneratedProcessor.SystemGeneratedFactory<>() {
-                @Override
-                public boolean shouldGenerate(ProcessorGenerationContext context) {
-                    capturedParentAction.set(context.parentAction());
-                    return false;
-                }
-
-                @Override
-                public SearchRequestProcessor create(
-                    Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
-                    String tag,
-                    String description,
-                    boolean ignoreFailure,
-                    Map<String, Object> config,
-                    Processor.PipelineContext pipelineContext
-                ) {
-                    return null;
-                }
+        systemGeneratedRequestProcessors.put("action_aware_processor", new SystemGeneratedProcessor.SystemGeneratedFactory<>() {
+            @Override
+            public boolean shouldGenerate(ProcessorGenerationContext context) {
+                capturedParentAction.set(context.parentAction());
+                return false;
             }
-        );
+
+            @Override
+            public SearchRequestProcessor create(
+                Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
+                String tag,
+                String description,
+                boolean ignoreFailure,
+                Map<String, Object> config,
+                Processor.PipelineContext pipelineContext
+            ) {
+                return null;
+            }
+        });
 
         SearchPipelineService service = createWithProcessors(
             buildBaseProcessors().request,

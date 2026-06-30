@@ -142,7 +142,10 @@ class SystemGeneratedPipelineWithMetrics extends Pipeline {
             return lists;
         }
         boolean isAllEnabled = enabledSystemGeneratedFactories.contains("*");
-        ProcessorGenerationContext context = new ProcessorGenerationContext((SearchRequest) config.get(SEARCH_REQUEST), (String) config.get(PARENT_ACTION));
+        ProcessorGenerationContext context = new ProcessorGenerationContext(
+            (SearchRequest) config.get(SEARCH_REQUEST),
+            (String) config.get(PARENT_ACTION)
+        );
 
         for (Map.Entry<String, SystemGeneratedProcessor.SystemGeneratedFactory<T>> entry : factories.entrySet()) {
             String factoryType = entry.getKey();
