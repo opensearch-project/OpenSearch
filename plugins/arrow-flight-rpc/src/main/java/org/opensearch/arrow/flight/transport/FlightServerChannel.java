@@ -180,6 +180,11 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         return allocator;
     }
 
+    /** Whether the client cancelled the gRPC stream (onChannelCancelled fired). Read by FlightTransportChannel. */
+    public boolean isCancelled() {
+        return cancelled;
+    }
+
     /** Returns the current stream root. Package-private; intended for tests/assertions only. */
     VectorSchemaRoot getRoot() {
         return root;
