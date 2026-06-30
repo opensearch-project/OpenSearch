@@ -10,7 +10,7 @@ package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.Term;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
@@ -52,7 +52,7 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     private final Map<Long, Deleter> generationToDeleterMap;
     private final DataFormat dataFormat;
-    private final IndexWriter parentWriter;
+    private final MergeIndexWriter parentWriter;
     private final ConcurrentMap<String, Long> idToGen;
     private final Store store;
 

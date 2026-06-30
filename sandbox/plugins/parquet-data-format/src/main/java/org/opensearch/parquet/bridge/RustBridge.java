@@ -228,7 +228,10 @@ public class RustBridge {
                 ValueLayout.ADDRESS,    // out_gen_count
                 ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_count
                 ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_time_millis
-                ValueLayout.ADDRESS     // out_row_id_mapping_max
+                ValueLayout.ADDRESS,    // out_row_id_mapping_max
+                ValueLayout.ADDRESS,    // live-docs ptrs (per-input bitsets)
+                ValueLayout.ADDRESS,    // live-docs lens
+                ValueLayout.JAVA_LONG   // live-docs count (0 = all alive)
             )
         );
         FREE_MERGE_RESULT = linker.downcallHandle(
@@ -541,13 +544,29 @@ public class RustBridge {
         }
     }
 
+    /**
+     * Performs a native k-way merge of {@code inputFiles} into {@code outputFile}. Dead rows
+     * flagged in {@code liveBitsPerInput} are dropped from the output; row count is bounded by
+     * the input sum.
+     *
+     * <p>{@code liveBitsPerInput} is parallel to {@code inputFiles} — each bitset uses Lucene
+     * {@code FixedBitSet#getBits()} layout (bit 0 = row 0 alive). A {@code null} entry, or
+     * passing {@code null} / zero-length outer array, disables filtering (zero-copy fast path).</p>
+     */
     public static MergeFilesResult mergeParquetFilesInRust(
         List<Path> inputFiles,
+        long[][] liveBitsPerInput,
         String outputFile,
         String indexName,
         long outputWriterGeneration
     ) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
+        boolean hasLiveDocs = liveBitsPerInput != null && liveBitsPerInput.length > 0;
+        if (hasLiveDocs && liveBitsPerInput.length != paths.length) {
+            throw new IllegalArgumentException(
+                "liveBitsPerInput length (" + liveBitsPerInput.length + ") must match inputFiles (" + paths.length + ")"
+            );
+        }
         try (var call = new NativeCall()) {
             var inputs = call.strArray(paths);
             var out = call.str(outputFile);
@@ -570,6 +589,30 @@ public class RustBridge {
             var outFlushChunkCount = call.longOut();
             var outFlushChunkTimeMillis = call.longOut();
             var outRowIdMappingMax = call.longOut();
+
+            // Live-docs per input (parallel arrays of pointer+length). Null or empty ⇒ skip filter.
+            final MemorySegment liveBitsPtrs;
+            final MemorySegment liveBitsLens;
+            final long liveBitsCount;
+            if (hasLiveDocs) {
+                liveBitsPtrs = call.buf(paths.length * (int) ValueLayout.ADDRESS.byteSize());
+                liveBitsLens = call.buf(paths.length * Long.BYTES);
+                for (int i = 0; i < paths.length; i++) {
+                    long[] bits = liveBitsPerInput[i];
+                    if (bits == null || bits.length == 0) {
+                        liveBitsPtrs.setAtIndex(ValueLayout.ADDRESS, i, MemorySegment.NULL);
+                        liveBitsLens.setAtIndex(ValueLayout.JAVA_LONG, i, 0L);
+                    } else {
+                        liveBitsPtrs.setAtIndex(ValueLayout.ADDRESS, i, call.longs(bits));
+                        liveBitsLens.setAtIndex(ValueLayout.JAVA_LONG, i, (long) bits.length);
+                    }
+                }
+                liveBitsCount = paths.length;
+            } else {
+                liveBitsPtrs = MemorySegment.NULL;
+                liveBitsLens = MemorySegment.NULL;
+                liveBitsCount = 0L;
+            }
 
             call.invokeIO(
                 MERGE_FILES,
@@ -595,7 +638,10 @@ public class RustBridge {
                 outGenCount,
                 outFlushChunkCount,
                 outFlushChunkTimeMillis,
-                outRowIdMappingMax
+                outRowIdMappingMax,
+                liveBitsPtrs,
+                liveBitsLens,
+                liveBitsCount
             );
 
             int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);

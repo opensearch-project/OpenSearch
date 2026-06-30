@@ -124,7 +124,7 @@ fn test_unsorted_merge_real_files() {
     let output_str = output.to_string_lossy().to_string();
 
     // Empty sort columns → unsorted merge
-    merge_unsorted(&files, &output_str, "test-index", 0).unwrap();
+    merge_unsorted(&files, &output_str, "test-index", 0, &[]).unwrap();
 
     assert!(output.exists(), "Output file was not created");
     let actual_rows = count_rows(&output_str);
@@ -193,6 +193,7 @@ fn test_sorted_merge_real_files() {
         &reverse,
         &nulls_first,
         0,
+        &[],
     )
     .unwrap();
 
@@ -305,6 +306,7 @@ fn test_tier2_yield_after_batch_boundary() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -362,6 +364,7 @@ fn test_tier2_yield_multiple_cursors() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -413,6 +416,7 @@ fn test_tier2_yield_descending() {
         &[true],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -464,6 +468,7 @@ fn test_tier2_no_yield_when_equal_to_heap_top() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -517,6 +522,7 @@ fn test_tier2_yield_many_small_batches() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -634,6 +640,7 @@ fn test_default_settings_ascending_nulls_last() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -693,6 +700,7 @@ fn test_default_settings_descending_nulls_last() {
         &[true],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -764,6 +772,7 @@ fn test_default_settings_ascending_nulls_first() {
         &[false],
         &[true],
         0,
+        &[],
     )
     .unwrap();
 
@@ -826,6 +835,7 @@ fn test_single_large_file_passthrough() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -881,6 +891,7 @@ fn test_skewed_file_sizes_large_small() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -957,6 +968,7 @@ fn test_three_files_middle_exhausts_first() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1015,6 +1027,7 @@ fn test_all_duplicate_sort_keys_large() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1073,6 +1086,7 @@ fn test_non_multiple_of_batch_size() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1133,6 +1147,7 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1260,6 +1275,7 @@ fn test_deferred_wide_schema_correctness() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1330,6 +1346,7 @@ fn test_eager_forced_by_high_threshold() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1391,6 +1408,7 @@ fn test_deferred_multi_batch_sync() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1452,6 +1470,7 @@ fn test_deferred_tier3_interleaved() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1518,6 +1537,7 @@ fn test_deferred_vs_eager_identical_output() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1537,6 +1557,7 @@ fn test_deferred_vs_eager_identical_output() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1609,6 +1630,7 @@ fn test_deferred_tier1_single_cursor_drain() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1673,6 +1695,7 @@ fn test_deferred_tier1_multi_batch_drain() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1736,6 +1759,7 @@ fn test_deferred_tier2_full_batch_emit() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1799,7 +1823,8 @@ fn test_deferred_tier2_descending() {
         &["ts".into()],
         &[true],
         &[false],
-        0, // reverse=true (descending)
+        0, // reverse=true (descending),
+        &[],
     )
     .unwrap();
 
@@ -1871,6 +1896,7 @@ fn test_deferred_tier3_many_cursors() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -1945,6 +1971,7 @@ fn test_deferred_different_schemas() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 
@@ -2075,6 +2102,7 @@ fn test_deferred_three_files_different_schemas() {
         &[false],
         &[false],
         0,
+        &[],
     )
     .unwrap();
 

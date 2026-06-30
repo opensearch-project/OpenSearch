@@ -21,6 +21,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -668,7 +669,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
         WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
 
-        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)), LiveDocs.ALL_ALIVE);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
         assertTrue(ex.getMessage().contains("returned null"));
@@ -695,7 +696,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
         WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
 
-        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)), LiveDocs.ALL_ALIVE);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
         assertTrue(ex.getMessage().contains("Row count mismatch"));

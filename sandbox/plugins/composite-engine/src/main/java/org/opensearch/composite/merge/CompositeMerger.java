@@ -14,6 +14,7 @@ import org.opensearch.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -51,14 +52,99 @@ public class CompositeMerger implements Merger {
         this.statsTracker = engine.statsTracker();
     }
 
+    /**
+     * Two-phase merge: phase 1 freezes each secondary's snapshot via {@link #prepareMerge};
+     * phase 2 runs primary → secondaries with that frozen bitmap. On failure between phases,
+     * {@link #abortPreparedMerge} releases prepared state. The bitmap from prepareMerge
+     * overrides any {@link MergeInput#liveDocs()} the caller passed in.
+     */
     @Override
     public MergeResult merge(MergeInput mergeInput) throws IOException {
         // recordOutcome: time always, merge_total on success, merge_failures on throw.
         return StatsRecorder.recordOutcome(() -> {
-            Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
-            MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
-            return executor.execute(plan);
+            LiveDocs frozenLiveDocs = prepareMerge(mergeInput);
+            assert frozenLiveDocs != null : "merger returned null live-docs";
+            assert assertLiveDocsShape(mergeInput.segments(), frozenLiveDocs) : "live-docs shape doesn't match segment row counts";
+
+            try {
+                Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
+                MergePlan plan = new MergePlan(
+                    mergeInput.newWriterGeneration(),
+                    primaryFormat,
+                    secondaryFormats,
+                    filesByFormat,
+                    frozenLiveDocs
+                );
+                return executor.execute(plan);
+            } catch (Throwable t) {
+                try {
+                    abortPreparedMerge(mergeInput);
+                } catch (Throwable suppress) {
+                    t.addSuppressed(suppress);
+                }
+                throw t;
+            }
         }, statsTracker::addMergeTimeMillis, statsTracker::incMergeTotal, statsTracker::incMergeFailures);
+    }
+
+    /** Verifies the bitmap has at least as many bits as the segment's row count. */
+    private static boolean assertLiveDocsShape(List<Segment> segments, LiveDocs liveDocs) {
+        for (Segment seg : segments) {
+            long[] bits = liveDocs.packedBits(seg.generation());
+            if (bits == null) {
+                continue;
+            }
+            long capacity = (long) bits.length * 64L;
+            long expected = totalRowsForSegment(seg);
+            assert capacity >= expected : "live-docs bitmap for gen="
+                + seg.generation()
+                + " has "
+                + capacity
+                + " bits but segment has "
+                + expected
+                + " rows";
+        }
+        return true;
+    }
+
+    private static long totalRowsForSegment(Segment seg) {
+        long total = 0L;
+        for (var wfs : seg.dfGroupedSearchableFiles().values()) {
+            total = Math.max(total, wfs.numRows());
+        }
+        return total;
+    }
+
+    @Override
+    public LiveDocs prepareMerge(MergeInput mergeInput) throws IOException {
+        // Drive prepare on every secondary so each freezes its own state. Today returns
+        // the first non-empty bitmap;
+        LiveDocs firstNonEmpty = LiveDocs.ALL_ALIVE;
+        for (DataFormat secondary : secondaryFormats) {
+            Merger merger = executor.getMerger(secondary);
+            if (merger == null) continue;
+            LiveDocs partial = merger.prepareMerge(mergeInput);
+            if (partial != null && partial.allAlive() == false && firstNonEmpty.allAlive()) {
+                firstNonEmpty = partial;
+            }
+        }
+        return firstNonEmpty;
+    }
+
+    @Override
+    public void abortPreparedMerge(MergeInput mergeInput) throws IOException {
+        IOException firstFailure = null;
+        for (DataFormat secondary : secondaryFormats) {
+            Merger merger = executor.getMerger(secondary);
+            if (merger == null) continue;
+            try {
+                merger.abortPreparedMerge(mergeInput);
+            } catch (IOException e) {
+                if (firstFailure == null) firstFailure = e;
+                else firstFailure.addSuppressed(e);
+            }
+        }
+        if (firstFailure != null) throw firstFailure;
     }
 
     private Map<DataFormat, List<WriterFileSet>> extractFilesByFormat(List<Segment> segments) {
