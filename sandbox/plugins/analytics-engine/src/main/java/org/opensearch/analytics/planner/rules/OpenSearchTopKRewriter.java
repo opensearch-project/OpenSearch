@@ -57,6 +57,10 @@ public final class OpenSearchTopKRewriter {
         if (!(partialNode instanceof OpenSearchAggregate partial) || partial.getMode() != AggregateMode.PARTIAL) {
             return Optional.empty();
         }
+        // Chained stats (nested aggregation): the PARTIAL's input subtree contains another aggregate.
+        // TopK cannot safely apply here — the inner aggregate must complete fully before the outer
+        // aggregate can produce correct totals. Bail and let the coordinator handle it.
+        if (containsAggregate(partial.getInput())) return Optional.empty();
 
         double factor = resolveOversamplingFactor(context);
         if (factor <= 0.0) return Optional.empty();
@@ -263,6 +267,15 @@ public final class OpenSearchTopKRewriter {
 
     private static double resolveOversamplingFactor(PlannerContext context) {
         return context.getOversamplingFactor();
+    }
+
+    /** Returns true if {@code root}'s subtree contains any {@link OpenSearchAggregate} node. */
+    private static boolean containsAggregate(RelNode root) {
+        if (root instanceof OpenSearchAggregate) return true;
+        for (RelNode child : root.getInputs()) {
+            if (containsAggregate(child)) return true;
+        }
+        return false;
     }
 
     private record PathToFinal(OpenSearchProject project, OpenSearchAggregate finalAgg) {
