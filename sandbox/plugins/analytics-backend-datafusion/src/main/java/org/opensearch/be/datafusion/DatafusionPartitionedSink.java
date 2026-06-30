@@ -15,6 +15,7 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.ipc.message.IpcOption;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -216,7 +217,24 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             VectorSchemaRoot root = Data.importVectorSchemaRoot(alloc, arrowArray, arrowSchema, dictionaryProvider);
         ) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (ArrowStreamWriter writer = new ArrowStreamWriter(root, dictionaryProvider, Channels.newChannel(baos))) {
+            // Compress the IPC buffers with the configured codec (default ZSTD). The codec id is
+            // written into each IPC message's metadata, so the consumer's ArrowStreamReader
+            // auto-detects it — only the writer names a codec. NO_COMPRESSION falls back to the
+            // plain (uncompressed) writer. This shrinks both the shipped bytes AND the heap-resident
+            // buffered chunks the consumer accumulates (the shuffle circuit-breaker relief).
+            try (
+                ArrowStreamWriter writer = ShuffleCompression.writeCompressed()
+                    ? new ArrowStreamWriter(
+                        root,
+                        dictionaryProvider,
+                        Channels.newChannel(baos),
+                        IpcOption.DEFAULT,
+                        ShuffleCompression.FACTORY,
+                        ShuffleCompression.WRITE_CODEC,
+                        ShuffleCompression.ZSTD_LEVEL
+                    )
+                    : new ArrowStreamWriter(root, dictionaryProvider, Channels.newChannel(baos))
+            ) {
                 writer.start();
                 writer.writeBatch();
                 writer.end();

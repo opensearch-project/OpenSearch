@@ -322,7 +322,12 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
      * {@link NativeBridge#registerPartitionStreamOnSessionContext} expects.
      */
     private static byte[] extractSchemaIpc(byte[] chunkIpc, BufferAllocator alloc) throws Exception {
-        try (ByteArrayInputStream in = new ByteArrayInputStream(chunkIpc); ArrowStreamReader reader = new ArrowStreamReader(in, alloc)) {
+        // Pass the compression factory so a producer-compressed chunk decodes; the reader
+        // auto-detects the codec (incl. NO_COMPRESSION) from the IPC message metadata.
+        try (
+            ByteArrayInputStream in = new ByteArrayInputStream(chunkIpc);
+            ArrowStreamReader reader = new ArrowStreamReader(in, alloc, ShuffleCompression.FACTORY)
+        ) {
             return ArrowSchemaIpc.toBytes(reader.getVectorSchemaRoot().getSchema());
         }
     }
@@ -333,7 +338,10 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
      */
     private static int pumpChunkIntoSender(byte[] chunkIpc, BufferAllocator alloc, DatafusionPartitionSender sender) throws Exception {
         int count = 0;
-        try (ByteArrayInputStream in = new ByteArrayInputStream(chunkIpc); ArrowStreamReader reader = new ArrowStreamReader(in, alloc)) {
+        try (
+            ByteArrayInputStream in = new ByteArrayInputStream(chunkIpc);
+            ArrowStreamReader reader = new ArrowStreamReader(in, alloc, ShuffleCompression.FACTORY)
+        ) {
             VectorSchemaRoot rootView = reader.getVectorSchemaRoot();
             while (reader.loadNextBatch()) {
                 // Each loadNextBatch mutates rootView in-place. Export immediately; the native
