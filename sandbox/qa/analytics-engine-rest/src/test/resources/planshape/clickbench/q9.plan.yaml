@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], RegionID=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchProject(RegionID=[$0], u=[$1], viableBackends=[[datafusion]])
                   OpenSearchSort(sort0=[$2], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
                     OpenSearchProject(RegionID=[$0], u=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[datafusion]])
@@ -30,7 +30,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], RegionID=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical: |
       ProjectionExec: expr=[RegionID@0 as RegionID, approx_distinct(<scrubbed>.UserID)@1 as u]

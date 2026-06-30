@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], viableBackends=[[datafusion]])
           OpenSearchProject(count()=[$1], AdvEngineID=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30000], viableBackends=[[datafusion]])
                   OpenSearchAggregate(group=[{0}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
@@ -28,7 +28,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], viableBackends=[[datafusion]])
           OpenSearchProject(count()=[$1], AdvEngineID=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[AdvEngineID@0 as AdvEngineID, count(Int64(1))[count]@1 as count()]
