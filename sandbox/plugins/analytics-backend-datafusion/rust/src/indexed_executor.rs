@@ -25,16 +25,11 @@ use native_bridge_common::log_debug;
 use datafusion::{
     physical_plan::displayable,
     physical_plan::execute_stream,
-    execution::SessionStateBuilder,
-    execution::context::SessionContext,
     common::DataFusionError,
-    prelude::*,
     arrow::datatypes::SchemaRef,
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
     datasource::{TableProvider, TableType},
-    execution::cache::cache_manager::CachedFileList,
-    execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
     logical_expr::Expr,
@@ -51,6 +46,7 @@ use substrait::proto::Plan;
 use crate::api::DataFusionRuntime;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
+use crate::helper::{build_query_runtime_env_with_store, build_query_session_context, register_listing_table};
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
@@ -60,22 +56,22 @@ use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::segment_info::build_segments;
 use crate::indexed_table::substrait_to_tree::{
-    classify_filter, create_index_filter_udf, expr_to_bool_tree,
-    extract_filter_expr, ExtractionResult, FilterClass,
+    classify_filter, expr_to_bool_tree, extract_filter_expr, ExtractionResult, FilterClass,
 };
 use crate::indexed_table::table_provider::{
     EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
 };
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::api::ShardView;
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
-
+use crate::parquet_page_cache::{load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair};
 
 /// Execute an indexed query.
 ///
@@ -98,63 +94,29 @@ pub async fn execute_indexed_query(
     context_id: i64,
 ) -> Result<i64, DataFusionError> {
     let num_partitions = query_config.target_partitions.max(1);
-    // Share caches with the global runtime (same as vanilla path): list-files
-    // pre-populated with the reader's object_metas, file-metadata and
-    // file-statistics inherited from the global runtime for cross-query reuse.
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    let table_scoped_path = TableScopedPath {
-        table: None,
-        path: shard_view.table_path.prefix().clone(),
-    };
-    list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
-
-    let mut runtime_env_builder = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache);
-    if let Some(pool) = query_memory_pool {
-        runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
-    }
-    let runtime_env = runtime_env_builder
-        .build()
-        .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
-
-    // Register shard-specific object store on file:// scheme for this query.
-    runtime_env.register_object_store(
-        &url::Url::parse("file://").unwrap(),
+    // Build the per-query RuntimeEnv (list-files cache pre-populated, optional
+    // per-query pool overlay) and register the shard object store — shared with
+    // the vanilla path. File-metadata and file-statistics caches are inherited
+    // from the global runtime for cross-query reuse.
+    let runtime_env = build_query_runtime_env_with_store(
+        runtime,
+        &shard_view.table_path,
+        shard_view.object_metas.as_ref(),
         Arc::clone(&shard_view.store),
-    );
+        query_memory_pool,
+    )?;
 
-    let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
-    // Indexed path fans out via IndexedExec partitions (derived from
-    // num_partitions), not DataFusion's. But DF wants a sane value here
-    // for any post-scan operators it may add.
-    config.options_mut().execution.target_partitions = num_partitions.max(1);
-    config.options_mut().execution.batch_size = query_config.batch_size;
-    let state = SessionStateBuilder::new()
-        .with_config(config)
-        .with_runtime_env(Arc::from(runtime_env))
-        .with_default_features()
-        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
-        .build();
-    let ctx = SessionContext::new_with_state(state);
-    ctx.register_udf(create_index_filter_udf());
-    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
-    crate::udf::register_all(&ctx);
-    crate::udaf::register_all(&ctx);
+    // Build a fresh session context per query. The indexed path fans out via
+    // IndexedExec partitions (derived from num_partitions), not DataFusion's, but
+    // DF still wants a sane value for any post-scan operators it may add. The
+    // `indexed_path` flag also drops the combine-partial-final optimizer pass and
+    // registers the indexed-only index_filter / delegation_possible UDFs.
+    let ctx = build_query_session_context(&query_config, runtime_env, num_partitions, true);
 
-    // Register default ListingTable so substrait consumer can resolve the table
-    let listing_options = datafusion::datasource::listing::ListingOptions::new(
-        Arc::new(datafusion::datasource::file_format::parquet::ParquetFormat::new()))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true);
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await?;
-    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
-    let table_config = datafusion::datasource::listing::ListingTableConfig::new(shard_view.table_path.clone())
-        .with_listing_options(listing_options)
-        .with_schema(resolved_schema);
-    let provider = Arc::new(datafusion::datasource::listing::ListingTable::try_new(table_config)?);
-    ctx.register_table(&table_name, provider)?;
+    // Register default ListingTable so substrait consumer can resolve the table.
+    // No sort-order declaration on the indexed path (empty slices) — the indexed
+    // executor drives ordering itself via IndexedExec.
+    register_listing_table(&ctx, &table_name, shard_view.table_path.clone(), &[], &[]).await?;
 
     // Build SessionContextHandle and delegate to execute_indexed_with_context
     let handle = crate::session_context::SessionContextHandle {
@@ -300,12 +262,24 @@ fn collect_predicate_exprs(tree: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>
     }
 }
 
+/// Collect leaf predicate exprs from the extraction tree in a single traversal.
+fn collect_leaf_exprs(extraction: Option<&ExtractionResult>) -> Vec<Arc<dyn PhysicalExpr>> {
+    let Some(e) = extraction else { return vec![] };
+    let mut exprs = Vec::new();
+    collect_predicate_exprs(&e.tree, &mut exprs);
+    exprs
+}
+
 fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Vec<usize> {
     let Some(e) = extraction else { return vec![] };
     let mut exprs = Vec::new();
     collect_predicate_exprs(&e.tree, &mut exprs);
-    let mut indices = BTreeSet::new();
-    for expr in &exprs {
+    collect_predicate_column_indices_from_exprs(&exprs)
+}
+
+fn collect_predicate_column_indices_from_exprs(exprs: &[Arc<dyn PhysicalExpr>]) -> Vec<usize> {
+    let mut indices = HashSet::new();
+    for expr in exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node.downcast_ref::<Column>() {
                 indices.insert(col.index());
@@ -315,6 +289,76 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     }
     indices.into_iter().collect()
 }
+
+fn collect_predicate_column_names(
+    extraction: Option<&ExtractionResult>,
+    schema: &SchemaRef,
+) -> Vec<String> {
+    let Some(e) = extraction else { return vec![] };
+    let mut exprs = Vec::new();
+    collect_predicate_exprs(&e.tree, &mut exprs);
+    let mut names = HashSet::new();
+    for expr in &exprs {
+        let _ = expr.apply(|node| {
+            if let Some(col) = node.downcast_ref::<Column>() {
+                if let Some(field) = schema.fields().get(col.index()) {
+                    names.insert(field.name().to_string());
+                }
+            }
+            Ok(TreeNodeRecursion::Continue)
+        });
+    }
+    names.into_iter().collect()
+}
+
+fn collect_plan_column_names(plan: &datafusion::logical_expr::LogicalPlan) -> Vec<String> {
+    let mut names = HashSet::new();
+    let _ = plan.apply(|node| {
+        // Output-schema columns of every node: this is what each node actually
+        // emits / reads. Critically this captures `SELECT *` (and any projection
+        // pushed into the scan), where no Projection expression lists the columns
+        // but every column is still read. Expression-only collection misses them,
+        // and a read column that gets only a placeholder OffsetIndex (instead of
+        // its real multi-page one) corrupts the page read: arrow decodes the whole
+        // column chunk as a single page → "output too small for decompressed data"
+        // (or, upstream, the (0,0)-page byte-range subtract underflow).
+        for field in node.schema().fields() {
+            names.insert(field.name().to_string());
+        }
+        let _ = node.apply_expressions(|expr| {
+            let _ = expr.apply(|e| {
+                if let Expr::Column(col) = e {
+                    names.insert(col.name().to_string());
+                }
+                Ok(TreeNodeRecursion::Continue)
+            });
+            Ok(TreeNodeRecursion::Continue)
+        });
+        Ok(TreeNodeRecursion::Continue)
+    });
+    names.into_iter().collect()
+}
+
+/// Build the `prune_tree_config` tuple from a BoolNode tree and schema.
+/// Builds per-leaf PruningPredicates from pre-collected leaf exprs.
+fn build_prune_tree_config(
+    tree: &Arc<BoolNode>,
+    schema: &SchemaRef,
+    leaf_exprs: &[Arc<dyn PhysicalExpr>],
+) -> Option<(Arc<BoolNode>, Arc<HashMap<usize, Arc<PruningPredicate>>>, SchemaRef)> {
+    let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
+        .iter()
+        .filter_map(|expr| {
+            build_pruning_predicate(expr, Arc::clone(schema))
+                .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+        })
+        .collect();
+    if leaf_predicates.is_empty() {
+        return None;
+    }
+    Some((Arc::clone(tree), Arc::new(leaf_predicates), Arc::clone(schema)))
+}
+
 /// For a tree classified as `SingleCollector`, walk it to find the single
 /// Collector leaf and return its query bytes.
 fn single_collector_id(tree: &BoolNode) -> Option<i32> {
@@ -558,6 +602,43 @@ mod tests {
         assert!(analyze_top_sort(&plan).is_none());
     }
 
+    // ── collect_plan_column_names ─────────────────────────────────────
+
+    /// Regression: `SELECT *` (and any scan that reads columns no Projection
+    /// expression names) must yield ALL output columns. The scoped page-index
+    /// load gives only these columns a REAL multi-page OffsetIndex; columns left
+    /// out get a single-page placeholder, which is fine for pruning but CORRUPTS
+    /// a real read — arrow decodes the whole chunk as one page ("output too small
+    /// for decompressed data"), or underflows the read byte range. The
+    /// `match() | sort | head` shape (q23) hit this: it reads every column but no
+    /// expression lists them. Collecting each plan node's OUTPUT SCHEMA fixes it.
+    #[test]
+    fn collect_plan_column_names_includes_select_star_columns() {
+        // No projection expressions name id/ts/v, but `SELECT *` reads all three.
+        let plan = build_logical_plan("SELECT * FROM t WHERE v = 0 ORDER BY ts");
+        let mut names = collect_plan_column_names(&plan);
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["id".to_string(), "ts".to_string(), "v".to_string()],
+            "every read column (full output schema) must be collected, not just expression columns"
+        );
+    }
+
+    /// A narrow projection still collects exactly the columns the query touches
+    /// (projected `v` + filter `id` + sort `ts`) — the scoping benefit is retained.
+    #[test]
+    fn collect_plan_column_names_collects_projected_and_referenced() {
+        let plan = build_logical_plan("SELECT v FROM t WHERE id = 1 ORDER BY ts");
+        let names = collect_plan_column_names(&plan);
+        for expected in ["v", "id", "ts"] {
+            assert!(
+                names.iter().any(|n| n == expected),
+                "expected column `{expected}` in collected names {names:?}"
+            );
+        }
+    }
+
     #[test]
     fn analyze_top_sort_returns_none_for_function_sort_key() {
         // `ORDER BY abs(v)` — leading sort key isn't a plain column. Catalog monotonicity
@@ -745,9 +826,12 @@ async unsafe fn execute_indexed_with_context_inner(
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
         let (cross_rt_stream, abort_handle, _task_done) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id_early, h);
+        }
+        if let Some(rt) = cpu_executor.handle() {
+            crate::query_tracker::set_cpu_runtime_handle(context_id_early, rt);
         }
         let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
             cross_rt_stream.schema(),
@@ -903,25 +987,45 @@ async unsafe fn execute_indexed_with_context_inner(
         FilterClass::Tree => None,
     };
 
-    let prune_tree_config = extraction.as_ref().and_then(|e| {
-        let mut leaf_exprs: Vec<Arc<dyn PhysicalExpr>> = Vec::new();
-        collect_predicate_exprs(&e.tree, &mut leaf_exprs);
-        let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
-            .iter()
-            .filter_map(|expr| {
-                build_pruning_predicate(expr, schema.clone())
-                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
-            })
-            .collect();
-        if leaf_predicates.is_empty() {
-            return None;
+    let leaf_exprs = collect_leaf_exprs(extraction.as_ref());
+
+    let predicate_columns = collect_predicate_column_indices_from_exprs(&leaf_exprs);
+
+    // Augment each segment's footer-only metadata with a scoped page index so
+    // the indexed PagePruner can page-prune. Both predicate (→ ColumnIndex) and
+    // projection (→ OffsetIndex) are wired — a match()-only query still needs a
+    // scoped OffsetIndex so the reader fetches only matched pages.
+    if page_index::is_scoped_page_index_enabled() {
+        let predicate_column_names = collect_predicate_column_names(extraction.as_ref(), &schema);
+        let projection_column_names = collect_plan_column_names(&logical_plan);
+        if !predicate_column_names.is_empty() || !projection_column_names.is_empty() {
+            for segment in segments.iter_mut() {
+                let (parquet_cols, offset_cols) =
+                    resolve_predicate_parquet_columns_pair(
+                        &schema,
+                        &segment.metadata,
+                        &predicate_column_names,
+                        &projection_column_names,
+                    );
+                if parquet_cols.is_empty() && offset_cols.is_empty() {
+                    continue;
+                }
+                if let Some(augmented) = load_scoped_page_index_cols(
+                    &store,
+                    &segment.object_path,
+                    &segment.metadata,
+                    &parquet_cols,
+                    &offset_cols,
+                )
+                .await
+                {
+                    segment.metadata = augmented;
+                }
+            }
         }
-        Some((e.tree.clone(), Arc::new(leaf_predicates), schema.clone()))
-    });
+    }
 
-    let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
-
-    let factory: EvaluatorFactory = match classification {
+    let (factory, prune_tree_config): (EvaluatorFactory, _) = match classification {
         FilterClass::None => {
             // Predicate-only scan: page-pruned universe, residual applied in
             // on_batch_mask. Also covers an unfoldable constant (e.g. mktime('...') >
@@ -929,6 +1033,9 @@ async unsafe fn execute_indexed_with_context_inner(
             // residual (pushdown is Exact, so DataFusion drops the FilterExec).
             // Previously errored here when emit_row_ids was false (indexed path only).
             let schema_for_pruner = schema.clone();
+            let prune_tree_config = extraction
+                .as_ref()
+                .and_then(|e| build_prune_tree_config(&e.tree, &schema_for_pruner, &leaf_exprs));
             let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction.as_ref().and_then(|e| {
                 residual_bool_to_physical_expr(&e.tree)
             });
@@ -936,12 +1043,14 @@ async unsafe fn execute_indexed_with_context_inner(
                 .as_ref()
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
-            Arc::new(
-                move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+            (Arc::new(
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
+                    let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
+                        .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
                             pruner,
@@ -949,10 +1058,11 @@ async unsafe fn execute_indexed_with_context_inner(
                             residual_expr.clone(),
                             Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
                             stats_prune_tree.cloned(),
+                            rg_index_to_pos,
                         ));
                     Ok(eval)
                 },
-            )
+            ), prune_tree_config)
         }
         FilterClass::SingleCollector => {
             let extraction = extraction.as_ref().ok_or_else(|| {
@@ -961,6 +1071,7 @@ async unsafe fn execute_indexed_with_context_inner(
                 )
             })?;
             let schema_for_pruner = schema.clone();
+            let prune_tree_config = build_prune_tree_config(&extraction.tree, &schema_for_pruner, &leaf_exprs);
 
             // Correctness-delegated provider (eager). `None` when the query has only
             // performance-delegated leaves and no Collector at all.
@@ -1009,12 +1120,11 @@ async unsafe fn execute_indexed_with_context_inner(
                 .as_ref()
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
-            let call_strategy = query_config.single_collector_strategy;
+            let call_strategy = CollectorCallStrategy::PageRangeSplit;
             let bloom_store = Arc::clone(&store);
             let bloom_schema = schema.clone();
-            let bloom_on_read = query_config.bloom_filter_on_read;
-            Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+            (Arc::new(
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
@@ -1043,19 +1153,16 @@ async unsafe fn execute_indexed_with_context_inner(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
-                    let bloom_config = if bloom_on_read {
-                        Some(crate::indexed_table::eval::single_collector::BloomConfig {
-                            store: Arc::clone(&bloom_store),
-                            object_path: segment.object_path.clone(),
-                            metadata: Arc::clone(&segment.metadata),
-                            arrow_schema: Arc::clone(&bloom_schema),
-                            io_handle: io_handle.clone(),
-                            rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
-                            bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
-                        })
-                    } else {
-                        None
-                    };
+                    // Bloom-filter row-group pruning is always enabled on the indexed read path.
+                    let bloom_config = Some(crate::indexed_table::eval::single_collector::BloomConfig {
+                        store: Arc::clone(&bloom_store),
+                        object_path: segment.object_path.clone(),
+                        metadata: Arc::clone(&segment.metadata),
+                        arrow_schema: Arc::clone(&bloom_schema),
+                        io_handle: io_handle.clone(),
+                        rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
+                        bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
+                    });
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -1071,10 +1178,11 @@ async unsafe fn execute_indexed_with_context_inner(
                             context_id,
                             bloom_config,
                             stats_prune_tree.cloned(),
+                            chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
                         ));
                     Ok(eval)
                 },
-            )
+            ), prune_tree_config)
         }
         FilterClass::Tree => {
             let extraction = extraction.ok_or_else(|| {
@@ -1086,7 +1194,7 @@ async unsafe fn execute_indexed_with_context_inner(
             // same-kind connectives. Flatten after push_not_down so the
             // connective changes from De Morgan (e.g. NOT(AND(...)) -> OR(NOT...))
             // get absorbed into the surrounding Or if applicable.
-            let tree = extraction.tree.push_not_down().flatten();
+            let tree = Arc::try_unwrap(extraction.tree).unwrap().push_not_down().flatten();
             // One provider per Collector leaf (DFS order).
             let leaf_ids = tree.collector_leaves();
             let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
@@ -1100,8 +1208,8 @@ async unsafe fn execute_indexed_with_context_inner(
             let schema_for_pruner = schema.clone();
             let cost_predicate = query_config.cost_predicate;
             let cost_collector = query_config.cost_collector;
-            let max_collector_parallelism = query_config.max_collector_parallelism;
-            let collector_strategy = query_config.tree_collector_strategy;
+            let max_collector_parallelism = 1;
+            let collector_strategy = CollectorCallStrategy::TightenOuterBounds;
 
             // Build one `PruningPredicate` per unique `Predicate` leaf
             // in the tree. Key = `Arc::as_ptr(expr) as usize` — the
@@ -1122,8 +1230,17 @@ async unsafe fn execute_indexed_with_context_inner(
                     .collect(),
             );
 
-            Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
+            // Build prune_tree_config from the normalized tree. This ensures
+            // StatsPruneTree children indices align with ResolvedNode children
+            // (same push_not_down + flatten normalization applied above).
+            let prune_tree_config = if pruning_predicates.is_empty() {
+                None
+            } else {
+                Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema_for_pruner.clone()))
+            };
+
+            (Arc::new(
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
                     // Build one collector per Collector leaf for this chunk.
                     let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                         Vec::with_capacity(providers.len());
@@ -1168,10 +1285,11 @@ async unsafe fn execute_indexed_with_context_inner(
                         )),
                         collector_strategy,
                         stats_prune_tree: stats_prune_tree.cloned(),
+                        rg_index_to_pos: chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
                     });
                     Ok(eval)
                 },
-            )
+            ), prune_tree_config)
         }
     };
 
@@ -1198,6 +1316,7 @@ async unsafe fn execute_indexed_with_context_inner(
         prune_tree_config,
         sort_fields: sort_fields.clone(),
         sort_orders: sort_orders.clone(),
+        cancellation_token: crate::query_tracker::get_cancellation_token(context_id),
     }));
     ctx.register_table(&register_name, provider)?;
 
@@ -1223,10 +1342,13 @@ async unsafe fn execute_indexed_with_context_inner(
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
     let (cross_rt_stream, abort_handle, _task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
 
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
+    }
+    if let Some(rt) = cpu_executor.handle() {
+        crate::query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
 
     let schema = cross_rt_stream.schema();

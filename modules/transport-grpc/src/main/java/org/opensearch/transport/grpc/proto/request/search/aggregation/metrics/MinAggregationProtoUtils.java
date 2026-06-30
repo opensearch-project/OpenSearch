@@ -43,7 +43,7 @@ public class MinAggregationProtoUtils {
 
         ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
             .field(minAggProto.hasField() ? minAggProto.getField() : null)
-            .missing(minAggProto.hasMissing() ? FieldValueProtoUtils.fromProto(minAggProto.getMissing()) : null)
+            .missing(minAggProto.hasMissing() ? FieldValueProtoUtils.fromProto(minAggProto.getMissing(), false) : null)
             .valueType(minAggProto.hasValueType() ? minAggProto.getValueType() : null)
             .format(minAggProto.hasFormat() ? minAggProto.getFormat() : null)
             .script(minAggProto.hasScript() ? ScriptProtoUtils.parseFromProtoRequest(minAggProto.getScript()) : null)

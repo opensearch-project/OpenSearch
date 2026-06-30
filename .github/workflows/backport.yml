@@ -1,40 +1,12 @@
+---
 name: Backport
 on:
   pull_request_target:
-    types:
-      - closed
-      - labeled
+    types: [closed, labeled]
 
 jobs:
   backport:
-    name: Backport
-    runs-on: ubuntu-latest
-    # Only react to merged PRs for security reasons.
-    # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
-    if: >
-      github.event.pull_request.merged
-      && (
-        github.event.action == 'closed'
-        || (
-          github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
-        )
-      )
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: GitHub App token
-        id: github_app_token
-        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2.1.0
-        with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          installation_id: 22958780
-
-      - name: Backport
-        uses: VachaShah/backport@142d3b8a8c70dc54db515e653e5ed3c3fac64100 # v2.2.0
-        with:
-          github_token: ${{ steps.github_app_token.outputs.token }}
-          head_template: backport/backport-<%= number %>-to-<%= base %>
-          failure_labels: backport-failed
+    if: github.repository == 'opensearch-project/OpenSearch'
+    uses: opensearch-project/opensearch-build/.github/workflows/backport-pr.yml@58f2e5108a5164e37af78f5d8de5d825825023a9
+    secrets:
+      OPENSEARCH_CI_BOT_TOKEN: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}

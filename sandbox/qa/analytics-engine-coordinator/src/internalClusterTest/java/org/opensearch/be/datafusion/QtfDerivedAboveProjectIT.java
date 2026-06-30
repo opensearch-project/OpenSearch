@@ -206,7 +206,6 @@ public class QtfDerivedAboveProjectIT extends OpenSearchIntegTestCase {
         // CounterID is monotonically increasing so `WHERE CounterID > 0` matches all rows.
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX)
-                .setId(String.valueOf(i))
                 .setSource(
                     "URL",
                     "https://example.com/page" + i,

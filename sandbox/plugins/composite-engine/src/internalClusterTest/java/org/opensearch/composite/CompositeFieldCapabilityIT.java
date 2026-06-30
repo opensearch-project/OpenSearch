@@ -312,7 +312,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex(indexName)
-                .setId("1")
                 .setSource(
                     "f_long",
                     100L,
@@ -355,7 +354,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex(indexName)
-                .setId("2")
                 .setSource(
                     "f_long",
                     200L,
@@ -378,7 +376,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex(indexName)
-                .setId("3")
                 .setSource("f_long", 300L, "f_keyword", "gamma", "f_text", "third with dynamic", "dynamic_new_field", "dynamic_value")
                 .get()
                 .status()
@@ -445,28 +442,17 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         ensureGreen(indexName);
 
         // Index doc with value within ignore_above
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("1").setSource("field", "short", "id_field", "doc1").get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("field", "short", "id_field", "doc1").get().status());
         // Index doc with value exceeding ignore_above (value ignored, sourceKeywordFieldType stores raw)
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex(indexName)
-                .setId("2")
-                .setSource("field", "this_exceeds_ignore_above_limit", "id_field", "doc2")
-                .get()
-                .status()
+            client().prepareIndex(indexName).setSource("field", "this_exceeds_ignore_above_limit", "id_field", "doc2").get().status()
         );
 
         // Dynamic mapping: add a new field
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex(indexName)
-                .setId("3")
-                .setSource("field", "dynamic", "id_field", "doc3", "new_dynamic_field", "hello")
-                .get()
-                .status()
+            client().prepareIndex(indexName).setSource("field", "dynamic", "id_field", "doc3", "new_dynamic_field", "hello").get().status()
         );
 
         client().admin().indices().prepareRefresh(indexName).get();
@@ -540,14 +526,8 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         ensureGreen(indexName);
 
         // Index doc — value is within any ignore_above but normalizer transforms it
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("1").setSource("field", "Hello", "id_field", "doc1").get().status()
-        );
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("2").setSource("field", "WORLD", "id_field", "doc2").get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("field", "Hello", "id_field", "doc1").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("field", "WORLD", "id_field", "doc2").get().status());
 
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
@@ -597,14 +577,8 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         ensureGreen(indexName);
 
         // Index doc — value is within any ignore_above but normalizer transforms it
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("1").setSource("field", "Hello", "id_field1", "doc1").get().status()
-        );
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("2").setSource("field", "WORLD", "id_field2", "doc2").get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("field", "Hello", "id_field1", "doc1").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("field", "WORLD", "id_field2", "doc2").get().status());
 
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
@@ -658,17 +632,14 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         // Index initial docs
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("1").setSource("content", "hello world", "tag", "greeting").get().status()
+            client().prepareIndex(indexName).setSource("content", "hello world", "tag", "greeting").get().status()
         );
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("2").setSource("content", "foo bar", "tag", "test").get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("content", "foo bar", "tag", "test").get().status());
 
         // Dynamic mapping: add new field
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("3").setSource("content", "dynamic doc", "tag", "new", "extra_field", 42).get().status()
+            client().prepareIndex(indexName).setSource("content", "dynamic doc", "tag", "new", "extra_field", 42).get().status()
         );
 
         client().admin().indices().prepareRefresh(indexName).get();
@@ -714,7 +685,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex(indexName)
-                .setId("1")
                 .setSource("f_long", 100L, "f_keyword", "alpha", "f_date", "2024-01-01", "f_text", "some text")
                 .get()
                 .status()
@@ -722,7 +692,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex(indexName)
-                .setId("2")
                 .setSource("f_long", 200L, "f_keyword", "beta", "f_date", "2024-06-15", "f_text", "more text")
                 .get()
                 .status()
@@ -732,7 +701,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex(indexName)
-                .setId("3")
                 .setSource("f_long", 300L, "f_keyword", "gamma", "f_date", "2024-12-31", "f_text", "final", "dyn_bool", true)
                 .get()
                 .status()
@@ -774,7 +742,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertIndexCreationSucceeds(indexName, "field", "type=keyword");
 
         // Index a document successfully
-        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setId("1").setSource("field", "value1").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("field", "value1").get().status());
 
         client().admin().indices().prepareRefresh(indexName).get();
 
@@ -817,13 +785,10 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         ensureGreen(indexName);
 
         // Index initial doc
-        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setId("1").setSource("name", "first").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("name", "first").get().status());
 
         // Index doc with dynamic numeric field
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName).setId("2").setSource("name", "second", "dynamic_num", 42).get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("name", "second", "dynamic_num", 42).get().status());
 
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();

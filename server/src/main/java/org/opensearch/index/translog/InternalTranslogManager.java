@@ -21,6 +21,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -430,6 +431,11 @@ public class InternalTranslogManager implements TranslogManager {
      */
     public String getTranslogUUID() {
         return translog.getTranslogUUID();
+    }
+
+    @Override
+    public Closeable acquireHistoryRetentionLock() {
+        return translog.acquireRetentionLock();
     }
 
     /**

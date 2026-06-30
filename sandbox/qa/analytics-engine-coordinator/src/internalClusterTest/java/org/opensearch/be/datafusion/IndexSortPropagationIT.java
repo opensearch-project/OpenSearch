@@ -229,7 +229,6 @@ public class IndexSortPropagationIT extends OpenSearchIntegTestCase {
             // CounterID: 1..DOC_COUNT, EventDate spans 2026-05-01..2026-05-(1 + i mod 10).
             // Same content for both indices — only physical layout differs because of index.sort.field.
             client().prepareIndex(index)
-                .setId(String.valueOf(i))
                 .setSource(
                     "URL",
                     "https://example.com/page" + i,

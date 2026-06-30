@@ -25,42 +25,91 @@ import java.util.Map;
 public class SearchStatsContributorIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
+    /**
+     * Multi-shard index so the test can distinguish the per-query contributor
+     * (queryCount delta ≈ N) from the per-shard Lucene-equivalent contributor
+     * (queryCount delta ≈ N × shards). Catches the regression class where the
+     * contributor counts 1-per-query and silently under-reports search rate
+     * by the shard fan-out factor to downstream consumers of node stats.
+     */
+    private static final int NUMBER_OF_SHARDS = 3;
     private static boolean dataProvisioned = false;
 
     private void ensureDataProvisioned() throws IOException {
         if (dataProvisioned == false) {
-            DatasetProvisioner.provision(client(), DATASET);
+            DatasetProvisioner.provision(client(), DATASET, NUMBER_OF_SHARDS);
             dataProvisioned = true;
         }
     }
 
-    public void testQueryTotalIncrementsAfterAnalyticsQueries() throws IOException {
+    /**
+     * Guards the 1-per-query bug: cluster-wide query_total must grow with the
+     * shard fan-out factor. A 1-per-query contributor would produce delta ≈ N
+     * (instead of N × shards), under-reporting search rate by the shard fan-out
+     * factor to downstream consumers of node stats.
+     */
+    public void testQueryTotalScalesWithShardFanOut() throws IOException {
         ensureDataProvisioned();
 
-        long baselineQueryTotal = getQueryTotalAcrossNodes();
-        long baselineQueryTimeMs = getQueryTimeAcrossNodes();
+        long before = getQueryTotalAcrossNodes();
+        fireQueries();
+        long after = getQueryTotalAcrossNodes();
 
-        // Fire a handful of analytics-engine PPL queries — varied shapes so the contributor
-        // sees both real elapsed time and a non-trivial count.
+        long delta = after - before;
+        long minExpected = (long) TOTAL_QUERIES * NUMBER_OF_SHARDS / 2;
+        assertTrue(
+            "search.query_total must grow with shard fan-out (fired " + TOTAL_QUERIES
+                + " on " + NUMBER_OF_SHARDS + "-shard index, expected ≥ " + minExpected
+                + ", observed delta=" + delta + ")",
+            delta >= minExpected
+        );
+    }
+
+    /**
+     * Guards the latency-aggregation bug: query_time_in_millis must move when
+     * real PPL work runs. A delta of 0 means the contributor's time source
+     * dropped every recording (e.g. an all-or-nothing window that collapsed).
+     */
+    public void testQueryTimeIncrementsAfterAnalyticsQueries() throws IOException {
+        ensureDataProvisioned();
+
+        long before = getQueryTimeAcrossNodes();
+        fireQueries();
+        long after = getQueryTimeAcrossNodes();
+
+        long delta = after - before;
+        assertTrue("search.query_time_in_millis must grow > 0 after PPL work, observed delta=" + delta, delta > 0);
+    }
+
+    /**
+     * Minimum-viable check: every fired query must contribute at least once to
+     * cluster-wide query_total. Catches regressions where the contributor stops
+     * firing entirely (e.g. returns null, or filters out all stages).
+     */
+    public void testQueryTotalIncrementsAtLeastOncePerQuery() throws IOException {
+        ensureDataProvisioned();
+
+        long before = getQueryTotalAcrossNodes();
+        fireQueries();
+        long after = getQueryTotalAcrossNodes();
+
+        long delta = after - before;
+        assertTrue(
+            "search.query_total must grow by at least one per query (fired " + TOTAL_QUERIES
+                + ", observed delta=" + delta + ")",
+            delta >= TOTAL_QUERIES
+        );
+    }
+
+    private static final int TOTAL_QUERIES = 15;
+
+    private void fireQueries() throws IOException {
+        // Varied shapes so the contributor sees both real elapsed time and a non-trivial count.
         for (int i = 0; i < 5; i++) {
             executePpl("source=" + DATASET.indexName + " | fields str0");
             executePpl("source=" + DATASET.indexName + " | where num0 > 0 | fields str0, num0");
             executePpl("source=" + DATASET.indexName + " | stats avg(num0)");
         }
-
-        long afterQueryTotal = getQueryTotalAcrossNodes();
-        long afterQueryTimeMs = getQueryTimeAcrossNodes();
-
-        long countDelta = afterQueryTotal - baselineQueryTotal;
-        assertTrue(
-            "search.query_total must increment by at least 1 after analytics queries, delta=" + countDelta,
-            countDelta >= 1
-        );
-        // query_time_in_millis is a sum so it should grow strictly monotonically with count;
-        // any single query that took 0ms is unlikely with non-trivial work, but the contract
-        // we care about is "the field is being populated", so >= 0 is enough.
-        long timeDelta = afterQueryTimeMs - baselineQueryTimeMs;
-        assertTrue("search.query_time_in_millis must not regress, delta=" + timeDelta, timeDelta >= 0);
     }
 
     private long getQueryTotalAcrossNodes() throws IOException {
