@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -e -o pipefail
+
+OPENSEARCH_MAIN_CLASS=org.opensearch.index.shard.ShardToolCli \
+  "`dirname "$0"`"/opensearch-cli \
+  "$@"

@@ -1,0 +1,361 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test simulate API works well with remove processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # test simulating existing pipeline works well
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_source": {
+                  "foo": "bar",
+                  "bar": "zoo"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source: { "foo": "bar" } }
+
+  # test simulating inflight pipeline works well
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "remove" : {
+                    "field" : "{{foo}}"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "foo": "bar",
+                  "bar": "zoo"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source: { "foo": "bar" } }
+
+---
+"Test remove processor with non-existing field and without ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{unknown}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field path cannot be null nor empty/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+
+---
+"Test remove processor with resolved field path doesn't exist":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field \[bar\] doesn\'t exist/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          message: "foo bar baz",
+          foo: "bar"
+        }
+
+---
+"Test remove processor with non-existing field and ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{unknown}}",
+                  "ignore_missing" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.message: "foo bar baz" }
+
+#Related issue: https://github.com/opensearch-project/OpenSearch/issues/10732
+---
+"Test remove metadata field":
+  - skip:
+      version: " - 2.11.99"
+      reason: "The bug was fixed in 2.12"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_index\]/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "_index"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_version"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_version\]/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_version_type"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_version\_type\]/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : ["_id", "_routing"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        routing: abc
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+  - match: { result: created }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_id"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_id\] when specifying external version for the document/
+      index:
+        index: test
+        id: "test_id_10000"
+        pipeline: "my_pipeline"
+        version: 1
+        version_type: "external"
+        body: { message: "foo bar baz" }
+
+  # test simulating pipeline with removing _id
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "remove" : {
+                    "field" : "_id"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_version_type": "external_gte",
+                "_version": 1,
+                "_source": {
+                  "foo": "bar",
+                  "bar": "zoo"
+                }
+              }
+            ]
+          }
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "cannot remove metadata field [_id] when specifying external version for the document, version: 1, version_type: external_gte" }
+
+# Related issue: https://github.com/opensearch-project/OpenSearch/issues/1578
+---
+"Test remove processor with exclude_field":
+  - skip:
+      version: " - 2.11.99"
+      reason: "exclude_field is introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "exclude_field": "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  { bar: "zoo"}}

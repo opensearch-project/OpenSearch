@@ -1,0 +1,261 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.JavaPackageType
+
+apply plugin: 'opensearch.internal-distribution-archive-setup'
+
+CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, JavaPackageType java) {
+  return copySpec {
+    into("opensearch-${version}") {
+      into('lib') {
+        with libFiles()
+      }
+      into('agent') {
+        with agentFiles()
+      }
+      into('config') {
+        dirPermissions {
+          unix 0750
+        }
+        filePermissions {
+          unix 0660
+        }
+        with configFiles(distributionType, java)
+        from {
+          dirPermissions {
+            unix 0750
+          }
+          jvmOptionsDir.getParent()
+        }
+      }
+      into('bin') {
+        with binFiles(distributionType, java)
+      }
+      if (java == JavaPackageType.JDK) {
+        into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
+          with jdkFiles(project, platform, architecture)
+        }
+      } else if (java == JavaPackageType.JRE) {
+        into("darwin".equals(platform) ? 'jre.app' : 'jre') {
+          with jreFiles(project, platform, architecture)
+        }
+      }
+      into('') {
+        from {
+          dirPermissions {
+            unix 0755
+          }
+          logsDir.getParent()
+        }
+      }
+      into('') {
+        from {
+          dirPermissions {
+            unix 0755
+          }
+          pluginsDir.getParent()
+        }
+      }
+      from(rootProject.projectDir) {
+        include 'README.md'
+      }
+      from(rootProject.file('licenses')) {
+        include 'APACHE-LICENSE-2.0.txt'
+        rename { 'LICENSE.txt' }
+      }
+
+      with noticeFile(java)
+      into('modules') {
+        with modulesFiles
+      }
+    }
+  }
+}
+
+distribution_archives {
+  integTestZip {
+    content {
+      archiveFiles(integTestModulesFiles, 'zip', null, 'x64', JavaPackageType.NONE)
+    }
+  }
+
+  darwinTar {
+    archiveClassifier = 'darwin-x64'
+    content {
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.JDK)
+    }
+  }
+
+  darwinArm64Tar {
+    archiveClassifier = 'darwin-arm64'
+    content {
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkDarwinTar {
+    archiveClassifier = 'no-jdk-darwin-x64'
+    content {
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.NONE)
+    }
+  }
+
+  noJdkDarwinArm64Tar {
+    archiveClassifier = 'no-jdk-darwin-arm64'
+    content {
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', JavaPackageType.NONE)
+    }
+  }
+
+  freebsdTar {
+    archiveClassifier = 'freebsd-x64'
+    content {
+      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', JavaPackageType.NONE)
+    }
+  }
+
+  noJdkFreebsdTar {
+    archiveClassifier = 'no-jdk-freebsd-x64'
+    content {
+      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', JavaPackageType.NONE)
+    }
+  }
+
+  linuxArm64Tar {
+    archiveClassifier = 'linux-arm64'
+    content {
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkLinuxArm64Tar {
+    archiveClassifier = 'no-jdk-linux-arm64'
+    content {
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', JavaPackageType.NONE)
+    }
+  }
+
+  linuxTar {
+    archiveClassifier = 'linux-x64'
+    content {
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkLinuxTar {
+    archiveClassifier = 'no-jdk-linux-x64'
+    content {
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', JavaPackageType.NONE)
+    }
+  }
+
+  jreLinuxTar {
+    archiveClassifier = 'jre-linux-x64'
+    content {
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', JavaPackageType.JRE)
+    }
+  }
+
+  // Should really be `no-jdk-linux-s390x` as it ships without a JDK, however it seems that the build can't handle
+  // the absence of the `linux-s390x` target.
+  linuxS390xTar {
+    archiveClassifier = 'linux-s390x'
+    content {
+      archiveFiles(modulesFiles('linux-s390x'), 'tar', 'linux', 's390x', JavaPackageType.NONE)
+    }
+  }
+
+
+  linuxPpc64leTar {
+    archiveClassifier = 'linux-ppc64le'
+    content {
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', JavaPackageType.JDK)
+    }
+  }
+
+ noJdkLinuxPpc64leTar {
+    archiveClassifier = 'no-jdk-linux-ppc64le'
+    content {
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', JavaPackageType.NONE)
+    }
+  }
+
+  linuxRiscv64Tar {
+    archiveClassifier = 'linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkLinuxRiscv64Tar {
+    archiveClassifier = 'no-jdk-linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.NONE)
+    }
+  }
+
+  windowsZip {
+    archiveClassifier = 'windows-x64'
+    content {
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x64'
+    content {
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', JavaPackageType.NONE)
+    }
+  }
+}
+
+subprojects {
+  apply plugin: 'distribution'
+  apply plugin: 'opensearch.internal-distribution-archive-check'
+
+  group = "org.opensearch.distribution"
+}
+
+tasks.configureEach { t ->
+  if (t.name ==~ /^build.+Tar$/) {
+    def base = t.name - 'Tar'   // buildLinuxTar -> buildLinux
+    def stage = tasks.findByName(base)
+    if (stage != null) {
+      t.dependsOn(stage)
+    }
+  }
+}
+
+tasks.each {
+  if (it.name.startsWith("build")) {
+    it.dependsOn project(':libs:agent-sm:agent').tasks.named('assemble')
+  }
+}

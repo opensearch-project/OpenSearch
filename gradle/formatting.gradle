@@ -1,0 +1,106 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.BuildPlugin
+
+/*
+ * This script plugin configures formatting for Java source using Spotless
+ * for Gradle. Since the act of formatting existing source can interfere
+ * with developers' workflows, we don't automatically format all code
+ * (yet). Instead, we maintain a list of projects that are excluded from
+ * formatting, until we reach a point where we can comfortably format them
+ * in one go without too much disruption.
+ *
+ * Any new sub-projects must not be added to the exclusions list!
+ *
+ * To perform a reformat, run:
+ *
+ *     ./gradlew spotlessApply
+ *
+ * To check the current format, run:
+ *
+ *     ./gradlew spotlessJavaCheck
+ *
+ * This is also carried out by the `precommit` task.
+ *
+ * For more about Spotless, see:
+ *
+ * https://github.com/diffplug/spotless/tree/master/plugin-gradle
+ */
+
+allprojects {
+  plugins.withType(BuildPlugin).whenPluginAdded {
+      project.apply plugin: "com.diffplug.spotless"
+
+      spotless {
+        java {
+          // Normally this isn't necessary, but we have Java sources in
+          // non-standard places
+          target '**/*.java'
+
+          removeUnusedImports()
+          forbidWildcardImports()
+          importOrder(
+              'de.thetaphi',
+              'com.carrotsearch',
+              'com.fasterxml',
+              'com.avast',
+              'com.sun',
+              'com.maxmind|com.github|com.networknt|groovy|nebula',
+              'org.antlr',
+              'software.amazon',
+              'com.azure|com.microsoft|com.ibm|com.google|joptsimple|org.apache|org.bouncycastle|org.codehaus|org.opensearch|org.objectweb|org.joda|org.hamcrest|org.openjdk|org.gradle|org.junit',
+              'javax',
+              'java',
+              '',
+              '\\#java|\\#org.opensearch|\\#org.hamcrest|\\#'
+          )
+          eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
+          trimTrailingWhitespace()
+          endWithNewline()
+
+          // See DEVELOPER_GUIDE.md for details of when to enable this.
+          if (System.getProperty('spotless.paddedcell') != null) {
+            paddedCell()
+          }
+        }
+        format 'misc', {
+            target '*.md', '*.gradle', '**/*.json', '**/*.yaml', '**/*.yml', '**/*.svg'
+
+            targetExclude '**/simple-bulk11.json', '**/simple-msearch5.json', '**/build/**', '**/build-bootstrap/**', '**/target/**'
+
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+      }
+
+      precommit.dependsOn 'spotlessJavaCheck'
+  }
+}

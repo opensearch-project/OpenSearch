@@ -1,0 +1,115 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.dataformat.stub;
+
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.Deleter;
+import org.opensearch.index.engine.dataformat.RefreshInput;
+import org.opensearch.index.engine.dataformat.RefreshResult;
+import org.opensearch.index.engine.dataformat.Writer;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongFunction;
+
+/**
+ * A mock {@link DeleteExecutionEngine} for testing purposes.
+ */
+public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataFormat> {
+
+    private final DataFormat dataFormat;
+    private final Map<Long, Deleter> deleters = new ConcurrentHashMap<>();
+
+    public MockDeleteExecutionEngine(DataFormat dataFormat) {
+        this.dataFormat = dataFormat;
+    }
+
+    @Override
+    public Deleter createDeleter(Writer<?> writer) {
+        Deleter deleter = new MockDeleter(writer.generation());
+        deleters.put(writer.generation(), deleter);
+        return deleter;
+    }
+
+    @Override
+    public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
+        return null;
+    }
+
+    @Override
+    public DataFormat getDataFormat() {
+        return dataFormat;
+    }
+
+    @Override
+    public void recordWrite(String id, long generation) {
+
+    }
+
+    @Override
+    public boolean onWriterCheckedOut(long generation) throws IOException {
+        return false;
+    }
+
+    @Override
+    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
+        Deleter deleter = deleters.get(deleteInput.generation());
+        if (deleter != null) {
+            return deleter.deleteDoc(deleteInput);
+        }
+        return new DeleteResult.Success(1L, 1L, 1L);
+    }
+
+    @Override
+    public void close() throws IOException {
+        deleters.clear();
+    }
+
+    private static class MockDeleter implements Deleter {
+        private final long generation;
+
+        MockDeleter(long generation) {
+            this.generation = generation;
+        }
+
+        @Override
+        public long generation() {
+            return generation;
+        }
+
+        @Override
+        public DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException {
+            return new DeleteResult.Success(1L, 1L, 1L);
+        }
+
+        @Override
+        public Queue<String> deactivate() {
+            return null;
+        }
+
+        @Override
+        public boolean recordBufferedDeletes(String id) {
+            return false;
+        }
+
+        @Override
+        public boolean isActive() {
+            return false;
+        }
+
+        @Override
+        public void close() throws IOException {}
+    }
+}

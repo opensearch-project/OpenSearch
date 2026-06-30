@@ -1,0 +1,17 @@
+"Search pipeline common installed":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+  - do:
+      cluster.state: {}
+
+  # Get cluster-manager node id
+  - set: { cluster_manager_node: cluster_manager }
+
+  - do:
+      nodes.info: {}
+
+  - contains:  { nodes.$cluster_manager.modules: { name: search-pipeline-common } }
+  - contains:  { nodes.$cluster_manager.search_pipelines.request_processors: { type: filter_query } }
+  - contains:  { nodes.$cluster_manager.search_pipelines.request_processors: { type: script } }
+  - contains:  { nodes.$cluster_manager.search_pipelines.response_processors: { type: rename_field } }

@@ -1,0 +1,671 @@
+setup:
+  - do:
+        indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                text:
+                  type: text
+                  analyzer: standard
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - '{"index": {"_index": "test", "_id": "1"}}'
+            - '{"text" : "Some like hot and dry, some like it cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "2"}}'
+            - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
+            - '{"index": {"_index": "test", "_id": "3"}}'
+            - '{"text" : "Baby its cold there outside"}'
+            - '{"index": {"_index": "test", "_id": "4"}}'
+            - '{"text" : "Outside it is cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "5"}}'
+            - '{"text" : "cold rain makes it wet"}'
+            - '{"index": {"_index": "test", "_id": "6"}}'
+            - '{"text" : "that is some cold cold rain"}'
+
+---
+"Test regexp":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                regexp:
+                  pattern: "at[a-z]{2,}here"
+  - match: { hits.total.value: 1 }
+
+---
+"Test regexp, explicit case sensitive":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                regexp:
+                  pattern: "AT[a-z]{2,}HERE"
+                  case_insensitive: false
+  - match: { hits.total.value: 0 }
+
+---
+"Test regexp, explicit case insensitive":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                regexp:
+                  pattern: "AT[a-z]{2,}HERE"
+                  case_insensitive: true
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered matching with via mode":
+  - do:
+        search:
+          index: test
+          body:
+            query:
+              intervals:
+                text:
+                  match:
+                    query: "cold outside"
+                    mode: "ordered"
+  - match: { hits.total.value: 2 }
+
+---
+"Test ordered matching":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: true
+  - match: { hits.total.value: 2 }
+
+---
+"Test default unordered matching":
+  - do:
+        search:
+          index: test
+          body:
+            query:
+              intervals:
+                text:
+                  match:
+                    query: "cold outside"
+  - match: { hits.total.value: 3 }
+
+---
+"Test explicit unordered matching via mode":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test explicit unordered matching":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: false
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered with overlap in match":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold wet it"
+                  mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered with no overlap in match":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold wet it"
+                  mode: "unordered_no_overlap"
+  - match: { hits.total.value: 2 }
+
+---
+"Test phrase matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  mode: "ordered"
+                  max_gaps: 0
+  - match: { hits.total.value: 1 }
+
+---
+"Test unordered max_gaps matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  max_gaps: 1
+  - match: { hits.total.value: 2 }
+
+---
+"Test ordered max_gaps matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  max_gaps: 0
+                  mode: "ordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with disjunction via mode":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                    - match:
+                        query: "atmosphere"
+                  mode: "ordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with disjunction":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                    - match:
+                        query: "atmosphere"
+                  ordered: true
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with max_gaps":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 0
+                  mode: "ordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  mode: "ordered"
+  - match: { hits.total.value: 2 }
+
+---
+"Test unordered combination via mode":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 1
+                  mode: "unordered"
+  - match: { hits.total.value: 2 }
+
+---
+"Test unordered combination":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 1
+                  ordered: false
+  - match: { hits.total.value: 2 }
+
+---
+"Test unordered combination with overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "wet"
+                    - match:
+                        query: "it"
+                  mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered combination no overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "wet"
+                    - match:
+                        query: "it"
+                  mode: "unordered_no_overlap"
+  - match: { hits.total.value: 2 }
+
+---
+"Test nested unordered combination with overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "hot"
+                    - match:
+                        query: "cold"
+                  mode: "unordered"
+  - match: { hits.total.value: 6 }
+
+---
+"Test nested unordered combination no overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "hot"
+                    - match:
+                        query: "cold"
+                  mode: "unordered_no_overlap"
+  - match: { hits.total.value: 2 }
+
+---
+"Test block combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  mode: "ordered"
+                  max_gaps: 0
+  - match: { hits.total.value: 1 }
+
+
+---
+"Test containing":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  mode: "unordered"
+                  filter:
+                    containing:
+                      match:
+                        query: "is"
+  - match: { hits.total.value: 1 }
+
+
+---
+"Test not containing":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  mode: "unordered"
+                  filter:
+                    not_containing:
+                      match:
+                        query: "is"
+  - match: { hits.total.value: 2 }
+
+---
+"Test contained_by":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "is"
+                  filter:
+                    contained_by:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                        mode: "unordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test not_contained_by":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "it"
+                  filter:
+                    not_contained_by:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+  - match: { hits.total.value: 2 }
+
+---
+"Test not_overlapping":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  mode: "ordered"
+                  filter:
+                    not_overlapping:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "baby"
+                          - match:
+                              query: "there"
+                        mode: "unordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test overlapping":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  mode: "ordered"
+                  filter:
+                    overlapping:
+                      match:
+                        query: "baby there"
+                        mode: "unordered"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test before":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold"
+                  filter:
+                    before:
+                      match:
+                        query: "outside"
+  - match: { hits.total.value: 2 }
+
+---
+"Test after":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold"
+                  filter:
+                    after:
+                      match:
+                        query: "outside"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "4" }
+
+---
+"Test prefix":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+---
+"Test wildcard":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - wildcard:
+                        pattern: out?ide
+  - match: { hits.total.value: 3 }
+
+---
+"Test fuzzy match":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - fuzzy:
+                        term: cald
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }

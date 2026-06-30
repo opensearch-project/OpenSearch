@@ -1,0 +1,16 @@
+# Integration tests for KMS component
+#
+"KMS loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+    - do:
+        cluster.state: {}
+
+    # Get cluster-manager node id
+    - set: { cluster_manager_node: cluster_manager }
+
+    - do:
+        nodes.info: {}
+
+    - contains:  { nodes.$cluster_manager.plugins: { name: crypto-kms } }

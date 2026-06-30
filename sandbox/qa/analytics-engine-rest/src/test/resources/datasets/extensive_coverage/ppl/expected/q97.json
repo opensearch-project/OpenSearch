@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "tags",
+      "type": "string"
+    },
+    {
+      "name": "all_positive",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "tag1,tag2,tag3",
+      true
+    ],
+    [
+      "tag2,tag4",
+      true
+    ],
+    [
+      "tag1,tag3,tag5",
+      true
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

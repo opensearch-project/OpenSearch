@@ -1,0 +1,5 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Copyright: Elasticsearch B.V. <info@elastic.co>
+Copyright: OpenSearch Contributors
+License: ${license.name}
+${license.text}

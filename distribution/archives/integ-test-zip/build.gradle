@@ -1,0 +1,79 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+import org.opensearch.gradle.MavenFilteringHack
+
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+
+// The integ-test-distribution is published to maven
+apply plugin: 'opensearch.publish'
+apply plugin: 'com.netflix.nebula.maven-publish'
+
+base {
+  group = "org.opensearch.distribution.integ-test-zip"
+  archivesName = "opensearch"
+}
+
+integTest {
+  dependsOn assemble
+}
+
+processTestResources {
+  inputs.properties(project(':distribution').restTestExpansions)
+  MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
+}
+
+// make the pom file name use opensearch instead of the project name
+ext.buildDist = parent.tasks.named("buildIntegTestZip")
+
+publishing {
+  publications {
+    nebula {
+      pom.packaging = 'zip'
+      artifact(buildDist.flatMap { it.archiveFile })
+    }
+  }
+}
+
+integTest {
+  /*
+   * There are two unique things going on here:
+   * 1. These tests can be run against an external cluster with
+   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
+   * 2. *One* of these tests is incompatible with that and should be skipped
+   *    when running against an external cluster.
+   */
+  if (System.getProperty("tests.rest.cluster") == null) {
+    nonInputProperties.systemProperty 'tests.logfile',
+      "${-> testClusters.integTest.singleNode().getServerLog()}"
+  } else {
+    systemProperty 'tests.logfile', '--external--'
+  }
+}

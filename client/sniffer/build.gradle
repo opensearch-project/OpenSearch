@@ -1,0 +1,126 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+apply from: "$rootDir/gradle/fips.gradle"
+
+java {
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
+}
+
+base {
+  group = 'org.opensearch.client'
+  archivesName = 'opensearch-rest-client-sniffer'
+}
+
+dependencies {
+  api project(":client:rest")
+  api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "tools.jackson.core:jackson-core:${versions.jackson3}"
+
+  testImplementation project(":client:test")
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testImplementation "org.objenesis:objenesis:${versions.objenesis}"
+  testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
+  testImplementation "net.bytebuddy:byte-buddy-agent:${versions.bytebuddy}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //client does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+  //client does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /commons-.*/, to: 'commons'
+}
+
+// JarHell is part of es server, which we don't want to pull in
+// TODO: Not anymore. Now in :libs:opensearch-core
+jarHell.enabled = false
+
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.opensearch.client.RestClientTestCase'
+    }
+  }
+}
+
+thirdPartyAudit.ignoreMissingClasses(
+  'org.conscrypt.Conscrypt',
+  //commons-logging optional dependencies
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+  'org.apache.log4j.Level',
+  'org.apache.log4j.Logger',
+  'org.apache.log4j.Priority',
+  'org.apache.logging.log4j.Level',
+  'org.apache.logging.log4j.LogManager',
+  'org.apache.logging.log4j.Marker',
+  'org.apache.logging.log4j.MarkerManager',
+  'org.apache.logging.log4j.spi.AbstractLoggerAdapter',
+  'org.apache.logging.log4j.spi.ExtendedLogger',
+  'org.apache.logging.log4j.spi.LoggerAdapter',
+  'org.apache.logging.log4j.spi.LoggerContext',
+  'org.apache.logging.log4j.spi.LoggerContextFactory',
+  'org.apache.logging.log4j.util.StackLocatorUtil',
+  //commons-logging provided dependencies
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  //optional compression
+  'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+  'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+  'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+  'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+  'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+  'com.github.luben.zstd.ZstdDecompressCtx',
+  'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+  'org.apache.commons.compress.compressors.CompressorStreamFactory'
+)

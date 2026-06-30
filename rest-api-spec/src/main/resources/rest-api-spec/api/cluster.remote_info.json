@@ -1,0 +1,20 @@
+{
+  "cluster.remote_info":{
+    "documentation":{
+      "url":"https://opensearch.org/docs/latest/api-reference/remote-info/",
+      "description":"Returns the information about configured remote clusters."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_remote/info",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

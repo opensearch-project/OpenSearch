@@ -1,0 +1,1 @@
+source=function_tests | eval readable_time = FROM_UNIXTIME(unix_time) | fields user, unix_time, readable_time | head 10

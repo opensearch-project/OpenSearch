@@ -1,0 +1,114 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+import org.opensearch.gradle.testclusters.RunTask
+import org.opensearch.gradle.VersionProperties
+
+apply plugin: 'opensearch.testclusters'
+
+def numNodes = findProperty('numNodes') as Integer ?: 1
+def numZones = findProperty('numZones') as Integer ?: 1
+
+testClusters {
+  runTask {
+    testDistribution = 'archive'
+    if (numZones > 1) numberOfZones = numZones
+    if (numNodes > 1) numberOfNodes = numNodes
+    if (findProperty("installedPlugins")) {
+      installedPlugins = Eval.me(installedPlugins)
+
+      def resolveMavenPlugin = { coords ->
+        // Add default groupId if not fully qualified (less than 2 colons)
+        String[] parts = coords.split(':')
+        if (parts.length == 2 && parts[0].contains('.')) {
+          throw new IllegalArgumentException("version is required if groupdId is specified '${coords}' Use format: groupId:artifactId:version")
+        }
+        String fullCoords = parts.length < 3 ? 'org.opensearch.plugin:' + coords : coords
+        def config = project.configurations.detachedConfiguration(
+          project.dependencies.create(fullCoords)
+        )
+        config.resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+        plugin(project.layout.file(project.provider { config.singleFile }))
+      }
+
+      for (String p : installedPlugins) {
+        // check if its a local plugin first
+        if (project.findProject(':plugins:' + p) != null) {
+          plugin(':plugins:' + p)
+        } else if (project.findProject(':sandbox:plugins:' + p) != null) {
+          plugin(':sandbox:plugins:' + p)
+        } else {
+          // attempt to fetch it from maven
+          project.repositories.mavenLocal()
+          project.repositories {
+            maven {
+              name = 'OpenSearch Snapshots'
+              url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+            }
+          }
+          if (p.contains(':')) {
+            // Maven coordinates with version specified
+            String coords = p.contains('@') ? p : (p + '@zip')
+            resolveMavenPlugin(coords)
+          } else {
+            // Not found locally, try Maven with current OS version + 0
+            String version = VersionProperties.getOpenSearch().replace('-SNAPSHOT', '.0-SNAPSHOT')
+            String coords = p + ':' + version + '@zip'
+            resolveMavenPlugin(coords)
+          }
+        }
+        if (p.equals("arrow-flight-rpc")) {
+          // Add system properties for Netty configuration
+          systemProperty 'io.netty.allocator.numDirectArenas', '1'
+          systemProperty 'io.netty.noUnsafe', 'false'
+          systemProperty 'io.netty.tryUnsafe', 'true'
+          systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+        }
+        if (p.equals("parquet-data-format") || p.equals("analytics-backend-datafusion")) {
+          // Composite engine / DataFusion requires pluggable dataformat feature flag
+          systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+          // Native lib path for DataFusion FFM bridge
+          def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/release').absolutePath
+          systemProperty 'java.library.path', nativeLibDir
+          jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+          jvmArgs '--enable-native-access=ALL-UNNAMED'
+        }
+      }
+    }
+  }
+
+}
+
+tasks.register("run", RunTask) {
+  useCluster testClusters.runTask;
+  description = 'Runs opensearch in the foreground'
+  group = 'Verification'
+
+  impliesSubProjects = true
+}

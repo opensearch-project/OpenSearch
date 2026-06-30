@@ -1,0 +1,1 @@
+source=test_data | eval formatted = date_format(timestamp, "yyyy-MM-dd") | fields timestamp, formatted | head 3

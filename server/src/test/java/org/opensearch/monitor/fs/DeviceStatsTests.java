@@ -1,0 +1,92 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.monitor.fs;
+
+import org.opensearch.test.OpenSearchTestCase;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+
+public class DeviceStatsTests extends OpenSearchTestCase {
+
+    public void testDeviceStats() {
+        final int majorDeviceNumber = randomIntBetween(1, 1 << 8);
+        final int minorDeviceNumber = randomIntBetween(0, 1 << 5);
+        final String deviceName = randomAlphaOfLength(3);
+        final int readsCompleted = randomIntBetween(1, 1 << 16);
+        final int sectorsRead = randomIntBetween(8 * readsCompleted, 16 * readsCompleted);
+        final int writesCompleted = randomIntBetween(1, 1 << 16);
+        final int sectorsWritten = randomIntBetween(8 * writesCompleted, 16 * writesCompleted);
+        final int readTime = randomIntBetween(1, 1 << 16);
+        ;
+        final int writeTime = randomIntBetween(1, 1 << 16);
+        ;
+        final int queueSize = randomIntBetween(1, 1 << 16);
+        final int ioTime = randomIntBetween(1, 1 << 16);
+        FsInfo.DeviceStats previous = new FsInfo.DeviceStats.Builder().majorDeviceNumber(majorDeviceNumber)
+            .minorDeviceNumber(minorDeviceNumber)
+            .deviceName(deviceName)
+            .currentReadsCompleted(readsCompleted)
+            .currentSectorsRead(sectorsRead)
+            .currentWritesCompleted(writesCompleted)
+            .currentSectorsWritten(sectorsWritten)
+            .currentReadTime(readTime)
+            .currentWriteTime(writeTime)
+            .currentQueueSize(queueSize)
+            .currentIOTime(ioTime)
+            .previousDeviceStats(null)
+            .build();
+        FsInfo.DeviceStats current = new FsInfo.DeviceStats.Builder().majorDeviceNumber(majorDeviceNumber)
+            .minorDeviceNumber(minorDeviceNumber)
+            .deviceName(deviceName)
+            .currentReadsCompleted(readsCompleted + 1024)
+            .currentSectorsRead(sectorsRead + 16384)
+            .currentWritesCompleted(writesCompleted + 2048)
+            .currentSectorsWritten(sectorsWritten + 32768)
+            .currentReadTime(readTime + 500)
+            .currentWriteTime(writeTime + 100)
+            .currentQueueSize(queueSize + 20)
+            .currentIOTime(ioTime + 8192)
+            .previousDeviceStats(previous)
+            .build();
+        assertThat(current.operations(), equalTo(1024L + 2048L));
+        assertThat(current.readOperations(), equalTo(1024L));
+        assertThat(current.writeOperations(), equalTo(2048L));
+        assertThat(current.readKilobytes(), equalTo(16384L / 2));
+        assertThat(current.writeKilobytes(), equalTo(32768L / 2));
+        assertEquals(500, current.readTime());
+        assertEquals(100, current.writeTime());
+        assertEquals(20, current.queueSize());
+        assertEquals(8192, current.ioTimeInMillis());
+    }
+
+}

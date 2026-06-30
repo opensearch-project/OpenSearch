@@ -1,0 +1,1 @@
+source=test_data | eval rad = radians(180) | fields id, rad | head 1

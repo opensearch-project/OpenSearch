@@ -1,0 +1,35 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.ExportOpenSearchBuildResourcesTask
+
+plugins {
+  id 'base'
+  id 'opensearch.global-build-info'
+}
+
+File buildResourcesDir = new File(project.getBuildDir(), 'build-tools-exported')
+TaskProvider buildResourcesTask = tasks.register('buildResources', ExportOpenSearchBuildResourcesTask) {
+  outputDir = buildResourcesDir
+}
+
+tasks.register("sampleCopy", Sync) {
+  /** Note: no explicit dependency. This works with tasks that use the Provider API a.k.a "Lazy Configuration" **/
+  from buildResourcesTask
+  into "$buildDir/sampleCopy"
+}
+
+tasks.register("noConfigAfterExecution") {
+  dependsOn buildResourcesTask
+  doLast {
+    buildResourcesTask.get().copy('foo')
+  }
+}

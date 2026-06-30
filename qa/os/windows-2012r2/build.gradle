@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.test.GradleDistroTestTask
+
+String boxId = project.properties.get('vagrant.windows-2012r2.id')
+if (boxId != null) {
+  vagrant {
+    hostEnv 'VAGRANT_WINDOWS_2012R2_BOX', boxId
+  }
+} else {
+  // box id was not supplied, so disable the distro tests
+  tasks.withType(GradleDistroTestTask).configureEach {
+    onlyIf { false }
+  }
+}

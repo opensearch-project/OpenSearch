@@ -1,0 +1,1 @@
+source=transactions | sort userid, timestamp | streamstats sum(amount) as cumsum by userid | fields userid, timestamp, amount, cumsum | head 20

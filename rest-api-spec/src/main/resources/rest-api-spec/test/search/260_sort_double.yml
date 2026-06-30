@@ -1,0 +1,136 @@
+setup:
+  - do:
+      indices.create:
+          index: double_sort
+          body:
+            settings:
+              number_of_shards: 3
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: double
+
+---
+"test sorting against double only fields":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "double_sort", "_id" : "1" } }'
+          - '{"field" : [ 900719925474099.1, 1.1 ] }'
+          - '{ "index" : { "_index" : "double_sort", "_id" : "2" } }'
+          - '{"field" : [ 900719925474099.2, 900719925474099.3 ] }'
+          - '{ "index" : { "_index" : "double_sort", "_id" : "3" } }'
+          - '{"field" : [ 450359962737049.4, 3.5, 4.6 ] }'
+          - '{ "index" : { "_index" : "double_sort", "_id" : "4" } }'
+          - '{"field" : [ 450359962737049.7, 5.8, -1.9, -2.0 ] }'
+
+  - do:
+      search:
+        index: double_sort
+        body:
+          size: 5
+          sort: [{ field: { mode: max, order: desc } } ]
+  - match: {hits.total.value: 4 }
+  - length: {hits.hits: 4 }
+  - match: { hits.hits.0._index: double_sort }
+  - match: { hits.hits.0._source.field: [ 900719925474099.2, 900719925474099.2 ] }
+  - match: { hits.hits.0.sort.0: 900719925474099.2 }
+  - match: { hits.hits.1._source.field: [ 900719925474099.1, 1.1 ] }
+  - match: { hits.hits.1.sort.0: 900719925474099.1 }
+  - match: { hits.hits.2._source.field: [ 450359962737049.7, 5.8, -1.9, -2.0 ] }
+  - match: { hits.hits.2.sort.0: 450359962737049.7 }
+  - match: { hits.hits.3._source.field: [ 450359962737049.4, 3.5, 4.6 ] }
+  - match: { hits.hits.3.sort.0: 450359962737049.4 }
+
+  - do:
+      search:
+        index: double_sort
+        body:
+          size: 5
+          sort: [ { field: { mode: max, order: asc } } ]
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._index: double_sort }
+  - match: { hits.hits.0._source.field: [ 450359962737049.4, 3.5, 4.6 ] }
+  - match: { hits.hits.0.sort.0: 450359962737049.4 }
+  - match: { hits.hits.1._source.field: [ 450359962737049.7, 5.8, -1.9, -2.0 ] }
+  - match: { hits.hits.1.sort.0: 450359962737049.7 }
+  - match: { hits.hits.2._source.field: [ 900719925474099.1, 1.1 ] }
+  - match: { hits.hits.2.sort.0: 900719925474099.1 }
+  - match: { hits.hits.3._source.field: [ 900719925474099.2, 900719925474099.2 ] }
+  - match: { hits.hits.3.sort.0: 900719925474099.2 }
+
+  - do:
+      search:
+        index: double_sort
+        body:
+          size: 5
+          sort: [ { field: { mode: min, order: asc } } ]
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._index: double_sort }
+  - match: { hits.hits.0._source.field: [ 450359962737049.7, 5.8, -1.9, -2.0 ] }
+  - match: { hits.hits.0.sort: [ -2.0 ] }
+  - match: { hits.hits.1._source.field: [ 900719925474099.1, 1.1 ] }
+  - match: { hits.hits.1.sort.0: 1.1 }
+  - match: { hits.hits.2._source.field: [ 450359962737049.4, 3.5, 4.6 ] }
+  - match: { hits.hits.2.sort.0: 3.5 }
+  - match: { hits.hits.3._source.field: [ 900719925474099.2, 900719925474099.2 ] }
+  - match: { hits.hits.3.sort.0: 900719925474099.2 }
+
+  - do:
+      search:
+        index: double_sort
+        body:
+          size: 5
+          sort: [ { field: { mode: median, order: desc } } ]
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._index: double_sort }
+  - match: { hits.hits.0._source.field: [ 900719925474099.2, 900719925474099.2 ] }
+  - match: { hits.hits.0.sort.0: 900719925474099.2 }
+  - match: { hits.hits.1._source.field: [ 900719925474099.1, 1.1 ] }
+  - match: { hits.hits.1.sort.0: 450359962737050.1 }
+  - match: { hits.hits.2._source.field: [ 450359962737049.4, 3.5, 4.6 ] }
+  - match: { hits.hits.2.sort.0: 4.6 }
+  - match: { hits.hits.3._source.field: [ 450359962737049.7, 5.8, -1.9, -2.0 ] }
+  - match: { hits.hits.3.sort.0: 1.95 }
+
+  - do:
+      search:
+        index: double_sort
+        body:
+          size: 5
+          sort: [ { field: { mode: avg, order: asc } } ]
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._index: double_sort }
+  - match: { hits.hits.0._source.field: [ 450359962737049.7, 5.8, -1.9, -2.0 ] }
+  - match: { hits.hits.0.sort.0: 112589990684262.89 }
+  - match: { hits.hits.1._source.field: [ 450359962737049.4, 3.5, 4.6 ] }
+  - match: { hits.hits.1.sort.0: 150119987579019.16 }
+  - match: { hits.hits.2._source.field: [ 900719925474099.1, 1.1 ] }
+  - match: { hits.hits.2.sort.0: 450359962737050.1 }
+  - match: { hits.hits.3._source.field: [ 900719925474099.2, 900719925474099.2 ] }
+  - match: { hits.hits.3.sort.0: 900719925474099.2 }
+
+  - do:
+      search:
+        index: double_sort
+        body:
+          size: 5
+          sort: [ { field: { mode: sum, order: desc } } ]
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._index: double_sort }
+  - match: { hits.hits.0._source.field: [ 900719925474099.2, 900719925474099.2 ] }
+  - match: { hits.hits.0.sort.0: 1801439850948198.5 }
+  - match: { hits.hits.1._source.field: [ 900719925474099.1, 1.1 ] }
+  - match: { hits.hits.1.sort.0: 900719925474100.2 }
+  - match: { hits.hits.2._source.field: [ 450359962737049.4, 3.5, 4.6 ] }
+  - match: { hits.hits.2.sort.0: 450359962737057.5 }
+  - match: { hits.hits.3._source.field: [ 450359962737049.7, 5.8, -1.9, -2.0 ] }
+  - match: { hits.hits.3.sort.0: 450359962737051.56 }

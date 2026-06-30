@@ -1,0 +1,103 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
+
+opensearchplugin {
+  description = 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
+  classname = 'org.opensearch.plugin.discovery.gce.GceDiscoveryPlugin'
+}
+
+dependencies {
+  api "com.google.apis:google-api-services-compute:v1-rev20241105-2.0.0"
+  api "com.google.api-client:google-api-client:1.35.2"
+  api "com.google.oauth-client:google-oauth-client:1.36.0"
+  api "com.google.http-client:google-http-client:${versions.google_http_client}"
+  api "com.google.http-client:google-http-client-gson:${versions.google_http_client}"
+  api "com.google.http-client:google-http-client-jackson2:${versions.google_http_client}"
+  api 'com.google.code.findbugs:jsr305:3.0.2'
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "io.grpc:grpc-api:${versions.grpc}"
+  api 'io.opencensus:opencensus-api:0.31.1'
+  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /google-.*/, to: 'google'
+  mapping from: /opencensus.*/, to: 'opencensus'
+}
+
+check {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:gce:check'
+}
+
+def name = project.name
+test {
+  // this is needed for insecure plugins, remove if possible!
+  systemProperty 'tests.artifact', name
+}
+
+thirdPartyAudit {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
+    'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.google.gson.stream.JsonReader',
+    'com.google.gson.stream.JsonToken',
+    'com.google.gson.stream.JsonWriter',
+    'javax.jms.Message',
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.Marker',
+    'org.slf4j.MarkerFactory',
+    'org.slf4j.spi.LocationAwareLogger'
+  )
+}

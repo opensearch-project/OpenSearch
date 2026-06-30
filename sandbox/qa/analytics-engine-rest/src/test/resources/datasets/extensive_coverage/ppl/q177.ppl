@@ -1,0 +1,1 @@
+source=test_data | eval crc = crc32(text) | fields text, crc | head 3

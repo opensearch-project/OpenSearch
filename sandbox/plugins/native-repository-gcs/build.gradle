@@ -1,0 +1,48 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Native (Rust) ObjectStore backend for the GCS repository plugin.'
+  classname = 'org.opensearch.repositories.gcs.native_store.GcsNativeObjectStorePlugin'
+  extendedPlugins = ['repository-gcs']
+}
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+dependencies {
+  implementation project(':sandbox:libs:dataformat-native')
+  compileOnly project(':plugins:repository-gcs')
+  internalClusterTestImplementation project(':test:framework')
+  internalClusterTestImplementation project(':plugins:repository-gcs')
+}
+
+testingConventions.enabled = false
+
+tasks.named('compileInternalClusterTestJava').configure {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
+
+tasks.named('internalClusterTest').configure {
+  jvmArgs += ['--enable-native-access=ALL-UNNAMED']
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+tasks.named('test').configure {
+  jvmArgs += ['--enable-native-access=ALL-UNNAMED']
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+// missingJavadoc hardcodes --release 21 which hides FFM types (stable since JDK 22).
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
+}

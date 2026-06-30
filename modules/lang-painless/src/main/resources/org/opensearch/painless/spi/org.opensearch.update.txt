@@ -1,0 +1,14 @@
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+#
+
+# This file contains an allowlist for the update scripts
+
+class java.lang.String {
+  String org.opensearch.painless.api.Augmentation sha1()
+  String org.opensearch.painless.api.Augmentation sha256()
+}

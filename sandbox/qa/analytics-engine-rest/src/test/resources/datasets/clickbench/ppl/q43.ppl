@@ -1,0 +1,1 @@
+source = clickbench | where CounterID = 62 and EventDate >= '2013-07-14' and EventDate <= '2013-07-15' and IsRefresh = 0 and DontCountHits = 0 | eval M = date_format(EventTime, '%Y-%m-%d %H:%i:00') | stats count() as PageViews by M | sort M | head 10 from 5

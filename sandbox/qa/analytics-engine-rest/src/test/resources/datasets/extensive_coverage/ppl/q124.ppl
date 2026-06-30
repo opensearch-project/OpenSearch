@@ -1,0 +1,1 @@
+source=test_data | eval doy = day_of_year(timestamp) | fields timestamp, doy | head 3

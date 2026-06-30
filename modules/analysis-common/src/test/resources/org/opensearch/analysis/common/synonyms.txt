@@ -1,0 +1,3 @@
+foobar => fred
+dude => opensearch
+abides => man!

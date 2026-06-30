@@ -1,0 +1,4 @@
+---
+"Lucene Version":
+    - do:         {info: {}}
+    - is_true:    version.lucene_version

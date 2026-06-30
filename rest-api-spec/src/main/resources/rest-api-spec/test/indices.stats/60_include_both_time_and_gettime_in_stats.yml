@@ -1,0 +1,36 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+        wait_for_active_shards: all
+
+  - do:
+      index:
+        index: test1
+        id: 1
+        body: { "foo": "bar" }
+
+  - do:
+      indices.refresh:
+        index: test1
+
+---
+"Test _stats API includes both time and getTime metrics with human filter":
+  - skip:
+      version: " - 2.19.99"
+      reason: "this change is added in 3.0.0"
+
+  - do:
+      indices.stats:
+        metric: [ get ]
+        human: true
+
+  - is_true: _all.primaries.get.time
+  - is_true: _all.primaries.get.getTime
+  - match: { _all.primaries.get.time: "0s" }
+  - match: { _all.primaries.get.getTime: "0s" }

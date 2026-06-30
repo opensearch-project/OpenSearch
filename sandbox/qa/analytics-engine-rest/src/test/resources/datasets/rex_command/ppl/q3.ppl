@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "user=(?<username>\w+)" | rex field=message "status=(?<result>\w+)" | fields username, result | where username is not null

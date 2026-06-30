@@ -1,0 +1,823 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.indices.replication;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.recovery.ForceSyncRequest;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RetryableTransportClient;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT;
+
+/**
+ * Service class that handles incoming checkpoints to initiate replication events on replicas.
+ * @opensearch.internal
+ */
+public class SegmentReplicationTargetService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
+
+    private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
+
+    private final ThreadPool threadPool;
+    private final RecoverySettings recoverySettings;
+
+    private final SegmentReplicationSourceFactory sourceFactory;
+
+    private final IndicesService indicesService;
+    private final ClusterService clusterService;
+    private final TransportService transportService;
+    private final SegmentReplicator replicator;
+
+    /**
+     * The internal actions
+     *
+     * @opensearch.internal
+     */
+    public static class Actions {
+        public static final String FILE_CHUNK = "internal:index/shard/replication/file_chunk";
+        public static final String FORCE_SYNC = "internal:index/shard/replication/segments_sync";
+        public static final String MERGED_SEGMENT_FILE_CHUNK = "internal:index/shard/replication/merged_segment_file_chunk";
+    }
+
+    @Deprecated
+    public SegmentReplicationTargetService(
+        final ThreadPool threadPool,
+        final RecoverySettings recoverySettings,
+        final TransportService transportService,
+        final SegmentReplicationSourceFactory sourceFactory,
+        final IndicesService indicesService,
+        final ClusterService clusterService
+    ) {
+        this(
+            threadPool,
+            recoverySettings,
+            transportService,
+            sourceFactory,
+            indicesService,
+            clusterService,
+            new ReplicationCollection<>(logger, threadPool)
+        );
+    }
+
+    @Deprecated
+    public SegmentReplicationTargetService(
+        final ThreadPool threadPool,
+        final RecoverySettings recoverySettings,
+        final TransportService transportService,
+        final SegmentReplicationSourceFactory sourceFactory,
+        final IndicesService indicesService,
+        final ClusterService clusterService,
+        final ReplicationCollection<SegmentReplicationTarget> ongoingSegmentReplications
+    ) {
+        this(
+            threadPool,
+            recoverySettings,
+            transportService,
+            sourceFactory,
+            indicesService,
+            clusterService,
+            new SegmentReplicator(threadPool)
+        );
+    }
+
+    public SegmentReplicationTargetService(
+        final ThreadPool threadPool,
+        final RecoverySettings recoverySettings,
+        final TransportService transportService,
+        final SegmentReplicationSourceFactory sourceFactory,
+        final IndicesService indicesService,
+        final ClusterService clusterService,
+        final SegmentReplicator replicator
+    ) {
+        this.threadPool = threadPool;
+        this.recoverySettings = recoverySettings;
+        this.sourceFactory = sourceFactory;
+        this.indicesService = indicesService;
+        this.clusterService = clusterService;
+        this.transportService = transportService;
+        this.replicator = replicator;
+
+        transportService.registerRequestHandler(
+            Actions.FILE_CHUNK,
+            ThreadPool.Names.GENERIC,
+            FileChunkRequest::new,
+            new FileChunkTransportRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.FORCE_SYNC,
+            ThreadPool.Names.GENERIC,
+            ForceSyncRequest::new,
+            new ForceSyncTransportRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.MERGED_SEGMENT_FILE_CHUNK,
+            ThreadPool.Names.GENERIC,
+            FileChunkRequest::new,
+            new MergedSegmentFileChunkTransportRequestHandler()
+        );
+        replicator.setSourceFactory(sourceFactory);
+    }
+
+    @Override
+    protected void doStart() {
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
+    }
+
+    @Override
+    protected void doStop() {
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            assert replicator.size() == 0 : "Replication collection should be empty on shutdown";
+            clusterService.removeListener(this);
+        }
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.routingTableChanged()) {
+            for (IndexService indexService : indicesService) {
+                if (indexService.getIndexSettings().isSegRepEnabledOrRemoteNode()
+                    && event.indexRoutingTableChanged(indexService.index().getName())) {
+                    for (IndexShard shard : indexService) {
+                        if (shard.routingEntry().primary() == false && shard.routingEntry().isSearchOnly() == false) {
+                            // for this shard look up its primary routing, if it has completed a relocation trigger replication
+                            final String previousNode = event.previousState()
+                                .routingTable()
+                                .shardRoutingTable(shard.shardId())
+                                .primaryShard()
+                                .currentNodeId();
+                            final String currentNode = event.state()
+                                .routingTable()
+                                .shardRoutingTable(shard.shardId())
+                                .primaryShard()
+                                .currentNodeId();
+                            if (previousNode.equals(currentNode) == false) {
+                                processLatestReceivedCheckpoint(shard, Thread.currentThread());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Cancel any replications on this node for a replica that is about to be closed.
+     */
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+            replicator.cancel(indexShard.shardId(), "Shard closing");
+        }
+    }
+
+    /**
+     * Replay any received checkpoint while replica was recovering.  This does not need to happen
+     * for primary relocations because they recover from translog.
+     */
+    @Override
+    public void afterIndexShardStarted(IndexShard indexShard) {
+        if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() && indexShard.routingEntry().primary() == false) {
+            replicator.initializeStats(indexShard.shardId());
+            processLatestReceivedCheckpoint(indexShard, Thread.currentThread());
+        }
+    }
+
+    /**
+     * Cancel any replications on this node for a replica that has just been promoted as the new primary.
+     */
+    @Override
+    public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+        if (oldRouting != null
+            && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
+            && oldRouting.primary() == false
+            && newRouting.primary()) {
+            replicator.cancel(indexShard.shardId(), "Shard has been promoted to primary");
+        }
+    }
+
+    /**
+     * returns SegmentReplicationState of on-going segment replication events.
+     */
+    @Nullable
+    public SegmentReplicationState getOngoingEventSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(replicator.get(shardId)).map(SegmentReplicationTarget::state).orElse(null);
+    }
+
+    /**
+     * returns SegmentReplicationState of latest completed segment replication events.
+     */
+    @Nullable
+    public SegmentReplicationState getlatestCompletedEventSegmentReplicationState(ShardId shardId) {
+        return replicator.getCompleted(shardId);
+    }
+
+    /**
+     * returns SegmentReplicationState of on-going if present or completed segment replication events.
+     */
+    @Nullable
+    public SegmentReplicationState getSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(getOngoingEventSegmentReplicationState(shardId))
+            .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
+    }
+
+    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
+        return replicator.get(replicationId);
+    }
+
+    public ReplicationRef<MergedSegmentReplicationTarget> getMergedSegmentReplicationRef(long replicationId) {
+        return replicator.getMergeReplicationRef(replicationId);
+    }
+
+    public SegmentReplicationTarget get(ShardId shardId) {
+        return replicator.get(shardId);
+    }
+
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.
+     * It checks if a new checkpoint should be processed or not and starts replication if needed.
+     *
+     * @param receivedCheckpoint received checkpoint that is checked for processing
+     * @param replicaShard       replica shard on which checkpoint is received
+     */
+    public void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+        onNewCheckpoint(receivedCheckpoint, replicaShard, false);
+    }
+
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.
+     * It checks if a new checkpoint should be processed or not and starts replication if needed.
+     *
+     * @param receivedCheckpoint received checkpoint that is checked for processing
+     * @param replicaShard       replica shard on which checkpoint is received
+     * @param isRetry            is it a retry after failure
+     */
+    public synchronized void onNewCheckpoint(
+        final ReplicationCheckpoint receivedCheckpoint,
+        final IndexShard replicaShard,
+        boolean isRetry
+    ) {
+        logger.debug(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        // if the shard is in any state
+        if (replicaShard.state().equals(IndexShardState.CLOSED)) {
+            // ignore if shard is closed
+            logger.trace(() -> "Ignoring checkpoint, Shard is closed");
+            return;
+        }
+        updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
+        // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
+        // This check ensures we do not try to process a received checkpoint while the shard is still recovering, yet we stored the latest
+        // checkpoint to be replayed once the shard is Active.
+        if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
+            // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
+            SegmentReplicationTarget ongoingReplicationTarget = replicator.get(replicaShard.shardId());
+            if (ongoingReplicationTarget != null) {
+                if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "Cancelling ongoing replication {} from old primary with primary term {}",
+                            ongoingReplicationTarget.description(),
+                            ongoingReplicationTarget.getCheckpoint().getPrimaryTerm()
+                        )
+                    );
+                    ongoingReplicationTarget.cancel("Cancelling stuck target after new primary");
+                } else {
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
+                            ongoingReplicationTarget.getCheckpoint()
+                        )
+                    );
+                    return;
+                }
+            }
+            final Thread thread = Thread.currentThread();
+            if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
+                startReplication(replicaShard, receivedCheckpoint, isRetry, new SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
+                                replicaShard.shardId().getId(),
+                                state.getReplicationId(),
+                                replicaShard.getLatestReplicationCheckpoint(),
+                                state.getTimingData()
+                            )
+                        );
+
+                        // update visible checkpoint to primary
+                        updateVisibleCheckpoint(state.getReplicationId(), replicaShard);
+
+                        // if we received a checkpoint during the copy event that is ahead of this
+                        // try and process it.
+                        ReplicationCheckpoint latestReceivedCheckpoint = replicator.getPrimaryCheckpoint(replicaShard.shardId());
+                        if (Objects.nonNull(latestReceivedCheckpoint) && latestReceivedCheckpoint.isAheadOf(receivedCheckpoint)) {
+                            processLatestReceivedCheckpoint(replicaShard, thread);
+                        }
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        logReplicationFailure(state, e, replicaShard);
+                        if (sendShardFailure == true) {
+                            failShard(e, replicaShard);
+                        } else {
+                            processLatestReceivedCheckpoint(replicaShard, thread, true);
+                        }
+                    }
+                });
+            } else if (replicaShard.isSegmentReplicationAllowed()) {
+                // if we didn't process the checkpoint because we are up to date,
+                // send our latest checkpoint to the primary to update tracking.
+                // replicationId is not used by the primary set to a default value.
+                final long replicationId = NO_OPS_PERFORMED;
+                updateVisibleCheckpoint(replicationId, replicaShard);
+            }
+        } else {
+            logger.trace(
+                () -> new ParameterizedMessage("Ignoring checkpoint, shard not started {} {}", receivedCheckpoint, replicaShard.state())
+            );
+        }
+    }
+
+    private void logReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, IndexShard replicaShard) {
+        // only log as error if error is not a cancellation.
+        if (ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class) == null) {
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                    replicaShard.shardId(),
+                    state.getReplicationId(),
+                    state.getTimingData()
+                ),
+                e
+            );
+        } else {
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "[shardId {}] [replication id {}] Replication cancelled",
+                    replicaShard.shardId(),
+                    state.getReplicationId()
+                ),
+                e
+            );
+        }
+    }
+
+    protected void updateVisibleCheckpoint(long replicationId, IndexShard replicaShard) {
+        // Update replication checkpoint on source via transport call only supported for remote store integration. For node-
+        // node communication, checkpoint update is piggy-backed to GET_SEGMENT_FILES transport call
+        if (replicaShard.indexSettings().isAssignedOnRemoteNode() == false) {
+            return;
+        }
+        ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(replicaShard.shardId()).primaryShard();
+
+        final UpdateVisibleCheckpointRequest request = new UpdateVisibleCheckpointRequest(
+            replicationId,
+            replicaShard.routingEntry().allocationId().getId(),
+            primaryShard.shardId(),
+            getPrimaryNode(primaryShard),
+            replicaShard.getLatestReplicationCheckpoint()
+        );
+
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(recoverySettings.internalActionTimeout())
+            .build();
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "Updating Primary shard that replica {}-{} is synced to checkpoint {}",
+                replicaShard.shardId(),
+                replicaShard.routingEntry().allocationId(),
+                request.getCheckpoint()
+            )
+        );
+        RetryableTransportClient transportClient = new RetryableTransportClient(
+            transportService,
+            getPrimaryNode(primaryShard),
+            recoverySettings.internalActionRetryTimeout(),
+            logger
+        );
+        final ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "Successfully updated replication checkpoint {} for replica {}",
+                        replicaShard.shardId(),
+                        request.getCheckpoint()
+                    )
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Failed to update visible checkpoint for replica {}, {}:",
+                        replicaShard.shardId(),
+                        request.getCheckpoint()
+                    ),
+                    e
+                );
+            }
+        };
+
+        transportClient.executeRetryableAction(
+            UPDATE_VISIBLE_CHECKPOINT,
+            request,
+            options,
+            ActionListener.map(listener, r -> null),
+            in -> TransportResponse.Empty.INSTANCE
+        );
+    }
+
+    private DiscoveryNode getPrimaryNode(ShardRouting primaryShard) {
+        return clusterService.state().nodes().get(primaryShard.currentNodeId());
+    }
+
+    // visible to tests
+    protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
+        return processLatestReceivedCheckpoint(replicaShard, thread, false);
+    }
+
+    // visible to tests
+    protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread, boolean isRetry) {
+        final ReplicationCheckpoint latestPublishedCheckpoint = replicator.getPrimaryCheckpoint(replicaShard.shardId());
+        if (latestPublishedCheckpoint != null) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Processing latest received checkpoint for shard {} {}",
+                    replicaShard.shardId(),
+                    latestPublishedCheckpoint
+                )
+            );
+            Runnable runnable = () -> {
+                // if we retry ensure the shard is not in the process of being closed.
+                // it will be removed from indexService's collection before the shard is actually marked as closed.
+                if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
+                    onNewCheckpoint(replicator.getPrimaryCheckpoint(replicaShard.shardId()), replicaShard, isRetry);
+                }
+            };
+            // Checks if we are using same thread and forks if necessary.
+            if (thread == Thread.currentThread()) {
+                threadPool.generic().execute(runnable);
+            } else {
+                runnable.run();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // visible to tests
+    protected void updateLatestReceivedCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
+        replicator.updateReplicationCheckpointStats(receivedCheckpoint, replicaShard);
+    }
+
+    /**
+     * Start a round of replication and sync to at least the given checkpoint.
+     * @param indexShard - {@link IndexShard} replica shard
+     * @param checkpoint - {@link ReplicationCheckpoint} checkpoint to sync to
+     * @param listener - {@link ReplicationListener}
+     * @return {@link SegmentReplicationTarget} target event orchestrating the event.
+     */
+    public SegmentReplicationTarget startReplication(
+        final IndexShard indexShard,
+        final ReplicationCheckpoint checkpoint,
+        final SegmentReplicationListener listener
+    ) {
+        return startReplication(indexShard, checkpoint, false, listener);
+    }
+
+    /**
+     * Start a round of replication and sync to at least the given checkpoint.
+     * @param indexShard - {@link IndexShard} replica shard
+     * @param checkpoint - {@link ReplicationCheckpoint} checkpoint to sync to
+     * @param isRetry - is it a retry after failure
+     * @param listener - {@link ReplicationListener}
+     * @return {@link SegmentReplicationTarget} target event orchestrating the event.
+     */
+    public SegmentReplicationTarget startReplication(
+        final IndexShard indexShard,
+        final ReplicationCheckpoint checkpoint,
+        final boolean isRetry,
+        final SegmentReplicationListener listener
+    ) {
+        return replicator.startReplication(indexShard, checkpoint, sourceFactory.get(indexShard), isRetry, listener);
+    }
+
+    // pkg-private for integration tests
+    void startReplication(final SegmentReplicationTarget target) {
+        replicator.startReplication(target, recoverySettings.activityTimeout());
+    }
+
+    /**
+     * Listener that runs on changes in Replication state
+     *
+     * @opensearch.internal
+     */
+    public interface SegmentReplicationListener extends ReplicationListener {
+
+        @Override
+        default void onDone(ReplicationState state) {
+            onReplicationDone((SegmentReplicationState) state);
+        }
+
+        @Override
+        default void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+            onReplicationFailure((SegmentReplicationState) state, e, sendShardFailure);
+        }
+
+        void onReplicationDone(SegmentReplicationState state);
+
+        void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
+    }
+
+    private class FileChunkTransportRequestHandler implements TransportRequestHandler<FileChunkRequest> {
+
+        // How many bytes we've copied since we last called RateLimiter.pause
+        final AtomicLong bytesSinceLastPause = new AtomicLong();
+
+        @Override
+        public void messageReceived(final FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
+            try (ReplicationRef<SegmentReplicationTarget> ref = replicator.get(request.recoveryId(), request.shardId())) {
+                final SegmentReplicationTarget target = ref.get();
+                final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
+                target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.replicationRateLimiter(), listener);
+            }
+        }
+    }
+
+    /**
+     * Force sync transport handler forces round of segment replication. Caller should verify necessary checks before
+     * calling this handler.
+     */
+    private class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
+        @Override
+        public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
+            forceReplication(request, new ChannelActionListener<>(channel, Actions.FORCE_SYNC, request));
+        }
+    }
+
+    private void forceReplication(ForceSyncRequest request, ActionListener<TransportResponse> listener) {
+        final ShardId shardId = request.getShardId();
+        assert indicesService != null;
+        final IndexShard indexShard = indicesService.getShardOrNull(shardId);
+        // Proceed with round of segment replication only when it is allowed
+        if (indexShard == null || indexShard.isReplicationTarget() == false) {
+            listener.onResponse(TransportResponse.Empty.INSTANCE);
+        } else {
+            // We are skipping any validation for an incoming checkpoint, use the shard's latest checkpoint in the target.
+            startReplication(
+                indexShard,
+                indexShard.getLatestReplicationCheckpoint(),
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        try {
+                            logger.trace(
+                                () -> new ParameterizedMessage(
+                                    "[shardId {}] [replication id {}] Force replication Sync complete to {}, timing data: {}",
+                                    shardId,
+                                    state.getReplicationId(),
+                                    indexShard.getLatestReplicationCheckpoint(),
+                                    state.getTimingData()
+                                )
+                            );
+                            // Promote engine type for primary target
+                            if (indexShard.recoveryState().getPrimary() == true) {
+                                indexShard.resetToWriteableEngine();
+                            } else {
+                                // Update the replica's checkpoint on primary's replication tracker.
+                                updateVisibleCheckpoint(state.getReplicationId(), indexShard);
+                            }
+                            listener.onResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (Exception e) {
+                            logger.error("Error while marking replication completed", e);
+                            listener.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        logReplicationFailure(state, e, indexShard);
+                        if (sendShardFailure) {
+                            failShard(e, indexShard);
+                        }
+                        listener.onFailure(e);
+                    }
+                }
+            );
+        }
+    }
+
+    private void failShard(ReplicationFailedException e, IndexShard indexShard) {
+        try {
+            indexShard.failShard("unrecoverable replication failure", e);
+        } catch (Exception inner) {
+            logger.error("Error attempting to fail shard", inner);
+            e.addSuppressed(inner);
+        }
+    }
+
+    public void onNewMergedSegmentCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+        logger.debug(
+            () -> new ParameterizedMessage("Replica received new merged segment checkpoint [{}] from primary", receivedCheckpoint)
+        );
+        // if the shard is in any state
+        if (replicaShard.state().equals(IndexShardState.CLOSED)) {
+            // ignore if shard is closed
+            logger.trace(() -> "Ignoring merged segment checkpoint, Shard is closed");
+            return;
+        }
+        if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
+            // Checks if received checkpoint is already present
+            List<MergedSegmentReplicationTarget> ongoingReplicationTargetList = getMergedSegmentReplicationTarget(replicaShard.shardId());
+            if (ongoingReplicationTargetList != null) {
+                for (MergedSegmentReplicationTarget ongoingReplicationTarget : ongoingReplicationTargetList) {
+                    if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "Cancelling ongoing merge replication {} from old primary with primary term {}",
+                                ongoingReplicationTarget.description(),
+                                ongoingReplicationTarget.getCheckpoint().getPrimaryTerm()
+                            )
+                        );
+                        ongoingReplicationTarget.cancel("Cancelling stuck merged segment target after new primary");
+                    } else if (ongoingReplicationTarget.checkpoint.equals(receivedCheckpoint)) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "Ignoring new merge replication checkpoint - shard is currently replicating to checkpoint {}",
+                                ongoingReplicationTarget.getCheckpoint()
+                            )
+                        );
+                        return;
+                    }
+                }
+            }
+            if (replicaShard.shouldProcessMergedSegmentCheckpoint(receivedCheckpoint)) {
+                CountDownLatch latch = new CountDownLatch(1);
+                startMergedSegmentReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] [replication id {}] Merge Replication complete to {}, timing data: {}",
+                                replicaShard.shardId().getId(),
+                                state.getReplicationId(),
+                                receivedCheckpoint,
+                                state.getTimingData()
+                            )
+                        );
+                        latch.countDown();
+                        unmarkPendingDownloadMergedSegments(replicaShard, receivedCheckpoint);
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        latch.countDown();
+                        unmarkPendingDownloadMergedSegments(replicaShard, receivedCheckpoint);
+                    }
+                });
+                try {
+                    if (latch.await(recoverySettings.getMergedSegmentReplicationTimeout().seconds(), TimeUnit.SECONDS) == false) {
+                        logger.warn(
+                            "Merged segment replication for {} timed out after [{}] seconds",
+                            receivedCheckpoint,
+                            recoverySettings.getMergedSegmentReplicationTimeout().seconds()
+                        );
+                    }
+                } catch (InterruptedException e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", receivedCheckpoint),
+                        e
+                    );
+                }
+            }
+        } else {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Ignoring merged segment checkpoint, shard not started {} {}",
+                    receivedCheckpoint,
+                    replicaShard.state()
+                )
+            );
+        }
+    }
+
+    private void unmarkPendingDownloadMergedSegments(IndexShard shard, ReplicationCheckpoint receivedCheckpoint) {
+        if (isRemoteStoreMergedSegmentCheckpoint(receivedCheckpoint)) {
+            shard.getRemoteDirectory().unmarkMergedSegmentsPendingDownload(receivedCheckpoint.getMetadataMap().keySet());
+        }
+    }
+
+    private boolean isRemoteStoreMergedSegmentCheckpoint(ReplicationCheckpoint checkpoint) {
+        return checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
+    }
+
+    List<MergedSegmentReplicationTarget> getMergedSegmentReplicationTarget(ShardId shardId) {
+        return replicator.getMergedSegmentReplicationTarget(shardId);
+    }
+
+    public void startMergedSegmentReplication(
+        final IndexShard indexShard,
+        final ReplicationCheckpoint checkpoint,
+        final SegmentReplicationListener listener
+    ) {
+        replicator.startMergedSegmentReplication(indexShard, checkpoint, sourceFactory.get(indexShard), listener);
+    }
+
+    private class MergedSegmentFileChunkTransportRequestHandler implements TransportRequestHandler<FileChunkRequest> {
+
+        // How many bytes we've copied since we last called RateLimiter.pause
+        final AtomicLong bytesSinceLastPause = new AtomicLong();
+
+        @Override
+        public void messageReceived(final FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
+            try (
+                ReplicationRef<MergedSegmentReplicationTarget> ref = replicator.getMergeReplicationRef(
+                    request.recoveryId(),
+                    request.shardId()
+                )
+            ) {
+                final MergedSegmentReplicationTarget target = ref.get();
+                final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.MERGED_SEGMENT_FILE_CHUNK, request);
+                target.handleFileChunk(
+                    request,
+                    target,
+                    bytesSinceLastPause,
+                    recoverySettings.mergedSegmentReplicationRateLimiter(),
+                    listener
+                );
+            }
+        }
+    }
+}

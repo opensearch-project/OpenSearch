@@ -1,0 +1,10 @@
+{
+    "_doc":{
+        "properties":{
+            "name":{
+                "type": "text",
+                "store":true
+            }
+        }
+    }
+}

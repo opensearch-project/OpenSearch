@@ -1,0 +1,72 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.extensions;
+
+import org.opensearch.action.ActionModule;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.extensions.action.ExtensionActionRequest;
+import org.opensearch.extensions.action.ExtensionActionResponse;
+import org.opensearch.extensions.action.RemoteExtensionActionResponse;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
+
+import java.io.IOException;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Noop class for ExtensionsManager
+ *
+ * @opensearch.internal
+ */
+public class NoopExtensionsManager extends ExtensionsManager {
+
+    public NoopExtensionsManager(IdentityService identityService) throws IOException {
+        super(Set.of(), identityService);
+    }
+
+    @Override
+    public void initializeServicesAndRestHandler(
+        ActionModule actionModule,
+        SettingsModule settingsModule,
+        TransportService transportService,
+        ClusterService clusterService,
+        Settings initialEnvironmentSettings,
+        NodeClient client,
+        IdentityService identityService
+    ) {
+        // no-op
+    }
+
+    @Override
+    public RemoteExtensionActionResponse handleRemoteTransportRequest(ExtensionActionRequest request) throws Exception {
+        // no-op empty response
+        return new RemoteExtensionActionResponse(true, new byte[0]);
+    }
+
+    @Override
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws Exception {
+        // no-op empty response
+        return new ExtensionActionResponse(new byte[0]);
+    }
+
+    @Override
+    public void initialize() {
+        // no-op
+    }
+
+    @Override
+    public Optional<DiscoveryExtensionNode> lookupInitializedExtensionById(final String extensionId) {
+        // no-op not found
+        return Optional.empty();
+    }
+}

@@ -1,0 +1,232 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Analytics engine hub plugin. Implements ExtensiblePlugin to discover
+ * and wire query front-ends, back-ends, and executor implementations.
+ * This is the stable plugin name that all extending plugins bind to.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'
+  classname = 'org.opensearch.analytics.AnalyticsPlugin'
+  // Extend arrow-base so analytics-engine shares one Arrow classloader with any peer plugin
+  // (arrow-flight-rpc, analytics-backend-datafusion, parquet-data-format, …). Cross-plugin
+  // Arrow types (VectorSchemaRoot, ArrowBatchResponse) only work when loaded by the same classloader.
+  // arrow-base exposes ArrowNativeAllocator + the SPI used to source the query pool.
+  extendedPlugins = ['arrow-base']
+}
+
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+// Force mavenLocal to position 0 so the transitive unified-query SNAPSHOT (pulled in via the
+// `:sandbox:plugins:test-ppl-frontend` project dep) resolves against a freshly-published
+// local SQL plugin checkout instead of ci.opensearch.org. Sandbox-only; CI's empty `~/.m2/`
+// makes this a no-op there. Transitive resolution uses the consumer's repo list, not the
+// dependee's, so test-ppl-frontend's own mavenLocal precedence isn't enough.
+repositories {
+  def local = mavenLocal()
+  remove(local)
+  add(0, local)
+}
+
+// Guava comes transitively from calcite-core and unified-query — forbidden on
+// compile classpaths by OpenSearch. Main sources don't need it; test sources do
+// (Calcite API exposes ImmutableList, Predicate). Bypass via custom config.
+configurations {
+  calciteCompile
+  calciteTestCompile
+  compileClasspath { exclude group: 'com.google.guava' }
+  testCompileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.main.compileClasspath += configurations.calciteCompile
+sourceSets.test.compileClasspath += configurations.calciteTestCompile
+
+tasks.named('missingJavadoc').configure {
+  classpath += configurations.calciteCompile
+}
+
+dependencies {
+  implementation project(':sandbox:libs:analytics-api')
+
+  // Shared SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.) + calcite-core transitively.
+  api project(':sandbox:libs:analytics-framework')
+
+  // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
+  // as api deps, so a compileOnly project dep pulls them onto the compile classpath while
+  // keeping them out of the bundled plugin zip (arrow-base ships them at runtime via the
+  // extendedPlugins classloader chain, giving us a shared Arrow class identity for zero-copy).
+  // arrow-base ships the ArrowNativeAllocator + SPI types this plugin calls into.
+  // compileOnly because at runtime the parent plugin (extendedPlugins above) exposes them.
+  compileOnly project(':libs:opensearch-arrow-spi')
+  compileOnly project(':plugins:arrow-base')
+
+  // Guava — required at compile time because Calcite base classes expose guava types.
+  // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
+  calciteCompile "com.google.guava:guava:${versions.guava}"
+  calciteTestCompile "com.google.guava:guava:${versions.guava}"
+
+  // Guava at runtime — arrow-base does NOT provide guava; bundle it here so Calcite-generated
+  // bytecode can resolve com.google.common references.
+  runtimeOnly "com.google.guava:failureaccess:1.0.2"
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+
+  // Calcite code generation (optional in calcite-core POM, needed at runtime for Enumerable pipeline)
+  testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
+  testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
+
+  // commons-math3 — Calcite's TimeFrames.<clinit> references
+  // org.apache.commons.math3.fraction.BigFraction. Not provided by arrow-base, so bundle here.
+  runtimeOnly "org.apache.commons:commons-math3:3.6.1"
+
+  // commons-text — Calcite's SqlFunctions class statically references
+  // org.apache.commons.text.similarity.LevenshteinDistance (used by SQL fuzzy-match
+  // helpers, also pulled in transitively when constant-folding array literals via
+  // ReduceExpressionsRule). Must be loaded via the same classloader as calcite-core
+  // so that SqlFunctions.<clinit> succeeds; otherwise it throws NoClassDefFoundError
+  // on first use and poisons every subsequent Calcite operation in the JVM — symptom
+  // is a single failing analytics query taking the cluster's planner thread offline
+  // for the rest of the run.
+  runtimeOnly "org.apache.commons:commons-text:1.11.0"
+
+  // httpcore5/httpclient5 — Avatica's BuiltInConnectionProperty static initializer references
+  // org.apache.hc.core5.util.Timeout. Not provided by arrow-base, so bundle here.
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+
+  // Unit tests run on a flat classpath (no plugin classloader), so pull arrow-base's runtime
+  // jars in via the project dep — tests then use the same Arrow + Netty allocator as production.
+  testImplementation project(':plugins:arrow-base')
+
+  // Arrow Flight streaming transport for ITs
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+
+  // Calcite bytecode references @Immutable from immutables — resolve at test compile time
+  testCompileOnly 'org.immutables:value-annotations:2.8.8'
+
+  // CalciteCatalogReader's compile-time signature transitively requires Avatica's
+  // ConnectionConfigImpl (parent of CalciteConnectionConfigImpl). analytics-framework
+  // declares avatica-core as runtimeOnly only, so test compilation needs it explicitly.
+  testCompileOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+}
+
+tasks.withType(JavaCompile).configureEach {
+  // Arrow's Schema.class references Jackson annotations we don't pull in — harmless warnings
+  options.compilerArgs -= '-Werror'
+}
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    // Optional brotli compression support pulled in by httpclient5 — not used by analytics
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    // Optional Apache Commons Compress reference — gated by runtime classpath probe
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
+    // Optional Conscrypt provider — TLS support fallback path
+    'org.conscrypt.Conscrypt'
+  )
+  // Guava's internal Unsafe-using classes — bundled here since arrow-base does not provide guava.
+  ignoreViolations(
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
+}
+
+// Jars provided by the arrow-base parent plugin at runtime — strip from the bundled
+// zip to avoid jar hell. Calcite drags slf4j, jackson, commons-codec in transitively.
+// Guava is NOT on this list — arrow-base does not bundle guava, so we ship it ourselves.
+configurations.runtimeClasspath {
+  exclude group: 'org.slf4j', module: 'slf4j-api'
+  exclude group: 'commons-codec', module: 'commons-codec'
+  exclude group: 'com.fasterxml.jackson.core'
+}
+
+configurations.all {
+  // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
+  // only published on JitPack, not needed for PPL parsing/planning
+  exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
+
+  resolutionStrategy {
+    // Align transitive versions with OpenSearch's managed versions.
+    force 'com.google.guava:guava:33.3.1-jre'
+    force 'com.google.guava:failureaccess:1.0.2'
+    force 'com.google.errorprone:error_prone_annotations:2.36.0'
+    force 'org.checkerframework:checker-qual:3.43.0'
+    force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    force "org.locationtech.jts:jts-core:${versions.jts}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
+    force "joda-time:joda-time:2.12.7"
+    force "org.yaml:snakeyaml:2.4"
+    force "org.codehaus.janino:janino:3.1.12"
+    force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "commons-io:commons-io:${versions.commonsio}"
+    force "org.apache.commons:commons-lang3:3.18.0"
+    force "org.apache.commons:commons-text:1.11.0"
+    force "commons-logging:commons-logging:1.3.5"
+    force "net.minidev:json-smart:2.5.2"
+    force "org.apache.httpcomponents.client5:httpclient5:5.6"
+    force "org.apache.httpcomponents.core5:httpcore5:5.4"
+    force "com.squareup.okhttp3:okhttp:4.12.0"
+    force "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  }
+}
+
+// Arrow needs these --add-opens for direct-memory access via reflection.
+// Applied to both unit test and internal cluster test tasks.
+test {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
+  // arrow-memory-netty (provided by arrow-base) needs Netty direct-memory access.
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}
+
+// Arrow/Flight requires these JVM flags
+internalClusterTest {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}

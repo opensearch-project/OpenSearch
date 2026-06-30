@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+
+set -e -o pipefail
+
+CDPATH=""
+
+SCRIPT="$0"
+
+UNAME=$(uname -s)
+if [ $UNAME = "FreeBSD" ]; then
+  OS="freebsd"
+elif [ $UNAME = "Darwin" ]; then
+  OS="darwin"
+else
+  OS="other"
+fi
+
+# SCRIPT might be an arbitrarily deep series of symbolic links; loop until we
+# have the concrete path
+while [ -h "$SCRIPT" ] ; do
+  ls=`ls -ld "$SCRIPT"`
+  # Drop everything prior to ->
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=`dirname "$SCRIPT"`/"$link"
+  fi
+done
+
+if [[ -z "$OPENSEARCH_HOME" ]]; then
+  # determine OpenSearch home; to do this, we strip from the path until we find
+  # bin, and then strip bin (there is an assumption here that there is no nested
+  # directory under bin also named bin)
+  OPENSEARCH_HOME=`dirname "$SCRIPT"`
+
+  # now make OPENSEARCH_HOME absolute
+  OPENSEARCH_HOME=`cd "$OPENSEARCH_HOME"; pwd`
+
+  while [ "`basename "$OPENSEARCH_HOME"`" != "bin" ]; do
+    OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
+  done
+  OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
+fi
+
+# now set the classpath — include lib/* (core jars)
+OPENSEARCH_CLASSPATH="$OPENSEARCH_HOME/lib/*"
+
+# now set the path to java: OPENSEARCH_JAVA_HOME -> JAVA_HOME -> bundled JRE -> bundled JDK
+if [ ! -z "$OPENSEARCH_JAVA_HOME" ]; then
+  JAVA="$OPENSEARCH_JAVA_HOME/bin/java"
+  JAVA_TYPE="OPENSEARCH_JAVA_HOME"
+elif [ ! -z "$JAVA_HOME" ]; then
+  JAVA="$JAVA_HOME/bin/java"
+  JAVA_TYPE="JAVA_HOME"
+else
+  if [ $OS = "darwin" ]; then
+    # macOS bundled Java
+    JAVA="$OPENSEARCH_HOME/jdk.app/Contents/Home/bin/java"
+    JAVA_TYPE="bundled jdk"
+  elif [ $OS = "freebsd" ]; then
+    # using FreeBSD default java from ports if JAVA_HOME is not set
+    JAVA="/usr/local/bin/java"
+    JAVA_TYPE="bundled jdk"
+  elif [ -d "$OPENSEARCH_HOME/jre" ]; then
+    JAVA="$OPENSEARCH_HOME/jre/bin/java"
+    JAVA_TYPE="bundled jre"
+  else
+    JAVA="$OPENSEARCH_HOME/jdk/bin/java"
+    JAVA_TYPE="bundled jdk"
+  fi
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+    exit 1
+  fi
+
+# do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
+if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
+  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  unset JAVA_TOOL_OPTIONS
+fi
+
+# JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
+# warn them that we are not observing the value of $JAVA_OPTS
+if [ ! -z "$JAVA_OPTS" ]; then
+  echo -n "warning: ignoring JAVA_OPTS=$JAVA_OPTS; "
+  echo "pass JVM parameters via OPENSEARCH_JAVA_OPTS"
+fi
+
+if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
+  XSHARE="-Xshare:off"
+else
+  XSHARE="-Xshare:auto"
+fi
+
+# check the Java version
+"$JAVA" "$XSHARE" -cp "$OPENSEARCH_CLASSPATH" org.opensearch.tools.java_version_checker.JavaVersionChecker
+
+export HOSTNAME=$HOSTNAME
+
+if [ -z "$OPENSEARCH_PATH_CONF" ]; then
+  ${source.path.env}
+fi
+
+if [ -z "$OPENSEARCH_PATH_CONF" ]; then
+  echo "OPENSEARCH_PATH_CONF must be set to the configuration path"
+  exit 1
+fi
+
+# now make OPENSEARCH_PATH_CONF absolute
+OPENSEARCH_PATH_CONF=`cd "$OPENSEARCH_PATH_CONF"; pwd`
+
+# FIPS mode is runtime-configured via env var (default: false)
+OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
+
+# Normalize to lowercase for common inputs: TRUE/True/true
+OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
+OPENSEARCH_FIPS_MODE="$(echo "$OPENSEARCH_FIPS_MODE" | tr '[:upper:]' '[:lower:]')"
+
+if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]] && ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
+  echo "FIPS mode enabled, setting JVM options."
+  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
+
+  # Ensure BC-FIPS "approved only" mode is on when FIPS mode is enabled
+  export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true ${OPENSEARCH_JAVA_OPTS}"
+fi
+
+OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
+OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
+
+if [[ "$OPENSEARCH_BUNDLED_JDK" == "false" ]]; then
+  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
+fi
+
+if [[ "$OPENSEARCH_DISTRIBUTION_TYPE" == "docker" ]]; then
+  # Allow environment variables to be set by creating a file with the
+  # contents, and setting an environment variable with the suffix _FILE to
+  # point to it. This can be used to provide secrets to a container, without
+  # the values being specified explicitly when running the container.
+  source "$OPENSEARCH_HOME/bin/opensearch-env-from-file"
+
+  # Parse Docker env vars to customize OpenSearch
+  #
+  # e.g. Setting the env var cluster.name=testcluster
+  #
+  # will cause OpenSearch to be invoked with -Ecluster.name=testcluster
+  #
+  # see https://opensearch.org/docs/opensearch/configuration/
+
+  declare -a opensearch_arg_array
+
+  while IFS='=' read -r envvar_key envvar_value
+  do
+    # OpenSearch settings need to have at least two dot separated lowercase
+    # words, e.g. `cluster.name`
+    if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
+      if [[ ! -z $envvar_value ]]; then
+        opensearch_opt="-E${envvar_key}=${envvar_value}"
+        opensearch_arg_array+=("${opensearch_opt}")
+      fi
+    fi
+  done < <(env)
+
+  # Reset the positional parameters to the opensearch_arg_array values and any existing positional params
+  set -- "$@" "${opensearch_arg_array[@]}"
+
+  # The virtual file /proc/self/cgroup should list the current cgroup
+  # membership. For each hierarchy, you can follow the cgroup path from
+  # this file to the cgroup filesystem (usually /sys/fs/cgroup/) and
+  # introspect the statistics for the cgroup for the given
+  # hierarchy. Alas, Docker breaks this by mounting the container
+  # statistics at the root while leaving the cgroup paths as the actual
+  # paths. Therefore, OpenSearch provides a mechanism to override
+  # reading the cgroup path from /proc/self/cgroup and instead uses the
+  # cgroup path defined the JVM system property
+  # opensearch.cgroups.hierarchy.override. Therefore, we set this value here so
+  # that cgroup statistics are available for the container this process
+  # will run in.
+  export OPENSEARCH_JAVA_OPTS="-Dopensearch.cgroups.hierarchy.override=/ $OPENSEARCH_JAVA_OPTS"
+fi
+
+cd "$OPENSEARCH_HOME"

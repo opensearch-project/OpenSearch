@@ -1,0 +1,217 @@
+{
+  "_nodes": {
+    "total": 8,
+    "successful": 8,
+    "failed": 0
+  },
+  "cluster_name": "opensearch",
+  "nodes": {
+    "ikXK_skVTfWkhONhldnbkw": {
+      "name": "m1",
+      "transport_address": "127.0.0.1:9300",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "ingest",
+        "master"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "1",
+        "array": "[m, 1]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9200",
+          "127.0.0.1:9200"
+        ],
+        "publish_address": "127.0.0.1:9200",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "TMHa34w4RqeuYoHCfJGXZg": {
+      "name": "m2",
+      "transport_address": "127.0.0.1:9301",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "data",
+        "ingest",
+        "master"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "2",
+        "array": "[m, 2]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9201",
+          "127.0.0.1:9201"
+        ],
+        "publish_address": "127.0.0.1:9201",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "lzaMRJTVT166sgVZdQ5thA": {
+      "name": "m3",
+      "transport_address": "127.0.0.1:9302",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "ingest",
+        "master"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "3",
+        "array": "[m, 3]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9202",
+          "127.0.0.1:9202"
+        ],
+        "publish_address": "127.0.0.1:9202",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "tGP5sUecSd6BLTWk1NWF8Q": {
+      "name": "d1",
+      "transport_address": "127.0.0.1:9303",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "1",
+        "array": "[d, 1]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9203",
+          "127.0.0.1:9203"
+        ],
+        "publish_address": "127.0.0.1:9203",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "c1UgW5ROTkSa2YnM_T56tw": {
+      "name": "d2",
+      "transport_address": "127.0.0.1:9304",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "2",
+        "array": "[d, 2]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9204",
+          "127.0.0.1:9204"
+        ],
+        "publish_address": "127.0.0.1:9204",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "QM9yjqjmS72MstpNYV_trg": {
+      "name": "d3",
+      "transport_address": "127.0.0.1:9305",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "3",
+        "array": "[d, 3]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9205",
+          "127.0.0.1:9205"
+        ],
+        "publish_address": "127.0.0.1:9205",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "wLtzAssoQYeX_4TstgCj0Q": {
+      "name": "c1",
+      "transport_address": "127.0.0.1:9306",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "1",
+        "array": "[c, 1]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9206",
+          "127.0.0.1:9206"
+        ],
+        "publish_address": "127.0.0.1:9206",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "ONOzpst8TH-ZebG7fxGwaA": {
+      "name": "c2",
+      "transport_address": "127.0.0.1:9307",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "1.0.0",
+      "build_type": "tar",
+      "build_hash": "34550c5b17124ddc59458ef774f6b43a086522e3",
+      "roles": [
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "2",
+        "array": "[c, 2]"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9207",
+          "127.0.0.1:9207"
+        ],
+        "publish_address": "127.0.0.1:9207",
+        "max_content_length_in_bytes": 104857600
+      }
+    }
+  }
+}

@@ -1,0 +1,171 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.dataformat;
+
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
+
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+
+/**
+ * Plugin interface for providing custom data format implementations.
+ * Plugins implement this to register their data format (e.g., Parquet, Lucene)
+ * with the DataFormatRegistry during node bootstrap.
+ *
+ * <p>There are two orthogonal pieces a plugin can contribute:
+ * <ul>
+ *   <li>{@link DataFormatDescriptor} via {@link #getFormatDescriptors} —
+ *       <b>describes</b> the format (name, checksum strategy, static
+ *       capabilities). Per-index value data.</li>
+ *   <li>{@link StoreStrategy} via {@link #getStoreStrategies} —
+ *       <b>behavior</b> for how the format participates in the tiered store
+ *       (file ownership, remote layout, optional native registry).</li>
+ * </ul>
+ * A plugin may provide one, both, or neither.
+ *
+ * @opensearch.experimental
+ */
+@ExperimentalApi
+public interface DataFormatPlugin {
+
+    /**
+     * Returns the data format with its declared capabilities and priority.
+     *
+     * @return the data format descriptor
+     */
+    DataFormat getDataFormat();
+
+    /**
+     * Creates the indexing engine for the data format. This should be
+     * instantiated per shard.
+     */
+    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
+
+    /**
+     * Returns format descriptor suppliers for this plugin, filtered by the
+     * given index settings. Each entry maps a format name to a
+     * {@link Supplier} of its {@link DataFormatDescriptor}, deferring
+     * descriptor object creation until the descriptor is actually needed.
+     * Callers that only need format names can use {@code keySet()} without
+     * triggering creation.
+     */
+    default Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        return Map.of();
+    }
+
+    /**
+     * Assigns the capability map on the given field type. The plugin determines which capabilities
+     * its data format(s) can provide for the field type and sets the result via
+     * {@link MappedFieldType#setCapabilityMap}.
+     *
+     * <p>The default implementation handles the single-format case: the plugin's own data format
+     * claims all capabilities it supports for the field type. Composite plugins override this to
+     * delegate to primary and secondary formats in priority order.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
+     */
+    default void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
+        if (requested.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+
+        final DataFormat format = getDataFormat();
+        final String typeName = fieldType.typeName();
+        final Set<FieldTypeCapabilities.Capability> remaining = new HashSet<>(requested);
+        final Map<DataFormat, Set<FieldTypeCapabilities.Capability>> assigned = new LinkedHashMap<>();
+
+        final Set<FieldTypeCapabilities.Capability> claimed = claimCapabilities(format, typeName, remaining);
+        if (claimed.isEmpty() == false) {
+            assigned.put(format, Set.copyOf(claimed));
+            remaining.removeAll(claimed);
+        }
+
+        if (remaining.isEmpty() == false) {
+            throw new MapperParsingException(
+                "Field ["
+                    + fieldType.name()
+                    + "] of type ["
+                    + typeName
+                    + "] requires capabilities "
+                    + requested
+                    + " but data format ["
+                    + format.name()
+                    + "] cannot cover: "
+                    + remaining
+            );
+        }
+        fieldType.setCapabilityMap(Map.copyOf(assigned));
+    }
+
+    /**
+     * Claims the capabilities that the given format supports for the specified field type.
+     */
+    static Set<FieldTypeCapabilities.Capability> claimCapabilities(
+        DataFormat format,
+        String typeName,
+        Set<FieldTypeCapabilities.Capability> required
+    ) {
+        return format.supportedFields().stream().filter(ftc -> ftc.fieldType().equals(typeName)).findFirst().map(ftc -> {
+            Set<FieldTypeCapabilities.Capability> intersection = EnumSet.noneOf(FieldTypeCapabilities.Capability.class);
+            for (FieldTypeCapabilities.Capability cap : required) {
+                if (ftc.capabilities().contains(cap)) {
+                    intersection.add(cap);
+                }
+            }
+            return (Set<FieldTypeCapabilities.Capability>) intersection;
+        }).orElse(Set.of());
+    }
+
+    /**
+     * Returns the strategies describing how this format participates in the tiered store,
+     * keyed by the format name the strategy applies to.
+     *
+     * <p>Most plugins contribute a single entry (their own format). Composite plugins,
+     * which expose multiple formats per index, return one entry per participating format.
+     * A plugin that does not participate in the tiered store returns an empty map (default).
+     *
+     * <p>All cross-cutting work (per-shard lifecycle, seeding, routing, close) is handled
+     * by the store layer. Plugins only declare strategies here.
+     *
+     * @param indexSettings      the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve
+     *                           sub-format plugins
+     * @return the strategies that apply, keyed by data format; never {@code null}
+     */
+    default Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        return Map.of();
+    }
+
+    /**
+     * Returns the delete execution engine for this data format, or {@code null} if this
+     * plugin does not support delete operations.
+     *
+     * @param committer the committer for durable delete tracking
+     * @return the delete execution engine, or {@code null}
+     */
+    default DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        return null;
+    }
+}

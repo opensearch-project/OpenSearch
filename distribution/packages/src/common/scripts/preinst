@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+#
+# This script is executed in the pre-installation phase
+#
+#   On Debian,
+#       $1=install : indicates an new install
+#       $1=upgrade : indicates an upgrade
+#
+#   On RedHat,
+#       $1=1       : indicates an new install
+#       $1=2       : indicates an upgrade
+
+set -e -o pipefail
+
+err_exit() {
+    echo "$@" >&2
+    exit 1
+}
+
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+fi
+
+export OPENSEARCH_PATH_CONF=${OPENSEARCH_PATH_CONF:-${path.conf}}
+
+case "$1" in
+
+    # Debian ####################################################
+    install|upgrade)
+
+        # Create opensearch group if not existing
+        if ! getent group opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch group..."
+            addgroup --quiet --system opensearch
+            echo " OK"
+        fi
+
+        # Create opensearch user if not existing
+        if ! id opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch user..."
+            adduser --quiet \
+                    --system \
+                    --no-create-home \
+                    --home /nonexistent \
+                    --ingroup opensearch \
+                    --disabled-password \
+                    --shell /bin/false \
+                    opensearch
+            echo " OK"
+        fi
+    ;;
+    abort-deconfigure|abort-upgrade|abort-remove)
+    ;;
+
+    # RedHat ####################################################
+    1|2)
+
+        # Create opensearch group if not existing
+        if ! getent group opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch group..."
+            groupadd -r opensearch
+            echo " OK"
+        fi
+
+        # Create opensearch user if not existing
+        if ! id opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch user..."
+            useradd --system \
+                    --no-create-home \
+                    --home-dir /nonexistent \
+                    --gid opensearch \
+                    --shell /sbin/nologin \
+                    --comment "opensearch user" \
+                    opensearch
+            echo " OK"
+        fi
+    ;;
+
+    *)
+        err_exit "pre install script called with unknown argument \`$1'"
+    ;;
+esac
+
+${scripts.footer}

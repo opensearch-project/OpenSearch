@@ -1,0 +1,1 @@
+source=test_data | eval sinh_val = sinh(1) | fields id, sinh_val | head 1

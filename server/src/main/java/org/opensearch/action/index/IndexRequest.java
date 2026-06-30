@@ -1,0 +1,790 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.action.index;
+
+import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.RoutingMissingException;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.util.RequestUtils;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
+
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
+/**
+ * Index request to index a typed JSON document into a specific index and make it searchable. Best
+ * created using {@link Requests#indexRequest(String)}.
+ * <p>
+ * The index requires the {@link #index()}, {@link #id(String)} and
+ * {@link #source(byte[], MediaType)} to be set.
+ * <p>
+ * The source (content to index) can be set in its bytes form using ({@link #source(byte[], MediaType)}),
+ * its string form ({@link #source(String, MediaType)}) or using a {@link XContentBuilder}
+ * ({@link #source(XContentBuilder)}).
+ * <p>
+ * If the {@link #id(String)} is not set, it will be automatically generated.
+ *
+ * @see IndexResponse
+ * @see Requests#indexRequest(String)
+ * @see Client#index(IndexRequest)
+ *
+ * @opensearch.api
+ */
+@PublicApi(since = "1.0.0")
+public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
+
+    /**
+     * Max length of the source document to include into string()
+     *
+     * @see ReplicationRequest#createTask
+     */
+    static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
+
+    private static final ShardId NO_SHARD_ID = null;
+
+    private String id;
+    @Nullable
+    private String routing;
+
+    private BytesReference source;
+    private ExtraFieldValues extraFieldValues = ExtraFieldValues.EMPTY;
+
+    private OpType opType = OpType.INDEX;
+
+    private long version = Versions.MATCH_ANY;
+    private VersionType versionType = VersionType.INTERNAL;
+
+    private MediaType contentType;
+
+    private String pipeline;
+    private String finalPipeline;
+    private String systemIngestPipeline;
+
+    private boolean isPipelineResolved;
+
+    private boolean requireAlias;
+
+    /**
+     * Value for {@link #getAutoGeneratedTimestamp()} if the document has an external
+     * provided ID.
+     */
+    public static final long UNSET_AUTO_GENERATED_TIMESTAMP = -1L;
+
+    private long autoGeneratedTimestamp = UNSET_AUTO_GENERATED_TIMESTAMP;
+
+    private boolean isRetry = false;
+    private long ifSeqNo = UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+
+    public IndexRequest(StreamInput in) throws IOException {
+        this(null, in);
+    }
+
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            String type = in.readOptionalString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readOptionalString();
+        routing = in.readOptionalString();
+        source = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            extraFieldValues = Objects.requireNonNullElse(in.readOptionalWriteable(ExtraFieldValues::new), ExtraFieldValues.EMPTY);
+        } else {
+            extraFieldValues = ExtraFieldValues.EMPTY;
+        }
+        opType = OpType.fromId(in.readByte());
+        version = in.readLong();
+        versionType = VersionType.fromValue(in.readByte());
+        pipeline = in.readOptionalString();
+        finalPipeline = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            systemIngestPipeline = in.readOptionalString();
+        }
+        isPipelineResolved = in.readBoolean();
+        isRetry = in.readBoolean();
+        autoGeneratedTimestamp = in.readLong();
+        if (in.readBoolean()) {
+            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+                contentType = in.readMediaType();
+            } else {
+                contentType = in.readEnum(XContentType.class);
+            }
+        } else {
+            contentType = null;
+        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
+        requireAlias = in.readBoolean();
+    }
+
+    public IndexRequest() {
+        super(NO_SHARD_ID);
+    }
+
+    /**
+     * Constructs a new index request against the specific index. The
+     * {@link #source(byte[], MediaType)} must be set.
+     */
+    public IndexRequest(String index) {
+        super(NO_SHARD_ID);
+        this.index = index;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (source == null) {
+            validationException = addValidationError("source is missing", validationException);
+        }
+        if (contentType == null) {
+            validationException = addValidationError("content type is missing", validationException);
+        }
+        assert opType == OpType.INDEX || opType == OpType.CREATE : "unexpected op-type: " + opType;
+        final long resolvedVersion = resolveVersionDefaults();
+        if (opType == OpType.CREATE) {
+            if (versionType != VersionType.INTERNAL) {
+                validationException = addValidationError(
+                    "create operations only support internal versioning. use index instead",
+                    validationException
+                );
+                return validationException;
+            }
+
+            if (resolvedVersion != Versions.MATCH_DELETED) {
+                validationException = addValidationError(
+                    "create operations do not support explicit versions. use index instead",
+                    validationException
+                );
+                return validationException;
+            }
+
+            if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
+                validationException = addValidationError(
+                    "create operations do not support compare and set. use index instead",
+                    validationException
+                );
+                return validationException;
+            }
+        }
+
+        if (id == null) {
+            if (versionType != VersionType.INTERNAL
+                || (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
+                validationException = addValidationError("an id must be provided if version type or value are set", validationException);
+            }
+        }
+
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+
+        if (pipeline != null && pipeline.isEmpty()) {
+            validationException = addValidationError("pipeline cannot be an empty string", validationException);
+        }
+
+        if (finalPipeline != null && finalPipeline.isEmpty()) {
+            validationException = addValidationError("final pipeline cannot be an empty string", validationException);
+        }
+
+        return validationException;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    /**
+     * The content type. This will be used when generating a document from user provided objects like Maps and when parsing the
+     * source at index time
+     */
+    public MediaType getContentType() {
+        return contentType;
+    }
+
+    /**
+     * The id of the indexed document. If not set, will be automatically generated.
+     */
+    @Override
+    public String id() {
+        return id;
+    }
+
+    /**
+     * Sets the id of the indexed document. If not set, will be automatically generated.
+     */
+    public IndexRequest id(String id) {
+        this.id = id;
+        return this;
+    }
+
+    /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    @Override
+    public IndexRequest routing(String routing) {
+        if (routing != null && routing.length() == 0) {
+            this.routing = null;
+        } else {
+            this.routing = routing;
+        }
+        return this;
+    }
+
+    /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    @Override
+    public String routing() {
+        return this.routing;
+    }
+
+    /**
+     * Sets the ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequest setPipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    /**
+     * Returns the ingest pipeline to be executed before indexing the document
+     */
+    public String getPipeline() {
+        return this.pipeline;
+    }
+
+    /**
+     * Sets the system ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequest setSystemIngestPipeline(final String systemIngestPipeline) {
+        this.systemIngestPipeline = systemIngestPipeline;
+        return this;
+    }
+
+    /**
+     * Returns the system ingest pipeline to be executed before indexing the document
+     */
+    public String getSystemIngestPipeline() {
+        return this.systemIngestPipeline;
+    }
+
+    /**
+     * Sets the final ingest pipeline to be executed before indexing the document.
+     *
+     * @param finalPipeline the name of the final pipeline
+     * @return this index request
+     */
+    public IndexRequest setFinalPipeline(final String finalPipeline) {
+        this.finalPipeline = finalPipeline;
+        return this;
+    }
+
+    /**
+     * Returns the final ingest pipeline to be executed before indexing the document.
+     *
+     * @return the name of the final pipeline
+     */
+    public String getFinalPipeline() {
+        return this.finalPipeline;
+    }
+
+    /**
+     * Sets if the pipeline for this request has been resolved by the coordinating node.
+     *
+     * @param isPipelineResolved true if the pipeline has been resolved
+     * @return the request
+     */
+    public IndexRequest isPipelineResolved(final boolean isPipelineResolved) {
+        this.isPipelineResolved = isPipelineResolved;
+        return this;
+    }
+
+    /**
+     * Returns whether or not the pipeline for this request has been resolved by the coordinating node.
+     *
+     * @return true if the pipeline has been resolved
+     */
+    public boolean isPipelineResolved() {
+        return this.isPipelineResolved;
+    }
+
+    /**
+     * The source of the document to index, recopied to a new array if it is unsafe.
+     */
+    public BytesReference source() {
+        return source;
+    }
+
+    public Map<String, Object> sourceAsMap() {
+        return XContentHelper.convertToMap(source, false, contentType).v2();
+    }
+
+    /**
+     * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
+     *
+     * @param source The map to index
+     */
+    public IndexRequest source(Map<String, ?> source) throws OpenSearchGenerationException {
+        return source(source, Requests.INDEX_CONTENT_TYPE);
+    }
+
+    /**
+     * Index the Map as the provided content type.
+     *
+     * @param source The map to index
+     */
+    public IndexRequest source(Map<String, ?> source, MediaType contentType) throws OpenSearchGenerationException {
+        try {
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(contentType);
+            builder.map(source);
+            return source(builder);
+        } catch (IOException e) {
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    /**
+     * Sets the document source to index.
+     * <p>
+     * Note, its preferable to either set it using {@link #source(XContentBuilder)}
+     * or using the {@link #source(byte[], MediaType)}.
+     */
+    public IndexRequest source(String source, MediaType mediaType) {
+        return source(new BytesArray(source), mediaType);
+    }
+
+    /**
+     * Sets the content source to index.
+     */
+    public IndexRequest source(XContentBuilder sourceBuilder) {
+        return source(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType());
+    }
+
+    /**
+     * Sets the content source to index using the default content type ({@link Requests#INDEX_CONTENT_TYPE})
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public IndexRequest source(Object... source) {
+        return source(Requests.INDEX_CONTENT_TYPE, source);
+    }
+
+    /**
+     * Sets the content source to index.
+     * <p>
+     * <b>Note: the number of objects passed to this method as varargs must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public IndexRequest source(MediaType mediaType, Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+        }
+        if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
+            throw new IllegalArgumentException(
+                "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
+                    + " was removed, please just use source(BytesReference)"
+            );
+        }
+        try {
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(mediaType);
+            builder.startObject();
+            for (int i = 0; i < source.length; i++) {
+                builder.field(source[i++].toString(), source[i]);
+            }
+            builder.endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new OpenSearchGenerationException("Failed to generate", e);
+        }
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public IndexRequest source(BytesReference source, MediaType mediaType) {
+        this.source = Objects.requireNonNull(source);
+        this.contentType = Objects.requireNonNull(mediaType);
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public IndexRequest source(byte[] source, MediaType mediaType) {
+        return source(source, 0, source.length, mediaType);
+    }
+
+    /**
+     * Sets the document to index in bytes form (assumed to be safe to be used from different
+     * threads).
+     *
+     * @param source    The source to index
+     * @param offset    The offset in the byte array
+     * @param length    The length of the data
+     * @param mediaType The data format over the wire
+     */
+    public IndexRequest source(byte[] source, int offset, int length, MediaType mediaType) {
+        return source(new BytesArray(source, offset, length), mediaType);
+    }
+
+    /**
+     * Sets extra field values to be ingested outside of {@code _source}.
+     * <p>
+     * {@code null} clears the values and resets to {@link ExtraFieldValues#EMPTY}.
+     */
+    public IndexRequest extraFieldValues(ExtraFieldValues values) {
+        this.extraFieldValues = values == null ? ExtraFieldValues.EMPTY : values;
+        return this;
+    }
+
+    /**
+     * Returns the extra field values associated with this request, or {@link ExtraFieldValues#EMPTY} if none.
+     */
+    public ExtraFieldValues extraFieldValues() {
+        return extraFieldValues;
+    }
+
+    /**
+     * Sets the type of operation to perform.
+     */
+    public IndexRequest opType(OpType opType) {
+        if (opType != OpType.CREATE && opType != OpType.INDEX) {
+            throw new IllegalArgumentException("opType must be 'create' or 'index', found: [" + opType + "]");
+        }
+        this.opType = opType;
+        return this;
+    }
+
+    /**
+     * Sets a string representation of the {@link #opType(OpType)}. Can
+     * be either "index" or "create".
+     */
+    public IndexRequest opType(String opType) {
+        String op = opType.toLowerCase(Locale.ROOT);
+        if (op.equals("create")) {
+            opType(OpType.CREATE);
+        } else if (op.equals("index")) {
+            opType(OpType.INDEX);
+        } else {
+            throw new IllegalArgumentException("opType must be 'create' or 'index', found: [" + opType + "]");
+        }
+        return this;
+    }
+
+    /**
+     * Set to {@code true} to force this index to use {@link OpType#CREATE}.
+     */
+    public IndexRequest create(boolean create) {
+        if (create) {
+            return opType(OpType.CREATE);
+        } else {
+            return opType(OpType.INDEX);
+        }
+    }
+
+    @Override
+    public OpType opType() {
+        return this.opType;
+    }
+
+    @Override
+    public IndexRequest version(long version) {
+        this.version = version;
+        return this;
+    }
+
+    /**
+     * Returns stored version. If currently stored version is {@link Versions#MATCH_ANY} and
+     * opType is {@link OpType#CREATE}, returns {@link Versions#MATCH_DELETED}.
+     */
+    @Override
+    public long version() {
+        return resolveVersionDefaults();
+    }
+
+    /**
+     * Resolves the version based on operation type {@link #opType()}.
+     */
+    private long resolveVersionDefaults() {
+        if (opType == OpType.CREATE && version == Versions.MATCH_ANY) {
+            return Versions.MATCH_DELETED;
+        } else {
+            return version;
+        }
+    }
+
+    @Override
+    public IndexRequest versionType(VersionType versionType) {
+        this.versionType = versionType;
+        return this;
+    }
+
+    /**
+     * only perform this indexing request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public IndexRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
+    }
+
+    /**
+     * only performs this indexing request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public IndexRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
+    }
+
+    /**
+     * If set, only perform this indexing request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this indexing request if the document was last modification was assigned this primary term.
+     * <p>
+     * If the document last modification was assigned a different term a
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifPrimaryTerm() {
+        return ifPrimaryTerm;
+    }
+
+    @Override
+    public VersionType versionType() {
+        return this.versionType;
+    }
+
+    public void process(Version indexCreatedVersion, @Nullable MappingMetadata mappingMd, String concreteIndex) {
+        if (mappingMd != null) {
+            // might as well check for routing here
+            if (mappingMd.routingRequired() && routing == null) {
+                throw new RoutingMissingException(concreteIndex, id);
+            }
+        }
+
+        if ("".equals(id)) {
+            throw new IllegalArgumentException("if _id is specified it must not be empty");
+        }
+
+        // generate id if not already provided
+        if (id == null) {
+            assert autoGeneratedTimestamp == UNSET_AUTO_GENERATED_TIMESTAMP : "timestamp has already been generated!";
+            assert ifSeqNo == UNASSIGNED_SEQ_NO;
+            assert ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM;
+            autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia
+            id(RequestUtils.generateID());
+        }
+    }
+
+    /* resolve the routing if needed */
+    public void resolveRouting(Metadata metadata) {
+        routing(metadata.resolveWriteIndexRouting(routing, index));
+    }
+
+    @Deprecated(forRemoval = true)
+    public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
+        // Do nothing.
+        // TODO: Remove in OpenSearch 4.0
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
+        out.writeOptionalString(id);
+        out.writeOptionalString(routing);
+        out.writeBytesReference(source);
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(extraFieldValues.isEmpty() ? null : extraFieldValues);
+        }
+        out.writeByte(opType.getId());
+        out.writeLong(version);
+        out.writeByte(versionType.getValue());
+        out.writeOptionalString(pipeline);
+        out.writeOptionalString(finalPipeline);
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            out.writeOptionalString(systemIngestPipeline);
+        }
+        out.writeBoolean(isPipelineResolved);
+        out.writeBoolean(isRetry);
+        out.writeLong(autoGeneratedTimestamp);
+        if (contentType != null) {
+            out.writeBoolean(true);
+            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+                contentType.writeTo(out);
+            } else {
+                out.writeEnum((XContentType) contentType);
+            }
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
+        out.writeBoolean(requireAlias);
+    }
+
+    @Override
+    public String toString() {
+        String sSource = Strings.UNKNOWN_UUID_VALUE;
+        try {
+            if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+                sSource = "n/a, actual length: ["
+                    + new ByteSizeValue(source.length()).toString()
+                    + "], max length: "
+                    + new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+            } else {
+                sSource = XContentHelper.convertToJson(source, false);
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return "index {[" + index + "][" + id + "], source[" + sSource + "]}";
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    /**
+     * Returns <code>true</code> if this request has been sent to a shard copy more than once.
+     */
+    public boolean isRetry() {
+        return isRetry;
+    }
+
+    @Override
+    public void onRetry() {
+        isRetry = true;
+    }
+
+    /**
+     * Returns the timestamp the auto generated ID was created or {@value #UNSET_AUTO_GENERATED_TIMESTAMP} if the
+     * document has no auto generated timestamp. This method will return a positive value iff the id was auto generated.
+     */
+    public long getAutoGeneratedTimestamp() {
+        return autoGeneratedTimestamp;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (source == null ? 0 : source.length());
+    }
+
+    @Override
+    public boolean isRequireAlias() {
+        return requireAlias;
+    }
+
+    public IndexRequest setRequireAlias(boolean requireAlias) {
+        this.requireAlias = requireAlias;
+        return this;
+    }
+}

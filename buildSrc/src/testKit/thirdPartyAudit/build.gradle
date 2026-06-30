@@ -1,0 +1,62 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin
+import org.opensearch.gradle.precommit.ThirdPartyAuditTask
+
+
+plugins {
+  id 'java'
+  // bring in build-tools onto the classpath
+  id 'opensearch.global-build-info'
+}
+
+plugins.apply(ThirdPartyAuditPrecommitPlugin)
+
+repositories {
+  /**
+   * Local test repo contains dummy jars with different group names and versions.
+   *   - broken-log4j creates a log4j logger but has no pom, so the class will be missing
+   *   - dummy-io has a class that creates a new java.io.File ( something which third-party-audit-absurd.txt forbids )
+   *   - version 0.0.2 has the same class and one extra file just to make the jar different
+   *   - used for propagating jar containing jdkjarhell jar from integ test runtime classpath
+   */
+  exclusiveContent {
+    forRepositories(maven {
+      name = "local-test"
+      url = file("sample_jars/build/testrepo")
+      metadataSources {
+        artifact()
+      }
+    })
+    filter {
+      includeGroupByRegex "other\\.gradle.*|opensearch\\.gradle.*|org\\.other\\.gradle.*|org\\.opensearch\\.gradle.*|org\\.opensearch"
+    }
+  }
+  maven { url = uri("https://ci.opensearch.org/maven2/") }
+  mavenCentral()
+}
+
+dependencies {
+  jdkJarHell 'org.opensearch:opensearch-core:current'
+  compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
+  implementation "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
+}
+
+tasks.register("empty", ThirdPartyAuditTask) {
+  targetCompatibility = JavaVersion.VERSION_21
+  signatureFile = file('third-party-audit-empty.txt')
+}
+
+tasks.register("absurd", ThirdPartyAuditTask) {
+  targetCompatibility = JavaVersion.VERSION_21
+  signatureFile = file('third-party-audit-absurd.txt')
+}

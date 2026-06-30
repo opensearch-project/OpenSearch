@@ -1,0 +1,173 @@
+---
+setup:
+  # creates an index with one document solely allocated on a particular data node
+  # and shrinks it into a new index with a single shard
+  # we don't do the relocation to a single node after the index is created
+  # here since in a mixed version cluster we can't identify
+  # which node is the one with the highest version and that is the only one that can safely
+  # be used to shrink the index.
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            # ensure everything is allocated on the same data node
+            index.routing.allocation.include._id: $node_id
+            index.number_of_shards: 2
+            index.number_of_replicas: 0
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+---
+"Shrink index via API":
+  - skip:
+      features: allowed_warnings
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # now we do the actual shrink
+  - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.shrink:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+# Related issue: https://github.com/opensearch-project/OpenSearch/issues/4845
+---
+"Returns error if target index's metadata write is blocked":
+  - skip:
+      version: " - 2.7.99"
+      reason: "the bug was fixed in 2.8.0"
+
+  # block source index's write operations
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # set `index.blocks.read_only` to `true` for target index
+  - do:
+      catch: /action_request_validation_exception/
+      indices.shrink:
+        index: "source"
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.blocks.read_only: true
+
+  # set `index.blocks.metadata` to `true` for target index
+  - do:
+      catch: /action_request_validation_exception/
+      indices.shrink:
+        index: "source"
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.blocks.metadata: true
+
+  # set source index's setting `index.blocks.read_only` to `true`
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.read_only: true
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.shrink:
+        index: "source"
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+
+  # overwrite the source index's setting, everything is fine
+  - do:
+      indices.shrink:
+        index: "source"
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.blocks.read_only: null
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: new_shrunken_index
+        id:    "1"
+
+  - match: { _index:   new_shrunken_index }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # clear the source index's read_only blocks because it will block deleting index
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.read_only: null

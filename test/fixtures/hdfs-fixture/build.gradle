@@ -1,0 +1,99 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'opensearch.java'
+
+group = 'hdfs'
+
+versions << [
+  'jetty': '9.4.58.v20250814'
+]
+
+dependencies {
+  api("org.apache.hadoop:hadoop-minicluster:3.5.0") {
+    exclude module: 'websocket-client'
+    exclude module: 'jettison'
+    exclude module: 'netty'
+    exclude module: 'guava'
+    exclude module: 'protobuf-java'
+    exclude group: 'org.codehaus.jackson'
+    exclude group: "org.bouncycastle"
+    exclude group: "com.squareup.okhttp3"
+    exclude group: "org.xerial.snappy"
+    exclude module: "json-io"
+    exclude module: "logback-core"
+    exclude module: "logback-classic"
+    exclude module: "avro"
+    exclude group: 'org.apache.kerby'
+    exclude group: 'com.nimbusds'
+    exclude module: "commons-configuration2"
+    exclude module: "commons-beanutils"
+    exclude module: "org.eclipse.jetty"
+    exclude group: "commons-lang"
+    exclude group: "org.jsonschema2pojo"
+    exclude group: "com.microsoft.sqlserver"
+  }
+  api "dnsjava:dnsjava:3.6.4"
+  api "org.codehaus.jettison:jettison:${versions.jettison}"
+  api "org.apache.commons:commons-compress:${versions.commonscompress}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  api "io.netty:netty-all:${versions.netty}"
+  api "com.google.code.gson:gson:${versions.gson}"
+  api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
+  api "net.minidev:json-smart:${versions.json_smart}"
+  api "org.mockito:mockito-core:${versions.mockito}"
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
+  api "org.eclipse.jetty:jetty-server:${versions.jetty}"
+  api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
+
+  api 'org.apache.zookeeper:zookeeper:3.9.5'
+  api "org.apache.commons:commons-text:1.15.0"
+  api "commons-net:commons-net:3.12.0"
+  api "ch.qos.logback:logback-core:1.5.32"
+  api "ch.qos.logback:logback-classic:1.5.32"
+  api "org.jboss.xnio:xnio-nio:3.8.17.Final"
+  api 'org.jline:jline:4.0.14'
+  api 'org.apache.commons:commons-configuration2:2.15.0'
+  api 'com.nimbusds:nimbus-jose-jwt:10.9'
+  api ('org.apache.kerby:kerb-admin:2.1.1') {
+    exclude group: "org.jboss.xnio"
+    exclude group: "org.jline"
+  }
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly("com.squareup.okhttp3:okhttp:5.3.2") {
+    exclude group: "com.squareup.okio"
+  }
+  runtimeOnly "com.squareup.okio:okio:3.16.4"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.8"
+}

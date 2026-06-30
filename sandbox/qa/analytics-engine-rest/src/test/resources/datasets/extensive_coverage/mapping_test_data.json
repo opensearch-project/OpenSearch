@@ -1,0 +1,22 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "id": {"type": "keyword"},
+      "timestamp": {"type": "date"},
+      "category": {"type": "keyword"},
+      "value": {"type": "double"},
+      "total": {"type": "integer"},
+      "text": {"type": "text"},
+      "tags": {"type": "keyword"},
+      "json_data": {"type": "text"},
+      "ip_address": {"type": "ip"},
+      "status": {"type": "keyword"},
+      "price": {"type": "double"},
+      "quantity": {"type": "integer"}
+    }
+  }
+}

@@ -1,0 +1,139 @@
+---
+"Field caps with disable_objects returns leaf fields":
+
+  - skip:
+      version: " - 3.5.99"
+      reason: "Bug fixed in 3.6"
+
+  - do:
+      indices.create:
+        index: test_disable_objects
+        body:
+          mappings:
+            properties:
+              attributes:
+                type: object
+                disable_objects: true
+
+  - do:
+      index:
+        index: test_disable_objects
+        id: "1"
+        body:
+          attributes:
+            foo:
+              bar: baz
+
+  - do:
+      indices.refresh:
+        index: test_disable_objects
+
+  - do:
+      field_caps:
+        index: test_disable_objects
+        fields: "*"
+
+  # Leaf field must exist
+  - is_true: fields.attributes\.foo\.bar
+
+  # Parent object field must have type object
+  - match: { fields.attributes.object.type: object }
+
+  # Intermediate path must not exist (since disable_objects is set)
+  - is_false: fields.attributes\.foo
+
+---
+"Field caps with disable_objects does not corrupt field names after second document indexed":
+
+  - skip:
+      version: " - 3.5.99"
+      reason: "Bug fixed in 3.6"
+
+  - do:
+      indices.create:
+        index: test_disable_objects_merge
+        body:
+          mappings:
+            properties:
+              attributes:
+                type: object
+                disable_objects: true
+
+  # doc 1: creates the disable_objects leaf field
+  - do:
+      index:
+        index: test_disable_objects_merge
+        id: "1"
+        body:
+          attributes:
+            foo:
+              bar: baz
+
+  # doc 2: unrelated - must not corrupt the existing mapping
+  - do:
+      index:
+        index: test_disable_objects_merge
+        id: "2"
+        body:
+          key: 1
+
+  - do:
+      indices.refresh:
+        index: test_disable_objects_merge
+
+  - do:
+      field_caps:
+        index: test_disable_objects_merge
+        fields: "*"
+
+  # Leaf field must exist
+  - is_true: fields.attributes\.foo\.bar
+
+  # Corrupted field name must not exist
+  - is_false: fields.attributes\.foo\.foo\.bar
+
+  # The unrelated field must also exist
+  - is_true: fields.key
+
+---
+"Field caps with normal nested object returns intermediate paths":
+
+  - do:
+      indices.create:
+        index: test_normal_nested
+        body:
+          mappings:
+            properties:
+              user:
+                type: object
+                properties:
+                  address:
+                    type: object
+                    properties:
+                      city:
+                        type: keyword
+
+  - do:
+      index:
+        index: test_normal_nested
+        id: "1"
+        body:
+          user:
+            address:
+              city: Chemnitz
+
+  - do:
+      indices.refresh:
+        index: test_normal_nested
+
+  - do:
+      field_caps:
+        index: test_normal_nested
+        fields: "*"
+
+  # Leaf field must exist
+  - is_true: fields.user\.address\.city
+
+  # Intermediate object paths must also exist
+  - match: { fields.user\.address.object.type: object }
+  - match: { fields.user.object.type: object }

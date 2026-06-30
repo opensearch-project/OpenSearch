@@ -1,0 +1,1 @@
+source=aggregation_tests | stats percentile(score, 25) as p25, percentile(score, 50) as p50, percentile(score, 75) as p75 by department | sort - p50

@@ -1,0 +1,44 @@
+import org.opensearch.gradle.info.BuildParams
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.rest-resources'
+apply plugin: 'opensearch.validate-rest-spec'
+apply plugin: 'opensearch.yaml-rest-test'
+
+restResources {
+  restTests {
+    includeCore '*'
+  }
+}
+
+artifacts {
+  restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
+  restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+}
+
+testClusters.all {
+  module ':modules:mapper-extras'
+}
+
+test.enabled = false
+jarHell.enabled = false
+
+yamlRestTest {
+  // FIPS mode enforces cryptographic standards that may conflict with certain test scenarios
+  if (BuildParams.inFipsJvm) {
+    systemProperty 'tests.rest.denylist', ['nodes.reload_secure_settings/11_no_password/*']
+        .join(",")
+  }
+}

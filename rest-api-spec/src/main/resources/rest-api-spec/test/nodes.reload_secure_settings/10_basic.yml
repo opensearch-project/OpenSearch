@@ -1,0 +1,21 @@
+setup:
+  - skip:
+      features: [arbitrary_key]
+---
+"node_reload_secure_settings test wrong password":
+
+
+  - do:
+      nodes.reload_secure_settings:
+        node_id: _local
+        body:
+          secure_settings_password: awrongpasswordhere
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: nodes
+  - is_true: cluster_name
+  - match: { nodes.$node_id.reload_exception.type: "security_exception" }
+  - match: { nodes.$node_id.reload_exception.reason:
+               /^(Provided\skeystore\spassword\swas\sincorrect|
+               Keystore\shas\sbeen\scorrupted\sor\stampered\swith)$/ }
