@@ -298,7 +298,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
                     "action",
                     new ResourceAlreadyExistsException("OpenSearchWrapperException with a cause that has a custom status")
                 );
-                status = RestStatus.BAD_REQUEST;
+                status = RestStatus.CONFLICT;
                 if (detailed) {
                     type = "resource_already_exists_exception";
                     reason = "OpenSearchWrapperException with a cause that has a custom status";
