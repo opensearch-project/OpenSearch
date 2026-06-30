@@ -30,6 +30,7 @@ import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
+import org.apache.calcite.sql2rel.RelFieldTrimmer;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -129,6 +130,7 @@ public class PlannerImpl {
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
+        modifiedRelNode = trimUnusedFields(modifiedRelNode);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
@@ -165,6 +167,70 @@ public class PlannerImpl {
             LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
+    }
+
+    /**
+     * Pre-marking column pruning. Runs Calcite's {@link RelFieldTrimmer} on the still-plain
+     * {@code Logical*} plan (before {@link #mark} lowers it to {@code OpenSearch*}) so columns no
+     * operator references are dropped at the source: the trimmer inserts narrowing Projects and
+     * remaps every {@code RexInputRef} / aggregate-arg / join-condition index itself. Trimmed columns
+     * then never enter marking, CBO, the distribution-enforcement pass, OR the hash-shuffle wire —
+     * which for an aggregate-over-join (TPC-H q5/q9) is the difference between shuffling the full
+     * join width and shuffling only the group keys + aggregate inputs.
+     *
+     * <p>Doing this here (pre-marking, on {@code Logical*}) rather than as post-enforcement surgery on
+     * an {@code OpenSearchShuffleExchange} avoids hand-remapping a downstream join's input indices +
+     * per-column {@code FieldStorageInfo} — the trimmer is the battle-tested Calcite path for exactly
+     * that remapping.
+     *
+     * <p>Constructed like Calcite's own {@code Programs.trim()}: a {@code null} validator (our rels
+     * arrive already-validated from the frontend) + a logical {@link RelBuilder}. Guarded: a trimmer
+     * edge case falls back to the untrimmed plan rather than failing the query.
+     *
+     * <p><b>SCOPED TO JOIN PLANS.</b> The byte-width win is the wide multi-input shuffle (a join ships
+     * its full output width when only the downstream-referenced columns are needed — TPC-H q5/q9 shrink
+     * 5-25x). Single-input plans (scan/filter/window/union/bare-aggregate) gain nothing here — scan
+     * column-pruning is already a NATIVE concern (DataFusion reads only the columns the query touches
+     * regardless of a Project above the scan), so trimming them only churns plan shapes (and the
+     * plan-shape golden tests) for no runtime benefit. Gating on "plan has joins and they are ALL
+     * EQUI-joins" confines the rewrite to exactly the distributable shapes that benefit — and excludes
+     * any plan containing a trivial CROSS JOIN (e.g. the one PPL {@code transpose} lowers to, which
+     * never distributes and which the whole-tree trimmer would mis-rewrite even from a sibling arm).
+     * The {@code analytics.mpp.shuffle.prune_columns}
+     * JVM system property (default {@code true}) is the on/off stopgap until promoted to a cluster setting.
+     */
+    private static RelNode trimUnusedFields(RelNode input) {
+        if (!Boolean.parseBoolean(System.getProperty("analytics.mpp.shuffle.prune_columns", "true"))) {
+            return input;
+        }
+        // Confine the trim to plans that (a) contain at least one join and (b) whose joins are ALL
+        // equi-joins. Rationale:
+        // - Only an equi-join's hash-shuffle ships full width, so only join plans gain (scan/filter/
+        // window/union/bare-agg get native scan-pruning and would only churn shapes).
+        // - The "ALL equi" requirement (not "ANY") is load-bearing for CORRECTNESS. RelFieldTrimmer
+        // rewrites the WHOLE tree, not a subtree, so a plan that mixes a real equi-join with a CROSS
+        // JOIN (condition=[true]) — e.g. PPL `transpose`, which lowers to a cross-join wrapped in
+        // ROW_NUMBER windows + FILTER aggregates — would have its delicate cross-join branch
+        // mis-rewritten into a valid-but-WRONG plan (no exception → the try/catch below would NOT
+        // catch it; extensive-coverage q82 first surfaced the pure-transpose case). Requiring every
+        // join to carry equi-keys excludes any plan containing such a cross-join, sibling arm or not.
+        // A cross-join never distributes, so excluding it loses no byte-width win.
+        List<org.apache.calcite.rel.core.Join> joins = RelNodeUtils.findNodes(input, org.apache.calcite.rel.core.Join.class);
+        boolean allEquiJoins = !joins.isEmpty() && joins.stream().allMatch(j -> !j.analyzeCondition().leftKeys.isEmpty());
+        if (!allEquiJoins) {
+            return input;
+        }
+        try {
+            RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
+            RelNode trimmed = new RelFieldTrimmer(null, relBuilder).trim(input);
+            LOGGER.debug("After field trimming:\n{}", RelOptUtil.toString(trimmed));
+            return trimmed;
+        } catch (RuntimeException e) {
+            // Defensive: a RelFieldTrimmer edge case (an unsupported rel shape) must not fail planning.
+            // Fall back to the untrimmed plan — correctness is unaffected, only the byte-width win is lost.
+            LOGGER.debug("Field trimming skipped (fell back to untrimmed plan): {}", e.toString());
+            return input;
+        }
     }
 
     /**

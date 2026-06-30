@@ -1468,4 +1468,100 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             return parallelism;
         }
     }
+
+    /**
+     * Column-prune-before-shuffle (opt #2c): the pre-marking {@code RelFieldTrimmer} must drop columns
+     * no operator references so they never reach the hash-shuffle wire. For
+     * {@code COUNT() GROUP BY col0} over a 3-way join of 2-col tables the aggregate needs only col0,
+     * so every shuffle's input must be narrowed to just the referenced column(s) — scan-level shuffles
+     * to width 1 ({@code status}), the inter-tier join shuffle to the two join keys ({@code status},
+     * {@code status0}). Guards the trimmer wiring + index remapping (a join above a narrowed shuffle
+     * must still resolve its keys).
+     */
+    public void testColumnPruneNarrowsShuffleInputs() {
+        // Column-prune (PlannerImpl.trimUnusedFields) is ON by default and scoped to join plans — this
+        // agg-over-3-way-join qualifies. Validates the trimmer wiring + index remapping (a join above a
+        // narrowed shuffle must still resolve its keys).
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+        RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        List<OpenSearchShuffleExchange> shuffles = findAll(enforced, OpenSearchShuffleExchange.class);
+        assertFalse("the agg-over-3-way-join must still distribute (shuffles present)", shuffles.isEmpty());
+        // Without trimming the scan shuffles ship [status, size] (width 2) and the inter-tier join
+        // shuffle ships [status, size, status0, size0] (width 4). With trimming, the dead `size`
+        // columns are gone: scan shuffles carry only the referenced column, the join shuffle only
+        // its two keys. Assert NO shuffle carries an unreferenced `size`/`size0` column.
+        for (OpenSearchShuffleExchange sx : shuffles) {
+            List<String> fields = sx.getInput().getRowType().getFieldNames();
+            assertFalse(
+                "shuffle input must not carry the unreferenced 'size' column after trimming (got " + fields + ")",
+                fields.stream().anyMatch(f -> f.startsWith("size"))
+            );
+            assertTrue(
+                "shuffle input must still carry the join/group key 'status' (got " + fields + ")",
+                fields.stream().anyMatch(f -> f.startsWith("status"))
+            );
+        }
+    }
+
+    /**
+     * Codex-review MUST-FIX (correctness): {@code RelFieldTrimmer} rewrites the WHOLE plan, so the trim
+     * gate requires ALL joins to be equi-joins — a single CROSS JOIN anywhere (e.g. PPL {@code transpose}
+     * beside a real join) must DISABLE the trim, because the trimmer would silently mis-rewrite the
+     * cross-join branch. Here: an aggregate (drops {@code size}) over an equi-join whose left input is a
+     * CROSS JOIN ({@code condition=[true]}). The mixed plan must NOT be trimmed — so the otherwise-dead
+     * {@code size} columns SURVIVE into the plan (proving the trim declined). The sibling
+     * {@link #testColumnPruneNarrowsShuffleInputs} is the positive control (all-equi → trims).
+     */
+    public void testColumnPruneSkipsPlanWithCrossJoin() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+        RelNode cbo = runPlanner(makeAggregateOverCrossThenEquiJoin(context), context);
+        // The plan contains a CROSS JOIN, so the trim must be SKIPPED. The tell-tale of the buggy
+        // (anyMatch) gate firing is RelFieldTrimmer rewriting the cross-join's unreferenced input into a
+        // synthetic DUMMY literal Project (it prunes ALL of b's real columns since nothing references them
+        // through condition=[true]) — a silently-wrong plan that drops b's rows. With the correct allMatch
+        // gate the trim declines: no DUMMY Project, and the top equi-join keeps its wide-input index.
+        List<OpenSearchProject> projects = findAll(cbo, OpenSearchProject.class);
+        boolean hasDummyRewrite = projects.stream()
+            .anyMatch(p -> p.getRowType().getFieldNames().stream().anyMatch(f -> f.contains("DUMMY")));
+        assertFalse(
+            "a plan containing a CROSS JOIN must NOT be column-trimmed — found a DUMMY-literal Project, "
+                + "which means RelFieldTrimmer wrongly fired and silently rewrote the cross-join branch "
+                + "(dropping b's rows). The gate must require ALL joins to be equi-joins.",
+            hasDummyRewrite
+        );
+    }
+
+    /** {@code COUNT() GROUP BY col0} over {@code equiJoin( crossJoin(a,b), c )} — mixes a cross-join with
+     *  a real equi-join in one tree (the Codex Q4 shape). */
+    private RelNode makeAggregateOverCrossThenEquiJoin(PlannerContext context) {
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));
+        RelNode cScan = stubScan(mockTable("c_idx", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        // CROSS JOIN(a, b): condition=[true] → empty equi-keys.
+        RelNode crossAb = LogicalJoin.create(aScan, bScan, List.of(), rexBuilder.makeLiteral(true), Set.of(), JoinRelType.INNER);
+        int abCols = crossAb.getRowType().getFieldCount();
+        // EQUI-JOIN((a⨯b), c) on col0 == c.col0.
+        RexNode abcCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, abCols)
+        );
+        RelNode join = LogicalJoin.create(crossAb, cScan, List.of(), abcCond, Set.of(), JoinRelType.INNER);
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            join,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(0), null, List.of(countCall));
+    }
 }
