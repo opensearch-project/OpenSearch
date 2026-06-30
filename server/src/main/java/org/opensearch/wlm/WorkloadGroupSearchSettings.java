@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 
 import java.util.Map;
 
@@ -38,9 +39,68 @@ public class WorkloadGroupSearchSettings {
     public static final Setting<TimeValue> WLM_SEARCH_TIMEOUT = Setting.timeSetting("search.default_search_timeout", TimeValue.MINUS_ONE);
 
     /**
+     * The WLM cancel after time interval setting. Specifies the time after which a search
+     * request should be cancelled if it has not completed.
+     */
+    public static final Setting<TimeValue> WLM_CANCEL_AFTER_TIME_INTERVAL = Setting.timeSetting(
+        "search.cancel_after_time_interval",
+        TimeValue.MINUS_ONE
+    );
+
+    /**
+     * The WLM max concurrent shard requests setting. Controls the number of shard requests
+     * that should be executed concurrently on a single node. Must be >= 1.
+     */
+    public static final Setting<Integer> WLM_MAX_CONCURRENT_SHARD_REQUESTS = Setting.intSetting(
+        "search.max_concurrent_shard_requests",
+        5,
+        1
+    );
+
+    /**
+     * The WLM batched reduce size setting. Controls the number of shard results to reduce
+     * at once on the coordinating node. Must be >= 2.
+     */
+    public static final Setting<Integer> WLM_BATCHED_REDUCE_SIZE = Setting.intSetting("search.batched_reduce_size", 512, 2);
+
+    /**
+     * The WLM max buckets setting. Caps the number of aggregation buckets a request in this
+     * workload group may produce. Mirrors the cluster-level {@code search.max_buckets}; when
+     * set on a workload group, this value always takes precedence over the cluster default for
+     * requests assigned to the group. {@code override_request_values} is not relevant for this
+     * setting because {@code search.max_buckets} is not a per-request parameter.
+     */
+    public static final Setting<Integer> WLM_MAX_BUCKETS = Setting.intSetting(
+        "search.max_buckets",
+        MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+        0
+    );
+
+    /**
+     * Controls whether WLM search settings should override values explicitly set in the
+     * search request query parameters. When {@code false} (default), WLM settings are only
+     * applied when the request does not have an explicit value. When {@code true}, WLM
+     * settings always take precedence over request-level values.
+     */
+    public static final Setting<Boolean> WLM_OVERRIDE_REQUEST_VALUES = Setting.boolSetting("override_request_values", false);
+
+    /**
      * All registered WLM settings, keyed by their canonical key name.
      */
-    private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of("search.default_search_timeout", WLM_SEARCH_TIMEOUT);
+    private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of(
+        "search.default_search_timeout",
+        WLM_SEARCH_TIMEOUT,
+        "search.cancel_after_time_interval",
+        WLM_CANCEL_AFTER_TIME_INTERVAL,
+        "search.max_concurrent_shard_requests",
+        WLM_MAX_CONCURRENT_SHARD_REQUESTS,
+        "search.batched_reduce_size",
+        WLM_BATCHED_REDUCE_SIZE,
+        "search.max_buckets",
+        WLM_MAX_BUCKETS,
+        "override_request_values",
+        WLM_OVERRIDE_REQUEST_VALUES
+    );
 
     /**
      * Validates a {@link Settings} object against registered WLM settings.
@@ -59,6 +119,10 @@ public class WorkloadGroupSearchSettings {
             if (setting == null) {
                 throw new IllegalArgumentException("Unknown WLM setting: " + key);
             }
+            // null value means "clear this setting" — skip type validation
+            if (value == null) {
+                continue;
+            }
             try {
                 Settings testSettings = Settings.builder().put(key, value).build();
                 setting.get(testSettings);
@@ -66,14 +130,5 @@ public class WorkloadGroupSearchSettings {
                 throw new IllegalArgumentException("Invalid value '" + value + "' for " + key + ": " + e.getMessage());
             }
         }
-    }
-
-    /**
-     * Returns an unmodifiable view of the registered settings.
-     *
-     * @return map of canonical key names to their {@link Setting} objects
-     */
-    public static Map<String, Setting<?>> getRegisteredSettings() {
-        return REGISTERED_SETTINGS;
     }
 }

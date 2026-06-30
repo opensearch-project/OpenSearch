@@ -37,7 +37,11 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     private final List<String> viableBackends;
 
     public OpenSearchFilter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, RexNode condition, List<String> viableBackends) {
-        super(cluster, traitSet, input, condition);
+        // Filter.<init> asserts RexUtil.isFlat — deep-flatten any nested AND/OR before super().
+        // TODO: the condition is currently deep-flattened in multiple places (here, in
+        // stripAnnotations(), and in FragmentConversionDriver.strip()). Revisit whether this can
+        // be enforced centrally at a single chokepoint so multiple flatten call sites aren't needed.
+        super(cluster, traitSet, input, RelNodeUtils.deepFlatten(cluster.getRexBuilder(), condition));
         this.viableBackends = viableBackends;
     }
 
@@ -102,7 +106,14 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
-        return LogicalFilter.create(strippedChildren.getFirst(), resolveCondition(getCondition(), annotationResolver));
+        RexNode resolved = resolveCondition(getCondition(), annotationResolver);
+        // LogicalFilter.<init> asserts isFlat on the condition: an AND must not contain an
+        // AND child, and an OR must not contain an OR child. Adapter substitutions in
+        // BackendPlanAdapter.adaptRex can introduce that nesting (e.g. SargAdapter expands
+        // SEARCH into AND(>=, <=) under a parent AND). Flatten canonicalizes the tree.
+        // TODO: see the constructor — revisit centralizing this flatten so multiple sites aren't needed.
+        RexNode flattened = RelNodeUtils.deepFlatten(getCluster().getRexBuilder(), resolved);
+        return LogicalFilter.create(strippedChildren.getFirst(), flattened);
     }
 
     private RexNode replaceAnnotations(RexNode node, ListIterator<OperatorAnnotation> annotationIterator) {

@@ -12,6 +12,7 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
@@ -73,6 +74,12 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
+    // Per-function delegated-predicate serializers, aggregated across backends (first declaration wins).
+    // Besides producing execution bytes, a serializer can report a predicate's referenced fields at
+    // planning time (referencedFields). Full-text is Lucene-only today, so a single function -> serializer
+    // map suffices.
+    private final Map<ScalarFunction, DelegatedPredicateSerializer> predicateSerializers = new HashMap<>();
+
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
@@ -91,6 +98,10 @@ public class CapabilityRegistry {
             String name = backend.name();
             backendsByName.put(name, backend);
             BackendCapabilityProvider caps = backend.getCapabilityProvider();
+
+            for (Map.Entry<ScalarFunction, DelegatedPredicateSerializer> entry : caps.delegatedPredicateSerializers().entrySet()) {
+                predicateSerializers.putIfAbsent(entry.getKey(), entry.getValue());
+            }
 
             for (EngineCapability cap : caps.supportedEngineCapabilities()) {
                 operatorIndex.computeIfAbsent(cap, k -> new ArrayList<>()).add(name);
@@ -259,6 +270,21 @@ public class CapabilityRegistry {
         return result;
     }
 
+    /**
+     * All backends that can scan this field's inverted index across all its formats. A backend
+     * is returned only if it declares an {@link ScanCapability.Index} cap whose
+     * {@code supportedFieldTypes} includes the field's type — so e.g. Lucene appears for
+     * keyword/text fields but not numeric fields, even when both have {@code indexFormats=[lucene]}.
+     */
+    public List<String> indexScanBackendsForField(FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
+        List<String> result = new ArrayList<>();
+        for (String format : field.getIndexFormats()) {
+            result.addAll(scanBackends(ScanCapability.Index.class, fieldType, format));
+        }
+        return result;
+    }
+
     // ---- Any-format lookups ----
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
@@ -286,6 +312,17 @@ public class CapabilityRegistry {
 
     public List<String> opaqueBackendsAnyFormat(String name) {
         return allBackends(opaqueIndex.getOrDefault(name, Map.of()));
+    }
+
+    /**
+     * The {@link DelegatedPredicateSerializer} registered for {@code function}, or {@code null} if no
+     * backend declared one. Besides producing execution bytes, the serializer exposes a predicate's
+     * referenced fields at planning time via {@link DelegatedPredicateSerializer#referencedFields},
+     * which full-text field-type validation uses to enumerate the fields a relevance predicate
+     * references (including in-query-string fields).
+     */
+    public DelegatedPredicateSerializer predicateSerializer(ScalarFunction function) {
+        return predicateSerializers.get(function);
     }
 
     // ---- Annotation handling ----
@@ -317,6 +354,23 @@ public class CapabilityRegistry {
 
     public FieldStorageResolver resolveFieldStorage(IndexMetadata indexMetadata) {
         return fieldStorageFactory.apply(indexMetadata);
+    }
+
+    /**
+     * Resolves field storage across all backing indices of a table (alias or index pattern),
+     * unioning their field sets. A singleton list resolves exactly as the single-index overload.
+     * Backing indices with differing field sets are expected — the scan's row type is the union —
+     * so each requested field is served by whichever index declares it.
+     */
+    public FieldStorageResolver resolveFieldStorage(List<IndexMetadata> indices) {
+        if (indices.size() == 1) {
+            return resolveFieldStorage(indices.get(0));
+        }
+        List<FieldStorageResolver> perIndex = new ArrayList<>(indices.size());
+        for (IndexMetadata index : indices) {
+            perIndex.add(resolveFieldStorage(index));
+        }
+        return FieldStorageResolver.merged(perIndex);
     }
 
     // ---- Helpers ----

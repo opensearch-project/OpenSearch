@@ -8,10 +8,13 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.WriteChannel;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.pojo.Schema;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -38,5 +41,17 @@ public final class ArrowSchemaIpc {
             throw new IllegalStateException("Failed to serialize Arrow schema to IPC bytes", e);
         }
         return baos.toByteArray();
+    }
+
+    /** Inverse of {@link #toBytes(Schema)}: decodes an Arrow IPC schema-only stream. */
+    public static Schema fromBytes(byte[] ipcBytes) {
+        try (
+            RootAllocator allocator = new RootAllocator();
+            ArrowStreamReader reader = new ArrowStreamReader(new ByteArrayInputStream(ipcBytes), allocator)
+        ) {
+            return reader.getVectorSchemaRoot().getSchema();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to decode Arrow IPC schema bytes", e);
+        }
     }
 }

@@ -12,6 +12,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -56,12 +57,20 @@ public class MockMerger implements Merger {
         }
 
         Map<Long, Long> genOffsets = new HashMap<>();
-        long offset = 0;
+        Map<Long, Integer> genOffsetsInt = new HashMap<>();
+        Map<Long, Integer> genSizesInt = new HashMap<>();
+        int offset = 0;
         for (WriterFileSet fs : fileMetadataList) {
-            genOffsets.put(fs.writerGeneration(), offset);
-            offset += fs.numRows();
+            genOffsets.put(fs.writerGeneration(), (long) offset);
+            genOffsetsInt.put(fs.writerGeneration(), offset);
+            genSizesInt.put(fs.writerGeneration(), (int) fs.numRows());
+            offset += (int) fs.numRows();
         }
-        RowIdMapping mapping = (oldId, oldGeneration) -> genOffsets.getOrDefault(oldGeneration, 0L) + oldId;
+        long[] mappingArray = new long[offset];
+        for (int i = 0; i < offset; i++) {
+            mappingArray[i] = i;
+        }
+        RowIdMapping mapping = new PackedRowIdMapping(mappingArray, genOffsetsInt, genSizesInt);
 
         return new MergeResult(Map.of(dataFormat, merged), mapping);
     }

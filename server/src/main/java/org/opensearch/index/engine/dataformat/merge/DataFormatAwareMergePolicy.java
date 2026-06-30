@@ -199,7 +199,7 @@ public class DataFormatAwareMergePolicy implements MergeHandler.MergePolicy, Mer
     }
 
     private long calculateNumDocs(Segment segment) {
-        return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).sum();
+        return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).findFirst().orElse(0L);
     }
 
     private long calculateTotalSize(Segment segment) {

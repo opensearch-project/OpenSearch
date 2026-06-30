@@ -13,11 +13,14 @@ use arrow::datatypes::Schema as ArrowSchema;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::schema::types::SchemaDescriptor;
 
-use crate::{log_debug, log_info};
+use crate::log_debug;
 
 use super::context::MergeContext;
 use super::error::MergeResult;
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
+
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
+use crate::memory::merge_pool;
 
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
 /// rewrites `__row_id__` with globally sequential values. No sorting performed.
@@ -25,7 +28,20 @@ pub fn merge_unsorted(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
-) -> MergeResult<u32> {
+    output_writer_generation: i64,
+) -> MergeResult<super::MergeOutput> {
+    let mut reservation = MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Reject);
+    merge_unsorted_with_pool(input_files, output_path, index_name, output_writer_generation, &mut reservation)
+}
+
+/// Unsorted merge with an explicit memory reservation.
+pub fn merge_unsorted_with_pool(
+    input_files: &[String],
+    output_path: &str,
+    index_name: &str,
+    output_writer_generation: i64,
+    reservation: &mut MemoryReservation,
+) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
         .map(|r| r.clone())
@@ -44,12 +60,16 @@ pub fn merge_unsorted(
     let mut arrow_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
     let mut parquet_descriptors: Vec<SchemaDescriptor> = Vec::with_capacity(input_files.len());
     let mut readers: Vec<ParquetRecordBatchReader> = Vec::with_capacity(input_files.len());
+    let mut file_row_counts: Vec<usize> = Vec::with_capacity(input_files.len());
+    let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
 
-    for path in input_files {
+    for (file_idx, path) in input_files.iter().enumerate() {
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
         let parquet_descr = builder.parquet_schema().clone();
+        let num_rows = builder.metadata().file_metadata().num_rows() as usize;
+        let generation = crate::writer_properties_builder::read_writer_generation(builder.metadata().file_metadata(), file_idx);
 
         let projection_indices = projection_indices_excluding_row_id(&schema);
         let projection = parquet::arrow::ProjectionMask::roots(&parquet_descr, projection_indices);
@@ -59,8 +79,11 @@ pub fn merge_unsorted(
         arrow_schemas.push(reader.schema().as_ref().clone());
         parquet_descriptors.push(parquet_descr);
         readers.push(reader);
+        file_row_counts.push(num_rows);
+        file_generations.push(generation);
     }
 
+    let ctx_reservation = reservation.child("merge:flush");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
         &parquet_descriptors,
@@ -69,12 +92,27 @@ pub fn merge_unsorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
+        ctx_reservation,
     )?;
 
     // Precompute column mappings per reader
     let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
+
+    // Build row-ID mapping: for unsorted merge, files are concatenated sequentially.
+    // old_row_id maps directly to new_row_id with a per-file offset.
+    let total_rows: usize = file_row_counts.iter().sum();
+    let mapping_bytes = total_rows * std::mem::size_of::<i64>();
+    reservation.request(mapping_bytes).map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
+    let mut mapping: Vec<i64> = vec![0i64; total_rows];
+    let mut gen_keys: Vec<i64> = Vec::with_capacity(input_files.len());
+    let mut gen_offsets: Vec<i32> = Vec::with_capacity(input_files.len());
+    let mut gen_sizes: Vec<i32> = Vec::with_capacity(input_files.len());
+
+    let mut mapping_offset: usize = 0;
+    let mut new_row_id: i64 = 0;
 
     // Iterate readers for data.
     for (file_idx, reader) in readers.into_iter().enumerate() {
@@ -84,22 +122,64 @@ pub fn merge_unsorted(
             input_files.len()
         );
 
-        let mapping = &col_mappings[file_idx];
+        gen_keys.push(file_generations[file_idx]);
+        gen_offsets.push(mapping_offset as i32);
+        let file_start_row_id = new_row_id;
+
+        let col_mapping = &col_mappings[file_idx];
+        let mut batch_tracked: usize = 0;
         for batch_result in reader {
             let batch = batch_result?;
-            ctx.push_batch(mapping.pad_batch(&batch)?)?;
+            let num_rows = batch.num_rows();
+            let batch_bytes = batch.get_array_memory_size();
+            // Track reader batch memory: grow on first batch, delta-adjust on subsequent
+            if batch_tracked == 0 {
+                reservation.grow(batch_bytes);
+                batch_tracked = batch_bytes;
+            } else if batch_bytes != batch_tracked {
+                if batch_bytes > batch_tracked {
+                    reservation.grow(batch_bytes - batch_tracked);
+                } else {
+                    reservation.shrink(batch_tracked - batch_bytes);
+                }
+                batch_tracked = batch_bytes;
+            }
+            for _ in 0..num_rows {
+                mapping[mapping_offset] = new_row_id;
+                mapping_offset += 1;
+                new_row_id += 1;
+            }
+            ctx.push_batch(col_mapping.pad_batch(&batch)?)?;
         }
+        // File done — release batch memory (reader dropped, batch no longer alive)
+        reservation.shrink(batch_tracked);
+
+        let file_rows = (new_row_id - file_start_row_id) as i32;
+        gen_sizes.push(file_rows);
     }
 
-    let (_metadata, crc32) = ctx.finish()?;
+    let stats = ctx.finish()?;
 
     log_debug!(
-        "[RUST] Unsorted merge complete: {} total rows written to '{}' in {} row groups, crc32={:#010x}",
-        _metadata.file_metadata().num_rows(),
+        "[RUST] Unsorted merge complete: {} total rows written to '{}' within {} row groups, crc32={:#010x}",
+        stats.metadata.file_metadata().num_rows(),
         output_path,
-        _metadata.num_row_groups(),
-        crc32
+        stats.metadata.num_row_groups(),
+        stats.crc32
     );
 
-    Ok(crc32)
+    // Detach mapping from reservation — FFI layer will track via merge_pool().grow
+    reservation.shrink(mapping_bytes);
+
+    Ok(super::MergeOutput {
+        mapping,
+        gen_keys,
+        gen_offsets,
+        gen_sizes,
+        metadata: stats.metadata,
+        crc32: stats.crc32,
+        flush_and_sort_chunk_count: stats.flush_and_sort_chunk_count,
+        flush_and_sort_chunk_time_millis: stats.flush_and_sort_chunk_time_millis,
+        row_id_mapping_max: stats.row_id_mapping_max,
+    })
 }

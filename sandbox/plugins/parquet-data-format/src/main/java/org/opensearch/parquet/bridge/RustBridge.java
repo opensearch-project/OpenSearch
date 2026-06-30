@@ -8,19 +8,25 @@
 
 package org.opensearch.parquet.bridge;
 
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.parquet.stats.ParquetNativeRuntimeStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FFM bridge to the native Rust parquet writer library.
@@ -30,13 +36,20 @@ public class RustBridge {
     private static final MethodHandle CREATE_WRITER;
     private static final MethodHandle WRITE;
     private static final MethodHandle FINALIZE_WRITER;
-    private static final MethodHandle SYNC_TO_DISK;
     private static final MethodHandle GET_FILE_METADATA;
+    private static final MethodHandle GET_COLUMN_METADATA;
     private static final MethodHandle GET_FILTERED_BYTES;
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
+    private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
+    private static final MethodHandle FREE_ROW_ID_MAPPING;
+    private static final MethodHandle COLLECT_RUNTIME_METRICS;
+    private static final MethodHandle INIT_MEMORY_POOLS;
+    private static final MethodHandle SET_WRITE_POOL_LIMIT;
+    private static final MethodHandle SET_MERGE_POOL_LIMIT;
+    private static final MethodHandle GET_POOL_STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -56,7 +69,8 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG    // nulls_first (vals, count)
+                ValueLayout.JAVA_LONG,   // nulls_first (vals, count)
+                ValueLayout.JAVA_LONG    // writer_generation
             )
         );
         WRITE = linker.downcallHandle(
@@ -80,12 +94,11 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,                           // num_row_groups_out
+                ValueLayout.ADDRESS,                           // sort_perm_ptr_out
+                ValueLayout.ADDRESS                            // sort_perm_len_out
             )
-        );
-        SYNC_TO_DISK = linker.downcallHandle(
-            lib.find("parquet_sync_to_disk").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
         GET_FILE_METADATA = linker.downcallHandle(
             lib.find("parquet_get_file_metadata").orElseThrow(),
@@ -97,12 +110,24 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS   // num_row_groups_out
             )
         );
         GET_FILTERED_BYTES = linker.downcallHandle(
             lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        GET_COLUMN_METADATA = linker.downcallHandle(
+            lib.find("parquet_get_column_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
         );
         ON_SETTINGS_UPDATE = linker.downcallHandle(
             lib.find("parquet_on_settings_update").orElseThrow(),
@@ -120,11 +145,51 @@ public class RustBridge {
                 ValueLayout.JAVA_DOUBLE,                      // bloom_filter_fpp
                 ValueLayout.JAVA_LONG,                        // bloom_filter_ndv
                 ValueLayout.JAVA_LONG,                        // sort_in_memory_threshold_bytes
-                ValueLayout.JAVA_LONG,                        // sort_batch_size
                 ValueLayout.JAVA_LONG,                        // row_group_max_rows
+                ValueLayout.JAVA_LONG,                        // row_group_max_bytes
                 ValueLayout.JAVA_LONG,                        // merge_batch_size
                 ValueLayout.JAVA_LONG,                        // merge_rayon_threads
-                ValueLayout.JAVA_LONG                         // merge_io_threads
+                ValueLayout.JAVA_LONG,                        // merge_io_threads
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // field_name_ptrs, field_name_lens, field_encoding_ptrs, field_encoding_lens, field_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // field_compression_name_ptrs, field_compression_name_lens, field_compression_value_ptrs,
+                                         // field_compression_value_lens, field_compression_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_encoding_name_ptrs, type_encoding_name_lens, type_encoding_value_ptrs,
+                                         // type_encoding_value_lens, type_encoding_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_compression_name_ptrs, type_compression_name_lens, type_compression_value_ptrs,
+                                         // type_compression_value_lens, type_compression_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // bf_enabled_name_ptrs, bf_enabled_name_lens, bf_enabled_vals, bf_enabled_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_bf_enabled_name_ptrs, type_bf_enabled_name_lens, type_bf_enabled_vals,
+                                         // type_bf_enabled_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_bf_fpp_name_ptrs, type_bf_fpp_name_lens, type_bf_fpp_vals, type_bf_fpp_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG    // type_bf_ndv_name_ptrs, type_bf_ndv_name_lens, type_bf_ndv_vals, type_bf_ndv_count
             )
         );
         REMOVE_SETTINGS = linker.downcallHandle(
@@ -137,11 +202,38 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG, // input files (ptrs, lens, count)
+                ValueLayout.JAVA_LONG,  // input files (ptrs, lens, count)
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,                      // output file
+                ValueLayout.JAVA_LONG,  // output file
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG                       // index_name
+                ValueLayout.JAVA_LONG,  // index_name
+                ValueLayout.JAVA_LONG,  // output_writer_generation
+                ValueLayout.ADDRESS,    // version_out
+                ValueLayout.ADDRESS,    // num_rows_out
+                ValueLayout.ADDRESS,    // created_by_buf
+                ValueLayout.JAVA_LONG,  // created_by_buf_len
+                ValueLayout.ADDRESS,    // created_by_len_out
+                ValueLayout.ADDRESS,    // crc32_out
+                ValueLayout.ADDRESS,    // out_mapping_ptr
+                ValueLayout.ADDRESS,    // out_mapping_len
+                ValueLayout.ADDRESS,    // out_gen_keys_ptr
+                ValueLayout.ADDRESS,    // out_gen_offsets_ptr
+                ValueLayout.ADDRESS,    // out_gen_sizes_ptr
+                ValueLayout.ADDRESS,    // out_gen_count
+                ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_count
+                ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_time_millis
+                ValueLayout.ADDRESS     // out_row_id_mapping_max
+            )
+        );
+        FREE_MERGE_RESULT = linker.downcallHandle(
+            lib.find("parquet_free_merge_result").orElseThrow(),
+            FunctionDescriptor.ofVoid(
+                ValueLayout.JAVA_LONG,  // mapping_ptr
+                ValueLayout.JAVA_LONG,  // mapping_len
+                ValueLayout.JAVA_LONG,  // gen_keys_ptr
+                ValueLayout.JAVA_LONG,  // gen_offsets_ptr
+                ValueLayout.JAVA_LONG,  // gen_sizes_ptr
+                ValueLayout.JAVA_LONG   // gen_count
             )
         );
         READ_AS_JSON = linker.downcallHandle(
@@ -155,11 +247,43 @@ public class RustBridge {
                 ValueLayout.ADDRESS      // out_len
             )
         );
+        FREE_ROW_ID_MAPPING = linker.downcallHandle(
+            lib.find("parquet_free_row_id_mapping").orElseThrow(),
+            FunctionDescriptor.ofVoid(
+                ValueLayout.JAVA_LONG,                         // mapping_ptr
+                ValueLayout.JAVA_LONG                          // mapping_len
+            )
+        );
+        COLLECT_RUNTIME_METRICS = linker.downcallHandle(
+            lib.find("parquet_collect_runtime_metrics").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,    // return value
+                ValueLayout.ADDRESS,      // out_buf
+                ValueLayout.JAVA_LONG     // out_len
+            )
+        );
+        INIT_MEMORY_POOLS = linker.downcallHandle(
+            lib.find("parquet_init_memory_pools").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        SET_WRITE_POOL_LIMIT = linker.downcallHandle(
+            lib.find("parquet_set_write_pool_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        SET_MERGE_POOL_LIMIT = linker.downcallHandle(
+            lib.find("parquet_set_merge_pool_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        GET_POOL_STATS = linker.downcallHandle(
+            lib.find("parquet_get_pool_stats").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+        );
     }
 
     public static void initLogger() {}
 
-    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig) throws IOException {
+    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
+        throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var idx = call.str(indexName);
@@ -179,7 +303,8 @@ public class RustBridge {
                 reverseArray,
                 (long) sortConfig.reverseSorts().size(),
                 nullsFirstArray,
-                (long) sortConfig.nullsFirst().size()
+                (long) sortConfig.nullsFirst().size(),
+                writerGeneration
             );
         }
     }
@@ -191,13 +316,22 @@ public class RustBridge {
         }
     }
 
-    static ParquetFileMetadata finalizeWriter(String file) throws IOException {
+    /**
+     * Result of finalizing a writer: metadata + optional row ID mapping.
+     */
+    record WriterFinalizeResult(ParquetFileMetadata metadata, RowIdMapping rowIdMapping) {
+    }
+
+    static WriterFinalizeResult finalizeWriter(String file) throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var crc32Out = call.longOut();
+            var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
+            var sortPermPtrOut = call.longOut();
+            var sortPermLenOut = call.longOut();
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
                 f.segment(),
@@ -207,25 +341,39 @@ public class RustBridge {
                 out.data(),
                 (long) out.capacity(),
                 out.lenOut(),
-                crc32Out
+                crc32Out,
+                numRowGroupsOut,
+                sortPermPtrOut,
+                sortPermLenOut
             );
             if (rc == 1) return null;
             int createdByLen = out.actualLength();
-            return new ParquetFileMetadata(
+            ParquetFileMetadata metadata = new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
                 createdByLen >= 0
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
-                crc32Out.get(ValueLayout.JAVA_LONG, 0)
+                crc32Out.get(ValueLayout.JAVA_LONG, 0),
+                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
-        }
-    }
 
-    static void syncToDisk(String file) throws IOException {
-        try (var call = new NativeCall()) {
-            var f = call.str(file);
-            call.invokeIO(SYNC_TO_DISK, f.segment(), f.len());
+            // Read sort permutation if present
+            long permAddr = sortPermPtrOut.get(ValueLayout.JAVA_LONG, 0);
+            long permLen = sortPermLenOut.get(ValueLayout.JAVA_LONG, 0);
+            RowIdMapping rowIdMapping = null;
+            if (permAddr != 0 && permLen > 0) {
+                try {
+                    long[] mappingArray = MemorySegment.ofAddress(permAddr)
+                        .reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize())
+                        .toArray(ValueLayout.JAVA_LONG);
+                    rowIdMapping = new PackedRowIdMapping(mappingArray, true);
+                } finally {
+                    NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permLen);
+                }
+            }
+
+            return new WriterFinalizeResult(metadata, rowIdMapping);
         }
     }
 
@@ -234,8 +382,19 @@ public class RustBridge {
             var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
+            var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
-            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
+            call.invokeIO(
+                GET_FILE_METADATA,
+                f.segment(),
+                f.len(),
+                versionOut,
+                numRowsOut,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut(),
+                numRowGroupsOut
+            );
             int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
@@ -243,8 +402,24 @@ public class RustBridge {
                 createdByLen >= 0
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
-                0L
+                0L,
+                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
+        }
+    }
+
+    /**
+     * Returns a JSON string with per-column encoding and compression metadata from the first row group.
+     * Format: {"column_name": {"encodings": ["PLAIN", "RLE_DICTIONARY"], "compression": "LZ4_RAW"}, ...}
+     */
+    public static String getColumnMetadata(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var out = call.outBuffer(8192);
+            var outLen = call.longOut();
+            call.invokeIO(GET_COLUMN_METADATA, f.segment(), f.len(), out.data(), (long) out.capacity(), outLen);
+            int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
+            return new String(out.data().asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
         }
     }
 
@@ -259,6 +434,18 @@ public class RustBridge {
         try (var call = new NativeCall()) {
             var idx = call.str(nativeSettings.getIndexName());
             var ct = nativeSettings.getCompressionType() != null ? call.str(nativeSettings.getCompressionType()) : null;
+
+            var fieldEncodings = toNativeArrays(call, nativeSettings.getFieldEncodings());
+            var fieldCompressions = toNativeArrays(call, nativeSettings.getFieldCompressions());
+            var typeEncodings = toNativeArrays(call, nativeSettings.getTypeEncodings());
+            var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
+
+            var bfEnabled = toBoolMapArrays(call, nativeSettings.getFieldBloomFilterEnabled());
+
+            var typeBfEnabled = toBoolMapArrays(call, nativeSettings.getTypeBloomFilterEnabled());
+            var typeBfFpp = toDoubleMapArrays(call, nativeSettings.getTypeBloomFilterFpp());
+            var typeBfNdv = toLongMapArrays(call, nativeSettings.getTypeBloomFilterNdv());
+
             call.invokeIO(
                 ON_SETTINGS_UPDATE,
                 idx.segment(),
@@ -273,11 +460,47 @@ public class RustBridge {
                 nativeSettings.getBloomFilterFpp() != null ? nativeSettings.getBloomFilterFpp() : -1.0,
                 nativeSettings.getBloomFilterNdv() != null ? nativeSettings.getBloomFilterNdv() : -1L,
                 nativeSettings.getSortInMemoryThresholdBytes() != null ? nativeSettings.getSortInMemoryThresholdBytes() : -1L,
-                nativeSettings.getSortBatchSize() != null ? (long) nativeSettings.getSortBatchSize() : -1L,
                 nativeSettings.getRowGroupMaxRows() != null ? (long) nativeSettings.getRowGroupMaxRows() : -1L,
+                nativeSettings.getRowGroupMaxBytes() != null ? nativeSettings.getRowGroupMaxBytes() : -1L,
                 nativeSettings.getMergeBatchSize() != null ? (long) nativeSettings.getMergeBatchSize() : -1L,
                 nativeSettings.getMergeRayonThreads() != null ? (long) nativeSettings.getMergeRayonThreads() : -1L,
-                nativeSettings.getMergeIoThreads() != null ? (long) nativeSettings.getMergeIoThreads() : -1L
+                nativeSettings.getMergeIoThreads() != null ? (long) nativeSettings.getMergeIoThreads() : -1L,
+                fieldEncodings.keys().ptrs(),
+                fieldEncodings.keys().lens(),
+                fieldEncodings.values().ptrs(),
+                fieldEncodings.values().lens(),
+                fieldEncodings.keys().count(),
+                fieldCompressions.keys().ptrs(),
+                fieldCompressions.keys().lens(),
+                fieldCompressions.values().ptrs(),
+                fieldCompressions.values().lens(),
+                fieldCompressions.keys().count(),
+                typeEncodings.keys().ptrs(),
+                typeEncodings.keys().lens(),
+                typeEncodings.values().ptrs(),
+                typeEncodings.values().lens(),
+                typeEncodings.keys().count(),
+                typeCompressions.keys().ptrs(),
+                typeCompressions.keys().lens(),
+                typeCompressions.values().ptrs(),
+                typeCompressions.values().lens(),
+                typeCompressions.keys().count(),
+                bfEnabled.keys().ptrs(),
+                bfEnabled.keys().lens(),
+                bfEnabled.values(),
+                bfEnabled.keys().count(),
+                typeBfEnabled.keys().ptrs(),
+                typeBfEnabled.keys().lens(),
+                typeBfEnabled.values(),
+                typeBfEnabled.keys().count(),
+                typeBfFpp.keys().ptrs(),
+                typeBfFpp.keys().lens(),
+                typeBfFpp.values(),
+                typeBfFpp.keys().count(),
+                typeBfNdv.keys().ptrs(),
+                typeBfNdv.keys().lens(),
+                typeBfNdv.values(),
+                typeBfNdv.keys().count()
             );
         }
     }
@@ -289,15 +512,154 @@ public class RustBridge {
         }
     }
 
-    public static void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String indexName) {
+    /**
+     * Collects a snapshot of native runtime metrics for the parquet merge path.
+     * Returns a long array of {@link ParquetNativeRuntimeStats#FIELD_COUNT} elements in the
+     * order documented in {@link org.opensearch.parquet.stats.ParquetNativeRuntimeStats#fromArray}.
+     */
+    public static long[] collectRuntimeMetrics() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(ParquetNativeRuntimeStats.FIELD_COUNT * 8);
+            call.invokeIO(COLLECT_RUNTIME_METRICS, buf, (long) ParquetNativeRuntimeStats.FIELD_COUNT);
+            long[] out = new long[ParquetNativeRuntimeStats.FIELD_COUNT];
+            for (int i = 0; i < ParquetNativeRuntimeStats.FIELD_COUNT; i++) {
+                out[i] = buf.getAtIndex(ValueLayout.JAVA_LONG, i);
+            }
+            return out;
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException("collectRuntimeMetrics failed", e);
+        }
+    }
+
+    public static MergeFilesResult mergeParquetFilesInRust(
+        List<Path> inputFiles,
+        String outputFile,
+        String indexName,
+        long outputWriterGeneration
+    ) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
         try (var call = new NativeCall()) {
             var inputs = call.strArray(paths);
             var out = call.str(outputFile);
             var idx = call.str(indexName);
-            call.invokeIO(MERGE_FILES, inputs.ptrs(), inputs.lens(), inputs.count(), out.segment(), out.len(), idx.segment(), idx.len());
+
+            // Out-pointers for Parquet file metadata
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var crc32Out = call.longOut();
+            var createdByOut = call.outBuffer(1024);
+
+            // Out-pointers for Rust-allocated mapping data
+            var outMappingPtr = call.longOut();
+            var outMappingLen = call.longOut();
+            var outGenKeysPtr = call.longOut();
+            var outGenOffsetsPtr = call.longOut();
+            var outGenSizesPtr = call.longOut();
+            var outGenCount = call.longOut();
+            // Out-pointers for per-merge stats forwarded to the per-shard tracker.
+            var outFlushChunkCount = call.longOut();
+            var outFlushChunkTimeMillis = call.longOut();
+            var outRowIdMappingMax = call.longOut();
+
+            call.invokeIO(
+                MERGE_FILES,
+                inputs.ptrs(),
+                inputs.lens(),
+                inputs.count(),
+                out.segment(),
+                out.len(),
+                idx.segment(),
+                idx.len(),
+                outputWriterGeneration,
+                versionOut,
+                numRowsOut,
+                createdByOut.data(),
+                (long) createdByOut.capacity(),
+                createdByOut.lenOut(),
+                crc32Out,
+                outMappingPtr,
+                outMappingLen,
+                outGenKeysPtr,
+                outGenOffsetsPtr,
+                outGenSizesPtr,
+                outGenCount,
+                outFlushChunkCount,
+                outFlushChunkTimeMillis,
+                outRowIdMappingMax
+            );
+
+            int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
+            ParquetFileMetadata metadata = new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(createdByOut.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null,
+                crc32Out.get(ValueLayout.JAVA_LONG, 0),
+                0
+            );
+
+            RowIdMapping rowIdMapping = readAndFreeMergeResult(
+                outMappingPtr,
+                outMappingLen,
+                outGenKeysPtr,
+                outGenOffsetsPtr,
+                outGenSizesPtr,
+                outGenCount
+            );
+
+            long flushChunkCount = outFlushChunkCount.get(ValueLayout.JAVA_LONG, 0);
+            long flushChunkTimeMillis = outFlushChunkTimeMillis.get(ValueLayout.JAVA_LONG, 0);
+            long rowIdMappingMax = outRowIdMappingMax.get(ValueLayout.JAVA_LONG, 0);
+
+            return new MergeFilesResult(rowIdMapping, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
+        }
+    }
+
+    private static RowIdMapping readAndFreeMergeResult(
+        MemorySegment outMappingPtr,
+        MemorySegment outMappingLen,
+        MemorySegment outGenKeysPtr,
+        MemorySegment outGenOffsetsPtr,
+        MemorySegment outGenSizesPtr,
+        MemorySegment outGenCount
+    ) {
+        long mappingAddr = outMappingPtr.get(ValueLayout.JAVA_LONG, 0);
+        long mappingLen = outMappingLen.get(ValueLayout.JAVA_LONG, 0);
+        long genKeysAddr = outGenKeysPtr.get(ValueLayout.JAVA_LONG, 0);
+        long genOffsetsAddr = outGenOffsetsPtr.get(ValueLayout.JAVA_LONG, 0);
+        long genSizesAddr = outGenSizesPtr.get(ValueLayout.JAVA_LONG, 0);
+        long genCount = outGenCount.get(ValueLayout.JAVA_LONG, 0);
+
+        try {
+            // Read mapping array (i64[])
+            long[] mappingArray = MemorySegment.ofAddress(mappingAddr)
+                .reinterpret(mappingLen * ValueLayout.JAVA_LONG.byteSize())
+                .toArray(ValueLayout.JAVA_LONG);
+
+            // Read generation keys (i64[]), offsets (i32[]), sizes (i32[])
+            long[] genKeys = MemorySegment.ofAddress(genKeysAddr)
+                .reinterpret(genCount * ValueLayout.JAVA_LONG.byteSize())
+                .toArray(ValueLayout.JAVA_LONG);
+            int[] genOffsets = MemorySegment.ofAddress(genOffsetsAddr)
+                .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
+                .toArray(ValueLayout.JAVA_INT);
+            int[] genSizes = MemorySegment.ofAddress(genSizesAddr)
+                .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
+                .toArray(ValueLayout.JAVA_INT);
+
+            Map<Long, Integer> offsetMap = new HashMap<>((int) genCount);
+            Map<Long, Integer> sizeMap = new HashMap<>((int) genCount);
+            for (int i = 0; i < (int) genCount; i++) {
+                offsetMap.put(genKeys[i], genOffsets[i]);
+                sizeMap.put(genKeys[i], genSizes[i]);
+            }
+
+            return new PackedRowIdMapping(mappingArray, offsetMap, sizeMap);
+        } finally {
+            NativeCall.invokeVoid(FREE_MERGE_RESULT, mappingAddr, mappingLen, genKeysAddr, genOffsetsAddr, genSizesAddr, genCount);
         }
     }
 
@@ -324,6 +686,74 @@ public class RustBridge {
             call.invokeIO(READ_AS_JSON, f.segment(), f.len(), outBuf, (long) bufSize, outLen);
             int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
             return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        }
+    }
+
+    private record MapArrays(NativeCall.StrArray keys, NativeCall.StrArray values) {
+    }
+
+    private record BoolMapArrays(NativeCall.StrArray keys, MemorySegment values) {
+    }
+
+    private record DoubleMapArrays(NativeCall.StrArray keys, MemorySegment values) {
+    }
+
+    private record LongMapArrays(NativeCall.StrArray keys, MemorySegment values) {
+    }
+
+    private static MapArrays toNativeArrays(NativeCall call, Map<String, String> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        String[] values = new String[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            values[i] = map.get(keys[i]);
+        }
+        return new MapArrays(call.strArray(keys), call.strArray(values));
+    }
+
+    private static BoolMapArrays toBoolMapArrays(NativeCall call, Map<String, Boolean> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        var seg = keys.length > 0 ? call.buf(keys.length * 8) : MemorySegment.NULL;
+        for (int i = 0; i < keys.length; i++) {
+            seg.setAtIndex(ValueLayout.JAVA_LONG, i, map.get(keys[i]) ? 1L : 0L);
+        }
+        return new BoolMapArrays(call.strArray(keys), seg);
+    }
+
+    private static DoubleMapArrays toDoubleMapArrays(NativeCall call, Map<String, Double> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        var seg = keys.length > 0 ? call.buf(keys.length * 8) : MemorySegment.NULL;
+        for (int i = 0; i < keys.length; i++) {
+            seg.setAtIndex(ValueLayout.JAVA_DOUBLE, i, map.get(keys[i]));
+        }
+        return new DoubleMapArrays(call.strArray(keys), seg);
+    }
+
+    private static LongMapArrays toLongMapArrays(NativeCall call, Map<String, Long> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        var seg = keys.length > 0 ? call.buf(keys.length * 8) : MemorySegment.NULL;
+        for (int i = 0; i < keys.length; i++) {
+            seg.setAtIndex(ValueLayout.JAVA_LONG, i, map.get(keys[i]));
+        }
+        return new LongMapArrays(call.strArray(keys), seg);
+    }
+
+    public static void initMemoryPools(long writeLimit, long mergeLimit) {
+        NativeCall.invokeVoid(INIT_MEMORY_POOLS, writeLimit, mergeLimit);
+    }
+
+    public static void setWritePoolLimit(long newLimit) {
+        NativeCall.invokeVoid(SET_WRITE_POOL_LIMIT, newLimit);
+    }
+
+    public static void setMergePoolLimit(long newLimit) {
+        NativeCall.invokeVoid(SET_MERGE_POOL_LIMIT, newLimit);
+    }
+
+    public static long[] getPoolStats() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(6 * 8);
+            NativeCall.invokeVoid(GET_POOL_STATS, buf);
+            return buf.toArray(ValueLayout.JAVA_LONG);
         }
     }
 

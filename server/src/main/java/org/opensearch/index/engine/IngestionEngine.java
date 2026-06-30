@@ -61,7 +61,7 @@ import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
  */
 public class IngestionEngine extends InternalEngine {
 
-    private StreamPoller streamPoller;
+    private volatile StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestPipelineExecutor pipelineExecutor;
@@ -95,8 +95,6 @@ public class IngestionEngine extends InternalEngine {
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
-        // initialize the ingestion consumer factory
-        this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
@@ -160,6 +158,7 @@ public class IngestionEngine extends InternalEngine {
             .mapperSettings(ingestionSource.getMapperSettings())
             .pipelineExecutor(pipelineExecutor)
             .warmupConfig(ingestionSource.getWarmupConfig())
+            .indexMetadata(indexMetadata)
             .build();
         registerStreamPollerListener();
 
@@ -571,13 +570,13 @@ public class IngestionEngine extends InternalEngine {
 
         logger.info("Ingestion source params updated, reinitializing consumer");
 
-        // Get current ingestion source with updated params from index metadata
+        // Get current index metadata with updated ingestion source params
         IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
         assert indexMetadata != null;
-        IngestionSource updatedIngestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+        assert indexMetadata.getIngestionSource() != null;
 
         // Request consumer reinitialization in the poller
-        streamPoller.requestConsumerReinitialization(updatedIngestionSource);
+        streamPoller.requestConsumerReinitialization(indexMetadata);
         logger.info("Successfully processed ingestion source params update");
     }
 

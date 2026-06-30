@@ -8,12 +8,18 @@
 
 package org.opensearch.analytics.planner;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexFieldCollation;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
+import org.apache.calcite.rex.RexWindowBounds;
+import org.apache.calcite.rex.RexWindowExclusion;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
@@ -97,8 +103,11 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         // Negative guard: the short-circuit must apply only to passthrough. If a RexCall is
         // present and the backend declares no matching scalar ProjectCapability, the rule must
         // still throw — otherwise a later refactor could silently loosen the gate too much.
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+        //
+        // Uses CEIL (capability-declared scalar) rather than CAST — CAST is a baseline operator
+        // carved out of capability enforcement (see OpenSearchProjectRule.BASELINE_SCALAR_OPS).
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
         RelOptTable table = mockTable(
@@ -106,28 +115,35 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             new String[] { "name", "value" },
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
         );
-        LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(castExpr), List.of("casted"));
+        LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(ceilExpr), List.of("ceil_v"));
         PlannerContext context = buildContext("parquet", nameValueFields(), List.of(new MockDataFusionBackend(), LUCENE));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("No backend supports scalar function"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     // ---- Scalar functions ----
 
     public void testSupportedScalarFunction() {
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+        // CEIL(int_col) — capability-declared scalar. CAST was used previously but is
+        // baseline (see OpenSearchProjectRule.BASELINE_SCALAR_OPS) and bypasses capability
+        // resolution; this test's intent is to exercise the capability-match happy path.
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
-        OpenSearchProject result = runProject(castExpr);
+        OpenSearchProject result = runProject(ceilExpr);
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
     }
 
     public void testUnsupportedScalarFunctionErrors() {
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+        // Negative guard: when a RexCall uses a capability-declared scalar that no backend
+        // declares support for, the rule must throw. Uses CEIL rather than CAST because
+        // CAST is baseline (see OpenSearchProjectRule.BASELINE_SCALAR_OPS) and would not
+        // trigger capability enforcement.
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
         RelOptTable table = mockTable(
@@ -135,11 +151,41 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             new String[] { "name", "value" },
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
         );
-        LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(castExpr), List.of("casted"));
+        LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(ceilExpr), List.of("casted"));
         PlannerContext context = buildContext("parquet", nameValueFields());
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("No backend supports scalar function"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
+    }
+
+    /**
+     * PPL emits {@code SCALAR_MAX(a, b, c)} as a UDF whose return type is {@link SqlTypeName#ANY}
+     * — a consequence of the underlying {@code ScalarMaxFunction} being polymorphic across numeric
+     * and string types. The project rule must not reject such calls outright; instead it should
+     * fall back to inferring the operand type (DOUBLE here) so downstream backend capability
+     * dispatch proceeds normally. The actual operator rewrite to {@code GREATEST} happens later
+     * via the backend's {@code ScalarFunctionAdapter}.
+     */
+    public void testScalarFunctionWithAnyReturnTypeUsesOperandFallback() {
+        SqlFunction scalarMaxUdf = new SqlFunction(
+            "SCALAR_MAX",
+            SqlKind.OTHER_FUNCTION,
+            opBinding -> typeFactory.createSqlType(SqlTypeName.ANY),
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        // Reference the INTEGER column (index 1) from the stub scan's (VARCHAR, INTEGER) schema.
+        // The operand-type fallback must resolve INTEGER → FieldType.INTEGER so the backend
+        // capability lookup succeeds.
+        RexNode intRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1);
+        RexNode expr = rexBuilder.makeCall(scalarMaxUdf, intRef, intRef);
+        assertSame("precondition: UDF return type must be ANY", SqlTypeName.ANY, expr.getType().getSqlTypeName());
+
+        OpenSearchProject result = runProject(expr);
+
+        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
     }
 
     // ---- Delegation ----
@@ -172,8 +218,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(DATAFUSION, luceneWithPainless)
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     public void testMixedFieldAndPainlessWithDelegation() {
@@ -222,38 +268,41 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Nested expressions ----
 
     public void testNestedScalarFunctions() {
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.INTEGER),
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0)
-        );
-        RexNode plusExpr = rexBuilder.makeCall(
-            SqlStdOperatorTable.PLUS,
-            castExpr,
+        // FLOOR(CEIL(v_int)) — outer and inner both capability-declared scalars so
+        // annotation happens at both levels. CAST / PLUS / POWER are baseline scalars (see
+        // OpenSearchProjectRule.BASELINE_SCALAR_OPS) and are deliberately not used here
+        // because they bypass capability enforcement and would not produce an
+        // AnnotatedProjectExpression.
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
-        OpenSearchProject result = runProject(plusExpr);
+        RexNode outerExpr = rexBuilder.makeCall(SqlStdOperatorTable.FLOOR, ceilExpr);
+        OpenSearchProject result = runProject(outerExpr);
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
     }
 
     public void testStripAnnotationsRecursivelyUnwrapsNestedExpressions() {
-        // PLUS(CEIL(value), value) — a scalar call with another scalar call as an operand.
-        // The project rule recurses into operands (annotateExpr lines 127-139), so both PLUS
-        // and the inner CEIL get wrapped in AnnotatedProjectExpression. stripAnnotations must
-        // remove every wrapper at every depth before the plan reaches the backend
-        // FragmentConvertor — Substrait isthmus has no converter for ANNOTATED_PROJECT_EXPR and
-        // would throw "Unable to convert call". (COALESCE would be the natural shape here since
-        // PPL fillnull lowers to it, but Calcite's makeCall simplifies COALESCE on non-nullable
-        // operands away into the first arg, defeating the test. PLUS+CEIL preserves the
-        // nested-call structure we want to exercise.)
+        // FLOOR(CEIL(value)) — a non-baseline scalar call with another non-baseline
+        // scalar call as an operand. The project rule recurses into operands
+        // (annotateExpr), so both FLOOR and the inner CEIL get wrapped in
+        // AnnotatedProjectExpression. stripAnnotations must remove every wrapper at every
+        // depth before the plan reaches the backend FragmentConvertor — Substrait isthmus
+        // has no converter for ANNOTATED_PROJECT_EXPR and would throw "Unable to convert
+        // call".
+        //
+        // PLUS / POWER are baseline (see OpenSearchProjectRule.BASELINE_SCALAR_OPS), so
+        // this test uses FLOOR+CEIL to preserve the nested-call-with-nested-annotation
+        // structure while still going through capability resolution.
         RexNode value = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1);
         RexNode ceilCall = rexBuilder.makeCall(SqlStdOperatorTable.CEIL, value);
-        RexNode plusCall = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, ceilCall, value);
-        OpenSearchProject annotated = runProject(plusCall);
+        RexNode floorCall = rexBuilder.makeCall(SqlStdOperatorTable.FLOOR, ceilCall);
+        OpenSearchProject annotated = runProject(floorCall);
 
         // Sanity: confirm the rule produced the nested-wrapper shape this test exercises.
         RexNode topLevel = annotated.getProjects().get(0);
-        assertTrue("Outer PLUS must be annotated", topLevel instanceof AnnotatedProjectExpression);
+        assertTrue("Outer FLOOR must be annotated", topLevel instanceof AnnotatedProjectExpression);
         RexCall outerOriginal = (RexCall) ((AnnotatedProjectExpression) topLevel).getOriginal();
         assertTrue(
             "Inner CEIL must also be annotated (recursive annotateExpr behavior)",
@@ -278,6 +327,135 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
                 assertNoAnnotationInTree(operand);
             }
         }
+    }
+
+    // ---- Window functions ----
+
+    /**
+     * PPL's {@code top}/{@code rare}/{@code streamstats} commands lower to
+     * {@code ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)} inside a {@code LogicalProject}.
+     * The project rule narrows viable backends via {@link
+     * org.opensearch.analytics.spi.BackendCapabilityProvider#windowCapabilities()} on the rule's
+     * window-narrowing pass; the {@link RexOver} itself is left unannotated so that
+     * strip-annotations / isthmus's {@code RexExpressionConverter#visitOver} can decode it
+     * directly into a substrait {@code WindowFunctionInvocation}.
+     */
+    public void testRowNumberOverPartitionByOrderByMarksAsWindow() {
+        RexNode rowNumber = makeRowNumberOver(/*partitionField*/ 0, /*orderField*/ 1);
+        OpenSearchProject result = runProject(
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1),
+            rowNumber
+        );
+        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        // RexOver and pass-through field refs must NOT be annotated — RexOver dispatches through
+        // RexExpressionConverter#visitOver downstream, which doesn't recognize the wrapper.
+        assertFalse("Field ref must not be annotated", result.getProjects().get(0) instanceof AnnotatedProjectExpression);
+        assertFalse("Field ref must not be annotated", result.getProjects().get(1) instanceof AnnotatedProjectExpression);
+        assertFalse("RexOver must not be annotated", result.getProjects().get(2) instanceof AnnotatedProjectExpression);
+        assertTrue(
+            "Third project expression must remain a RexOver, was " + result.getProjects().get(2).getClass().getSimpleName(),
+            result.getProjects().get(2) instanceof RexOver
+        );
+    }
+
+    /**
+     * When no viable backend declares a {@link org.opensearch.analytics.spi.WindowCapability}
+     * covering {@code ROW_NUMBER}, the planner must surface a capability-gap error at plan
+     * time rather than failing later in substrait emission.
+     */
+    public void testRowNumberWithoutWindowCapabilityErrors() {
+        MockDataFusionBackend dfNoWindow = new MockDataFusionBackend() {
+            @Override
+            protected Set<org.opensearch.analytics.spi.WindowCapability> windowCapabilities() {
+                return Set.of();
+            }
+        };
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "name", "value" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
+        RexNode rowNumber = makeRowNumberOver(/*partitionField*/ 0, /*orderField*/ 1);
+        LogicalProject project = LogicalProject.create(
+            stubScan(table),
+            List.of(),
+            List.of(rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0), rowNumber),
+            List.of("name", "rn")
+        );
+        PlannerContext context = buildContext("parquet", nameValueFields(), List.of(dfNoWindow, LUCENE));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(
+            "Expected planner to surface window-function capability gap, got: " + exception.getMessage(),
+            exception.getMessage().contains("ROW_NUMBER") && exception.getMessage().contains("is not currently supported")
+        );
+    }
+
+    /**
+     * Strip-annotations on a project containing a {@link RexOver} hoists each unique window
+     * call into a child {@link LogicalProject} (see {@code OpenSearchProject#liftNestedRexOver})
+     * and rewrites the outer expression to a {@link RexInputRef} into the hoisted slot. The
+     * outer project must carry no annotation wrappers, and the inner project must preserve the
+     * {@link RexOver} verbatim so isthmus's {@code RexExpressionConverter#visitOver} can decode
+     * it into a substrait {@code WindowFunctionInvocation}.
+     */
+    public void testStripAnnotationsPreservesRexOver() {
+        RexNode rowNumber = makeRowNumberOver(/*partitionField*/ 0, /*orderField*/ 1);
+        OpenSearchProject annotated = runProject(rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0), rowNumber);
+        RelNode stripped = annotated.stripAnnotations(annotated.getInputs());
+        assertTrue("Stripped plan must be a plain LogicalProject", stripped instanceof LogicalProject);
+        List<RexNode> outerExprs = ((LogicalProject) stripped).getProjects();
+        for (RexNode expr : outerExprs) {
+            assertNoAnnotationInTree(expr);
+        }
+        assertTrue(
+            "Hoisted outer expr must be a RexInputRef into the inner Project, was " + outerExprs.get(1).getClass().getSimpleName(),
+            outerExprs.get(1) instanceof RexInputRef
+        );
+
+        // The inner Project (hoisted from liftNestedRexOver) must hold the original RexOver
+        // at the appended slot so substrait emission sees the WindowFunction at top level.
+        RelNode innerInput = stripped.getInputs().get(0);
+        assertTrue("Inner plan must be a LogicalProject carrying the hoisted RexOver", innerInput instanceof LogicalProject);
+        List<RexNode> innerExprs = ((LogicalProject) innerInput).getProjects();
+        boolean foundRexOver = false;
+        for (RexNode innerExpr : innerExprs) {
+            if (innerExpr instanceof RexOver) {
+                foundRexOver = true;
+                break;
+            }
+        }
+        assertTrue("Inner Project must contain the hoisted RexOver, exprs=" + innerExprs, foundRexOver);
+    }
+
+    /**
+     * Builds a {@code ROW_NUMBER() OVER (PARTITION BY $partitionField ORDER BY $orderField)}
+     * RexOver against the (VARCHAR, INTEGER) stub-scan schema.
+     */
+    private RexNode makeRowNumberOver(int partitionField, int orderField) {
+        RexNode partition = rexBuilder.makeInputRef(
+            typeFactory.createSqlType(partitionField == 0 ? SqlTypeName.VARCHAR : SqlTypeName.INTEGER),
+            partitionField
+        );
+        RexFieldCollation order = new RexFieldCollation(
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), orderField),
+            Set.of()
+        );
+        return rexBuilder.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            List.of(partition),
+            ImmutableList.of(order),
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
     }
 
     // ---- Mixed backends in one projection ----
@@ -308,8 +486,11 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
         RexNode fieldRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0);
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+        // CEIL(v_int) — capability-declared scalar. CAST was used previously but is baseline
+        // (see OpenSearchProjectRule.BASELINE_SCALAR_OPS) and bypasses capability routing;
+        // the test still intends to exercise scalar-backend annotation.
+        RexNode scalarExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
 
@@ -318,7 +499,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(dfWithScalarsAndDelegation, luceneAccepting),
             fieldRef,
             painlessExpr,
-            castExpr
+            scalarExpr
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -352,25 +533,20 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         };
 
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
-        RexNode plusExpr = rexBuilder.makeCall(
-            SqlStdOperatorTable.PLUS,
-            rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.INTEGER), painlessExpr),
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
-        );
+        // UPPER(PAINLESS(x)) — non-baseline scalar wrapping an opaque op. PLUS(CAST(...), ...)
+        // was used previously but both PLUS and CAST are baseline scalars (see
+        // OpenSearchProjectRule.BASELINE_SCALAR_OPS) and no longer produce annotation.
+        RexNode upperExpr = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, painlessExpr);
 
-        OpenSearchProject result = runProject("parquet", List.of(dfWithScalarsAndDelegation, luceneAccepting), plusExpr);
+        OpenSearchProject result = runProject("parquet", List.of(dfWithScalarsAndDelegation, luceneAccepting), upperExpr);
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
         AnnotatedProjectExpression outerAnnotation = (AnnotatedProjectExpression) result.getProjects().get(0);
-        RexNode innerPlus = outerAnnotation.getOriginal();
-        assertTrue(innerPlus instanceof RexCall);
-        RexNode castOperand = ((RexCall) innerPlus).getOperands().get(0);
-        assertAnnotation(castOperand, MockDataFusionBackend.NAME);
-        RexNode painlessInside = ((AnnotatedProjectExpression) castOperand).getOriginal();
-        assertTrue(painlessInside instanceof RexCall);
-        RexNode painlessArg = ((RexCall) painlessInside).getOperands().get(0);
-        assertAnnotation(painlessArg, MockLuceneBackend.NAME);
+        RexNode innerCall = outerAnnotation.getOriginal();
+        assertTrue(innerCall instanceof RexCall);
+        RexNode painlessInside = ((RexCall) innerCall).getOperands().get(0);
+        assertAnnotation(painlessInside, MockLuceneBackend.NAME);
     }
 
     // ---- Delegation edge cases ----
@@ -423,8 +599,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(dfWithDelegation, luceneAccepting, thirdBackend)
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     public void testDelegationFailsWhenAcceptorRejectsDelegationType() {
@@ -451,8 +627,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(dfWithDelegation, luceneWithPainlessNoAccept)
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     // ---- Composed pipeline shapes ----
@@ -468,12 +644,15 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             ),
             makeEquals(1, SqlTypeName.INTEGER, 100)
         );
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+        // CEIL(value) — capability-declared scalar. CAST was used previously but is
+        // baseline and bypasses capability routing; this test wants to exercise the
+        // project-over-filter annotation path.
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
         List<String> fieldNames = List.of("col_0");
-        LogicalProject project = LogicalProject.create(filter, List.of(), List.of(castExpr), fieldNames);
+        LogicalProject project = LogicalProject.create(filter, List.of(), List.of(ceilExpr), fieldNames);
         PlannerContext context = buildContext("parquet", nameValueFields(), List.of(dfWithScalarFunctions(), LUCENE));
         RelNode result = unwrapExchange(runPlanner(project, context));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
@@ -486,8 +665,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Project(Agg(Scan)) — single shard: Project → Aggregate(SINGLE) → Scan.
-     * Multi shard: Project → Aggregate(FINAL) → ExchangeReducer → Aggregate(PARTIAL) → Scan.
+     * Project(Agg(Scan)) — single shard: SOURCE(SINGLETON) scan satisfies the root's
+     * RESULT(SINGLETON) demand, so the aggregate stays SINGLE and no ER is inserted.
      */
     public void testProjectOnAggregateScanSingleShard() {
         RelNode result = runProjectOnAgg(1);
@@ -522,12 +701,14 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             ),
             sumCall()
         );
-        // Cast SUM result (field 1, INTEGER→VARCHAR) — genuine RexCall that gets annotated
-        RexNode castExpr = rexBuilder.makeCast(
-            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+        // CEIL over SUM result (field 1) — capability-declared scalar that flows through
+        // annotation. CAST was used previously but is baseline (see
+        // OpenSearchProjectRule.BASELINE_SCALAR_OPS).
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(agg.getRowType().getFieldList().get(1).getType(), 1)
         );
-        LogicalProject project = LogicalProject.create(agg, List.of(), List.of(castExpr), List.of("col_0"));
+        LogicalProject project = LogicalProject.create(agg, List.of(), List.of(ceilExpr), List.of("col_0"));
         PlannerContext context = buildContext("parquet", shardCount, nameValueFields(), List.of(dfWithScalarFunctions(), LUCENE));
         RelNode result = unwrapExchange(runPlanner(project, context));
         logger.info("Plan ({} shard(s)):\n{}", shardCount, RelOptUtil.toString(result));
@@ -638,4 +819,5 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             caps.add(new ProjectCapability.Opaque(name, formats));
         return caps;
     }
+
 }

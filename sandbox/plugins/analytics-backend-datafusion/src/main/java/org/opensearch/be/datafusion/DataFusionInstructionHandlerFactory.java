@@ -15,7 +15,9 @@ import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,8 +39,8 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     // ── Coordinator: create instruction nodes ──
 
     @Override
-    public Optional<InstructionNode> createShardScanNode() {
-        return Optional.of(new ShardScanInstructionNode());
+    public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+        return Optional.of(new ShardScanInstructionNode(requestsRowIds));
     }
 
     @Override
@@ -51,9 +53,17 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     }
 
     @Override
+    public Optional<InstructionNode> createShardScanWithDelegationNode(
+        FilterTreeShape treeShape,
+        int delegatedPredicateCount,
+        boolean requestsRowIds
+    ) {
+        return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
+    }
+
+    @Override
     public Optional<InstructionNode> createPartialAggregateNode() {
-        // TODO: return Optional.of(...) once PartialAggregateInstructionHandler is implemented
-        return Optional.empty();
+        return Optional.of(new PartialAggregateInstructionNode());
     }
 
     @Override
@@ -66,13 +76,19 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     @SuppressWarnings("unchecked")
     @Override
     public FragmentInstructionHandler<?> createHandler(InstructionNode node) {
+        if (node instanceof ShardScanWithDelegationInstructionNode) {
+            return new ShardScanWithDelegationHandler(plugin);
+        }
         if (node instanceof ShardScanInstructionNode) {
             return new ShardScanInstructionHandler(plugin);
         }
-        if (node instanceof FinalAggregateInstructionNode) {
-            return new FinalAggregateInstructionHandler();
+        if (node instanceof PartialAggregateInstructionNode) {
+            return new PartialAggregateInstructionHandler();
         }
-        // TODO: FilterDelegationInstructionHandler, PartialAggregateInstructionHandler
+        if (node instanceof FinalAggregateInstructionNode) {
+            DataFusionService svc = plugin.getDataFusionService();
+            return new FinalAggregateInstructionHandler(svc.getNativeRuntime());
+        }
         throw new UnsupportedOperationException("No handler for instruction type: " + node.type());
     }
 }

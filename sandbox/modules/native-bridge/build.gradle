@@ -11,10 +11,18 @@ opensearchplugin {
   classname = 'org.opensearch.nativebridge.NativeBridgeModule'
 }
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
   implementation project(':sandbox:libs:dataformat-native')
   compileOnly project(':server')
   testImplementation project(':test:framework')
+}
+
+tasks.named('internalClusterTest').configure {
+  jvmArgs += ['--enable-native-access=ALL-UNNAMED']
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  systemProperty 'tests.security.manager', 'false'
 }

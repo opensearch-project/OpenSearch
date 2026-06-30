@@ -17,7 +17,7 @@ use rayon::ThreadPool;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use tokio::task::JoinHandle;
-
+use native_bridge_common::log_info;
 use crate::crc_writer::CrcWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 use crate::log_error;
@@ -45,7 +45,7 @@ const IO_CHANNEL_BUFFER: usize = 2;
 // Process-wide shared Rayon thread pool
 // =============================================================================
 
-static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
+pub(crate) static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
 
 pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
     MERGE_POOL.get_or_init(|| {
@@ -62,7 +62,7 @@ pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
 // Process-wide shared Tokio runtime for async IO
 // =============================================================================
 
-static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
+pub(crate) static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
 fn get_io_runtime(num_threads: Option<usize>) -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
@@ -172,7 +172,15 @@ pub fn spawn_io_task(
                     let crc = crc_handle.clone();
                     let result = tokio::task::spawn_blocking(move || {
                         let metadata = w.close().map_err(MergeError::from)?;
-                        Ok((metadata, crc.crc32()))
+                        let crc32 = crc.crc32();
+                        log_info!(
+                            "[RUST] IO task close: version={}, num_rows={}, created_by={:?}, crc32={:#010x}",
+                            metadata.file_metadata().version(),
+                            metadata.file_metadata().num_rows(),
+                            metadata.file_metadata().created_by(),
+                            crc32
+                        );
+                        Ok((metadata, crc32))
                     })
                         .await;
 

@@ -9,7 +9,6 @@
 opensearchplugin {
   description = 'Native (Rust) ObjectStore backend for the FS repository plugin.'
   classname = 'org.opensearch.repositories.fs.native_store.FsNativeObjectStorePlugin'
-  extendedPlugins = ['repository-fs']
 }
 
 apply plugin: 'opensearch.internal-cluster-test'

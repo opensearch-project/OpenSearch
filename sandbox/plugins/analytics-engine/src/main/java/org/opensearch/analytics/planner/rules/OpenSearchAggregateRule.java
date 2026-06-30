@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.UnsupportedFunctionException;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -30,15 +31,23 @@ import org.opensearch.analytics.spi.FieldType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Converts {@link Aggregate} → {@link OpenSearchAggregate}.
  *
- * <p>Annotates each {@link AggregateCall} with viable backends by embedding
- * an {@link AggregateCallAnnotation} in its rexList. Computes operator-level
- * viable backends as the intersection of per-call viable backends.
+ * <p>Records each {@link AggregateCall}'s viable backends as an
+ * {@link AggregateCallAnnotation} in {@link OpenSearchAggregate}'s side-map keyed
+ * by call index — NOT in {@code aggCall.rexList}. Storing annotations out-of-band
+ * avoids contaminating Calcite's {@code AggCallBinding.preOperands}, which would
+ * corrupt {@code inferReturnType} for functions whose return type depends on
+ * {@code getOperandType(0)} (PPL's {@code ARG0_ARRAY} double-wraps).
+ *
+ * <p>Computes operator-level viable backends as the intersection of per-call viable
+ * backends.
  *
  * <p>The split into PARTIAL + FINAL is NOT done here. It happens via
  * {@link OpenSearchAggregateSplitRule} which fires when Volcano detects
@@ -73,32 +82,28 @@ public class OpenSearchAggregateRule extends RelOptRule {
         List<String> childViableBackends = openSearchChild.getViableBackends();
         List<FieldStorageInfo> childFieldStorage = openSearchChild.getOutputFieldStorage();
 
-        // Annotate each AggregateCall with per-call viable backends
-        List<AggregateCall> annotatedCalls = new ArrayList<>();
-        for (AggregateCall aggCall : aggregate.getAggCallList()) {
+        List<AggregateCall> aggCalls = aggregate.getAggCallList();
+        Map<Integer, AggregateCallAnnotation> callAnnotations = new LinkedHashMap<>(aggCalls.size());
+        for (int i = 0; i < aggCalls.size(); i++) {
+            AggregateCall aggCall = aggCalls.get(i);
             List<String> callViable = resolveViableBackendsForCall(aggCall, childFieldStorage);
             if (callViable.isEmpty()) {
-                throw new IllegalStateException("No backend supports aggregate function [" + aggCall.getAggregation().getName() + "]");
+                throw new UnsupportedFunctionException(aggCall.getAggregation().getName(), "as an aggregate function");
             }
-            annotatedCalls.add(AggregateCallAnnotation.annotate(aggCall, callViable, context.nextAnnotationId()));
+            callAnnotations.put(i, new AggregateCallAnnotation(callViable, context.nextAnnotationId()));
         }
 
         // Compute operator-level viable backends: must be viable for child AND handle agg calls
-        List<String> viableBackends = computeAggregateViableBackends(annotatedCalls, childViableBackends);
+        List<String> viableBackends = computeAggregateViableBackends(callAnnotations, childViableBackends);
 
         if (viableBackends.isEmpty()) {
-            List<String> funcNames = aggregate.getAggCallList().stream().map(aggCall -> aggCall.getAggregation().getName()).toList();
-            throw new IllegalStateException(
-                "No backend can execute aggregate: functions "
-                    + funcNames
-                    + " not supported by any viable backend among "
-                    + childViableBackends
-            );
+            List<String> funcNames = aggCalls.stream().map(aggCall -> aggCall.getAggregation().getName()).toList();
+            throw new UnsupportedFunctionException(funcNames.toString(), "as aggregate functions in combination");
         }
 
         LOGGER.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);
 
-        RelTraitSet aggregateTraits = child.getTraitSet().replace(context.getDistributionTraitDef().singleton());
+        RelTraitSet aggregateTraits = child.getTraitSet();
 
         call.transformTo(
             new OpenSearchAggregate(
@@ -107,9 +112,10 @@ public class OpenSearchAggregateRule extends RelOptRule {
                 RelNodeUtils.unwrapHep(aggregate.getInput()),
                 aggregate.getGroupSet(),
                 aggregate.getGroupSets(),
-                annotatedCalls,
+                aggCalls,
                 AggregateMode.SINGLE,
-                viableBackends
+                viableBackends,
+                callAnnotations
             )
         );
     }
@@ -128,6 +134,15 @@ public class OpenSearchAggregateRule extends RelOptRule {
 
         List<String> callViable = null;
         for (int fieldIndex : aggCall.getArgList()) {
+            // Skip metadata-only literal arg columns whose FieldType is null (e.g. SYMBOL —
+            // PPL's percentile_approx / median type-flag). Only data-field args need a
+            // backend viability check.
+            if (fieldIndex < childFieldStorageInfos.size()) {
+                FieldStorageInfo peek = childFieldStorageInfos.get(fieldIndex);
+                if (peek.isDerived() && peek.getFieldType() == null) {
+                    continue;
+                }
+            }
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(childFieldStorageInfos, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
 
@@ -155,11 +170,14 @@ public class OpenSearchAggregateRule extends RelOptRule {
             }
         }
 
-        return callViable != null ? callViable : new ArrayList<>(registry.aggregateCapableBackends());
+        return callViable;
     }
 
-    private List<String> computeAggregateViableBackends(List<AggregateCall> annotatedCalls, List<String> childViableBackends) {
-        if (annotatedCalls.isEmpty()) {
+    private List<String> computeAggregateViableBackends(
+        Map<Integer, AggregateCallAnnotation> callAnnotations,
+        List<String> childViableBackends
+    ) {
+        if (callAnnotations.isEmpty()) {
             return new ArrayList<>(childViableBackends);
         }
 
@@ -172,12 +190,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
             }
 
             boolean canHandleAll = true;
-            for (AggregateCall call : annotatedCalls) {
-                AggregateCallAnnotation annotation = AggregateCallAnnotation.find(call);
-                if (annotation == null) {
-                    canHandleAll = false;
-                    break;
-                }
+            for (AggregateCallAnnotation annotation : callAnnotations.values()) {
                 if (!registry.canHandle(candidateName, annotation.getViableBackends(), DelegationType.AGGREGATE)) {
                     canHandleAll = false;
                     break;

@@ -10,7 +10,7 @@
 //! based on [`TieredStorageRegistry`] metadata.
 //!
 //! On every read, it checks the file registry:
-//! - **Remote** → delegates to the remote backend via the store in the entry
+//! - **Remote** → delegates to the store-level remote backend
 //! - **Local / Both / not registered** → falls through to the local store
 //!
 //! # Thread Safety
@@ -27,13 +27,45 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::{
-    path::Path, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMultipartOptions, PutOptions, PutPayload, PutResult, Result as OsResult,
+    path::Path, CopyOptions, GetOptions, GetRange, GetResult, ListResult, MultipartUpload,
+    ObjectMeta, ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult,
+    Result as OsResult,
 };
+
+use opensearch_block_cache::range_cache::range_cache_key;
+use opensearch_block_cache::traits::BlockCache;
 
 use crate::registry::traits::FileRegistry;
 use crate::registry::TieredStorageRegistry;
 use crate::types::{FileLocation, TieredFileEntry};
+
+// ---------------------------------------------------------------------------
+// MetadataCachingStore — extension trait
+// ---------------------------------------------------------------------------
+
+/// An [`ObjectStore`] that supports promoting reads into a sticky metadata tier
+/// (the never-evict Foyer SSD instance in production).
+///
+/// The default implementation is a no-op so callers can invoke `put_metadata`
+/// uniformly through any `Arc<dyn MetadataCachingStore>` without checking the
+/// concrete type. [`TieredObjectStore`] overrides it to actually route the
+/// bytes into the metadata cache; plain stores (e.g. `LocalFileSystem` in
+/// tests) just inherit the no-op.
+///
+/// Used by warmup paths (e.g. `analytics-backend-datafusion`'s
+/// `add_files_with_store`) that need to populate the metadata tier after
+/// fetching bytes through the store.
+pub trait MetadataCachingStore: ObjectStore {
+    /// Promote `data` ranges to the never-evict metadata tier.
+    ///
+    /// Default: no-op.
+    fn put_metadata(
+        &self,
+        _path: &str,
+        _ranges: &[std::ops::Range<u64>],
+        _data: &[Bytes],
+    ) {}
+}
 
 // ---------------------------------------------------------------------------
 // TieredObjectStore
@@ -42,11 +74,14 @@ use crate::types::{FileLocation, TieredFileEntry};
 /// ObjectStore implementation that routes reads between local and remote
 /// stores based on [`TieredStorageRegistry`] metadata.
 ///
-/// File tracking is delegated to the registry. Remote stores are passed
-/// directly when registering files.
+/// Per-shard model: one remote store is set once via [`set_remote()`] and
+/// shared across all entries.
 pub struct TieredObjectStore {
     registry: Arc<TieredStorageRegistry>,
     local: Arc<dyn ObjectStore>,
+    remote: std::sync::OnceLock<Arc<dyn ObjectStore>>,
+    /// Optional node-level block cache. `None` on hot nodes or when disabled.
+    cache: Option<Arc<dyn BlockCache>>,
 }
 
 impl TieredObjectStore {
@@ -54,7 +89,12 @@ impl TieredObjectStore {
     #[must_use]
     pub fn new(registry: Arc<TieredStorageRegistry>, local: Arc<dyn ObjectStore>) -> Self {
         native_bridge_common::log_info!("TieredObjectStore: created");
-        Self { registry, local }
+        Self {
+            registry,
+            local,
+            remote: std::sync::OnceLock::new(),
+            cache: None,
+        }
     }
 
     /// Reference to the underlying registry.
@@ -63,52 +103,77 @@ impl TieredObjectStore {
         &self.registry
     }
 
-    /// Validate that Remote/Both locations have required remote metadata.
-    fn validate_remote_fields(
-        path: &str,
-        location: FileLocation,
-        remote_path: &Option<String>,
-        repo_key: &Option<String>,
-        store: &Option<Arc<dyn ObjectStore>>,
-    ) -> Result<(), crate::types::FileRegistryError> {
-        if matches!(location, FileLocation::Remote | FileLocation::Both) {
-            if remote_path.is_none() {
-                return Err(crate::types::FileRegistryError::InvalidRegistration {
-                    path: path.to_string(),
-                    reason: format!("remote_path required for location={}", location),
-                });
-            }
-            if repo_key.is_none() {
-                return Err(crate::types::FileRegistryError::InvalidRegistration {
-                    path: path.to_string(),
-                    reason: format!("repo_key required for location={}", location),
-                });
-            }
-            if store.is_none() {
-                return Err(crate::types::FileRegistryError::InvalidRegistration {
-                    path: path.to_string(),
-                    reason: format!("store required for location={}", location),
-                });
+    /// Set the remote store (once). Subsequent calls are ignored.
+    pub fn set_remote(&self, store: Arc<dyn ObjectStore>) {
+        let was_set = self.remote.set(store).is_err();
+        native_bridge_common::log_debug!("[warm-tier] set_remote wired={} (already_set={})", !was_set, was_set);
+    }
+
+    /// Attach a block cache. Hot nodes skip this; `None` means no caching.
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<dyn BlockCache>) -> Self {
+        self.cache = Some(cache);
+        native_bridge_common::log_debug!("[warm-tier] TieredObjectStore: block cache attached");
+        self
+    }
+
+    /// Evict all cache entries whose key starts with `path`.
+    ///
+    /// No-op if no cache is attached (hot nodes or cache disabled).
+    /// Called from `ts_remove_file` after a file is removed from the registry
+    /// so that stale byte-range entries are freed promptly.
+    pub fn evict_path(&self, path: &str) {
+        if let Some(ref cache) = self.cache {
+            native_bridge_common::log_debug!("[warm-tier] evict_path path='{}'", path);
+            cache.evict_prefix(path);
+        }
+    }
+
+    /// Store byte ranges directly into the metadata cache (never-evict tier).
+    ///
+    /// Called by warmup after fetching metadata bytes. The warmup code reads
+    /// metadata (via this store or any source), then calls this to ensure the
+    /// bytes are in the durable metadata_cache — surviving LRU eviction from
+    /// data scan pressure and node restarts.
+    ///
+    /// No-op if no cache is attached.
+    pub fn put_metadata(&self, path: &str, ranges: &[std::ops::Range<u64>], data: &[Bytes]) {
+        // Normalize path by stripping leading '/' to match `object_store::Path` semantics
+        // (read paths through ObjectStore::get_opts/get_ranges arrive with the leading '/'
+        // already stripped). Without this, warmup writes under "/Volumes/..." while query
+        // reads probe under "Volumes/..." — silent cache miss on every read.
+        let path_str = path.strip_prefix('/').unwrap_or(path);
+        native_bridge_common::log_debug!(
+            "[warm-tier] put_metadata path='{}' ranges={} bytes={} cache={}",
+            path_str,
+            ranges.len(),
+            ranges.iter().map(|r| r.end - r.start).sum::<u64>(),
+            self.cache.is_some()
+        );
+        if let Some(ref cache) = self.cache {
+            for (r, bytes) in ranges.iter().zip(data.iter()) {
+                let key = range_cache_key(path_str, r.start, r.end);
+                cache.put_metadata(&key, bytes.clone());
             }
         }
-        Ok(())
     }
 
     /// Register a file in the registry. For Remote/Both locations, the caller
-    /// must provide the resolved `store` directly.
+    /// must provide a `remote_path`.
     pub fn register_file(
         &self,
         path: &str,
         location: FileLocation,
         remote_path: Option<String>,
-        repo_key: Option<String>,
-        store: Option<Arc<dyn ObjectStore>>,
     ) -> Result<(), crate::types::FileRegistryError> {
-        Self::validate_remote_fields(path, location, &remote_path, &repo_key, &store)?;
+        if matches!(location, FileLocation::Remote) && remote_path.is_none() {
+            return Err(crate::types::FileRegistryError::InvalidRegistration {
+                path: path.to_string(),
+                reason: format!("remote_path required for location={}", location),
+            });
+        }
 
-        let remote_arc: Option<Arc<str>> = remote_path.map(Arc::from);
-
-        let entry = TieredFileEntry::new(location, remote_arc, repo_key, store, None);
+        let entry = TieredFileEntry::new(location, remote_path.map(Arc::from));
         self.registry.register(path, entry);
 
         native_bridge_common::log_debug!(
@@ -125,19 +190,19 @@ impl TieredObjectStore {
         path: &str,
         location: FileLocation,
         remote_path: Option<String>,
-        repo_key: Option<String>,
-        store: Option<Arc<dyn ObjectStore>>,
     ) -> Result<(), crate::types::FileRegistryError> {
-        Self::validate_remote_fields(path, location, &remote_path, &repo_key, &store)?;
+        if matches!(location, FileLocation::Remote) && remote_path.is_none() {
+            return Err(crate::types::FileRegistryError::InvalidRegistration {
+                path: path.to_string(),
+                reason: format!("remote_path required for location={}", location),
+            });
+        }
 
         let remote_arc: Option<Arc<str>> = remote_path.map(Arc::from);
-        let repo_arc: Option<Arc<str>> = repo_key.map(Arc::from);
 
         self.registry.update(path, move |e| {
             e.location = location;
             e.remote_path = remote_arc;
-            e.repo_key = repo_arc;
-            e.remote_store = store;
         });
 
         native_bridge_common::log_debug!(
@@ -148,23 +213,260 @@ impl TieredObjectStore {
         Ok(())
     }
 
-    // TODO: Add pin(path)/unpin(path) methods for write-path eviction protection.
-    // TODO: Add schedule_eviction(path) and sweep() for deferred eviction lifecycle.
+    /// Resolve a GetRange to absolute (start, end) byte offsets.
+    ///
+    /// - `Bounded(start..end)`: returned directly.
+    /// - `Suffix(n)`: resolved to `(file_size - n, file_size)` using registry.
+    /// - `Offset(n)`: resolved to `(n, file_size)` using registry.
+    ///
+    /// Returns `None` if file_size is needed but not available in the registry.
+    ///
+    /// Note: `GetRange::Offset` is defensive/forward-compatible code. DataFusion's
+    /// current parquet reading pipeline only produces `Bounded` (column data) and
+    /// `Suffix` (footer metadata). The `Offset` variant is never generated in
+    /// practice but is handled for completeness.
+    fn resolve_range(&self, path_str: &str, range: &GetRange) -> Option<(u64, u64)> {
+        match range {
+            GetRange::Bounded(r) => Some((r.start, r.end)),
+            GetRange::Suffix(n) => {
+                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0);
+                match file_size {
+                    Some(size) => Some((size.saturating_sub(*n), size)),
+                    None => {
+                        native_bridge_common::log_debug!(
+                            "TieredObjectStore: resolve_range Suffix({}) — file_size unavailable for '{}', cache bypassed",
+                            n, path_str
+                        );
+                        None
+                    }
+                }
+            }
+            GetRange::Offset(o) => {
+                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0);
+                match file_size {
+                    Some(size) => Some((*o, size)),
+                    None => {
+                        native_bridge_common::log_debug!(
+                            "TieredObjectStore: resolve_range Offset({}) — file_size unavailable for '{}', cache bypassed",
+                            o, path_str
+                        );
+                        None
+                    }
+                }
+            }
+        }
+    }
 
     // NOTE: The guard is intentionally dropped before I/O. The Arc<dyn ObjectStore>
-    // keeps the store alive independently. If eviction lifecycle is added in the future,
-    // this method should return the guard alongside the resolved path/store to pin the
-    // entry for the duration of the I/O operation.
+    // keeps the store alive independently. On writable warm, the guard must be held
+    // during I/O to prevent eviction race — resolve_remote should return the guard
+    // alongside the resolved path/store to pin the entry for the I/O duration.
     fn resolve_remote(&self, path: &str) -> Option<(Path, Arc<dyn ObjectStore>)> {
         let guard = self.registry.get(path)?;
         if guard.location() != FileLocation::Remote {
             return None;
         }
         let remote_path = guard.remote_path()?;
-        let store = Arc::clone(guard.remote_store()?);
+        let store = Arc::clone(self.remote.get()?); // use store-level remote
         let rp = Path::from(remote_path);
         drop(guard); // release before I/O — Arc keeps store alive
         Some((rp, store))
+    }
+
+    /// Checks if a local read error is NotFound and the file has since transitioned
+    /// to REMOTE in the registry (e.g., afterSyncToRemote deleted the local copy).
+    /// Returns the remote path + store if retry is possible, None otherwise.
+    fn should_retry_remote(&self, path_str: &str, err: &object_store::Error) -> Option<(Path, Arc<dyn ObjectStore>)> {
+        if matches!(err, object_store::Error::NotFound { .. }) {
+            let resolved = self.resolve_remote(path_str);
+            if resolved.is_some() {
+                native_bridge_common::log_debug!(
+                    "TieredObjectStore: LOCAL NotFound, file transitioned to REMOTE — retrying path='{}'",
+                    path_str
+                );
+            }
+            resolved
+        } else {
+            None
+        }
+    }
+
+    /// Fast-path head response from registry or directory existence check.
+    /// Returns `Some(GetResult)` if the head can be answered without I/O,
+    /// `None` if the caller should fall through to the normal get_opts path.
+    fn try_head_from_registry(&self, location: &Path, path_str: &str) -> Option<OsResult<GetResult>> {
+        // Check registry for cached file size
+        if let Some(guard) = self.registry.get(path_str) {
+            let size = guard.size();
+            if size > 0 {
+                let meta = ObjectMeta {
+                    location: location.clone(),
+                    last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                    size,
+                    e_tag: None,
+                    version: None,
+                };
+                return Some(Ok(GetResult {
+                    payload: object_store::GetResultPayload::Stream(
+                        futures::stream::empty().boxed(),
+                    ),
+                    meta,
+                    range: 0..size,
+                    attributes: Default::default(),
+                }));
+            }
+        }
+        // Directory existence check: if the path is a prefix of any registered file,
+        // it's a directory. Return NotFound so DataFusion treats it as a
+        // directory and proceeds to list() (which returns all registry files).
+        // This matches LocalFileSystem behavior: head() on a directory returns NotFound.
+        let prefix_with_slash = if path_str.ends_with('/') {
+            path_str.to_string()
+        } else {
+            format!("{}/", path_str)
+        };
+        let matches = self.registry.entries_matching(&prefix_with_slash);
+        if !matches.is_empty() {
+            native_bridge_common::log_debug!(
+                "TieredObjectStore: try_head_from_registry — path='{}' is a directory ({} files), returning NotFound",
+                path_str, matches.len()
+            );
+            return Some(Err(object_store::Error::NotFound {
+                path: path_str.to_string(),
+                source: format!("path is a directory with {} files", matches.len()).into(),
+            }));
+        }
+
+        None
+    }
+
+    /// Try to serve a range read from the cache. Returns `Some(Ok(GetResult))` on hit,
+    /// `None` on miss. Does NOT auto-populate the cache on miss.
+    ///
+    /// Used by `get_opts` to short-circuit range reads when the requested bytes were
+    /// previously stored via `put_metadata()` during warmup.
+    async fn try_serve_from_cache(
+        &self,
+        path_str: &str,
+        location: &Path,
+        range: &GetRange,
+    ) -> Option<OsResult<GetResult>> {
+        let cache = self.cache.as_ref()?;
+        let (start, end) = self.resolve_range(path_str, range)?;
+        let key = range_cache_key(path_str, start, end);
+        let cached = cache.get(&key).await?;
+        let file_size = self.registry.get(path_str)
+            .map(|g| g.size())
+            .unwrap_or(end);
+        let meta = ObjectMeta {
+            location: location.clone(),
+            last_modified: chrono::DateTime::<chrono::Utc>::default(),
+            size: file_size,
+            e_tag: None,
+            version: None,
+        };
+        Some(Ok(GetResult {
+            payload: object_store::GetResultPayload::Stream(
+                futures::stream::once(async { Ok(cached) }).boxed(),
+            ),
+            meta,
+            range: start..end,
+            attributes: Default::default(),
+        }))
+    }
+
+    /// Phase 1 — probe the block cache for each requested range.
+    ///
+    /// Returns:
+    /// - `slots`: one entry per input range — `Some(bytes)` for hits, `None` for misses
+    /// - `miss_indices`: original indices of the ranges that missed
+    /// - `miss_ranges`: the ranges that need to be fetched from the backing store
+    ///
+    /// When no cache is attached all ranges are unconditionally treated as misses.
+    async fn probe_cache(
+        &self,
+        path_str: &str,
+        ranges: &[Range<u64>],
+    ) -> (Vec<Option<Bytes>>, Vec<usize>, Vec<Range<u64>>) {
+        let mut slots: Vec<Option<Bytes>> = Vec::with_capacity(ranges.len());
+        let mut miss_indices: Vec<usize> = Vec::new();
+        let mut miss_ranges: Vec<Range<u64>> = Vec::new();
+
+        if let Some(ref cache) = self.cache {
+            for (i, r) in ranges.iter().enumerate() {
+                let key = range_cache_key(path_str, r.start, r.end);
+                if let Some(cached) = cache.get(&key).await {
+                    slots.push(Some(cached));
+                } else {
+                    slots.push(None);
+                    miss_indices.push(i);
+                    miss_ranges.push(r.clone());
+                }
+            }
+        } else {
+            // No cache — all ranges are misses.
+            for (i, r) in ranges.iter().enumerate() {
+                slots.push(None);
+                miss_indices.push(i);
+                miss_ranges.push(r.clone());
+            }
+        }
+
+        (slots, miss_indices, miss_ranges)
+    }
+
+    /// Phase 2 — fetch missing ranges from the backing store (remote or local).
+    ///
+    /// Tries the remote store first (registry lookup). Falls back to local,
+    /// and retries remote if local returns `NotFound` and the file has since
+    /// transitioned to `REMOTE` in the registry.
+    async fn fetch_misses(
+        &self,
+        location: &Path,
+        path_str: &str,
+        miss_ranges: &[Range<u64>],
+    ) -> OsResult<Vec<Bytes>> {
+        if let Some((rp, store)) = self.resolve_remote(path_str) {
+            return store.get_ranges(&rp, miss_ranges).await;
+        }
+        let result = self.local.get_ranges(location, miss_ranges).await;
+        match result {
+            Ok(bytes) => Ok(bytes),
+            Err(ref e) => {
+                if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                    store.get_ranges(&rp, miss_ranges).await
+                } else {
+                    result
+                }
+            }
+        }
+    }
+
+    /// Phase 3 — populate the block cache with freshly fetched bytes and
+    /// reassemble the complete result in original range order.
+    ///
+    /// If no cache is attached, only the slot reassembly is performed.
+    fn populate_cache_and_reassemble(
+        &self,
+        path_str: &str,
+        fetched: &[Bytes],
+        miss_indices: &[usize],
+        miss_ranges: &[Range<u64>],
+        slots: &mut Vec<Option<Bytes>>,
+    ) {
+        if let Some(ref cache) = self.cache {
+            for (fetched_bytes, (&slot_i, miss_range)) in
+                fetched.iter().zip(miss_indices.iter().zip(miss_ranges.iter()))
+            {
+                let key = range_cache_key(path_str, miss_range.start, miss_range.end);
+                cache.put(&key, fetched_bytes.clone());
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        } else {
+            for (fetched_bytes, &slot_i) in fetched.iter().zip(miss_indices.iter()) {
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        }
     }
 }
 
@@ -172,13 +474,24 @@ impl fmt::Debug for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TieredObjectStore")
             .field("file_count", &self.registry.len())
+            .field("cache", &self.cache.is_some())
             .finish()
     }
 }
 
 impl fmt::Display for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TieredObjectStore(files={})", self.registry.len())
+        write!(f, "TieredObjectStore(files={}, cache={})", self.registry.len(), self.cache.is_some())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MetadataCachingStore impl — delegates to the inherent put_metadata above.
+// ---------------------------------------------------------------------------
+
+impl MetadataCachingStore for TieredObjectStore {
+    fn put_metadata(&self, path: &str, ranges: &[std::ops::Range<u64>], data: &[Bytes]) {
+        TieredObjectStore::put_metadata(self, path, ranges, data);
     }
 }
 
@@ -189,23 +502,23 @@ impl fmt::Display for TieredObjectStore {
 #[async_trait]
 impl ObjectStore for TieredObjectStore {
     /// Write to local store and register the file as [`FileLocation::Local`].
+    /// On writable warm, caller must pin the file to prevent eviction before
+    /// sync completes.
     async fn put_opts(
         &self,
         location: &Path,
         payload: PutPayload,
         opts: PutOptions,
     ) -> OsResult<PutResult> {
-        let size = payload.content_length() as u64;
         let result = self.local.put_opts(location, payload, opts).await?;
 
         let path_str = location.as_ref();
-        let entry = TieredFileEntry::new(FileLocation::Local, None, None, None, Some(size));
+        let entry = TieredFileEntry::new(FileLocation::Local, None);
         self.registry.register(path_str, entry);
 
         native_bridge_common::log_debug!(
-            "TieredObjectStore: put_opts registered LOCAL path='{}', size={}",
+            "TieredObjectStore: put_opts registered LOCAL path='{}'",
             path_str,
-            size
         );
         Ok(result)
     }
@@ -221,77 +534,150 @@ impl ObjectStore for TieredObjectStore {
     }
 
     /// Primary read path: check registry for remote routing, otherwise local.
+    /// If local read fails with NotFound and file transitioned to REMOTE, retries from remote.
+    ///
+    /// Also handles head requests (options.head == true) by returning cached
+    /// size from the registry when available — avoids I/O for the common case.
+    /// For directory paths, returns NotFound so DataFusion uses list() instead.
+    ///
+    /// When a bounded/suffix/offset range is specified AND a cache is attached,
+    /// probes the cache first. On hit (entry previously stored via `put_metadata`
+    /// during warmup), returns cached bytes immediately — zero S3/local I/O.
+    /// On miss, proceeds with normal fetch (no auto-populate — metadata cache is
+    /// populated only by explicit `put_metadata()` calls from warmup code).
     async fn get_opts(&self, location: &Path, options: GetOptions) -> OsResult<GetResult> {
         let path_str = location.as_ref();
 
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
+        // Fast path for head: check registry/directory without I/O
+        if options.head {
+            if let Some(result) = self.try_head_from_registry(location, path_str) {
+                return result;
+            }
+        }
+
+        // Cache probe for range reads. Serves entries from metadata Foyer
+        // (put there by warmup) or data Foyer (populated on prior miss).
+        // On miss: fetches from S3/local, then populates data Foyer via put()
+        // so repeated reads hit cache.
+        if let Some(ref get_range) = options.range {
+            if let Some(result) = self.try_serve_from_cache(path_str, location, get_range).await {
+                return result;
+            }
+        }
+
+        // Cache miss — fetch from remote/local then populate data Foyer.
+        // This ensures single-range reads (CachedMetadataReader::get_bytes for
+        // column chunks in the IndexedExec path) are cached on first access.
+        // cache.put() always routes to data Foyer — metadata Foyer is only
+        // populated via explicit put_metadata() from warmup.
+        let get_result = if let Some((rp, store)) = self.resolve_remote(path_str) {
             native_bridge_common::log_debug!(
-                "TieredObjectStore: get_opts routing REMOTE path='{}'",
+                "TieredObjectStore: get_opts REMOTE path='{}'",
                 path_str
             );
-            return store.get_opts(&rp, options).await;
+            store.get_opts(&rp, options.clone()).await
+        } else {
+            let local_result = self.local.get_opts(location, options.clone()).await;
+            match local_result {
+                Ok(r) => Ok(r),
+                Err(ref e) => {
+                    if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                        store.get_opts(&rp, options.clone()).await
+                    } else {
+                        local_result
+                    }
+                }
+            }
+        }?;
+
+        // Populate data Foyer for bounded-range reads so repeated single-range
+        // reads (IndexedExec column chunks) hit cache on subsequent queries.
+        // TieredBlockCache::put() enforces max_data_entry_size — entries exceeding
+        // that limit are silently skipped (no buffering needed for them either).
+        if let Some(ref cache) = self.cache {
+            if let Some(ref get_range) = options.range {
+                if let Some((start, end)) = self.resolve_range(path_str, get_range) {
+                    let range_size = end - start;
+                    // Skip buffering for large ranges — TieredBlockCache::put() would
+                    // reject them anyway (max_data_entry_size). This avoids allocating
+                    // memory for entries that won't be cached.
+                    let max_size = cache.as_any()
+                        .downcast_ref::<opensearch_block_cache::tiered_block_cache::TieredBlockCache>()
+                        .map(|t| t.max_data_entry_size())
+                        .unwrap_or(32 * 1024 * 1024); // fallback for non-tiered cache
+                    if range_size > max_size {
+                        return Ok(get_result);
+                    }
+                    let bytes = get_result.bytes().await?;
+                    let key = range_cache_key(path_str, start, end);
+                    cache.put(&key, bytes.clone());
+                    let file_size = self.registry.get(path_str)
+                        .map(|g| g.size())
+                        .unwrap_or(end);
+                    let meta = ObjectMeta {
+                        location: location.clone(),
+                        last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                        size: file_size,
+                        e_tag: None,
+                        version: None,
+                    };
+                    return Ok(GetResult {
+                        payload: object_store::GetResultPayload::Stream(
+                            futures::stream::once(async { Ok(bytes) }).boxed(),
+                        ),
+                        meta,
+                        range: start..end,
+                        attributes: Default::default(),
+                    });
+                }
+            }
         }
 
-        native_bridge_common::log_debug!(
-            "TieredObjectStore: get_opts routing LOCAL path='{}'",
-            path_str
-        );
-        self.local.get_opts(location, options).await
+        Ok(get_result)
     }
 
-    /// Range read: same routing as `get_opts`.
-    async fn get_range(&self, location: &Path, range: Range<u64>) -> OsResult<Bytes> {
-        let path_str = location.as_ref();
-
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
-            return store.get_range(&rp, range).await;
-        }
-
-        self.local.get_range(location, range).await
-    }
-
-    /// Multi-range read: same routing as `get_opts` for the entire batch.
+    /// Multi-range read with cache-first routing.
+    /// Probes cache per range, fetches only misses, populates cache on success.
     async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
         let path_str = location.as_ref();
 
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
-            return store.get_ranges(&rp, ranges).await;
+        let (mut slots, miss_indices, miss_ranges) = self.probe_cache(path_str, ranges).await;
+
+        if miss_ranges.is_empty() {
+            // Full cache hit — all ranges served from SSD.
+            return Ok(slots.into_iter().map(|o| o.unwrap()).collect());
         }
 
-        self.local.get_ranges(location, ranges).await
+        let fetched = self.fetch_misses(location, path_str, &miss_ranges).await?;
+
+        self.populate_cache_and_reassemble(
+            path_str, &fetched, &miss_indices, &miss_ranges, &mut slots,
+        );
+
+        Ok(slots.into_iter().map(|o| o.unwrap()).collect())
     }
 
-    /// Head: try local first, fall back to remote if not found locally.
-    async fn head(&self, location: &Path) -> OsResult<ObjectMeta> {
-        let path_str = location.as_ref();
-
-        match self.local.head(location).await {
-            Ok(meta) => return Ok(meta),
-            Err(object_store::Error::NotFound { .. }) => {}
-            Err(other) => return Err(other),
-        }
-
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
-            return store.head(&rp).await;
-        }
-
-        Err(object_store::Error::NotFound {
-            path: path_str.to_string(),
-            source: "TieredObjectStore: not found locally or in registry".into(),
-        })
+    /// Delete stream: remove each path from registry and evict cache entries.
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, OsResult<Path>>,
+    ) -> BoxStream<'static, OsResult<Path>> {
+        let registry = Arc::clone(&self.registry);
+        let cache = self.cache.clone();
+        let mapped = locations.map(move |result| {
+            if let Ok(ref path) = result {
+                let path_str = path.as_ref();
+                registry.remove(path_str, true);
+                if let Some(ref c) = cache {
+                    c.evict_prefix(path_str);
+                }
+            }
+            result
+        });
+        Box::pin(mapped)
     }
 
-    /// Delete: remove from registry only, NO local delete.
-    /// Local file deletion is handled by the Java layer (CompositeDirectory).
-    // TODO: Consider deferred removal (schedule + sweep) instead of force-remove
-    // when eviction lifecycle is added.
-    async fn delete(&self, location: &Path) -> OsResult<()> {
-        let path_str = location.as_ref();
-        self.registry.remove(path_str, true);
-        Ok(())
-    }
-
-    /// List: local entries first, then remote-only entries from registry.
+    /// List: local entries first, then remote-only entries from registry (deduplicated).
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, OsResult<ObjectMeta>> {
         let prefix_str = prefix.map(|p| p.as_ref().to_string()).unwrap_or_default();
         let registry = Arc::clone(&self.registry);
@@ -305,7 +691,7 @@ impl ObjectStore for TieredObjectStore {
                 Ok(ObjectMeta {
                     location: Path::from(path),
                     last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                    size: size.unwrap_or(0),
+                    size,
                     e_tag: None,
                     version: None,
                 })
@@ -316,7 +702,7 @@ impl ObjectStore for TieredObjectStore {
         Box::pin(local_stream.chain(remote_stream))
     }
 
-    /// List with delimiter: local entries first, then merge remote-only entries.
+    /// List with delimiter: local entries first, then merge remote-only entries (deduplicated).
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> OsResult<ListResult> {
         let mut result = self.local.list_with_delimiter(prefix).await?;
 
@@ -333,7 +719,7 @@ impl ObjectStore for TieredObjectStore {
                 result.objects.push(ObjectMeta {
                     location: Path::from(path),
                     last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                    size: size.unwrap_or(0),
+                    size,
                     e_tag: None,
                     version: None,
                 });
@@ -343,21 +729,9 @@ impl ObjectStore for TieredObjectStore {
         Ok(result)
     }
 
-    async fn copy(&self, _from: &Path, _to: &Path) -> OsResult<()> {
+    async fn copy_opts(&self, _from: &Path, _to: &Path, _options: CopyOptions) -> OsResult<()> {
         Err(object_store::Error::NotSupported {
             source: "TieredObjectStore does not support copy".into(),
-        })
-    }
-
-    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> OsResult<()> {
-        Err(object_store::Error::NotSupported {
-            source: "TieredObjectStore does not support copy_if_not_exists".into(),
-        })
-    }
-
-    async fn rename_if_not_exists(&self, _from: &Path, _to: &Path) -> OsResult<()> {
-        Err(object_store::Error::NotSupported {
-            source: "TieredObjectStore does not support rename_if_not_exists".into(),
         })
     }
 }

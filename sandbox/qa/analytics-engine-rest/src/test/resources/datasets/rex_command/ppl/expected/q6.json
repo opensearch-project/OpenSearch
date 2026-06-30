@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "method",
+      "type": "string"
+    },
+    {
+      "name": "path",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "GET",
+      "/api/v1/users",
+      "500"
+    ],
+    [
+      "POST",
+      "/api/v2/checkout",
+      "200"
+    ],
+    [
+      "GET",
+      "/api/v1/login",
+      "429"
+    ],
+    [
+      "DELETE",
+      "/api/v1/users/123",
+      "204"
+    ],
+    [
+      "PUT",
+      "/api/v1/profile",
+      "500"
+    ],
+    [
+      "GET",
+      "/health",
+      "503"
+    ],
+    [
+      "POST",
+      "/api/v1/auth",
+      "401"
+    ],
+    [
+      "GET",
+      "/api/v1/data",
+      "200"
+    ],
+    [
+      "PATCH",
+      "/api/v1/settings",
+      "200"
+    ],
+    [
+      "POST",
+      "/api/v1/query",
+      "200"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

@@ -60,6 +60,9 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -145,6 +148,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AggregateFileCacheStats fileCacheStats;
 
+    /** Populated only when ?detailed is requested: FileCache-only stats (no block cache contribution). */
+    @Nullable
+    private AggregateFileCacheStats fileCacheOnlyStats;
+
+    /** Populated only when ?detailed is requested: combined rollup across all BlockCache implementations. */
+    @Nullable
+    private BlockCacheStats blockCacheOnlyStats;
+
     @Nullable
     private TaskCancellationStats taskCancellationStats;
 
@@ -165,6 +176,18 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     @Nullable
     private RemoteStoreNodeStats remoteStoreNodeStats;
+
+    @Nullable
+    private NativeAllocatorPoolStats nativeAllocatorStats;
+
+    /**
+     * Process-level native-memory estimate captured on the data node hosting this {@code NodeStats}.
+     * Computed once in {@link org.opensearch.node.NodeService#stats} via
+     * {@code OsProbe.getProcessNativeMemoryBytes()} and serialized over the wire so the coordinator
+     * renders the source node's value, not its own. {@code -1} when the probe could not read
+     * {@code /proc/self/status} (non-Linux platforms or restricted environments).
+     */
+    private long totalEstimatedNativeBytes;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -212,6 +235,13 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             fileCacheStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            fileCacheOnlyStats = in.readOptionalWriteable(AggregateFileCacheStats::new);
+            blockCacheOnlyStats = in.readOptionalWriteable(BlockCacheStats::new);
+        } else {
+            fileCacheOnlyStats = null;
+            blockCacheOnlyStats = null;
+        }
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             taskCancellationStats = in.readOptionalWriteable(TaskCancellationStats::new);
         } else {
@@ -252,6 +282,24 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            nativeAllocatorStats = in.readOptionalWriteable(NativeAllocatorPoolStats::new);
+        } else if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: V_3_7_0 wrote old-format NativeAllocatorPoolStats (3 VLongs + pools with 4 fields); read and discard.
+            in.readOptionalWriteable(NativeAllocatorPoolStats::readAndDiscardV3_7);
+            nativeAllocatorStats = null;
+        } else {
+            nativeAllocatorStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: V_3_7_0 wrote AnalyticsBackendNativeMemoryStats here; read and discard.
+            in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            totalEstimatedNativeBytes = in.readLong();
+        } else {
+            totalEstimatedNativeBytes = -1L;
+        }
     }
 
     public NodeStats(
@@ -278,13 +326,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable AggregateFileCacheStats fileCacheStats,
+        @Nullable AggregateFileCacheStats fileCacheOnlyStats,
+        @Nullable BlockCacheStats blockCacheOnlyStats,
         @Nullable TaskCancellationStats taskCancellationStats,
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
         @Nullable RepositoriesStats repositoriesStats,
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
-        @Nullable RemoteStoreNodeStats remoteStoreNodeStats
+        @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
+        @Nullable NativeAllocatorPoolStats nativeAllocatorStats,
+        long totalEstimatedNativeBytes
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -309,6 +361,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
         this.weightedRoutingStats = weightedRoutingStats;
         this.fileCacheStats = fileCacheStats;
+        this.fileCacheOnlyStats = fileCacheOnlyStats;
+        this.blockCacheOnlyStats = blockCacheOnlyStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
@@ -316,6 +370,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.admissionControlStats = admissionControlStats;
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
+        this.nativeAllocatorStats = nativeAllocatorStats;
+        this.totalEstimatedNativeBytes = totalEstimatedNativeBytes;
     }
 
     public long getTimestamp() {
@@ -449,6 +505,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public AggregateFileCacheStats getFileCacheOnlyStats() {
+        return fileCacheOnlyStats;
+    }
+
+    @Nullable
+    public BlockCacheStats getBlockCacheOnlyStats() {
+        return blockCacheOnlyStats;
+    }
+
+    @Nullable
     public TaskCancellationStats getTaskCancellationStats() {
         return taskCancellationStats;
     }
@@ -481,6 +547,23 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public RemoteStoreNodeStats getRemoteStoreNodeStats() {
         return remoteStoreNodeStats;
+    }
+
+    /**
+     * Returns the native allocator pool stats (Arrow allocator), or {@code null} if not available.
+     */
+    @Nullable
+    public NativeAllocatorPoolStats getNativeAllocatorStats() {
+        return nativeAllocatorStats;
+    }
+
+    /**
+     * Returns the process-level native-memory estimate captured on this node
+     * (RssAnon - JVM heap committed - JVM non-heap committed), or {@code -1} when the probe
+     * could not read {@code /proc/self/status}.
+     */
+    public long getTotalEstimatedNativeBytes() {
+        return totalEstimatedNativeBytes;
     }
 
     @Override
@@ -520,6 +603,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(fileCacheOnlyStats);
+            out.writeOptionalWriteable(blockCacheOnlyStats);
+        }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
         }
@@ -543,6 +630,19 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalWriteable(nativeAllocatorStats);
+        } else if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: write old-format NativeAllocatorPoolStats for V_3_7_0 nodes
+            NativeAllocatorPoolStats.writeV3_7(out, nativeAllocatorStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: V_3_7_0 expects AnalyticsBackendNativeMemoryStats here; write null.
+            out.writeOptionalWriteable(null);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeLong(totalEstimatedNativeBytes);
         }
     }
 
@@ -628,6 +728,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getFileCacheStats() != null) {
             getFileCacheStats().toXContent(builder, params);
         }
+        if (getFileCacheOnlyStats() != null) {
+            builder.startObject("file_cache");
+            getFileCacheOnlyStats().getOverallFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getFullFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getBlockFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getPinnedFileCacheStats().toXContent(builder, params);
+            builder.endObject();
+        }
+        if (getBlockCacheOnlyStats() != null) {
+            getBlockCacheOnlyStats().toXContent(builder, params);
+        }
         if (getTaskCancellationStats() != null) {
             getTaskCancellationStats().toXContent(builder, params);
         }
@@ -653,6 +764,24 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
         }
+        // total_estimated_bytes ≈ RssAnon - JVM heap committed - JVM non-heap committed.
+        // native_memory: unified view of all native memory pools and jemalloc stats.
+        // NativeAllocatorPoolStats now includes jemalloc allocated/resident + all pools.
+        builder.startObject("native_memory");
+        builder.field("total_estimated_bytes", totalEstimatedNativeBytes);
+        if (getNativeAllocatorStats() != null) {
+            NativeAllocatorPoolStats stats = getNativeAllocatorStats();
+            builder.startObject("runtime");
+            builder.field("allocated_bytes", stats.getNativeAllocatedBytes());
+            builder.field("resident_bytes", stats.getNativeResidentBytes());
+            builder.endObject();
+            builder.startObject("memory_pools");
+            for (var entry : stats.getGroupedStats().entrySet()) {
+                entry.getValue().toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
         return builder;
     }
 }

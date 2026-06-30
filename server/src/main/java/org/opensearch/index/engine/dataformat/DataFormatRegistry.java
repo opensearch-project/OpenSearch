@@ -13,12 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -44,6 +49,12 @@ public class DataFormatRegistry {
     private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
+
+    /** The single registered document lookup provider (engine-backed get-by-id execution), or {@code null} if none. */
+    private final DocumentLookupProvider documentLookupProvider;
+
+    /** The single registered document metadata resolver (id-to-row-location), or {@link DocumentMetadataResolver#NOOP} if none. */
+    private final DocumentMetadataResolver documentMetadataResolver;
 
     private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
 
@@ -81,6 +92,38 @@ public class DataFormatRegistry {
         this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
         this.dataFormats = Map.copyOf(dataFormats);
         this.readerManagerBuilders = Map.copyOf(readerManagerBuilders);
+
+        List<DocumentLookupProvider> lookupProviders = pluginsService.filterPlugins(DocumentLookupProvider.class);
+        if (lookupProviders.size() > 1) {
+            throw new IllegalStateException("multiple DocumentLookupProvider implementations registered: " + lookupProviders);
+        }
+        this.documentLookupProvider = lookupProviders.isEmpty() ? null : lookupProviders.getFirst();
+
+        List<DocumentMetadataResolver> resolvers = pluginsService.filterPlugins(DocumentMetadataResolver.class);
+        if (resolvers.size() > 1) {
+            throw new IllegalStateException("multiple DocumentMetadataResolver implementations registered: " + resolvers);
+        }
+        this.documentMetadataResolver = resolvers.isEmpty() ? DocumentMetadataResolver.NOOP : resolvers.getFirst();
+    }
+
+    /**
+     * Returns the single registered {@link DocumentLookupProvider} that backs the engine's
+     * get-by-id / version-resolution path, or {@code null} when no provider is registered.
+     *
+     * @return the document lookup provider, or null
+     */
+    public DocumentLookupProvider getDocumentLookupProvider() {
+        return documentLookupProvider;
+    }
+
+    /**
+     * Returns the single registered {@link DocumentMetadataResolver} that maps an {@code _id}
+     * to its row location, or {@link DocumentMetadataResolver#NOOP} when none is registered.
+     *
+     * @return the document metadata resolver (never null)
+     */
+    public DocumentMetadataResolver getDocumentMetadataResolver() {
+        return documentMetadataResolver;
     }
 
     /**
@@ -105,6 +148,22 @@ public class DataFormatRegistry {
             throw new IllegalArgumentException("No data format registered with name [" + name + "]");
         }
         return format;
+    }
+
+    /**
+     * Returns the plugin registered for the given format name, or {@code null} if not found.
+     * Used by composite plugins to look up sub-format plugins directly without going through
+     * the registry's top-level methods (which would cause infinite recursion).
+     *
+     * @param formatName the data format name (e.g., "parquet", "lucene")
+     * @return the plugin, or null if no plugin is registered for the format
+     */
+    public DataFormatPlugin getPlugin(String formatName) {
+        if (formatName == null) {
+            return null;
+        }
+        DataFormat format = dataFormats.get(formatName);
+        return format != null ? dataFormatPluginRegistry.get(format) : null;
     }
 
     /**
@@ -133,6 +192,80 @@ public class DataFormatRegistry {
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
+    }
+
+    /**
+     * Returns all {@link StoreStrategy} instances that apply to the active
+     * data format of the given index, keyed by the format name the strategy
+     * applies to.
+     *
+     * <p>Called once per shard at open time. The store layer uses the returned
+     * strategies to construct per-shard native file registries, seed them from
+     * remote metadata, and route directory events.
+     *
+     * @param indexSettings the index settings for this shard
+     * @return the map of applicable strategies, or an empty map when no
+     *         pluggable data format is configured or the configured format
+     *         does not participate in the tiered store
+     */
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+                    return strategies == null ? Map.of() : Map.copyOf(strategies);
+                }
+            }
+        }
+        return Map.of();
+    }
+
+    /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats.
+     * Each format in priority order claims the capabilities it supports for the field type.
+     * If any requested capability remains unclaimed, a {@link org.opensearch.index.mapper.MapperParsingException} is thrown.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        plugin.assignCapabilities(fieldType, indexSettings, this);
+    }
+
+    /**
+     * Returns store strategies for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. Used by composite
+     * plugins to resolve child strategies without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get strategies for
+     * @return map of data format to strategy, or empty map if the format is not registered
+     */
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+        return strategies == null ? Map.of() : strategies;
     }
 
     /**
@@ -215,5 +348,33 @@ public class DataFormatRegistry {
             );
         }
         return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
+    }
+
+    /**
+     * Returns the {@link DeleteExecutionEngine} by finding the single registered plugin that provides one.
+     * Iterates over all registered data format plugins and validates that exactly one returns a non-null
+     * result from {@link DataFormatPlugin#getDeleteExecutionEngine(Committer)}.
+     *
+     * @param committer the committer for durable delete tracking
+     * @return the delete execution engine
+     * @throws IllegalStateException if no plugin or multiple plugins provide a delete execution engine
+     */
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
+        for (DataFormatPlugin plugin : dataFormatPluginRegistry.values()) {
+            DeleteExecutionEngine<?> engine = plugin.getDeleteExecutionEngine(committer);
+            if (engine != null) {
+                engines.add(engine);
+            }
+        }
+        if (engines.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple DataFormatPlugins provide a DeleteExecutionEngine, expected exactly one but found [" + engines.size() + "]"
+            );
+        }
+        if (engines.isEmpty()) {
+            throw new IllegalStateException("No DataFormatPlugin provides a DeleteExecutionEngine");
+        }
+        return engines.getFirst();
     }
 }

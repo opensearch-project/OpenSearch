@@ -11,28 +11,26 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
+import org.opensearch.analytics.exec.stage.StageTask;
+import org.opensearch.analytics.exec.stage.StageTaskState;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
+import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.transport.TransportService;
 
-import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Default {@link Scheduler} implementation. Two-phase execution:
- * <ol>
- *   <li>{@link #plan(QueryContext)} — builds the execution graph without
- *       starting any stages. Returns an {@link ExecutionGraph} that can
- *       be inspected for EXPLAIN.</li>
- *   <li>{@link #execute(QueryContext, ActionListener)} — builds and starts
- *       execution in one call (the normal query path).</li>
- * </ol>
- *
- * <p>Also manages a pool of active {@link PlanWalker} instances for
- * observability and cancellation.
+ * Default {@link Scheduler} implementation. Builds a {@link QueryExecution} per
+ * query, starts it, and tracks it in a pool for observability and cancellation.
  *
  * @opensearch.internal
  */
@@ -41,78 +39,164 @@ public class QueryScheduler implements Scheduler {
     private static final Logger logger = LogManager.getLogger(QueryScheduler.class);
 
     private final StageExecutionBuilder stageExecutionBuilder;
-    private final Map<String, PlanWalker> walkerPool = new ConcurrentHashMap<>();
+    private final TaskManager taskManager;
+    private final Map<String, QueryExecution> executions = new ConcurrentHashMap<>();
 
     @Inject
-    public QueryScheduler(StageExecutionBuilder stageExecutionBuilder) {
+    public QueryScheduler(StageExecutionBuilder stageExecutionBuilder, TransportService transportService) {
         this.stageExecutionBuilder = stageExecutionBuilder;
-    }
-
-    /**
-     * Builds the execution graph without starting any stages.
-     * Use for EXPLAIN — inspect the returned graph, then discard.
-     *
-     * @param config the per-query context
-     * @return the fully-wired but unstarted execution graph
-     */
-    public ExecutionGraph plan(QueryContext config) {
-        PlanWalker walker = new PlanWalker(config, stageExecutionBuilder, ActionListener.wrap(r -> {}, e -> {}));
-        return walker.build();
+        this.taskManager = transportService.getTaskManager();
     }
 
     @Override
-    public void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
-        final String queryId = config.queryId();
-        final long queryStartNanos = System.nanoTime();
+    public QueryExecution execute(QueryContext context, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+        final String queryId = context.queryId();
         final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
-            config.operationListeners()
+            context.operationListeners()
         );
+        final long queryStartNanos = System.nanoTime();
+        final AnalyticsQueryTask queryTask = context.parentTask();
 
-        PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
-        walkerPool.put(queryId, walker);
+        ExecutionGraph graph = ExecutionGraph.build(context, stageExecutionBuilder, this::scheduleStage);
 
-        final AnalyticsQueryTask queryTask = config.parentTask();
-        queryTask.setOnCancelCallback(() -> {
-            String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
-            logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
-            walker.cancelAll(reason);
-        });
-
-        // Two-phase: build graph, then start execution
-        ExecutionGraph graph = walker.build();
-
-        opListener.onQueryStart(queryId, graph.stageCount());
-
-        logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
-        walker.start(graph);
-    }
-
-    private PlanWalker createWalker(
-        QueryContext config,
-        ActionListener<Iterable<VectorSchemaRoot>> listener,
-        String queryId,
-        long queryStartNanos,
-        AnalyticsOperationListener opListener
-    ) {
-        ActionListener<Iterable<VectorSchemaRoot>> wrapped = ActionListener.wrap(result -> {
-            walkerPool.remove(queryId);
+        ActionListener<Iterable<VectorSchemaRoot>> wrapped = ActionListener.runBefore(ActionListener.wrap(result -> {
             opListener.onQuerySuccess(queryId, System.nanoTime() - queryStartNanos, 0);
             listener.onResponse(result);
         }, e -> {
-            walkerPool.remove(queryId);
             opListener.onQueryFailure(queryId, e);
             listener.onFailure(e);
+        }), () -> {
+            executions.remove(queryId);
+            // Cascade a cancel to dispatched data-node fragments before the framework unregisters
+            // the parent task. Otherwise TaskManager.setBan, which matches children by parent
+            // TaskId in the cancellable-tasks registry, cannot reach fragments after the parent
+            // has been unregistered — they survive into orphan state and run to natural
+            // completion. Idempotent against the already-cancelled path.
+            try {
+                taskManager.cancelTaskAndDescendants(
+                    queryTask,
+                    "analytics query terminal — cleaning up dispatched fragments",
+                    false,
+                    ActionListener.wrap(
+                        v -> {},
+                        ex -> logger.debug(
+                            new ParameterizedMessage("[QueryScheduler] orphan-cleanup cancel failed for queryId={}", queryId),
+                            ex
+                        )
+                    )
+                );
+            } catch (Exception ex) {
+                logger.debug(new ParameterizedMessage("[QueryScheduler] orphan-cleanup invocation failed for queryId={}", queryId), ex);
+            }
         });
-        return new PlanWalker(config, stageExecutionBuilder, wrapped);
+
+        QueryExecution execution = new QueryExecution(context, graph, this::scheduleStage, wrapped);
+        executions.put(queryId, execution);
+
+        setCancellationCallback(context, execution);
+
+        opListener.onQueryStart(queryId, graph.stageCount());
+        logger.debug("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
+        execution.start();
+        return execution;
     }
 
-    /** Pool-level lookup for observability / metrics. */
-    public PlanWalker walkerFor(String queryId) {
-        return walkerPool.get(queryId);
+    /**
+     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then hands the
+     * scheduler-owned per-task listener factory to {@link StageExecution#dispatchTasks} —
+     * the stage decides whether to dispatch eagerly (default for-loop) or incrementally
+     * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
+     * when {@code start()} transitions straight to a terminal (empty target resolution →
+     * SUCCEEDED; concurrent cancel → CANCELLED).
+     */
+    void scheduleStage(StageExecution stage) {
+        stage.start();
+        if (stage.getState() != StageExecution.State.RUNNING) return;
+        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+        stage.dispatchTasks(this::handleFor);
     }
 
-    /** Pool-level iteration for concurrency limiting. */
-    public Collection<PlanWalker> activeWalkers() {
-        return walkerPool.values();
+    /**
+     * On failure, retries via {@link StageExecution#retargetForRetry} if the stage hands
+     * back an alternate; otherwise propagates via {@code onTaskTerminal} (fast-fails the stage).
+     * Protected for retry/admission-aware subclasses.
+     *
+     * <p>Terminal-stage short-circuit lives here, not in each stage's {@code retargetForRetry}:
+     * if the stage has already entered any terminal state ({@link StageExecution.State#SUCCEEDED SUCCEEDED},
+     * {@link StageExecution.State#FAILED FAILED}, or {@link StageExecution.State#CANCELLED CANCELLED}),
+     * retry is skipped uniformly across stage types. Spawning new dispatch work for a stage
+     * that's done — whether it succeeded, already gave up on a different task, or was
+     * cancelled — is always wrong. Catches the race where an in-flight task's onFailure
+     * fires after the stage has transitioned terminally for some other reason.
+     *
+     * <p>Tracks the current attempt so each attempt's terminal state is recorded truthfully:
+     * superseded attempts get FAILED, the final (succeeding or last-failed) attempt gets the
+     * matching terminal. The {@code task} reference passed to {@code stage.onTaskTerminal}
+     * stays the original — that's the slot identifier the stage's bookkeeping uses.
+     */
+    protected ActionListener<Void> handleFor(StageExecution stage, StageTask task) {
+        return new ActionListener<>() {
+            StageTask currentAttempt = task;
+
+            @Override
+            public void onResponse(Void unused) {
+                currentAttempt.transitionTo(StageTaskState.FINISHED);
+                stage.onTaskTerminal(task, null);
+            }
+
+            @Override
+            public void onFailure(Exception cause) {
+                Optional<StageTask> retry = stage.getState().isTerminal() ? Optional.empty() : stage.retargetForRetry(task, cause);
+                if (retry.isPresent()) {
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "[QueryScheduler] task {} on stage {} failed, retrying on {}",
+                            task,
+                            stage.getStageId(),
+                            retry.get()
+                        )
+                    );
+                    currentAttempt.transitionTo(StageTaskState.FAILED);  // previous attempt is now superseded
+                    StageTask r = retry.get();
+                    currentAttempt = r;
+                    r.transitionTo(StageTaskState.RUNNING);
+                    @SuppressWarnings("unchecked")
+                    TaskRunner<StageTask> runner = (TaskRunner<StageTask>) stage.taskRunner();
+                    runner.run(r, this);  // reuse this listener — retry loop until stage gives up
+                    return;
+                }
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "[QueryScheduler] task {} on stage {} failed, no retry available (stageTerminal={}, cause={})",
+                        task,
+                        stage.getStageId(),
+                        stage.getState().isTerminal(),
+                        cause.getMessage()
+                    )
+                );
+                currentAttempt.transitionTo(StageTaskState.FAILED);
+                stage.onTaskTerminal(task, cause);
+            }
+        };
+    }
+
+    private static void setCancellationCallback(QueryContext config, QueryExecution execution) {
+        final AnalyticsQueryTask queryTask = config.parentTask();
+        queryTask.setOnCancelCallback(() -> {
+            String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
+            execution.cancelAll(reason);
+        });
+    }
+
+    /**
+     * Returns the underlying {@link StageExecutionBuilder} so callers can register a
+     * custom {@link org.opensearch.analytics.exec.stage.StageExecutionFactory} for a stage
+     * type (e.g. fault-injecting scheduler in resilience tests). Resolving via the
+     * singleton scheduler avoids a Guice JIT lookup that would re-instantiate
+     * {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * handlers, only legal once per node).
+     */
+    public StageExecutionBuilder getStageExecutionBuilder() {
+        return stageExecutionBuilder;
     }
 }

@@ -57,7 +57,7 @@ use tempfile::NamedTempFile;
 
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{
-    BitmapTreeEvaluator, CollectorLeafBitmaps, COST_SCALE, subtree_cost,
+    subtree_cost, BitmapTreeEvaluator, CollectorLeafBitmaps,
 };
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
 use crate::indexed_table::eval::{
@@ -141,7 +141,7 @@ fn pred_node(expr: Arc<dyn PhysicalExpr>) -> BoolNode {
 
 fn collector_leaf(tag: u8) -> BoolNode {
     BoolNode::Collector {
-        query_bytes: Arc::from(&[tag][..]),
+        annotation_id: tag as i32,
     }
 }
 
@@ -179,10 +179,10 @@ fn collector_for_tag(tag: u8) -> Arc<dyn RowGroupDocsCollector> {
                 vec![base, base + 1]
             })
             .collect(),
-        3 => (0..2048).collect(),                          // pages 0+1
-        4 => (2048..NUM_ROWS as i32).collect(),            // pages 2+3
-        5 => (1..NUM_ROWS as i32).step_by(2).collect(),   // odd docs
-        6 => (3072..NUM_ROWS as i32).collect(),            // page 3 only
+        3 => (0..2048).collect(),                       // pages 0+1
+        4 => (2048..NUM_ROWS as i32).collect(),         // pages 2+3
+        5 => (1..NUM_ROWS as i32).step_by(2).collect(), // odd docs
+        6 => (3072..NUM_ROWS as i32).collect(),         // page 3 only
         _ => vec![],
     };
     Arc::new(MockCollector { docs })
@@ -202,17 +202,24 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
     let mut offset = 0i64;
     for i in 0..parquet_meta.num_row_groups() {
         let n = parquet_meta.row_group(i).num_rows();
-        rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
         offset += n;
     }
     let seg = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: NUM_ROWS as i64,
         object_path: object_store::path::Path::from(path.to_string_lossy().as_ref()),
         parquet_size: size,
         row_groups: rgs,
         metadata: parquet_meta,
-    };
+            global_base: 0,
+            sort_min: None,
+        sort_max: None,
+};
     (seg, schema)
 }
 
@@ -236,7 +243,7 @@ fn aggregate_metrics(plan: &Arc<dyn ExecutionPlan>) -> MetricsSet {
 
 fn get_counter(set: &MetricsSet, name: &str) -> usize {
     use datafusion::physical_plan::metrics::MetricType;
-    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::Dev)
         .map(|v| v.as_usize())
         .unwrap_or(0)
 }
@@ -249,6 +256,7 @@ fn collect_pred_exprs(node: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>) {
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| collect_pred_exprs(c, out)),
         BoolNode::Not(c) => collect_pred_exprs(c, out),
         BoolNode::Collector { .. } => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -271,19 +279,18 @@ fn build_pp_map(
 
 fn wire_collectors_dfs(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>) {
     match node {
-        BoolNode::Collector { query_bytes } => out.push(collector_for_tag(query_bytes[0])),
+        BoolNode::Collector { annotation_id } => out.push(collector_for_tag(*annotation_id as u8)),
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| wire_collectors_dfs(c, out)),
         BoolNode::Not(c) => wire_collectors_dfs(c, out),
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
 // ── Execution harnesses ─────────────────────────────────────────────
 
 /// Run a BoolNode tree through the bitmap-tree evaluator, return (prices, plan).
-async fn run_bitmap_tree(
-    tree: BoolNode,
-) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
+async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
     let tmp = write_fixture();
     let (seg, schema) = load_segment(&tmp);
     let tree = tree.push_not_down();
@@ -302,7 +309,7 @@ async fn run_bitmap_tree(
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
         let pp_map = Arc::clone(&pp_map);
-        Arc::new(move |segment, _chunk, sm| {
+        Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -319,7 +326,9 @@ async fn run_bitmap_tree(
                 page_prune_metrics: Some(
                     crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(sm),
                 ),
-                collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -342,18 +351,23 @@ async fn run_single_collector(
         let schema = schema.clone();
         let residual_pp = residual_pp.clone();
         let residual_expr = Arc::clone(&residual_expr);
-        Arc::new(move |segment, _chunk, sm| {
+        Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
-                collector_for_tag(collector_tag),
+                Some(collector_for_tag(collector_tag)),
                 pruner,
                 residual_pp.clone(),
                 Some(Arc::clone(&residual_expr)),
-                Some(
-                    crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(sm),
-                ),
+                Some(crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(sm)),
                 sm.ffm_collector_calls.clone(),
                 strategy,
+                std::sync::Arc::new(std::collections::HashMap::new()),
+                segment.writer_generation,
+                std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
+                None,
+                    None,
+                    std::collections::HashMap::new(),
             ));
             Ok(eval)
         })
@@ -370,20 +384,25 @@ async fn execute_and_collect(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .indexed_pushdown_filters(false)
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![seg],
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -456,11 +475,7 @@ async fn bitmap_tree_or_predicate_keeps_two_pages() {
 async fn bitmap_tree_and_two_predicates_intersect() {
     let left = binop(col_expr("price"), Operator::GtEq, lit_i32(10_000));
     let right = binop(col_expr("price"), Operator::Lt, lit_i32(21_024));
-    let tree = BoolNode::And(vec![
-        collector_leaf(0),
-        pred_node(left),
-        pred_node(right),
-    ]);
+    let tree = BoolNode::And(vec![collector_leaf(0), pred_node(left), pred_node(right)]);
     let (prices, plan) = run_bitmap_tree(tree).await;
 
     assert_eq!(prices.len(), 2 * ROWS_PER_PAGE);
@@ -590,8 +605,7 @@ async fn single_collector_no_pruning_all_strategies() {
         CollectorCallStrategy::TightenOuterBounds,
         CollectorCallStrategy::PageRangeSplit,
     ] {
-        let (prices, _plan) =
-            run_single_collector(0, Arc::clone(&residual), strategy).await;
+        let (prices, _plan) = run_single_collector(0, Arc::clone(&residual), strategy).await;
         assert_eq!(prices.len(), NUM_ROWS, "strategy {:?}", strategy);
     }
 }
@@ -637,11 +651,11 @@ async fn single_collector_page1_only() {
 /// propagated to branch_B, so Coll(pages2+3) only scanned 1024 docs instead of 3072.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn complex_selectivity_ordering_tighter_branch_first() {
-    let pred_narrow = binop(col_expr("price"), Operator::Lt, lit_i32(1024));  // keeps page 0
-    let pred_wide = binop(col_expr("price"), Operator::Lt, lit_i32(21024));   // keeps pages 0,1,2
+    let pred_narrow = binop(col_expr("price"), Operator::Lt, lit_i32(1024)); // keeps page 0
+    let pred_wide = binop(col_expr("price"), Operator::Lt, lit_i32(21024)); // keeps pages 0,1,2
     let tree = BoolNode::And(vec![
-        BoolNode::And(vec![collector_leaf(3), pred_node(pred_narrow)]),  // branch_A
-        BoolNode::And(vec![collector_leaf(4), pred_node(pred_wide)]),    // branch_B
+        BoolNode::And(vec![collector_leaf(3), pred_node(pred_narrow)]), // branch_A
+        BoolNode::And(vec![collector_leaf(4), pred_node(pred_wide)]),   // branch_B
     ]);
     let (prices, plan) = run_bitmap_tree(tree).await;
 
@@ -707,20 +721,20 @@ async fn complex_deep_nesting_range_propagation_4_levels() {
     let pred_ge_20k = binop(col_expr("price"), Operator::GtEq, lit_i32(20_000));
 
     let tree = BoolNode::And(vec![
-        pred_node(pred_ge_10k),                                          // pages 1,2,3
-        pred_node(pred_lt_31k),                                          // pages 0,1,2
+        pred_node(pred_ge_10k), // pages 1,2,3
+        pred_node(pred_lt_31k), // pages 0,1,2
         BoolNode::Or(vec![
             BoolNode::And(vec![
-                pred_node(pred_lt_21k),                                  // pages 0,1,2
-                collector_leaf(1),                                        // even docs
+                pred_node(pred_lt_21k), // pages 0,1,2
+                collector_leaf(1),      // even docs
             ]),
             BoolNode::And(vec![
-                pred_node(pred_ge_20k),                                  // pages 2,3
-                collector_leaf(5),                                        // odd docs
-                BoolNode::Not(Box::new(collector_leaf(6))),              // NOT page3
+                pred_node(pred_ge_20k),                     // pages 2,3
+                collector_leaf(5),                          // odd docs
+                BoolNode::Not(Box::new(collector_leaf(6))), // NOT page3
             ]),
         ]),
-        collector_leaf(0),                                                // all docs
+        collector_leaf(0), // all docs
     ]);
 
     let (prices, plan) = run_bitmap_tree(tree).await;
@@ -731,12 +745,20 @@ async fn complex_deep_nesting_range_propagation_4_levels() {
     assert_eq!(prices.len(), 512 + 1024);
 
     // Verify page 1 prices are all even-indexed (even doc IDs → even prices in page 1)
-    let page1_prices: Vec<i32> = prices.iter().filter(|&&p| p >= 10_000 && p < 11_024).copied().collect();
+    let page1_prices: Vec<i32> = prices
+        .iter()
+        .filter(|&&p| p >= 10_000 && p < 11_024)
+        .copied()
+        .collect();
     assert_eq!(page1_prices.len(), 512);
     assert!(page1_prices.iter().all(|p| (p - 10_000) % 2 == 0));
 
     // Verify all of page 2 is present
-    let page2_prices: Vec<i32> = prices.iter().filter(|&&p| p >= 20_000 && p < 21_024).copied().collect();
+    let page2_prices: Vec<i32> = prices
+        .iter()
+        .filter(|&&p| p >= 20_000 && p < 21_024)
+        .copied()
+        .collect();
     assert_eq!(page2_prices.len(), 1024);
 
     let m = aggregate_metrics(&plan);
@@ -817,10 +839,14 @@ async fn complex_5_wide_or_mixed_predicates_collectors() {
     let tree = BoolNode::And(vec![
         pred_node(pred_ge_10k),
         BoolNode::Or(vec![
-            BoolNode::And(vec![pred_node(pred_lt_11k), collector_leaf(1)]),       // even, page 1
-            BoolNode::And(vec![pred_node(pred_ge_20k), pred_node(pred_lt_21k.clone()), collector_leaf(5)]), // odd, page 2
-            BoolNode::And(vec![collector_leaf(6), pred_node(pred_ge_30k)]),       // page3 coll, page 3
-            BoolNode::Not(Box::new(collector_leaf(0))),                           // NOT all = empty
+            BoolNode::And(vec![pred_node(pred_lt_11k), collector_leaf(1)]), // even, page 1
+            BoolNode::And(vec![
+                pred_node(pred_ge_20k),
+                pred_node(pred_lt_21k.clone()),
+                collector_leaf(5),
+            ]), // odd, page 2
+            BoolNode::And(vec![collector_leaf(6), pred_node(pred_ge_30k)]), // page3 coll, page 3
+            BoolNode::Not(Box::new(collector_leaf(0))),                     // NOT all = empty
             BoolNode::And(vec![collector_leaf(2), pred_node(pred_lt_21k)]), // first2pp, pages 0,1,2
         ]),
     ]);
@@ -828,9 +854,18 @@ async fn complex_5_wide_or_mixed_predicates_collectors() {
     let (prices, plan) = run_bitmap_tree(tree).await;
 
     // Count by page:
-    let p1: Vec<_> = prices.iter().filter(|&&p| p >= 10_000 && p < 11_024).collect();
-    let p2: Vec<_> = prices.iter().filter(|&&p| p >= 20_000 && p < 21_024).collect();
-    let p3: Vec<_> = prices.iter().filter(|&&p| p >= 30_000 && p < 31_024).collect();
+    let p1: Vec<_> = prices
+        .iter()
+        .filter(|&&p| p >= 10_000 && p < 11_024)
+        .collect();
+    let p2: Vec<_> = prices
+        .iter()
+        .filter(|&&p| p >= 20_000 && p < 21_024)
+        .collect();
+    let p3: Vec<_> = prices
+        .iter()
+        .filter(|&&p| p >= 30_000 && p < 31_024)
+        .collect();
     let p0: Vec<_> = prices.iter().filter(|&&p| p < 1_024).collect();
 
     // Page 0: excluded by root Pred(>= 10000)
@@ -903,17 +938,17 @@ async fn complex_cascading_and_with_not_at_depth() {
     let pred_ge_30k = binop(col_expr("price"), Operator::GtEq, lit_i32(30_000));
 
     let tree = BoolNode::And(vec![
-        pred_node(pred_ge_10k),                                          // pages 1,2,3
-        pred_node(pred_lt_31k),                                          // pages 0,1,2
+        pred_node(pred_ge_10k), // pages 1,2,3
+        pred_node(pred_lt_31k), // pages 0,1,2
         BoolNode::And(vec![
-            pred_node(pred_ge_20k),                                      // pages 2,3
+            pred_node(pred_ge_20k), // pages 2,3
             BoolNode::Not(Box::new(BoolNode::And(vec![
-                collector_leaf(6),                                        // page3 collector
-                pred_node(pred_ge_30k),                                  // page 3
+                collector_leaf(6),      // page3 collector
+                pred_node(pred_ge_30k), // page 3
             ]))),
-            collector_leaf(0),                                            // all docs
+            collector_leaf(0), // all docs
         ]),
-        collector_leaf(1),                                                // even docs
+        collector_leaf(1), // even docs
     ]);
 
     let (prices, plan) = run_bitmap_tree(tree).await;
@@ -977,15 +1012,15 @@ fn cost_ordering_predicates_sorted_by_selectivity() {
     let pruner = PagePruner::new(&schema, seg.metadata);
     let ctx = fixture_eval_ctx();
 
-    let pred_narrow = binop(col_expr("price"), Operator::Lt, lit_i32(1024));     // 1/4 pages
-    let pred_wide = binop(col_expr("price"), Operator::Lt, lit_i32(21024));      // 3/4 pages
+    let pred_narrow = binop(col_expr("price"), Operator::Lt, lit_i32(1024)); // 1/4 pages
+    let pred_wide = binop(col_expr("price"), Operator::Lt, lit_i32(21024)); // 3/4 pages
     let pred_narrow2 = binop(col_expr("price"), Operator::GtEq, lit_i32(30_000)); // 1/4 pages
 
     let tree = BoolNode::And(vec![
-        pred_node(pred_narrow.clone()),   // child 0
-        pred_node(pred_wide.clone()),     // child 1
-        collector_leaf(0),                // child 2
-        pred_node(pred_narrow2.clone()),  // child 3
+        pred_node(pred_narrow.clone()),  // child 0
+        pred_node(pred_wide.clone()),    // child 1
+        collector_leaf(0),               // child 2
+        pred_node(pred_narrow2.clone()), // child 3
     ]);
 
     // Resolve tree to get ResolvedNodes.
@@ -994,7 +1029,10 @@ fn cost_ordering_predicates_sorted_by_selectivity() {
     let mut colls = Vec::new();
     wire_collectors_dfs(&tree, &mut colls);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = colls
-        .into_iter().enumerate().map(|(i, c)| (i as i32, c)).collect();
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| (i as i32, c))
+        .collect();
     let resolved = tree.resolve(&per_leaf).unwrap();
 
     // Extract children of the root AND.
@@ -1056,7 +1094,10 @@ fn cost_ordering_nested_and_branches_selective_first() {
     let mut colls = Vec::new();
     wire_collectors_dfs(&tree, &mut colls);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = colls
-        .into_iter().enumerate().map(|(i, c)| (i as i32, c)).collect();
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| (i as i32, c))
+        .collect();
     let resolved = tree.resolve(&per_leaf).unwrap();
 
     let children = match &resolved {
@@ -1075,7 +1116,8 @@ fn cost_ordering_nested_and_branches_selective_first() {
         cost_a < cost_b,
         "branch with more selective predicate should be cheaper \
          (A={}, B={})",
-        cost_a, cost_b
+        cost_a,
+        cost_b
     );
 }
 
@@ -1105,9 +1147,10 @@ fn cost_ordering_complex_tree_predicates_before_or_before_nothing() {
     let pred_ge_20k = binop(col_expr("price"), Operator::GtEq, lit_i32(20_000));
 
     let tree = BoolNode::And(vec![
-        pred_node(pred_ge_10k),                                          // child 0
-        pred_node(pred_lt_31k),                                          // child 1
-        BoolNode::Or(vec![                                               // child 2
+        pred_node(pred_ge_10k), // child 0
+        pred_node(pred_lt_31k), // child 1
+        BoolNode::Or(vec![
+            // child 2
             BoolNode::And(vec![pred_node(pred_lt_21k), collector_leaf(1)]),
             BoolNode::And(vec![
                 pred_node(pred_ge_20k),
@@ -1115,7 +1158,7 @@ fn cost_ordering_complex_tree_predicates_before_or_before_nothing() {
                 BoolNode::Not(Box::new(collector_leaf(6))),
             ]),
         ]),
-        collector_leaf(0),                                                // child 3
+        collector_leaf(0), // child 3
     ]);
 
     let tree = tree.push_not_down();
@@ -1123,7 +1166,10 @@ fn cost_ordering_complex_tree_predicates_before_or_before_nothing() {
     let mut colls = Vec::new();
     wire_collectors_dfs(&tree, &mut colls);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = colls
-        .into_iter().enumerate().map(|(i, c)| (i as i32, c)).collect();
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| (i as i32, c))
+        .collect();
     let resolved = tree.resolve(&per_leaf).unwrap();
 
     let children = match &resolved {
@@ -1148,7 +1194,8 @@ fn cost_ordering_complex_tree_predicates_before_or_before_nothing() {
     assert!(
         or_cost > costs[3],
         "OR subtree ({}) should be more expensive than single Coll ({})",
-        or_cost, costs[3]
+        or_cost,
+        costs[3]
     );
 
     // Verify execution order: Pred(>=10k) first, Pred(<31k) second, Coll third, OR last

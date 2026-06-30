@@ -11,12 +11,20 @@ package org.opensearch.parquet.merge;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FileMetadata;
+import org.opensearch.parquet.bridge.MergeFilesResult;
+import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Implements merging of Parquet files.
@@ -34,51 +43,95 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
 
     private final DataFormat dataFormat;
     private final String indexName;
-    private final Path shardDataPath;
+    private final ShardPath shardPath;
+    private final TriConsumer<FileMetadata, Long, Long> checksumUpdater;
+    private final ParquetShardStatsTracker stats;
 
-    public NativeParquetMergeStrategy(DataFormat dataFormat, String indexName, Path shardDataPath) {
+    public NativeParquetMergeStrategy(
+        DataFormat dataFormat,
+        String indexName,
+        ShardPath shardPath,
+        TriConsumer<FileMetadata, Long, Long> checksumUpdater,
+        ParquetShardStatsTracker stats
+    ) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;
-        this.shardDataPath = shardDataPath;
+        this.shardPath = shardPath;
+        this.checksumUpdater = checksumUpdater;
+        this.stats = stats;
     }
 
     @Override
     public MergeResult mergeParquetFiles(MergeInput mergeInput) {
 
-        List<WriterFileSet> files = mergeInput.getFilesForFormat(dataFormat.name());
+        List<WriterFileSet> rawFiles = mergeInput.getFilesForFormat(dataFormat.name());
         long writerGeneration = mergeInput.newWriterGeneration();
-        if (files.isEmpty()) {
+        if (rawFiles.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
         }
+        assert writerGeneration > 0 : "merge writer generation must be positive but was: " + writerGeneration;
 
+        List<MonoFileWriterSet> files = rawFiles.stream().map(MonoFileWriterSet::from).toList();
         List<Path> filePaths = new ArrayList<>();
-        files.forEach(
-            writerFileSet -> writerFileSet.files()
-                .forEach(file -> filePaths.add(shardDataPath.resolve(writerFileSet.directory()).resolve(file)))
-        );
+        files.forEach(mono -> filePaths.add(Path.of(mono.directory()).resolve(mono.file())));
+        assert filePaths.isEmpty() == false : "must have at least one input file path for merge";
+        // All input files must exist on disk before invoking the native merge
+        // This will change to object store lookup once warm is in place
+        assert filePaths.stream().allMatch(p -> java.nio.file.Files.exists(p)) : "all input files must exist on disk before merge: "
+            + filePaths.stream().filter(p -> java.nio.file.Files.exists(p) == false).toList();
 
-        String outputDirectory = shardDataPath.resolve(files.getFirst().directory()).toString();
-        String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
-        String mergedFileName = getMergedFileName(writerGeneration);
+        Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
+        String mergedFileName = mergedFilePath.getFileName().toString();
 
+        long startNanos = System.nanoTime();
         try {
             // Merge files in Rust
-            RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath, indexName);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
+            ParquetFileMetadata mergeMetadata = merged.metadata();
+            RowIdMapping rowIdMapping = merged.rowIdMapping();
 
-            WriterFileSet mergedWriterFileSet = WriterFileSet.builder()
-                .directory(Path.of(files.getFirst().directory()))
-                .addFile(mergedFileName)
-                .writerGeneration(writerGeneration)
-                .build();
+            assert mergeMetadata.numRows() > 0 : "Merged file should contain at least one row";
 
+            long expectedRows = files.stream().mapToLong(MonoFileWriterSet::numRows).sum();
+            assert mergeMetadata.numRows() == expectedRows : "Merged row count ["
+                + mergeMetadata.numRows()
+                + "] must equal sum of input row counts ["
+                + expectedRows
+                + "]";
+
+            MonoFileWriterSet mergedWriterFileSet = MonoFileWriterSet.of(
+                mergedFilePath.getParent().toAbsolutePath(),
+                writerGeneration,
+                mergedFileName,
+                mergeMetadata.numRows()
+            );
+
+            checksumUpdater.apply(
+                new FileMetadata(dataFormat.name(), mergedFileName),
+                mergeMetadata.crc32(),
+                mergeInput.newWriterGeneration()
+            );
             Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
-            return new MergeResult(mergedWriterFileSetMap);
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.incMergeTotal();
+            stats.addMergeTimeMillis(elapsed);
+            stats.addMergeInputFilesTotal(filePaths.size());
+            stats.addMergeOutputRowsTotal(mergeMetadata.numRows());
+            // Per-shard merge metrics forwarded from native: chunk count + time + row_id max.
+            stats.addFlushAndSortChunkTotal(merged.flushAndSortChunkCount());
+            stats.addFlushAndSortChunkTimeMillis(merged.flushAndSortChunkTimeMs());
+            stats.updateRowIdMappingMax(merged.rowIdMappingMax());
+
+            return new MergeResult(mergedWriterFileSetMap, rowIdMapping);
 
         } catch (Exception exception) {
+            stats.incMergeFailures();
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.addMergeTimeMillis(elapsed);
             logger.error(() -> new ParameterizedMessage("Merge failed while creating merged file [{}]", mergedFilePath), exception);
             try {
-                Files.deleteIfExists(Path.of(mergedFilePath));
+                Files.deleteIfExists(mergedFilePath);
                 logger.info("Stale Merged File Deleted at : [{}]", mergedFilePath);
             } catch (Exception innerException) {
                 logger.error(() -> new ParameterizedMessage("Failed to delete stale merged file [{}]", mergedFilePath), innerException);
@@ -91,10 +144,6 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
 
     private String getMergedFileName(long generation) {
         // TODO: For debugging we have added extra "merged" in file name, later we can remove and keep same as writer
-        return ParquetIndexingEngine.FILE_NAME_PREFIX + "_merged_" + generation + ParquetIndexingEngine.FILE_NAME_EXT;
-    }
-
-    private String getMergedFilePath(long generation, String outputDirectory) {
-        return Path.of(outputDirectory, getMergedFileName(generation)).toString();
+        return ParquetIndexingEngine.buildParquetFileName(generation, "merged");
     }
 }

@@ -83,6 +83,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -188,6 +189,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final List<IndexCreationValidator> indexCreationValidators = new ArrayList<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
@@ -249,6 +251,13 @@ public class MetadataCreateIndexService {
             throw new IllegalArgumentException("provider already added");
         }
         this.indexSettingProviders.add(provider);
+    }
+
+    public void addIndexCreationValidator(IndexCreationValidator validator) {
+        if (validator == null) {
+            throw new IllegalArgumentException("validator must not be null");
+        }
+        indexCreationValidators.add(validator);
     }
 
     /**
@@ -532,7 +541,7 @@ public class MetadataCreateIndexService {
             Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
 
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata, indexCreationValidators);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
@@ -1204,7 +1213,7 @@ public class MetadataCreateIndexService {
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false
             || indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, DEFAULT_REPLICA_COUNT_SETTING.get(currentState.metadata().settings()));
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, clusterSettings.get(DEFAULT_REPLICA_COUNT_SETTING));
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -1218,6 +1227,7 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        updatePluggableDataFormatSettings(indexSettingsBuilder, clusterSettings, request.index());
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1234,6 +1244,9 @@ public class MetadataCreateIndexService {
 
         List<String> validationErrors = new ArrayList<>();
         validateIndexReplicationTypeSettings(indexSettingsBuilder.build(), clusterSettings).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(indexSettingsBuilder.build(), clusterSettings, request.index()).ifPresent(
+            validationErrors::add
+        );
         validateErrors(request.index(), validationErrors);
 
         Settings indexSettings = indexSettingsBuilder.build();
@@ -1416,6 +1429,41 @@ public class MetadataCreateIndexService {
                     throw new IndexCreationException(indexName, validationException);
                 }
             }
+        }
+    }
+
+    /**
+     * Stamps the cluster-scope defaults for the pluggable data-format index settings into the
+     * index metadata at creation time when no explicit override is supplied. No-op when the
+     * pluggable data-format feature flag is disabled or the index matches the allowlist.
+     */
+    public static void updatePluggableDataFormatSettings(
+        Settings.Builder settingsBuilder,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return;
+        }
+
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
+            return;
+        }
+
+        final Settings current = settingsBuilder.build();
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+            );
+        }
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+            );
         }
     }
 
@@ -1643,7 +1691,8 @@ public class MetadataCreateIndexService {
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
-        @Nullable IndexMetadata sourceMetadata
+        @Nullable IndexMetadata sourceMetadata,
+        List<IndexCreationValidator> indexCreationValidators
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Object> mapping : mappings) {
@@ -1654,6 +1703,10 @@ public class MetadataCreateIndexService {
 
         if (mapperService.isCompositeIndexPresent()) {
             CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings(), indexService.getIndexSettings());
+        }
+
+        for (IndexCreationValidator validator : indexCreationValidators) {
+            validator.validate(mapperService, indexService.getIndexSettings());
         }
 
         if (sourceMetadata == null) {
@@ -1694,6 +1747,7 @@ public class MetadataCreateIndexService {
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(settings, clusterService.getClusterSettings(), indexName).ifPresent(validationErrors::add);
         validateErrors(indexName, validationErrors);
     }
 
@@ -1723,7 +1777,7 @@ public class MetadataCreateIndexService {
             // Apply aware replica balance validation only to non system indices
             int replicaCount = settings.getAsInt(
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
+                clusterService.getClusterSettings().get(DEFAULT_REPLICA_COUNT_SETTING)
             );
             int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
@@ -1797,6 +1851,71 @@ public class MetadataCreateIndexService {
             );
         }
         return Optional.empty();
+    }
+
+    /**
+     * Validates that {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} match the
+     * cluster-level defaults {@code cluster.pluggable.dataformat.enabled} and
+     * {@code cluster.pluggable.dataformat} when
+     * {@code cluster.restrict.pluggable.dataformat} is set to true.
+     *
+     * @param requestSettings settings resulting from merging request, templates, and cluster-level defaults
+     * @param clusterSettings cluster setting
+     * @param indexName name of the index being created
+     */
+    private static Optional<String> validatePluggableDataFormatSettings(
+        Settings requestSettings,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return Optional.empty();
+        }
+        if (clusterSettings.get(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING) == false) {
+            return Optional.empty();
+        }
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
+            return Optional.empty();
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "] cannot differ from cluster default ["
+                    + clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+                    + "] when ["
+                    + IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()
+                    + "] cannot differ from cluster default ["
+                    + clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+                    + "] when ["
+                    + IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Returns {@code true} if the given index name matches any prefix in the
+     * {@code cluster.pluggable.dataformat.restrict.allowlist} setting, meaning it should bypass
+     * pluggable data-format default-stamping and restrict validation.
+     */
+    private static boolean isAllowedForPluggableDataFormat(String indexName, ClusterSettings clusterSettings) {
+        List<String> allowlist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST);
+        return allowlist.stream().anyMatch(indexName::startsWith);
     }
 
     /**

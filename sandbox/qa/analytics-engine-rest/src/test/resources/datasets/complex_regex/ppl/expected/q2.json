@@ -1,0 +1,45 @@
+{
+  "schema": [
+    {
+      "name": "failure_count",
+      "type": "bigint"
+    },
+    {
+      "name": "last_four",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      7,
+      "5678",
+      "FAILED"
+    ],
+    [
+      6,
+      "9012",
+      "FAILED"
+    ],
+    [
+      3,
+      "1234",
+      "FAILED"
+    ],
+    [
+      3,
+      "3456",
+      "FAILED"
+    ],
+    [
+      2,
+      "7890",
+      "FAILED"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

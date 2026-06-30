@@ -15,11 +15,10 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.SearchBackpressureTask;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Coordinator-level cancellable task representing a running analytics query.
@@ -28,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @opensearch.internal
  */
-public class AnalyticsQueryTask extends CancellableTask implements SearchBackpressureTask {
+public class AnalyticsQueryTask extends SearchTask {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsQueryTask.class);
 
@@ -45,15 +44,10 @@ public class AnalyticsQueryTask extends CancellableTask implements SearchBackpre
         Map<String, String> headers,
         @Nullable TimeValue cancelAfterTimeInterval
     ) {
-        super(
-            id,
-            type,
-            action,
-            "queryId[" + queryId + "]",
-            parentTaskId,
-            headers,
-            cancelAfterTimeInterval != null ? cancelAfterTimeInterval : TimeValue.MINUS_ONE
-        );
+        // Pass cancelAfterTimeInterval through unchanged (null when unset) so getCancellationTimeout()
+        // returns null and the cluster search.cancel_after_time_interval applies — matching core
+        // SearchTask. Coercing null→MINUS_ONE silently disabled the cluster timeout.
+        super(id, type, action, (Supplier<String>) () -> "queryId[" + queryId + "]", parentTaskId, headers, cancelAfterTimeInterval);
         this.queryId = queryId;
         this.cancelAfterTimeInterval = cancelAfterTimeInterval;
     }
@@ -87,11 +81,19 @@ public class AnalyticsQueryTask extends CancellableTask implements SearchBackpre
         if (onCancelCallback.compareAndSet(null, callback) == false) {
             throw new IllegalStateException("onCancelCallback already set for AnalyticsQueryTask " + queryId);
         }
+        // Cancel may have arrived before this install — fire inline if so. Mirrors AnalyticsShardTask.setCancellationListener.
+        if (isCancelled()) {
+            runCallbackOnce();
+        }
     }
 
     @Override
     protected void onCancelled() {
-        Runnable cb = onCancelCallback.get();
+        runCallbackOnce();
+    }
+
+    private void runCallbackOnce() {
+        Runnable cb = onCancelCallback.getAndSet(null);
         if (cb != null) {
             try {
                 cb.run();

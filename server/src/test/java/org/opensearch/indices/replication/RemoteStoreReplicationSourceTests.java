@@ -13,11 +13,14 @@ import org.apache.lucene.util.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.dataformat.stub.MockCatalogSnapshot;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
@@ -40,6 +43,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -93,13 +97,39 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
     public void testGetCheckpointMetadataFailure() {
         IndexShard mockShard = mock(IndexShard.class);
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
-        when(mockShard.getSegmentInfosSnapshot()).thenThrow(new RuntimeException("test"));
+        when(mockShard.getCatalogSnapshot()).thenThrow(new RuntimeException("test"));
         assertThrows(RuntimeException.class, () -> {
             replicationSource = new RemoteStoreReplicationSource(mockShard);
             final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
             replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
             res.get();
         });
+    }
+
+    /**
+     * Covers the DFA branch in {@link RemoteStoreReplicationSource#getCheckpointMetadata}:
+     * when the shard returns a non-{@code SegmentInfosCatalogSnapshot}, the source must
+     * resolve {@code Version.LATEST} and continue without throwing {@code ClassCastException}.
+     */
+    public void testGetCheckpointMetadataWithNonSegmentInfosCatalogSnapshot() throws Exception {
+        IndexShard mockShard = mock(IndexShard.class);
+        // Reuse real shard's remote store wiring so the ReplicationSource ctor succeeds.
+        buildIndexShardBehavior(mockShard, replicaShard);
+        final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
+
+        // Override the catalog snapshot with a non-SegmentInfos (DFA-style) stub.
+        MockCatalogSnapshot dfa = new MockCatalogSnapshot(1L, List.of(), new MockDataFormat("parquet", 0L, Set.of()));
+        when(mockShard.getCatalogSnapshot()).thenReturn(new GatedCloseable<>(dfa, () -> {}));
+        when(mockShard.state()).thenReturn(IndexShardState.RECOVERING);
+
+        replicationSource = new RemoteStoreReplicationSource(mockShard);
+        final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
+        replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
+        CheckpointInfoResponse response = res.get();
+        // Not-started + null metadata path returns empty response. The key is that this path
+        // is reached without the DFA-snapshot branch throwing ClassCastException.
+        assertNotNull(response);
+        assertTrue(response.getMetadataMap().isEmpty());
     }
 
     public void testGetSegmentFiles() throws ExecutionException, InterruptedException, IOException {
@@ -348,7 +378,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {
-        when(mockShard.getSegmentInfosSnapshot()).thenReturn(indexShard.getSegmentInfosSnapshot());
+        when(mockShard.getCatalogSnapshot()).thenReturn(indexShard.getCatalogSnapshot());
         Store remoteStore = mock(Store.class);
         when(mockShard.remoteStore()).thenReturn(remoteStore);
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =

@@ -11,7 +11,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use arrow::array::RecordBatch;
-use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema};
 use parquet::arrow::arrow_writer::{ArrowRowGroupWriterFactory, compute_leaves};
 use parquet::file::writer::SerializedFileWriter;
@@ -22,7 +21,9 @@ use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use crate::crc_writer::CrcWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
-use crate::{log_debug, SETTINGS_STORE};
+use crate::{log_debug, log_error, SETTINGS_STORE};
+
+use native_bridge_common::memory_pool::MemoryReservation;
 
 use super::error::{MergeError, MergeResult};
 use super::io_task::{
@@ -38,13 +39,19 @@ pub struct MergeContext {
     output_schema: Arc<ArrowSchema>,
     rg_writer_factory: ArrowRowGroupWriterFactory,
     io_tx: tokio_mpsc::Sender<IoCommand>,
-    output_chunks: Vec<RecordBatch>,
+    col_writers: Option<Vec<parquet::arrow::arrow_writer::ArrowColumnWriter>>,
     output_row_count: usize,
     output_flush_rows: usize,
     row_group_index: usize,
     next_row_id: i64,
     total_rows_written: usize,
     rayon_threads: Option<usize>,
+    // Per-merge counters returned via `finish()` and forwarded to the per-shard tracker on the
+    // Java side (see NativeParquetMergeStrategy + ParquetShardStatsTracker).
+    flush_and_sort_chunk_count: i64,
+    flush_and_sort_chunk_time_millis: i64,
+    reservation: MemoryReservation,
+    tracked_writer_bytes: usize,
 }
 
 impl MergeContext {
@@ -58,6 +65,8 @@ impl MergeContext {
         output_flush_rows: usize,
         rayon_threads: Option<usize>,
         io_threads: Option<usize>,
+        output_writer_generation: i64,
+        reservation: MemoryReservation,
     ) -> MergeResult<Self> {
         if let Some(parent) = Path::new(output_path).parent() {
             if !parent.exists() {
@@ -100,24 +109,32 @@ impl MergeContext {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let writer_props = Arc::new(WriterPropertiesBuilder::build(&config));
+        let writer_props = Arc::new(WriterPropertiesBuilder::build_with_generation(&config, Some(output_writer_generation), &output_schema)
+            .map_err(|e| MergeError::Logic(format!("Invalid encoding/compression config: {}", e)))?);
+
 
         let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;
         let rg_writer_factory = ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());
         let io_tx = spawn_io_task(writer, crc_handle, io_threads);
+
+        let col_writers = rg_writer_factory.create_column_writers(0)?;
 
         Ok(Self {
             data_schema,
             output_schema,
             rg_writer_factory,
             io_tx,
-            output_chunks: Vec::new(),
+            col_writers: Some(col_writers),
             output_row_count: 0,
             output_flush_rows,
             row_group_index: 0,
             next_row_id: 0,
             total_rows_written: 0,
             rayon_threads,
+            flush_and_sort_chunk_count: 0,
+            flush_and_sort_chunk_time_millis: 0,
+            reservation,
+            tracked_writer_bytes: 0,
         })
     }
 
@@ -125,61 +142,104 @@ impl MergeContext {
         &self.data_schema
     }
 
-    /// Buffers a batch (already padded to data_schema) and auto-flushes when
-    /// the row count threshold is reached.
+    /// Writes a batch directly to column writers and triggers a row group flush
+    /// when the row count threshold is reached. Each batch is written and dropped
+    /// immediately — no buffering — so only one batch's decoded data (~64 MB) is
+    /// ever live at a time.
     pub fn push_batch(&mut self, batch: RecordBatch) -> MergeResult<()> {
-        self.output_row_count += batch.num_rows();
-        self.output_chunks.push(batch);
+        let num_rows = batch.num_rows();
+        let with_id = append_row_id(&batch, self.next_row_id, &self.output_schema)?;
+        let with_id_bytes = with_id.get_array_memory_size();
+        drop(batch);
+
+        // Track with_id batch (transient — alive during column write)
+        self.reservation.grow(with_id_bytes);
+
+        let col_writers = self.col_writers.as_mut()
+            .ok_or_else(|| MergeError::Logic("Column writers not initialized".into()))?;
+
+        // Compute leaf columns (O(columns) pointer math), then parallel-write
+        // across columns via rayon. Each column writer encodes independently.
+        let mut all_leaves: Vec<parquet::arrow::arrow_writer::ArrowLeafColumn> =
+            Vec::with_capacity(col_writers.len());
+        for (arr, field) in with_id.columns().iter().zip(self.output_schema.fields()) {
+            let leaves = compute_leaves(field, arr)?;
+            all_leaves.extend(leaves);
+        }
+
+        let write_errors: Vec<_> = get_merge_pool(self.rayon_threads).install(|| {
+            col_writers.par_iter_mut()
+                .zip(all_leaves.into_par_iter())
+                .filter_map(|(writer, leaf)| writer.write(&leaf).err())
+                .collect()
+        });
+
+        if let Some(e) = write_errors.into_iter().next() {
+            log_error!("[RUST] Column write failed during push_batch: {}", e);
+            self.reservation.shrink(with_id_bytes);
+            return Err(e.into());
+        }
+
+        // with_id dropped here — release its tracking
+        self.reservation.shrink(with_id_bytes);
+
+        // Track actual column writer memory using memory_size() API
+        let actual_writer_bytes: usize = col_writers.iter().map(|w| w.memory_size()).sum();
+        if actual_writer_bytes > self.tracked_writer_bytes {
+            self.reservation.grow(actual_writer_bytes - self.tracked_writer_bytes);
+        } else if actual_writer_bytes < self.tracked_writer_bytes {
+            self.reservation.shrink(self.tracked_writer_bytes - actual_writer_bytes);
+        }
+        self.tracked_writer_bytes = actual_writer_bytes;
+
+        self.next_row_id += num_rows as i64;
+        self.output_row_count += num_rows;
+        self.total_rows_written += num_rows;
+
         if self.output_row_count >= self.output_flush_rows {
             self.flush()?;
         }
         Ok(())
     }
 
-    /// Concat buffered batches, append row IDs, encode columns in parallel,
-    /// and send the encoded row group to the IO task.
+    /// Close current column writers in parallel (encode + compress), send the
+    /// encoded row group to the IO task, and open fresh writers for the next
+    /// row group.
+    ///
+    /// `flush_and_sort_chunk_count` and `flush_and_sort_chunk_time_millis` are
+    /// always recorded — including on failure paths — to keep this counter
+    /// symmetric with rayon's `merge_wall_millis`.
     pub fn flush(&mut self) -> MergeResult<()> {
-        if self.output_chunks.is_empty() {
+        if self.output_row_count == 0 {
             return Ok(());
         }
+        let flush_start = std::time::Instant::now();
+        self.flush_and_sort_chunk_count += 1;
 
-        let merged = if self.output_chunks.len() == 1 {
-            self.output_chunks.pop().unwrap()
-        } else {
-            let m = concat_batches(&self.data_schema, self.output_chunks.as_slice())?;
-            self.output_chunks.clear();
-            m
-        };
-        let n = merged.num_rows();
+        let result = self.do_flush();
 
-        let with_id = append_row_id(&merged, self.next_row_id, &self.output_schema)?;
-        drop(merged);
+        self.flush_and_sort_chunk_time_millis += flush_start.elapsed().as_millis() as i64;
+        result
+    }
 
-        let col_writers = self
-            .rg_writer_factory
-            .create_column_writers(self.row_group_index)?;
+    fn do_flush(&mut self) -> MergeResult<()> {
+        let col_writers = self.col_writers.take()
+            .ok_or_else(|| MergeError::Logic("Column writers not initialized".into()))?;
+        let n = self.output_row_count;
 
-        let leaves_and_writers = match Self::pair_leaves_with_writers(&with_id, &self.output_schema, col_writers) {
-            Ok(paired) => paired,
-            Err((err, remaining)) => {
-                for w in remaining {
-                    let _ = w.close();
-                }
-                return Err(err);
-            }
-        };
-
+        // Parallel close: each column writer encodes and compresses its buffered
+        // pages. This is the CPU-heavy step and benefits from rayon parallelism.
         let chunk_results: Vec<
             Result<parquet::arrow::arrow_writer::ArrowColumnChunk, parquet::errors::ParquetError>,
-        > = get_merge_pool(self.rayon_threads).install(|| {
-            leaves_and_writers
-                .into_par_iter()
-                .map(|(leaf, mut col_writer)| {
-                    col_writer.write(&leaf)?;
-                    col_writer.close()
-                })
-                .collect()
-        });
+        > = super::metrics::record_merge(|| {
+            let results: Vec<_> = get_merge_pool(self.rayon_threads).install(|| {
+                col_writers
+                    .into_par_iter()
+                    .map(|col_writer| col_writer.close())
+                    .collect()
+            });
+            Ok(results)
+        })?;
 
         let mut encoded_chunks = Vec::with_capacity(chunk_results.len());
         for r in chunk_results {
@@ -191,9 +251,16 @@ impl MergeContext {
             .map_err(|_| MergeError::Logic("IO task terminated unexpectedly".into()))?;
 
         self.row_group_index += 1;
-        self.next_row_id += n as i64;
-        self.total_rows_written += n;
         self.output_row_count = 0;
+
+        // Column writers closed via close() — release tracked writer memory
+        self.reservation.shrink(self.tracked_writer_bytes);
+        self.tracked_writer_bytes = 0;
+
+        // Open writers for the next row group.
+        self.col_writers = Some(
+            self.rg_writer_factory.create_column_writers(self.row_group_index)?
+        );
 
         log_debug!(
             "[RUST] Flushed row group {}: {} rows (total: {})",
@@ -205,41 +272,20 @@ impl MergeContext {
         Ok(())
     }
 
-    /// Pairs leaf arrays with column writers, returning unconsumed writers on error
-    /// so the caller can close them.
-    fn pair_leaves_with_writers(
-        batch: &RecordBatch,
-        schema: &Arc<ArrowSchema>,
-        col_writers: Vec<parquet::arrow::arrow_writer::ArrowColumnWriter>,
-    ) -> Result<
-        Vec<(parquet::arrow::arrow_writer::ArrowLeafColumn, parquet::arrow::arrow_writer::ArrowColumnWriter)>,
-        (MergeError, Vec<parquet::arrow::arrow_writer::ArrowColumnWriter>),
-    > {
-        let mut writer_iter = col_writers.into_iter();
-        let mut paired = Vec::new();
-        for (arr, field) in batch.columns().iter().zip(schema.fields()) {
-            let leaves = match compute_leaves(field, arr) {
-                Ok(l) => l,
-                Err(e) => return Err((e.into(), writer_iter.collect())),
-            };
-            for leaf in leaves {
-                match writer_iter.next() {
-                    Some(w) => paired.push((leaf, w)),
-                    None => {
-                        return Err((
-                            MergeError::Logic("Fewer column writers than leaf columns".into()),
-                            Vec::new(),
-                        ))
-                    }
-                }
+    /// Final flush + close the IO task. Returns Parquet metadata, CRC32, and per-merge stats
+    /// to be forwarded to the per-shard tracker on the Java side.
+    pub fn finish(mut self) -> MergeResult<MergeFinishStats> {
+        self.flush()?;
+        // Drop the freshly-created writers for the next (unused) row group.
+        if let Some(writers) = self.col_writers.take() {
+            for w in writers {
+                let _ = w.close();
             }
         }
-        Ok(paired)
-    }
-
-    /// Final flush + close the IO task. Returns Parquet metadata and CRC32.
-    pub fn finish(mut self) -> MergeResult<(parquet::file::metadata::ParquetMetaData, u32)> {
-        self.flush()?;
+        // Capture the per-merge counters BEFORE moving `self` into the IO send below.
+        let final_row_id_max = self.next_row_id;
+        let flush_count = self.flush_and_sort_chunk_count;
+        let flush_time_millis = self.flush_and_sort_chunk_time_millis;
 
         let (reply_tx, reply_rx) =
             oneshot::channel::<MergeResult<(parquet::file::metadata::ParquetMetaData, u32)>>();
@@ -250,8 +296,27 @@ impl MergeContext {
 
         drop(self.io_tx);
 
-        reply_rx
+        let (metadata, crc32) = reply_rx
             .blocking_recv()
-            .map_err(|_| MergeError::Logic("IO task terminated during close".into()))?
+            .map_err(|_| MergeError::Logic("IO task terminated during close".into()))??;
+
+        Ok(MergeFinishStats {
+            metadata,
+            crc32,
+            flush_and_sort_chunk_count: flush_count,
+            flush_and_sort_chunk_time_millis: flush_time_millis,
+            row_id_mapping_max: final_row_id_max,
+        })
     }
+}
+
+/// Result returned from `MergeContext::finish()`.
+/// Carries the parquet metadata + CRC plus per-merge stat counters that the caller
+/// forwards to the per-shard `ParquetShardStatsTracker`.
+pub struct MergeFinishStats {
+    pub metadata: parquet::file::metadata::ParquetMetaData,
+    pub crc32: u32,
+    pub flush_and_sort_chunk_count: i64,
+    pub flush_and_sort_chunk_time_millis: i64,
+    pub row_id_mapping_max: i64,
 }

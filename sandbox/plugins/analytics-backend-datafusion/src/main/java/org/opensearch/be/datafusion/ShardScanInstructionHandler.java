@@ -11,11 +11,15 @@ package org.opensearch.be.datafusion;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 
 /**
  * Handles ShardScan instruction: creates a SessionContext via FFM and registers
@@ -51,9 +55,43 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         long readerPtr = dfReader.getReaderHandle().getPointer();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
+        String tableName = context.getTableName();
 
-        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(readerPtr, runtimePtr, context.getTableName(), contextId);
-
-        return new DataFusionSessionState(sessionCtxHandle);
+        WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+            snapshot.writeTo(segment);
+            SessionContextHandle sessionCtxHandle;
+            if (node.requestsRowIds()) {
+                // QTF query phase — narrowed scan emits __row_id__. Use the indexed session
+                // context so the IndexedTableProvider injects shard-global row ids during scan.
+                // No delegated predicates here (delegation goes through ShardScanWithDelegationHandler),
+                // so treeShape=NO_DELEGATION and delegatedPredicateCount=0.
+                sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
+                    readerPtr,
+                    runtimePtr,
+                    tableName,
+                    contextId,
+                    FilterTreeShape.NO_DELEGATION.ordinal(),
+                    0,
+                    true,
+                    context.hasPartialAggregate(),
+                    segment.address(),
+                    context.getFragmentBytes()
+                );
+            } else {
+                // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
+                sessionCtxHandle = NativeBridge.createSessionContext(
+                    readerPtr,
+                    runtimePtr,
+                    tableName,
+                    contextId,
+                    context.hasPartialAggregate(),
+                    segment.address(),
+                    context.getFragmentBytes()
+                );
+            }
+            return new DataFusionSessionState(sessionCtxHandle);
+        }
     }
 }

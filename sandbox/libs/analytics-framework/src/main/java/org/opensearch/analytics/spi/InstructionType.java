@@ -23,14 +23,14 @@ public enum InstructionType {
     /** Base scan setup — reader acquisition, SessionContext creation, default table provider. */
     SETUP_SHARD_SCAN,
     /**
-     * Filter delegation to an index backend — bridge setup, UDF registration, IndexedTableProvider.
+     * Filter delegation to an index backend — bridge setup, UDF registration, custom scan operator.
      *
      * <p>TODO: add a DelegationStrategy field (BACKEND_DRIVEN vs CENTRALLY_DRIVEN) to the
      * instruction node when centrally-driven delegation is implemented. Currently only
      * BACKEND_DRIVEN exists — derived from the backend declaring
      * {@code supportedDelegations(DelegationType.FILTER)}.
      */
-    SETUP_FILTER_DELEGATION_FOR_INDEX,
+    SETUP_SHARD_SCAN_WITH_DELEGATION,
     /** Partial aggregate mode — disable combine optimizer, cut plan to partial-only. */
     SETUP_PARTIAL_AGGREGATE,
     /** Final aggregate for coordinator reduce — ExchangeSink path, final-only agg. */
@@ -40,7 +40,7 @@ public enum InstructionType {
     public InstructionNode readNode(StreamInput in) throws IOException {
         return switch (this) {
             case SETUP_SHARD_SCAN -> new ShardScanInstructionNode(in);
-            case SETUP_FILTER_DELEGATION_FOR_INDEX -> new FilterDelegationInstructionNode(in);
+            case SETUP_SHARD_SCAN_WITH_DELEGATION -> new ShardScanWithDelegationInstructionNode(in);
             case SETUP_PARTIAL_AGGREGATE -> new PartialAggregateInstructionNode(in);
             case SETUP_FINAL_AGGREGATE -> new FinalAggregateInstructionNode(in);
         };

@@ -15,7 +15,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.SafeBootstrapCommitter;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -57,7 +56,9 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public Map<String, String> getLastCommittedData() {
@@ -67,11 +68,6 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         @Override
         public CommitStats getCommitStats() {
             return null;
-        }
-
-        @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
         }
 
         @Override
@@ -85,6 +81,11 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("test stub does not serialize commits");
         }
 
         @Override
@@ -115,7 +116,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
 
     public void testThrowsWhenNullEngineConfig() {
         reset();
-        expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(null)));
+        expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(null, () -> {})));
     }
 
     public void testThrowsWhenNullTranslogConfig() throws IOException {
@@ -126,7 +127,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
                 .store(store)
                 .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
                 .build();
-            expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(ec)));
+            expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(ec, () -> {})));
         } finally {
             store.close();
         }
@@ -137,7 +138,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         Store store = createStore();
         Path translogPath = createTempDir();
         try {
-            new TestCommitter(new CommitterConfig(buildEngineConfig(store, translogPath)));
+            new TestCommitter(new CommitterConfig(buildEngineConfig(store, translogPath), () -> {}));
             assertTrue(discoverAndTrimCalled);
         } finally {
             store.close();

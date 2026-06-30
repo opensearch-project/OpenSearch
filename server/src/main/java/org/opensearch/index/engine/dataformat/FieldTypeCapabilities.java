@@ -45,6 +45,8 @@ public record FieldTypeCapabilities(String fieldType, Set<Capability> capabiliti
         STORED_FIELDS,
 
         /** Probabilistic lookup for pruning*/
-        BLOOM_FILTER
+        BLOOM_FILTER,
+
+        FORWARD_TERMS_INDEX
     }
 }

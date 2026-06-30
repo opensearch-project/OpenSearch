@@ -1,0 +1,60 @@
+{
+  "schema": [
+    {
+      "name": "total_filter_count",
+      "type": "bigint"
+    },
+    {
+      "name": "success_count",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster_name",
+      "type": "string"
+    },
+    {
+      "name": "namespace",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      17358,
+      36,
+      "prod-cluster-2",
+      "production"
+    ],
+    [
+      15145,
+      31,
+      "prod-cluster-1",
+      "production"
+    ],
+    [
+      1587,
+      6,
+      "prod-cluster-2",
+      "staging"
+    ],
+    [
+      1233,
+      3,
+      "prod-cluster-1",
+      "default"
+    ],
+    [
+      859,
+      4,
+      "prod-cluster-2",
+      "default"
+    ],
+    [
+      757,
+      4,
+      "prod-cluster-1",
+      "staging"
+    ]
+  ],
+  "total": 6,
+  "size": 6
+}

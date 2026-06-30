@@ -15,8 +15,12 @@ import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,6 +36,8 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
+    private long tieredStorePtr;
+    private NativeStoreHandle storeHandle;
 
     @Override
     public void setUp() throws Exception {
@@ -41,17 +47,30 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
 
+        // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle
+        tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
+        long boxPtr = NativeStoreTestHelper.getObjectStoreBoxPtr(tieredStorePtr);
+        storeHandle = new NativeStoreHandle(boxPtr, NativeStoreTestHelper::destroyObjectStoreBoxPtr);
+
         Path dataDir = createTempDir("datafusion-data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            storeHandle,
+            List.of(),
+            List.of()
+        );
     }
 
     @Override
     public void tearDown() throws Exception {
         readerHandle.close();
-        // NativeRuntimeHandle.close() calls closeGlobalRuntime
+        storeHandle.close();
+        NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
         runtimeHandle.close();
+        NativeBridge.shutdownTokioRuntimeManager();
         super.tearDown();
     }
 
@@ -143,12 +162,19 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
         ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
         execCtx.setFragmentBytes(substrait);
+        Arena arena = Arena.ofConfined();
+        MemorySegment configSegment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
         SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
             readerHandle.getPointer(),
             runtimeHandle.get(),
             tableName,
-            0L
+            0L,
+            false,
+            configSegment.address(),
+            new byte[0]
         );
+        arena.close();
         dfContext.setSessionContextHandle(sessionCtxHandle);
         return execCtx;
     }

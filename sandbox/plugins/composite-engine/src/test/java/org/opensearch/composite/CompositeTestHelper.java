@@ -13,13 +13,13 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -28,17 +28,23 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
+import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -106,6 +112,97 @@ final class CompositeTestHelper {
         };
     }
 
+    /**
+     * Creates a CompositeIndexingExecutionEngine with custom writers for testing sort propagation.
+     * The primary engine returns primaryWriter, the secondary engine returns secondaryWriter.
+     */
+    static CompositeIndexingExecutionEngine createStubEngineWithWriters(
+        DataFormat primaryFormat,
+        Writer<DocumentInput<?>> primaryWriter,
+        DataFormat secondaryFormat,
+        Writer<DocumentInput<?>> secondaryWriter
+    ) {
+        Map<String, DataFormat> formats = new HashMap<>();
+        formats.put(primaryFormat.name(), primaryFormat);
+        formats.put(secondaryFormat.name(), secondaryFormat);
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format(primaryFormat.name())).thenReturn(primaryFormat);
+        when(registry.format(secondaryFormat.name())).thenReturn(secondaryFormat);
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            if (format.name().equals(primaryFormat.name())) {
+                return new FixedWriterEngine(primaryFormat, primaryWriter);
+            } else {
+                return new FixedWriterEngine(secondaryFormat, secondaryWriter);
+            }
+        });
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", primaryFormat.name())
+            .putList("index.composite.secondary_data_formats", secondaryFormat.name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
+    }
+
+    /**
+     * Creates a CompositeIndexingExecutionEngine with pre-built delegate engines for testing.
+     */
+    static CompositeIndexingExecutionEngine createStubEngineWithDelegates(
+        IndexingExecutionEngine<?, ?> primaryEngine,
+        IndexingExecutionEngine<?, ?> secondaryEngine
+    ) {
+        DataFormat primaryFormat = primaryEngine.getDataFormat();
+        DataFormat secondaryFormat = secondaryEngine.getDataFormat();
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format(primaryFormat.name())).thenReturn(primaryFormat);
+        when(registry.format(secondaryFormat.name())).thenReturn(secondaryFormat);
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            if (format.name().equals(primaryFormat.name())) {
+                return primaryEngine;
+            } else {
+                return secondaryEngine;
+            }
+        });
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", primaryFormat.name())
+            .putList("index.composite.secondary_data_formats", secondaryFormat.name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
+    }
+
+    /**
+     * An IndexingExecutionEngine that always returns the same pre-built writer.
+     */
+    static class FixedWriterEngine extends StubIndexingExecutionEngine {
+        private final Writer<DocumentInput<?>> fixedWriter;
+
+        FixedWriterEngine(DataFormat dataFormat, Writer<DocumentInput<?>> fixedWriter) {
+            super(dataFormat);
+            this.fixedWriter = fixedWriter;
+        }
+
+        @Override
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            return fixedWriter;
+        }
+    }
+
     static DataFormatPlugin stubPlugin(String formatName, long priority, Set<FieldTypeCapabilities> fields) {
         DataFormat format = stubFormat(formatName, priority, fields);
         return new DataFormatPlugin() {
@@ -157,9 +254,12 @@ final class CompositeTestHelper {
             this.dataFormat = dataFormat;
         }
 
+        StubWriter lastCreatedWriter;
+
         @Override
-        public Writer<DocumentInput<?>> createWriter(long writerGeneration) {
-            return new StubWriter(dataFormat);
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            lastCreatedWriter = new StubWriter(dataFormat);
+            return lastCreatedWriter;
         }
 
         @Override
@@ -194,7 +294,17 @@ final class CompositeTestHelper {
 
         @Override
         public IndexStoreProvider getProvider() {
-            return null;
+            return df -> null;
+        }
+
+        @Override
+        public long getHeapBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public long getNativeBytesUsed() {
+            return 0;
         }
 
         @Override
@@ -208,6 +318,10 @@ final class CompositeTestHelper {
 
         private final DataFormat format;
         private WriteResult resultToReturn = new WriteResult.Success(1, 1, 1);
+        private boolean schemaMutable = true;
+        private long mappingVersion = 0;
+        private volatile org.opensearch.index.engine.dataformat.WriterState state =
+            org.opensearch.index.engine.dataformat.WriterState.ACTIVE;
 
         StubWriter(DataFormat format) {
             this.format = format;
@@ -217,21 +331,30 @@ final class CompositeTestHelper {
             this.resultToReturn = result;
         }
 
+        void setSchemaMutable(boolean mutable) {
+            this.schemaMutable = mutable;
+        }
+
+        /** Test-only setter to inject a state directly. */
+        void setState(org.opensearch.index.engine.dataformat.WriterState s) {
+            this.state = s;
+        }
+
         @Override
         public WriteResult addDoc(DocumentInput<?> d) {
+            assert state == org.opensearch.index.engine.dataformat.WriterState.ACTIVE : "addDoc requires ACTIVE state but was " + state;
             return resultToReturn;
         }
 
         @Override
-        public FileInfos flush() {
+        public FileInfos flush(FlushInput flushInput) {
             return FileInfos.empty();
         }
 
         @Override
-        public void sync() {}
-
-        @Override
-        public void close() {}
+        public void close() throws IOException {
+            state = org.opensearch.index.engine.dataformat.WriterState.CLOSED;
+        }
 
         @Override
         public long generation() {
@@ -239,15 +362,24 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public void lock() {}
-
-        @Override
-        public boolean tryLock() {
-            return true;
+        public boolean isSchemaMutable() {
+            return schemaMutable;
         }
 
         @Override
-        public void unlock() {}
+        public long mappingVersion() {
+            return mappingVersion;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {
+            this.mappingVersion = newVersion;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.WriterState state() {
+            return state;
+        }
     }
 
     /**
@@ -266,6 +398,11 @@ final class CompositeTestHelper {
         public void setRowId(String rowIdFieldName, long rowId) {}
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return 0;
+        }
+
+        @Override
         public void close() {}
     }
 
@@ -276,7 +413,9 @@ final class CompositeTestHelper {
         boolean closeCalled = false;
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public void close() {
@@ -294,11 +433,6 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
-        }
-
-        @Override
         public List<CatalogSnapshot> listCommittedSnapshots() {
             return List.of();
         }
@@ -309,6 +443,257 @@ final class CompositeTestHelper {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("stub");
+        }
+    }
+
+    // --- Failable stubs for failure injection tests ---
+
+    /** Builds a CompositeIndexingExecutionEngine wired with failable stubs. */
+    static CompositeIndexingExecutionEngine buildFailableEngine(
+        FailableEngine primary,
+        FailableCommitter committer,
+        FailableEngine... secondaries
+    ) {
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format(primary.getDataFormat().name())).thenReturn(primary.getDataFormat());
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(inv -> {
+            DataFormat fmt = inv.getArgument(1);
+            if (fmt.name().equals(primary.getDataFormat().name())) return primary;
+            for (FailableEngine sec : secondaries) {
+                if (fmt.name().equals(sec.getDataFormat().name())) return sec;
+            }
+            return null;
+        });
+        for (FailableEngine sec : secondaries) {
+            when(registry.format(sec.getDataFormat().name())).thenReturn(sec.getDataFormat());
+        }
+        Settings.Builder sb = Settings.builder()
+            .put("index.composite.primary_data_format", primary.getDataFormat().name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+        if (secondaries.length > 0) {
+            String[] names = new String[secondaries.length];
+            for (int i = 0; i < secondaries.length; i++)
+                names[i] = secondaries[i].getDataFormat().name();
+            sb.putList("index.composite.secondary_data_formats", names);
+        }
+        IndexMetadata meta = IndexMetadata.builder("test-index").settings(sb.build()).build();
+        return new CompositeIndexingExecutionEngine(new IndexSettings(meta, Settings.EMPTY), null, committer, registry, null, null);
+    }
+
+    /** Writer stub accepting {@code DocumentInput<?>} with configurable failures. */
+    static class FailableWriter implements Writer<DocumentInput<?>> {
+        volatile WriteResult resultToReturn = new WriteResult.Success(1, 1, 1);
+        volatile IOException flushFailure;
+        volatile IOException rollbackFailure;
+        volatile IOException closeFailure;
+        volatile boolean rollbackCalled;
+        volatile boolean closeCalled;
+        final AtomicInteger addDocCallCount = new AtomicInteger();
+        // Models a Lucene-style strategy by default: rollback success → RETIRED_FLUSHABLE.
+        // Tests that want Parquet-style "stay ACTIVE" semantics can flip this flag.
+        volatile boolean retireOnRollbackSuccess = true;
+        private volatile org.opensearch.index.engine.dataformat.WriterState state =
+            org.opensearch.index.engine.dataformat.WriterState.ACTIVE;
+
+        FailableWriter(DataFormat format) {}
+
+        void setResultToReturn(WriteResult result) {
+            this.resultToReturn = result;
+        }
+
+        /** Test-only setter to inject a state directly. */
+        void setState(org.opensearch.index.engine.dataformat.WriterState s) {
+            this.state = s;
+        }
+
+        @Override
+        public WriteResult addDoc(DocumentInput<?> d) {
+            assert state == org.opensearch.index.engine.dataformat.WriterState.ACTIVE : "addDoc requires ACTIVE state but was " + state;
+            addDocCallCount.incrementAndGet();
+            return resultToReturn;
+        }
+
+        @Override
+        public FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput) throws IOException {
+            if (flushFailure != null) throw flushFailure;
+            return FileInfos.empty();
+        }
+
+        @Override
+        public void rollbackTo(long rowCount) throws IOException {
+            rollbackCalled = true;
+            if (rollbackFailure != null) throw rollbackFailure;
+            if (retireOnRollbackSuccess) {
+                state = org.opensearch.index.engine.dataformat.WriterState.RETIRED_FLUSHABLE;
+            }
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.WriterState state() {
+            return state;
+        }
+
+        @Override
+        public long generation() {
+            return 0;
+        }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return true;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return 0;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {}
+
+        @Override
+        public void close() throws IOException {
+            closeCalled = true;
+            if (closeFailure != null) throw closeFailure;
+            state = org.opensearch.index.engine.dataformat.WriterState.CLOSED;
+        }
+    }
+
+    /** Engine stub producing {@link FailableWriter} instances with optional default failure. */
+    static class FailableEngine implements IndexingExecutionEngine<DataFormat, DocumentInput<?>> {
+        private final DataFormat dataFormat;
+        private final AtomicLong writerGen = new AtomicLong();
+        private final List<FailableWriter> createdWriters = new ArrayList<>();
+        private volatile Supplier<WriteResult> defaultWriteResultSupplier;
+        volatile RuntimeException createWriterFailure;
+
+        FailableEngine(String name) {
+            this.dataFormat = new DataFormat() {
+                @Override
+                public String name() {
+                    return name;
+                }
+
+                @Override
+                public long priority() {
+                    return 1;
+                }
+
+                @Override
+                public Set<FieldTypeCapabilities> supportedFields() {
+                    return Set.of();
+                }
+            };
+        }
+
+        FailableWriter getLastCreatedWriter() {
+            return createdWriters.get(createdWriters.size() - 1);
+        }
+
+        void setDefaultWriteResultSupplier(Supplier<WriteResult> s) {
+            this.defaultWriteResultSupplier = s;
+        }
+
+        @Override
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            if (createWriterFailure != null) throw createWriterFailure;
+            FailableWriter w = new FailableWriter(dataFormat);
+            if (defaultWriteResultSupplier != null) w.setResultToReturn(defaultWriteResultSupplier.get());
+            createdWriters.add(w);
+            return w;
+        }
+
+        @Override
+        public Merger getMerger() {
+            return i -> new MergeResult(Map.of());
+        }
+
+        @Override
+        public RefreshResult refresh(RefreshInput input) {
+            return new RefreshResult(Collections.emptyList());
+        }
+
+        @Override
+        public DataFormat getDataFormat() {
+            return dataFormat;
+        }
+
+        @Override
+        public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> f) {
+            return Map.of();
+        }
+
+        @Override
+        public long getNextWriterGeneration() {
+            return writerGen.getAndIncrement();
+        }
+
+        @Override
+        public DocumentInput<?> newDocumentInput() {
+            return new MockDocumentInput();
+        }
+
+        @Override
+        public IndexStoreProvider getProvider() {
+            return df -> null;
+        }
+
+        @Override
+        public long getHeapBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public long getNativeBytesUsed() {
+            return 0;
+        }
+
+        public void close() {}
+    }
+
+    /** Minimal committer stub for tests that don't exercise commit-side failures. */
+    static class FailableCommitter implements Committer {
+        @Override
+        public Committer.CommitResult commit(Committer.CommitInput data) {
+            return null;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public Map<String, String> getLastCommittedData() {
+            return Map.of();
+        }
+
+        @Override
+        public CommitStats getCommitStats() {
+            return null;
+        }
+
+        @Override
+        public List<CatalogSnapshot> listCommittedSnapshots() {
+            return List.of();
+        }
+
+        @Override
+        public void deleteCommit(CatalogSnapshot s) {}
+
+        @Override
+        public boolean isCommitManagedFile(String f) {
+            return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            return new byte[0];
         }
     }
 }

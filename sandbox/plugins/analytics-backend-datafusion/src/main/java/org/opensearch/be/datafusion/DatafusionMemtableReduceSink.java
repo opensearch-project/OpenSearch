@@ -16,50 +16,34 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Memtable variant of {@link DatafusionReduceSink}: instead of opening a streaming partition
- * and pushing each shard response through it, this sink buffers every fed
- * {@link VectorSchemaRoot} as an exported Arrow C Data pair and on {@link #close()} hands the
- * full set across in one native call. The native side builds a {@code MemTable}, registers it,
- * and runs the Substrait plan against the materialized input.
+ * Buffered variant of {@link DatafusionReduceSink}: every fed batch is exported as an Arrow
+ * C Data pair and held until {@link #reduce} hands the full set to native in one
+ * {@code registerMemtable + executeLocalPlan + drain} call. No tokio mpsc in the input path.
  *
- * <p>Trade-offs:
- * <ul>
- *   <li>+ No tokio mpsc, no cross-runtime spawn machinery in the input path. The single-shot
- *       handoff is simpler to reason about and matches the lifecycle already used for the
- *       output stream.</li>
- *   <li>− All input batches live in memory until {@code close()}. Use the streaming sink when
- *       the working set is too large to retain.</li>
- * </ul>
+ * <p>Trade-off: all input batches live in memory until {@link #reduce}. Use the streaming
+ * sink when the working set is too large to retain.
  *
- * <p>Lifecycle invariants and {@code feed}/{@code close} skeleton are implemented in
- * {@link AbstractDatafusionReduceSink}. This subclass owns the buffered FFI structs and the
- * close-time {@code registerMemtable + executeLocalPlan + drain} sequence.
+ * <p><b>Single-input only</b> — the constructor rejects multi-input shapes. The
+ * {@link DataFusionAnalyticsBackendPlugin} provider auto-falls-back to streaming when
+ * {@code childInputs.size() > 1}, so callers shouldn't see this in practice.
  *
- * <p><b>Single-input only.</b> The memtable path registers exactly one {@code MemTable}
- * at close time, so multi-input shapes (Union, future Join) are not supported here —
- * the constructor rejects them with a clear message. Streaming mode
- * ({@link DatafusionReduceSink}) supports multi-input via per-child
- * {@link org.opensearch.analytics.spi.MultiInputExchangeSink#sinkForChild(int) sinkForChild}
- * partitions; the {@link DataFusionAnalyticsBackendPlugin} provider is the user-facing
- * gate that auto-falls-back to streaming when {@code childInputs.size() > 1}, so callers
- * shouldn't see this error in practice. The constructor's check remains as a
- * direct-instantiation safety net.
- *
- * <p>TODO: support multi-input memtable by registering one {@code MemTable} per child
- * stage (each with its own {@code "input-<childStageId>"} table id) and accumulating
- * separate buffers per child via a per-child {@link org.opensearch.analytics.spi.ExchangeSink}
- * wrapper, mirroring the streaming sink's {@code ChildSink} approach.
+ * <p>TODO: support multi-input by registering one {@code MemTable} per child stage with
+ * per-child buffer accumulation (mirroring the streaming sink's {@code ChildSink} approach).
  */
 public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduceSink {
 
     private final List<ArrowArray> arrays = new ArrayList<>();
     private final List<ArrowSchema> schemas = new ArrayList<>();
-    private final byte[] schemaIpc;
+    private final byte[] producerPlanBytes;
+    /** Single-fire guard so a stray second {@link #reduce} call doesn't re-execute the plan. */
+    private final AtomicBoolean reduceStarted = new AtomicBoolean(false);
 
     public DatafusionMemtableReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         super(ctx, runtimeHandle);
@@ -82,7 +66,13 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
                     + " constructed directly."
             );
         }
-        this.schemaIpc = childInputs.values().iterator().next();
+        this.producerPlanBytes = childInputs.values().iterator().next();
+    }
+
+    /** Memtable buffers all input first — never schedule concurrently with feeds. */
+    @Override
+    public boolean supportsEagerScheduling() {
+        return false;
     }
 
     @Override
@@ -106,55 +96,96 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
         }
     }
 
+    /**
+     * Registers the buffered batches as a MemTable, executes the plan, drains into the
+     * downstream. Holds {@link #feedLock} for the duration so a concurrent {@link #close}
+     * (or late {@link #feed}) can't race the buffer-list iteration. Releases the Arrow
+     * Java wrappers in {@code finally} — on success Rust already consumed the underlying
+     * data (release callback nulled), so wrapper close is a no-op.
+     */
     @Override
-    protected Throwable closeUnderLock() {
-        Throwable failure = null;
-        long streamPtr = 0;
-        try {
-            long[] arrayPtrs = new long[arrays.size()];
-            long[] schemaPtrs = new long[schemas.size()];
-            for (int i = 0; i < arrays.size(); i++) {
-                arrayPtrs[i] = arrays.get(i).memoryAddress();
-                schemaPtrs[i] = schemas.get(i).memoryAddress();
+    public void reduce(ActionListener<Void> listener) {
+        assert reduceStarted.compareAndSet(false, true) : "reduce called more than once";
+        Exception failure = null;
+        synchronized (feedLock) {
+            if (closed) {
+                listener.onFailure(new IllegalStateException("sink closed before reduce"));
+                return;
             }
-            // Multi-input would need one registerMemtable call per child stage with a
-            // distinct "input-<childStageId>" table id and separate buffer accumulation
-            // per child (the constructor enforces single-input today; see class javadoc).
-            int singleChildStageId = childInputs.keySet().iterator().next();
-            NativeBridge.registerMemtable(session.getPointer(), inputIdFor(singleChildStageId), schemaIpc, arrayPtrs, schemaPtrs);
+            long streamPtr = 0;
+            try {
+                long[] arrayPtrs = new long[arrays.size()];
+                long[] schemaPtrs = new long[schemas.size()];
+                for (int i = 0; i < arrays.size(); i++) {
+                    arrayPtrs[i] = arrays.get(i).memoryAddress();
+                    schemaPtrs[i] = schemas.get(i).memoryAddress();
+                }
+                // Multi-input would need one registerMemtable call per child stage with a
+                // distinct "input-<childStageId>" table id and separate buffer accumulation
+                // per child (the constructor enforces single-input today; see class javadoc).
+                int singleChildStageId = childInputs.keySet().iterator().next();
+                NativeBridge.RegisteredInput registered = NativeBridge.registerMemtable(
+                    session.getPointer(),
+                    inputIdFor(singleChildStageId),
+                    producerPlanBytes,
+                    arrayPtrs,
+                    schemaPtrs
+                );
+                childSchemas.put(singleChildStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
 
-            streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
-            try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {
-                streamPtr = 0;
-                drainOutputIntoDownstream(outStream);
-            }
-        } catch (Throwable t) {
-            failure = accumulate(failure, t);
-        } finally {
-            // The Arrow Java wrappers must always be closed. On the success path Rust has
-            // consumed the underlying FFI structs (release callback nulled), so close is a
-            // no-op for the data. On the failure-before-handoff path close releases the
-            // exported data buffers back to the Java allocator.
-            for (ArrowArray a : arrays) {
-                try {
-                    a.close();
-                } catch (Throwable t) {
-                    failure = accumulate(failure, t);
+                streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes(), ctx.taskId());
+                try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {
+                    streamPtr = 0;
+                    drainOutputIntoDownstream(outStream);
+                    this.executionMetrics = NativeBridge.streamGetMetrics(outStream.getPointer());
                 }
-            }
-            for (ArrowSchema s : schemas) {
-                try {
-                    s.close();
-                } catch (Throwable t) {
-                    failure = accumulate(failure, t);
+            } catch (Exception t) {
+                failure = accumulate(failure, t);
+            } finally {
+                failure = releaseBuffersInto(failure);
+                if (streamPtr != 0) {
+                    NativeBridge.streamClose(streamPtr);
                 }
-            }
-            arrays.clear();
-            schemas.clear();
-            if (streamPtr != 0) {
-                NativeBridge.streamClose(streamPtr);
             }
         }
+        if (failure == null) {
+            listener.onResponse(null);
+        } else {
+            listener.onFailure(failure);
+        }
+    }
+
+    /** Releases any buffers reduce() didn't consume (cancel-before-reduce path), then session. */
+    @Override
+    protected Exception closeImpl() {
+        Exception failure = releaseBuffersInto(null);
+        if (preparedState == null) {
+            try {
+                session.close();
+            } catch (Exception t) {
+                failure = accumulate(failure, t);
+            }
+        }
+        return failure;
+    }
+
+    private Exception releaseBuffersInto(Exception failure) {
+        for (ArrowArray a : arrays) {
+            try {
+                a.close();
+            } catch (Exception t) {
+                failure = accumulate(failure, t);
+            }
+        }
+        for (ArrowSchema s : schemas) {
+            try {
+                s.close();
+            } catch (Exception t) {
+                failure = accumulate(failure, t);
+            }
+        }
+        arrays.clear();
+        schemas.clear();
         return failure;
     }
 }

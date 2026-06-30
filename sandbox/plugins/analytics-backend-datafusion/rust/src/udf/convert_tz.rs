@@ -35,14 +35,15 @@
 //! * Any null input → null output (null propagation).
 //! * Unparseable column-valued timezone → null output.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use chrono::{DateTime, NaiveDateTime, Offset, TimeZone, Utc};
 use chrono_tz::Tz;
 use datafusion::arrow::array::{
-    Array, ArrayRef, StringArray, TimestampMillisecondArray, TimestampMillisecondBuilder,
+    Array, ArrayRef, TimestampMillisecondArray, TimestampMillisecondBuilder,
 };
+
+use super::json_common::StringArrayView;
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -81,9 +82,6 @@ impl Default for ConvertTzUdf {
 }
 
 impl ScalarUDFImpl for ConvertTzUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "convert_tz"
     }
@@ -132,19 +130,21 @@ impl ScalarUDFImpl for ConvertTzUdf {
 
         // Only materialize column-valued tz operands; for scalars the parsed
         // TzSpec is already in hand. Keep the ArrayRef alive alongside the
-        // downcast reference — StringArray borrows from the underlying buffer.
+        // view — StringArrayView borrows from the underlying buffer.
         let from_arr_ref: Option<ArrayRef> = if from_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
-            Some(materialize_string_array(&args.args[1], n, "from_tz")?)
+            Some(args.args[1].clone().into_array(n)?)
         } else {
             None
         };
         let to_arr_ref: Option<ArrayRef> = if to_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
-            Some(materialize_string_array(&args.args[2], n, "to_tz")?)
+            Some(args.args[2].clone().into_array(n)?)
         } else {
             None
         };
-        let from_array: Option<&StringArray> = from_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
-        let to_array: Option<&StringArray> = to_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
+        let from_array: Option<StringArrayView<'_>> =
+            from_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let to_array: Option<StringArrayView<'_>> =
+            to_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
 
         let mut builder = TimestampMillisecondBuilder::with_capacity(n);
         for i in 0..n {
@@ -152,9 +152,9 @@ impl ScalarUDFImpl for ConvertTzUdf {
                 builder.append_null();
                 continue;
             }
-            let from = match (&from_scalar, from_array) {
+            let from = match (&from_scalar, from_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(tz), _) => tz.clone(),
-                (None, Some(arr)) if !arr.is_null(i) => match parse_tz(arr.value(i)) {
+                (None, Some(s)) => match parse_tz(s) {
                     Some(tz) => tz,
                     None => {
                         builder.append_null();
@@ -166,9 +166,9 @@ impl ScalarUDFImpl for ConvertTzUdf {
                     continue;
                 }
             };
-            let to = match (&to_scalar, to_array) {
+            let to = match (&to_scalar, to_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(tz), _) => tz.clone(),
-                (None, Some(arr)) if !arr.is_null(i) => match parse_tz(arr.value(i)) {
+                (None, Some(s)) => match parse_tz(s) {
                     Some(tz) => tz,
                     None => {
                         builder.append_null();
@@ -203,18 +203,6 @@ fn scalar_tz(cv: &ColumnarValue) -> Option<TzSpec> {
     None
 }
 
-fn materialize_string_array(cv: &ColumnarValue, n: usize, label: &'static str) -> Result<ArrayRef> {
-    let arr = cv.clone().into_array(n)?;
-    if arr.as_any().downcast_ref::<StringArray>().is_none() {
-        return Err(DataFusionError::Internal(format!(
-            "convert_tz: {} expected Utf8, got {:?}",
-            label,
-            arr.data_type()
-        )));
-    }
-    Ok(arr)
-}
-
 /// Parse timezone string (IANA name or `±HH:MM` offset).
 #[derive(Clone)]
 enum TzSpec {
@@ -232,11 +220,12 @@ fn parse_tz(s: &str) -> Option<TzSpec> {
 
 /// Parse `±HH:MM` → seconds east of UTC; None if not an offset literal.
 ///
-/// Bounds ({@code hours ∈ [0,14], minutes ∈ [0,59]}) match the Java adapter's
-/// {@code canonicalizeTz}. For literal-path inputs the Java side has already
-/// validated and canonicalized, so the defensive checks here only fire for
-/// column-valued tz — where a malformed entry yields a NULL row, matching the
-/// documented lenient behavior.
+/// Bounds match MySQL's `CONVERT_TZ` band: `[-13:59, +14:00]` (legacy parity
+/// with `DateTimeUtils.isValidMySqlTimeZoneId`). The Java adapter
+/// (`ConvertTzAdapter::canonicalizeTz`) folds out-of-band literals to NULL at
+/// plan time; this defensive check covers column-valued tz strings, where a
+/// malformed entry yields a NULL row and matches the documented lenient
+/// behavior.
 fn parse_offset_seconds(s: &str) -> Option<i32> {
     let bytes = s.as_bytes();
     if bytes.len() != 6 {
@@ -252,7 +241,12 @@ fn parse_offset_seconds(s: &str) -> Option<i32> {
     }
     let hours: i32 = s.get(1..3)?.parse().ok()?;
     let minutes: i32 = s.get(4..6)?.parse().ok()?;
-    if hours > 14 || minutes > 59 {
+    if minutes > 59 {
+        return None;
+    }
+    let total_minutes = hours * 60 + minutes;
+    let max_minutes = if sign < 0 { 13 * 60 + 59 } else { 14 * 60 };
+    if total_minutes > max_minutes {
         return None;
     }
     Some(sign * (hours * 3600 + minutes * 60))
@@ -322,6 +316,7 @@ fn offset_seconds_at_instant(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::arrow::array::StringArray;
 
     // ±HH:MM offsets parse to the expected second counts.
     #[test]
@@ -336,10 +331,24 @@ mod tests {
     fn parse_offset_rejects_malformed() {
         assert_eq!(parse_offset_seconds("bogus"), None);
         assert_eq!(parse_offset_seconds("0500"), None);
-        // Hour >14 is beyond canonicalization bounds — Java rejects at plan time,
-        // we reject at runtime for column-valued paths.
+        // Out-of-band offsets — Java folds these to NULL at plan time;
+        // this catches the column-valued path.
         assert_eq!(parse_offset_seconds("+15:00"), None);
         assert_eq!(parse_offset_seconds("+05:60"), None);
+    }
+
+    // MySQL's CONVERT_TZ band: positive offsets cap at +14:00, negative offsets
+    // cap at -13:59. Matches legacy DateTimeUtils.isValidMySqlTimeZoneId.
+    #[test]
+    fn parse_offset_enforces_mysql_band() {
+        // Boundary OKs.
+        assert_eq!(parse_offset_seconds("+14:00"), Some(14 * 3600));
+        assert_eq!(parse_offset_seconds("-13:59"), Some(-(13 * 3600 + 59 * 60)));
+        // Just outside.
+        assert_eq!(parse_offset_seconds("+14:01"), None);
+        assert_eq!(parse_offset_seconds("-14:00"), None);
+        // Well outside.
+        assert_eq!(parse_offset_seconds("-17:00"), None);
     }
 
     // Offset → offset: simple wall-clock delta, no calendar.
@@ -515,5 +524,59 @@ mod tests {
         assert!(!arr.is_null(0));
         assert!(arr.is_null(1));
         assert!(arr.is_null(2));
+    }
+
+    // Column-valued tz strings can't be validated plan-side, so the UDF must
+    // null them out at row time. Both just-outside-the-band entries (-14:00,
+    // +14:01) and well-outside ones (+15:00) must collapse to NULL.
+    #[test]
+    fn invoke_out_of_band_offset_strings_yield_nulls() {
+        let udf = ConvertTzUdf::new();
+        let ts = TimestampMillisecondArray::from(vec![
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+        ]);
+        let from = StringArray::from(vec![
+            Some("+00:00"),
+            Some("-14:00"), // just past negative cap
+            Some("+15:00"), // well past positive cap
+            Some("+00:00"),
+        ]);
+        let to = StringArray::from(vec![
+            Some("+14:00"), // boundary OK
+            Some("+00:00"),
+            Some("+00:00"),
+            Some("+14:01"), // just past positive cap
+        ]);
+        let args = ScalarFunctionArgs {
+            args: vec![
+                ColumnarValue::Array(Arc::new(ts)),
+                ColumnarValue::Array(Arc::new(from)),
+                ColumnarValue::Array(Arc::new(to)),
+            ],
+            number_rows: 4,
+            arg_fields: vec![],
+            return_field: Arc::new(datafusion::arrow::datatypes::Field::new(
+                "out",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            )),
+            config_options: Arc::new(datafusion::config::ConfigOptions::new()),
+        };
+        let out = udf.invoke_with_args(args).unwrap();
+        let arr = match out {
+            ColumnarValue::Array(a) => a,
+            _ => panic!("expected array"),
+        };
+        let arr = arr
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        assert!(!arr.is_null(0), "in-band +14:00 must produce a value");
+        assert!(arr.is_null(1), "from=-14:00 (out-of-band) must yield NULL");
+        assert!(arr.is_null(2), "from=+15:00 (out-of-band) must yield NULL");
+        assert!(arr.is_null(3), "to=+14:01 (out-of-band) must yield NULL");
     }
 }

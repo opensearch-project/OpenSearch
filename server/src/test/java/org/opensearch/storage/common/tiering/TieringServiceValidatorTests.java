@@ -413,10 +413,10 @@ public class TieringServiceValidatorTests extends OpenSearchTestCase {
     private static Map<String, NodeResourceUsageStats> nodeResourceUsageStatsMap(int warmNodes, int hotNodes, double jvmPercent) {
         Map<String, NodeResourceUsageStats> map = new HashMap<>();
         for (int i = 0; i < warmNodes; i++) {
-            map.put("warm-" + i, new NodeResourceUsageStats("warm-" + i, System.currentTimeMillis(), jvmPercent, 0, null));
+            map.put("warm-" + i, new NodeResourceUsageStats("warm-" + i, System.currentTimeMillis(), jvmPercent, 0, null, 0));
         }
         for (int i = 0; i < hotNodes; i++) {
-            map.put("data-" + i, new NodeResourceUsageStats("data-" + i, System.currentTimeMillis(), jvmPercent, 0, null));
+            map.put("data-" + i, new NodeResourceUsageStats("data-" + i, System.currentTimeMillis(), jvmPercent, 0, null, 0));
         }
         return map;
     }

@@ -233,7 +233,7 @@ fn to_engine_tree_null(tree: &NT, coll_seq: &mut u8) -> BoolNode {
             let tag = *coll_seq;
             *coll_seq += 1;
             BoolNode::Collector {
-                query_bytes: Arc::from(&[tag][..]),
+                annotation_id: tag as i32,
             }
         }
         NT::Leaf(NullLeaf::AllNullGe(v)) => pred_int_local("all_null_col", Operator::GtEq, *v),
@@ -274,14 +274,15 @@ fn wire_null_rec(
             cs.iter().for_each(|c| wire_null_rec(c, matching_sets, out))
         }
         BoolNode::Not(inner) => wire_null_rec(inner, matching_sets, out),
-        BoolNode::Collector { query_bytes } => {
-            let tag = query_bytes.first().copied().expect("empty tag bytes") as usize;
+        BoolNode::Collector { annotation_id } => {
+            let tag = *annotation_id as usize;
             let set = &matching_sets[tag];
             out.push(Arc::new(RgScopedCollector {
                 matching_rows: set.clone(),
             }));
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -326,13 +327,16 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         offset += n;
     }
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: NULL_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-    };
+            global_base: 0,
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = Arc::new(bt);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
@@ -344,7 +348,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -357,12 +361,19 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
-                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
     };
 
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .indexed_pushdown_filters(false)
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
@@ -370,14 +381,14 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
             as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

@@ -14,11 +14,16 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +36,10 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
+    private Arena configArena;
+    private long queryConfigPtr;
+    private long tieredStorePtr;
+    private NativeStoreHandle storeHandle;
     private final java.util.List<BufferAllocator> allocatorsToClose = new java.util.ArrayList<>();
 
     @Override
@@ -42,16 +51,36 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         runtimeHandle = new NativeRuntimeHandle(ptr);
         testRootAllocator = new RootAllocator(Long.MAX_VALUE);
 
+        // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle
+        tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
+        long boxPtr = NativeStoreTestHelper.getObjectStoreBoxPtr(tieredStorePtr);
+        storeHandle = new NativeStoreHandle(boxPtr, NativeStoreTestHelper::destroyObjectStoreBoxPtr);
+
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            storeHandle,
+            List.of(),
+            List.of()
+        );
+
+        configArena = Arena.ofConfined();
+        MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        queryConfigPtr = configSegment.address();
     }
 
     @Override
     public void tearDown() throws Exception {
+        configArena.close();
         readerHandle.close();
+        storeHandle.close();
+        NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
         runtimeHandle.close();
+        NativeBridge.shutdownTokioRuntimeManager();
         // Caller owns child allocators now (see DatafusionResultStream.close javadoc).
         // Close them in reverse registration order so child-before-parent invariants hold.
         for (int i = allocatorsToClose.size() - 1; i >= 0; i--) {
@@ -113,10 +142,20 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNextOnExhaustedStreamThrows() throws Exception {
+    public void testEmptyResultYieldsOneZeroRowBatchWithSchema() throws Exception {
+        // Streaming Flight requires ≥1 schema-bearing frame before completeStream; empty
+        // native streams synthesise a zero-row batch carrying the schema.
         try (DatafusionResultStream stream = createStream("SELECT message FROM test_table WHERE message > 999")) {
             Iterator<EngineResultBatch> it = stream.iterator();
-            assertFalse(it.hasNext());
+            assertTrue("empty stream must yield exactly one zero-row schema batch", it.hasNext());
+            EngineResultBatch batch = it.next();
+            try {
+                assertEquals(0, batch.getRowCount());
+                assertEquals(java.util.List.of("message"), batch.getFieldNames());
+            } finally {
+                batch.getArrowRoot().close();
+            }
+            assertFalse("after consuming the schema batch the stream is empty", it.hasNext());
             expectThrows(NoSuchElementException.class, it::next);
         }
     }
@@ -171,7 +210,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             new byte[] { 0, 1, 2 },
             runtimeHandle.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
@@ -214,7 +253,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             substrait,
             tempRuntime.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long p) {
@@ -267,7 +306,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             substrait,
             runtimeHandle.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {

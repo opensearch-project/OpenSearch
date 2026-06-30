@@ -1,0 +1,1 @@
+source=kubernetes_logs | where `cluster.name` like '%fdas-prod%' | stats count() by `cluster.name`, `kubernetes.namespace`

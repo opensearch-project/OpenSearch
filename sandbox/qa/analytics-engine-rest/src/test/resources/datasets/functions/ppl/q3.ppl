@@ -1,0 +1,1 @@
+source=function_tests | eval final_status = coalesce(status, 'unknown') | fields user, status, final_status | head 10

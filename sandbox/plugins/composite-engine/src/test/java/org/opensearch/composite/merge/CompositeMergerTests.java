@@ -14,14 +14,17 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
@@ -55,7 +58,7 @@ import static org.mockito.Mockito.when;
 public class CompositeMergerTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
-    private static final RowIdMapping STUB_ROW_ID_MAPPING = (oldId, oldGen) -> oldId;
+    private static final RowIdMapping STUB_ROW_ID_MAPPING = new PackedRowIdMapping(new long[] { 0 }, false);
 
     private DataFormat primaryFormat;
     private DataFormat secondaryFormat;
@@ -78,6 +81,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexingExecutionEngine<?, ?> secondaryEngine = mockEngine(secondaryFormat, secondaryMerger);
 
         compositeEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(compositeEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         doReturn(primaryEngine).when(compositeEngine).getPrimaryDelegate();
         doReturn(Set.of(secondaryEngine)).when(compositeEngine).getSecondaryDelegates();
         when(compositeEngine.getNextWriterGeneration()).thenReturn(99L);
@@ -117,6 +121,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
     public void testDoMergePrimaryOnlyNoSecondaries() throws IOException {
         CompositeIndexingExecutionEngine engineNoSecondary = mock(CompositeIndexingExecutionEngine.class);
+        when(engineNoSecondary.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         IndexingExecutionEngine<?, ?> primaryEngine = mockEngine(primaryFormat, primaryMerger);
         doReturn(primaryEngine).when(engineNoSecondary).getPrimaryDelegate();
         doReturn(Set.of()).when(engineNoSecondary).getSecondaryDelegates();
@@ -138,7 +143,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -191,6 +197,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         Merger secondaryMerger2 = mock(Merger.class);
 
         CompositeIndexingExecutionEngine multiEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(multiEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         IndexingExecutionEngine<?, ?> primaryEngine = mockEngine(primaryFormat, primaryMerger);
         doReturn(primaryEngine).when(multiEngine).getPrimaryDelegate();
         doReturn(Set.of(mockEngine(secondaryFormat, secondaryMerger), mockEngine(secondaryFormat2, secondaryMerger2))).when(multiEngine)
@@ -221,7 +228,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(multiEngine, multiFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
@@ -351,6 +359,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexingExecutionEngine<?, ?> duplicateEngine = mockEngine(primaryFormat, primaryMerger);
 
         CompositeIndexingExecutionEngine dupEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(dupEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         doReturn(primaryEngine).when(dupEngine).getPrimaryDelegate();
         doReturn(Set.of(duplicateEngine)).when(dupEngine).getSecondaryDelegates();
         when(dupEngine.getNextWriterGeneration()).thenReturn(99L);
@@ -371,7 +380,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(dupEngine, dupFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -435,7 +445,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         handler.registerMerge(oneMerge);
         assertTrue(handler.hasPendingMerges());
 
-        handler.onMergeFinished(oneMerge);
+        handler.onMergeFinished(oneMerge, false);
     }
 
     public void testRegisterMergeAndOnMergeFailure() {
@@ -565,7 +575,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(compositeEngine, compositeDataFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
     }
 
@@ -578,7 +589,14 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), SHARD_ID);
-        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), SHARD_ID, policy, policy);
+        return new MergeHandler(
+            snapshotSupplier,
+            new CompositeMerger(compositeEngine, compositeDataFormat),
+            SHARD_ID,
+            policy,
+            policy,
+            () -> 1L
+        );
     }
 
     private static DataFormat stubFormat(String name) {
@@ -614,7 +632,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     }
 
     private static WriterFileSet wfs(Path dir, long gen, Set<String> files, long numRows) {
-        return new WriterFileSet(dir.toString(), gen, files, numRows);
+        return new WriterFileSet(dir.toString(), gen, files, numRows, 0L);
     }
 
     private static Segment buildSegment(long generation, DataFormat fmt1, WriterFileSet wfs1, DataFormat fmt2, WriterFileSet wfs2) {
@@ -625,5 +643,80 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
         when(snapshot.getSegments()).thenReturn(segments);
         return snapshot;
+    }
+
+    // ── Cross-format merge verification tests ──
+
+    public void testExecutorThrowsWhenSecondaryReturnsNullButPrimaryHasOutput() throws IOException {
+        Merger primaryMerger = mock(Merger.class);
+        Merger secondaryMerger = mock(Merger.class);
+
+        DataFormat primary = stubFormat("parquet", 0);
+        DataFormat secondary = stubFormat("lucene", 50);
+
+        String dir = createTempDir().toString();
+        WriterFileSet primaryFiles = new WriterFileSet(dir, 10L, Set.of("file.parquet"), 100, 1L);
+
+        RowIdMapping mapping = mock(RowIdMapping.class);
+        when(mapping.size()).thenReturn(100);
+
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of()));
+
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
+
+        WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
+        WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
+
+        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
+        assertTrue(ex.getMessage().contains("returned null"));
+    }
+
+    public void testExecutorThrowsOnRowCountMismatch() throws IOException {
+        Merger primaryMerger = mock(Merger.class);
+        Merger secondaryMerger = mock(Merger.class);
+
+        DataFormat primary = stubFormat("parquet", 0);
+        DataFormat secondary = stubFormat("lucene", 50);
+
+        WriterFileSet primaryFiles = new WriterFileSet(createTempDir().toString(), 10L, Set.of("file.parquet"), 100, 1L);
+        WriterFileSet secondaryFiles = new WriterFileSet(createTempDir().toString(), 10L, Set.of("file.si"), 90, 1L);
+
+        RowIdMapping mapping = mock(RowIdMapping.class);
+        when(mapping.size()).thenReturn(100);
+
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(secondary, secondaryFiles)));
+
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
+
+        WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
+        WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
+
+        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
+        assertTrue(ex.getMessage().contains("Row count mismatch"));
+    }
+
+    private static DataFormat stubFormat(String name, long priority) {
+        return new DataFormat() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public long priority() {
+                return priority;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of();
+            }
+        };
     }
 }

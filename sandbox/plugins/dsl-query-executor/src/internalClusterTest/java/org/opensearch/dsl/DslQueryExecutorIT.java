@@ -68,7 +68,7 @@ public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
     private void createTestIndex() {
         createIndex(INDEX);
         ensureGreen();
-        client().prepareIndex(INDEX).setId("1").setSource("{\"name\":\"laptop\",\"price\":1200}", XContentType.JSON).get();
+        client().prepareIndex(INDEX).setSource("{\"name\":\"laptop\",\"price\":1200}", XContentType.JSON).get();
         refresh(INDEX);
     }
 }

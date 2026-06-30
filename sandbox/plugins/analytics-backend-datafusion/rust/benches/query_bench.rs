@@ -5,7 +5,7 @@ use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
-use object_store::ObjectStore;
+use object_store::{ObjectStore, ObjectStoreExt};
 use opensearch_datafusion::api::DataFusionRuntime;
 use opensearch_datafusion::query_executor;
 use opensearch_datafusion::runtime_manager::RuntimeManager;
@@ -40,13 +40,13 @@ fn create_test_parquet(dir: &std::path::Path, rows: usize) {
 }
 
 fn setup() -> (RuntimeManager, DataFusionRuntime, tempfile::TempDir) {
-    let mgr = RuntimeManager::new(4);
+    let mgr = RuntimeManager::new(4, 1.5, 1.5);
     let runtime_env = RuntimeEnvBuilder::new()
         .with_memory_pool(Arc::new(GreedyMemoryPool::new(256 * 1024 * 1024)))
         .with_disk_manager_builder(DiskManagerBuilder::default())
         .build()
         .unwrap();
-    let df_runtime = DataFusionRuntime { runtime_env };
+    let df_runtime = DataFusionRuntime::new_for_bench(runtime_env);
     let tmp = tempfile::tempdir().unwrap();
     (mgr, df_runtime, tmp)
 }
@@ -104,7 +104,16 @@ fn bench_execute_query(c: &mut Criterion) {
                     let exec = mgr.cpu_executor();
                     async {
                         let ptr = query_executor::execute_query(
-                            url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(),
+                            url,
+                            metas,
+                            "t".into(),
+                            plan,
+                            &df_runtime,
+                            exec,
+                            None,
+                            &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(),
+                            0,
+                            Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                         ).await.unwrap();
                         // Consume and free the stream
                         let mut stream = unsafe {
@@ -149,8 +158,10 @@ fn bench_stream_next(c: &mut Criterion) {
                     &df_runtime,
                     exec,
                     None,
-                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(
+                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
                     ),
+                    0,
+                    Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                 )
                 .await
                 .unwrap();
@@ -197,8 +208,10 @@ fn bench_aggregation(c: &mut Criterion) {
                     &df_runtime,
                     exec,
                     None,
-                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(
+                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
                     ),
+                    0,
+                    Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                 )
                 .await
                 .unwrap();

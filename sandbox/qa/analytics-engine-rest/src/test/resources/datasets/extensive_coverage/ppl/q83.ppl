@@ -1,0 +1,1 @@
+source=test_data | fieldformat value = round(value, 2) | fields category, value | head 5

@@ -38,6 +38,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterName;
@@ -72,6 +73,7 @@ import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -81,6 +83,7 @@ import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.IndexSettingsModule;
@@ -714,5 +717,38 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
                 return size;
             }
         };
+    }
+
+    public void testStatsMergesSearchStatsContributors() {
+        IndicesService indicesService = getIndicesService();
+
+        // Baseline: no contributors registered. The Search block reflects only the node's own
+        // shard stats, which are zero on this single-node test fixture with no queries fired.
+        SearchStats baseline = indicesService.stats(new CommonStatsFlags(Flag.Search)).getSearch();
+        assertNotNull(baseline);
+        long baselineQueryCount = baseline.getTotal().getQueryCount();
+        long baselineQueryTime = baseline.getTotal().getQueryTimeInMillis();
+
+        // Two contributors: one returning real numbers, one returning null. Both must be invoked.
+        SearchStatsContributor populated = () -> new SearchStats(
+            new SearchStats.Stats.Builder().queryCount(7).queryTimeInMillis(123).build(),
+            0,
+            null
+        );
+        SearchStatsContributor empty = () -> null;
+        indicesService.setSearchStatsContributors(List.of(populated, empty));
+        try {
+            SearchStats merged = indicesService.stats(new CommonStatsFlags(Flag.Search)).getSearch();
+            assertNotNull(merged);
+            assertEquals(baselineQueryCount + 7, merged.getTotal().getQueryCount());
+            assertEquals(baselineQueryTime + 123, merged.getTotal().getQueryTimeInMillis());
+
+            // Non-Search flags must not invoke the contributors. Asking for Indexing only should
+            // leave the search block null in the response — the populated contributor's numbers
+            // would surface here if the case Search: branch wasn't gated by the flag.
+            assertNull(indicesService.stats(new CommonStatsFlags(Flag.Indexing)).getSearch());
+        } finally {
+            indicesService.setSearchStatsContributors(Collections.emptyList());
+        }
     }
 }

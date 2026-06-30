@@ -6,39 +6,49 @@
  * compatible open source license.
  */
 
-//! OpenSearch scalar UDFs that aren't in DataFusion's built-in registry. Each
-//! must have a matching YAML entry in `extensions/opensearch_scalar.yaml` so
-//! the substrait converter on the Java side can route to it by name.
-//!
-//! Functions registered here:
-//! - `convert_tz(ts, from_tz, to_tz)` — DST-aware timezone shift (chrono-tz)
+//! OpenSearch scalar UDFs not in DataFusion's builtins. Each registered UDF must
+//! have a matching YAML entry in `opensearch_scalar_functions.yaml`.
 
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::plan_err;
 use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 
-/// Categories of input type a UDF slot can accept. Each mode declares a
-/// canonical target arrow type plus the set of sources that coerce to it.
-/// UDFs use `Signature::user_defined()` and call [`coerce_slot`] per
-/// argument position to produce the `coerce_types` output.
-///
-/// Invalid sources produce an explicit `plan_err!` — no silent fallback. The
-/// failure message names the UDF, the slot index, the observed type and the
-/// expected canonical type so planning errors are actionable.
+/// Emit the `Default`, `PartialEq`, `Eq`, and `Hash` impls every stateless
+/// UDF needs. All instances of the same UDF type are semantically identical
+/// — they compare equal and hash to a single name-derived stable value.
+macro_rules! udf_identity {
+    ($udf:ident, $name:literal) => {
+        impl Default for $udf {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+        impl PartialEq for $udf {
+            fn eq(&self, _: &Self) -> bool {
+                true
+            }
+        }
+        impl Eq for $udf {}
+        impl std::hash::Hash for $udf {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                $name.hash(state);
+            }
+        }
+    };
+}
+pub(crate) use udf_identity;
+
+/// Input-type categories for UDF argument slots. Each mode declares a canonical
+/// arrow target type plus the set of sources that coerce to it; invalid sources
+/// produce a `plan_err!` naming the UDF, slot index, and observed type.
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub(crate) enum CoerceMode {
-    /// Accept Utf8 / Date32 / Timestamp(any precision, any tz) → canonicalize
-    /// to Timestamp(Millisecond, None). DF has built-in casts for each source.
     TimestampMs,
-    /// Accept Utf8 / Date32 / Timestamp(any, any) → canonicalize to Date32.
     Date32,
-    /// Accept any integer or float → Int64.
     Int64,
-    /// Accept any integer or float → Float64.
     Float64,
-    /// Accept Utf8 / LargeUtf8 / Utf8View → Utf8.
     Utf8,
 }
 
@@ -70,23 +80,21 @@ pub(crate) fn coerce_slot(
             Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
                 Ok(Int64)
             }
-            other => plan_err!(
-                "{udf_name}: arg {slot_index} expected integer or float, got {other:?}"
-            ),
+            other => {
+                plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
+            }
         },
         CoerceMode::Float64 => match observed {
             Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
                 Ok(Float64)
             }
-            other => plan_err!(
-                "{udf_name}: arg {slot_index} expected integer or float, got {other:?}"
-            ),
+            other => {
+                plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
+            }
         },
         CoerceMode::Utf8 => match observed {
-            Utf8 | LargeUtf8 | Utf8View => Ok(Utf8),
-            other => plan_err!(
-                "{udf_name}: arg {slot_index} expected string, got {other:?}"
-            ),
+            Utf8 | LargeUtf8 | Utf8View => Ok(observed.clone()),
+            other => plan_err!("{udf_name}: arg {slot_index} expected string, got {other:?}"),
         },
     }
 }
@@ -112,11 +120,115 @@ pub(crate) fn coerce_args(
         .collect()
 }
 
+pub mod binary_to_base64;
+pub mod conv;
 pub mod convert_tz;
+pub mod conversion;
+pub mod crc32;
+pub mod date_format;
+pub mod extract;
+pub mod from_unixtime;
+pub mod grok;
+pub mod ip_to_string;
+pub mod item;
+pub mod json;
+pub mod json_append;
+pub mod json_array;
+pub mod json_array_length;
+pub(crate) mod json_common;
+pub mod json_delete;
+pub mod json_extend;
+pub mod json_extract;
+pub mod json_extract_all;
+pub mod json_keys;
+pub mod json_object;
+pub mod json_set;
+pub mod json_valid;
+pub mod makedate;
+pub mod maketime;
+pub mod minspan_bucket;
+pub mod mvappend;
+pub mod mvfind;
+pub mod mvzip;
+pub(crate) mod os_strftime;
+pub mod os_week;
+pub mod parse;
+pub mod pattern_parser;
+pub mod range_bucket;
+pub mod rex_extract;
+pub mod rex_extract_multi;
+pub mod rex_offset;
+pub mod sha1;
+pub mod span_bucket;
+pub mod str_to_date;
+pub mod strftime;
+pub mod time_format;
+pub mod width_bucket;
+pub mod reduce_eval;
 
+// Dev note: if a freshly added UDF here fails at runtime with
+// "Unsupported function name: <X>" despite the Java side being wired, the
+// native dylib is stale. `sandbox/libs/dataformat-native/build.gradle` tracks
+// only common/ + lib/ as inputs, so plugin-side Rust edits leave gradle
+// UP-TO-DATE. Workaround: run
+// `./gradlew :sandbox:libs:dataformat-native:buildRustLibrary --rerun-tasks`
+// and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
+    binary_to_base64::register_all(ctx);
+    conv::register_all(ctx);
     convert_tz::register_all(ctx);
-    log::info!("OpenSearch UDF register_all: convert_tz registered");
+    conversion::register_all(ctx);
+    crc32::register_all(ctx);
+    date_format::register_all(ctx);
+    extract::register_all(ctx);
+    from_unixtime::register_all(ctx);
+    grok::register_all(ctx);
+    ip_to_string::register_all(ctx);
+    item::register_all(ctx);
+    json::register_all(ctx);
+    json_append::register_all(ctx);
+    json_array::register_all(ctx);
+    json_array_length::register_all(ctx);
+    json_delete::register_all(ctx);
+    json_extend::register_all(ctx);
+    json_extract::register_all(ctx);
+    json_extract_all::register_all(ctx);
+    json_keys::register_all(ctx);
+    json_object::register_all(ctx);
+    json_set::register_all(ctx);
+    json_valid::register_all(ctx);
+    makedate::register_all(ctx);
+    maketime::register_all(ctx);
+    minspan_bucket::register_all(ctx);
+    mvappend::register_all(ctx);
+    mvfind::register_all(ctx);
+    mvzip::register_all(ctx);
+    os_week::register_all(ctx);
+    parse::register_all(ctx);
+    pattern_parser::register_all(ctx);
+    range_bucket::register_all(ctx);
+    rex_extract::register_all(ctx);
+    rex_extract_multi::register_all(ctx);
+    rex_offset::register_all(ctx);
+    sha1::register_all(ctx);
+    span_bucket::register_all(ctx);
+    str_to_date::register_all(ctx);
+    strftime::register_all(ctx);
+    time_format::register_all(ctx);
+    width_bucket::register_all(ctx);
+    reduce_eval::register_all(ctx);
+    // Delegation markers (index_filter = correctness-delegation, delegation_possible =
+    // performance-delegation). Calcite emits these into a shard filter's substrait; they are
+    // unwrapped/executed ONLY on the data-node indexed path. But every session must be able to
+    // PARSE them: a coordinator-reduce session derives the producer (shard) plan's output schema
+    // via derive_schema_from_partial_plan, which builds the producer's physical plan and fails on
+    // an unregistered function. Register here so all sessions can parse; the bodies still error if
+    // ever actually invoked (they never are off the indexed path).
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
+    log::info!(
+        "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, opensearch_extract, from_unixtime, item, json, json_append, json_array, json_array_length, json_delete, json_extend, json_extract, json_extract_all, json_keys, json_object, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, parse, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, width_bucket registered"
+    );
 }
 
 #[cfg(test)]
@@ -146,7 +258,11 @@ mod tests {
             DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
         ] {
             let result = coerce_slot("t", 0, &observed, CoerceMode::TimestampMs).unwrap();
-            assert_eq!(result, ts_ms(), "TimestampMs should canonicalize {observed:?}");
+            assert_eq!(
+                result,
+                ts_ms(),
+                "TimestampMs should canonicalize {observed:?}"
+            );
         }
     }
 
@@ -227,10 +343,10 @@ mod tests {
 
     // ── Utf8 ───────────────────────────────────────────────────────────────
     #[test]
-    fn utf8_accepts_every_string_variant() {
+    fn utf8_passes_string_variant_through_unchanged() {
         for observed in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
             let result = coerce_slot("s", 0, &observed, CoerceMode::Utf8).unwrap();
-            assert_eq!(result, DataType::Utf8);
+            assert_eq!(result, observed, "CoerceMode::Utf8 should pass the variant through");
         }
     }
 

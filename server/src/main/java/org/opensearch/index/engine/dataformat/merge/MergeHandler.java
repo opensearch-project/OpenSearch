@@ -50,6 +50,7 @@ public class MergeHandler {
     private final MergeListener mergeListener;
     private final Merger merger;
     private final Logger logger;
+    private final Supplier<Long> generationProvider;
 
     /**
      * Creates a new merge handler.
@@ -63,13 +64,15 @@ public class MergeHandler {
         Merger merger,
         ShardId shardId,
         MergePolicy mergePolicy,
-        MergeListener mergeListener
+        MergeListener mergeListener,
+        Supplier<Long> generationProvider
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.snapshotSupplier = snapshotSupplier;
         this.mergePolicy = mergePolicy;
         this.mergeListener = mergeListener;
         this.merger = merger;
+        this.generationProvider = generationProvider;
     }
 
     /**
@@ -104,7 +107,22 @@ public class MergeHandler {
             List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
             List<List<Segment>> mergeCandidates = mergePolicy.findForceMergeCandidates(segmentList, maxSegmentCount);
             for (List<Segment> mergeGroup : mergeCandidates) {
-                oneMerges.add(new OneMerge(mergeGroup));
+                boolean hasConflict = false;
+                synchronized (this) {
+                    for (Segment seg : mergeGroup) {
+                        if (currentlyMergingSegments.contains(seg)) {
+                            hasConflict = true;
+                            break;
+                        }
+                    }
+                    if (!hasConflict) {
+                        OneMerge oneMerge = new OneMerge(mergeGroup);
+                        if (registerMerge(oneMerge, false)) {
+                            oneMerges.add(oneMerge);
+                        }
+                    }
+                }
+
             }
         } catch (Exception e) {
             logger.warn("Failed to acquire snapshots", e);
@@ -139,21 +157,28 @@ public class MergeHandler {
      * @param merge the merge to register
      */
     public synchronized void registerMerge(OneMerge merge) {
+        registerMerge(merge, true);
+    }
+
+    private synchronized boolean registerMerge(OneMerge merge, boolean addToPending) {
         try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
             List<Segment> catalogSegments = catalogSnapshotRef.get().getSegments();
             for (Segment mergeSegment : merge.getSegmentsToMerge()) {
                 if (!catalogSegments.contains(mergeSegment)) {
-                    return;
+                    return false;
                 }
             }
         } catch (Exception e) {
             logger.warn("Failed to acquire snapshots", e);
             throw new RuntimeException(e);
         }
-        pendingMerges.add(merge);
+        if (addToPending) { // Skips this for force merges. Avoid 2 workers executing the merge.
+            pendingMerges.add(merge);
+        }
         currentlyMergingSegments.addAll(merge.getSegmentsToMerge());
         mergeListener.addMergingSegment(merge.getSegmentsToMerge());
         logger.debug(() -> new ParameterizedMessage("Registered merge [{}], pendingMerges: [{}]", merge, pendingMerges));
+        return true;
     }
 
     /**
@@ -163,6 +188,15 @@ public class MergeHandler {
      */
     public synchronized boolean hasPendingMerges() {
         return !pendingMerges.isEmpty();
+    }
+
+    /**
+     * Returns the number of pending (queued but not yet started) merges.
+     *
+     * @return the pending merge count
+     */
+    public synchronized int getPendingMergeCount() {
+        return pendingMerges.size();
     }
 
     /**
@@ -190,8 +224,11 @@ public class MergeHandler {
      * @see MergeScheduler — the production caller that enforces this ordering via
      *      {@code applyMergeChanges.accept(mergeResult, oneMerge)} before this call
      */
-    public synchronized void onMergeFinished(OneMerge oneMerge) {
+    public synchronized void onMergeFinished(OneMerge oneMerge, boolean isFrozen) {
         removeMergingSegments(oneMerge);
+        if (isFrozen) {
+            return;
+        }
         findAndRegisterMerges();
     }
 
@@ -213,8 +250,14 @@ public class MergeHandler {
      * @throws IOException if the merge operation fails
      */
     public MergeResult doMerge(OneMerge oneMerge) throws IOException {
-        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).build();
-        return merger.merge(mergeInput);
+        assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merge must have at least one segment";
+        long generation = generationProvider.get();
+        assert generation > 0 : "merge writer generation must be positive but was: " + generation;
+        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).newWriterGeneration(generation).build();
+        MergeResult result = merger.merge(mergeInput);
+        assert result != null : "merger must return a non-null MergeResult";
+        assert result.getMergedWriterFileSet().isEmpty() == false : "merge result must contain at least one format's files";
+        return result;
     }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {

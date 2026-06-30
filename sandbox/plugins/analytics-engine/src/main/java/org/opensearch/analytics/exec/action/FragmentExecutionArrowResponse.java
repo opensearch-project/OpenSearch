@@ -9,7 +9,7 @@
 package org.opensearch.analytics.exec.action;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -24,6 +24,10 @@ public class FragmentExecutionArrowResponse extends ArrowBatchResponse {
 
     public FragmentExecutionArrowResponse(VectorSchemaRoot root) {
         super(root);
+    }
+
+    public FragmentExecutionArrowResponse(VectorSchemaRoot root, byte[] metadata) {
+        super(root, metadata);
     }
 
     public FragmentExecutionArrowResponse(StreamInput in) throws IOException {

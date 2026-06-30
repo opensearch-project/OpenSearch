@@ -8,10 +8,12 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
@@ -48,14 +50,40 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
 
     @Override
     public void close() throws IOException {
+        // Signal cancellation to any in-flight Rust tasks for this query.
+        if (datafusionQuery != null && datafusionQuery.getContextId() != 0) {
+            NativeBridge.cancelQuery(datafusionQuery.getContextId());
+        }
         try {
             if (streamHandle != null) {
                 streamHandle.close();
                 streamHandle = null;
             }
         } finally {
-            engineSearcher.close();
+            try {
+                // Safety net for aborted-search paths: if the SessionContext was created but
+                // executeWithContextAsync never ran (or ran and the context is being closed
+                // without handing off the handle), doClose() calls df_close_session_context.
+                // On the happy path the handle is already marked consumed and this close()
+                // is a no-op.
+                if (sessionContextHandle != null) {
+                    sessionContextHandle.close();
+                    sessionContextHandle = null;
+                }
+            } finally {
+                engineSearcher.close();
+            }
         }
+    }
+
+    /** Returns true if the underlying task has been cancelled. */
+    public boolean isCancelled() {
+        return task instanceof CancellableTask ct && ct.isCancelled();
+    }
+
+    /** Returns the context ID for this query, or 0 if not set. */
+    public long getContextId() {
+        return datafusionQuery != null ? datafusionQuery.getContextId() : 0L;
     }
 
     /**

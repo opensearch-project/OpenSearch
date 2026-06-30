@@ -71,7 +71,7 @@ use roaring::RoaringBitmap;
 
 use super::{LeafBitmapSource, RgEvalContext, TreeEvaluator, TreePrefetch};
 use crate::indexed_table::bool_tree::ResolvedNode;
-use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner};
+use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner, StatsPruneTree};
 use crate::indexed_table::row_selection::{packed_bits_to_boolean_array, PositionMap};
 use datafusion::physical_optimizer::pruning::PruningPredicate;
 
@@ -88,6 +88,8 @@ impl TreeEvaluator for BitmapTreeEvaluator {
         page_pruner: &PagePruner,
         pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
         page_prune_metrics: Option<&PagePruneMetrics>,
+        stats_prune_tree: Option<&StatsPruneTree>,
+        rg_index_to_pos: &HashMap<usize, usize>,
     ) -> Result<TreePrefetch, String> {
         let mut per_leaf = Vec::new();
         let mut dfs_counter = 0usize;
@@ -104,6 +106,8 @@ impl TreeEvaluator for BitmapTreeEvaluator {
             &mut dfs_counter,
             &mut per_leaf,
             /* under_all_and_path */ true,
+            stats_prune_tree,
+            rg_index_to_pos,
         )?;
         Ok(TreePrefetch {
             candidates,
@@ -181,7 +185,30 @@ fn prefetch_node(
     dfs: &mut usize,
     out: &mut Vec<(usize, RoaringBitmap)>,
     under_all_and_path: bool,
+    stats_prune_tree: Option<&StatsPruneTree>,
+    rg_index_to_pos: &HashMap<usize, usize>,
 ) -> Result<RoaringBitmap, String> {
+    // RG-level subtree pruning: if this subtree provably can't match
+    // the current RG, skip the entire tree walk. Since collectors are
+    // always-true in the resolution, a false here means a Predicate
+    // under AND proved no match — collector bitmaps are irrelevant.
+    if let Some(spt) = stats_prune_tree {
+        if let Some(&pos) = rg_index_to_pos.get(&ctx.rg_idx) {
+            if let Some(&false) = spt.rg_can_match.get(pos) {
+                native_bridge_common::log_debug!(
+                    "BitmapTree: skipping subtree for RG {} — pruned by RG-level stats",
+                    ctx.rg_idx
+                );
+                if under_all_and_path {
+                    skip_dfs(node, dfs);
+                } else {
+                    skip_dfs_with_empty_bitmaps(node, dfs, out);
+                }
+                return Ok(RoaringBitmap::new());
+            }
+        }
+    }
+
     match node {
         ResolvedNode::And(children) => {
             let mut indices: Vec<usize> = (0..children.len()).collect();
@@ -207,7 +234,9 @@ fn prefetch_node(
                     page_prune_metrics,
                     dfs,
                     out,
-                    under_all_and_path, // AND preserves the all-AND path
+                    under_all_and_path,
+                    stats_prune_tree.and_then(|spt| spt.children.get(i)),
+                    rg_index_to_pos,
                 )?;
                 result_bitmap = Some(match result_bitmap {
                     None => child_bitmap,
@@ -271,6 +300,8 @@ fn prefetch_node(
                     out,
                     // OR breaks all-AND propagation for its subtree.
                     false,
+                    stats_prune_tree.and_then(|spt| spt.children.get(val)),
+                    rg_index_to_pos,
                 )?;
                 result_bitmap |= &filtered_bitmap;
 
@@ -304,6 +335,8 @@ fn prefetch_node(
                 dfs,
                 out,
                 /* under_all_and_path */ false,
+                stats_prune_tree.and_then(|spt| spt.children.first()),
+                rg_index_to_pos,
             )?;
             // Candidate-stage is a superset. Inverting a superset does
             // NOT yield a superset of the true NOT — it yields a subset
@@ -348,6 +381,19 @@ fn prefetch_node(
                 page_prune_metrics,
             ))
         }
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: DelegationPossible must never appear under OR or NOT.
+            // The Java planner narrows performance peers off any AnnotatedPredicate
+            // sitting under an OR/NOT ancestor — the leaf becomes single-viable on
+            // the operator's backend and the resolver unwraps it natively (plain
+            // Predicate on the Rust side). Reaching this arm means that contract
+            // was violated: a planner bug, not an evaluator gap. Fail loud so the
+            // bug is visible instead of silently giving wrong-shape candidates.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached the Tree-path evaluator. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -391,6 +437,14 @@ fn collect_collector_leaves(
         ResolvedNode::Predicate(_) => {
             *dfs += 1;
         }
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract: planner must
+            // strip performance peers under OR/NOT.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached collect_collector_leaves. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
     Ok(())
 }
@@ -409,6 +463,43 @@ fn skip_dfs(node: &ResolvedNode, dfs: &mut usize) {
         }
         ResolvedNode::Not(child) => skip_dfs(child, dfs),
         ResolvedNode::Collector { .. } | ResolvedNode::Predicate(_) => *dfs += 1,
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached skip_dfs. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
+    }
+}
+
+/// Advance `dfs` and push empty bitmaps for each Collector leaf without
+/// making FFM calls. Used when a subtree is pruned by RG-level stats but
+/// refinement may still run (OR/NOT ancestor) — ensures the side-table
+/// has entries so refinement doesn't panic on missing keys.
+fn skip_dfs_with_empty_bitmaps(
+    node: &ResolvedNode,
+    dfs: &mut usize,
+    out: &mut Vec<(usize, RoaringBitmap)>,
+) {
+    match node {
+        ResolvedNode::And(children) | ResolvedNode::Or(children) => {
+            for c in children {
+                skip_dfs_with_empty_bitmaps(c, dfs, out);
+            }
+        }
+        ResolvedNode::Not(child) => skip_dfs_with_empty_bitmaps(child, dfs, out),
+        ResolvedNode::Collector { collector, .. } => {
+            *dfs += 1;
+            let key = Arc::as_ptr(collector) as *const () as usize;
+            out.push((key, RoaringBitmap::new()));
+        }
+        ResolvedNode::Predicate(_) => *dfs += 1,
+        ResolvedNode::DelegationPossible { .. } => {
+            unimplemented!(
+                "invariant violation: DelegationPossible reached skip_dfs_with_empty_bitmaps."
+            )
+        }
     }
 }
 
@@ -632,6 +723,13 @@ pub(crate) fn subtree_cost(
             .iter()
             .map(|c| subtree_cost(c, ctx, page_pruner, pruning_predicates))
             .sum(),
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached subtree_cost. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -644,6 +742,13 @@ fn subtree_has_predicate(node: &ResolvedNode) -> bool {
         ResolvedNode::Collector { .. } => false,
         ResolvedNode::And(cs) | ResolvedNode::Or(cs) => cs.iter().any(subtree_has_predicate),
         ResolvedNode::Not(c) => subtree_has_predicate(c),
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached subtree_has_predicate. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -756,6 +861,13 @@ fn on_batch_node(
             ))
         }
         ResolvedNode::Predicate(expr) => predicate_to_batch_mask(batch, expr),
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached on_batch_node. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -840,10 +952,10 @@ fn predicate_to_batch_mask(
     expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
 ) -> Result<BooleanArray, String> {
     // Fast-path: detect `col OP literal` and call the kernel directly.
-    if let Some(bin) = expr.as_any().downcast_ref::<BinaryExpr>() {
+    if let Some(bin) = expr.downcast_ref::<BinaryExpr>() {
         if let (Some(col), Some(lit)) = (
-            bin.left().as_any().downcast_ref::<PhysColumn>(),
-            bin.right().as_any().downcast_ref::<Literal>(),
+            bin.left().downcast_ref::<PhysColumn>(),
+            bin.right().downcast_ref::<Literal>(),
         ) {
             match batch.column_by_name(col.name()) {
                 None => {
@@ -894,7 +1006,13 @@ fn evaluate_via_df(
         }
     }
 
-    let result = expr
+    // Reseat Column indices to the batch's projected schema by name.
+    // Substrait-decoded predicates carry indices into the full table schema;
+    // delivered batches are projected (only predicate columns), so the
+    // indices need to be remapped before `evaluate(batch)` reads them.
+    let remapped = super::remap_expr_to_batch(expr, batch)?;
+
+    let result = remapped
         .evaluate(batch)
         .map_err(|e| format!("expr.evaluate: {}", e))?;
     match result {
@@ -1100,7 +1218,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
         assert_eq!(result.per_leaf.len(), 2);
@@ -1114,7 +1232,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
         assert_eq!(result.candidates, bm(&[1, 2, 3]));
     }
@@ -1127,7 +1245,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
         // Universe is [0, 16). Minus {0,1,2} = {3..15}
         let expected: RoaringBitmap = (3u32..16).collect();
@@ -1142,7 +1260,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let state = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
 
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
@@ -1402,7 +1520,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1442,7 +1560,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
         // OR contributes {5} from standalone_leaf → non-empty candidates.
         assert!(!result.candidates.is_empty());
@@ -1480,7 +1598,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
             .unwrap();
         // NOT inverts empty AND → universe.
         assert_eq!(result.candidates.len(), 16);
@@ -1511,7 +1629,9 @@ mod tests {
             subtree_cost(&test_predicate_node(), &ctx, &pruner, &pp),
             ctx.cost_predicate * COST_SCALE
         );
-        assert_eq!(subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp), ctx.cost_collector * COST_SCALE);
+        assert_eq!(
+            subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp), ctx.cost_collector * COST_SCALE
+        );
     }
 
     #[test]
@@ -1520,7 +1640,9 @@ mod tests {
         let pruner = empty_pruner();
         let pp = HashMap::new();
         let wrapped = ResolvedNode::Not(Box::new(test_predicate_node()));
-        assert_eq!(subtree_cost(&wrapped, &ctx, &pruner, &pp), ctx.cost_predicate * COST_SCALE);
+        assert_eq!(
+            subtree_cost(&wrapped, &ctx, &pruner, &pp), ctx.cost_predicate * COST_SCALE
+        );
     }
 
     #[test]
@@ -1665,5 +1787,350 @@ mod tests {
         ctx.collector_strategy = super::super::CollectorCallStrategy::PageRangeSplit;
         let bm = RoaringBitmap::new();
         assert_eq!(ranges_from_bitmap(&bm, &ctx), vec![]);
+    }
+
+    // ── StatsPruneTree subtree pruning in prefetch ─────────────────────
+
+    fn prune_tree_leaf(can_match: Vec<bool>) -> StatsPruneTree {
+        StatsPruneTree {
+            rg_can_match: can_match,
+            children: vec![],
+        }
+    }
+
+    fn prune_tree_and(
+        children: Vec<StatsPruneTree>,
+    ) -> StatsPruneTree {
+        let mut rg_can_match = vec![true; children[0].rg_can_match.len()];
+        for c in &children {
+            for (r, v) in rg_can_match.iter_mut().zip(c.rg_can_match.iter()) {
+                *r &= v;
+            }
+        }
+        StatsPruneTree {
+            rg_can_match,
+            children,
+        }
+    }
+
+    fn prune_tree_or(
+        children: Vec<StatsPruneTree>,
+    ) -> StatsPruneTree {
+        let mut rg_can_match = vec![false; children[0].rg_can_match.len()];
+        for c in &children {
+            for (r, v) in rg_can_match.iter_mut().zip(c.rg_can_match.iter()) {
+                *r |= v;
+            }
+        }
+        StatsPruneTree {
+            rg_can_match,
+            children,
+        }
+    }
+
+    #[test]
+    fn stats_prune_tree_root_and_false_skips_entire_rg() {
+        let tree = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[1, 2, 3]), bm(&[3, 4, 5])],
+        };
+        let pruner = empty_pruner();
+        let spt = prune_tree_and(vec![
+            prune_tree_leaf(vec![false]),
+            prune_tree_leaf(vec![true]),
+        ]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        assert!(result.candidates.is_empty());
+    }
+
+    #[test]
+    fn stats_prune_tree_or_skips_false_child() {
+        let tree = ResolvedNode::Or(vec![collector_leaf(0), collector_leaf(1)]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[10, 11, 12]), bm(&[3, 4])],
+        };
+        let pruner = empty_pruner();
+        let spt = prune_tree_or(vec![
+            prune_tree_leaf(vec![false]),
+            prune_tree_leaf(vec![true]),
+        ]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        assert_eq!(result.candidates, bm(&[3, 4]));
+    }
+
+    #[test]
+    fn stats_prune_tree_and_child_false_short_circuits() {
+        let tree = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[1, 2, 3]), bm(&[99])],
+        };
+        let pruner = empty_pruner();
+        let spt = prune_tree_and(vec![
+            prune_tree_leaf(vec![true]),
+            prune_tree_leaf(vec![false]),
+        ]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        assert!(result.candidates.is_empty());
+    }
+
+    #[test]
+    fn stats_prune_tree_nested_or_under_and() {
+        // AND(OR(collector0, collector1), collector2)
+        // Cost sort: collector2 (cost=10k) first, OR subtree (cost=20k) second.
+        // DFS order after sort: collector2=0, OR-child0=1(skipped), OR-child1=2.
+        let tree = ResolvedNode::And(vec![
+            ResolvedNode::Or(vec![collector_leaf(0), collector_leaf(1)]),
+            collector_leaf(2),
+        ]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[3, 4, 5]), bm(&[99]), bm(&[3, 4, 5, 6])],
+        };
+        let pruner = empty_pruner();
+        let or_spt = prune_tree_or(vec![
+            prune_tree_leaf(vec![false]),
+            prune_tree_leaf(vec![true]),
+        ]);
+        let spt = prune_tree_and(vec![or_spt, prune_tree_leaf(vec![true])]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        // collector2 (dfs=0) → {3,4,5}; OR-child1 (dfs=2) → {3,4,5,6}; OR = {3,4,5,6}
+        // AND = {3,4,5} ∩ {3,4,5,6} = {3,4,5}
+        assert_eq!(result.candidates, bm(&[3, 4, 5]));
+    }
+
+    #[test]
+    fn stats_prune_tree_or_all_children_false() {
+        let tree = ResolvedNode::And(vec![
+            ResolvedNode::Or(vec![collector_leaf(0), collector_leaf(1)]),
+            collector_leaf(2),
+        ]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[1, 2]), bm(&[3, 4]), bm(&[5, 6])],
+        };
+        let pruner = empty_pruner();
+        let or_spt = prune_tree_or(vec![
+            prune_tree_leaf(vec![false]),
+            prune_tree_leaf(vec![false]),
+        ]);
+        let spt = prune_tree_and(vec![or_spt, prune_tree_leaf(vec![true])]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        assert!(result.candidates.is_empty());
+    }
+
+    #[test]
+    fn stats_prune_tree_none_evaluates_normally() {
+        let tree = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[1, 2, 3, 4]), bm(&[3, 4, 5])],
+        };
+        let pruner = empty_pruner();
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .unwrap();
+        assert_eq!(result.candidates, bm(&[3, 4]));
+    }
+
+    /// When `rg_idx` is an absolute index not present in the reverse map,
+    /// the subtree must NOT be pruned (conservative: can-match). This
+    /// exercises the offset RG scenario where a chunk doesn't start at 0.
+    #[test]
+    fn stats_prune_tree_offset_rg_idx_not_in_map_does_not_prune() {
+        // Tree: AND(collector0, collector1) with spt root saying position 0 = false.
+        // But rg_idx=5 is NOT in the reverse map → should NOT prune.
+        let tree = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[1, 2, 3]), bm(&[2, 3, 4])],
+        };
+        let pruner = empty_pruner();
+        let spt = prune_tree_and(vec![
+            prune_tree_leaf(vec![false]),
+            prune_tree_leaf(vec![true]),
+        ]);
+        // Map has {0→0} but ctx.rg_idx=5 → not in map → no pruning.
+        let rg_map = HashMap::from([(0usize, 0usize)]);
+        let mut ctx = test_ctx();
+        ctx.rg_idx = 5;
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &ctx, &leaves, &pruner, &HashMap::new(), None, Some(&spt), &rg_map)
+            .unwrap();
+        // Not pruned — both collectors contribute.
+        assert_eq!(result.candidates, bm(&[2, 3]));
+    }
+
+    /// When `rg_idx` IS in the reverse map and maps to a position where
+    /// `rg_can_match[pos] == false`, the subtree is correctly pruned.
+    #[test]
+    fn stats_prune_tree_offset_rg_idx_in_map_prunes_correctly() {
+        let tree = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[1, 2, 3]), bm(&[2, 3, 4])],
+        };
+        let pruner = empty_pruner();
+        // rg_can_match has 3 positions: [true, false, true]
+        // RG indices [2,3,4] → map: {2→0, 3→1, 4→2}
+        let spt = prune_tree_and(vec![
+            prune_tree_leaf(vec![true, false, true]),
+            prune_tree_leaf(vec![true, true, true]),
+        ]);
+        let rg_map = HashMap::from([(2usize, 0usize), (3, 1), (4, 2)]);
+        // rg_idx=3 → pos=1 → root rg_can_match[1] = false (from AND) → pruned
+        let mut ctx = test_ctx();
+        ctx.rg_idx = 3;
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &ctx, &leaves, &pruner, &HashMap::new(), None, Some(&spt), &rg_map)
+            .unwrap();
+        assert!(result.candidates.is_empty());
+    }
+
+    /// Regression: when an AND subtree under an OR is stats-pruned because
+    /// a native Predicate leaf proves no-match via column stats, all
+    /// Collector leaves inside the same subtree must still get empty bitmap
+    /// entries in `per_leaf`. Otherwise on_batch refinement panics with
+    /// "leaf bitmap missing for key".
+    ///
+    /// Realistic tree shape (mirrors a PPL query like
+    /// `WHERE (GoodEvent=1 AND (match(Title,'x') OR Age>18)) OR match(URL,'y')`):
+    /// ```text
+    ///           OR
+    ///          /   \
+    ///        AND    coll2
+    ///       /   \
+    ///   Predicate  OR(coll0, coll1)
+    /// ```
+    /// Stats prune: AND subtree → false (Predicate child proves no-match).
+    /// coll0 and coll1 inside the pruned AND must still get empty per_leaf
+    /// entries since coll2 survives → candidates non-empty → refinement runs.
+    #[test]
+    fn stats_prune_under_or_materialises_empty_bitmaps_for_collectors() {
+        use datafusion::physical_expr::expressions::Literal;
+        use datafusion::common::ScalarValue;
+        let always_true_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
+
+        // OR(AND(Predicate, OR(coll0, coll1)), coll2)
+        let tree = ResolvedNode::Or(vec![
+            ResolvedNode::And(vec![
+                ResolvedNode::Predicate(always_true_expr),
+                ResolvedNode::Or(vec![collector_leaf(0), collector_leaf(1)]),
+            ]),
+            collector_leaf(2),
+        ]);
+        // DFS order by cost-sorted evaluation:
+        //   OR sorts: coll2 (cost=10) before AND(Pred+OR) (cost=1+20=21)
+        //   So: coll2 dfs=0, then AND subtree (pruned): Predicate dfs=1, coll0 dfs=2, coll1 dfs=3
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[5, 6, 7]), bm(&[99]), bm(&[99]), bm(&[99])],
+        };
+        let pruner = empty_pruner();
+        // Stats: AND subtree = false (Predicate child stats=false), coll2 = true
+        let and_spt = prune_tree_and(vec![
+            prune_tree_leaf(vec![false]),  // Predicate
+            prune_tree_or(vec![           // OR(coll0, coll1)
+                prune_tree_leaf(vec![true]),
+                prune_tree_leaf(vec![true]),
+            ]),
+        ]);
+        let spt = prune_tree_or(vec![and_spt, prune_tree_leaf(vec![true])]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        // AND subtree pruned → empty; coll2 → {5,6,7}; OR = {5,6,7}
+        assert_eq!(result.candidates, bm(&[5, 6, 7]));
+        // Critical: both collector leaves from pruned subtree must have
+        // per_leaf entries (empty bitmaps) so refinement doesn't panic.
+        // coll2 (dfs=0) → real bitmap; coll0 (dfs=2), coll1 (dfs=3) → empty.
+        assert_eq!(
+            result.per_leaf.len(),
+            3,
+            "stats-pruned collectors under OR must still have per_leaf entries; got {}",
+            result.per_leaf.len()
+        );
+        // coll2 (dfs=0) gets real bitmap
+        assert!(!result.per_leaf[0].1.is_empty(), "coll2 should have non-empty bitmap");
+        // coll0 (dfs=2) and coll1 (dfs=3) get empty bitmaps from pruned subtree
+        assert!(result.per_leaf[1].1.is_empty(), "pruned coll0 should have empty bitmap");
+        assert!(result.per_leaf[2].1.is_empty(), "pruned coll1 should have empty bitmap");
+    }
+
+    /// Same scenario but deeper — mirrors a query like:
+    /// `WHERE (GoodEvent=1 AND Income>0 AND (match(T,'x') OR Age>18)) OR (match(S,'buy') AND CounterID>100)`
+    ///
+    /// ```text
+    ///              AND (root)
+    ///             /         \
+    ///         coll3          OR
+    ///                       /   \
+    ///                     AND    coll2
+    ///                    /   \
+    ///              Predicate  OR(coll0, coll1)
+    /// ```
+    /// The inner AND subtree is stats-pruned (Predicate proves no-match).
+    /// coll0 and coll1 must still get empty per_leaf entries.
+    #[test]
+    fn stats_prune_deep_or_under_and_materialises_all_collector_bitmaps() {
+        use datafusion::physical_expr::expressions::Literal;
+        use datafusion::common::ScalarValue;
+        let pred_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
+
+        // AND(coll3, OR(AND(Predicate, OR(coll0, coll1)), coll2))
+        let tree = ResolvedNode::And(vec![
+            collector_leaf(3),
+            ResolvedNode::Or(vec![
+                ResolvedNode::And(vec![
+                    ResolvedNode::Predicate(pred_expr),
+                    ResolvedNode::Or(vec![collector_leaf(0), collector_leaf(1)]),
+                ]),
+                collector_leaf(2),
+            ]),
+        ]);
+        // Cost sort at root AND: coll3(10) before OR(10+1+20=31)
+        // Cost sort at OR: coll2(10) before AND(Pred+OR=1+20=21)
+        // DFS: coll3=0, coll2=1, Predicate=2, coll0=3, coll1=4
+        let leaves = FixedLeafBitmaps {
+            bitmaps: vec![bm(&[5, 6, 7, 8]), bm(&[6, 7, 8]), bm(&[99]), bm(&[99]), bm(&[99])],
+        };
+        let pruner = empty_pruner();
+        // Stats: outer AND[coll3=true, OR=true]
+        //   OR[inner AND=false (pruned), coll2=true]
+        //     inner AND[Predicate=false, OR(coll0=true, coll1=true)]
+        let inner_and_spt = prune_tree_and(vec![
+            prune_tree_leaf(vec![false]),  // Predicate stats=false
+            prune_tree_or(vec![
+                prune_tree_leaf(vec![true]),
+                prune_tree_leaf(vec![true]),
+            ]),
+        ]);
+        let or_spt = prune_tree_or(vec![inner_and_spt, prune_tree_leaf(vec![true])]);
+        let spt = prune_tree_and(vec![prune_tree_leaf(vec![true]), or_spt]);
+        let result = BitmapTreeEvaluator
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .unwrap();
+        // coll3={5,6,7,8}; OR: inner AND pruned→empty, coll2={6,7,8}; OR={6,7,8}
+        // Final AND = {5,6,7,8} ∩ {6,7,8} = {6,7,8}
+        assert_eq!(result.candidates, bm(&[6, 7, 8]));
+        // All 4 collector leaves must have per_leaf entries (coll3, coll2 real;
+        // coll0, coll1 empty from skip_dfs_with_empty_bitmaps).
+        assert_eq!(
+            result.per_leaf.len(),
+            4,
+            "expected 4 per_leaf entries; got {}",
+            result.per_leaf.len()
+        );
+        // coll3 (dfs=0) and coll2 (dfs=1) are real
+        assert!(!result.per_leaf[0].1.is_empty(), "coll3 should have non-empty bitmap");
+        assert!(!result.per_leaf[1].1.is_empty(), "coll2 should have non-empty bitmap");
+        // coll0 (dfs=3) and coll1 (dfs=4) are empty from pruned subtree
+        assert!(result.per_leaf[2].1.is_empty(), "pruned coll0 should have empty bitmap");
+        assert!(result.per_leaf[3].1.is_empty(), "pruned coll1 should have empty bitmap");
     }
 }

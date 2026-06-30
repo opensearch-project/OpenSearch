@@ -1,0 +1,19 @@
+{
+  "schema": [
+    {
+      "name": "unique_cats",
+      "type": "array"
+    }
+  ],
+  "datarows": [
+    [
+      [
+        "A",
+        "B",
+        "C"
+      ]
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

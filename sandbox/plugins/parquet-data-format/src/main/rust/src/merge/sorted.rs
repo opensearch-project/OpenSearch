@@ -13,13 +13,16 @@ use std::sync::Arc;
 use arrow::datatypes::Schema as ArrowSchema;
 use parquet::schema::types::SchemaDescriptor;
 
-use crate::{log_debug, log_info};
+use crate::log_debug;
 
 use super::context::MergeContext;
 use super::cursor::FileCursor;
 use super::heap::{cmp_sort_values, get_sort_values, HeapItem};
 use super::io_task::get_merge_pool;
 use super::schema::ColumnMapping;
+
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
+use crate::memory::merge_pool;
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
 pub fn merge_sorted(
@@ -29,7 +32,23 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
-) -> super::MergeResult<u32> {
+    output_writer_generation: i64,
+) -> super::MergeResult<super::MergeOutput> {
+    let mut reservation = MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
+    merge_sorted_with_pool(input_files, output_path, index_name, sort_columns, reverse_sorts, nulls_first, output_writer_generation, &mut reservation)
+}
+
+/// Performs a streaming k-way merge using the provided memory reservation.
+pub fn merge_sorted_with_pool(
+    input_files: &[String],
+    output_path: &str,
+    index_name: &str,
+    sort_columns: &[String],
+    reverse_sorts: &[bool],
+    nulls_first: &[bool],
+    output_writer_generation: i64,
+    reservation: &mut MemoryReservation,
+) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
         .map(|r| r.clone())
@@ -38,8 +57,11 @@ pub fn merge_sorted(
     let output_flush_rows = config.get_row_group_max_rows();
     let rayon_threads = config.get_merge_rayon_threads();
     let io_threads = config.get_merge_io_threads();
+    let deferred_threshold = config.get_merge_deferred_column_threshold();
     if input_files.is_empty() {
-        return Ok(0);
+        return Err(super::MergeError::Logic(
+            "merge_sorted called with empty input_files".into(),
+        ));
     }
 
     if sort_columns.is_empty() {
@@ -73,19 +95,24 @@ pub fn merge_sorted(
     let mut cursors: Vec<FileCursor> = Vec::with_capacity(input_files.len());
     let mut arrow_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
     let mut parquet_descriptors: Vec<SchemaDescriptor> = Vec::with_capacity(input_files.len());
+    let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
+    let mut file_row_counts: Vec<usize> = Vec::with_capacity(input_files.len());
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
-        let (cursor, projected_schema, parquet_descr) =
-            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size)?;
+        let (cursor, projected_schema, parquet_descr, generation, row_count) =
+            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size, deferred_threshold, reservation)?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
         parquet_descriptors.push(parquet_descr);
+        file_generations.push(generation);
+        file_row_counts.push(row_count);
     }
 
     let num_cursors = cursors.len();
 
     // ── Phase 2: Create MergeContext (union schemas, writer, IO task) ───
+    let ctx_reservation = reservation.child("merge:flush");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
         &parquet_descriptors,
@@ -94,12 +121,38 @@ pub fn merge_sorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
+        ctx_reservation,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
     let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
+
+    // Row-ID mapping: pre-allocate the flat mapping array and compute offsets
+    // from file metadata row counts (known before reading any data).
+    let total_rows: usize = file_row_counts.iter().sum();
+    let mapping_bytes = total_rows * std::mem::size_of::<i64>();
+    // Reserve for row-ID mapping Vec<i64> — total_rows × 8 bytes, allocated next line
+    reservation.request(mapping_bytes).map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
+    let mut mapping: Vec<i64> = vec![0i64; total_rows];
+    let mut gen_keys: Vec<i64> = Vec::with_capacity(num_cursors);
+    let mut gen_offsets: Vec<i32> = Vec::with_capacity(num_cursors);
+    let mut gen_sizes: Vec<i32> = Vec::with_capacity(num_cursors);
+
+    let mut offset = 0i32;
+    for file_id in 0..num_cursors {
+        gen_keys.push(file_generations[file_id]);
+        gen_offsets.push(offset);
+        let size = file_row_counts[file_id] as i32;
+        gen_sizes.push(size);
+        offset += size;
+    }
+
+    // Per-file counters: tracks how many rows have been emitted from each file
+    let mut rows_emitted_per_file: Vec<usize> = vec![0; num_cursors];
+    let mut new_row_id: i64 = 0;
 
     log_debug!(
         "[RUST] Merge initialized ({}): {} cursors",
@@ -126,14 +179,20 @@ pub fn merge_sorted(
         // TIER 1: Single cursor remaining — drain it
         if heap.is_empty() {
             let cursor = &mut cursors[file_id];
-            let mapping = &col_mappings[file_id];
+            let col_mapping = &col_mappings[file_id];
+            let file_offset = gen_offsets[file_id] as usize;
             loop {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 if remaining > 0 {
-                    let slice = cursor.take_slice(cursor.row_idx, remaining);
-                    ctx.push_batch(mapping.pad_batch(&slice)?)?;
+                    let slice = cursor.take_slice(cursor.row_idx, remaining, reservation)?;
+                    for _ in 0..remaining {
+                        mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
+                        rows_emitted_per_file[file_id] += 1;
+                        new_row_id += 1;
+                    }
+                    ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
                 }
-                if !cursor.advance_past_batch()? {
+                if !cursor.advance_past_batch(reservation)? {
                     break;
                 }
             }
@@ -142,7 +201,8 @@ pub fn merge_sorted(
 
         // TIER 2 & 3: Multiple cursors active
         let cursor = &mut cursors[file_id];
-        let mapping = &col_mappings[file_id];
+        let col_mapping = &col_mappings[file_id];
+        let file_offset = gen_offsets[file_id] as usize;
 
         loop {
             let heap_top = &heap.peek().unwrap().sort_values;
@@ -151,10 +211,25 @@ pub fn merge_sorted(
             let last_val = cursor.last_sort_values()?;
             if cmp_sort_values(&last_val, heap_top, reverse_sorts) != Ordering::Greater {
                 let remaining = cursor.batch_height() - cursor.row_idx;
-                let slice = cursor.take_slice(cursor.row_idx, remaining);
-                ctx.push_batch(mapping.pad_batch(&slice)?)?;
+                let slice = cursor.take_slice(cursor.row_idx, remaining, reservation)?;
+                for _ in 0..remaining {
+                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
+                    rows_emitted_per_file[file_id] += 1;
+                    new_row_id += 1;
+                }
+                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
 
-                if !cursor.advance_past_batch()? {
+                if !cursor.advance_past_batch(reservation)? {
+                    break;
+                }
+                // Check if cursor should yield after loading new batch
+                let val = cursor.current_sort_values()?;
+                if cmp_sort_values(&val, heap_top, reverse_sorts) == Ordering::Greater {
+                    heap.push(HeapItem {
+                        sort_values: val,
+                        file_id,
+                        reverse_sorts: Arc::clone(&reverse_sorts_arc),
+                    });
                     break;
                 }
                 continue;
@@ -163,7 +238,7 @@ pub fn merge_sorted(
             // TIER 3: Binary search for the exact boundary
             let run_start = cursor.row_idx;
             let batch_h = cursor.batch_height();
-            let batch = cursor.current_batch.as_ref().unwrap();
+            let batch = cursor.sort_batch.as_ref().unwrap();
 
             let mut lo = run_start;
             let mut hi = batch_h - 1;
@@ -188,38 +263,56 @@ pub fn merge_sorted(
 
             let run_len = run_end - run_start + 1;
             if run_len > 0 {
-                let slice = cursor.take_slice(run_start, run_len);
-                ctx.push_batch(mapping.pad_batch(&slice)?)?;
+                let slice = cursor.take_slice(run_start, run_len, reservation)?;
+                for _ in 0..run_len {
+                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
+                    rows_emitted_per_file[file_id] += 1;
+                    new_row_id += 1;
+                }
+                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
             }
 
             cursor.row_idx = run_end;
-            if !cursor.advance()? {
+            if !cursor.advance(reservation)? {
                 break;
             }
 
-            let next_val = cursor.current_sort_values()?;
-            if cmp_sort_values(&next_val, heap_top, reverse_sorts) == Ordering::Greater {
-                heap.push(HeapItem {
-                    sort_values: next_val,
-                    file_id,
-                    reverse_sorts: Arc::clone(&reverse_sorts_arc),
-                });
-                break;
-            }
+            // Binary search invariant guarantees cursor.current_value > heap_top
+            // so we always yield here (no need for conditional check)
+            let val = cursor.current_sort_values()?;
+            heap.push(HeapItem {
+                sort_values: val,
+                file_id,
+                reverse_sorts: Arc::clone(&reverse_sorts_arc),
+            });
+            break;
         }
     }
 
     // ── Phase 5: Close ──────────────────────────────────────────────────
-    let (_metadata, crc32) = ctx.finish()?;
+    let stats = ctx.finish()?;
 
     log_debug!(
         "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups, crc32={:#010x}",
         direction_label,
-        _metadata.file_metadata().num_rows(),
+        stats.metadata.file_metadata().num_rows(),
         output_path,
-        _metadata.num_row_groups(),
-        crc32
+        stats.metadata.num_row_groups(),
+        stats.crc32
     );
 
-    Ok(crc32)
+    // Detach mapping from reservation — FFI layer will track via merge_pool().grow
+    reservation.shrink(mapping_bytes);
+
+    Ok(super::MergeOutput {
+        mapping,
+        gen_keys,
+        gen_offsets,
+        gen_sizes,
+        metadata: stats.metadata,
+        crc32: stats.crc32,
+        flush_and_sort_chunk_count: stats.flush_and_sort_chunk_count,
+        flush_and_sort_chunk_time_millis: stats.flush_and_sort_chunk_time_millis,
+        row_id_mapping_max: stats.row_id_mapping_max,
+    })
 }

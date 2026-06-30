@@ -15,7 +15,7 @@
 //! Two flavors:
 //!
 //! - [`BoolNode`] — unresolved. Produced by `expr_to_bool_tree`.
-//!   `Collector` leaves carry the serialized query bytes
+//!   `Collector` leaves carry the annotation ID identifying the delegated predicate
 //!   (as extracted from the `index_filter(bytes)` UDF call);
 //!   `Predicate` leaves carry an arbitrary DataFusion
 //!   [`PhysicalExpr`](datafusion::physical_expr::PhysicalExpr) —
@@ -38,12 +38,23 @@ pub enum BoolNode {
     And(Vec<BoolNode>),
     Or(Vec<BoolNode>),
     Not(Box<BoolNode>),
-    /// index-backend query payload. The caller (typically the indexed_executor)
-    /// upcalls into Java with these bytes at query-resolve time to get a
-    /// `provider_key`, then creates per-segment collectors. Bytes are opaque
-    /// to Rust; only the Java factory knows how to interpret them.
+    /// Correctness-delegated predicate — only the peer backend can evaluate it.
+    /// At query-resolve time, the indexed executor upcalls into Java with this ID
+    /// to get a `provider_key`, then creates per-segment collectors. The annotation
+    /// ID maps to a pre-compiled query on the Java side (via FilterDelegationHandle).
     Collector {
-        query_bytes: Arc<[u8]>,
+        annotation_id: i32,
+    },
+    /// Performance-delegated predicate — both the driving backend AND a peer can
+    /// evaluate it. The driving backend evaluates `original_expr` natively for its
+    /// own page-stat pruning and pushdown; at per-RG time it MAY consult the peer
+    /// (via `annotation_id`) when its own pruning isn't selective enough. Provider
+    /// creation is lazy — done by the evaluator on first consult, not at resolve
+    /// time. See {@code FragmentConversionDriver}'s performance branch for emit
+    /// shape.
+    DelegationPossible {
+        annotation_id: i32,
+        original_expr: Arc<dyn PhysicalExpr>,
     },
     /// Arbitrary boolean-valued DataFusion expression. At refinement
     /// time, `expr.evaluate(batch)` produces the per-row mask; at page-
@@ -53,8 +64,10 @@ pub enum BoolNode {
 }
 
 /// Resolved tree. `Collector` leaves carry the provider-key returned by the
-/// Java factory plus the concrete collector reference; `Predicate` leaves
-/// carry the same `Arc<dyn PhysicalExpr>` as [`BoolNode::Predicate`].
+/// Java factory plus the concrete collector reference; `DelegationPossible`
+/// leaves carry the unresolved annotation ID + original expression (provider
+/// creation is deferred to the evaluator); `Predicate` leaves carry the same
+/// `Arc<dyn PhysicalExpr>` as [`BoolNode::Predicate`].
 #[derive(Debug)]
 pub enum ResolvedNode {
     And(Vec<ResolvedNode>),
@@ -64,11 +77,20 @@ pub enum ResolvedNode {
         provider_key: i32,
         collector: Arc<dyn RowGroupDocsCollector>,
     },
+    /// Performance-delegated leaf carried unresolved through `BoolNode::resolve`.
+    /// The evaluator decides per-RG whether to consult the peer; provider
+    /// creation happens lazily on first consult via {@code OnceLock}.
+    DelegationPossible {
+        annotation_id: i32,
+        original_expr: Arc<dyn PhysicalExpr>,
+    },
     Predicate(Arc<dyn PhysicalExpr>),
 }
 
 impl BoolNode {
     /// Count `Collector` leaf occurrences in the tree (DFS).
+    /// `DelegationPossible` leaves are NOT counted — they don't pair with
+    /// a provider at resolve time (provider creation is lazy in the evaluator).
     pub fn collector_leaf_count(&self) -> usize {
         match self {
             BoolNode::And(children) | BoolNode::Or(children) => {
@@ -76,7 +98,52 @@ impl BoolNode {
             }
             BoolNode::Not(child) => child.collector_leaf_count(),
             BoolNode::Collector { .. } => 1,
+            BoolNode::DelegationPossible { .. } => 0,
             BoolNode::Predicate(_) => 0,
+        }
+    }
+
+    /// Count `DelegationPossible` (performance-delegated) leaves in the tree (DFS).
+    /// Used by `classify_filter` to disqualify trees where a Performance leaf
+    /// sits under OR/NOT — those need Tree-path support which isn't implemented
+    /// yet (Phase 7 fast-follow).
+    pub fn delegation_possible_leaf_count(&self) -> usize {
+        match self {
+            BoolNode::And(children) | BoolNode::Or(children) => {
+                children.iter().map(|c| c.delegation_possible_leaf_count()).sum()
+            }
+            BoolNode::Not(child) => child.delegation_possible_leaf_count(),
+            BoolNode::DelegationPossible { .. } => 1,
+            BoolNode::Collector { .. } => 0,
+            BoolNode::Predicate(_) => 0,
+        }
+    }
+
+    /// Return `(annotation_id, original_expr)` for each `DelegationPossible`
+    /// leaf in DFS order. Caller pairs these positionally with a parallel
+    /// `Vec<Arc<OnceLock<ProviderHandle>>>` (one lock per leaf) to drive lazy
+    /// peer-backend consultation in the evaluator.
+    pub fn delegation_possible_leaves(&self) -> Vec<(i32, Arc<dyn PhysicalExpr>)> {
+        let mut out = Vec::new();
+        self.collect_delegation_possible_leaves(&mut out);
+        out
+    }
+
+    fn collect_delegation_possible_leaves(&self, out: &mut Vec<(i32, Arc<dyn PhysicalExpr>)>) {
+        match self {
+            BoolNode::And(children) | BoolNode::Or(children) => {
+                for c in children {
+                    c.collect_delegation_possible_leaves(out);
+                }
+            }
+            BoolNode::Not(child) => child.collect_delegation_possible_leaves(out),
+            BoolNode::DelegationPossible {
+                annotation_id,
+                original_expr,
+            } => {
+                out.push((*annotation_id, Arc::clone(original_expr)));
+            }
+            BoolNode::Collector { .. } | BoolNode::Predicate(_) => {}
         }
     }
 
@@ -91,13 +158,13 @@ impl BoolNode {
     /// `resolve` (via the `*next` index) relies on this invariant; if you
     /// change one traversal you MUST change the other in lockstep, or
     /// collector-to-leaf matching will silently become wrong.
-    pub fn collector_leaves(&self) -> Vec<Arc<[u8]>> {
+    pub fn collector_leaves(&self) -> Vec<i32> {
         let mut out = Vec::new();
         self.collect_leaves(&mut out);
         out
     }
 
-    fn collect_leaves(&self, out: &mut Vec<Arc<[u8]>>) {
+    fn collect_leaves(&self, out: &mut Vec<i32>) {
         match self {
             BoolNode::And(children) | BoolNode::Or(children) => {
                 for c in children {
@@ -105,10 +172,38 @@ impl BoolNode {
                 }
             }
             BoolNode::Not(child) => child.collect_leaves(out),
-            BoolNode::Collector { query_bytes } => {
-                out.push(Arc::clone(query_bytes));
+            BoolNode::Collector { annotation_id } => {
+                out.push(*annotation_id);
+            }
+            BoolNode::DelegationPossible { .. } => {
+                // Performance leaves do not participate in eager provider/collector
+                // pairing — the evaluator creates providers lazily per-RG.
             }
             BoolNode::Predicate(_) => {}
+        }
+    }
+
+    /// Demote every `DelegationPossible` leaf to a plain native `Predicate`. Called for
+    /// `FilterClass::Tree` plans (any OR/NOT), whose evaluator can't run `DelegationPossible`.
+    /// The coordinator never puts perf directly under OR/NOT, but an AND-side perf leaf can ride
+    /// in a tree that still has a surviving OR/NOT (e.g. `tag=a AND (dual OR native)`); demoting
+    /// it to native keeps results correct, just skipping the opportunistic peer consult.
+    ///
+    /// FIXME: move this Tree-classification awareness into the coordinator so it never emits a
+    /// `delegation_possible` that reaches a Tree plan; then this method goes away and the
+    /// evaluator arms can throw. Pairs with implementing performance delegation under OR/NOT in
+    /// the Tree-path evaluator.
+    pub fn demote_delegation_possible(self) -> BoolNode {
+        match self {
+            BoolNode::And(children) => {
+                BoolNode::And(children.into_iter().map(|c| c.demote_delegation_possible()).collect())
+            }
+            BoolNode::Or(children) => {
+                BoolNode::Or(children.into_iter().map(|c| c.demote_delegation_possible()).collect())
+            }
+            BoolNode::Not(child) => BoolNode::Not(Box::new(child.demote_delegation_possible())),
+            BoolNode::DelegationPossible { original_expr, .. } => BoolNode::Predicate(original_expr),
+            leaf @ (BoolNode::Collector { .. } | BoolNode::Predicate(_)) => leaf,
         }
     }
 
@@ -167,7 +262,7 @@ impl BoolNode {
     /// `(column, op, value)`.
     ///
     /// Caller is responsible for creating the collectors — typically by
-    /// upcalling Java `createProvider(query_bytes)` per leaf to get a
+    /// upcalling Java `createProvider(annotation_id)` per leaf to get a
     /// `provider_key`, then `createCollector(provider_key, seg, min, max)`
     /// per chunk.
     ///
@@ -233,6 +328,13 @@ impl BoolNode {
                     collector: Arc::clone(collector),
                 })
             }
+            BoolNode::DelegationPossible {
+                annotation_id,
+                original_expr,
+            } => Ok(ResolvedNode::DelegationPossible {
+                annotation_id: *annotation_id,
+                original_expr: Arc::clone(original_expr),
+            }),
             BoolNode::Predicate(expr) => Ok(ResolvedNode::Predicate(Arc::clone(expr))),
         }
     }
@@ -251,7 +353,7 @@ fn try_negate_cmp_expr(
     use datafusion::logical_expr::Operator;
     use datafusion::physical_expr::expressions::BinaryExpr;
 
-    let bin = expr.as_any().downcast_ref::<BinaryExpr>()?;
+    let bin = expr.downcast_ref::<BinaryExpr>()?;
     let flipped = match *bin.op() {
         Operator::Eq => Operator::NotEq,
         Operator::NotEq => Operator::Eq,
@@ -338,6 +440,10 @@ pub fn residual_bool_to_physical_expr(
             Some(Arc::new(NotExpr::new(inner)))
         }
         BoolNode::Collector { .. } => None,
+        // Performance-delegated leaves contribute their original expression to the
+        // residual — the driving backend evaluates them natively. Optional peer
+        // consultation is handled in the evaluator, not in the residual.
+        BoolNode::DelegationPossible { original_expr, .. } => Some(Arc::clone(original_expr)),
     }
 }
 
@@ -363,9 +469,9 @@ mod tests {
         }
     }
 
-    fn collector(bytes: &[u8]) -> BoolNode {
+    fn collector(id: i32) -> BoolNode {
         BoolNode::Collector {
-            query_bytes: Arc::from(bytes),
+            annotation_id: id,
         }
     }
 
@@ -382,8 +488,8 @@ mod tests {
     #[test]
     fn leaf_count_counts_only_collectors() {
         let tree = BoolNode::And(vec![
-            collector(b"a"),
-            BoolNode::Or(vec![collector(b"b"), predicate("x", Operator::Eq, 1)]),
+            collector(0),
+            BoolNode::Or(vec![collector(1), predicate("x", Operator::Eq, 1)]),
             predicate("y", Operator::Eq, 2),
         ]);
         assert_eq!(tree.collector_leaf_count(), 2);
@@ -392,21 +498,21 @@ mod tests {
     #[test]
     fn leaves_dfs_order() {
         let tree = BoolNode::And(vec![
-            collector(b"x"),
-            BoolNode::Or(vec![collector(b"y"), collector(b"z")]),
+            collector(10),
+            BoolNode::Or(vec![collector(11), collector(12)]),
         ]);
         let leaves = tree.collector_leaves();
         assert_eq!(leaves.len(), 3);
-        assert_eq!(&*leaves[0], b"x");
-        assert_eq!(&*leaves[1], b"y");
-        assert_eq!(&*leaves[2], b"z");
+        assert_eq!(leaves[0], 10);
+        assert_eq!(leaves[1], 11);
+        assert_eq!(leaves[2], 12);
     }
 
     // ── push_not_down (De Morgan) ─────────────────────────────────────
 
     #[test]
     fn not_collector_stays_wrapped() {
-        let tree = BoolNode::Not(Box::new(collector(b"x")));
+        let tree = BoolNode::Not(Box::new(collector(10)));
         let n = tree.push_not_down();
         assert!(matches!(n, BoolNode::Not(b) if matches!(*b, BoolNode::Collector { .. })));
     }
@@ -414,8 +520,8 @@ mod tests {
     #[test]
     fn de_morgan_not_and_to_or() {
         let tree = BoolNode::Not(Box::new(BoolNode::And(vec![
-            collector(b"a"),
-            collector(b"b"),
+            collector(0),
+            collector(1),
         ])));
         match tree.push_not_down() {
             BoolNode::Or(children) => {
@@ -447,7 +553,7 @@ mod tests {
 
     #[test]
     fn double_negation_cancels() {
-        let tree = BoolNode::Not(Box::new(BoolNode::Not(Box::new(collector(b"x")))));
+        let tree = BoolNode::Not(Box::new(BoolNode::Not(Box::new(collector(10)))));
         let n = tree.push_not_down();
         assert!(matches!(n, BoolNode::Collector { .. }));
     }
@@ -455,8 +561,8 @@ mod tests {
     #[test]
     fn nested_not_recurses_through_and_or() {
         let tree = BoolNode::Not(Box::new(BoolNode::And(vec![
-            BoolNode::Or(vec![collector(b"a"), collector(b"b")]),
-            collector(b"c"),
+            BoolNode::Or(vec![collector(0), collector(1)]),
+            collector(2),
         ])));
         match tree.push_not_down() {
             BoolNode::Or(outer) => {
@@ -473,8 +579,8 @@ mod tests {
     #[test]
     fn flatten_collapses_nested_and() {
         let tree = BoolNode::And(vec![
-            BoolNode::And(vec![collector(b"a"), collector(b"b")]),
-            collector(b"c"),
+            BoolNode::And(vec![collector(0), collector(1)]),
+            collector(2),
         ]);
         match tree.flatten() {
             BoolNode::And(children) => {
@@ -490,10 +596,10 @@ mod tests {
     #[test]
     fn flatten_collapses_nested_or() {
         let tree = BoolNode::Or(vec![
-            collector(b"a"),
+            collector(0),
             BoolNode::Or(vec![
-                collector(b"b"),
-                BoolNode::Or(vec![collector(b"c"), collector(b"d")]),
+                collector(1),
+                BoolNode::Or(vec![collector(2), collector(3)]),
             ]),
         ]);
         match tree.flatten() {
@@ -505,9 +611,9 @@ mod tests {
     #[test]
     fn flatten_preserves_mixed_connectives() {
         let tree = BoolNode::And(vec![
-            collector(b"a"),
-            BoolNode::Or(vec![collector(b"b"), collector(b"c")]),
-            BoolNode::And(vec![collector(b"d"), collector(b"e")]),
+            collector(0),
+            BoolNode::Or(vec![collector(1), collector(2)]),
+            BoolNode::And(vec![collector(3), collector(4)]),
         ]);
         match tree.flatten() {
             BoolNode::And(children) => {
@@ -521,8 +627,8 @@ mod tests {
     #[test]
     fn flatten_descends_into_not() {
         let tree = BoolNode::Not(Box::new(BoolNode::And(vec![
-            BoolNode::And(vec![collector(b"a"), collector(b"b")]),
-            collector(b"c"),
+            BoolNode::And(vec![collector(0), collector(1)]),
+            collector(2),
         ])));
         match tree.flatten() {
             BoolNode::Not(inner) => match *inner {
@@ -537,7 +643,7 @@ mod tests {
 
     #[test]
     fn resolve_replaces_collector_bytes_with_refs() {
-        let tree = BoolNode::And(vec![collector(b"a"), collector(b"b")]);
+        let tree = BoolNode::And(vec![collector(0), collector(1)]);
         let a: Arc<dyn RowGroupDocsCollector> = Arc::new(StubCollector(1));
         let b: Arc<dyn RowGroupDocsCollector> = Arc::new(StubCollector(2));
         let resolved = tree.resolve(&[(10, a), (20, b)]).unwrap();
@@ -572,14 +678,14 @@ mod tests {
 
     #[test]
     fn resolve_out_of_range_errors() {
-        let tree = collector(b"x");
+        let tree = collector(10);
         let err = tree.resolve(&[]).unwrap_err();
         assert!(err.contains("out of range"), "got: {}", err);
     }
 
     #[test]
     fn resolve_not_collector_still_wraps() {
-        let tree = BoolNode::Not(Box::new(collector(b"x")));
+        let tree = BoolNode::Not(Box::new(collector(10)));
         let c: Arc<dyn RowGroupDocsCollector> = Arc::new(StubCollector(0));
         let resolved = tree.resolve(&[(1, c)]).unwrap();
         match resolved {
@@ -599,7 +705,6 @@ mod tests {
         match node {
             ResolvedNode::Predicate(expr) => {
                 let bin = expr
-                    .as_any()
                     .downcast_ref::<BinaryExpr>()
                     .expect("expected BinaryExpr leaf");
                 *bin.op()
@@ -631,6 +736,82 @@ mod tests {
             let tree = BoolNode::Not(Box::new(predicate("x", orig, 0)));
             let resolved = tree.resolve(&[]).unwrap();
             assert_eq!(predicate_op(&resolved), expected, "flipping {:?}", orig);
+        }
+    }
+
+    // ── demote_delegation_possible ────────────────────────────────────
+
+    /// Build a DelegationPossible leaf wrapping a comparison expression. The
+    /// expression carried in `original_expr` is what the demotion should produce
+    /// as a Predicate.
+    fn delegation_possible(annotation_id: i32, col: &str, op: Operator, v: i32) -> BoolNode {
+        use datafusion::arrow::datatypes::{DataType, Field, Schema};
+        use datafusion::common::ScalarValue;
+        use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+        use datafusion::physical_expr::PhysicalExpr;
+
+        let schema = Schema::new(vec![Field::new(col, DataType::Int32, false)]);
+        let col_idx = schema.index_of(col).unwrap();
+        let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new(col, col_idx));
+        let right: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(v))));
+        let original_expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(left, op, right));
+        BoolNode::DelegationPossible {
+            annotation_id,
+            original_expr,
+        }
+    }
+
+    #[test]
+    fn demote_under_or_replaces_with_predicate() {
+        let tree = BoolNode::Or(vec![
+            delegation_possible(0, "verb", Operator::Eq, 0),
+            delegation_possible(1, "value", Operator::Gt, 100),
+        ]);
+        let demoted = tree.demote_delegation_possible();
+        match demoted {
+            BoolNode::Or(children) => {
+                assert_eq!(children.len(), 2);
+                for c in &children {
+                    assert!(matches!(c, BoolNode::Predicate(_)), "expected Predicate, got {:?}", c);
+                }
+            }
+            other => panic!("expected Or with two Predicates, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn demote_uniform_includes_under_and_within_tree() {
+        // tag (under root AND) + (verb OR value): all DelegationPossible leaves
+        // demote uniformly, even tag which sits under all-AND ancestors within the
+        // tree. This is the documented v1 trade-off.
+        let tree = BoolNode::And(vec![
+            delegation_possible(0, "tag", Operator::Eq, 0),
+            BoolNode::Or(vec![
+                delegation_possible(1, "verb", Operator::Eq, 0),
+                delegation_possible(2, "value", Operator::Gt, 100),
+            ]),
+        ]);
+        let demoted = tree.demote_delegation_possible();
+        // No DelegationPossible should remain anywhere.
+        assert_eq!(demoted.delegation_possible_leaf_count(), 0);
+    }
+
+    #[test]
+    fn demote_preserves_collectors_and_predicates() {
+        let tree = BoolNode::Or(vec![
+            collector(7),
+            delegation_possible(1, "v", Operator::Gt, 10),
+            predicate("p", Operator::Eq, 5),
+        ]);
+        let demoted = tree.demote_delegation_possible();
+        match demoted {
+            BoolNode::Or(children) => {
+                assert_eq!(children.len(), 3);
+                assert!(matches!(&children[0], BoolNode::Collector { annotation_id: 7 }));
+                assert!(matches!(&children[1], BoolNode::Predicate(_)));
+                assert!(matches!(&children[2], BoolNode::Predicate(_)));
+            }
+            other => panic!("expected Or, got {:?}", other),
         }
     }
 }

@@ -14,7 +14,7 @@ use arrow::datatypes::{
     DataType as ArrowDataType, Date32Type, Date64Type, DurationMicrosecondType,
     DurationMillisecondType, DurationNanosecondType, DurationSecondType, Float32Type, Float64Type,
     Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType,
-    TimestampMillisecondType, TimestampNanosecondType, TimestampSecondType, UInt32Type,
+    TimestampMillisecondType, TimestampNanosecondType, TimestampSecondType,
 };
 
 use super::error::{MergeError, MergeResult};
@@ -138,7 +138,6 @@ pub fn get_sort_value(
         ArrowDataType::Int32 => SortKey::Int(col.as_primitive::<Int32Type>().value(row) as i64),
         ArrowDataType::Int16 => SortKey::Int(col.as_primitive::<Int16Type>().value(row) as i64),
         ArrowDataType::Int8 => SortKey::Int(col.as_primitive::<Int8Type>().value(row) as i64),
-        ArrowDataType::UInt32 => SortKey::Int(col.as_primitive::<UInt32Type>().value(row) as i64),
         ArrowDataType::Date32 => SortKey::Int(col.as_primitive::<Date32Type>().value(row) as i64),
         ArrowDataType::Date64 => SortKey::Int(col.as_primitive::<Date64Type>().value(row)),
         ArrowDataType::Timestamp(unit, _) => SortKey::Int(match unit {

@@ -56,7 +56,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         WorkloadGroupSearchSettings.validate(settings);
         this.resiliencyMode = resiliencyMode;
         this.resourceLimits = resourceLimits;
-        this.settings = settings;
+        this.settings = settings != null ? settings : Settings.EMPTY;
     }
 
     public MutableWorkloadGroupFragment(StreamInput in) throws IOException {
@@ -109,6 +109,10 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
 
     static class SearchSettingsParser implements FieldParser<Settings> {
         public Settings parseField(XContentParser parser) throws IOException {
+            // "settings": null means clear all settings
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return Settings.EMPTY;
+            }
             Settings settings = Settings.fromXContent(parser);
             WorkloadGroupSearchSettings.validate(settings);
             return settings;
@@ -292,6 +296,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
 
     void setSettings(Settings settings) {
         WorkloadGroupSearchSettings.validate(settings);
-        this.settings = settings;
+        this.settings = settings != null ? settings : Settings.EMPTY;
     }
+
 }

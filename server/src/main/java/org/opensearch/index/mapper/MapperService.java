@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -63,6 +64,7 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.ReloadableCustomAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
@@ -262,6 +264,30 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         BooleanSupplier idFieldDataEnabled,
         ScriptService scriptService
     ) {
+        this(
+            indexSettings,
+            indexAnalyzers,
+            xContentRegistry,
+            similarityService,
+            mapperRegistry,
+            queryShardContextSupplier,
+            idFieldDataEnabled,
+            scriptService,
+            null
+        );
+    }
+
+    public MapperService(
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        MapperRegistry mapperRegistry,
+        Supplier<QueryShardContext> queryShardContextSupplier,
+        BooleanSupplier idFieldDataEnabled,
+        ScriptService scriptService,
+        @Nullable DataFormatRegistry dataFormatRegistry
+    ) {
         super(indexSettings);
 
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -273,7 +299,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             similarityService,
             mapperRegistry,
             queryShardContextSupplier,
-            scriptService
+            scriptService,
+            dataFormatRegistry
         );
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
         this.searchAnalyzer = new MapperAnalyzerWrapper(
@@ -846,16 +873,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
-        logger.info("reloading search analyzers");
-        // refresh indexAnalyzers and search analyzers
+        return reloadSearchAnalyzers(registry, false);
+    }
+
+    /**
+     * Reloads search analyzers, optionally reloading cached resources (e.g. hunspell dictionaries) first.
+     *
+     * @param registry The analysis registry
+     * @param reloadCachedResources If true, reloads cached resources (e.g. hunspell dictionaries) before rebuilding analyzers
+     * @return List of reloaded analyzer names
+     */
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, boolean reloadCachedResources) throws IOException {
+        logger.info("reloading search analyzers (reloadCachedResources={})", reloadCachedResources);
+
+        if (reloadCachedResources) {
+            // Reload cached resources BEFORE building new factories so they pick up fresh data
+            for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+                if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer analyzer) {
+                    Arrays.stream(analyzer.getComponents().getTokenFilters()).forEach(TokenFilterFactory::reloadCachedResources);
+                }
+            }
+        }
+
+        // Build new factories — they will load fresh dictionaries from disk
         final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
         final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
         final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
-            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
-                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer analyzer) {
                 String analyzerName = namedAnalyzer.name();
                 Settings analyzerSettings = settings.get(analyzerName);
                 analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);

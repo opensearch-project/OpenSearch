@@ -145,7 +145,7 @@ fn gen_leaf(rng: &mut StdRng, schema: &SchemaRef, num_collectors: usize) -> Bool
     if make_collector {
         let id = rng.gen_range(0..num_collectors) as u8;
         BoolNode::Collector {
-            query_bytes: Arc::from(&[id][..]),
+            annotation_id: id as i32,
         }
     } else {
         gen_predicate_leaf(rng, schema)
@@ -396,10 +396,11 @@ pub(in crate::indexed_table::tests_e2e) fn collect_collector_tags(tree: &BoolNod
         match n {
             BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| walk(c, out)),
             BoolNode::Not(c) => walk(c, out),
-            BoolNode::Collector { query_bytes } => {
-                out.push(query_bytes[0]);
+            BoolNode::Collector { annotation_id } => {
+                out.push(*annotation_id as u8);
             }
             BoolNode::Predicate(_) => {}
+            BoolNode::DelegationPossible { .. } => {}
         }
     }
     let mut out = Vec::new();
@@ -498,7 +499,7 @@ mod tests {
                 cs.iter().for_each(|c| count_fanouts(c, sum, count));
             }
             BoolNode::Not(c) => count_fanouts(c, sum, count),
-            BoolNode::Collector { .. } | BoolNode::Predicate(_) => {}
+            BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => {}
         }
     }
 
@@ -521,7 +522,7 @@ mod tests {
         match n {
             BoolNode::And(cs) | BoolNode::Or(cs) => 1 + cs.iter().map(depth).max().unwrap_or(0),
             BoolNode::Not(c) => 1 + depth(c),
-            BoolNode::Collector { .. } | BoolNode::Predicate(_) => 0,
+            BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => 0,
         }
     }
 
@@ -531,7 +532,7 @@ mod tests {
                 cs.len().max(cs.iter().map(max_fanout).max().unwrap_or(0))
             }
             BoolNode::Not(c) => max_fanout(c),
-            BoolNode::Collector { .. } | BoolNode::Predicate(_) => 0,
+            BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => 0,
         }
     }
 }

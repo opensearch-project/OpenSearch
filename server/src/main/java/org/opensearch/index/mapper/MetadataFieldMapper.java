@@ -225,5 +225,4 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     public void postParse(ParseContext context) throws IOException {
         // do nothing
     }
-
 }

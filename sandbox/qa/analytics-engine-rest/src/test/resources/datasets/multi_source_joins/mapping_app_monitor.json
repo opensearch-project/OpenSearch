@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "application_id": {
+        "type": "keyword"
+      },
+      "log_tracking_id": {
+        "type": "keyword"
+      },
+      "log_level": {
+        "type": "keyword"
+      },
+      "monitor_type": {
+        "type": "keyword"
+      },
+      "error_count": {
+        "type": "integer"
+      },
+      "description": {
+        "type": "text"
+      }
+    }
+  }
+}
