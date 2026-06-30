@@ -79,14 +79,22 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new plain text response.
      */
     public BytesRestResponse(RestStatus status, String content) {
-        this(status, TEXT_CONTENT_TYPE, new BytesArray(content));
+        this(status, TEXT_CONTENT_TYPE, content);
     }
 
     /**
      * Creates a new plain text response.
      */
     public BytesRestResponse(RestStatus status, String contentType, String content) {
-        this(status, contentType, new BytesArray(content));
+        this(status, contentType, toBytesArray(content));
+    }
+
+    static BytesArray toBytesArray(String content) {
+        try {
+            return new BytesArray(content);
+        } catch (IllegalArgumentException e) {
+            throw new OpenSearchStatusException(e.getMessage(), RestStatus.REQUEST_ENTITY_TOO_LARGE, e);
+        }
     }
 
     /**

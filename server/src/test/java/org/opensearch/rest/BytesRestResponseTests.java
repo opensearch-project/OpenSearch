@@ -64,8 +64,24 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class BytesRestResponseTests extends OpenSearchTestCase {
+
+    /**
+     * Reproducer for opensearch-project/OpenSearch#22311 Bug A: {@link BytesRestResponse} maps overflow guard failures to
+     * HTTP 413 instead of surfacing a raw {@link ArithmeticException} from Lucene.
+     */
+    public void testToBytesArrayMapsOverflowGuardFailureToRequestEntityTooLarge() {
+        String content = mock(String.class);
+        when(content.length()).thenReturn((Integer.MAX_VALUE / 3) + 1);
+
+        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> BytesRestResponse.toBytesArray(content));
+
+        assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, exception.status());
+        assertTrue(exception.getCause() instanceof IllegalArgumentException);
+    }
 
     class UnknownException extends Exception {
         UnknownException(final String message, final Throwable cause) {
