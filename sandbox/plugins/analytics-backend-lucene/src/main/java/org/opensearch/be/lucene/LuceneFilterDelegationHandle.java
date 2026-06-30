@@ -86,15 +86,18 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
-        // Build the searcher over the SAME directoryReader whose leaves we score against in
-        // createCollector (weight.scorer(leaf)). Using queryShardContext.searcher() instead would
-        // create the Weight against a DIFFERENT reader, and its IndicesQueryCache wrapper asserts
-        // the scored leaf's top-reader matches the Weight's — a mismatch throws the intermittent
-        // "top-reader used to create Weight is not the same as the current reader's top-reader"
-        // AssertionError (under -ea, fatal). A plain IndexSearcher over directoryReader also skips
-        // the shard query cache, which is correct: these are internal leaf-bitset scorers for
-        // delegated predicates, not cacheable user queries.
-        this.searcher = new IndexSearcher(directoryReader);
+        // Use the shared per-reader searcher (LuceneReader#searcher). It is built over THIS
+        // directoryReader — the same reader whose leaves we score against in createCollector
+        // (weight.scorer(leaf)) — so the Weight's top-reader matches the scored leaf's top-reader and
+        // the IndicesQueryCache wrapper's assertion holds (a searcher over a DIFFERENT reader, e.g. the
+        // old queryShardContext.searcher(), threw the fatal-under-`-ea` "top-reader used to create
+        // Weight is not the same as the current reader's top-reader" AssertionError). Reusing this
+        // searcher (vs a fresh plain IndexSearcher, which has no query cache) keeps the node
+        // IndicesQueryCache wired in, so repeated delegated predicates populate + hit the shard query
+        // cache (QueryCacheIT). The shared instance was already built cache-enabled by the caller
+        // (LuceneAnalyticsBackendPlugin#getFilterDelegationHandle passes the cache + policy); later
+        // calls return that instance and ignore the args.
+        this.searcher = luceneReader.searcher(null, null);
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
