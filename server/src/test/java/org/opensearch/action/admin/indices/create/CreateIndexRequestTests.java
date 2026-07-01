@@ -186,6 +186,24 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testMappingsType() throws IOException {
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject().startArray("mappings").endArray().endObject();
+
+        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
+        assertThat(e.getMessage(), equalTo("key [mapping] must be an object"));
+    }
+
+    public void testMappingsNestedValueType() throws IOException {
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject().startObject("mappings").field("properties", "invalid_string_value").endObject().endObject();
+
+        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
+        assertThat(e.getMessage(), equalTo("values inside key [mapping] must be an object"));
+    }
+
     public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
         assertEquals(expected.keySet(), actual.keySet());
 

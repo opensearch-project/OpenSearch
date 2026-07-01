@@ -527,8 +527,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
+                if (entry.getValue() instanceof Map == false) {
+                    throw new OpenSearchParseException("key [mapping] must be an object");
+                }
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                    if (entry1.getValue() instanceof Map == false) {
+                        throw new OpenSearchParseException("values inside key [mapping] must be an object");
+                    }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (ALIASES.match(name, deprecationHandler)) {
