@@ -930,7 +930,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction());
         registerHandler.accept(new RestIndicesShardStoresAction());
-        registerHandler.accept(new RestGetAliasesAction(threadPool));
+        registerHandler.accept(new RestGetAliasesAction());
         registerHandler.accept(new RestIndexDeleteAliasesAction());
         registerHandler.accept(new RestIndexPutAliasAction());
         registerHandler.accept(new RestIndicesAliasesAction());

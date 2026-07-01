@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -42,7 +41,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
@@ -51,9 +49,7 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestBuilderListener;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
@@ -82,17 +78,6 @@ public class RestGetAliasesAction extends BaseRestHandler {
         "Parameter [master_timeout] is deprecated and will be removed in 4.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
-
-    private final ThreadPool threadPool;
-
-    /** No-arg constructor kept for backward compatibility with {@code @opensearch.api} callers (e.g. OpenSearch Dashboards module). */
-    public RestGetAliasesAction() {
-        this.threadPool = null;
-    }
-
-    public RestGetAliasesAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
 
     @Override
     public List<Route> routes() {
@@ -231,38 +216,13 @@ public class RestGetAliasesAction extends BaseRestHandler {
             clusterManagerTimeout = request.paramAsTime("master_timeout", getAliasesRequest.clusterManagerNodeTimeout());
         }
         getAliasesRequest.clusterManagerNodeTimeout(clusterManagerTimeout);
-        final TimeValue timeout = clusterManagerTimeout;
-
-        final ThreadPool tp = this.threadPool != null ? this.threadPool : client.threadPool();
 
         // we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         // not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestActionListener<GetAliasesResponse>(channel) {
+        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
-            protected void processResponse(GetAliasesResponse response) {
-                final long startTimeMs = tp.relativeTimeInMillis();
-                // Serialization of alias metadata (filter decompression + XContent build) can be slow on clusters
-                // with many filtered aliases (e.g. DLS). Fork to MANAGEMENT to avoid blocking the transport thread.
-                final RestActionListener<GetAliasesResponse> outer = this;
-                tp.executor(ThreadPool.Names.MANAGEMENT).execute(tp.getThreadContext().preserveContext(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        new RestBuilderListener<GetAliasesResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(GetAliasesResponse r, XContentBuilder builder) throws Exception {
-                                if (tp.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
-                                    throw new OpenSearchTimeoutException("Timed out getting aliases");
-                                }
-                                return buildRestResponse(namesProvided, aliases, r.getAliases(), builder);
-                            }
-                        }.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        outer.onFailure(e);
-                    }
-                }));
+            public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
+                return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
             }
         });
     }
