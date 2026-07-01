@@ -16,7 +16,6 @@ use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptim
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
 use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::projection::ProjectionExec;
-use datafusion::physical_plan::sorts::sort::SortExec;
 use datafusion::physical_plan::{ExecutionPlan, ExecutionPlanProperties};
 use datafusion_common::Result;
 
@@ -51,16 +50,6 @@ pub(crate) fn apply_aggregate_mode(
         Mode::Partial => force_aggregate_mode(plan, AggregateMode::Partial, has_topk),
         Mode::Final => force_aggregate_mode(plan, AggregateMode::Final, false),
     }
-}
-
-/// Returns true if the physical plan contains a TopK `SortExec` (a SortExec with a fetch limit).
-/// Used in `prepare_partial_plan` to detect whether the shard fragment includes a per-shard
-/// TopK sort inserted by `OpenSearchTopKRewriter`, so `PartialReduce` is applied correctly.
-pub(crate) fn plan_has_topk_sort(plan: &Arc<dyn ExecutionPlan>) -> bool {
-    if let Some(sort) = plan.downcast_ref::<SortExec>() {
-        return sort.fetch().is_some();
-    }
-    plan.children().iter().any(|c| plan_has_topk_sort(c))
 }
 
 /// Returns the output schema of the Partial aggregate without rebuilding the plan tree.

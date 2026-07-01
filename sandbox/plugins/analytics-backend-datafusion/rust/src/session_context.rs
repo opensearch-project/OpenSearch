@@ -63,6 +63,10 @@ pub struct SessionContextHandle {
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
+    /// True when the shard Substrait fragment contains a FetchRel (Sort+Limit = TopK).
+    /// Detected once in `create_session_context` from plan_bytes and reused in
+    /// `prepare_partial_plan` to apply PartialReduce for CSS correctness.
+    pub(crate) has_topk: bool,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
     /// Phantom reservation holding pool capacity for untracked memory.
@@ -200,12 +204,15 @@ pub async unsafe fn create_session_context(
     let phantom = phantom_reservation.map(|b| b.phantom_reservation);
 
     let mut config = SessionConfig::new();
+    // Detect TopK once from the Substrait bytes: a FetchRel (Sort+Limit) in a partial-agg
+    // fragment means OpenSearchTopKRewriter fired. Stored on the handle so prepare_partial_plan
+    // can apply PartialReduce without re-scanning the physical plan.
+    let has_topk = has_partial_aggregate && substrait_has_fetch_rel(plan_bytes);
     config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
-    // Disable DataFusion's adaptive skip-partial-aggregation for distributed partial aggregates.
+    // Disable DataFusion's adaptive skip-partial-aggregation when TopK is active.
     // If DF abandons partial agg midstream, the partial state sent to the coordinator is
-    // incomplete — the coordinator merge produces wrong results. This applies to all distributed
-    // partial/final queries, not just TopK.
-    if has_partial_aggregate {
+    // incomplete — TopK sees wrong group counts and produces incorrect results.
+    if has_topk {
         config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
     }
     config.options_mut().execution.target_partitions = effective_partitions;
@@ -383,6 +390,7 @@ pub async unsafe fn create_session_context(
         query_config,
         io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
+        has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
     };
@@ -460,8 +468,7 @@ pub async fn prepare_partial_plan(
     // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
     // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
     // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
-    let has_topk = crate::agg_mode::plan_has_topk_sort(&physical_plan);
-    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial, has_topk)?;
+    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial, handle.has_topk)?;
 
     let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
     let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
@@ -469,6 +476,41 @@ pub async fn prepare_partial_plan(
     Ok(())
 }
 
+
+/// Returns true if the Substrait plan bytes contain a FetchRel (Sort+Limit node).
+/// A FetchRel in a shard fragment means `OpenSearchTopKRewriter` inserted a per-shard
+/// Sort+Limit — TopK is active. Used in `create_session_context` to detect TopK before
+/// the DataFusion physical plan is built, so the result can be stored on the handle and
+/// reused in `prepare_partial_plan` without re-scanning the physical plan.
+///
+/// Single-shard (SINGLE aggregate mode) never has `has_partial_aggregate=true` so this
+/// function is only called for multi-shard partial-aggregate fragments.
+fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
+    use prost::Message;
+    use substrait::proto::rel::RelType;
+
+    fn rel_has_fetch(rel: &substrait::proto::Rel) -> bool {
+        match rel.rel_type.as_ref() {
+            Some(RelType::Fetch(f)) => f.count_mode.is_some(),
+            Some(RelType::Sort(s)) => s.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Project(p)) => p.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Filter(f)) => f.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Aggregate(a)) => a.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            _ => false,
+        }
+    }
+
+    let Ok(plan) = substrait::proto::Plan::decode(plan_bytes) else { return false; };
+    plan.relations.iter().any(|pr| {
+        match pr.rel_type.as_ref() {
+            Some(substrait::proto::plan_rel::RelType::Root(rr)) => {
+                rr.input.as_ref().map_or(false, |r| rel_has_fetch(r))
+            }
+            Some(substrait::proto::plan_rel::RelType::Rel(r)) => rel_has_fetch(r),
+            None => false,
+        }
+    })
+}
 
 /// Attempt to acquire a memory budget using cached parquet metadata.
 /// Returns None on cache miss or if the budget system is not configured.
@@ -687,6 +729,7 @@ mod tests {
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
+            has_topk: false,
             prepared_plan: None,
             phantom_reservation: None,
         };
