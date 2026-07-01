@@ -71,6 +71,7 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
     private final List<String> targetWorkerNodeIds;
     private final ShuffleSender sender;
     private final String logTag;
+    private final ShuffleCompression.Config compression;
 
     private final AtomicInteger pending = new AtomicInteger(0);
     private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -89,6 +90,9 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
      * @param logTag               opaque identifier used in log messages so producer streams from
      *                             different stages / sides can be distinguished. Typical value:
      *                             {@code "queryId/stage/side"}
+     * @param compression          resolved shuffle-IPC compression policy (from the cluster settings via
+     *                             {@link ShuffleCompression.Config#from}); {@link ShuffleCompression.Config#DISABLED}
+     *                             writes plain IPC
      */
     public DatafusionPartitionedSink(
         BufferAllocator alloc,
@@ -96,7 +100,8 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
         int partitionCount,
         List<String> targetWorkerNodeIds,
         ShuffleSender sender,
-        String logTag
+        String logTag,
+        ShuffleCompression.Config compression
     ) {
         if (targetWorkerNodeIds.size() != partitionCount) {
             throw new IllegalArgumentException(
@@ -109,6 +114,7 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
         this.targetWorkerNodeIds = List.copyOf(targetWorkerNodeIds);
         this.sender = sender;
         this.logTag = logTag;
+        this.compression = compression;
     }
 
     @Override
@@ -223,15 +229,15 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             // plain (uncompressed) writer. This shrinks both the shipped bytes AND the heap-resident
             // buffered chunks the consumer accumulates (the shuffle circuit-breaker relief).
             try (
-                ArrowStreamWriter writer = ShuffleCompression.writeCompressed()
+                ArrowStreamWriter writer = compression.compress()
                     ? new ArrowStreamWriter(
                         root,
                         dictionaryProvider,
                         Channels.newChannel(baos),
                         IpcOption.DEFAULT,
                         ShuffleCompression.FACTORY,
-                        ShuffleCompression.WRITE_CODEC,
-                        ShuffleCompression.ZSTD_LEVEL
+                        compression.codec(),
+                        compression.zstdLevel()
                     )
                     : new ArrowStreamWriter(root, dictionaryProvider, Channels.newChannel(baos))
             ) {

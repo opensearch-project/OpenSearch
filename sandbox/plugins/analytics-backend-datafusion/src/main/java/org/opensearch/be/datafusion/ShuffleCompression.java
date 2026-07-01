@@ -11,6 +11,8 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.compression.CommonsCompressionFactory;
 import org.apache.arrow.vector.compression.CompressionCodec;
 import org.apache.arrow.vector.compression.CompressionUtil;
+import org.opensearch.analytics.AnalyticsSettings;
+import org.opensearch.common.settings.ClusterSettings;
 
 import java.util.Locale;
 
@@ -45,19 +47,19 @@ import java.util.Locale;
  * Both produce/consume the standard on-wire formats, so the reader factory decodes any producer's
  * choice (incl. a peer still on Arrow's commons-compress LZ4).
  *
- * <p>Configured by three JVM system properties (sysprop stopgaps mirroring
- * {@link ShuffleScanHandler}'s {@code recv_timeout_ms} until plumbed as proper cluster settings):
+ * <p>Configured by three {@code NodeScope + Dynamic} cluster settings, resolved per-query into a
+ * {@link Config} at sink construction ({@link Config#from(Settings)}):
  * <ul>
- *   <li>{@code analytics.mpp.shuffle.compress} ({@code true} | {@code false}; <b>default
- *       {@code false}</b>) — Enable only for memory-constrained clusters that cannot fit even a
- *       pruned shuffle on heap and prefer heap headroom over latency.</li>
- *   <li>{@code analytics.mpp.compression.codec} ({@code zstd} | {@code lz4}; default {@code zstd}) —
- *       which codec when compression is on;</li>
- *   <li>{@code analytics.mpp.compression.zstd.level} (integer; default {@code 1}, matching Spark's
- *       shuffle codec default) — ZSTD level only (LZ4 is level-agnostic).</li>
+ *   <li>{@link AnalyticsSettings#MPP_SHUFFLE_COMPRESS} {@code analytics.mpp.shuffle.compress}
+ *       (default {@code false}) — enable only for memory-constrained clusters that cannot fit even a
+ *       pruned shuffle on heap and prefer heap headroom over latency;</li>
+ *   <li>{@link AnalyticsSettings#MPP_COMPRESSION_CODEC} {@code analytics.mpp.compression.codec}
+ *       ({@code zstd} | {@code lz4}; default {@code zstd}) — which codec when compression is on;</li>
+ *   <li>{@link AnalyticsSettings#MPP_COMPRESSION_ZSTD_LEVEL} {@code analytics.mpp.compression.zstd.level}
+ *       (default {@code 1}, matching Spark's shuffle codec) — ZSTD level only (LZ4 is level-agnostic).</li>
  * </ul>
  * Only the WRITER reads these; the reader always passes the factory and auto-detects, so it decodes
- * any codec/level a producer chose (mixed-deploy safe).
+ * any codec/level a producer chose (mixed-setting / rolling-restart safe).
  *
  * @opensearch.internal
  */
@@ -87,57 +89,34 @@ final class ShuffleCompression {
         }
     };
 
-    /** Master on/off, from {@code analytics.mpp.shuffle.compress} (default {@code true}). */
-    static final boolean COMPRESS = resolveCompress();
-
-    /**
-     * Writer codec from {@code analytics.mpp.compression.codec} (default {@code zstd}). Only consulted
-     * when {@link #COMPRESS}; the reader auto-detects regardless.
-     */
-    static final CompressionUtil.CodecType WRITE_CODEC = resolveWriteCodec();
-
-    /**
-     * ZSTD compression level from {@code analytics.mpp.compression.zstd.level} (default {@code 1},
-     * matching Spark's shuffle codec). Only ZSTD consumes it (our {@link FastLz4CompressionCodec} is
-     * level-agnostic). Default 1 measured ~28% faster end-to-end on q7 vs Arrow's default 3 (faster
-     * consumer decompress + less GC) at comparable heap relief. Passed to the writer's 7-arg ctor as
-     * an {@code Optional<Integer>}; empty → Arrow's codec default
-     * ({@code ZstdCompressionCodec.DEFAULT_COMPRESSION_LEVEL} = 3).
-     */
-    static final java.util.Optional<Integer> ZSTD_LEVEL = resolveZstdLevel();
-
     private ShuffleCompression() {}
 
-    private static boolean resolveCompress() {
-        return Boolean.parseBoolean(System.getProperty("analytics.mpp.shuffle.compress", "false").trim());
-    }
+    /**
+     * Per-query resolved writer policy: whether to compress, which codec, and (for ZSTD) the level.
+     * Resolved at sink construction from the LIVE cluster settings ({@link ClusterSettings#get}, so a
+     * dynamic {@code PUT /_cluster/settings} update is honored) — the values are the
+     * {@code analytics.mpp.shuffle.compress} / {@code analytics.mpp.compression.codec} /
+     * {@code analytics.mpp.compression.zstd.level} settings — then handed to the producer sink. The
+     * reader never needs this — it auto-detects the codec from the IPC metadata via {@link #FACTORY}.
+     */
+    record Config(boolean compress, CompressionUtil.CodecType codec, java.util.Optional<Integer> zstdLevel) {
 
-    private static java.util.Optional<Integer> resolveZstdLevel() {
-        String v = System.getProperty("analytics.mpp.compression.zstd.level", "1").trim();
-        if (v.isEmpty()) {
-            return java.util.Optional.empty();
-        }
-        try {
-            return java.util.Optional.of(Integer.valueOf(v));
-        } catch (NumberFormatException e) {
-            return java.util.Optional.empty();
-        }
-    }
+        /** Off — the sink writes plain (uncompressed) IPC. Used by tests / when no cluster settings is handy. */
+        static final Config DISABLED = new Config(false, CompressionUtil.CodecType.NO_COMPRESSION, java.util.Optional.empty());
 
-    private static CompressionUtil.CodecType resolveWriteCodec() {
-        String v = System.getProperty("analytics.mpp.compression.codec", "zstd").trim().toLowerCase(Locale.ROOT);
-        switch (v) {
-            case "lz4":
-            case "lz4_frame":
-                return CompressionUtil.CodecType.LZ4_FRAME;
-            case "zstd":
-            default:
-                return CompressionUtil.CodecType.ZSTD;
+        /** Resolve the live values from the cluster settings ({@link AnalyticsSettings}). */
+        static Config from(ClusterSettings clusterSettings) {
+            if (!clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_COMPRESS)) {
+                return DISABLED;
+            }
+            String codecName = clusterSettings.get(AnalyticsSettings.MPP_COMPRESSION_CODEC).trim().toLowerCase(Locale.ROOT);
+            CompressionUtil.CodecType codec = ("lz4".equals(codecName) || "lz4_frame".equals(codecName))
+                ? CompressionUtil.CodecType.LZ4_FRAME
+                : CompressionUtil.CodecType.ZSTD;
+            java.util.Optional<Integer> level = codec == CompressionUtil.CodecType.ZSTD
+                ? java.util.Optional.of(clusterSettings.get(AnalyticsSettings.MPP_COMPRESSION_ZSTD_LEVEL))
+                : java.util.Optional.empty();
+            return new Config(true, codec, level);
         }
-    }
-
-    /** True when shuffle chunks should be written compressed. */
-    static boolean writeCompressed() {
-        return COMPRESS;
     }
 }

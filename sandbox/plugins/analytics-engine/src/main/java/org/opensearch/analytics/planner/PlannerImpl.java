@@ -34,6 +34,7 @@ import org.apache.calcite.sql2rel.RelFieldTrimmer;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
@@ -130,7 +131,7 @@ public class PlannerImpl {
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
-        modifiedRelNode = trimUnusedFields(modifiedRelNode);
+        modifiedRelNode = trimUnusedFields(modifiedRelNode, context);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
@@ -196,11 +197,11 @@ public class PlannerImpl {
      * EQUI-joins" confines the rewrite to exactly the distributable shapes that benefit — and excludes
      * any plan containing a trivial CROSS JOIN (e.g. the one PPL {@code transpose} lowers to, which
      * never distributes and which the whole-tree trimmer would mis-rewrite even from a sibling arm).
-     * The {@code analytics.mpp.shuffle.prune_columns}
-     * JVM system property (default {@code true}) is the on/off stopgap until promoted to a cluster setting.
+     * Gated by the {@code analytics.mpp.shuffle.prune_columns} cluster setting
+     * ({@link AnalyticsSettings#MPP_SHUFFLE_PRUNE_COLUMNS}, default {@code true}).
      */
-    private static RelNode trimUnusedFields(RelNode input) {
-        if (!Boolean.parseBoolean(System.getProperty("analytics.mpp.shuffle.prune_columns", "true"))) {
+    private static RelNode trimUnusedFields(RelNode input, PlannerContext context) {
+        if (!AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS.get(context.getSettings())) {
             return input;
         }
         // Confine the trim to plans that (a) contain at least one join and (b) whose joins are ALL

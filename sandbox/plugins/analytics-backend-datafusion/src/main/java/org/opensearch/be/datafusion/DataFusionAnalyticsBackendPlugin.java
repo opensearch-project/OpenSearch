@@ -962,13 +962,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 // only needs an opaque tag for log messages so producers from different stages
                 // are distinguishable in mixed traces.
                 String logTag = context.queryId() + "/stage=" + context.stageId();
+                // Resolve the shuffle-IPC compression policy live from the cluster settings (default OFF).
+                ShuffleCompression.Config compression = plugin.getClusterService() != null
+                    ? ShuffleCompression.Config.from(plugin.getClusterService().getClusterSettings())
+                    : ShuffleCompression.Config.DISABLED;
                 return new DatafusionPartitionedSink(
                     context.allocator(),
                     hashKeyChannels,
                     partitionCount,
                     targetWorkerNodeIds,
                     sender,
-                    logTag
+                    logTag,
+                    compression
                 );
             }
         };

@@ -13,6 +13,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Engine-level cluster settings for analytics-engine. Backend-specific settings live
@@ -244,6 +245,69 @@ public final class AnalyticsSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Pre-marking column pruning for the distributed path: drop columns no operator references
+     * before the plan is cut into stages, so a hash-shuffle carries only the join keys plus the
+     * downstream-referenced columns rather than the full join-output width. On wide fact-table joins
+     * (TPC-H) this shrinks the shuffled payload several-fold — the single biggest driver of the
+     * distributed-join latency, and it keeps more queries under the on-heap shuffle budget without
+     * spilling. Scoped to plans whose joins are all equi-joins (a cross-join — e.g. what PPL
+     * {@code transpose} lowers to — is left untouched). Default {@code true}; disable only to isolate a
+     * suspected pruning issue.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_PRUNE_COLUMNS = Setting.boolSetting(
+        "analytics.mpp.shuffle.prune_columns",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Master toggle for hash-shuffle IPC compression. When {@code true}, each shuffle IPC chunk is
+     * compressed (standard Arrow IPC compression) before it is buffered/shipped, shrinking the
+     * on-heap buffered bytes at the cost of per-buffer compress/decompress CPU. Default {@code false}:
+     * with {@link #MPP_SHUFFLE_PRUNE_COLUMNS} on (the default), the shuffle is already narrow, so
+     * compression's CPU cost usually outweighs its remaining heap benefit — enable it only when a node
+     * is memory-constrained enough to prefer heap headroom over latency. The reader auto-detects the
+     * codec from the IPC metadata, so a mixed-setting (rolling-restart) cluster still decodes correctly.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_COMPRESS = Setting.boolSetting(
+        "analytics.mpp.shuffle.compress",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Codec used when {@link #MPP_SHUFFLE_COMPRESS} is on — {@code zstd} (default; native zstd-jni,
+     * best ratio) or {@code lz4} (native lz4-java LZ4-frame). Only the writer consults this; the
+     * reader auto-detects. Validated at settings-apply time so a typo is rejected up front rather than
+     * silently falling back to zstd (the codec resolver still treats any unexpected value as zstd
+     * defensively, but the validator prevents the confusing case).
+     */
+    public static final Setting<String> MPP_COMPRESSION_CODEC = Setting.simpleString("analytics.mpp.compression.codec", "zstd", value -> {
+        String v = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (!v.equals("zstd") && !v.equals("lz4") && !v.equals("lz4_frame")) {
+            throw new IllegalArgumentException("analytics.mpp.compression.codec must be one of [zstd, lz4], got [" + value + "]");
+        }
+    }, Setting.Property.NodeScope, Setting.Property.Dynamic);
+
+    /**
+     * ZSTD compression level when the codec is {@code zstd}. Default {@code 1} (matching Spark's
+     * shuffle codec default) — measured faster end-to-end than Arrow's default level 3 (cheaper
+     * consumer decompress + less GC) at comparable heap relief. Ignored by the LZ4 codec. Bounded to
+     * zstd's valid range [1, 22] at settings-apply time so an invalid level (e.g. 0 or 100) is rejected
+     * on the {@code PUT} rather than crashing the first compressed shuffle write.
+     */
+    public static final Setting<Integer> MPP_COMPRESSION_ZSTD_LEVEL = Setting.intSetting(
+        "analytics.mpp.compression.zstd.level",
+        1,
+        1,
+        22,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /** All engine-level settings registered by {@code AnalyticsPlugin.getSettings()}. */
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
         MPP_ENABLED,
@@ -256,6 +320,10 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,
         MPP_SHUFFLE_SPILL_MAX_BYTES,
-        MPP_BROADCAST_PROBE_ESTIMATE
+        MPP_BROADCAST_PROBE_ESTIMATE,
+        MPP_SHUFFLE_PRUNE_COLUMNS,
+        MPP_SHUFFLE_COMPRESS,
+        MPP_COMPRESSION_CODEC,
+        MPP_COMPRESSION_ZSTD_LEVEL
     );
 }
