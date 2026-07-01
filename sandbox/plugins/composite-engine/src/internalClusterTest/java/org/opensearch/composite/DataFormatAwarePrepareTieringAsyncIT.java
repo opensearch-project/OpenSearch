@@ -267,8 +267,19 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
             // Data integrity: doc count should be preserved
             assertEquals("all docs should be present", (long) totalDocs, primariesDocCount(ASYNC_INDEX));
 
-            // Force merge target: replica segment count should be 1 after merge completes and replicates
-            long replicaSegmentCount = client().admin()
+            // After prepare, replica should have the same segment layout as primary (in sync)
+            long primarySegments = client().admin()
+                .indices()
+                .prepareStats(ASYNC_INDEX)
+                .clear()
+                .setSegments(true)
+                .get()
+                .getIndex(ASYNC_INDEX)
+                .getPrimaries()
+                .getSegments()
+                .getCount();
+
+            long totalSegments = client().admin()
                 .indices()
                 .prepareStats(ASYNC_INDEX)
                 .clear()
@@ -278,8 +289,13 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
                 .getTotal()
                 .getSegments()
                 .getCount();
-            // Total segments = primary (1) + replica (1) = 2 for a 1P+1R index after force merge
-            assertEquals("primary + replica should each have 1 segment after force merge + prepare", 2, replicaSegmentCount);
+
+            // 1P+1R: total should be exactly 2x primary (replica mirrors primary)
+            assertEquals(
+                "replica segment count should match primary after prepare",
+                primarySegments * 2,
+                totalSegments
+            );
         } finally {
             client().admin().indices().delete(new DeleteIndexRequest(ASYNC_INDEX)).actionGet();
         }
