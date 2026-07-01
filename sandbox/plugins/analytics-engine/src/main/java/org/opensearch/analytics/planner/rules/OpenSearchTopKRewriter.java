@@ -17,6 +17,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
@@ -57,10 +58,6 @@ public final class OpenSearchTopKRewriter {
         if (!(partialNode instanceof OpenSearchAggregate partial) || partial.getMode() != AggregateMode.PARTIAL) {
             return Optional.empty();
         }
-        // Chained stats (nested aggregation): the PARTIAL's input subtree contains another aggregate.
-        // TopK cannot safely apply here — the inner aggregate must complete fully before the outer
-        // aggregate can produce correct totals. Bail and let the coordinator handle it.
-        if (containsAggregate(partial.getInput())) return Optional.empty();
 
         double factor = resolveOversamplingFactor(context);
         if (factor <= 0.0) return Optional.empty();
@@ -233,8 +230,13 @@ public final class OpenSearchTopKRewriter {
         if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
             return new PathToFinal(seenProject, agg);
         }
-        if (node instanceof OpenSearchProject proj && seenProject == null) {
-            return findFinalAgg(proj.getInput(), proj);
+        // Anything between the Sort and the FINAL that consumes its full grouped output makes
+        // the pushdown unsafe — refuse to match at all.
+        if (node instanceof OpenSearchAggregate) return null;                        // nested stats
+        if (node instanceof OpenSearchProject proj) {
+            if (proj.getProjects().stream().anyMatch(RexOver::containsOver)) return null; // window fn
+            if (seenProject == null) return findFinalAgg(proj.getInput(), proj);
+            return null;                                                             // 2nd project
         }
         if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0), seenProject);
         return null;
@@ -267,15 +269,6 @@ public final class OpenSearchTopKRewriter {
 
     private static double resolveOversamplingFactor(PlannerContext context) {
         return context.getOversamplingFactor();
-    }
-
-    /** Returns true if {@code root}'s subtree contains any {@link OpenSearchAggregate} node. */
-    private static boolean containsAggregate(RelNode root) {
-        if (root instanceof OpenSearchAggregate) return true;
-        for (RelNode child : root.getInputs()) {
-            if (containsAggregate(child)) return true;
-        }
-        return false;
     }
 
     private record PathToFinal(OpenSearchProject project, OpenSearchAggregate finalAgg) {
