@@ -48,8 +48,9 @@ import java.util.Locale;
  * <p>Configured by three JVM system properties (sysprop stopgaps mirroring
  * {@link ShuffleScanHandler}'s {@code recv_timeout_ms} until plumbed as proper cluster settings):
  * <ul>
- *   <li>{@code analytics.mpp.shuffle.compress} ({@code true} | {@code false}; default {@code true}) —
- *       master on/off;</li>
+ *   <li>{@code analytics.mpp.shuffle.compress} ({@code true} | {@code false}; <b>default
+ *       {@code false}</b>) — Enable only for memory-constrained clusters that cannot fit even a
+ *       pruned shuffle on heap and prefer heap headroom over latency.</li>
  *   <li>{@code analytics.mpp.compression.codec} ({@code zstd} | {@code lz4}; default {@code zstd}) —
  *       which codec when compression is on;</li>
  *   <li>{@code analytics.mpp.compression.zstd.level} (integer; default {@code 1}, matching Spark's
@@ -108,7 +109,7 @@ final class ShuffleCompression {
     private ShuffleCompression() {}
 
     private static boolean resolveCompress() {
-        return Boolean.parseBoolean(System.getProperty("analytics.mpp.shuffle.compress", "true").trim());
+        return Boolean.parseBoolean(System.getProperty("analytics.mpp.shuffle.compress", "false").trim());
     }
 
     private static java.util.Optional<Integer> resolveZstdLevel() {
