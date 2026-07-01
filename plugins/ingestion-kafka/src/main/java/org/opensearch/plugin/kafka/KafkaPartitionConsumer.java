@@ -50,6 +50,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private final int partitionId;
     private final KafkaSourceConfig config;
     private TopicPartition topicPartition;
+    private final KafkaPayloadDecoder payloadDecoder;
 
     /**
      * Constructor
@@ -73,6 +74,14 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.consumer = consumer;
         this.config = config;
         this.partitionId = partitionId;
+        Map<String, Object> avroParams = config.getAvroParams();
+        this.payloadDecoder = avroParams.isEmpty() ? KafkaPayloadDecoder.PASSTHROUGH : new AvroPayloadDecoder(avroParams);
+        logger.info(
+            "KafkaPartitionConsumer: topic={} partition={} payloadDecoder={}",
+            config.getTopic(),
+            partitionId,
+            payloadDecoder instanceof AvroPayloadDecoder ? "AvroPayloadDecoder" : "PASSTHROUGH"
+        );
     }
 
     void initialize() throws Exception {
@@ -254,7 +263,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             long currentOffset = messageAndOffset.offset();
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
-            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value(), messageAndOffset.timestamp());
+            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), payloadDecoder.decode(messageAndOffset.value()), messageAndOffset.timestamp());
             results.add(new ReadResult<>(kafkaOffset, message));
         }
         return results;

@@ -91,4 +91,58 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
             Assert.assertEquals("topic_metadata_fetch_timeout_ms must be positive, got: -1", e.getMessage());
         }
     }
+
+    public void testAvroParamsExtractedFromConsumerConfig() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "topic");
+        params.put("bootstrap_servers", "bootstrap");
+        params.put("avro.schema", "{\"type\":\"record\",\"name\":\"T\",\"fields\":[]}");
+        params.put("avro.skip_bytes", "8");
+        params.put("avro.msg_field", "payload");
+        params.put("fetch.min.bytes", 1024);
+
+        KafkaSourceConfig config = new KafkaSourceConfig(100, params);
+
+        Assert.assertFalse("avro.schema must not be in consumer configs", config.getConsumerConfigurations().containsKey("avro.schema"));
+        Assert.assertFalse(
+            "avro.skip_bytes must not be in consumer configs",
+            config.getConsumerConfigurations().containsKey("avro.skip_bytes")
+        );
+        Assert.assertFalse(
+            "avro.msg_field must not be in consumer configs",
+            config.getConsumerConfigurations().containsKey("avro.msg_field")
+        );
+        Assert.assertEquals(1024, config.getConsumerConfigurations().get("fetch.min.bytes"));
+
+        Assert.assertEquals("{\"type\":\"record\",\"name\":\"T\",\"fields\":[]}", config.getAvroParams().get("avro.schema"));
+        Assert.assertEquals("8", config.getAvroParams().get("avro.skip_bytes").toString());
+        Assert.assertEquals("payload", config.getAvroParams().get("avro.msg_field").toString());
+    }
+
+    public void testAvroParamsEmptyWhenNoneConfigured() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "topic");
+        params.put("bootstrap_servers", "bootstrap");
+
+        KafkaSourceConfig config = new KafkaSourceConfig(100, params);
+
+        Assert.assertTrue("avroParams should be empty when no avro.* keys configured", config.getAvroParams().isEmpty());
+    }
+
+    public void testAvroParamsHeadersExtracted() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "topic");
+        params.put("bootstrap_servers", "bootstrap");
+        params.put("avro.schema_registry_url", "http://registry:8081/schemas/1");
+        params.put("avro.schema_registry_headers.Authorization", "Bearer token123");
+
+        KafkaSourceConfig config = new KafkaSourceConfig(100, params);
+
+        Assert.assertEquals("http://registry:8081/schemas/1", config.getAvroParams().get("avro.schema_registry_url").toString());
+        Assert.assertEquals("Bearer token123", config.getAvroParams().get("avro.schema_registry_headers.Authorization").toString());
+        Assert.assertFalse(
+            "avro.schema_registry_url must not be in consumer configs",
+            config.getConsumerConfigurations().containsKey("avro.schema_registry_url")
+        );
+    }
 }

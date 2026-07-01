@@ -10,6 +10,7 @@
 */
 
 apply plugin: 'opensearch.internal-cluster-test'
+apply plugin: 'com.gradleup.shadow'
 
 opensearchplugin {
   description = 'Pull-based ingestion plugin to consume from Kafka'
@@ -22,12 +23,76 @@ versions << [
   'testcontainers': '1.19.7',
   'ducttape': '1.0.8',
   'snappy': '1.1.10.7',
+  'avro': '1.12.0',
 ]
+
+configurations {
+  // Non-transitive: only the explicitly listed JARs get embedded in the shadow JAR.
+  // Avro's transitive dependencies (jackson, slf4j) are handled separately:
+  //   - jackson via the 'shadow' configuration (needs relocation to avoid server jar-hell)
+  //   - slf4j listed explicitly here (embedded alongside avro; see note below)
+  avroShade {
+    transitive = false
+  }
+}
 
 dependencies {
   // kafka
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.kafka:kafka-clients:${versions.kafka}"
+
+  // Avro for compilation only — NOT bundled as a separate JAR in the plugin ZIP.
+  // Avro's classes are embedded inside the shadow JAR (via avroShade) so that the
+  // shadow plugin can rewrite their com.fasterxml.jackson.* bytecode references to
+  // the private shaded package, making Schema.Parser.parse() work in the plugin
+  // classloader without conflicting with the server's jackson JARs.
+  //
+  // NOTE [concern #2]: AvroPayloadDecoder.java imports org.apache.avro.* directly.
+  // This compiles correctly because compileOnly provides the original org.apache.avro.*
+  // classes at compile time. At JAR-build time the shadow plugin rewrites all
+  // org.apache.avro.* bytecode references to org.opensearch.plugin.kafka.shaded.avro.*
+  // so that at runtime the class names match what is actually embedded in the shadow JAR.
+  // If a new Avro import is added and avroShade or compileOnly is absent, the build
+  // will fail with a compilation error — not a silent runtime issue.
+  compileOnly("org.apache.avro:avro:${versions.avro}") {
+    exclude group: 'org.apache.commons', module: 'commons-compress'
+    exclude group: 'com.fasterxml.jackson.core'
+  }
+  avroShade "org.apache.avro:avro:${versions.avro}"
+
+  // SLF4J: embedded alongside Avro so the plugin classloader can satisfy Avro's internal
+  // LoggerFactory references at production runtime (the plugin classloader is isolated and
+  // cannot see the server's lib/ JARs). SLF4J is also relocated (see shadowJar below).
+  //
+  // NOTE [concern #3 — known tradeoff]: relocating SLF4J to a private package means
+  // the embedded copy has no log4j/log4j2 binding, so Avro's internal log statements
+  // silently become no-ops via SLF4J's built-in NOP fallback. This is acceptable:
+  // any Avro error that matters surfaces as an exception propagated to AvroPayloadDecoder
+  // and logged there with the plugin's own logger. Avro schema-parse or decode errors
+  // will not be swallowed.
+  avroShade "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // Jackson: embedded and relocated to a private package so there is no class-name
+  // conflict with the jackson JARs in OpenSearch's lib/ directory (jar hell).
+  //
+  // NOTE [concern #1 — version alignment]: jackson-annotations is published on Maven
+  // Central at version "2.22" (no patch suffix) for the 2.22 release train, while
+  // jackson-core and jackson-databind use "2.22.0". This reflects how the Jackson
+  // project cuts releases; it is not a version mismatch on our side. All three are
+  // from the same Jackson 2.22 release and are binary-compatible.
+  //
+  // NOTE [concern #4 — transitive resolution]: avroShade is non-transitive so only
+  // the Avro JAR itself is embedded, but Gradle still resolves Avro's full dependency
+  // graph to detect conflicts. Avro 1.12.0 declares jackson-databind:2.17.2; Gradle's
+  // default conflict resolution picks the higher version (2.22.0) declared here. Jackson
+  // 2.x maintains backward binary compatibility within the major line, so 2.22.0 is safe.
+  shadow "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  shadow "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  shadow "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
+  // Avro's non-jackson runtime dependencies (bundled as separate JARs in the plugin ZIP).
+  runtimeOnly "org.apache.commons:commons-lang3:${versions.commonslang}"
+  runtimeOnly "com.thoughtworks.paranamer:paranamer:2.8"
 
   // dependencies of kafka-clients
   runtimeOnly "org.xerial.snappy:snappy-java:${versions.snappy}"
@@ -46,6 +111,78 @@ dependencies {
   testImplementation 'org.awaitility:awaitility:4.2.0'
   testImplementation project(':modules:ingest-common')
   testImplementation project(':modules:lang-painless')
+  // Avro for AvroPayloadDecoderTests — imports org.apache.avro.* to encode test messages.
+  // The shadow JAR relocates avro to org.opensearch.plugin.kafka.shaded.avro.* so the
+  // two copies live in different package namespaces; the OpenSearch jar-hell check only
+  // fires when the same fully-qualified class name appears in two different JARs.
+  testImplementation "org.apache.avro:avro:${versions.avro}"
+}
+
+shadowJar {
+  // Relocate jackson into a private package — no class-name conflict with server's jackson.
+  relocate 'com.fasterxml.jackson', 'org.opensearch.plugin.kafka.shaded.jackson'
+  // Relocate avro: test-time org.apache.avro.* (testImplementation) and production avro
+  // (embedded here) live in different packages — no jar-hell from duplicate class names.
+  relocate 'org.apache.avro', 'org.opensearch.plugin.kafka.shaded.avro'
+  // Relocate slf4j: shadow JAR embeds the relocated copy; the original org.slf4j.* is
+  // still accessible on the test classpath via the runtimeClasspath re-add in afterEvaluate.
+  relocate 'org.slf4j', 'org.opensearch.plugin.kafka.shaded.slf4j'
+  // Process avroShade (Avro + SLF4J JARs) and shadow (jackson JARs) together so that the
+  // relocation rewrites all cross-references in one pass.
+  configurations = [project.configurations.avroShade, project.configurations.shadow]
+  mergeServiceFiles()
+  // Remove the -all classifier so this becomes the primary artifact.
+  archiveClassifier.set('')
+}
+
+// Disable the regular jar task artifact so the shadow jar is the only one.
+jar.enabled = false
+
+// Register the shadow JAR as the api/runtime artifact so consumers get it on their
+// compile classpath instead of an empty apiElements variant.
+configurations.apiElements.outgoing.artifacts.clear()
+configurations.runtimeElements.outgoing.artifacts.clear()
+configurations.apiElements.outgoing.artifact(tasks.named('shadowJar'))
+configurations.runtimeElements.outgoing.artifact(tasks.named('shadowJar'))
+
+// Redirect shadow's POM to temp dir so it doesn't collide with nebula's POM path.
+tasks.configureEach { task ->
+  if (task.name == 'generatePomFileForShadowPublication') {
+    task.destination = layout.buildDirectory.file('tmp/shadow-pom/pom.xml').get().asFile
+  }
+}
+
+// Disable shadow's publish tasks; nebula publication is the canonical one.
+// Strip shaded dependencies (jackson, slf4j, avro) from the nebula POM — they are
+// embedded inside the shadow JAR and must not appear as transitive Maven dependencies,
+// otherwise consumers would download unshaded copies that duplicate what is already in
+// the JAR. [concern #5]
+afterEvaluate {
+  tasks.findByName('publishShadowPublicationToMavenLocal')?.enabled = false
+  tasks.findByName('generateMetadataFileForShadowPublication')?.enabled = false
+
+  publishing.publications.named('nebula').configure {
+    pom.withXml {
+      def deps = asNode().dependencies
+      if (deps) {
+        deps.dependency.findAll {
+          def gid = it.groupId.text()
+          gid.contains('fasterxml.jackson') || gid == 'org.slf4j' || gid == 'org.apache.avro'
+        }.each { it.parent().remove(it) }
+      }
+    }
+  }
+
+  // OpenSearch's OpenSearchTestBasePlugin (triggered by the shadow plugin) strips ALL
+  // mainRuntime JARs from the test classpath, on the assumption that they are embedded
+  // in the shadow JAR. Our plugin only embeds avro+jackson+slf4j; the rest (kafka-clients,
+  // snappy, paranamer, commons-lang3, …) stay as separate bundled JARs and must be
+  // re-added so existing unit tests (KafkaPartitionConsumerTests, etc.) keep working.
+  // The relocated deps inside the shadow JAR use private package names, so adding their
+  // originals from runtimeClasspath here causes no jar-hell conflict.
+  tasks.named('test').configure { t ->
+    t.classpath += configurations.runtimeClasspath
+  }
 }
 
 internalClusterTest{
@@ -56,14 +193,21 @@ internalClusterTest{
 
 thirdPartyAudit {
   ignoreMissingClasses(
-    'com.fasterxml.jackson.databind.JsonNode',
-    'com.fasterxml.jackson.databind.ObjectMapper',
-    'com.fasterxml.jackson.databind.node.ArrayNode',
-    'com.fasterxml.jackson.databind.node.BooleanNode',
-    'com.fasterxml.jackson.databind.node.JsonNodeFactory',
-    'com.fasterxml.jackson.databind.node.JsonNodeType',
-    'com.fasterxml.jackson.databind.node.NullNode',
-    'com.fasterxml.jackson.databind.node.ObjectNode',
+    // Avro is embedded in the shadow JAR; these are its optional codec dependencies
+    // that are not bundled (commons-compress for bzip2/xz, xz for lzma codecs).
+    'org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream',
+    'org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream',
+    'org.apache.commons.compress.compressors.snappy.FramedSnappyCompressorInputStream',
+    'org.apache.commons.compress.compressors.snappy.FramedSnappyCompressorOutputStream',
+    'org.apache.commons.compress.compressors.xz.XZCompressorInputStream',
+    'org.apache.commons.compress.compressors.xz.XZCompressorOutputStream',
+    'org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream',
+    'org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream',
+    'org.tukaani.xz.FilterOptions',
+    'org.tukaani.xz.LZMA2Options',
+    'org.tukaani.xz.XZInputStream',
+    'org.tukaani.xz.XZOutputStream',
+    // lz4 / xxhash used by kafka-clients
     'net.jpountz.lz4.LZ4Compressor',
     'net.jpountz.lz4.LZ4Factory',
     'net.jpountz.lz4.LZ4SafeDecompressor',
