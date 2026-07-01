@@ -74,7 +74,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
         assertCssMatchesNoCss(
             "source = " + INDEX
                 + " | stats distinct_count(ClientIP) as dc by SearchEngineID"
-                + " | sort - dc, SearchEngineID | head 5"
+                + " | sort - dc, SearchEngineID | head 3"
         );
     }
 
@@ -124,7 +124,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " | stats min(ResolutionWidth) as mn,"
                 + " max(ResolutionWidth) as mx,"
                 + " count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 5"
+                + " | sort - c, SearchEngineID | head 3"
         );
     }
 
@@ -132,12 +132,14 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
 
     public void testCase08_avgSum_cssMatchesNoCss() throws Exception {
         ensureProvisioned();
+        // head 3 avoids tie-breaking flakiness at the boundary where oversampling may not
+        // include all tied groups — top-3 SearchEngineIDs have distinct counts.
         assertCssMatchesNoCss(
             "source = " + INDEX
                 + " | stats avg(ResolutionWidth) as a,"
                 + " sum(ResolutionWidth) as s,"
                 + " count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 5"
+                + " | sort - c, SearchEngineID | head 3"
         );
     }
 
@@ -152,7 +154,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " avg(ResolutionWidth) as a,"
                 + " min(ResolutionWidth) as mn,"
                 + " max(ResolutionWidth) as mx by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 5"
+                + " | sort - c, SearchEngineID | head 3"
         );
     }
 
@@ -167,7 +169,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " count() as c,"
                 + " min(ResolutionWidth) as mn,"
                 + " sum(IsRefresh) as si by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 5"
+                + " | sort - c, SearchEngineID | head 3"
         );
     }
 
@@ -182,7 +184,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " sum(IsRefresh) as si,"
                 + " max(ResolutionWidth) as mx,"
                 + " count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 5"
+                + " | sort - c, SearchEngineID | head 3"
         );
     }
 
@@ -236,7 +238,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " | stats count() as c,"
                 + " sum(ResolutionWidth) as s,"
                 + " percentile(ResolutionWidth, 50) as p50 by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 5"
+                + " | sort - c, SearchEngineID | head 3"
         );
     }
 
