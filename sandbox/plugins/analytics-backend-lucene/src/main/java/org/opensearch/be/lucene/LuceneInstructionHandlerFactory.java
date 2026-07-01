@@ -74,7 +74,7 @@ final class LuceneInstructionHandlerFactory implements FragmentInstructionHandle
     }
 
     @Override
-    public Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK) {
+    public Optional<InstructionNode> createPartialAggregateNode() {
         // Lucene driver returns the count directly as a one-row partial-shaped batch —
         // no separate partial-aggregate setup step.
         return Optional.empty();

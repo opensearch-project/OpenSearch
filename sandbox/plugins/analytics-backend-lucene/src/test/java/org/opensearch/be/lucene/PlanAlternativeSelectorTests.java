@@ -559,7 +559,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK) {
+                public Optional<InstructionNode> createPartialAggregateNode() {
                     return Optional.empty();
                 }
 

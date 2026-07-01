@@ -235,8 +235,10 @@ public final class OpenSearchTopKRewriter {
         if (node instanceof OpenSearchAggregate) return null;                        // nested stats
         if (node instanceof OpenSearchProject proj) {
             if (proj.getProjects().stream().anyMatch(RexOver::containsOver)) return null; // window fn
-            if (seenProject == null) return findFinalAgg(proj.getInput(), proj);
-            return null;                                                             // 2nd project
+            // Capture the first project for sort-key remapping; pass through subsequent projects.
+            // The rewrite() method validates that the sort key maps through seenProject as a plain
+            // column reference — computed expressions (AVG division, etc.) are rejected there.
+            return findFinalAgg(proj.getInput(), seenProject == null ? proj : seenProject);
         }
         if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0), seenProject);
         return null;

@@ -962,7 +962,6 @@ pub unsafe extern "C" fn df_create_session_context(
     context_id: i64,
     query_config_ptr: i64,
     has_partial_aggregate: u8,
-    has_topk: u8,
     plan_ptr: *const u8,
     plan_len: i64,
 ) -> i64 {
@@ -985,7 +984,6 @@ pub unsafe extern "C" fn df_create_session_context(
                 table_name,
                 context_id,
                 has_partial_aggregate != 0,
-                has_topk != 0,
                 query_config,
                 plan_bytes,
             )
@@ -1005,7 +1003,6 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     delegated_predicate_count: i32,
     requests_row_ids: u8,
     has_partial_aggregate: u8,
-    has_topk: u8,
     query_config_ptr: i64,
     plan_ptr: *const u8,
     plan_len: i64,
@@ -1036,7 +1033,6 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
                 delegated_predicate_count,
                 requests_row_ids != 0,
                 has_partial_aggregate != 0,
-                has_topk != 0,
                 query_config,
                 plan_bytes,
             )

@@ -150,7 +150,6 @@ public class PlannerImpl {
         Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
         if (topK.isPresent()) {
             modifiedRelNode = topK.get();
-            context.setTopKApplied(true);
             LOGGER.debug("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
         }
         Optional<RelNode> sortPushdown = OpenSearchSortPushdownRewriter.rewrite(modifiedRelNode);

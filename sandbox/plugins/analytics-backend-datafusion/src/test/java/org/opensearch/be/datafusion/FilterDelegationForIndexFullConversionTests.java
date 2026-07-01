@@ -487,7 +487,7 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
                 }
 
                 @Override
-                public Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK) {
+                public Optional<InstructionNode> createPartialAggregateNode() {
                     return Optional.empty();
                 }
 

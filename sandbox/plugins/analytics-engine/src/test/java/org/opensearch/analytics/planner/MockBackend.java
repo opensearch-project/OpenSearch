@@ -191,8 +191,8 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
-            public Optional<InstructionNode> createPartialAggregateNode(boolean hasTopK) {
-                return Optional.of(new PartialAggregateInstructionNode(hasTopK));
+            public Optional<InstructionNode> createPartialAggregateNode() {
+                return Optional.of(new PartialAggregateInstructionNode());
             }
 
             @Override

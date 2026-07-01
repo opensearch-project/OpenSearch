@@ -132,7 +132,6 @@ pub async fn execute_indexed_query(
         query_config: Arc::unwrap_or_clone(query_config),
         io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
-        has_topk: false,
         prepared_plan: None,
         phantom_reservation: None,
     };
@@ -861,7 +860,6 @@ async unsafe fn execute_indexed_with_context_inner(
     let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
     let aggregate_mode = handle.aggregate_mode;
-    let has_topk = handle.has_topk;
     let ctx = handle.ctx;
     let table_name = handle.table_name;
     let table_path = handle.table_path;
@@ -1333,6 +1331,7 @@ async unsafe fn execute_indexed_with_context_inner(
     // Apply aggregate mode stripping when prepare_partial_plan was called (engine-native-merge).
     // This makes the indexed executor produce Binary HLL state (Partial) instead of Int64 (Final).
     let physical_plan = if aggregate_mode != crate::agg_mode::Mode::Default {
+        let has_topk = crate::agg_mode::plan_has_topk_sort(&physical_plan);
         crate::agg_mode::apply_aggregate_mode(physical_plan, aggregate_mode, has_topk)?
     } else {
         physical_plan

@@ -590,9 +590,10 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(sort, contextWithOversampling(2.0));
         String plan = RelOptUtil.toString(result);
         long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
-        // PROJECT_MERGE may or may not collapse the two adjacent identity projects. If it does,
-        // TopK fires (sortCount >= 2). If both survive, the rewriter safely bails (sortCount <= 1).
-        assertTrue("TopK fires when projects merge, or safely bails when they don't", sortCount >= 1);
+        // PROJECT_MERGE collapses the two adjacent identity projects, so TopK fires.
+        // Even without PROJECT_MERGE, the rewriter passes through multiple plain-column projects
+        // and validates the sort key at the first seenProject — TopK still fires correctly.
+        assertTrue("TopK should fire with multiple plain-column projects", sortCount >= 2);
     }
 
     /** Computed expression (literal) in Project between Sort and Aggregate — rewriter bails. */

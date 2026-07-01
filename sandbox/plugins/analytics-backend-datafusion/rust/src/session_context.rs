@@ -63,9 +63,6 @@ pub struct SessionContextHandle {
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
-    /// True when the shard fragment contains a TopK sort. Used in `prepare_partial_plan`
-    /// to replace Final with PartialReduce so CSS partitions merge before TopK truncation.
-    pub(crate) has_topk: bool,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
     /// Phantom reservation holding pool capacity for untracked memory.
@@ -149,7 +146,6 @@ pub async unsafe fn create_session_context(
     table_name: &str,
     context_id: i64,
     has_partial_aggregate: bool,
-    has_topk: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
@@ -205,10 +201,11 @@ pub async unsafe fn create_session_context(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
-    // Disable DataFusion's adaptive skip-partial-aggregation when TopK is active:
-    // if DF abandons partial agg midstream, the partial state sent to the coordinator
-    // would be incomplete, causing TopK to see partial group counts and produce wrong results.
-    if has_topk {
+    // Disable DataFusion's adaptive skip-partial-aggregation for distributed partial aggregates.
+    // If DF abandons partial agg midstream, the partial state sent to the coordinator is
+    // incomplete — the coordinator merge produces wrong results. This applies to all distributed
+    // partial/final queries, not just TopK.
+    if has_partial_aggregate {
         config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
     }
     config.options_mut().execution.target_partitions = effective_partitions;
@@ -386,7 +383,6 @@ pub async unsafe fn create_session_context(
         query_config,
         io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
-        has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
     };
@@ -415,11 +411,10 @@ pub async unsafe fn create_session_context_indexed(
     delegated_predicate_count: i32,
     requests_row_ids: bool,
     has_partial_aggregate: bool,
-    has_topk: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, has_partial_aggregate, has_topk, query_config, plan_bytes).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, has_partial_aggregate, query_config, plan_bytes).await?;
 
     // Augment with indexed config. The delegation marker UDFs (index_filter, delegation_possible)
     // are now registered for every session by udf::register_all (via create_session_context above);
@@ -465,7 +460,8 @@ pub async fn prepare_partial_plan(
     // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
     // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
     // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
-    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial, handle.has_topk)?;
+    let has_topk = crate::agg_mode::plan_has_topk_sort(&physical_plan);
+    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial, has_topk)?;
 
     let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
     let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
@@ -691,7 +687,6 @@ mod tests {
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
-            has_topk: false,
             prepared_plan: None,
             phantom_reservation: None,
         };

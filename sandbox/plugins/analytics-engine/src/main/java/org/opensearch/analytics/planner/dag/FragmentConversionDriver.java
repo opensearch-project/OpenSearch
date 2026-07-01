@@ -27,7 +27,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
@@ -82,11 +81,7 @@ public class FragmentConversionDriver {
      * {@link StagePlan#convertedBytes()} on each plan.
      */
     public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
-        convertAll(dag, registry, false);
-    }
-
-    public static void convertAll(QueryDAG dag, CapabilityRegistry registry, boolean topKApplied) {
-        convertStage(dag.rootStage(), registry, topKApplied);
+        convertStage(dag.rootStage(), registry);
         // Root stage executes locally at coordinator — store factory for instruction dispatch.
         Stage root = dag.rootStage();
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
@@ -96,12 +91,8 @@ public class FragmentConversionDriver {
     }
 
     private static void convertStage(Stage stage, CapabilityRegistry registry) {
-        convertStage(stage, registry, false);
-    }
-
-    private static void convertStage(Stage stage, CapabilityRegistry registry, boolean topKApplied) {
         for (Stage child : stage.getChildStages()) {
-            convertStage(child, registry, topKApplied);
+            convertStage(child, registry);
         }
         // After children are converted, surface any decorator-induced schema delta as
         // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
@@ -136,7 +127,7 @@ public class FragmentConversionDriver {
 
             // Assemble instruction list
             List<DelegatedExpression> delegated = delegationBytes.getResult();
-            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, delegationBytes, topKApplied);
+            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, delegationBytes);
 
             converted.add(plan.withConvertedBytes(bytes, delegated).withInstructions(instructions));
             LOGGER.debug(
@@ -234,8 +225,7 @@ public class FragmentConversionDriver {
         AnalyticsSearchBackendPlugin backend,
         StagePlan plan,
         FilterTreeShape treeShape,
-        IntraOperatorDelegationBytes delegationBytes,
-        boolean topKApplied
+        IntraOperatorDelegationBytes delegationBytes
     ) {
         FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
         LinkedList<InstructionNode> instructions = new LinkedList<>();
@@ -253,7 +243,7 @@ public class FragmentConversionDriver {
                 factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
             if (containsPartialAggregate(resolvedFragment)) {
-                factory.createPartialAggregateNode(topKApplied).ifPresent(instructions::add);
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
         } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
             factory.createFinalAggregateNode().ifPresent(instructions::add);
@@ -270,12 +260,6 @@ public class FragmentConversionDriver {
         return false;
     }
 
-    /**
-     * Returns true if the fragment contains a TopK sort — an {@link OpenSearchSort} with a
-     * non-null {@code fetch} (i.e. a LIMIT clause). When a TopK is co-located with a partial
-     * aggregate, CSS must not split the shard data across partitions because each partition would
-     * independently truncate to the TopK limit before the coordinator merge, dropping groups.
-     */
     private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
         if (root instanceof OpenSearchAggregate agg
             && agg.getMode() == mode
