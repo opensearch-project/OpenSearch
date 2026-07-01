@@ -232,6 +232,8 @@ public final class OpenSearchTopKRewriter {
         }
         // Anything between the Sort and the FINAL that consumes its full grouped output makes
         // the pushdown unsafe — refuse to match at all.
+        // TODO: nested stats — re-enable once TopK oversampling factor is an execution hint
+        // so the inner agg can over-fetch enough groups for outer-agg correctness.
         if (node instanceof OpenSearchAggregate) return null;                        // nested stats
         if (node instanceof OpenSearchProject proj) {
             if (proj.getProjects().stream().anyMatch(RexOver::containsOver)) return null; // window fn

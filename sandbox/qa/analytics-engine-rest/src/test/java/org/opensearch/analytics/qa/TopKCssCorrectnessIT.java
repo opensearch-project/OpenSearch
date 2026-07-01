@@ -33,17 +33,13 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
 
     private void ensureProvisioned() throws Exception {
         if (!provisioned) {
-            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET, 2);
-            // Oversampling factor 2.0: standard production-like value for TopK queries.
-            // NOTE: these tests do NOT fail without the fix on the local 2-shard ClickBench
-            // cluster because the dataset is too small — CSS requires multiple segments per
-            // shard to produce >1 CSS partition with data. With 1-2 segments, partition_count=1
-            // and PartialReduce is not triggered by the partition_count>1 guard.
-            // The tests serve as a correctness regression guard for production-scale deployments
-            // where CSS produces multiple partitions per shard (e.g. 15+ segments, 4 slices).
+            // MULTI_SEGMENT (2 segments/shard) + low oversampling makes the CSS truncation
+            // bug reproducible on the local test cluster — each CSS partition independently
+            // truncates to a very small fetch limit, producing wrong results without the fix.
+            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET, 2, DatasetProvisioner.SegmentLayout.MULTI_SEGMENT);
             Request req = new Request("PUT", "/_cluster/settings");
             req.setJsonEntity(
-                "{\"persistent\":{\"analytics.shard_bucket_oversampling_factor\": 2.0}}"
+                "{\"persistent\":{\"analytics.shard_bucket_oversampling_factor\": 0.1}}"
             );
             client().performRequest(req);
             provisioned = true;
@@ -70,7 +66,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
         assertCssMatchesNoCss(
             "source = " + INDEX
                 + " | stats count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort - c, SearchEngineID | head 2"
         );
     }
 
@@ -81,7 +77,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
         assertCssMatchesNoCss(
             "source = " + INDEX
                 + " | stats distinct_count(ClientIP) as dc by SearchEngineID"
-                + " | sort - dc, SearchEngineID | head 3"
+                + " | sort - dc, SearchEngineID | head 2"
         );
     }
 
@@ -118,7 +114,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
         assertCssMatchesNoCss(
             "source = " + INDEX
                 + " | stats count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3 from 2"
+                + " | sort - c, SearchEngineID | head 2 from 1"
         );
     }
 
@@ -131,7 +127,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " | stats min(ResolutionWidth) as mn,"
                 + " max(ResolutionWidth) as mx,"
                 + " count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort - c, SearchEngineID | head 2"
         );
     }
 
@@ -139,14 +135,13 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
 
     public void testCase08_avgSum_cssMatchesNoCss() throws Exception {
         ensureProvisioned();
-        // head 3 avoids tie-breaking flakiness at the boundary where oversampling may not
-        // include all tied groups — top-3 SearchEngineIDs have distinct counts.
+        // Sort by SearchEngineID (deterministic key, not count) to avoid tie-breaking flakiness.
         assertCssMatchesNoCss(
             "source = " + INDEX
                 + " | stats avg(ResolutionWidth) as a,"
                 + " sum(ResolutionWidth) as s,"
                 + " count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort SearchEngineID | head 5"
         );
     }
 
@@ -161,7 +156,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " avg(ResolutionWidth) as a,"
                 + " min(ResolutionWidth) as mn,"
                 + " max(ResolutionWidth) as mx by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort - c, SearchEngineID | head 2"
         );
     }
 
@@ -176,7 +171,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " count() as c,"
                 + " min(ResolutionWidth) as mn,"
                 + " sum(IsRefresh) as si by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort - c, SearchEngineID | head 2"
         );
     }
 
@@ -191,7 +186,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " sum(IsRefresh) as si,"
                 + " max(ResolutionWidth) as mx,"
                 + " count() as c by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort - c, SearchEngineID | head 2"
         );
     }
 
@@ -245,7 +240,7 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
                 + " | stats count() as c,"
                 + " sum(ResolutionWidth) as s,"
                 + " percentile(ResolutionWidth, 50) as p50 by SearchEngineID"
-                + " | sort - c, SearchEngineID | head 3"
+                + " | sort - c, SearchEngineID | head 2"
         );
     }
 

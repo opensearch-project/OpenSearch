@@ -508,7 +508,15 @@ fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
             Some(RelType::Project(p)) => p.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
             Some(RelType::Filter(f)) => f.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
             Some(RelType::Aggregate(a)) => a.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
-            _ => false,
+            // TODO: enumerate remaining rel types explicitly and panic on unknown ones.
+            Some(other) => {
+                native_bridge_common::log_debug!(
+                    "substrait_has_fetch_rel: {:?} — no TopK fetch",
+                    std::mem::discriminant(other)
+                );
+                false
+            }
+            None => false,
         }
     }
 
@@ -1019,5 +1027,34 @@ mod tests {
         };
         let bytes = plan.encode_to_vec();
         assert!(!substrait_has_fetch_rel(&bytes), "SortRel without FetchRel → false");
+    }
+
+    /// A Join rel at the root — exercises the `Some(other)` arm that logs and returns false.
+    /// Shard fragments never have Join above a TopK FetchRel, so this correctly returns false.
+    #[test]
+    fn test_substrait_has_fetch_rel_join_returns_false() {
+        use prost::Message;
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{JoinRel, Plan, PlanRel, Rel, plan_rel};
+
+        let join_rel = Box::new(Rel {
+            rel_type: Some(RelType::Join(Box::new(JoinRel {
+                common: None,
+                left: None,
+                right: None,
+                r#type: 0,
+                expression: None,
+                post_join_filter: None,
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*join_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(!substrait_has_fetch_rel(&bytes), "Join rel → false (no TopK in shard fragment with Join)");
     }
 }
