@@ -1155,4 +1155,101 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             .searchRouting(searchRouting)
             .build();
     }
+
+    public void testRolloverWithIngestionOffsets() throws Exception {
+        final String aliasName = "logs-alias";
+        final String indexPrefix = "logs-index-00000";
+        String sourceIndexName = indexPrefix + "1";
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(sourceIndexName)
+            .putAlias(AliasMetadata.builder(aliasName).writeIndex(true).build())
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(indexMetadata))
+            .build();
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+            Environment env = mock(Environment.class);
+            when(env.sharedDataDir()).thenReturn(null);
+            AllocationService allocationService = mock(AllocationService.class);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+            IndicesService indicesService = mockIndicesServices();
+            IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+            when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
+
+            final SystemIndices systemIndices = new SystemIndices(emptyMap());
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService, systemIndices);
+            MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                allocationService,
+                null,
+                shardLimitValidator,
+                env,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                testThreadPool,
+                null,
+                systemIndices,
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                null
+            );
+            MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
+                clusterService,
+                indicesService,
+                new AliasValidator(),
+                null,
+                xContentRegistry()
+            );
+            MetadataRolloverService rolloverService = new MetadataRolloverService(
+                testThreadPool,
+                createIndexService,
+                indexAliasesService,
+                mockIndexNameExpressionResolver
+            );
+
+            Map<Integer, String> shardOffsets = Map.of(0, "offset-123");
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+            createIndexRequest.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1));
+
+            MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
+                clusterState,
+                aliasName,
+                null,
+                createIndexRequest,
+                Collections.emptyList(),
+                true,
+                false,
+                shardOffsets
+            );
+
+            String newIndexName = indexPrefix + "2";
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
+
+            Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
+            IndexMetadata newIndexMeta = rolloverMetadata.index(newIndexName);
+            assertNotNull(newIndexMeta.getIngestionStatus());
+            assertFalse(newIndexMeta.getIngestionStatus().isPaused());
+            assertEquals("offset-123", newIndexMeta.getIngestionStatus().shardOffsets().get(0));
+
+            IndexMetadata oldIndexMeta = rolloverMetadata.index(sourceIndexName);
+            assertNotNull(oldIndexMeta.getIngestionStatus());
+            assertTrue(oldIndexMeta.getIngestionStatus().isPaused());
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
 }

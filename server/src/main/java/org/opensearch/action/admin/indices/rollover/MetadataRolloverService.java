@@ -43,6 +43,7 @@ import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
@@ -120,6 +121,28 @@ public class MetadataRolloverService {
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
+        return rolloverClusterState(
+            currentState,
+            rolloverTarget,
+            newIndexName,
+            createIndexRequest,
+            metConditions,
+            silent,
+            onlyValidate,
+            null
+        );
+    }
+
+    public RolloverResult rolloverClusterState(
+        ClusterState currentState,
+        String rolloverTarget,
+        String newIndexName,
+        CreateIndexRequest createIndexRequest,
+        List<Condition<?>> metConditions,
+        boolean silent,
+        boolean onlyValidate,
+        @Nullable Map<Integer, String> shardOffsets
+    ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
@@ -132,7 +155,8 @@ public class MetadataRolloverService {
                     createIndexRequest,
                     metConditions,
                     silent,
-                    onlyValidate
+                    onlyValidate,
+                    shardOffsets
                 );
             case DATA_STREAM:
                 return rolloverDataStream(
@@ -142,7 +166,8 @@ public class MetadataRolloverService {
                     createIndexRequest,
                     metConditions,
                     silent,
-                    onlyValidate
+                    onlyValidate,
+                    shardOffsets
                 );
             default:
                 // the validate method above prevents this case
@@ -158,7 +183,8 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        @Nullable Map<Integer, String> shardOffsets
     ) throws Exception {
         final Metadata metadata = currentState.metadata();
         final IndexMetadata writeIndex = alias.getWriteIndex();
@@ -186,6 +212,25 @@ public class MetadataRolloverService {
             createIndexRequest
         );
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
+
+        // Transfer ingestion status if offsets are supplied
+        IndexMetadata newIndexMetadata = newState.metadata().index(rolloverIndexName);
+        if (newIndexMetadata != null && shardOffsets != null && !shardOffsets.isEmpty()) {
+            IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(newIndexMetadata)
+                .ingestionStatus(new IngestionStatus(false, shardOffsets));
+            newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedMetadata)).build();
+        }
+
+        // Ensure old index is marked as paused if it uses ingestion
+        if (writeIndex.useIngestionSource()) {
+            IndexMetadata oldIndexMetadata = newState.metadata().index(sourceIndexName);
+            if (oldIndexMetadata != null) {
+                IndexMetadata.Builder updatedOldMetadata = IndexMetadata.builder(oldIndexMetadata)
+                    .ingestionStatus(new IngestionStatus(true));
+                newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedOldMetadata)).build();
+            }
+        }
+
         newState = indexAliasesService.applyAliasActions(
             newState,
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata, aliasName)
@@ -209,7 +254,8 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        @Nullable Map<Integer, String> shardOffsets
     ) throws Exception {
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
@@ -232,6 +278,24 @@ public class MetadataRolloverService {
             silent,
             (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex()))
         );
+
+        // Transfer ingestion status if offsets are supplied
+        IndexMetadata newIndexMetadata = newState.metadata().index(newWriteIndexName);
+        if (newIndexMetadata != null && shardOffsets != null && !shardOffsets.isEmpty()) {
+            IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(newIndexMetadata)
+                .ingestionStatus(new IngestionStatus(false, shardOffsets));
+            newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedMetadata)).build();
+        }
+
+        // Ensure old index is marked as paused if it uses ingestion
+        if (originalWriteIndex.useIngestionSource()) {
+            IndexMetadata oldIndexMetadata = newState.metadata().index(originalWriteIndex.getIndex());
+            if (oldIndexMetadata != null) {
+                IndexMetadata.Builder updatedOldMetadata = IndexMetadata.builder(oldIndexMetadata)
+                    .ingestionStatus(new IngestionStatus(true));
+                newState = ClusterState.builder(newState).metadata(Metadata.builder(newState.metadata()).put(updatedOldMetadata)).build();
+            }
+        }
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
