@@ -3843,6 +3843,60 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationTracker.getSegmentReplicationStats();
     }
 
+    /**
+     * Waits for all tracked replicas to be in sync with the primary's latest checkpoint.
+     * Polls every 500ms until either all replicas report {@code checkpointsBehindCount == 0}
+     * or the timeout is exceeded.
+     * <p>
+     * Used during tiering preparation to verify replicas are in sync after
+     * {@code waitForRemoteStoreSync()} — ensures replicas have downloaded the latest
+     * segments before shard relocation begins.
+     *
+     * @param timeout maximum time to wait for replicas to sync
+     * @throws IOException if replicas fail to sync within the timeout
+     */
+    public void waitForReplicaSync(TimeValue timeout) throws IOException {
+        if (!indexSettings.isSegRepEnabledOrRemoteNode()) {
+            return;
+        }
+        long startNanos = System.nanoTime();
+        Set<SegmentReplicationShardStats> stats = Set.of();
+        while (System.nanoTime() - startNanos < timeout.nanos()) {
+            stats = getReplicationStatsForTrackedReplicas();
+            if (stats.isEmpty() || stats.stream().allMatch(s -> s.getCheckpointsBehindCount() == 0)) {
+                logger.debug("All replicas in sync for shard [{}]", shardId);
+                return;
+            }
+            long behindReplicas = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0).count();
+            long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+            logger.debug(
+                "Waiting for replica sync on shard [{}]: {} replica(s) still behind, max checkpoints behind: {}",
+                shardId,
+                behindReplicas,
+                maxBehind
+            );
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenSearchException("Interrupted waiting for replica sync on shard [" + shardId + "]", e);
+            }
+        }
+        // Build diagnostic message with per-replica details
+        long behindCount = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0).count();
+        long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+        throw new IOException(
+            "Shard ["
+                + shardId
+                + "] replicas failed to sync within "
+                + timeout
+                + ". Replicas still behind: "
+                + behindCount
+                + ", max checkpoints behind: "
+                + maxBehind
+        );
+    }
+
     public ReplicationStats getReplicationStats() {
         if (indexSettings.isSegRepEnabledOrRemoteNode() && !routingEntry().primary()) {
             return segmentReplicationStatsProvider.apply(shardId);

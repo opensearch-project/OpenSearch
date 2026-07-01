@@ -24,6 +24,7 @@ import org.opensearch.storage.action.tiering.PrepareTieringRequest;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * End-to-end integration test for the asynchronous pre-tiering sync ({@link PrepareTieringAction}).
@@ -201,5 +202,93 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
         String nodeName = state.nodes().get(primary.currentNodeId()).getName();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         return indicesService.indexServiceSafe(resolveIndex(index)).getShard(shardId);
+    }
+
+    /**
+     * Triggers a force merge and immediately calls prepare tiering back-to-back. Whether the force
+     * merge is still in-flight when prepare runs depends on timing — the test verifies that in either
+     * case:
+     * <ul>
+     *   <li>Prepare succeeds (no shard failures)</li>
+     *   <li>All merges (background and force) are drained after prepare completes</li>
+     *   <li>Replicas are in sync with the primary (checkpoints behind == 0)</li>
+     * </ul>
+     * This guards against the race condition where forceMerge was invisible to onMergesDrained,
+     * causing tiering to proceed while a force merge was still running.
+     */
+    public void testPrepareTieringAfterForceMerge_MergesDrainedAndReplicasInSync() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(2);
+
+        Settings settings = Settings.builder()
+            .put(dfaIndexSettings(1))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        client().admin().indices().prepareCreate(ASYNC_INDEX).setSettings(settings).get();
+        ensureGreen(ASYNC_INDEX);
+
+        try {
+            // Index in many batches to create multiple segments worth merging
+            int id = 0;
+            for (int batch = 0; batch < INDEX_BATCHES * 2; batch++) {
+                for (int i = 0; i < DOCS_PER_BATCH; i++) {
+                    client().prepareIndex(ASYNC_INDEX).setSource("field_text", "value_" + id, "field_number", (long) id).get();
+                    id++;
+                }
+                client().admin().indices().prepareRefresh(ASYNC_INDEX).get();
+            }
+            final int totalDocs = id;
+            client().admin().indices().prepareFlush(ASYNC_INDEX).setForce(true).get();
+
+            // Trigger force merge (non-blocking) and immediately call prepare tiering back-to-back.
+            // Whether the merge is still in-flight or already done when prepare runs is timing-dependent —
+            // both outcomes must result in a successful prepare with drained merges.
+            client().admin().indices().prepareForceMerge(ASYNC_INDEX).setMaxNumSegments(1).setFlush(false).execute();
+
+            PrepareTieringRequest request = new PrepareTieringRequest(ASYNC_INDEX);
+            request.timeout(TimeValue.timeValueSeconds(90));
+            BroadcastResponse response = client().execute(PrepareTieringAction.INSTANCE, request).actionGet();
+
+            // Prepare must succeed — regardless of whether force merge was still running or already done
+            assertEquals("all shards targeted", 1, response.getTotalShards());
+            assertEquals("no shard should fail prepare", 0, response.getFailedShards());
+            assertEquals("shard should prepare successfully", 1, response.getSuccessfulShards());
+
+            // After prepare completes, all merges must be drained
+            IndexShard primary = primaryShard(ASYNC_INDEX, 0);
+            assertEquals("active merges should be drained after prepare", 0, primary.getActiveMergeCount());
+            assertFalse("no pending merges should remain after prepare", primary.hasPendingMerges());
+
+            // Replicas must be in sync — checkpoints behind should be 0
+            assertBusy(() -> {
+                var replicationStats = primary.getReplicationStatsForTrackedReplicas();
+                for (var stat : replicationStats) {
+                    assertEquals(
+                        "replica should be in sync after prepare (checkpoints behind)",
+                        0,
+                        stat.getCheckpointsBehindCount()
+                    );
+                }
+            }, 30, TimeUnit.SECONDS);
+
+            // Data integrity: doc count should be preserved
+            assertEquals("all docs should be present", (long) totalDocs, primariesDocCount(ASYNC_INDEX));
+
+            // Force merge target: replica segment count should be 1 after merge completes and replicates
+            long replicaSegmentCount = client().admin()
+                .indices()
+                .prepareStats(ASYNC_INDEX)
+                .clear()
+                .setSegments(true)
+                .get()
+                .getIndex(ASYNC_INDEX)
+                .getTotal()
+                .getSegments()
+                .getCount();
+            // Total segments = primary (1) + replica (1) = 2 for a 1P+1R index after force merge
+            assertEquals("primary + replica should each have 1 segment after force merge + prepare", 2, replicaSegmentCount);
+        } finally {
+            client().admin().indices().delete(new DeleteIndexRequest(ASYNC_INDEX)).actionGet();
+        }
     }
 }

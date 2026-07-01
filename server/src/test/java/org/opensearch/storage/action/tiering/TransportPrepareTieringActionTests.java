@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -144,6 +145,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             indexShard.refresh("prepare_tiering");
             indexShard.waitForRemoteStoreSync();
+            indexShard.waitForReplicaSync(TimeValue.timeValueSeconds(30));
 
             int uncommitted = indexShard.translogStats().getUncommittedOperations();
             if (uncommitted > 0) {
@@ -173,7 +175,8 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that the shard operation calls sync, flush, refresh, and waitForRemoteStoreSync in order.
+     * Verifies that the shard operation calls sync, flush, refresh, waitForRemoteStoreSync,
+     * and waitForReplicaSync in order.
      */
     public void testShardOperation_SyncFlushRefreshAndWaitForRemoteSync() throws IOException {
         mockPermitAcquisitionSuccess();
@@ -185,6 +188,27 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         inOrder.verify(mockIndexShard).flush(any(FlushRequest.class));
         inOrder.verify(mockIndexShard).refresh("prepare_tiering");
         inOrder.verify(mockIndexShard).waitForRemoteStoreSync();
+        inOrder.verify(mockIndexShard).waitForReplicaSync(any(TimeValue.class));
+    }
+
+    /**
+     * Verifies that if waitForReplicaSync throws (replicas failed to sync in time),
+     * the exception propagates and the prepare action fails — allowing retry.
+     */
+    public void testShardOperation_WaitForReplicaSyncTimeout_PropagatesFailure() throws IOException {
+        mockPermitAcquisitionSuccess();
+
+        doThrow(
+            new IOException(
+                "Shard [[clickbench][0]] replicas failed to sync within 30s. " + "Replicas still behind: 1, max checkpoints behind: 2"
+            )
+        ).when(mockIndexShard).waitForReplicaSync(any(TimeValue.class));
+
+        IOException ex = expectThrows(IOException.class, () -> executeShardOperation(mockIndexShard, primaryShardRouting));
+        assertThat(ex.getMessage(), containsString("replicas failed to sync within"));
+
+        // Verify permit was released despite the exception
+        verify(mockPermit, timeout(5000)).close();
     }
 
     /**

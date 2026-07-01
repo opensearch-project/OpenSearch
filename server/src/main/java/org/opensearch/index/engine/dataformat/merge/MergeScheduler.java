@@ -154,6 +154,7 @@ public class MergeScheduler {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.FORCE_MERGE)
             : "forceMerge must be called on FORCE_MERGE thread but was: " + Thread.currentThread().getName();
         forceMergeLock.acquireUninterruptibly();
+        activeMerges.incrementAndGet();
         try {
             if (isShutdown.get()) {
                 logger.debug("MergeScheduler is shutdown, skipping force merge");
@@ -168,6 +169,20 @@ public class MergeScheduler {
                 runMerge(oneMerge);
             }
         } finally {
+            activeMerges.decrementAndGet();
+            // Fire all drain listeners if all merges completed and none pending.
+            // This ensures tiering's onMergesDrained callback fires after a force merge completes.
+            if (isFrozen() && activeMerges.get() == 0 && !mergeHandler.hasPendingMerges() && !onDrainedListeners.isEmpty()) {
+                List<Runnable> listeners = List.copyOf(onDrainedListeners);
+                onDrainedListeners.clear();
+                for (Runnable listener : listeners) {
+                    try {
+                        listener.run();
+                    } catch (Exception ex) {
+                        logger.warn("Exception in onDrained listener", ex);
+                    }
+                }
+            }
             forceMergeLock.release();
         }
     }

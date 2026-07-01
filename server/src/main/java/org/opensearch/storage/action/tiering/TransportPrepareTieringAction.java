@@ -59,6 +59,7 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
 
     private static final Logger logger = LogManager.getLogger(TransportPrepareTieringAction.class);
     private static final TimeValue PERMITS_ACQUIRE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    private static final TimeValue REPLICA_SYNC_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
@@ -254,6 +255,9 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
         // "prepare_tiering" source bypasses the freeze guard — this is the last refresh ever.
         indexShard.refresh("prepare_tiering");
         indexShard.waitForRemoteStoreSync();
+        // Wait for replicas to apply the latest checkpoint before relocation.
+        // This ensures replicas have downloaded the merged segment(s) from remote store.
+        indexShard.waitForReplicaSync(REPLICA_SYNC_TIMEOUT);
         verifyNoUncommittedOps(indexShard, shardRouting);
 
         logger.debug("Shard [{}] prepared for tiering successfully", shardRouting.shardId());

@@ -5623,4 +5623,18 @@ public class IndexShardTests extends IndexShardTestCase {
             closeShards(replica);
         }
     }
+
+    /**
+     * Verifies {@code waitForReplicaSync} returns immediately on a non-segment-replication index
+     * (the method is a no-op when segment replication is not enabled).
+     */
+    public void testWaitForReplicaSync_NonSegRepIndex_ReturnsImmediately() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            // Should not throw — returns immediately for non-seg-rep indices
+            shard.waitForReplicaSync(TimeValue.timeValueSeconds(1));
+        } finally {
+            closeShards(shard);
+        }
+    }
 }
