@@ -416,6 +416,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
+    private static final long REPLICA_SYNC_POLL_INTERVAL_MS = 500;
+
     private final DataFormatRegistry dataFormatRegistry;
 
     private final Map<String, FormatChecksumStrategy> checksumStrategies;
@@ -3876,7 +3878,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 maxBehind
             );
             try {
-                Thread.sleep(500);
+                // TODO: Replace sleep-based polling with a listener on ReplicationTracker checkpoint updates
+                Thread.sleep(REPLICA_SYNC_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new OpenSearchException("Interrupted waiting for replica sync on shard [" + shardId + "]", e);

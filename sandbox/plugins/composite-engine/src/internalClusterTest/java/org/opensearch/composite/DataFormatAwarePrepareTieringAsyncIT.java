@@ -220,10 +220,7 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataAndWarmNodes(2);
 
-        Settings settings = Settings.builder()
-            .put(dfaIndexSettings(1))
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = Settings.builder().put(dfaIndexSettings(1)).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
         client().admin().indices().prepareCreate(ASYNC_INDEX).setSettings(settings).get();
         ensureGreen(ASYNC_INDEX);
 
@@ -263,11 +260,7 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
             assertBusy(() -> {
                 var replicationStats = primary.getReplicationStatsForTrackedReplicas();
                 for (var stat : replicationStats) {
-                    assertEquals(
-                        "replica should be in sync after prepare (checkpoints behind)",
-                        0,
-                        stat.getCheckpointsBehindCount()
-                    );
+                    assertEquals("replica should be in sync after prepare (checkpoints behind)", 0, stat.getCheckpointsBehindCount());
                 }
             }, 30, TimeUnit.SECONDS);
 

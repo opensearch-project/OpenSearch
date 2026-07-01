@@ -98,6 +98,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -230,7 +231,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -5633,6 +5639,54 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             // Should not throw — returns immediately for non-seg-rep indices
             shard.waitForReplicaSync(TimeValue.timeValueSeconds(1));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} returns immediately when replicas are already in sync.
+     */
+    public void testWaitForReplicaSync_AlreadyInSync_ReturnsImmediately() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            // Spy on the shard to simulate a replica that's already in sync
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats inSyncStat = mock(SegmentReplicationShardStats.class);
+            when(inSyncStat.getCheckpointsBehindCount()).thenReturn(0L);
+            doReturn(Set.of(inSyncStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            spyShard.waitForReplicaSync(TimeValue.timeValueSeconds(10));
+
+            // Should have checked stats exactly once and returned — no polling loop
+            verify(spyShard, times(1)).getReplicationStatsForTrackedReplicas();
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} throws IOException when replicas fail to sync within timeout.
+     */
+    public void testWaitForReplicaSync_Timeout_ThrowsIOException() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            // Spy on the shard to simulate a replica that's always behind
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats behindStat = mock(SegmentReplicationShardStats.class);
+            when(behindStat.getCheckpointsBehindCount()).thenReturn(3L);
+            doReturn(Set.of(behindStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            // Use a very short timeout so the test doesn't take 30s
+            IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
+            assertThat(ex.getMessage(), containsString("replicas failed to sync within"));
+            assertThat(ex.getMessage(), containsString("max checkpoints behind: 3"));
         } finally {
             closeShards(shard);
         }
