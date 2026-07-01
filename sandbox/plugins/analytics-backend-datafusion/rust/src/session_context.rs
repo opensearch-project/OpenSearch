@@ -883,28 +883,103 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_partial_agg_disabled_when_has_partial_aggregate() {
-        // When has_partial_aggregate=true, skip_partial must be disabled (threshold=1.0)
+    fn test_skip_partial_agg_disabled_when_has_topk() {
+        // skip_partial must be disabled (1.0) when TopK is active — if DF abandons partial
+        // agg midstream the partial state is incomplete and TopK sees wrong group counts.
         let mut config = SessionConfig::new();
-        let has_partial = true;
-        if has_partial {
+        let has_topk = true;
+        if has_topk {
             config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
         }
         assert_eq!(
             config.options().execution.skip_partial_aggregation_probe_ratio_threshold,
             1.0,
-            "skip_partial must be disabled (1.0) for multi-shard"
+            "skip_partial must be disabled (1.0) when TopK is active"
         );
     }
 
     #[test]
-    fn test_skip_partial_agg_default_when_single_shard() {
-        // When has_partial_aggregate=false, skip_partial retains DF default (0.8)
+    fn test_skip_partial_agg_default_when_no_topk() {
+        // When has_topk=false, skip_partial retains DF default (0.8) — no perf regression
+        // for non-TopK multi-shard queries.
         let config = SessionConfig::new();
         assert_eq!(
             config.options().execution.skip_partial_aggregation_probe_ratio_threshold,
             0.8,
-            "single-shard must retain DF default threshold"
+            "non-TopK queries must retain DF default threshold"
         );
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_empty() {
+        assert!(!substrait_has_fetch_rel(&[]), "empty bytes → false");
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_with_fetch() {
+        use prost::Message;
+        use substrait::proto::expression::literal::LiteralType;
+        use substrait::proto::expression::{Literal, RexType};
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{Expression, FetchRel, Plan, PlanRel, Rel, SortRel, fetch_rel, plan_rel};
+
+        // Build: FetchRel(count=10) wrapping SortRel — same as what DataFusion Substrait
+        // producer emits for Sort(fetch=10, ...) from OpenSearchTopKRewriter.
+        let sort_rel = Box::new(Rel {
+            rel_type: Some(RelType::Sort(Box::new(SortRel {
+                common: None,
+                input: None,
+                sorts: vec![],
+                advanced_extension: None,
+            }))),
+        });
+        let fetch_rel = Box::new(Rel {
+            rel_type: Some(RelType::Fetch(Box::new(FetchRel {
+                common: None,
+                input: Some(sort_rel),
+                offset_mode: None,
+                count_mode: Some(fetch_rel::CountMode::CountExpr(Box::new(Expression {
+                    rex_type: Some(RexType::Literal(Literal {
+                        nullable: false,
+                        type_variation_reference: 0,
+                        literal_type: Some(LiteralType::I64(10)),
+                    })),
+                }))),
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*fetch_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(substrait_has_fetch_rel(&bytes), "FetchRel(count=10) → true");
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_without_fetch() {
+        use prost::Message;
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{Plan, PlanRel, Rel, SortRel, plan_rel};
+
+        // Sort without fetch → no FetchRel → false
+        let sort_rel = Box::new(Rel {
+            rel_type: Some(RelType::Sort(Box::new(SortRel {
+                common: None,
+                input: None,
+                sorts: vec![],
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*sort_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(!substrait_has_fetch_rel(&bytes), "SortRel without FetchRel → false");
     }
 }
