@@ -34,6 +34,13 @@ public class TopKCssCorrectnessIT extends AnalyticsRestTestCase {
     private void ensureProvisioned() throws Exception {
         if (!provisioned) {
             DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET, 2);
+            // Oversampling factor 2.0: standard production-like value for TopK queries.
+            // NOTE: these tests do NOT fail without the fix on the local 2-shard ClickBench
+            // cluster because the dataset is too small — CSS requires multiple segments per
+            // shard to produce >1 CSS partition with data. With 1-2 segments, partition_count=1
+            // and PartialReduce is not triggered by the partition_count>1 guard.
+            // The tests serve as a correctness regression guard for production-scale deployments
+            // where CSS produces multiple partitions per shard (e.g. 15+ segments, 4 slices).
             Request req = new Request("PUT", "/_cluster/settings");
             req.setJsonEntity(
                 "{\"persistent\":{\"analytics.shard_bucket_oversampling_factor\": 2.0}}"

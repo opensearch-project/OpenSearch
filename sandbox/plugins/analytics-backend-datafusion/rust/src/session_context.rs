@@ -485,6 +485,18 @@ pub async fn prepare_partial_plan(
 ///
 /// Single-shard (SINGLE aggregate mode) never has `has_partial_aggregate=true` so this
 /// function is only called for multi-shard partial-aggregate fragments.
+///
+/// # Upgrade path note
+/// This detection avoids adding a new boolean field to the Java→Rust FFI surface
+/// (which would break wire compatibility with older nodes during rolling upgrades —
+/// old coordinators serialising `PartialAggregateInstructionNode` without the field
+/// would be misread by new data nodes). The Substrait plan bytes are already part of
+/// the existing wire contract and do not change format.
+///
+/// TODO: Once AnalyticsCore supports a versioned flag/hint mechanism, replace this
+/// Substrait scan with an explicit flag passed through the instruction pipeline.
+/// That would be cleaner and avoid re-parsing the plan bytes, but requires a
+/// backward-compatible flag delivery path that does not exist today.
 fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
     use prost::Message;
     use substrait::proto::rel::RelType;
