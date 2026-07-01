@@ -235,9 +235,11 @@ public final class OpenSearchTopKRewriter {
         if (node instanceof OpenSearchAggregate) return null;                        // nested stats
         if (node instanceof OpenSearchProject proj) {
             if (proj.getProjects().stream().anyMatch(RexOver::containsOver)) return null; // window fn
-            // Capture the first project for sort-key remapping; pass through subsequent projects.
-            // The rewrite() method validates that the sort key maps through seenProject as a plain
-            // column reference — computed expressions (AVG division, etc.) are rejected there.
+            // Capture the first Project for sort-key remapping; pass through subsequent Projects.
+            // Only the first Project (seenProject) is used for collation remapping in rewrite() —
+            // subsequent plain-column Projects are transparent. rewrite() then validates each sort
+            // field maps through seenProject as a RexInputRef; computed expressions (AVG division,
+            // etc.) cause rewrite() to bail, so they are safely rejected even if passed through here.
             return findFinalAgg(proj.getInput(), seenProject == null ? proj : seenProject);
         }
         if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0), seenProject);

@@ -959,6 +959,32 @@ mod tests {
     }
 
     #[test]
+    fn test_substrait_has_fetch_rel_with_fetch_no_count_mode() {
+        use prost::Message;
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{FetchRel, Plan, PlanRel, Rel, plan_rel};
+
+        // FetchRel exists but count_mode is None — not a real limit, should not trigger TopK.
+        let fetch_rel = Box::new(Rel {
+            rel_type: Some(RelType::Fetch(Box::new(FetchRel {
+                common: None,
+                input: None,
+                offset_mode: None,
+                count_mode: None,
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*fetch_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(!substrait_has_fetch_rel(&bytes), "FetchRel without count_mode → false");
+    }
+
+    #[test]
     fn test_substrait_has_fetch_rel_without_fetch() {
         use prost::Message;
         use substrait::proto::rel::RelType;

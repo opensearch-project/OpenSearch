@@ -357,4 +357,29 @@ mod tests {
         assert!(display_after.contains("mode=Partial"), "Partial should remain");
     }
 
+    /// When has_topk=true and the input has multiple partitions (CSS), Final/FinalPartitioned
+    /// must be replaced with PartialReduce rather than stripped, so the coordinator receives
+    /// correctly merged partial state instead of per-partition-truncated results.
+    #[tokio::test]
+    async fn test_apply_partial_with_topk_produces_partial_reduce() {
+        let plan = make_agg_plan_with_repartition().await;
+        let display_before = plan_string(&plan);
+        // With target_partitions=4 and GROUP BY, DF produces FinalPartitioned.
+        assert!(
+            display_before.contains("mode=FinalPartitioned") || display_before.contains("mode=Final"),
+            "expected Final/FinalPartitioned in multi-partition plan, got:\n{display_before}"
+        );
+
+        let result = apply_aggregate_mode(plan, Mode::Partial, true).unwrap();
+        let modes = find_agg_modes(&result);
+        assert!(
+            modes.contains(&AggregateMode::PartialReduce),
+            "has_topk=true with multi-partition input must produce PartialReduce, got modes: {modes:?}"
+        );
+        assert!(
+            !modes.contains(&AggregateMode::Final) && !modes.contains(&AggregateMode::FinalPartitioned),
+            "Final/FinalPartitioned must not remain after stripping"
+        );
+    }
+
 }
