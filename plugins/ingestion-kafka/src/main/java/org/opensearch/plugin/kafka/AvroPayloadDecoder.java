@@ -18,6 +18,12 @@ import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -26,7 +32,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -115,7 +120,13 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
                 inlineSchema = (String) schemaVal;
             } else if (schemaVal instanceof Map) {
                 // OpenSearch parsed the JSON string into a Map — convert back to JSON
-                inlineSchema = toJsonString(schemaVal);
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> schemaMap = (Map<String, Object>) schemaVal;
+                    inlineSchema = BytesReference.bytes(XContentFactory.jsonBuilder().map(schemaMap)).utf8ToString();
+                } catch (IOException ex) {
+                    throw new IllegalArgumentException("Failed to re-serialize avro.schema map to JSON", ex);
+                }
             } else if (schemaVal != null) {
                 inlineSchema = String.valueOf(schemaVal);
             }
@@ -234,6 +245,9 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
                 logger.debug("Extracted msg_field=[{}] with {} fields", msgField, map.size());
             }
 
+            // TODO: the decoded record is serialized to JSON bytes here and then parsed back to a Map
+            // in MessageProcessorRunnable. A future optimization could pass the Map directly through
+            // the ingestion pipeline to avoid the serialize/parse round-trip.
             byte[] jsonBytes = toJsonBytes(map);
             logger.debug("Avro decode complete: json_bytes={}", jsonBytes.length);
             return jsonBytes;
@@ -278,7 +292,7 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
                     "Schema registry returned HTTP " + response.statusCode() + " for [" + url + "]: " + bodyPreview
                 );
             }
-            return parseSchemaFromBody(response.body());
+            return new Schema.Parser().parse(extractSchemaJson(response.body()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while fetching Avro schema from [" + url + "]", e);
@@ -287,11 +301,12 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         }
     }
 
-    static Schema parseSchemaFromBody(String body) {
+    static String extractSchemaJson(String body) {
         try {
-            Schema schema = new Schema.Parser().parse(body);
-            logger.debug("Parsed Avro schema directly, name=[{}]", schema.getFullName());
-            return schema;
+            // Validate it's parseable Avro JSON — if so, use body directly
+            new Schema.Parser().parse(body);
+            logger.debug("Registry response is a valid Avro schema JSON");
+            return body;
         } catch (Throwable e) {
             if (!(e instanceof SchemaParseException)) {
                 logger.error("AvroPayloadDecoder: schema parse threw unexpected error: {}", e.getMessage(), e);
@@ -299,83 +314,23 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
             }
             // Fall back to Confluent-style {"schema":"<escaped-json>"} wrapper
             logger.debug("Direct parse failed ({}), trying Confluent schema-field extraction", e.getMessage());
-            int keyIdx = body.indexOf("\"schema\"");
-            if (keyIdx < 0) {
+            try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, body)) {
+                Map<String, Object> map = parser.map();
+                Object schemaValue = map.get("schema");
+                if (schemaValue == null) {
+                    throw new IllegalArgumentException(
+                        "Unable to parse Avro schema from registry response: no 'schema' field found"
+                    );
+                }
+                String schemaJson = String.valueOf(schemaValue);
+                logger.debug("Extracted schema JSON via Confluent wrapper");
+                return schemaJson;
+            } catch (IOException ex) {
                 throw new IllegalArgumentException(
-                    "Unable to parse Avro schema from registry response: " + e.getMessage(),
-                    e
+                    "Unable to parse Avro schema from registry response: " + ex.getMessage(), ex
                 );
             }
-            int colonIdx = body.indexOf(':', keyIdx);
-            int quoteStart = body.indexOf('"', colonIdx + 1);
-            if (quoteStart < 0) {
-                throw new IllegalArgumentException("Malformed schema registry response");
-            }
-            StringBuilder sb = new StringBuilder();
-            int i = quoteStart + 1;
-            while (i < body.length()) {
-                char c = body.charAt(i);
-                if (c == '\\' && i + 1 < body.length()) {
-                    char next = body.charAt(i + 1);
-                    switch (next) {
-                        case '"':
-                            sb.append('"');
-                            i += 2;
-                            break;
-                        case '\\':
-                            sb.append('\\');
-                            i += 2;
-                            break;
-                        case 'n':
-                            sb.append('\n');
-                            i += 2;
-                            break;
-                        case 'r':
-                            sb.append('\r');
-                            i += 2;
-                            break;
-                        case 't':
-                            sb.append('\t');
-                            i += 2;
-                            break;
-                        case 'b':
-                            sb.append('\b');
-                            i += 2;
-                            break;
-                        case 'f':
-                            sb.append('\f');
-                            i += 2;
-                            break;
-                        case 'u':
-                            if (i + 5 < body.length()) {
-                                String hex = body.substring(i + 2, i + 6);
-                                try {
-                                    sb.append((char) Integer.parseInt(hex, 16));
-                                    i += 6;
-                                } catch (NumberFormatException nfe) {
-                                    sb.append(next);
-                                    i += 2;
-                                }
-                            } else {
-                                sb.append(next);
-                                i += 2;
-                            }
-                            break;
-                        default:
-                            sb.append(next);
-                            i += 2;
-                            break;
-                    }
-                } else if (c == '"') {
-                    break;
-                } else {
-                    sb.append(c);
-                    i++;
-                }
-            }
-            Schema schema = new Schema.Parser().parse(sb.toString());
-            logger.debug("Parsed Avro schema via Confluent extraction, name=[{}]", schema.getFullName());
-            return schema;
         }
     }
 
@@ -447,57 +402,10 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
     }
 
     private static byte[] toJsonBytes(Map<String, Object> map) {
-        return toJsonString(map).getBytes(StandardCharsets.UTF_8);
-    }
-
-    @SuppressWarnings("unchecked")
-    static String toJsonString(Object value) {
-        if (value == null) return "null";
-        if (value instanceof Boolean) return value.toString();
-        if (value instanceof Number) return value.toString();
-        if (value instanceof Map) {
-            StringBuilder sb = new StringBuilder("{");
-            boolean first = true;
-            for (Map.Entry<String, Object> e : ((Map<String, Object>) value).entrySet()) {
-                if (!first) sb.append(",");
-                sb.append('"').append(escapeJson(e.getKey())).append("\":").append(toJsonString(e.getValue()));
-                first = false;
-            }
-            return sb.append("}").toString();
+        try {
+            return BytesReference.toBytes(BytesReference.bytes(XContentFactory.jsonBuilder().map(map)));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to serialize decoded Avro record as JSON", e);
         }
-        if (value instanceof List) {
-            StringBuilder sb = new StringBuilder("[");
-            boolean first = true;
-            for (Object item : (List<?>) value) {
-                if (!first) sb.append(",");
-                sb.append(toJsonString(item));
-                first = false;
-            }
-            return sb.append("]").toString();
-        }
-        return '"' + escapeJson(value.toString()) + '"';
-    }
-
-    private static String escapeJson(String s) {
-        StringBuilder sb = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '\\': sb.append("\\\\"); break;
-                case '"':  sb.append("\\\""); break;
-                case '\n': sb.append("\\n");  break;
-                case '\r': sb.append("\\r");  break;
-                case '\t': sb.append("\\t");  break;
-                case '\b': sb.append("\\b");  break;
-                case '\f': sb.append("\\f");  break;
-                default:
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-            }
-        }
-        return sb.toString();
     }
 }

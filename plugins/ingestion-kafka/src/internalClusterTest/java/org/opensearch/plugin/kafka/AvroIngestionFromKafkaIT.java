@@ -27,7 +27,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -204,6 +203,122 @@ public class AvroIngestionFromKafkaIT extends KafkaIngestionBaseIT {
                 .setQuery(new TermQueryBuilder("_id", "20"))
                 .get();
             assertThat(response.getHits().getTotalHits().value(), is(0L));
+        });
+    }
+
+    /**
+     * A batch that contains a corrupted (un-decodeable) message should not stop
+     * ingestion: the bad message is skipped and logged, and the remaining valid
+     * messages in the same batch are indexed normally.
+     */
+    public void testCorruptMessageInBatchIsSkipped() throws Exception {
+        // Valid message
+        produceAvroMessage("30", "index", "eve", 28, 0);
+        // Garbage bytes — not valid Avro binary for our schema
+        avroProducer.send(new ProducerRecord<>(topicName, null, defaultMessageTimestamp, null, new byte[] { 0x00, 0x01, 0x02 }));
+        avroProducer.flush();
+        // Another valid message after the corrupt one
+        produceAvroMessage("31", "index", "frank", 35, 0);
+
+        createIndex(indexName, avroIndexSettings("").build(), INDEX_MAPPING);
+        ensureGreen(indexName);
+
+        await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            // Both valid messages should be indexed
+            SearchResponse response = client().prepareSearch(indexName).setSize(10).get();
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
+        });
+    }
+
+    /**
+     * Schema evolution: messages encoded with a schema that has an additional
+     * optional field (union with null default) are decoded correctly when the
+     * decoder is configured with the extended schema.
+     */
+    public void testSchemaEvolutionWithOptionalField() throws Exception {
+        // Extended schema adds an optional "email" field with null default
+        String extendedEnvelopeSchemaJson = "{"
+            + "\"type\":\"record\","
+            + "\"name\":\"KafkaDocument\","
+            + "\"namespace\":\"org.opensearch.plugin.kafka\","
+            + "\"fields\":["
+            + "  {\"name\":\"_id\",\"type\":\"string\"},"
+            + "  {\"name\":\"_op_type\",\"type\":\"string\"},"
+            + "  {\"name\":\"_source\","
+            + "   \"type\":{\"type\":\"record\",\"name\":\"Source\","
+            + "            \"namespace\":\"org.opensearch.plugin.kafka\","
+            + "            \"fields\":["
+            + "              {\"name\":\"name\",\"type\":\"string\"},"
+            + "              {\"name\":\"age\",\"type\":\"int\"},"
+            + "              {\"name\":\"email\",\"type\":[\"null\",\"string\"],\"default\":null}"
+            + "            ]}}"
+            + "]}";
+
+        Schema extSchema = new Schema.Parser().parse(extendedEnvelopeSchemaJson);
+        Schema extSourceSchema = extSchema.getField("_source").schema();
+
+        // Message with the email field set
+        GenericRecord sourceWithEmail = new GenericData.Record(extSourceSchema);
+        sourceWithEmail.put("name", "grace");
+        sourceWithEmail.put("age", 40);
+        sourceWithEmail.put("email", "grace@example.com");
+        GenericRecord envelopeWithEmail = new GenericData.Record(extSchema);
+        envelopeWithEmail.put("_id", "40");
+        envelopeWithEmail.put("_op_type", "index");
+        envelopeWithEmail.put("_source", sourceWithEmail);
+
+        // Message with email null (absent)
+        GenericRecord sourceNoEmail = new GenericData.Record(extSourceSchema);
+        sourceNoEmail.put("name", "henry");
+        sourceNoEmail.put("age", 22);
+        sourceNoEmail.put("email", null);
+        GenericRecord envelopeNoEmail = new GenericData.Record(extSchema);
+        envelopeNoEmail.put("_id", "41");
+        envelopeNoEmail.put("_op_type", "index");
+        envelopeNoEmail.put("_source", sourceNoEmail);
+
+        for (GenericRecord record : new GenericRecord[] { envelopeWithEmail, envelopeNoEmail }) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            GenericDatumWriter<GenericRecord> writer = new GenericDatumWriter<>(extSchema);
+            BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
+            writer.write(record, encoder);
+            encoder.flush();
+            avroProducer.send(new ProducerRecord<>(topicName, null, defaultMessageTimestamp, null, out.toByteArray()));
+        }
+        avroProducer.flush();
+
+        String extMapping = "{\"properties\":{"
+            + "\"name\":{\"type\":\"text\"},"
+            + "\"age\":{\"type\":\"integer\"},"
+            + "\"email\":{\"type\":\"keyword\"}}}";
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("ingestion_source.type", "kafka")
+            .put("ingestion_source.pointer.init.reset", "earliest")
+            .put("ingestion_source.param.topic", topicName)
+            .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+            .put("index.replication.type", "SEGMENT")
+            .put("ingestion_source.param.avro.schema", extendedEnvelopeSchemaJson)
+            .build();
+        createIndex(indexName, settings, extMapping);
+        ensureGreen(indexName);
+
+        await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            assertThat(client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value(), is(2L));
+        });
+
+        // The document with the email field should have it set
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName)
+                .setQuery(new TermQueryBuilder("_id", "40"))
+                .get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            assertThat(response.getHits().getHits()[0].getSourceAsMap().get("email"), is("grace@example.com"));
         });
     }
 }

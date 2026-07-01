@@ -360,76 +360,29 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // toJsonString  (package-private, pure Java — no Avro types)
+    // extractSchemaJson -- Confluent-style wrapper
     // -----------------------------------------------------------------------
 
-    public void testToJsonStringNull() {
-        assertEquals("null", AvroPayloadDecoder.toJsonString(null));
+    public void testExtractSchemaJsonConfluentStyle() {
+        // Confluent schema registry returns {"schema":"<escaped avro json>","id":1,...}
+        String escaped = SIMPLE_SCHEMA_JSON.replace("\\", "\\\\").replace("\"", "\\\"");
+        String confluentBody = "{\"id\":1,\"schema\":\"" + escaped + "\"}";
+        // extractSchemaJson returns a String — safe to call from test side (no relocated types)
+        String schemaJson = AvroPayloadDecoder.extractSchemaJson(confluentBody);
+        Schema parsed = new Schema.Parser().parse(schemaJson);
+        assertEquals("TestRecord", parsed.getName());
+        assertEquals("org.test", parsed.getNamespace());
     }
 
-    public void testToJsonStringBooleans() {
-        assertEquals("true", AvroPayloadDecoder.toJsonString(true));
-        assertEquals("false", AvroPayloadDecoder.toJsonString(false));
-    }
-
-    public void testToJsonStringNumbers() {
-        assertEquals("42", AvroPayloadDecoder.toJsonString(42));
-        assertEquals("3.14", AvroPayloadDecoder.toJsonString(3.14));
-        assertEquals("-1", AvroPayloadDecoder.toJsonString(-1L));
-    }
-
-    public void testToJsonStringPlainString() {
-        assertEquals("\"hello\"", AvroPayloadDecoder.toJsonString("hello"));
-    }
-
-    public void testToJsonStringEscaping() {
-        assertEquals("\"a\\\"b\"", AvroPayloadDecoder.toJsonString("a\"b"));
-        assertEquals("\"a\\nb\"",  AvroPayloadDecoder.toJsonString("a\nb"));
-        assertEquals("\"a\\tb\"",  AvroPayloadDecoder.toJsonString("a\tb"));
-        assertEquals("\"a\\\\b\"", AvroPayloadDecoder.toJsonString("a\\b"));
-        assertEquals("\"a\\rb\"",  AvroPayloadDecoder.toJsonString("a\rb"));
-    }
-
-    public void testToJsonStringMap() {
-        Map<String, Object> m = new HashMap<>();
-        m.put("k", "v");
-        String json = AvroPayloadDecoder.toJsonString(m);
-        assertTrue(json.startsWith("{") && json.endsWith("}"));
-        assertTrue(json.contains("\"k\""));
-        assertTrue(json.contains("\"v\""));
-    }
-
-    public void testToJsonStringList() {
-        String json = AvroPayloadDecoder.toJsonString(Arrays.asList("a", 1, true));
-        assertTrue(json.startsWith("[") && json.endsWith("]"));
-        assertTrue(json.contains("\"a\""));
-        assertTrue(json.contains("1"));
-        assertTrue(json.contains("true"));
-    }
-
-    public void testToJsonStringNestedStructure() {
-        Map<String, Object> inner = new HashMap<>();
-        inner.put("x", 1);
-        Map<String, Object> outer = new HashMap<>();
-        outer.put("nested", inner);
-        String json = AvroPayloadDecoder.toJsonString(outer);
-        assertTrue(json.contains("\"nested\""));
-        assertTrue(json.contains("\"x\""));
-        assertTrue(json.contains("1"));
-    }
-
-    public void testToJsonStringControlCharEscaping() {
-        // Backspace and form-feed must be escaped
-        assertEquals("\"a\\bb\"", AvroPayloadDecoder.toJsonString("a\bb"));
-        assertEquals("\"a\\fb\"", AvroPayloadDecoder.toJsonString("a\fb"));
-        // Raw control characters (U+0000–U+001F, not handled by named escapes) must be \\uXXXX
-        String withCtrl = "ab";
-        String json = AvroPayloadDecoder.toJsonString(withCtrl);
-        assertTrue("Control char U+0001 must be unicode-escaped", json.contains("\\u0001"));
+    public void testExtractSchemaJsonDirectAvro() {
+        // Plain Avro JSON should be returned as-is
+        String schemaJson = AvroPayloadDecoder.extractSchemaJson(SIMPLE_SCHEMA_JSON);
+        Schema parsed = new Schema.Parser().parse(schemaJson);
+        assertEquals("TestRecord", parsed.getName());
     }
 
     // -----------------------------------------------------------------------
-    // null tombstone (P0-2)
+    // null tombstone
     // -----------------------------------------------------------------------
 
     public void testDecodeNullRawReturnsTombstone() {

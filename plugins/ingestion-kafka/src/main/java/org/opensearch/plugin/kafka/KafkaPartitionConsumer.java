@@ -50,7 +50,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private final int partitionId;
     private final KafkaSourceConfig config;
     private TopicPartition topicPartition;
-    private final KafkaPayloadDecoder payloadDecoder;
+    private KafkaPayloadDecoder payloadDecoder;
 
     /**
      * Constructor
@@ -74,14 +74,8 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.consumer = consumer;
         this.config = config;
         this.partitionId = partitionId;
-        Map<String, Object> avroParams = config.getAvroParams();
-        this.payloadDecoder = avroParams.isEmpty() ? KafkaPayloadDecoder.PASSTHROUGH : new AvroPayloadDecoder(avroParams);
-        logger.info(
-            "KafkaPartitionConsumer: topic={} partition={} payloadDecoder={}",
-            config.getTopic(),
-            partitionId,
-            payloadDecoder instanceof AvroPayloadDecoder ? "AvroPayloadDecoder" : "PASSTHROUGH"
-        );
+        this.payloadDecoder = KafkaPayloadDecoder.PASSTHROUGH;
+        logger.info("KafkaPartitionConsumer: topic={} partition={}", config.getTopic(), partitionId);
     }
 
     void initialize() throws Exception {
@@ -106,6 +100,12 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             partitionId,
             config.getTopicMetadataFetchTimeoutMs()
         );
+
+        Map<String, Object> avroParams = config.getAvroParams();
+        if (!avroParams.isEmpty()) {
+            this.payloadDecoder = new AvroPayloadDecoder(avroParams);
+            logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=AvroPayloadDecoder", topic, partitionId);
+        }
     }
 
     /**
@@ -263,7 +263,14 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             long currentOffset = messageAndOffset.offset();
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
-            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), payloadDecoder.decode(messageAndOffset.value()), messageAndOffset.timestamp());
+            byte[] value;
+            try {
+                value = payloadDecoder.decode(messageAndOffset.value());
+            } catch (Exception e) {
+                logger.error("Failed to decode message at offset {}, skipping: {}", currentOffset, e.getMessage(), e);
+                continue;
+            }
+            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), value, messageAndOffset.timestamp());
             results.add(new ReadResult<>(kafkaOffset, message));
         }
         return results;
