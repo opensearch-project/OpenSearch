@@ -774,6 +774,20 @@ pub extern "C" fn parquet_set_merge_pool_limit(new_limit: i64) {
     crate::memory::set_merge_limit(new_limit as usize);
 }
 
+/// Register the over-commit decision callbacks (FFM upcall stubs from the Java allocator).
+///
+/// `decider(requested_bytes) -> 1|0` decides whether a full pool may over-commit; `releaser(bytes)`
+/// is called with the granted byte count when the reservation is released. Because all native
+/// modules share one cdylib (and thus one `native-bridge-common` instance), this single
+/// registration covers every pool that uses `Reject`.
+#[no_mangle]
+pub extern "C" fn parquet_register_overcommit_callbacks(
+    decider: native_bridge_common::memory_pool::OverCommitDecider,
+    releaser: native_bridge_common::memory_pool::OverCommitReleaser,
+) {
+    native_bridge_common::memory_pool::set_overcommit_callbacks(decider, releaser);
+}
+
 /// Get pool stats: writes 6 i64s to out_buf.
 /// Layout: [write_limit, write_used, write_peak, merge_limit, merge_used, merge_peak]
 #[no_mangle]

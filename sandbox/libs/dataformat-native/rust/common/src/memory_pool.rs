@@ -16,7 +16,7 @@
 //! pool on drop, preventing leaks even on error paths.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
 use std::fmt;
 
@@ -31,10 +31,54 @@ pub const MERGE_WAIT_TIMEOUT: Duration = Duration::from_secs(600);
 pub enum PoolBehavior {
     /// Block until memory is available, up to the given timeout.
     Wait(Duration),
-    /// Fail immediately if pool is full.
+    /// Fail immediately if the pool is full, unless the registered over-commit decider (the Java-side
+    /// allocator) grants an over-commit based on node-level native memory pressure. When granted, the
+    /// reservation over-commits via infallible `grow` and the decider is told to release when the
+    /// reservation is freed/dropped. Falls back to a plain reject when no decider is registered or the
+    /// decider declines.
     Reject,
     /// Never block and never fail: account via infallible `grow`, allowing the pool to over-commit.
     IgnoreLimit,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Over-commit decider hook.
+//
+// The decision "may this reservation over-commit its pool right now?" is owned by the Java-side
+// `ArrowNativeAllocator` (it knows node-level native memory pressure, permits, and the feature
+// flag). Java registers two C-ABI callbacks via FFM upcall stubs. Because all native modules are
+// linked into a single cdylib, these statics are a single shared instance and one registration
+// covers every pool that uses `Reject`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Decider: returns 1 to grant an over-commit, 0 to reject.
+pub type OverCommitDecider = extern "C" fn() -> i32;
+/// Releaser: called when a reservation that held an over-commit permit is freed/dropped.
+pub type OverCommitReleaser = extern "C" fn();
+
+static OVERCOMMIT_DECIDER: OnceLock<OverCommitDecider> = OnceLock::new();
+static OVERCOMMIT_RELEASER: OnceLock<OverCommitReleaser> = OnceLock::new();
+
+/// Registers the over-commit decision callbacks. Idempotent — first registration wins.
+pub fn set_overcommit_callbacks(decider: OverCommitDecider, releaser: OverCommitReleaser) {
+    let _ = OVERCOMMIT_DECIDER.set(decider);
+    let _ = OVERCOMMIT_RELEASER.set(releaser);
+}
+
+/// Asks the registered decider whether an over-commit may proceed. Returns false when no decider is
+/// registered (feature effectively off) or the decider declines.
+fn overcommit_grant() -> bool {
+    match OVERCOMMIT_DECIDER.get() {
+        Some(decide) => decide() == 1,
+        None => false,
+    }
+}
+
+/// Returns the over-commit permit previously granted for a reservation back to the decider.
+fn overcommit_release() {
+    if let Some(release) = OVERCOMMIT_RELEASER.get() {
+        release();
+    }
 }
 
 /// Error returned when a pool cannot satisfy an allocation request.
@@ -230,6 +274,9 @@ pub struct MemoryReservation {
     consumer: &'static str,
     size: usize,
     behavior: PoolBehavior,
+    /// True when this reservation holds one over-commit permit granted by the decider. The permit is
+    /// returned to the decider when the reservation is freed/dropped (one grant ↔ one release).
+    holds_overcommit_permit: bool,
 }
 
 impl MemoryReservation {
@@ -239,6 +286,7 @@ impl MemoryReservation {
             consumer,
             size: 0,
             behavior,
+            holds_overcommit_permit: false,
         }
     }
 
@@ -246,9 +294,29 @@ impl MemoryReservation {
     pub fn request(&mut self, bytes: usize) -> Result<(), Box<dyn std::error::Error>> {
         match &self.behavior {
             PoolBehavior::Reject => {
-                self.pool.try_grow(bytes)?;
-                self.size += bytes;
-                Ok(())
+                match self.pool.try_grow(bytes) {
+                    Ok(()) => {
+                        self.size += bytes;
+                        Ok(())
+                    }
+                    Err(exhausted) => {
+                        if self.holds_overcommit_permit {
+                            // Already holding an over-commit permit for this reservation — continue
+                            // over-committing without re-consulting the decider.
+                            self.pool.grow(bytes);
+                            self.size += bytes;
+                            Ok(())
+                        } else if overcommit_grant() {
+                            // Decider (Java allocator) granted based on node-level native pressure.
+                            self.pool.grow(bytes); // infallible over-commit
+                            self.size += bytes;
+                            self.holds_overcommit_permit = true;
+                            Ok(())
+                        } else {
+                            Err(Box::new(exhausted))
+                        }
+                    }
+                }
             }
             PoolBehavior::Wait(timeout) => {
                 self.pool.wait_and_grow(bytes, *timeout)?;
@@ -305,6 +373,10 @@ impl MemoryReservation {
             self.pool.shrink(s);
             self.size = 0;
         }
+        if self.holds_overcommit_permit {
+            overcommit_release();
+            self.holds_overcommit_permit = false;
+        }
         s
     }
 
@@ -323,6 +395,7 @@ impl MemoryReservation {
             consumer,
             size: 0,
             behavior: self.behavior.clone(),
+            holds_overcommit_permit: false,
         }
     }
 }
@@ -331,6 +404,9 @@ impl Drop for MemoryReservation {
     fn drop(&mut self) {
         if self.size > 0 {
             self.pool.shrink(self.size);
+        }
+        if self.holds_overcommit_permit {
+            overcommit_release();
         }
     }
 }

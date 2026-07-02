@@ -27,7 +27,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -49,6 +51,16 @@ public class ArrowNativeAllocator implements NativeAllocator {
     private volatile Supplier<long[]> nativeMemoryStatsSupplier;
     private volatile long budget = Long.MAX_VALUE;
 
+    // ─── Over-commit admission (allocator-owned decision) ────────────────────────
+    /** Node-level native memory utilization % (0–100), or negative when unavailable. Injected by the node. */
+    private volatile DoubleSupplier nativeMemoryPressureSupplier;
+    /** Feature gate. When false, {@link #tryOverCommit()} always rejects (status-quo behavior). */
+    private volatile boolean overCommitEnabled = false;
+    /** Node native pressure % at/above which over-commit is refused. */
+    private volatile double overCommitPressureThreshold = 90.0;
+    /** Permit gate bounding the number of concurrently over-committing operations (sized once at startup). */
+    private volatile Semaphore overCommitPermits = new Semaphore(1);
+
     /**
      * Creates a new allocator with a fresh RootAllocator.
      */
@@ -63,6 +75,77 @@ public class ArrowNativeAllocator implements NativeAllocator {
      */
     public void setBudget(long budget) {
         this.budget = budget;
+    }
+
+    // ─── Over-commit admission API (called by pool-full paths across all pool types) ─────────────
+
+    /** Installs the node-level native-memory pressure supplier (percent 0–100, or negative if unavailable). */
+    public void setNativeMemoryPressureSupplier(DoubleSupplier supplier) {
+        this.nativeMemoryPressureSupplier = supplier;
+    }
+
+    /** Enables/disables the over-commit fallback (feature gate). */
+    public void setOverCommitEnabled(boolean enabled) {
+        this.overCommitEnabled = enabled;
+    }
+
+    /** Sets the node native-pressure % at/above which over-commit is refused. */
+    public void setOverCommitPressureThreshold(double thresholdPercent) {
+        this.overCommitPressureThreshold = thresholdPercent;
+    }
+
+    /** Sets the maximum number of concurrently over-committing operations. Applied once at startup. */
+    public void setMaxConcurrentOverCommits(int max) {
+        this.overCommitPermits = new Semaphore(Math.max(1, max));
+    }
+
+    /** Current node-level native memory pressure %, or -1 when unavailable (signal missing / not ready). */
+    double currentNativePressurePercent() {
+        DoubleSupplier s = this.nativeMemoryPressureSupplier;
+        if (s == null) {
+            return -1.0;
+        }
+        try {
+            return s.getAsDouble();
+        } catch (RuntimeException e) {
+            return -1.0;
+        }
+    }
+
+    /**
+     * Allocator-owned decision: may a full pool over-commit right now? Grants only when the feature is
+     * enabled, node-level native memory pressure is below the threshold, and a concurrency permit is
+     * available. On a grant the caller MUST later invoke {@link #releaseOverCommit()} exactly once
+     * (the permit is held for the lifetime of the over-committing operation).
+     *
+     * <p>Generic across pool types (Arrow-backed pools via allocation-failure hooks, virtual/native
+     * pools via the FFM upcall). Never throws — returns false on any error so it is safe to invoke
+     * across the native boundary.
+     */
+    public boolean tryOverCommit() {
+        try {
+            if (overCommitEnabled == false) {
+                return false;
+            }
+            double pressure = currentNativePressurePercent();
+            if (pressure < 0 || pressure >= overCommitPressureThreshold) {
+                return false; // unavailable (negative) or over threshold → reject
+            }
+            // Permit gate: at most max_concurrent over-commits in flight. The permit is held
+            // until releaseOverCommit() is invoked when the over-committing operation completes.
+            return overCommitPermits.tryAcquire();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Releases the over-commit permit previously acquired by {@link #tryOverCommit()}. */
+    public void releaseOverCommit() {
+        try {
+            overCommitPermits.release();
+        } catch (Throwable t) {
+            // best-effort
+        }
     }
 
     // ─── Public / SPI methods ───────────────────────────────────────────────────

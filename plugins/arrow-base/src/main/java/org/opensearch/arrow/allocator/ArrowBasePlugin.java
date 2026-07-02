@@ -108,6 +108,35 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         Setting.Property.Dynamic
     );
 
+    /** Feature gate for the over-commit fallback when a pool is full. Default off. */
+    public static final Setting<Boolean> OVERCOMMIT_ENABLED_SETTING = Setting.boolSetting(
+        "native.allocator.overcommit.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Node native-memory pressure % at/above which over-commit is refused. */
+    public static final Setting<Double> OVERCOMMIT_PRESSURE_THRESHOLD_SETTING = Setting.doubleSetting(
+        "native.allocator.overcommit.pressure_threshold",
+        90.0,
+        0.0,
+        100.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of concurrently over-committing operations. Static (node-scope, non-dynamic);
+     * defaults to half the available processors.
+     */
+    public static final Setting<Integer> OVERCOMMIT_MAX_CONCURRENT_SETTING = Setting.intSetting(
+        "native.allocator.overcommit.max_concurrent",
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
+        1,
+        Setting.Property.NodeScope
+    );
+
     /** Minimum guaranteed bytes for the Flight pool. Default is 2% of budget. */
     public static final Setting<Long> FLIGHT_MIN_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_FLIGHT_MIN,
@@ -196,7 +225,7 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
             ArrowNativeAllocator a = this.allocator;
             return a != null ? a.stats() : null;
         };
-        return List.of(built, new NativeAllocatorStatsRegistry(statsSupplier));
+        return List.of(built, new NativeAllocatorStatsRegistry(statsSupplier, built::setNativeMemoryPressureSupplier));
     }
 
     @Override
@@ -212,7 +241,10 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
             REBALANCER_ENABLED_SETTING,
             PRESSURE_THRESHOLD_SETTING,
             IDLE_THRESHOLD_SETTING,
-            SHRINK_FACTOR_SETTING
+            SHRINK_FACTOR_SETTING,
+            OVERCOMMIT_ENABLED_SETTING,
+            OVERCOMMIT_PRESSURE_THRESHOLD_SETTING,
+            OVERCOMMIT_MAX_CONCURRENT_SETTING
         );
     }
 
@@ -319,6 +351,14 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
             NativeMemoryRebalancer r = this.rebalancer;
             if (r != null) r.setShrinkFactor(value);
         });
+
+        // Over-commit admission: apply initial values and register dynamic consumers.
+        allocator.setOverCommitEnabled(OVERCOMMIT_ENABLED_SETTING.get(settings));
+        allocator.setOverCommitPressureThreshold(OVERCOMMIT_PRESSURE_THRESHOLD_SETTING.get(settings));
+        // max_concurrent is a static (non-dynamic) setting applied once at startup.
+        allocator.setMaxConcurrentOverCommits(OVERCOMMIT_MAX_CONCURRENT_SETTING.get(settings));
+        cs.addSettingsUpdateConsumer(OVERCOMMIT_ENABLED_SETTING, allocator::setOverCommitEnabled);
+        cs.addSettingsUpdateConsumer(OVERCOMMIT_PRESSURE_THRESHOLD_SETTING, allocator::setOverCommitPressureThreshold);
 
         return allocator;
     }

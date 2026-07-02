@@ -10,6 +10,8 @@ package org.opensearch.plugin.stats;
 
 import org.opensearch.common.Nullable;
 
+import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -35,6 +37,13 @@ public final class NativeAllocatorStatsRegistry {
     private final Supplier<NativeAllocatorPoolStats> supplier;
 
     /**
+     * Optional sink that forwards a node-level native-memory pressure supplier into the underlying
+     * allocator. Set by the plugin that owns the allocator (today: {@code ArrowBasePlugin}); may be
+     * {@code null} when the plugin does not support over-commit admission.
+     */
+    private final Consumer<DoubleSupplier> pressureSink;
+
+    /**
      * Constructs a registry wrapping the given supplier.
      *
      * @param supplier produces a fresh {@link NativeAllocatorPoolStats} snapshot on each call,
@@ -42,7 +51,32 @@ public final class NativeAllocatorStatsRegistry {
      *                 (e.g. plugin closed). Must not be {@code null} itself.
      */
     public NativeAllocatorStatsRegistry(Supplier<NativeAllocatorPoolStats> supplier) {
+        this(supplier, null);
+    }
+
+    /**
+     * Constructs a registry wrapping the given stats supplier and a pressure-supplier sink.
+     *
+     * @param supplier     stats snapshot supplier (see single-arg constructor).
+     * @param pressureSink forwards an injected node-level native-memory pressure supplier into the
+     *                     allocator; may be {@code null}.
+     */
+    public NativeAllocatorStatsRegistry(Supplier<NativeAllocatorPoolStats> supplier, Consumer<DoubleSupplier> pressureSink) {
         this.supplier = supplier;
+        this.pressureSink = pressureSink;
+    }
+
+    /**
+     * Injects the node-level native-memory pressure supplier (percent 0–100, or negative when
+     * unavailable) into the allocator so it can make over-commit admission decisions. No-op when the
+     * owning plugin did not provide a sink.
+     *
+     * @param pressureSupplier supplies the current node native-memory utilization percentage.
+     */
+    public void setNativeMemoryPressureSupplier(DoubleSupplier pressureSupplier) {
+        if (pressureSink != null) {
+            pressureSink.accept(pressureSupplier);
+        }
     }
 
     /**
