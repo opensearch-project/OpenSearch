@@ -75,7 +75,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.config = config;
         this.partitionId = partitionId;
         this.payloadDecoder = KafkaPayloadDecoder.PASSTHROUGH;
-        logger.info("KafkaPartitionConsumer: topic={} partition={}", config.getTopic(), partitionId);
+        logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=PASSTHROUGH", config.getTopic(), partitionId);
     }
 
     void initialize() throws Exception {
@@ -103,7 +103,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
         Map<String, Object> avroParams = config.getAvroParams();
         if (!avroParams.isEmpty()) {
-            this.payloadDecoder = new AvroPayloadDecoder(avroParams);
+            this.payloadDecoder = AvroPayloadDecoder.create(avroParams);
             logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=AvroPayloadDecoder", topic, partitionId);
         }
     }

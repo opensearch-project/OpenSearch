@@ -99,7 +99,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
 
     /** Decode bytes to JSON string via a fresh decoder. */
     private static String decodeToJson(Map<String, Object> params, byte[] bytes) {
-        return new String(new AvroPayloadDecoder(params).decode(bytes), StandardCharsets.UTF_8);
+        return new String(AvroPayloadDecoder.create(params).decode(bytes), StandardCharsets.UTF_8);
     }
 
     // -----------------------------------------------------------------------
@@ -118,13 +118,13 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
     public void testMissingBothSchemaAndRegistryThrows() {
         Map<String, Object> params = new HashMap<>();
         params.put("avro.skip_bytes", "0");
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new AvroPayloadDecoder(params));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AvroPayloadDecoder.create(params));
         assertTrue(ex.getMessage().contains("avro.schema_registry_url") || ex.getMessage().contains("avro.schema"));
     }
 
     public void testInvalidInlineSchemaThrows() {
         Map<String, Object> params = schemaParams("{\"type\":\"broken}");
-        expectThrows(IllegalArgumentException.class, () -> new AvroPayloadDecoder(params));
+        expectThrows(IllegalArgumentException.class, () -> AvroPayloadDecoder.create(params));
     }
 
     // -----------------------------------------------------------------------
@@ -186,7 +186,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
     public void testPayloadTooShortAfterSkipThrows() {
         Map<String, Object> params = schemaParams(SIMPLE_SCHEMA_JSON);
         params.put("avro.skip_bytes", "100");
-        AvroPayloadDecoder decoder = new AvroPayloadDecoder(params);
+        AvroPayloadDecoder decoder = AvroPayloadDecoder.create(params);
         byte[] tiny = new byte[5];
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decoder.decode(tiny));
         assertTrue(ex.getMessage().contains("too short") || ex.getMessage().contains("remaining"));
@@ -221,7 +221,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
 
         Map<String, Object> params = schemaParams(NULLABLE_OUTER_SCHEMA_JSON);
         params.put("avro.msg_field", "payload");
-        AvroPayloadDecoder decoder = new AvroPayloadDecoder(params);
+        AvroPayloadDecoder decoder = AvroPayloadDecoder.create(params);
         // A null msg_field value is not a Kafka tombstone — it is a data error.
         // Returning null would propagate a null payload into KafkaMessage and NPE in the mapper.
         IllegalArgumentException ex = expectThrows(
@@ -239,7 +239,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
 
         Map<String, Object> params = schemaParams(SIMPLE_SCHEMA_JSON);
         params.put("avro.msg_field", "name"); // "name" is a string, not a record
-        AvroPayloadDecoder decoder = new AvroPayloadDecoder(params);
+        AvroPayloadDecoder decoder = AvroPayloadDecoder.create(params);
         expectThrows(IllegalArgumentException.class, () -> decoder.decode(encode(schema, record)));
     }
 
@@ -325,7 +325,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
         params.put("avro.schema", INNER_SCHEMA_JSON);
         params.put("avro.wrapper_schema", WRAPPER_SCHEMA_JSON);
         params.put("avro.wrapper_field", "nonexistent");
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new AvroPayloadDecoder(params));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AvroPayloadDecoder.create(params));
         assertTrue(ex.getMessage().contains("nonexistent"));
     }
 
@@ -392,7 +392,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
     // -----------------------------------------------------------------------
 
     public void testDecodeNullRawReturnsTombstone() {
-        AvroPayloadDecoder decoder = new AvroPayloadDecoder(schemaParams(SIMPLE_SCHEMA_JSON));
+        AvroPayloadDecoder decoder = AvroPayloadDecoder.create(schemaParams(SIMPLE_SCHEMA_JSON));
         assertNull("null raw payload must return null (tombstone)", decoder.decode(null));
     }
 
@@ -403,7 +403,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
     public void testNegativeSkipBytesThrows() {
         Map<String, Object> params = schemaParams(SIMPLE_SCHEMA_JSON);
         params.put("avro.skip_bytes", "-1");
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new AvroPayloadDecoder(params));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AvroPayloadDecoder.create(params));
         assertTrue(ex.getMessage().contains("skip_bytes") || ex.getMessage().contains("non-negative"));
     }
 
@@ -416,7 +416,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
         params.put("avro.schema", INNER_SCHEMA_JSON);
         params.put("avro.wrapper_schema", WRAPPER_SCHEMA_JSON);
         // avro.wrapper_field intentionally absent
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new AvroPayloadDecoder(params));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AvroPayloadDecoder.create(params));
         assertTrue(
             "must mention both params",
             ex.getMessage().contains("wrapper_schema") || ex.getMessage().contains("wrapper_field")
@@ -428,7 +428,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
         params.put("avro.schema", INNER_SCHEMA_JSON);
         params.put("avro.wrapper_field", "payload");
         // avro.wrapper_schema intentionally absent
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new AvroPayloadDecoder(params));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AvroPayloadDecoder.create(params));
         assertTrue(
             "must mention both params",
             ex.getMessage().contains("wrapper_schema") || ex.getMessage().contains("wrapper_field")
