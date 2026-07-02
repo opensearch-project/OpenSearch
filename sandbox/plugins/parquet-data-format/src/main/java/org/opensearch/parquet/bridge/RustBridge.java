@@ -800,6 +800,9 @@ public class RustBridge {
      * native library so a full native pool can consult the (Java allocator-owned) decision. The
      * decision itself runs in {@code decide}/{@code release}; this method only wires the plumbing.
      * Stubs are bound to the global arena (JVM lifetime).
+     *
+     * @param decide  returns {@code true} to grant an over-commit, {@code false} to reject
+     * @param release invoked to release a previously granted over-commit permit
      */
     public static void registerOverCommitCallbacks(BooleanSupplier decide, Runnable release) {
         overCommitDecider = decide;

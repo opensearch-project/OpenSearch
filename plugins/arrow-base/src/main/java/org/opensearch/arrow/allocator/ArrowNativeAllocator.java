@@ -79,22 +79,38 @@ public class ArrowNativeAllocator implements NativeAllocator {
 
     // ─── Over-commit admission API (called by pool-full paths across all pool types) ─────────────
 
-    /** Installs the node-level native-memory pressure supplier (percent 0–100, or negative if unavailable). */
+    /**
+     * Installs the node-level native-memory pressure supplier (percent 0–100, or negative if unavailable).
+     *
+     * @param supplier supplies the current node native-memory utilization percentage
+     */
     public void setNativeMemoryPressureSupplier(DoubleSupplier supplier) {
         this.nativeMemoryPressureSupplier = supplier;
     }
 
-    /** Enables/disables the over-commit fallback (feature gate). */
+    /**
+     * Enables/disables the over-commit fallback (feature gate).
+     *
+     * @param enabled whether the over-commit fallback is enabled
+     */
     public void setOverCommitEnabled(boolean enabled) {
         this.overCommitEnabled = enabled;
     }
 
-    /** Sets the node native-pressure % at/above which over-commit is refused. */
+    /**
+     * Sets the node native-pressure % at/above which over-commit is refused.
+     *
+     * @param thresholdPercent the native-memory pressure percentage threshold
+     */
     public void setOverCommitPressureThreshold(double thresholdPercent) {
         this.overCommitPressureThreshold = thresholdPercent;
     }
 
-    /** Sets the maximum number of concurrently over-committing operations. Applied once at startup. */
+    /**
+     * Sets the maximum number of concurrently over-committing operations. Applied once at startup.
+     *
+     * @param max the maximum number of concurrent over-commits
+     */
     public void setMaxConcurrentOverCommits(int max) {
         this.overCommitPermits = new Semaphore(Math.max(1, max));
     }
