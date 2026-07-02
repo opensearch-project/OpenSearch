@@ -780,6 +780,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
                 TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
                 TieringUtils.PREPARE_TIERING_TIMEOUT,
+                TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,

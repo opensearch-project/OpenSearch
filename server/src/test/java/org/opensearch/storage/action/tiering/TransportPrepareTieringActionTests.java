@@ -1090,7 +1090,10 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
     private TransportPrepareTieringAction newRealAction(TestThreadPool threadPool) {
         ClusterService mockClusterService = mock(ClusterService.class);
         Settings nodeSettings = Settings.EMPTY;
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, java.util.Set.of(TieringUtils.PREPARE_TIERING_TIMEOUT));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            java.util.Set.of(TieringUtils.PREPARE_TIERING_TIMEOUT, TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING)
+        );
         when(mockClusterService.getSettings()).thenReturn(nodeSettings);
         when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
 

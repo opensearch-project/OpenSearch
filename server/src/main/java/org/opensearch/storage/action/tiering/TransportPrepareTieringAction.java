@@ -59,11 +59,11 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
 
     private static final Logger logger = LogManager.getLogger(TransportPrepareTieringAction.class);
     private static final TimeValue PERMITS_ACQUIRE_TIMEOUT = TimeValue.timeValueSeconds(30);
-    private static final TimeValue REPLICA_SYNC_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
     private volatile TimeValue prepareTieringTimeout;
+    private volatile TimeValue replicaSyncTimeout;
 
     /**
      * Constructs a TransportPrepareTieringAction.
@@ -95,11 +95,19 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
         this.threadPool = transportService.getThreadPool();
         this.prepareTieringTimeout = TieringUtils.PREPARE_TIERING_TIMEOUT.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TieringUtils.PREPARE_TIERING_TIMEOUT, this::setPrepareTieringTimeout);
+        this.replicaSyncTimeout = TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING, this::setReplicaSyncTimeout);
     }
 
     private void setPrepareTieringTimeout(TimeValue timeout) {
         this.prepareTieringTimeout = timeout;
         logger.info("Updated prepare tiering timeout to [{}]", timeout);
+    }
+
+    private void setReplicaSyncTimeout(TimeValue timeout) {
+        this.replicaSyncTimeout = timeout;
+        logger.info("Updated replica sync timeout to [{}]", timeout);
     }
 
     /**
@@ -257,7 +265,7 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
         indexShard.waitForRemoteStoreSync();
         // Wait for replicas to apply the latest checkpoint before relocation.
         // This ensures replicas have downloaded the merged segment(s) from remote store.
-        indexShard.waitForReplicaSync(REPLICA_SYNC_TIMEOUT);
+        indexShard.waitForReplicaSync(replicaSyncTimeout);
         verifyNoUncommittedOps(indexShard, shardRouting);
 
         logger.debug("Shard [{}] prepared for tiering successfully", shardRouting.shardId());
