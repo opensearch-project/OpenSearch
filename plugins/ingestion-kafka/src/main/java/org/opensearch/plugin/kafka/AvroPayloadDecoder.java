@@ -26,6 +26,7 @@ import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.indices.pollingingest.PayloadDecoder;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -57,13 +58,23 @@ import java.util.Map;
  *       HTTP requests in milliseconds (default 10000)</li>
  *   <li>{@code avro.schema} — inline Avro JSON schema (alternative to registry URL)</li>
  *   <li>{@code avro.wrapper_schema} — outer envelope Avro schema with a placeholder field;
+ *       mutually exclusive with {@code avro.wrapper_schema_registry_url};
  *       must be set together with {@code avro.wrapper_field}</li>
+ *   <li>{@code avro.wrapper_schema_registry_url} — URL to fetch the wrapper schema from;
+ *       mutually exclusive with {@code avro.wrapper_schema};
+ *       must be set together with {@code avro.wrapper_field}</li>
+ *   <li>{@code avro.wrapper_schema_registry_headers.<name>} — HTTP headers for the wrapper
+ *       schema registry request (independent of {@code avro.schema_registry_headers.*})</li>
+ *   <li>{@code avro.wrapper_schema_registry_connect_timeout_ms} — connect timeout for wrapper
+ *       registry requests in milliseconds (default 10000)</li>
+ *   <li>{@code avro.wrapper_schema_registry_request_timeout_ms} — request timeout for wrapper
+ *       registry requests in milliseconds (default 10000)</li>
  *   <li>{@code avro.wrapper_field} — field in the wrapper schema to substitute the inner
- *       schema into; must be set together with {@code avro.wrapper_schema}</li>
+ *       schema into; required when any wrapper schema source is configured</li>
  *   <li>{@code avro.msg_field} — field in the decoded record to use as the document source</li>
  * </ul>
  *
- * <p>If no {@code avro.*} params are present, use {@link KafkaPayloadDecoder#PASSTHROUGH} instead.
+ * <p>If no {@code avro.*} params are present, use {@link PayloadDecoder#PASSTHROUGH} instead.
  *
  * <p><b>Known limitations</b>
  *
@@ -89,7 +100,7 @@ import java.util.Map;
  * shadow JAR.  Avro must not be added as a non-{@code compileOnly}/{@code avroShade} dependency
  * or the rewriting step will be skipped and the plugin will fail at runtime.
  */
-public class AvroPayloadDecoder implements KafkaPayloadDecoder {
+public class AvroPayloadDecoder implements PayloadDecoder {
 
     private static final Logger logger = LogManager.getLogger(AvroPayloadDecoder.class);
 
@@ -101,6 +112,10 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
     static final String PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS = "avro.schema_registry_connect_timeout_ms";
     static final String PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS = "avro.schema_registry_request_timeout_ms";
     static final String PARAM_WRAPPER_SCHEMA = "avro.wrapper_schema";
+    static final String PARAM_WRAPPER_SCHEMA_REGISTRY_URL = "avro.wrapper_schema_registry_url";
+    static final String PARAM_WRAPPER_SCHEMA_REGISTRY_HEADERS_PREFIX = "avro.wrapper_schema_registry_headers.";
+    static final String PARAM_WRAPPER_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS = "avro.wrapper_schema_registry_connect_timeout_ms";
+    static final String PARAM_WRAPPER_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS = "avro.wrapper_schema_registry_request_timeout_ms";
     static final String PARAM_WRAPPER_FIELD = "avro.wrapper_field";
     static final String PARAM_MSG_FIELD = "avro.msg_field";
 
@@ -111,6 +126,13 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
     private final Schema schema;
     private final int skipBytes;
     private final String msgField;
+
+    // ThreadLocal reuse: decode() may be called from multiple processor threads concurrently.
+    // GenericDatumReader, BinaryDecoder, and GenericRecord are not thread-safe, so each thread
+    // gets its own instance, reused across successive messages on that thread.
+    private final ThreadLocal<GenericDatumReader<GenericRecord>> threadLocalReader;
+    private final ThreadLocal<BinaryDecoder> threadLocalBinaryDecoder = new ThreadLocal<>();
+    private final ThreadLocal<GenericRecord> threadLocalRecord = new ThreadLocal<>();
 
     /**
      * Creates an {@code AvroPayloadDecoder} from the given {@code avro.*} parameters.
@@ -183,19 +205,57 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
                 wrapperSchemaJson = String.valueOf(wsVal);
             }
         }
+        String wrapperRegistryUrl = params.containsKey(PARAM_WRAPPER_SCHEMA_REGISTRY_URL)
+            ? String.valueOf(params.get(PARAM_WRAPPER_SCHEMA_REGISTRY_URL)).trim()
+            : null;
         String wrapperField = getParam(params, PARAM_WRAPPER_FIELD);
 
-        if ((wrapperSchemaJson == null) != (wrapperField == null)) {
+        if (wrapperSchemaJson != null && wrapperRegistryUrl != null) {
             throw new IllegalArgumentException(
-                "[avro.wrapper_schema] and [avro.wrapper_field] must both be set or both be absent"
+                "[avro.wrapper_schema] and [avro.wrapper_schema_registry_url] are mutually exclusive"
+            );
+        }
+        boolean hasWrapperSource = wrapperSchemaJson != null || wrapperRegistryUrl != null;
+        if (hasWrapperSource && wrapperField == null) {
+            throw new IllegalArgumentException(
+                "[avro.wrapper_field] is required when [avro.wrapper_schema] or [avro.wrapper_schema_registry_url] is configured"
+            );
+        }
+        if (wrapperField != null && !hasWrapperSource) {
+            throw new IllegalArgumentException(
+                "[avro.wrapper_field] requires either [avro.wrapper_schema] or [avro.wrapper_schema_registry_url] to be configured"
             );
         }
 
-        Schema innerSchema = resolveSchema(registryUrl, inlineSchema, params);
+        // Resolve inner schema
+        Map<String, String> innerHeaders = resolveHeaders(params, PARAM_SCHEMA_REGISTRY_HEADERS_PREFIX);
+        int connectTimeoutMs = parsePositiveMs(
+            params.get(PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS),
+            PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS,
+            DEFAULT_REGISTRY_TIMEOUT_MS
+        );
+        int requestTimeoutMs = parsePositiveMs(
+            params.get(PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS),
+            PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS,
+            DEFAULT_REGISTRY_TIMEOUT_MS
+        );
+        Schema innerSchema = resolveSchema(registryUrl, inlineSchema, innerHeaders, connectTimeoutMs, requestTimeoutMs);
 
         Schema schema;
-        if (wrapperSchemaJson != null) {
-            Schema wrapper = new Schema.Parser().parse(wrapperSchemaJson);
+        if (hasWrapperSource) {
+            // Resolve wrapper schema — may use a different registry with its own headers and timeouts
+            Map<String, String> wrapperHeaders = resolveHeaders(params, PARAM_WRAPPER_SCHEMA_REGISTRY_HEADERS_PREFIX);
+            int wrapperConnectMs = parsePositiveMs(
+                params.get(PARAM_WRAPPER_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS),
+                PARAM_WRAPPER_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS,
+                DEFAULT_REGISTRY_TIMEOUT_MS
+            );
+            int wrapperRequestMs = parsePositiveMs(
+                params.get(PARAM_WRAPPER_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS),
+                PARAM_WRAPPER_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS,
+                DEFAULT_REGISTRY_TIMEOUT_MS
+            );
+            Schema wrapper = resolveSchema(wrapperRegistryUrl, wrapperSchemaJson, wrapperHeaders, wrapperConnectMs, wrapperRequestMs);
             schema = substituteInnerSchema(wrapper, innerSchema, wrapperField);
             logger.info(
                 "AvroPayloadDecoder: combined schema [{}] fields={}",
@@ -221,31 +281,19 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         return new AvroPayloadDecoder(schema, skipBytes, msgField);
     }
 
-    private static Schema resolveSchema(String registryUrl, String inlineSchema, Map<String, Object> params) {
+    private static Schema resolveSchema(String registryUrl, String inlineSchema, Map<String, String> headers,
+                                        int connectTimeoutMs, int requestTimeoutMs) {
         if (registryUrl != null) {
-            Map<String, String> headers = resolveHeaders(params);
-            int connectTimeoutMs = parsePositiveMs(
-                params.get(PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS),
-                PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS,
-                DEFAULT_REGISTRY_TIMEOUT_MS
-            );
-            int requestTimeoutMs = parsePositiveMs(
-                params.get(PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS),
-                PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS,
-                DEFAULT_REGISTRY_TIMEOUT_MS
-            );
             logger.info("AvroPayloadDecoder: fetching schema from [{}] headers={}", registryUrl, headers.keySet());
             Schema schema = fetchSchema(registryUrl, headers, connectTimeoutMs, requestTimeoutMs);
             logger.info("AvroPayloadDecoder: fetched schema [{}]", schema.getFullName());
             return schema;
         } else {
-            try {
-                Schema schema = new Schema.Parser().parse(inlineSchema);
-                logger.debug("AvroPayloadDecoder: parsed inline schema [{}]", schema.getFullName());
-                return schema;
-            } catch (Throwable t) {
-                throw new IllegalArgumentException("Failed to parse avro.schema: " + t.getMessage(), t);
-            }
+            // The inline schema may be either direct Avro JSON or a Confluent-style
+            // {"schema":"..."} body — parseSchemaFromBody handles both in one parse.
+            Schema schema = parseSchemaFromBody(inlineSchema);
+            logger.debug("AvroPayloadDecoder: parsed inline schema [{}]", schema.getFullName());
+            return schema;
         }
     }
 
@@ -256,6 +304,7 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         this.schema = schema;
         this.skipBytes = skipBytes;
         this.msgField = msgField;
+        this.threadLocalReader = ThreadLocal.withInitial(() -> new GenericDatumReader<>(schema));
     }
 
     /**
@@ -292,11 +341,14 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         });
 
         try {
-            // GenericDatumReader is not thread-safe; create per call so decode() is safe to
-            // invoke from processor threads (lazy decode via KafkaMessage.getPayload()).
-            GenericDatumReader<GenericRecord> reader = new GenericDatumReader<>(schema);
-            BinaryDecoder decoder = DECODER_FACTORY.binaryDecoder(new ByteArrayInputStream(raw, skipBytes, remaining), null);
-            GenericRecord record = reader.read(null, decoder);
+            // Reuse per-thread instances across successive messages — avoids allocation on the hot path.
+            BinaryDecoder binaryDecoder = DECODER_FACTORY.binaryDecoder(
+                new ByteArrayInputStream(raw, skipBytes, remaining),
+                threadLocalBinaryDecoder.get()
+            );
+            threadLocalBinaryDecoder.set(binaryDecoder);
+            GenericRecord record = threadLocalReader.get().read(threadLocalRecord.get(), binaryDecoder);
+            threadLocalRecord.set(record);
             logger.debug(() -> new ParameterizedMessage("Decoded Avro record: schema=[{}]", record.getSchema().getFullName()));
 
             Map<String, Object> map;
@@ -336,11 +388,11 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         }
     }
 
-    private static Map<String, String> resolveHeaders(Map<String, Object> params) {
+    private static Map<String, String> resolveHeaders(Map<String, Object> params, String prefix) {
         Map<String, String> headers = new HashMap<>();
         params.forEach((k, v) -> {
-            if (k.startsWith(PARAM_SCHEMA_REGISTRY_HEADERS_PREFIX)) {
-                headers.put(k.substring(PARAM_SCHEMA_REGISTRY_HEADERS_PREFIX.length()), String.valueOf(v));
+            if (k.startsWith(prefix)) {
+                headers.put(k.substring(prefix.length()), String.valueOf(v));
             }
         });
         return headers;
@@ -368,7 +420,7 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
                     "Schema registry returned HTTP " + response.statusCode() + " for [" + url + "]: " + bodyPreview
                 );
             }
-            return new Schema.Parser().parse(extractSchemaJson(response.body()));
+            return parseSchemaFromBody(response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while fetching Avro schema from [" + url + "]", e);
@@ -377,14 +429,19 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         }
     }
 
-    static String extractSchemaJson(String body) {
+    /**
+     * Parses an Avro schema from a string body that is either direct Avro JSON or a
+     * Confluent-style {@code {"schema":"<escaped-json>", ...}} registry response.
+     * Both paths parse exactly once — no double parse.
+     */
+    static Schema parseSchemaFromBody(String body) {
         try {
-            // Validate it's parseable Avro JSON — if so, use body directly
-            new Schema.Parser().parse(body);
-            logger.debug("Registry response is a valid Avro schema JSON");
-            return body;
+            // Try direct Avro JSON first — single parse, no validation pre-pass.
+            Schema schema = new Schema.Parser().parse(body);
+            logger.debug("Parsed Avro schema directly, name=[{}]", schema.getFullName());
+            return schema;
         } catch (SchemaParseException e) {
-            // Fall back to Confluent-style {"schema":"<escaped-json>"} wrapper
+            // Fall back to Confluent-style {"schema":"<escaped-json>"} wrapper.
             logger.debug("Direct parse failed ({}), trying Confluent schema-field extraction", e.getMessage());
             try (XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, body)) {
@@ -395,9 +452,9 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
                         "Unable to parse Avro schema from registry response: no 'schema' field found"
                     );
                 }
-                String schemaJson = String.valueOf(schemaValue);
-                logger.debug("Extracted schema JSON via Confluent wrapper");
-                return schemaJson;
+                Schema schema = new Schema.Parser().parse(String.valueOf(schemaValue));
+                logger.debug("Parsed Avro schema via Confluent wrapper, name=[{}]", schema.getFullName());
+                return schema;
             } catch (IOException ex) {
                 throw new IllegalArgumentException(
                     "Unable to parse Avro schema from registry response: " + ex.getMessage(), ex

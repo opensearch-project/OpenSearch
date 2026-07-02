@@ -16,6 +16,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.EncoderFactory;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.indices.pollingingest.PayloadDecoder;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -108,7 +109,7 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
 
     public void testPassthroughReturnsIdenticalReference() {
         byte[] raw = "hello".getBytes(StandardCharsets.UTF_8);
-        assertSame("PASSTHROUGH must return the same reference", raw, KafkaPayloadDecoder.PASSTHROUGH.decode(raw));
+        assertSame("PASSTHROUGH must return the same reference", raw, PayloadDecoder.PASSTHROUGH.decode(raw));
     }
 
     // -----------------------------------------------------------------------
@@ -366,25 +367,34 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // extractSchemaJson -- Confluent-style wrapper
+    // parseSchemaFromBody -- Confluent-style wrapper and direct Avro JSON
     // -----------------------------------------------------------------------
 
-    public void testExtractSchemaJsonConfluentStyle() {
-        // Confluent schema registry returns {"schema":"<escaped avro json>","id":1,...}
+    public void testConfluentStyleBodyAcceptedAsInlineSchema() throws Exception {
+        // avro.schema accepts a Confluent-style {"schema":"<escaped-json>"} body in addition
+        // to plain Avro JSON — both go through parseSchemaFromBody with a single parse.
+        Schema schema = new Schema.Parser().parse(SIMPLE_SCHEMA_JSON);
+        GenericRecord record = new GenericData.Record(schema);
+        record.put("id", 5);
+        record.put("name", "test");
+
         String escaped = SIMPLE_SCHEMA_JSON.replace("\\", "\\\\").replace("\"", "\\\"");
         String confluentBody = "{\"id\":1,\"schema\":\"" + escaped + "\"}";
-        // extractSchemaJson returns a String — safe to call from test side (no relocated types)
-        String schemaJson = AvroPayloadDecoder.extractSchemaJson(confluentBody);
-        Schema parsed = new Schema.Parser().parse(schemaJson);
-        assertEquals("TestRecord", parsed.getName());
-        assertEquals("org.test", parsed.getNamespace());
+
+        // Pass the Confluent-wrapped body as avro.schema — should be parsed correctly
+        String json = decodeToJson(schemaParams(confluentBody), encode(schema, record));
+        assertTrue(json.contains("5"));
+        assertTrue(json.contains("\"test\""));
     }
 
-    public void testExtractSchemaJsonDirectAvro() {
-        // Plain Avro JSON should be returned as-is
-        String schemaJson = AvroPayloadDecoder.extractSchemaJson(SIMPLE_SCHEMA_JSON);
-        Schema parsed = new Schema.Parser().parse(schemaJson);
-        assertEquals("TestRecord", parsed.getName());
+    public void testDirectAvroJsonAcceptedAsInlineSchema() throws Exception {
+        Schema schema = new Schema.Parser().parse(SIMPLE_SCHEMA_JSON);
+        GenericRecord record = new GenericData.Record(schema);
+        record.put("id", 99);
+        record.put("name", "carol");
+        String json = decodeToJson(schemaParams(SIMPLE_SCHEMA_JSON), encode(schema, record));
+        assertTrue(json.contains("99"));
+        assertTrue(json.contains("\"carol\""));
     }
 
     // -----------------------------------------------------------------------

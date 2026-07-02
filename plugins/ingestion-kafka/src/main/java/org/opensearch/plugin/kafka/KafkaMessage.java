@@ -10,11 +10,12 @@ package org.opensearch.plugin.kafka;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.index.Message;
+import org.opensearch.indices.pollingingest.PayloadDecoder;
 
 /**
  * Kafka message.
  *
- * <p>When constructed with a {@link KafkaPayloadDecoder}, the payload is decoded lazily on the
+ * <p>When constructed with a {@link PayloadDecoder}, the payload is decoded lazily on the
  * first call to {@link #getPayload()}. This means decoding errors surface in the processor rather
  * than in the consumer's fetch loop, allowing the configured DROP/BLOCK error strategy to apply.
  */
@@ -22,7 +23,7 @@ public class KafkaMessage implements Message<byte[]> {
     private final byte[] key;
     private final byte[] rawPayload;
     private final Long timestamp;
-    private final KafkaPayloadDecoder decoder;
+    private final PayloadDecoder decoder;
 
     private byte[] decodedPayload;
     private volatile boolean decoded;
@@ -31,7 +32,7 @@ public class KafkaMessage implements Message<byte[]> {
      * Constructor for pre-decoded payloads (tests and PASSTHROUGH path).
      */
     public KafkaMessage(@Nullable byte[] key, byte[] payload, Long timestamp) {
-        this(key, payload, timestamp, KafkaPayloadDecoder.PASSTHROUGH);
+        this(key, payload, timestamp, PayloadDecoder.PASSTHROUGH);
         this.decodedPayload = payload;
         this.decoded = true;
     }
@@ -40,7 +41,7 @@ public class KafkaMessage implements Message<byte[]> {
      * Constructor for lazy decoding. {@link #getPayload()} will invoke {@code decoder.decode()}
      * on the first call, allowing decode errors to propagate to the processor.
      */
-    public KafkaMessage(@Nullable byte[] key, byte[] rawPayload, Long timestamp, KafkaPayloadDecoder decoder) {
+    public KafkaMessage(@Nullable byte[] key, byte[] rawPayload, Long timestamp, PayloadDecoder decoder) {
         this.key = key;
         this.rawPayload = rawPayload;
         this.timestamp = timestamp;

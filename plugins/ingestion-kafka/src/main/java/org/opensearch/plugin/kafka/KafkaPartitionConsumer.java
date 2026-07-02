@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
+import org.opensearch.indices.pollingingest.PayloadDecoder;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -50,7 +51,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private final int partitionId;
     private final KafkaSourceConfig config;
     private TopicPartition topicPartition;
-    private KafkaPayloadDecoder payloadDecoder;
+    private PayloadDecoder payloadDecoder;
 
     /**
      * Constructor
@@ -74,7 +75,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.consumer = consumer;
         this.config = config;
         this.partitionId = partitionId;
-        this.payloadDecoder = KafkaPayloadDecoder.PASSTHROUGH;
+        this.payloadDecoder = PayloadDecoder.PASSTHROUGH;
         logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=PASSTHROUGH", config.getTopic(), partitionId);
     }
 
