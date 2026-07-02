@@ -291,11 +291,7 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
                 .getCount();
 
             // 1P+1R: total should be exactly 2x primary (replica mirrors primary)
-            assertEquals(
-                "replica segment count should match primary after prepare",
-                primarySegments * 2,
-                totalSegments
-            );
+            assertEquals("replica segment count should match primary after prepare", primarySegments * 2, totalSegments);
         } finally {
             client().admin().indices().delete(new DeleteIndexRequest(ASYNC_INDEX)).actionGet();
         }
