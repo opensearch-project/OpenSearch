@@ -263,14 +263,12 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             long currentOffset = messageAndOffset.offset();
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
-            byte[] value;
-            try {
-                value = payloadDecoder.decode(messageAndOffset.value());
-            } catch (Exception e) {
-                logger.error("Failed to decode message at offset {}, skipping: {}", currentOffset, e.getMessage(), e);
-                continue;
-            }
-            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), value, messageAndOffset.timestamp());
+            KafkaMessage message = new KafkaMessage(
+                messageAndOffset.key(),
+                messageAndOffset.value(),
+                messageAndOffset.timestamp(),
+                payloadDecoder
+            );
             results.add(new ReadResult<>(kafkaOffset, message));
         }
         return results;

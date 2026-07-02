@@ -12,6 +12,7 @@ import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaParseException;
 import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericEnumSymbol;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryDecoder;
@@ -63,6 +64,23 @@ import java.util.Map;
  *
  * <p>If no {@code avro.*} params are present, use {@link KafkaPayloadDecoder#PASSTHROUGH} instead.
  *
+ * <p><b>Known limitations</b>
+ *
+ * <p><b>Schema evolution:</b> this decoder uses the configured schema as both the writer schema
+ * and the reader schema ({@code new GenericDatumReader<>(schema)}). This is correct when every
+ * producer on the topic writes with exactly that schema version. True Avro schema evolution —
+ * where a reader schema with added/defaulted fields decodes bytes written with an older writer
+ * schema — requires the writer schema to be embedded in or derivable from each message (e.g. the
+ * 5-byte Confluent wire format carries a schema registry ID). Support for writer/reader schema
+ * resolution is a future enhancement; for now the configured schema must match the producer schema.
+ *
+ * <p><b>Logical types:</b> Avro logical types are decoded as their underlying primitive Java type:
+ * {@code timestamp-millis/micros} and {@code time-millis/micros} become {@code long}/{@code int},
+ * {@code date} becomes {@code int} (days since epoch), {@code uuid} becomes {@code String}.
+ * {@code decimal} (bytes or fixed) is base64-encoded — it does <em>not</em> become a numeric or
+ * string decimal. If your schema uses logical types and the downstream field mappings expect
+ * formatted values, pre-process messages before ingestion or post-process with an ingest pipeline.
+ *
  * <p><b>Shadow-plugin note:</b> this class imports {@code org.apache.avro.*} which is provided
  * at compile time by the {@code compileOnly} dependency.  The shadow plugin rewrites every
  * {@code org.apache.avro.*} bytecode reference to {@code org.opensearch.plugin.kafka.shaded.avro.*}
@@ -91,7 +109,6 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
     private final Schema schema;
     private final int skipBytes;
     private final String msgField;
-    private final GenericDatumReader<GenericRecord> reader;
 
     /**
      * Constructs an {@code AvroPayloadDecoder} from the given {@code avro.*} parameters.
@@ -99,9 +116,17 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
      * @param params map of avro.* configuration keys to values
      */
     public AvroPayloadDecoder(Map<String, Object> params) {
-        int rawSkipBytes = params.containsKey(PARAM_SKIP_BYTES)
-            ? Integer.parseInt(String.valueOf(params.get(PARAM_SKIP_BYTES)))
-            : 0;
+        int rawSkipBytes = 0;
+        if (params.containsKey(PARAM_SKIP_BYTES)) {
+            Object skipVal = params.get(PARAM_SKIP_BYTES);
+            try {
+                rawSkipBytes = skipVal instanceof Number
+                    ? ((Number) skipVal).intValue()
+                    : Integer.parseInt(String.valueOf(skipVal).trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("[avro.skip_bytes] must be an integer, got: " + skipVal);
+            }
+        }
         if (rawSkipBytes < 0) {
             throw new IllegalArgumentException("[avro.skip_bytes] must be non-negative, got: " + rawSkipBytes);
         }
@@ -109,7 +134,7 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         this.msgField = params.containsKey(PARAM_MSG_FIELD) ? String.valueOf(params.get(PARAM_MSG_FIELD)) : null;
 
         String registryUrl = params.containsKey(PARAM_SCHEMA_REGISTRY_URL)
-            ? String.valueOf(params.get(PARAM_SCHEMA_REGISTRY_URL))
+            ? String.valueOf(params.get(PARAM_SCHEMA_REGISTRY_URL)).trim()
             : null;
 
         // avro.schema value may arrive as a String or as a parsed Map if OpenSearch deserialized it
@@ -132,9 +157,21 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
             }
         }
 
-        String wrapperSchemaJson = params.containsKey(PARAM_WRAPPER_SCHEMA)
-            ? String.valueOf(params.get(PARAM_WRAPPER_SCHEMA))
-            : null;
+        String wrapperSchemaJson = null;
+        if (params.containsKey(PARAM_WRAPPER_SCHEMA)) {
+            Object wsVal = params.get(PARAM_WRAPPER_SCHEMA);
+            if (wsVal instanceof Map) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> wsMap = (Map<String, Object>) wsVal;
+                    wrapperSchemaJson = BytesReference.bytes(XContentFactory.jsonBuilder().map(wsMap)).utf8ToString();
+                } catch (IOException ex) {
+                    throw new IllegalArgumentException("Failed to re-serialize avro.wrapper_schema map to JSON", ex);
+                }
+            } else if (wsVal != null) {
+                wrapperSchemaJson = String.valueOf(wsVal);
+            }
+        }
         String wrapperField = params.containsKey(PARAM_WRAPPER_FIELD) ? String.valueOf(params.get(PARAM_WRAPPER_FIELD)) : null;
 
         if (registryUrl == null && inlineSchema == null) {
@@ -151,12 +188,16 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         Schema innerSchema;
         if (registryUrl != null) {
             Map<String, String> headers = resolveHeaders(params);
-            int connectTimeoutMs = params.containsKey(PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS)
-                ? Integer.parseInt(String.valueOf(params.get(PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS)))
-                : DEFAULT_REGISTRY_TIMEOUT_MS;
-            int requestTimeoutMs = params.containsKey(PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS)
-                ? Integer.parseInt(String.valueOf(params.get(PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS)))
-                : DEFAULT_REGISTRY_TIMEOUT_MS;
+            int connectTimeoutMs = parsePositiveMs(
+                params.get(PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS),
+                PARAM_SCHEMA_REGISTRY_CONNECT_TIMEOUT_MS,
+                DEFAULT_REGISTRY_TIMEOUT_MS
+            );
+            int requestTimeoutMs = parsePositiveMs(
+                params.get(PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS),
+                PARAM_SCHEMA_REGISTRY_REQUEST_TIMEOUT_MS,
+                DEFAULT_REGISTRY_TIMEOUT_MS
+            );
             logger.info("AvroPayloadDecoder: fetching schema from [{}] headers={}", registryUrl, headers.keySet());
             innerSchema = fetchSchema(registryUrl, headers, connectTimeoutMs, requestTimeoutMs);
             logger.info("AvroPayloadDecoder: fetched schema [{}]", innerSchema.getFullName());
@@ -181,7 +222,16 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         } else {
             this.schema = innerSchema;
         }
-        this.reader = new GenericDatumReader<>(this.schema);
+        if (this.schema.getType() != Schema.Type.RECORD) {            throw new IllegalArgumentException(
+                "[avro.schema] must be a RECORD schema, found: " + this.schema.getType()
+                    + " — only top-level record schemas are supported"
+            );
+        }
+        if (msgField != null && this.schema.getField(msgField) == null) {
+            throw new IllegalArgumentException(
+                "[avro.msg_field] field [" + msgField + "] does not exist in schema [" + this.schema.getFullName() + "]"
+            );
+        }
         logger.info(
             "AvroPayloadDecoder: initialized — schema=[{}] skipBytes={} msgField={}",
             this.schema.getFullName(),
@@ -202,9 +252,12 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
             return null;
         }
         int remaining = raw.length - skipBytes;
-        if (remaining < 1) {
+        if (remaining == 0) {
+            return null; // empty payload after skip — treat as tombstone
+        }
+        if (remaining < 0) {
             throw new IllegalArgumentException(
-                "Avro payload too short after skipping " + skipBytes + " bytes (" + remaining + " remaining)"
+                "Avro payload too short after skipping " + skipBytes + " bytes (payload length=" + raw.length + ")"
             );
         }
 
@@ -224,6 +277,9 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         }
 
         try {
+            // GenericDatumReader is not thread-safe; create per call so decode() is safe to
+            // invoke from processor threads (lazy decode via KafkaMessage.getPayload()).
+            GenericDatumReader<GenericRecord> reader = new GenericDatumReader<>(schema);
             BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(new ByteArrayInputStream(raw, skipBytes, remaining), null);
             GenericRecord record = reader.read(null, decoder);
             logger.debug("Decoded Avro record: schema=[{}]", record.getSchema().getFullName());
@@ -233,8 +289,16 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
             if (msgField != null) {
                 Object nested = map.get(msgField);
                 if (nested == null) {
-                    logger.debug("avro.msg_field [{}] is null — tombstone, returning null", msgField);
-                    return null;
+                    // The field exists in the schema (validated at construction) but its value is
+                    // null. This is a nullable union field set to null — not a Kafka tombstone.
+                    // Returning null here would propagate a null payload into KafkaMessage and
+                    // cause a NullPointerException in the downstream mapper. Throw instead so the
+                    // caller can apply the configured DROP/BLOCK error strategy.
+                    throw new IllegalArgumentException(
+                        "avro.msg_field [" + msgField + "] value is null in decoded record — "
+                            + "if null payloads are valid tombstones, remove avro.msg_field and handle "
+                            + "the envelope fields in the index mapping instead"
+                    );
                 }
                 if (nested instanceof Map == false) {
                     throw new IllegalArgumentException(
@@ -345,7 +409,11 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         for (Schema.Field f : wrapper.getFields()) {
             if (f.name().equals(wrapperField)) {
                 found = true;
-                newFields.add(new Schema.Field(f.name(), inner, f.doc()));
+                Schema.Field substituted = new Schema.Field(f.name(), inner, f.doc(), null, f.order());
+                for (String alias : f.aliases()) {
+                    substituted.addAlias(alias);
+                }
+                newFields.add(substituted);
             } else {
                 Schema.Field copy = new Schema.Field(f.name(), f.schema(), f.doc(), f.defaultVal(), f.order());
                 for (String alias : f.aliases()) {
@@ -372,18 +440,37 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         return map;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static Object convertAvroValue(Object value) {
         if (value == null) return null;
         if (value instanceof GenericRecord) return recordToMap((GenericRecord) value);
         if (value instanceof GenericFixed) {
             return Base64.getEncoder().encodeToString(((GenericFixed) value).bytes());
         }
+        if (value instanceof GenericEnumSymbol) {
+            return value.toString();
+        }
         if (value instanceof ByteBuffer) {
-            ByteBuffer bb = ((ByteBuffer) value).duplicate();
+            ByteBuffer bb = ((ByteBuffer) value).duplicate().rewind();
             byte[] bytes = new byte[bb.remaining()];
             bb.get(bytes);
             return Base64.getEncoder().encodeToString(bytes);
+        }
+        if (value instanceof Float) {
+            float f = (Float) value;
+            if (Float.isNaN(f) || Float.isInfinite(f)) {
+                logger.warn("Non-finite float value [{}] in Avro field replaced with null", f);
+                return null;
+            }
+            return value;
+        }
+        if (value instanceof Double) {
+            double d = (Double) value;
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                logger.warn("Non-finite double value [{}] in Avro field replaced with null", d);
+                return null;
+            }
+            return value;
         }
         if (value instanceof Collection) {
             List<Object> list = new ArrayList<>();
@@ -399,6 +486,20 @@ public class AvroPayloadDecoder implements KafkaPayloadDecoder {
         }
         if (value instanceof CharSequence) return value.toString();
         return value;
+    }
+
+    private static int parsePositiveMs(Object value, String paramName, int defaultMs) {
+        if (value == null) return defaultMs;
+        int ms;
+        try {
+            ms = value instanceof Number ? ((Number) value).intValue() : Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("[" + paramName + "] must be an integer, got: " + value);
+        }
+        if (ms <= 0) {
+            throw new IllegalArgumentException("[" + paramName + "] must be positive, got: " + ms);
+        }
+        return ms;
     }
 
     private static byte[] toJsonBytes(Map<String, Object> map) {

@@ -214,15 +214,21 @@ public class AvroPayloadDecoderTests extends OpenSearchTestCase {
         assertFalse("outer field 'meta' must not appear after extraction", json.contains("\"meta\""));
     }
 
-    public void testDecodeWithNullMsgFieldReturnsTombstone() throws Exception {
+    public void testDecodeWithNullMsgFieldThrows() throws Exception {
         Schema outerSchema = new Schema.Parser().parse(NULLABLE_OUTER_SCHEMA_JSON);
         GenericRecord outer = new GenericData.Record(outerSchema);
         outer.put("payload", null);
 
         Map<String, Object> params = schemaParams(NULLABLE_OUTER_SCHEMA_JSON);
         params.put("avro.msg_field", "payload");
-        byte[] result = new AvroPayloadDecoder(params).decode(encode(outerSchema, outer));
-        assertNull("null msg_field must return null (tombstone)", result);
+        AvroPayloadDecoder decoder = new AvroPayloadDecoder(params);
+        // A null msg_field value is not a Kafka tombstone — it is a data error.
+        // Returning null would propagate a null payload into KafkaMessage and NPE in the mapper.
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> decoder.decode(encode(outerSchema, outer))
+        );
+        assertTrue(ex.getMessage().contains("msg_field") && ex.getMessage().contains("null"));
     }
 
     public void testDecodeWithMsgFieldPointingToScalarThrows() throws Exception {
