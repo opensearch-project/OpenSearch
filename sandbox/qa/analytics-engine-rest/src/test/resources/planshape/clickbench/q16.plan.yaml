@@ -28,12 +28,22 @@ plans:
             OpenSearchAggregate(group=[{0}], count()=[SUM($1)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
               OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
-    shard_physical: |
+    shard_physical_1seg: |
       ProjectionExec: expr=[UserID@0 as UserID, count(Int64(1))[count]@1 as count()]
         SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, UserID@0 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST, UserID@0 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
-              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0], 4), input_partitions=1
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+    shard_physical_nseg: |
+      ProjectionExec: expr=[UserID@0 as UserID, count(Int64(1))[count]@1 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, UserID@0 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST, UserID@0 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0], 4), input_partitions=2
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.count())@0 as count(), UserID@1 as UserID]
         SortPreservingMergeExec: [sum(input-0.count())@0 DESC NULLS LAST, UserID@1 ASC], fetch=10

@@ -34,16 +34,20 @@ plans:
       ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, count(Int64(1))[count]@1 as c]
         SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1))]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                QueryShardExec: partitions=1, segments=1, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                    QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, count(Int64(1))[count]@1 as c]
         SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1))]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                QueryShardExec: partitions=2, segments=2, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                    QueryShardExec: partitions=2, segments=2, ordering=unsorted
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.c)@0 as c, SearchPhrase@1 as SearchPhrase]
         SortPreservingMergeExec: [sum(input-0.c)@0 DESC NULLS LAST], fetch=10

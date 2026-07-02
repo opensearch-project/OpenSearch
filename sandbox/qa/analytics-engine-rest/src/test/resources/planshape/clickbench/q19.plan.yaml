@@ -28,12 +28,22 @@ plans:
             OpenSearchAggregate(group=[{0, 1, 2}], count()=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
               OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
-    shard_physical: |
+    shard_physical_1seg: |
       ProjectionExec: expr=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as m, SearchPhrase@2 as SearchPhrase, count(Int64(1))[count]@3 as count()]
         SortPreservingMergeExec: [count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
-              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1, SearchPhrase@2], 4), input_partitions=1
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet
+    shard_physical_nseg: |
+      ProjectionExec: expr=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as m, SearchPhrase@2 as SearchPhrase, count(Int64(1))[count]@3 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1, SearchPhrase@2], 4), input_partitions=2
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.count())@0 as count(), UserID@1 as UserID, m@2 as m, SearchPhrase@3 as SearchPhrase]
         SortPreservingMergeExec: [sum(input-0.count())@0 DESC NULLS LAST, UserID@1 ASC, m@2 ASC, SearchPhrase@3 ASC], fetch=10

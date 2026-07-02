@@ -36,18 +36,22 @@ plans:
       ProjectionExec: expr=[WatchID@0 as WatchID, ClientIP@1 as ClientIP, count(Int64(1))[count]@2 as c, sum(<scrubbed>.IsRefresh)[sum]@3 as sum(IsRefresh), sum(<scrubbed>.ResolutionWidth)[sum]@4 as $f4, count(<scrubbed>.ResolutionWidth)[count]@5 as $f5]
         SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
-                  QueryShardExec: partitions=1, segments=1, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
+              RepartitionExec: partitioning=Hash([WatchID@0, ClientIP@1], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                    ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
+                      QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[WatchID@0 as WatchID, ClientIP@1 as ClientIP, count(Int64(1))[count]@2 as c, sum(<scrubbed>.IsRefresh)[sum]@3 as sum(IsRefresh), sum(<scrubbed>.ResolutionWidth)[sum]@4 as $f4, count(<scrubbed>.ResolutionWidth)[count]@5 as $f5]
         SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
-                  QueryShardExec: partitions=2, segments=2, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
+              RepartitionExec: partitioning=Hash([WatchID@0, ClientIP@1], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[WatchID@0 as WatchID, ClientIP@1 as ClientIP], aggr=[count(Int64(1)), sum(<scrubbed>.IsRefresh), sum(<scrubbed>.ResolutionWidth), count(<scrubbed>.ResolutionWidth)]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                    ProjectionExec: expr=[WatchID@3 as WatchID, ClientIP@0 as ClientIP, IsRefresh@1 as IsRefresh, ResolutionWidth@2 as ResolutionWidth]
+                      QueryShardExec: partitions=2, segments=2, ordering=unsorted
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.c)@0 as c, sum(input-0.sum(IsRefresh))@1 as sum(IsRefresh), CASE WHEN sum(input-0.$f5) = Int64(0) THEN Float64(NULL) ELSE sum(input-0.$f4) / sum(input-0.$f5) END@2 as avg(ResolutionWidth), WatchID@3 as WatchID, ClientIP@4 as ClientIP]
         SortPreservingMergeExec: [sum(input-0.c)@0 DESC NULLS LAST], fetch=10

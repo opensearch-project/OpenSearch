@@ -34,16 +34,20 @@ plans:
       ProjectionExec: expr=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase, count(Int64(1))[count]@2 as c]
         SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST, SearchEngineID@0 ASC, SearchPhrase@1 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST, SearchEngineID@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                QueryShardExec: partitions=1, segments=1, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([SearchEngineID@0, SearchPhrase@1], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                    QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase, count(Int64(1))[count]@2 as c]
         SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST, SearchEngineID@0 ASC, SearchPhrase@1 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST, SearchEngineID@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                QueryShardExec: partitions=2, segments=2, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([SearchEngineID@0, SearchPhrase@1], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[SearchEngineID@0 as SearchEngineID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                    QueryShardExec: partitions=2, segments=2, ordering=unsorted
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.c)@0 as c, SearchEngineID@1 as SearchEngineID, SearchPhrase@2 as SearchPhrase]
         SortPreservingMergeExec: [sum(input-0.c)@0 DESC NULLS LAST, SearchEngineID@1 ASC, SearchPhrase@2 ASC], fetch=10

@@ -34,16 +34,20 @@ plans:
       ProjectionExec: expr=[Title@0 as Title, count(Int64(1))[count]@1 as PageViews]
         SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, Title@0 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST, Title@0 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                QueryShardExec: partitions=1, segments=1, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                    QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[Title@0 as Title, count(Int64(1))[count]@1 as PageViews]
         SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, Title@0 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST, Title@0 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
-              RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                QueryShardExec: partitions=2, segments=2, ordering=unsorted
+            AggregateExec: mode=PartialReduce, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                    QueryShardExec: partitions=2, segments=2, ordering=unsorted
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.PageViews)@0 as PageViews, Title@1 as Title]
         SortPreservingMergeExec: [sum(input-0.PageViews)@0 DESC NULLS LAST, Title@1 ASC], fetch=10
