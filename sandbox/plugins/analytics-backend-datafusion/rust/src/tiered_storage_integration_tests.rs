@@ -852,6 +852,13 @@ fn concurrent_shard_warmup_does_not_corrupt() {
             handle.await.unwrap();
         }
 
+        // put_metadata is fire-and-forget into Foyer's disk-only storage (memory tier = 1 byte);
+        // insert() returns before the storage flusher persists the entry. Under heavy parallel load
+        // (full test suite) a get() issued immediately after can miss an entry still queued in the
+        // write buffer. Drain the flusher first — its documented post-condition is "all previously
+        // put() entries are on SSD and findable via get()" — so the verification reads are deterministic.
+        cache.wait_for_flush().await;
+
         // Verify each file's metadata is independently correct
         for (filename, file_size, expected_bytes) in &file_info {
             let footer_start = file_size.saturating_sub(8 * 1024);
