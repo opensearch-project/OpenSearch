@@ -51,10 +51,12 @@ pub enum PoolBehavior {
 // covers every pool that uses `Reject`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Decider: returns 1 to grant an over-commit, 0 to reject.
-pub type OverCommitDecider = extern "C" fn() -> i32;
-/// Releaser: called when a reservation that held an over-commit permit is freed/dropped.
-pub type OverCommitReleaser = extern "C" fn();
+/// Decider: returns a nonzero token id to grant an over-commit, or 0 to reject. The token is an
+/// opaque handle minted by the Java allocator; Rust stores it and echoes it back on release.
+pub type OverCommitDecider = extern "C" fn() -> i64;
+/// Releaser: called with the token of a reservation that held an over-commit permit when it is
+/// freed/dropped, so the Java allocator can release exactly that grant.
+pub type OverCommitReleaser = extern "C" fn(i64);
 
 static OVERCOMMIT_DECIDER: OnceLock<OverCommitDecider> = OnceLock::new();
 static OVERCOMMIT_RELEASER: OnceLock<OverCommitReleaser> = OnceLock::new();
@@ -65,19 +67,19 @@ pub fn set_overcommit_callbacks(decider: OverCommitDecider, releaser: OverCommit
     let _ = OVERCOMMIT_RELEASER.set(releaser);
 }
 
-/// Asks the registered decider whether an over-commit may proceed. Returns false when no decider is
-/// registered (feature effectively off) or the decider declines.
-fn overcommit_grant() -> bool {
+/// Asks the registered decider whether an over-commit may proceed. Returns the granted token id
+/// (nonzero), or 0 when no decider is registered (feature effectively off) or the decider declines.
+fn overcommit_grant() -> i64 {
     match OVERCOMMIT_DECIDER.get() {
-        Some(decide) => decide() == 1,
-        None => false,
+        Some(decide) => decide(),
+        None => 0,
     }
 }
 
-/// Returns the over-commit permit previously granted for a reservation back to the decider.
-fn overcommit_release() {
+/// Returns the over-commit permit identified by `token` back to the decider (Java allocator).
+fn overcommit_release(token: i64) {
     if let Some(release) = OVERCOMMIT_RELEASER.get() {
-        release();
+        release(token);
     }
 }
 
@@ -274,9 +276,10 @@ pub struct MemoryReservation {
     consumer: &'static str,
     size: usize,
     behavior: PoolBehavior,
-    /// True when this reservation holds one over-commit permit granted by the decider. The permit is
-    /// returned to the decider when the reservation is freed/dropped (one grant ↔ one release).
-    holds_overcommit_permit: bool,
+    /// Nonzero token of the over-commit permit held by this reservation (0 = none). The permit is
+    /// returned to the decider (with this token) when the reservation is freed/dropped (one grant ↔
+    /// one release).
+    overcommit_token: i64,
 }
 
 impl MemoryReservation {
@@ -286,7 +289,7 @@ impl MemoryReservation {
             consumer,
             size: 0,
             behavior,
-            holds_overcommit_permit: false,
+            overcommit_token: 0,
         }
     }
 
@@ -300,33 +303,37 @@ impl MemoryReservation {
                         Ok(())
                     }
                     Err(exhausted) => {
-                        if self.holds_overcommit_permit {
+                        if self.overcommit_token != 0 {
                             // Already holding an over-commit permit for this reservation — continue
                             // over-committing without re-consulting the decider.
                             self.pool.grow(bytes);
                             self.size += bytes;
                             Ok(())
-                        } else if overcommit_grant() {
-                            // Decider (Java allocator) granted based on node-level native pressure.
-                            self.pool.grow(bytes); // infallible over-commit
-                            self.size += bytes;
-                            self.holds_overcommit_permit = true;
-                            crate::log_debug!(
-                                "[RUST] over-commit granted: pool '{}' consumer '{}' committing {} bytes beyond limit (reservation size now {})",
-                                self.pool.name(),
-                                self.consumer,
-                                bytes,
-                                self.size
-                            );
-                            Ok(())
                         } else {
-                            crate::log_debug!(
-                                "[RUST] over-commit refused by decider: pool '{}' consumer '{}' needed {} bytes beyond limit",
-                                self.pool.name(),
-                                self.consumer,
-                                bytes
-                            );
-                            Err(Box::new(exhausted))
+                            let token = overcommit_grant();
+                            if token != 0 {
+                                // Decider (Java allocator) granted based on node-level native pressure.
+                                self.pool.grow(bytes); // infallible over-commit
+                                self.size += bytes;
+                                self.overcommit_token = token;
+                                crate::log_debug!(
+                                    "[RUST] over-commit granted: pool '{}' consumer '{}' token {} committing {} bytes beyond limit (reservation size now {})",
+                                    self.pool.name(),
+                                    self.consumer,
+                                    token,
+                                    bytes,
+                                    self.size
+                                );
+                                Ok(())
+                            } else {
+                                crate::log_debug!(
+                                    "[RUST] over-commit refused by decider: pool '{}' consumer '{}' needed {} bytes beyond limit",
+                                    self.pool.name(),
+                                    self.consumer,
+                                    bytes
+                                );
+                                Err(Box::new(exhausted))
+                            }
                         }
                     }
                 }
@@ -386,14 +393,15 @@ impl MemoryReservation {
             self.pool.shrink(s);
             self.size = 0;
         }
-        if self.holds_overcommit_permit {
-            overcommit_release();
-            self.holds_overcommit_permit = false;
+        if self.overcommit_token != 0 {
+            overcommit_release(self.overcommit_token);
             crate::log_debug!(
-                "[RUST] over-commit permit released: pool '{}' consumer '{}'",
+                "[RUST] over-commit permit released: pool '{}' consumer '{}' token {}",
                 self.pool.name(),
-                self.consumer
+                self.consumer,
+                self.overcommit_token
             );
+            self.overcommit_token = 0;
         }
         s
     }
@@ -413,7 +421,7 @@ impl MemoryReservation {
             consumer,
             size: 0,
             behavior: self.behavior.clone(),
-            holds_overcommit_permit: false,
+            overcommit_token: 0,
         }
     }
 }
@@ -423,12 +431,13 @@ impl Drop for MemoryReservation {
         if self.size > 0 {
             self.pool.shrink(self.size);
         }
-        if self.holds_overcommit_permit {
-            overcommit_release();
+        if self.overcommit_token != 0 {
+            overcommit_release(self.overcommit_token);
             crate::log_debug!(
-                "[RUST] over-commit permit released on drop: pool '{}' consumer '{}'",
+                "[RUST] over-commit permit released on drop: pool '{}' consumer '{}' token {}",
                 self.pool.name(),
-                self.consumer
+                self.consumer,
+                self.overcommit_token
             );
         }
     }

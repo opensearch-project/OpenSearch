@@ -30,7 +30,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 /**
  * FFM bridge to the native Rust parquet writer library.
@@ -769,26 +770,26 @@ public class RustBridge {
     // ─── Over-commit decision upcall (decision executes in the Java allocator) ───────────────────
 
     /** Delegate that decides whether a full native pool may over-commit; set by the owning plugin. */
-    private static volatile BooleanSupplier overCommitDecider;
+    private static volatile LongSupplier overCommitDecider;
     /** Delegate that releases a previously granted over-commit; set by the owning plugin. */
-    private static volatile Runnable overCommitReleaser;
+    private static volatile LongConsumer overCommitReleaser;
 
-    /** C-ABI trampoline invoked from Rust: returns 1 to grant an over-commit, else 0. */
-    private static int overCommitDecide() {
-        BooleanSupplier d = overCommitDecider;
+    /** C-ABI trampoline invoked from Rust: returns a nonzero grant token, or 0 to reject. */
+    private static long overCommitDecide() {
+        LongSupplier d = overCommitDecider;
         try {
-            return (d != null && d.getAsBoolean()) ? 1 : 0;
+            return d != null ? d.getAsLong() : 0L;
         } catch (Throwable t) {
-            return 0; // never let an exception cross the native boundary
+            return 0L; // never let an exception cross the native boundary
         }
     }
 
-    /** C-ABI trampoline invoked from Rust: releases the over-commit permit held by a reservation. */
-    private static void overCommitRelease() {
-        Runnable r = overCommitReleaser;
+    /** C-ABI trampoline invoked from Rust: releases the over-commit permit identified by {@code token}. */
+    private static void overCommitRelease(long token) {
+        LongConsumer r = overCommitReleaser;
         try {
             if (r != null) {
-                r.run();
+                r.accept(token);
             }
         } catch (Throwable ignore) {
             // best-effort
@@ -801,20 +802,24 @@ public class RustBridge {
      * decision itself runs in {@code decide}/{@code release}; this method only wires the plumbing.
      * Stubs are bound to the global arena (JVM lifetime).
      *
-     * @param decide  returns {@code true} to grant an over-commit, {@code false} to reject
-     * @param release invoked to release a previously granted over-commit permit
+     * @param decide  returns a nonzero grant token to over-commit, or 0 to reject
+     * @param release invoked with the grant token to release a previously granted over-commit
      */
-    public static void registerOverCommitCallbacks(BooleanSupplier decide, Runnable release) {
+    public static void registerOverCommitCallbacks(LongSupplier decide, LongConsumer release) {
         overCommitDecider = decide;
         overCommitReleaser = release;
         try {
             Linker linker = Linker.nativeLinker();
             Arena arena = Arena.global();
             MethodHandles.Lookup lookup = MethodHandles.lookup();
-            MethodHandle decideHandle = lookup.findStatic(RustBridge.class, "overCommitDecide", MethodType.methodType(int.class));
-            MethodHandle releaseHandle = lookup.findStatic(RustBridge.class, "overCommitRelease", MethodType.methodType(void.class));
-            MemorySegment decideStub = linker.upcallStub(decideHandle, FunctionDescriptor.of(ValueLayout.JAVA_INT), arena);
-            MemorySegment releaseStub = linker.upcallStub(releaseHandle, FunctionDescriptor.ofVoid(), arena);
+            MethodHandle decideHandle = lookup.findStatic(RustBridge.class, "overCommitDecide", MethodType.methodType(long.class));
+            MethodHandle releaseHandle = lookup.findStatic(
+                RustBridge.class,
+                "overCommitRelease",
+                MethodType.methodType(void.class, long.class)
+            );
+            MemorySegment decideStub = linker.upcallStub(decideHandle, FunctionDescriptor.of(ValueLayout.JAVA_LONG), arena);
+            MemorySegment releaseStub = linker.upcallStub(releaseHandle, FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG), arena);
             NativeCall.invokeVoid(REGISTER_OVERCOMMIT_CALLBACKS, decideStub, releaseStub);
         } catch (Throwable t) {
             throw new IllegalStateException("Failed to register over-commit callbacks", t);

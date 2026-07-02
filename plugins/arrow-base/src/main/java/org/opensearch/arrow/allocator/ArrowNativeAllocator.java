@@ -24,11 +24,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
@@ -64,6 +67,10 @@ public class ArrowNativeAllocator implements NativeAllocator {
     private volatile double overCommitPressureThreshold = DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD;
     /** Permit gate bounding the number of concurrently over-committing operations (sized once at startup). */
     private final SetOnce<Semaphore> overCommitPermits = new SetOnce<>();
+    /** Outstanding over-commit leases keyed by their token, so a token from the native side can be released. */
+    private final ConcurrentMap<Long, OverCommitLease> outstandingOverCommits = new ConcurrentHashMap<>();
+    /** Monotonic source of over-commit tokens. Starts at 0, which is reserved for "no grant". */
+    private final AtomicLong overCommitTokenSeq = new AtomicLong();
 
     /**
      * Creates a new allocator with a fresh RootAllocator.
@@ -135,26 +142,31 @@ public class ArrowNativeAllocator implements NativeAllocator {
     /**
      * Allocator-owned decision: may a full pool over-commit right now? Grants only when the feature is
      * enabled, node-level native memory pressure is below the threshold, and a concurrency permit is
-     * available. On a grant the caller MUST later invoke {@link #releaseOverCommit()} exactly once
-     * (the permit is held for the lifetime of the over-committing operation).
+     * available. On a grant this returns a {@link OverCommitLease} that the caller MUST
+     * {@link OverCommitLease#close() close} exactly once when the over-committing operation completes
+     * (the permit is held until then); on rejection it returns {@link Optional#empty()}.
+     *
+     * <p>This is the safe, in-JVM entry point: the only way to release a permit is to close a lease
+     * that this method minted, so a permit can never be released without first being acquired.
      *
      * <p>Generic across pool types (Arrow-backed pools via allocation-failure hooks, virtual/native
-     * pools via the FFM upcall). Never throws — returns false on any error so it is safe to invoke
-     * across the native boundary.
+     * pools via the FFM upcall through {@link #tryOverCommitToken()}). Never throws.
+     *
+     * @return a lease on grant, or empty on rejection
      */
-    public boolean tryOverCommit() {
+    public Optional<OverCommitLease> tryOverCommit() {
         try {
             if (overCommitEnabled == false) {
-                return false;
+                return Optional.empty();
             }
             double pressure = currentNativePressurePercent();
             if (pressure < 0) {
                 logger.debug("Over-commit unavailable: native memory pressure signal not ready");
-                return false;
+                return Optional.empty();
             }
             if (pressure >= overCommitPressureThreshold) {
                 logger.debug("Over-commit refused: native memory pressure {}% >= threshold {}%", pressure, overCommitPressureThreshold);
-                return false;
+                return Optional.empty();
             }
             logger.debug(
                 "Native memory pressure {}% within threshold {}%; attempting over-commit permit acquire",
@@ -162,33 +174,84 @@ public class ArrowNativeAllocator implements NativeAllocator {
                 overCommitPressureThreshold
             );
             // Permit gate: at most max_concurrent over-commits in flight. The permit is held
-            // until releaseOverCommit() is invoked when the over-committing operation completes.
+            // until the lease is closed when the over-committing operation completes.
             Semaphore permits = overCommitPermits.get();
             if (permits == null) {
                 logger.warn("Over-commit enabled but permit pool is not initialized; refusing over-commit");
-                return false;
+                return Optional.empty();
             }
             if (permits.tryAcquire()) {
-                logger.debug("Over-commit granted; acquired permit ({} permits now available)", permits.availablePermits());
-                return true;
+                long token = overCommitTokenSeq.incrementAndGet();
+                OverCommitLease lease = new OverCommitLease(token);
+                outstandingOverCommits.put(token, lease);
+                logger.debug(
+                    "Over-commit granted; acquired permit (token {}, {} permits now available)",
+                    token,
+                    permits.availablePermits()
+                );
+                return Optional.of(lease);
             }
             logger.warn("Over-commit refused: concurrency limit reached (all max_concurrent permits in use)");
-            return false;
+            return Optional.empty();
         } catch (Throwable t) {
-            return false;
+            return Optional.empty();
         }
     }
 
-    /** Releases the over-commit permit previously acquired by {@link #tryOverCommit()}. */
-    public void releaseOverCommit() {
-        try {
-            Semaphore permits = overCommitPermits.get();
-            if (permits != null) {
-                permits.release();
-                logger.debug("Released over-commit permit ({} permits now available)", permits.availablePermits());
+    /**
+     * FFM upcall entry point for native pools: performs the same decision as {@link #tryOverCommit()}
+     * but returns an opaque token instead of a lease object (which cannot cross the native boundary).
+     * The native side stores the token and passes it back to {@link #releaseOverCommitToken(long)} on
+     * release. Never throws — returns {@code 0} on any rejection or error.
+     *
+     * @return a nonzero grant token, or {@code 0} if the over-commit was rejected
+     */
+    public long tryOverCommitToken() {
+        return tryOverCommit().map(OverCommitLease::id).orElse(0L);
+    }
+
+    /**
+     * FFM upcall entry point for native pools: releases the over-commit permit previously granted
+     * under {@code token}. An unknown, stale, or already-released token is a no-op, so a spurious
+     * native release can never over-release the permit gate.
+     *
+     * @param token the grant token returned by {@link #tryOverCommitToken()}
+     */
+    public void releaseOverCommitToken(long token) {
+        OverCommitLease lease = outstandingOverCommits.get(token);
+        if (lease != null) {
+            lease.close();
+        }
+    }
+
+    /**
+     * A capability handle for a single granted over-commit. Minted only by
+     * {@link ArrowNativeAllocator#tryOverCommit()}; closing it releases the underlying permit exactly
+     * once (idempotent), so double-close and unpaired release are both harmless.
+     */
+    public final class OverCommitLease implements AutoCloseable {
+        private final long id;
+        private final AtomicBoolean released = new AtomicBoolean(false);
+
+        private OverCommitLease(long id) {
+            this.id = id;
+        }
+
+        /** The opaque token identifying this grant (used to release across the native boundary). */
+        public long id() {
+            return id;
+        }
+
+        @Override
+        public void close() {
+            if (released.compareAndSet(false, true)) {
+                outstandingOverCommits.remove(id);
+                Semaphore permits = overCommitPermits.get();
+                if (permits != null) {
+                    permits.release();
+                    logger.debug("Released over-commit permit (token {}, {} permits now available)", id, permits.availablePermits());
+                }
             }
-        } catch (Throwable t) {
-            // best-effort
         }
     }
 
