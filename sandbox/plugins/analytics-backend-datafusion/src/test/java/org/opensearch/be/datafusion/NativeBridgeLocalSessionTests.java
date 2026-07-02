@@ -28,6 +28,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -68,9 +69,11 @@ public class NativeBridgeLocalSessionTests extends OpenSearchTestCase {
         // dir at suite end; if the spill dir were Lucene-tracked, that rm races the native deleter and
         // fails with NoSuchFileException on a "*.stale" file. Using an untracked OS temp dir makes the
         // native thread the sole owner; we reap it best-effort in tearDown.
+        // Root at java.io.tmpdir (an explicit location, as forbidden-apis requires) rather than the
+        // no-location Files.createTempDirectory(String) overload — and NOT Lucene's createTempDir.
         Path spillDir;
         try {
-            spillDir = Files.createTempDirectory("datafusion-spill");
+            spillDir = Files.createTempDirectory(PathUtils.get(System.getProperty("java.io.tmpdir")), "datafusion-spill");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
