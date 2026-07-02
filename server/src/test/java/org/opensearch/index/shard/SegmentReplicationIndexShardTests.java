@@ -389,7 +389,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             }
             // We use compareTo here instead of equals because we ignore segments gen with replicas performing their own commits.
             // However infos version we expect to be equal.
-            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+            assertEquals(0, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
 
             // index and copy segments to replica.
             int numDocs = randomIntBetween(10, 20);
@@ -411,7 +411,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
                 assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
             }
-            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+            assertEquals(0, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
         }
     }
 
