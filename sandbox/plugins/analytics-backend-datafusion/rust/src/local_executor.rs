@@ -230,6 +230,7 @@ impl LocalSession {
         let stripped = crate::agg_mode::apply_aggregate_mode(
             physical_plan,
             crate::agg_mode::Mode::Final,
+            false,
         )?;
 
         let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
