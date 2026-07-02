@@ -92,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FsRepositoryTests extends OpenSearchTestCase {
@@ -244,6 +245,58 @@ public class FsRepositoryTests extends OpenSearchTestCase {
         assertTrue(restrictedSettings.contains(BlobStoreRepository.READONLY_SETTING));
         assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
         assertTrue(restrictedSettings.contains(FsRepository.LOCATION_SETTING));
+    }
+
+    public void testBasePathEscapingPathRepoIsRejected() {
+        final Path repo = createTempDir();
+        final List<String> maliciousBasePaths = List.of(
+            repo.toAbsolutePath().toString(),        // absolute path: Path.resolve discards the validated location
+            "/usr/share/opensearch/data/nodes/0",    // absolute path (the reported POC payload)
+            "..",                                    // parent-directory traversal
+            "../escape",
+            "nested/../../escape",
+            "foo/../bar",                            // interior '..' is rejected by the strict string validator
+            "a/b/../c"
+        );
+        for (String basePath : maliciousBasePaths) {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+                .put("location", repo)
+                .put(FsRepository.BASE_PATH_SETTING.getKey(), basePath)
+                .build();
+            final RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+            final RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> new FsRepository(
+                    metadata,
+                    new Environment(settings, null),
+                    NamedXContentRegistry.EMPTY,
+                    BlobStoreTestUtil.mockClusterService(),
+                    new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+                )
+            );
+            assertThat("base_path [" + basePath + "] must be rejected", e.getMessage(), containsString("base_path"));
+        }
+    }
+
+    public void testRelativeBasePathWithinPathRepoIsAccepted() {
+        final Path repo = createTempDir();
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+            .put("location", repo)
+            .put(FsRepository.BASE_PATH_SETTING.getKey(), "nested/base/path")
+            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+        // A well-formed relative base_path that stays within path.repo must construct without throwing.
+        new FsRepository(
+            metadata,
+            new Environment(settings, null),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        );
     }
 
     private void runGeneric(ThreadPool threadPool, Runnable runnable) throws InterruptedException {
