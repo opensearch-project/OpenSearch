@@ -378,6 +378,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS)
             )
+            // Join reordering is read live by PlannerImpl.reorderJoins via PlannerContext settings; overlay
+            // it so a dynamic PUT /_cluster/settings toggle is honored (else it pins the node-bootstrap default).
+            .put(AnalyticsSettings.MPP_JOIN_REORDER.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_JOIN_REORDER))
             .build();
         // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
         // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.

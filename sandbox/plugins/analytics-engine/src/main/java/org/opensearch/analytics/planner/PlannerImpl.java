@@ -59,8 +59,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -131,6 +129,7 @@ public class PlannerImpl {
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
+        modifiedRelNode = reorderJoins(modifiedRelNode, context, listener);
         modifiedRelNode = trimUnusedFields(modifiedRelNode, context);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
@@ -168,6 +167,78 @@ public class PlannerImpl {
             LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
+    }
+
+    /**
+     * Pre-marking cost-based join reordering for multi-way joins. Collapses the frontend's
+     * left-deep {@code LogicalJoin} tree into a single {@code MultiJoin} ({@code JOIN_TO_MULTI_JOIN}),
+     * then re-orders it with Calcite's bushy-join heuristic ({@code MULTI_JOIN_OPTIMIZE_BUSHY}), which
+     * ranks join factors by {@code RelMetadataQuery.getRowCount} — the per-index counts seeded by
+     * {@code IndexRowCountFetcher}. The effect: the smaller/more-selective joins run first, so a fat
+     * fact-table intermediate is not carried through every downstream join (and not re-shuffled at
+     * each worker tier). This is the plan-layer analog of the column-prune win — less data moved by
+     * construction, not by a bigger memory ceiling.
+     *
+     * <p>Runs here (pre-marking, on {@code Logical*}) for the same reason as {@link #trimUnusedFields}:
+     * the reorder rules match {@code LogicalProject(MultiJoin)} / {@code LogicalJoin}, and marking lowers
+     * the reordered shape in one pass. Placed BEFORE the trimmer so the trimmer prunes the final order.
+     *
+     * <p><b>The two rules run as SEPARATE HEP instructions</b> — {@code JOIN_TO_MULTI_JOIN} to fixpoint,
+     * THEN {@code MULTI_JOIN_OPTIMIZE_BUSHY} to fixpoint. Running them in one rule collection loops
+     * indefinitely (the optimize rule's {@code Join} output re-triggers {@code JOIN_TO_MULTI_JOIN}); as
+     * ordered instructions the flatten completes once and the optimizer consumes its {@code MultiJoin}
+     * without re-flattening (the documented deferral hazard at the old {@code reduceExpressions} TODO).
+     *
+     * <p><b>Gated</b> by {@link AnalyticsSettings#MPP_JOIN_REORDER} (default {@code false}) AND to plans
+     * with 3+ joins that are ALL equi-joins — a 2-way join has a single order (nothing to reorder), and
+     * a cross-join (PPL {@code transpose}) must not be flattened into a {@code MultiJoin}. A reorder-rule
+     * edge case falls back to the input plan rather than failing the query.
+     */
+    private static RelNode reorderJoins(RelNode input, PlannerContext context, RuleProfilingListener listener) {
+        if (!AnalyticsSettings.MPP_JOIN_REORDER.get(context.getSettings())) {
+            return input;
+        }
+        // 3+ PURE-equi joins only: fewer than 3 has a single order; and every join must be a pure equi-join
+        // (isEqui() = no residual non-equi conjunct). A cross-join (no keys) or a mixed equi+theta condition
+        // (e.g. a.x=b.x AND a.y>b.y) must NOT be flattened into a MultiJoin — the bushy rule is narrow around
+        // condition shape, and a leftKeys-non-empty-but-not-pure-equi join would slip a theta predicate into
+        // the reorder. (Same spirit as the trimUnusedFields gate, tightened to isEqui.)
+        List<org.apache.calcite.rel.core.Join> joins = RelNodeUtils.findNodes(input, org.apache.calcite.rel.core.Join.class);
+        boolean reorderable = joins.size() >= 3 && joins.stream().allMatch(j -> j.analyzeCondition().isEqui());
+        if (!reorderable) {
+            return input;
+        }
+        // Exclude plans carrying a Correlate or a non-INNER join. JOIN_TO_MULTI_JOIN flattens inner joins
+        // into a MultiJoin, but MULTI_JOIN_OPTIMIZE_BUSHY only re-expands a MultiJoin it can fully reorder;
+        // an EXISTS/NOT-EXISTS subquery (LogicalCorrelate, or a semi/anti join once decorrelated — TPC-H
+        // q21/q11) leaves a residual MultiJoin that no bushy match consumes, and marking then rejects the
+        // unmarked MultiJoin ("Filter rule encountered unmarked child [MultiJoin]"). Skip those shapes.
+        if (!RelNodeUtils.findNodes(input, org.apache.calcite.rel.core.Correlate.class).isEmpty()
+            || joins.stream().anyMatch(j -> j.getJoinType() != org.apache.calcite.rel.core.JoinRelType.INNER)) {
+            return input;
+        }
+        try {
+            RelNode reordered = HepPhase.named("join-reorder")
+                .addRuleInstance(CoreRules.JOIN_TO_MULTI_JOIN)
+                .addRuleInstance(CoreRules.MULTI_JOIN_OPTIMIZE_BUSHY)
+                .run(input, listener);
+            // Belt-and-suspenders: the optimize rule must leave ZERO MultiJoin nodes — a residual one is a
+            // deferred failure (marking throws on it, which the try/catch here can't see because the reorder
+            // phase itself didn't throw). If any survived, discard the reorder and keep the as-written tree.
+            if (!RelNodeUtils.findNodes(reordered, org.apache.calcite.rel.rules.MultiJoin.class).isEmpty()) {
+                LOGGER.debug("Join reorder left a residual MultiJoin; falling back to as-written order");
+                return input;
+            }
+            LOGGER.debug("After join reorder:\n{}", RelOptUtil.toString(reordered));
+            return reordered;
+        } catch (Exception | AssertionError e) {
+            // Defensive: a reorder-rule edge case must not fail planning — Calcite can assert-fail (not just
+            // throw a RuntimeException) on an unsupported condition shape when assertions are enabled. Fall
+            // back to the as-written order; correctness is unaffected, only the ordering win is lost. The
+            // returned `input` is the original, unmutated tree (HepPlanner builds a fresh output).
+            LOGGER.debug("Join reorder skipped (fell back to as-written order): {}", e.toString());
+            return input;
+        }
     }
 
     /**
@@ -370,11 +441,9 @@ public class PlannerImpl {
      * Project may not have backend support for.
      */
     private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
-        // Join reordering (JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY) is deferred:
-        // running both in the same HEP ARBITRARY pass loops indefinitely (they invert
-        // each other's output). A follow-up should run them in a separate HEP program
-        // with explicit fixed-point policy, gated on multi-way-join detection. For now
-        // the LogicalJoin tree from the frontend is marked as-is.
+        // NOTE: join reordering does NOT run here — running JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY
+        // in the same ARBITRARY pass loops indefinitely (they invert each other). It lives in its own
+        // dedicated phase, {@link #reorderJoins}, which runs them as two separate fixpoint instructions.
         return HepPhase.named("reduce-expressions")
             .bottomUp()
             .addRuleCollection(
@@ -513,11 +582,10 @@ public class PlannerImpl {
                 volcanoPlanner.setRoot(volcanoPlanner.changeTraits(copied, desiredTraits));
             }
             RelNode best = volcanoPlanner.findBestExp();
-            if (LOGGER.isDebugEnabled()) {
-                StringWriter sw = new StringWriter();
-                volcanoPlanner.dump(new PrintWriter(sw));
-                LOGGER.debug("Volcano memo:\n{}", sw);
-            }
+            // NB: do NOT log volcanoPlanner.dump() here — it runs Dumpers.dumpGraphviz, whose
+            // PartiallyOrderedSet build is O(memo^2+) and takes MINUTES for a multi-way join (a 6-way join's
+            // memo hangs the query purely in the debug dump; findBestExp already returned). The chosen plan
+            // is already rendered by the "After CBO" DEBUG line in runAllOptimizations, so no dump is needed.
             return best;
         } finally {
             if (listener != null) listener.endPhase("cbo");

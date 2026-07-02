@@ -156,6 +156,28 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Cost-based join reordering for multi-way joins. When {@code true}, a plan with 3+ joins is
+     * collapsed into an n-ary {@code MultiJoin} and re-ordered by Calcite's bushy-join heuristic
+     * ({@code JOIN_TO_MULTI_JOIN} + {@code MULTI_JOIN_OPTIMIZE_BUSHY}) using the per-index row counts
+     * seeded by {@code IndexRowCountFetcher} — driving the smaller/more-selective joins first so the
+     * fat fact-table intermediate is not carried through the whole tree (and not shuffled at every
+     * tier). Runs pre-marking on the plain {@code Logical*} tree, in its own HEP phase, alongside the
+     * column-prune + filter-pushdown pre-marking rewrites.
+     *
+     * <p>Gated to 3+ join plans (2-way plans have only one order) and to all-equi-join plans (a
+     * cross-join — e.g. PPL {@code transpose} — is left untouched). Default {@code false}: join order
+     * is taken as-written until the reorder is benchmarked, mirroring how prune/compress shipped
+     * default-off first. The two reorder rules run as SEPARATE HEP instructions ({@code JOIN_TO_MULTI_JOIN}
+     * to fixpoint, THEN the optimize rule) so they cannot invert each other into an infinite loop.
+     */
+    public static final Setting<Boolean> MPP_JOIN_REORDER = Setting.boolSetting(
+        "analytics.mpp.join.reorder",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Build-side row threshold above which a hash-shuffle WORKER join uses a spillable sort-merge join
      * instead of the in-memory hash-join build. When a worker join's build-side (right input) estimated
      * scan rows exceed this value, the coordinator sets {@code prefer_hash_join=false} on that worker
@@ -342,6 +364,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_DISTRIBUTE_MIN_ROWS,
+        MPP_JOIN_REORDER,
         MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,
