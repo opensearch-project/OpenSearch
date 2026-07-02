@@ -14,10 +14,12 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
@@ -27,6 +29,7 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -45,6 +48,7 @@ public class MergeHandler {
 
     private final Deque<OneMerge> pendingMerges = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
+    private final Set<Long> reservedGenerations = new HashSet<>();
     private final Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier;
     private final MergePolicy mergePolicy;
     private final MergeListener mergeListener;
@@ -84,7 +88,16 @@ public class MergeHandler {
         List<OneMerge> oneMerges = new ArrayList<>();
         try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
             List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
-            List<List<Segment>> mergeCandidates = mergePolicy.findMergeCandidates(segmentList);
+            // Exclude reserved segments so the policy makes decisions only on eligible segments
+            List<Segment> eligible;
+            synchronized (this) {
+                if (reservedGenerations.isEmpty()) {
+                    eligible = segmentList;
+                } else {
+                    eligible = segmentList.stream().filter(s -> !reservedGenerations.contains(s.generation())).toList();
+                }
+            }
+            List<List<Segment>> mergeCandidates = mergePolicy.findMergeCandidates(eligible);
             for (List<Segment> mergeGroup : mergeCandidates) {
                 oneMerges.add(new OneMerge(mergeGroup));
             }
@@ -258,6 +271,72 @@ public class MergeHandler {
         assert result != null : "merger must return a non-null MergeResult";
         assert result.getMergedWriterFileSet().isEmpty() == false : "merge result must contain at least one format's files";
         return result;
+    }
+
+    /**
+     * Reserves current catalog segments for force merge. Background merges will not pick
+     * any reserved segment for new merges (already in-flight merges continue).
+     *
+     * @return the set of segments that were reserved
+     */
+    public synchronized Set<Segment> reserveSegmentsForForceMerge() {
+        try (GatedCloseable<CatalogSnapshot> ref = snapshotSupplier.get()) {
+            List<Segment> segments = ref.get().getSegments();
+            for (Segment seg : segments) {
+                reservedGenerations.add(seg.generation());
+            }
+            return new HashSet<>(segments);
+        } catch (Exception e) {
+            logger.warn("Failed to acquire snapshot for force merge reservation", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Releases the force merge reservation, allowing background merges to pick all segments again.
+     */
+    public synchronized void releaseReservation() {
+        reservedGenerations.clear();
+    }
+
+    /**
+     * Returns true if any segment in the given set is still in currentlyMergingSegments.
+     */
+    public synchronized boolean hasOverlappingMerges(Collection<Segment> reserved) {
+        Set<Long> reservedGens = new HashSet<>();
+        for (Segment r : reserved) {
+            reservedGens.add(r.generation());
+        }
+        for (Segment seg : currentlyMergingSegments) {
+            if (reservedGens.contains(seg.generation())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * If the source segments of a completed merge overlap with the force merge reservation,
+     * replaces them with the output segment in the reservation. Must be called BEFORE
+     * applyMergeChanges makes the output visible in the catalog.
+     */
+    public synchronized void reserveMergeOutputIfNeeded(OneMerge source, MergeResult result) {
+        if (reservedGenerations.isEmpty()) {
+            return;
+        }
+        boolean overlaps = source.getSegmentsToMerge().stream().anyMatch(seg -> reservedGenerations.contains(seg.generation()));
+        if (overlaps) {
+            // Remove consumed source generations
+            for (Segment seg : source.getSegmentsToMerge()) {
+                reservedGenerations.remove(seg.generation());
+            }
+            // Add output generation from merge result
+            Map<DataFormat, WriterFileSet> mergedFiles = result.getMergedWriterFileSet();
+            if (!mergedFiles.isEmpty()) {
+                long outputGeneration = mergedFiles.values().iterator().next().writerGeneration();
+                reservedGenerations.add(outputGeneration);
+            }
+        }
     }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
