@@ -415,7 +415,13 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         assertThat(firstDelayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
         assertThat(
             firstDelayedRerouteTask.nextDelay.nanos(),
-            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithDelayedShards))
+            equalTo(
+                UnassignedInfo.findNextDelayedAllocation(
+                    clusterChangeEventTimestampNanos,
+                    stateWithDelayedShards,
+                    stateWithDelayedShards.metadata().settings()
+                )
+            )
         );
         assertThat(
             firstDelayedRerouteTask.nextDelay.nanos(),
@@ -459,7 +465,13 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         assertThat(secondDelayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
         assertThat(
             secondDelayedRerouteTask.nextDelay.nanos(),
-            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithOnlyOneDelayedShard))
+            equalTo(
+                UnassignedInfo.findNextDelayedAllocation(
+                    clusterChangeEventTimestampNanos,
+                    stateWithOnlyOneDelayedShard,
+                    stateWithOnlyOneDelayedShard.metadata().settings()
+                )
+            )
         );
         assertThat(
             secondDelayedRerouteTask.nextDelay.nanos(),

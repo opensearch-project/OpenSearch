@@ -421,14 +421,14 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
         final Settings indexSettings = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos))
             .build();
-        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings);
+        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings, Settings.EMPTY);
         assertThat(delay, equalTo(totalDelayNanos));
         long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings, Settings.EMPTY);
         assertThat(delay, equalTo(totalDelayNanos - delta1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings, Settings.EMPTY);
         assertThat(delay, equalTo(0L));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, Settings.EMPTY);
         assertThat(delay, equalTo(0L));
     }
 
@@ -620,7 +620,10 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
             clusterState = allocation.reroute(clusterState, "time moved");
         }
 
-        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState), equalTo(expectMinDelaySettingsNanos - delta));
+        assertThat(
+            UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState, clusterState.metadata().settings()),
+            equalTo(expectMinDelaySettingsNanos - delta)
+        );
     }
 
     public void testFindNextDelayedAllocationUsesClusterDefault() {
@@ -650,7 +653,10 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
-        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime, clusterState), equalTo(clusterDelay.nanos()));
+        assertThat(
+            UnassignedInfo.findNextDelayedAllocation(baseTime, clusterState, clusterState.metadata().settings()),
+            equalTo(clusterDelay.nanos())
+        );
     }
 
     public void testFindNextDelayedAllocationUsesNodeLevelClusterDefault() {

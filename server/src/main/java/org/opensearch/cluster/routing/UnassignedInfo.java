@@ -442,12 +442,15 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings.
+     * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings,
+     * or the built-in cluster default if the index setting is not set.
      * Only relevant if shard is effectively delayed (see {@link #isDelayed()})
      * Returns 0 if delay is negative
      *
      * @return calculated delay in nanoseconds
+     * @deprecated use {@link #getRemainingDelay(long, Settings, Settings)} with effective cluster settings.
      */
+    @Deprecated
     public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings) {
         return getRemainingDelay(nanoTimeNow, indexSettings, Settings.EMPTY);
     }
@@ -478,7 +481,10 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Finds the next (closest) delay expiration of an delayed shard in nanoseconds based on current time.
      * Returns 0 if delay is negative.
      * Returns -1 if no delayed shard is found.
+     *
+     * @deprecated use {@link #findNextDelayedAllocation(long, ClusterState, Settings)} with effective cluster settings.
      */
+    @Deprecated
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
         return findNextDelayedAllocation(currentNanoTime, state, state.metadata().settings());
     }
