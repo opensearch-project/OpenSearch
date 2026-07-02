@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -31,8 +32,9 @@ import static org.opensearch.discovery.HandshakingTransportAddressConnector.PROB
 
 /**
  * Transport service for streaming requests, handling StreamTransportResponse.
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class StreamTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(StreamTransportService.class);
     public static final Setting<TimeValue> STREAM_TRANSPORT_REQ_TIMEOUT_SETTING = Setting.timeSetting(
@@ -133,5 +135,15 @@ public class StreamTransportService extends TransportService {
 
     private void setStreamTransportReqTimeout(TimeValue streamTransportReqTimeout) {
         this.streamTransportReqTimeout = streamTransportReqTimeout;
+    }
+
+    /**
+     * The configured streaming request timeout ({@code transport.stream.request_timeout}). Callers
+     * that build their own {@link TransportRequestOptions} (rather than using the
+     * {@link #sendChildRequest} overload that injects it) should apply this so streaming requests
+     * honor the same timeout the service applies by default.
+     */
+    public TimeValue getStreamTransportReqTimeout() {
+        return streamTransportReqTimeout;
     }
 }

@@ -89,7 +89,8 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             latch.countDown();
             return null;
-        }).when(mockOutboundHandler).sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+        }).when(mockOutboundHandler)
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean());
 
         channel.sendResponseBatch(response);
 
@@ -103,6 +104,45 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             eq("test-action"),
             eq(response),
             eq(false),
+            eq(false),
+            eq(false)
+        );
+    }
+
+    public void testExplicitSyncIsPropagatedToHandler() throws IOException {
+        TransportResponse response = mock(TransportResponse.class);
+
+        // sync is opt-in and passed straight through to the handler.
+        channel.sendResponseBatch(response, true);
+        verify(mockOutboundHandler).sendResponseBatch(
+            any(),
+            any(),
+            any(),
+            any(),
+            anyLong(),
+            any(),
+            eq(response),
+            anyBoolean(),
+            anyBoolean(),
+            eq(true)
+        );
+    }
+
+    public void testDefaultSendResponseBatchIsAsync() throws IOException {
+        TransportResponse response = mock(TransportResponse.class);
+
+        // The 1-arg form defaults to async (sync=false); no response type is auto-synced.
+        channel.sendResponseBatch(response);
+        verify(mockOutboundHandler).sendResponseBatch(
+            any(),
+            any(),
+            any(),
+            any(),
+            anyLong(),
+            any(),
+            eq(response),
+            anyBoolean(),
+            anyBoolean(),
             eq(false)
         );
     }
@@ -122,7 +162,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         StreamException cancellationException = new StreamException(StreamErrorCode.CANCELLED, "cancelled");
 
         doThrow(cancellationException).when(mockOutboundHandler)
-            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertEquals(StreamErrorCode.CANCELLED, thrown.getErrorCode());
@@ -139,7 +179,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         RuntimeException genericException = new RuntimeException("generic error");
 
         doThrow(genericException).when(mockOutboundHandler)
-            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());
@@ -156,7 +196,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         StreamException timedOut = new StreamException(StreamErrorCode.TIMED_OUT, "consumer not ready");
 
         doThrow(timedOut).when(mockOutboundHandler)
-            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertSame(timedOut, thrown);

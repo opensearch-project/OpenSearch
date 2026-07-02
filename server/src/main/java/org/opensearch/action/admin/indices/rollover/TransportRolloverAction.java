@@ -46,6 +46,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -64,10 +65,8 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -128,17 +127,15 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-            true,
-            true,
-            request.indicesOptions().expandWildcardsOpen(),
-            request.indicesOptions().expandWildcardsClosed()
-        );
-
-        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(
-            new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request))),
-            state
-        );
+        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.getRolloverTarget());
+        if (indexAbstraction == null) {
+            return null;
+        }
+        IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+        if (writeIndex == null) {
+            return null;
+        }
+        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(Collections.singletonList(writeIndex.getIndex().getName()), state);
     }
 
     @Override
