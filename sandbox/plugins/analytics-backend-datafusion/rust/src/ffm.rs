@@ -1174,6 +1174,40 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     })
 }
 
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_update_size_limit(
+    runtime_ptr: i64,
+    cache_type_ptr: *const u8,
+    cache_type_len: i64,
+    new_limit: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_update_size_limit: null runtime pointer".to_string());
+    }
+    if new_limit < 0 {
+        return Err(format!("df_cache_manager_update_size_limit: negative limit {}", new_limit));
+    }
+    let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_update_size_limit: no cache manager configured".to_string()
+    })?;
+    match cache_type {
+        cache::CACHE_TYPE_METADATA => {
+            manager.update_metadata_cache_limit(new_limit as usize);
+            Ok(0)
+        }
+        cache::CACHE_TYPE_STATS => {
+            manager.update_statistics_cache_limit(new_limit as usize)
+                .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+            Ok(0)
+        }
+        _ => Err(format!("df_cache_manager_update_size_limit: unsupported cache type: {}", cache_type)),
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn df_close_session_context(ptr: i64) {
     crate::session_context::close_session_context(ptr);

@@ -81,7 +81,14 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
     // ── IO_ENGINE_SETTING ─────────────────────────────────────────────────────
 
     public void testIoEngineDefault() {
-        assertEquals("auto", FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(Settings.EMPTY));
+        assertEquals("psync", FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(Settings.EMPTY));
+    }
+
+    public void testIoEngineAcceptsAuto() {
+        assertEquals(
+            "auto",
+            FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(Settings.builder().put("block_cache.foyer.io_engine", "auto").build())
+        );
     }
 
     public void testIoEngineAcceptsPsync() {

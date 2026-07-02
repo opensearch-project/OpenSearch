@@ -148,6 +148,14 @@ public class QueryScheduler implements Scheduler {
             public void onFailure(Exception cause) {
                 Optional<StageTask> retry = stage.getState().isTerminal() ? Optional.empty() : stage.retargetForRetry(task, cause);
                 if (retry.isPresent()) {
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "[QueryScheduler] task {} on stage {} failed, retrying on {}",
+                            task,
+                            stage.getStageId(),
+                            retry.get()
+                        )
+                    );
                     currentAttempt.transitionTo(StageTaskState.FAILED);  // previous attempt is now superseded
                     StageTask r = retry.get();
                     currentAttempt = r;
@@ -157,6 +165,15 @@ public class QueryScheduler implements Scheduler {
                     runner.run(r, this);  // reuse this listener — retry loop until stage gives up
                     return;
                 }
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "[QueryScheduler] task {} on stage {} failed, no retry available (stageTerminal={}, cause={})",
+                        task,
+                        stage.getStageId(),
+                        stage.getState().isTerminal(),
+                        cause.getMessage()
+                    )
+                );
                 currentAttempt.transitionTo(StageTaskState.FAILED);
                 stage.onTaskTerminal(task, cause);
             }

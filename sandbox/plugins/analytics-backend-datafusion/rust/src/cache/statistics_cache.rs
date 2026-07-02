@@ -463,11 +463,7 @@ impl FileStatisticsCache for CustomStatisticsCache {
         self.size_limit.load(Ordering::Relaxed)
     }
 
-    fn update_cache_limit(&self, limit: usize) {
-        // Best-effort: update_size_limit also triggers eviction; ignore its Result
-        // since the trait method is infallible.
-        let _ = self.update_size_limit(limit);
-    }
+    fn update_cache_limit(&self, _limit: usize) {}
 
     fn list_entries(&self) -> std::collections::HashMap<TableScopedPath, FileStatisticsCacheEntry> {
         std::collections::HashMap::new()
@@ -769,5 +765,19 @@ mod tests {
 
         for handle in handles { handle.join().unwrap(); }
         assert!(cache.len() > 0);
+    }
+
+    #[test]
+    fn test_update_cache_limit_trait_is_noop() {
+        use datafusion::execution::cache::cache_manager::FileStatisticsCache;
+
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 50 * 1024 * 1024, 0.8);
+        assert_eq!(cache.cache_limit(), 50 * 1024 * 1024);
+
+        FileStatisticsCache::update_cache_limit(&cache, 20 * 1024 * 1024);
+        assert_eq!(cache.cache_limit(), 50 * 1024 * 1024);
+
+        cache.update_size_limit(30 * 1024 * 1024).unwrap();
+        assert_eq!(cache.cache_limit(), 30 * 1024 * 1024);
     }
 }
