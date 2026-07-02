@@ -59,11 +59,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.quic.QuicSslContextBuilder;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
@@ -110,6 +112,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
+
+    /**
+     * The size of the http content decompressor buffer that is going to be used for request body decompression.
+     */
+    private static final int UNLIMITED_DECOMPRESSOR_BUFFER = 0;
 
     /**
      * Configure the maximum length of the content of the HTTP/2.0 clear-text upgrade request.
@@ -307,6 +314,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
+                .doOnConnection(conn -> conn.addHandlerFirst(
+                    "request_decompressor", createDecompressor()))
                 .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()).maxConcurrentStreams(h2MaxConcurrentStreams))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
@@ -372,6 +381,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         .runOn(sharedGroup.getLowLevelGroup())
                         .bindAddress(() -> socketAddress)
                         .compress(true)
+                        .doOnConnection(conn -> conn.addHandlerFirst(
+                            "request_decompressor", createDecompressor()))
                         .httpRequestDecoder(
                             spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                                 .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
@@ -493,6 +504,16 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     @Override
     public void serverAcceptedChannel(HttpChannel httpChannel) {
         super.serverAcceptedChannel(httpChannel);
+    }
+
+    /**
+     * Extension point that allows a NetworkPlugin to override the default netty HttpContentDecompressor
+     * and supply a custom decompressor.
+     *
+     * Used in instances to conditionally decompress depending on the outcome from header verification.
+     */
+    protected ChannelInboundHandlerAdapter createDecompressor() {
+        return new HttpContentDecompressor(UNLIMITED_DECOMPRESSOR_BUFFER);
     }
 
     /**
