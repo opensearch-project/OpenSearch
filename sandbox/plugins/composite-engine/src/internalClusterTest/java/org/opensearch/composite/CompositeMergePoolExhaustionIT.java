@@ -112,6 +112,14 @@ public class CompositeMergePoolExhaustionIT extends OpenSearchIntegTestCase {
 
         assertTrue("expected multiple segments before force merge", getSegmentCount() > 1);
 
+        // Over-commit is enabled by default; disable it explicitly so the exhausted merge pool
+        // rejects the reservation, reproducing the force-merge-fails-forever behavior.
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("native.allocator.overcommit.enabled", false))
+            .get();
+
         // Force merge to a single segment. The 2-byte merge pool rejects the native merge's
         // row-id mapping reservation, so the merge fails. The failure surfaces either as a
         // failed shard in the response or as a thrown exception — accept both.
@@ -167,19 +175,14 @@ public class CompositeMergePoolExhaustionIT extends OpenSearchIntegTestCase {
         indexAndRefresh(10);
         assertTrue("expected multiple segments before force merge", getSegmentCount() > 1);
 
-        // Enable the allocator-owned over-commit fallback via cluster settings (default is off). The
-        // pressure threshold is raised so the node's (low) native-memory pressure is comfortably below
-        // it; the pressure signal itself is the real injected node signal, so no per-instance stubbing
-        // is needed. With the fallback on, the merge's row-id mapping reservation is granted an
-        // over-commit instead of being rejected.
+        // Over-commit is enabled by default. Raise the pressure threshold so the node's (low)
+        // native-memory pressure is comfortably below it; the pressure signal itself is the real
+        // injected node signal, so no per-instance stubbing is needed. With the fallback active, the
+        // merge's row-id mapping reservation is granted an over-commit instead of being rejected.
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("native.allocator.overcommit.enabled", true)
-                    .put("native.allocator.overcommit.pressure_threshold", 100.0)
-            )
+            .setPersistentSettings(Settings.builder().put("native.allocator.overcommit.pressure_threshold", 100.0))
             .get();
 
         ForceMergeResponse response = client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
@@ -213,15 +216,11 @@ public class CompositeMergePoolExhaustionIT extends OpenSearchIntegTestCase {
         indexAndRefresh(10);
         assertTrue("expected multiple segments before force merge", getSegmentCount() > 1);
 
-        // Enable over-commit with a threshold below the pressure we will inject.
+        // Over-commit is enabled by default; set a threshold below the pressure we will inject.
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("native.allocator.overcommit.enabled", true)
-                    .put("native.allocator.overcommit.pressure_threshold", 80.0)
-            )
+            .setPersistentSettings(Settings.builder().put("native.allocator.overcommit.pressure_threshold", 80.0))
             .get();
 
         // Drive native-memory pressure above the threshold on every node's allocator. The pressure

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -31,6 +32,9 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+
+import static org.opensearch.arrow.allocator.ArrowBasePlugin.DEFAULT_OVERCOMMIT_ENABLED;
+import static org.opensearch.arrow.allocator.ArrowBasePlugin.DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD;
 
 /**
  * Arrow-backed implementation of {@link NativeAllocator}.
@@ -55,11 +59,11 @@ public class ArrowNativeAllocator implements NativeAllocator {
     /** Node-level native memory utilization % (0–100), or negative when unavailable. Injected by the node. */
     private volatile DoubleSupplier nativeMemoryPressureSupplier;
     /** Feature gate. When false, {@link #tryOverCommit()} always rejects (status-quo behavior). */
-    private volatile boolean overCommitEnabled = false;
+    private volatile boolean overCommitEnabled = DEFAULT_OVERCOMMIT_ENABLED;
     /** Node native pressure % at/above which over-commit is refused. */
-    private volatile double overCommitPressureThreshold = 90.0;
+    private volatile double overCommitPressureThreshold = DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD;
     /** Permit gate bounding the number of concurrently over-committing operations (sized once at startup). */
-    private volatile Semaphore overCommitPermits = new Semaphore(1);
+    private final SetOnce<Semaphore> overCommitPermits = new SetOnce<>();
 
     /**
      * Creates a new allocator with a fresh RootAllocator.
@@ -112,7 +116,7 @@ public class ArrowNativeAllocator implements NativeAllocator {
      * @param max the maximum number of concurrent over-commits
      */
     public void setMaxConcurrentOverCommits(int max) {
-        this.overCommitPermits = new Semaphore(Math.max(1, max));
+        this.overCommitPermits.set(new Semaphore(Math.max(ArrowBasePlugin.OVERCOMMIT_MAX_CONCURRENT_MIN, max)));
     }
 
     /** Current node-level native memory pressure %, or -1 when unavailable (signal missing / not ready). */
@@ -144,12 +148,32 @@ public class ArrowNativeAllocator implements NativeAllocator {
                 return false;
             }
             double pressure = currentNativePressurePercent();
-            if (pressure < 0 || pressure >= overCommitPressureThreshold) {
-                return false; // unavailable (negative) or over threshold → reject
+            if (pressure < 0) {
+                logger.debug("Over-commit unavailable: native memory pressure signal not ready");
+                return false;
             }
+            if (pressure >= overCommitPressureThreshold) {
+                logger.debug("Over-commit refused: native memory pressure {}% >= threshold {}%", pressure, overCommitPressureThreshold);
+                return false;
+            }
+            logger.debug(
+                "Native memory pressure {}% within threshold {}%; attempting over-commit permit acquire",
+                pressure,
+                overCommitPressureThreshold
+            );
             // Permit gate: at most max_concurrent over-commits in flight. The permit is held
             // until releaseOverCommit() is invoked when the over-committing operation completes.
-            return overCommitPermits.tryAcquire();
+            Semaphore permits = overCommitPermits.get();
+            if (permits == null) {
+                logger.warn("Over-commit enabled but permit pool is not initialized; refusing over-commit");
+                return false;
+            }
+            if (permits.tryAcquire()) {
+                logger.debug("Over-commit granted; acquired permit ({} permits now available)", permits.availablePermits());
+                return true;
+            }
+            logger.warn("Over-commit refused: concurrency limit reached (all max_concurrent permits in use)");
+            return false;
         } catch (Throwable t) {
             return false;
         }
@@ -158,7 +182,11 @@ public class ArrowNativeAllocator implements NativeAllocator {
     /** Releases the over-commit permit previously acquired by {@link #tryOverCommit()}. */
     public void releaseOverCommit() {
         try {
-            overCommitPermits.release();
+            Semaphore permits = overCommitPermits.get();
+            if (permits != null) {
+                permits.release();
+                logger.debug("Released over-commit permit ({} permits now available)", permits.availablePermits());
+            }
         } catch (Throwable t) {
             // best-effort
         }

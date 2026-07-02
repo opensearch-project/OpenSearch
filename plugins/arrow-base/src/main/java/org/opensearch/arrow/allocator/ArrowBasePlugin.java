@@ -108,10 +108,26 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         Setting.Property.Dynamic
     );
 
-    /** Feature gate for the over-commit fallback when a pool is full. Default off. */
+    /** Default for {@link #OVERCOMMIT_ENABLED_SETTING}: the over-commit fallback is on by default. */
+    static final boolean DEFAULT_OVERCOMMIT_ENABLED = true;
+    /** Default node native-memory pressure % at/above which over-commit is refused. */
+    static final double DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD = 70.0;
+    /** Lower bound for the over-commit pressure threshold setting. */
+    static final double OVERCOMMIT_PRESSURE_THRESHOLD_MIN = 0.0;
+    /** Upper bound for the over-commit pressure threshold setting. */
+    static final double OVERCOMMIT_PRESSURE_THRESHOLD_MAX = 100.0;
+    /** Lower bound (and floor) for the max-concurrent over-commit setting. */
+    static final int OVERCOMMIT_MAX_CONCURRENT_MIN = 1;
+    /** Default max concurrent over-commits: half the available processors (at least one). */
+    static final int DEFAULT_OVERCOMMIT_MAX_CONCURRENT = Math.max(
+        OVERCOMMIT_MAX_CONCURRENT_MIN,
+        Runtime.getRuntime().availableProcessors() / 4
+    );
+
+    /** Feature gate for the over-commit fallback when a pool is full. Default on. */
     public static final Setting<Boolean> OVERCOMMIT_ENABLED_SETTING = Setting.boolSetting(
         "native.allocator.overcommit.enabled",
-        false,
+        DEFAULT_OVERCOMMIT_ENABLED,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -119,9 +135,9 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
     /** Node native-memory pressure % at/above which over-commit is refused. */
     public static final Setting<Double> OVERCOMMIT_PRESSURE_THRESHOLD_SETTING = Setting.doubleSetting(
         "native.allocator.overcommit.pressure_threshold",
-        90.0,
-        0.0,
-        100.0,
+        DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD,
+        OVERCOMMIT_PRESSURE_THRESHOLD_MIN,
+        OVERCOMMIT_PRESSURE_THRESHOLD_MAX,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -132,8 +148,8 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
      */
     public static final Setting<Integer> OVERCOMMIT_MAX_CONCURRENT_SETTING = Setting.intSetting(
         "native.allocator.overcommit.max_concurrent",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
-        1,
+        DEFAULT_OVERCOMMIT_MAX_CONCURRENT,
+        OVERCOMMIT_MAX_CONCURRENT_MIN,
         Setting.Property.NodeScope
     );
 

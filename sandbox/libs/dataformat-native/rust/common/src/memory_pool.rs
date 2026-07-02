@@ -311,8 +311,21 @@ impl MemoryReservation {
                             self.pool.grow(bytes); // infallible over-commit
                             self.size += bytes;
                             self.holds_overcommit_permit = true;
+                            crate::log_debug!(
+                                "[RUST] over-commit granted: pool '{}' consumer '{}' committing {} bytes beyond limit (reservation size now {})",
+                                self.pool.name(),
+                                self.consumer,
+                                bytes,
+                                self.size
+                            );
                             Ok(())
                         } else {
+                            crate::log_debug!(
+                                "[RUST] over-commit refused by decider: pool '{}' consumer '{}' needed {} bytes beyond limit",
+                                self.pool.name(),
+                                self.consumer,
+                                bytes
+                            );
                             Err(Box::new(exhausted))
                         }
                     }
@@ -376,6 +389,11 @@ impl MemoryReservation {
         if self.holds_overcommit_permit {
             overcommit_release();
             self.holds_overcommit_permit = false;
+            crate::log_debug!(
+                "[RUST] over-commit permit released: pool '{}' consumer '{}'",
+                self.pool.name(),
+                self.consumer
+            );
         }
         s
     }
@@ -407,6 +425,11 @@ impl Drop for MemoryReservation {
         }
         if self.holds_overcommit_permit {
             overcommit_release();
+            crate::log_debug!(
+                "[RUST] over-commit permit released on drop: pool '{}' consumer '{}'",
+                self.pool.name(),
+                self.consumer
+            );
         }
     }
 }
