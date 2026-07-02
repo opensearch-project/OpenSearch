@@ -962,6 +962,13 @@ async unsafe fn execute_indexed_with_context_inner(
     let plan = Plan::decode(substrait_bytes.as_slice())
         .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+    // Make BIGINT +,-,* overflow error instead of wrapping in this plan too, since its filter
+    // predicates seed the parquet pushdown predicate (`where long1 * long2 > k` would otherwise be
+    // scan-filtered with wrapping arithmetic, dropping overflowing rows silently before the executed
+    // plan's checked filter runs). Checked arithmetic appears only nested inside a comparison operand
+    // — never as a top-level AND/OR or COLLECTOR/DELEGATION_POSSIBLE marker — so delegation
+    // classification (expr_to_bool_tree) is unaffected.
+    let logical_plan = crate::checked_arith_rewrite::rewrite_checked_int64_arith(logical_plan)?;
 
     // Sort-aware segment iteration. Mirror of `ContextIndexSearcher.shouldUseTimeSeriesDescSortOptimization`
     // for the indexed-parquet path. When the index has `index.sort.field` and the query's leading
@@ -1414,6 +1421,8 @@ async unsafe fn execute_indexed_with_context_inner(
     ctx.register_table(&register_name, provider)?;
 
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+    // Make BIGINT +,-,* overflow error instead of silently wrapping (see checked_arith_rewrite).
+    let logical_plan = crate::checked_arith_rewrite::rewrite_checked_int64_arith(logical_plan)?;
     log_debug!(
         "DataFusion logical plan:\n{}",
         logical_plan.display_indent()
