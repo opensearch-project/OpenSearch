@@ -3872,29 +3872,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Set<SegmentReplicationShardStats> stats = Set.of();
         while (System.nanoTime() - startNanos < timeout.nanos()) {
             stats = getReplicationStatsForTrackedReplicas();
-            if (stats.isEmpty() || stats.stream().allMatch(s -> s.getCheckpointsBehindCount() == 0)) {
+            if (stats.isEmpty()
+                || stats.stream()
+                    .allMatch(
+                        s -> s.getCheckpointsBehindCount() == 0 && s.getBytesBehindCount() == 0 && s.getCurrentReplicationTimeMillis() == 0
+                    )) {
                 logger.debug("All replicas in sync for shard [{}]", shardId);
                 return;
             }
-            long behindReplicas = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0).count();
-            long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+            long behindReplicas = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0 || s.getBytesBehindCount() > 0).count();
+            long maxCheckpointsBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0);
             logger.debug(
-                "Waiting for replica sync on shard [{}]: {} replica(s) still behind, max checkpoints behind: {}",
+                "Waiting for replica sync on shard [{}]: {} replica(s) still behind, max checkpoints behind: {}, max bytes behind: {}",
                 shardId,
                 behindReplicas,
-                maxBehind
+                maxCheckpointsBehind,
+                maxBytesBehind
             );
             try {
-                // TODO: Replace sleep-based polling with a listener on ReplicationTracker checkpoint updates
-                Thread.sleep(REPLICA_SYNC_POLL_INTERVAL_MS);
+                Thread.sleep(500);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new OpenSearchException("Interrupted waiting for replica sync on shard [" + shardId + "]", e);
             }
         }
         // Build diagnostic message with per-replica details
-        long behindCount = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0).count();
+        long behindCount = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0 || s.getBytesBehindCount() > 0).count();
         long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+        long maxBytes = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0);
         throw new IOException(
             REPLICA_SYNC_TIMEOUT_MARKER
                 + " Shard ["
@@ -3905,6 +3911,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + behindCount
                 + ", max checkpoints behind: "
                 + maxBehind
+                + ", max bytes behind: "
+                + maxBytes
         );
     }
 

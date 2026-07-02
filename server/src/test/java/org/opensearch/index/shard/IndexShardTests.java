@@ -5657,6 +5657,8 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShard spyShard = spy(shard);
             SegmentReplicationShardStats inSyncStat = mock(SegmentReplicationShardStats.class);
             when(inSyncStat.getCheckpointsBehindCount()).thenReturn(0L);
+            when(inSyncStat.getBytesBehindCount()).thenReturn(0L);
+            when(inSyncStat.getCurrentReplicationTimeMillis()).thenReturn(0L);
             doReturn(Set.of(inSyncStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
 
             spyShard.waitForReplicaSync(TimeValue.timeValueSeconds(10));
@@ -5687,6 +5689,55 @@ public class IndexShardTests extends IndexShardTestCase {
             IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
             assertThat(ex.getMessage(), containsString("replicas failed to sync within"));
             assertThat(ex.getMessage(), containsString("max checkpoints behind: 3"));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} does NOT return immediately when bytesBehind is non-zero,
+     * even if checkpointsBehindCount is zero. This catches the DFA metadata mismatch scenario.
+     */
+    public void testWaitForReplicaSync_BytesBehindNonZero_TimesOut() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats behindStat = mock(SegmentReplicationShardStats.class);
+            when(behindStat.getCheckpointsBehindCount()).thenReturn(0L);
+            when(behindStat.getBytesBehindCount()).thenReturn(26600000000L);
+            when(behindStat.getCurrentReplicationTimeMillis()).thenReturn(0L);
+            doReturn(Set.of(behindStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
+            assertThat(ex.getMessage(), containsString(IndexShard.REPLICA_SYNC_TIMEOUT_MARKER));
+            assertThat(ex.getMessage(), containsString("max bytes behind:"));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} does NOT return immediately when replication is in progress
+     * (currentReplicationTimeMillis > 0), even if checkpoints and bytes behind are zero.
+     */
+    public void testWaitForReplicaSync_ReplicationInProgress_TimesOut() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats replicatingStat = mock(SegmentReplicationShardStats.class);
+            when(replicatingStat.getCheckpointsBehindCount()).thenReturn(0L);
+            when(replicatingStat.getBytesBehindCount()).thenReturn(0L);
+            when(replicatingStat.getCurrentReplicationTimeMillis()).thenReturn(5000L);
+            doReturn(Set.of(replicatingStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
+            assertThat(ex.getMessage(), containsString(IndexShard.REPLICA_SYNC_TIMEOUT_MARKER));
         } finally {
             closeShards(shard);
         }

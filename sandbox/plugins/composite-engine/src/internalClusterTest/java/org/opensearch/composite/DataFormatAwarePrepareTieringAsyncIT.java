@@ -261,6 +261,8 @@ public class DataFormatAwarePrepareTieringAsyncIT extends DataFormatAwareReadonl
                 var replicationStats = primary.getReplicationStatsForTrackedReplicas();
                 for (var stat : replicationStats) {
                     assertEquals("replica should be in sync after prepare (checkpoints behind)", 0, stat.getCheckpointsBehindCount());
+                    assertEquals("replica should be in sync after prepare (bytes behind)", 0, stat.getBytesBehindCount());
+                    assertEquals("replica should have no in-flight replication", 0, stat.getCurrentReplicationTimeMillis());
                 }
             }, 30, TimeUnit.SECONDS);
 
