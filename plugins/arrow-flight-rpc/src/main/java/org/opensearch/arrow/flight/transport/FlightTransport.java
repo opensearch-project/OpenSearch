@@ -65,8 +65,10 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import io.grpc.netty.NettyServerBuilder;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
@@ -257,9 +259,9 @@ class FlightTransport extends TcpTransport {
                 // client with "too_many_pings".
                 final long keepAliveTimeMs = ServerConfig.getGrpcKeepAliveTime().millis();
                 final long keepAliveTimeoutMs = ServerConfig.getGrpcKeepAliveTimeout().millis();
-                builder.transportHint("grpc.builderConsumer", (java.util.function.Consumer<io.grpc.netty.NettyServerBuilder>) b -> {
-                    b.keepAliveTime(keepAliveTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
-                    b.keepAliveTimeout(keepAliveTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+                builder.transportHint("grpc.builderConsumer", (Consumer<NettyServerBuilder>) b -> {
+                    b.keepAliveTime(keepAliveTimeMs, TimeUnit.MILLISECONDS);
+                    b.keepAliveTimeout(keepAliveTimeoutMs, TimeUnit.MILLISECONDS);
                 });
 
                 builder.location(locations.get(0));

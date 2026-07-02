@@ -52,8 +52,16 @@ import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCal
  * until gRPC's outbound buffer drains below {@code setOnReadyThreshold}.
  *
  * <p><b>Ownership &amp; concurrency — single-writer model.</b> This channel is the sole owner of
- * every Arrow buffer it sends and of the gRPC stream lifecycle. It keeps that ownership safe by
- * confining the stream root to a single thread:
+ * every Arrow buffer it sends and of the gRPC stream lifecycle.
+ *
+ * <p><b>Invariant: this channel is NOT thread-safe. All send-side mutation — the stream {@link #root}
+ * (create/transfer/serialize/free), {@link #terminalSent}, and every {@code serverStreamListener} call
+ * — MUST run on the channel's single {@link #getExecutor() flight-executor thread}, and never
+ * concurrently from more than one thread.</b> The executor is single-threaded, so it serializes those
+ * mutations and the buffer frees among themselves. Violating this (e.g. mutating the root from a
+ * producer thread while {@code close()} frees it on the executor) is a data race that corrupts Arrow
+ * reference counts and can orphan or double-free buffers (an off-heap leak). It keeps that ownership
+ * safe by confining the stream root to that single thread:
  * <ul>
  *   <li><b>The stream {@link #root} and every {@code serverStreamListener} call
  *       ({@code start}/{@code putNext}/{@code completed}/{@code error}) happen only on the channel's

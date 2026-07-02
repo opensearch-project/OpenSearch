@@ -75,18 +75,20 @@ public interface TransportChannel {
     }
 
     /**
-     * Sends a batch of responses, optionally blocking the caller until the batch is on the wire.
-     * Defaults to the asynchronous behaviour of {@link #sendResponseBatch(TransportResponse)} when
-     * {@code sync == false}.
+     * Sends a batch of responses, optionally blocking the caller until the batch has been handed off to
+     * the transport. Defaults to the asynchronous behaviour of {@link #sendResponseBatch(TransportResponse)}
+     * when {@code sync == false}.
      *
-     * <p>With {@code sync == true} the caller blocks until the batch has been written, so it cannot
-     * queue the next batch ahead of this one — an end-to-end bound on outstanding batches (useful when
-     * the batch holds large buffers that must not accumulate). The send itself still runs on the
-     * channel's send executor; only the caller is made to wait. A caller that requests this MUST drive
-     * a single stream from a single thread and MUST NOT call from the channel's send-executor thread.
+     * <p>With {@code sync == true} the caller blocks until the batch has been written to the transport's
+     * outbound buffer, so it cannot queue the next batch ahead of this one — a bound on outstanding
+     * batches (useful when the batch holds large buffers that must not accumulate). This does not wait
+     * for the bytes to leave the machine; if the outbound buffer is full the transport's own readiness
+     * back-pressure gates the send. The send itself still runs on the channel's send executor; only the
+     * caller is made to wait. A caller that requests this MUST drive a single stream from a single thread
+     * and MUST NOT call from the channel's send-executor thread.
      *
      * @param response the batch of responses to send
-     * @param sync     {@code true} to block the caller until the batch is on the wire; {@code false} for async dispatch
+     * @param sync     {@code true} to block the caller until the batch is handed to the transport; {@code false} for async dispatch
      * @throws StreamException with {@link StreamErrorCode#CANCELLED} if the stream has been canceled.
      */
     @ExperimentalApi

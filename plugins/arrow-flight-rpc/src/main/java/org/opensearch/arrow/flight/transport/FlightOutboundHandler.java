@@ -168,8 +168,9 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                     messageListener.onResponseSent(requestId, action, e);
                 }
             });
-            // sync blocks the caller until the batch is on the wire (bounding outstanding batches to one);
-            // async returns once it is queued. Both run on the channel executor, and both transfer source
+            // sync blocks the caller until the batch has been pushed to gRPC's outbound buffer (bounding
+            // outstanding batches to one; a full buffer is throttled by the readiness gate above); async
+            // returns once it is queued. Both run on the channel executor, and both transfer source
             // ownership to that task the moment it is accepted — so handedOff is set before any blocking
             // wait, ensuring the finally's releaseUnsent never double-frees a source the task already owns.
             if (sync) {
@@ -189,9 +190,10 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
 
     /**
      * Blocks the caller until the executor has run the submitted send, so the caller cannot submit the
-     * next batch until this one is on the wire. The send itself runs on the channel's flight executor (so
-     * it is serialized with the stream-root free that {@code close()} posts to the same executor); this
-     * only parks the caller for the result. The caller must be a producer thread, not the flight executor
+     * next batch until this one has been pushed to gRPC's outbound buffer (a full buffer is throttled by
+     * the readiness back-pressure gate). The send itself runs on the channel's flight executor (so it is
+     * serialized with the stream-root free that {@code close()} posts to the same executor); this only
+     * parks the caller for the result. The caller must be a producer thread, not the flight executor
      * thread itself (blocking on the result from that thread would deadlock the single-threaded executor).
      */
     private void awaitSend(Future<?> future) {

@@ -125,9 +125,11 @@ Tracked separately; not addressed in this change.
 A caller that needs a hard bound *today* can send synchronously:
 `channel.sendResponseBatch(response, /* sync */ true)`. The batch is still
 serialized and written on the channel's send executor (the same executor the
-async path uses), but the calling thread **blocks until the batch is on the
-wire**, so it cannot queue the next batch ahead of this one — outstanding batches
-are bounded to one, with no eventloop queue to grow.
+async path uses), but the calling thread **blocks until the batch has been
+pushed to gRPC's per-stream outbound buffer**, so it cannot queue the next batch
+ahead of this one — outstanding batches are bounded to one, with no eventloop
+queue to grow. When that outbound buffer is full, the `isReady()` back-pressure
+gate (above) throttles the producer.
 
 A caller that opts in **must drive a single stream from a single thread** and must
 not call from the send-executor thread itself. The default
