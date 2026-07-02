@@ -8,12 +8,15 @@
 
 package org.opensearch.analytics.exec.join;
 
+import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
@@ -72,7 +75,8 @@ public final class ShuffleEnrichment {
         List<WorkerLevel> levels,
         QueryContext ctx,
         ClusterService clusterService,
-        CapabilityRegistry capabilityRegistry
+        CapabilityRegistry capabilityRegistry,
+        long sortMergeJoinMinRows
     ) {
         for (WorkerLevel level : levels) {
             Stage worker = level.worker();
@@ -122,6 +126,13 @@ public final class ShuffleEnrichment {
                 "right",
                 capabilityRegistry
             );
+            // Cost decision (Spark-style, made where the stats live — on the coordinator): if the build side
+            // (right input) is estimated to exceed the sort-merge-join floor, tell the worker to use a
+            // spillable sort-merge join instead of the non-spillable hash-join build. Estimated from the
+            // right producer's largest scan subtree (the build feeds from the right producer's shuffle).
+            long buildRows = subtreeMaxScanRows(level.rightProducer().getFragment());
+            boolean preferHashJoin = buildRows < sortMergeJoinMinRows;
+
             // The worker consumes its two producers' partitions. enrichWorkerAlternatives prepends a setup
             // placeholder and appends per-(partition,side) scans; a producer instruction (added above when
             // this worker also feeds a higher level) stays AFTER the scans because enrichProducerAlternatives
@@ -133,17 +144,21 @@ public final class ShuffleEnrichment {
                 rightExpected,
                 ctx.queryId(),
                 level.leftProducer().getStageId(),
-                level.rightProducer().getStageId()
+                level.rightProducer().getStageId(),
+                preferHashJoin
             );
 
             LOGGER.debug(
-                "[ShuffleEnrichment] level worker={} left={} right={} partitions={} leftSenders={} rightSenders={} targets={}",
+                "[ShuffleEnrichment] level worker={} left={} right={} partitions={} leftSenders={} rightSenders={} "
+                    + "buildRows={} preferHashJoin={} targets={}",
                 workerStageId,
                 level.leftProducer().getStageId(),
                 level.rightProducer().getStageId(),
                 partitionCount,
                 leftExpected,
                 rightExpected,
+                buildRows,
+                preferHashJoin,
                 targets
             );
         }
@@ -225,7 +240,8 @@ public final class ShuffleEnrichment {
         int rightExpectedSenders,
         String queryId,
         int leftProducerStageId,
-        int rightProducerStageId
+        int rightProducerStageId,
+        boolean preferHashJoin
     ) {
         int workerStageId = workerStage.getStageId();
         // The fragment convertor strips OpenSearchShuffleExchange, so the worker fragment ends up with two
@@ -241,7 +257,9 @@ public final class ShuffleEnrichment {
             // WorkerFragmentStageExecutionFactory replaces this with a partition-specific copy carrying both
             // sides' expected sender counts. We don't know the partition at this step (one alternative serves
             // all partitions; per-task filtering picks the right one).
-            merged.add(new ShuffleWorkerSetupInstructionNode(queryId, workerStageId, -1, leftExpectedSenders, rightExpectedSenders));
+            merged.add(
+                new ShuffleWorkerSetupInstructionNode(queryId, workerStageId, -1, leftExpectedSenders, rightExpectedSenders, preferHashJoin)
+            );
             merged.addAll(existing);
             for (int p = 0; p < partitionCount; p++) {
                 merged.add(new ShuffleScanInstructionNode(leftInputId, p, leftExpectedSenders, queryId, workerStageId, "left"));
@@ -257,5 +275,25 @@ public final class ShuffleEnrichment {
      *  tables under this exact name so the worker plan's NamedScan binds correctly. */
     public static String canonicalInputId(int producerStageId) {
         return "input-" + producerStageId;
+    }
+
+    /**
+     * Largest {@link OpenSearchTableScan} row count in {@code node}'s subtree (0 when no scan / unknown).
+     * Used to estimate a worker join's build-side size for the sort-merge-join decision — mirrors the
+     * estimate {@code DistributionEnforcementPass} uses for the distribute floor.
+     */
+    static long subtreeMaxScanRows(RelNode node) {
+        if (node == null) {
+            return 0L;
+        }
+        RelNode n = RelNodeUtils.unwrapHep(node);
+        if (n instanceof OpenSearchTableScan scan) {
+            return Math.max(0L, (long) scan.getTable().getRowCount());
+        }
+        long max = 0L;
+        for (RelNode input : n.getInputs()) {
+            max = Math.max(max, subtreeMaxScanRows(input));
+        }
+        return max;
     }
 }

@@ -84,6 +84,7 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
             int rightExpected = -1;
             String queryId = null;
             int targetStageId = -1;
+            boolean preferHashJoin = true;
             ShuffleWorkerSetupInstructionNode placeholderSetup = null;
             for (InstructionNode node : plan.instructions()) {
                 if (node instanceof ShuffleScanInstructionNode scan && scan.getShufflePartitionIndex() == partitionIndex) {
@@ -110,6 +111,9 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                     queryId = placeholderSetup.getQueryId();
                     targetStageId = placeholderSetup.getTargetStageId();
                 }
+                // Carry the coordinator's per-worker-stage sort-merge-join decision through the
+                // placeholder → partition-specific rebuild below.
+                preferHashJoin = placeholderSetup.getPreferHashJoin();
             }
 
             List<InstructionNode> filtered = new ArrayList<>();
@@ -123,7 +127,14 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                     // both sides' expected counts.
                     if (queryId != null) {
                         filtered.add(
-                            new ShuffleWorkerSetupInstructionNode(queryId, targetStageId, partitionIndex, leftExpected, rightExpected)
+                            new ShuffleWorkerSetupInstructionNode(
+                                queryId,
+                                targetStageId,
+                                partitionIndex,
+                                leftExpected,
+                                rightExpected,
+                                preferHashJoin
+                            )
                         );
                     } else {
                         filtered.add(node);

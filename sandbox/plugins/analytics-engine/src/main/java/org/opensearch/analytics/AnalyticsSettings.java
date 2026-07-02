@@ -156,6 +156,31 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Build-side row threshold above which a hash-shuffle WORKER join uses a spillable sort-merge join
+     * instead of the in-memory hash-join build. When a worker join's build-side (right input) estimated
+     * scan rows exceed this value, the coordinator sets {@code prefer_hash_join=false} on that worker
+     * stage, so DataFusion's physical planner emits a {@code SortMergeJoinExec} (which spills its buffered
+     * batches to disk under memory pressure) rather than the {@code HashJoinExec} whose in-memory build
+     * has no escape to disk and trips the native circuit breaker on large builds (TPC-H sf=10 q17/q18/q21).
+     * This mirrors Spark's memory-safety rule: hash-join only when the build provably fits, else the
+     * spillable join.
+     *
+     * <p>Below the threshold the worker keeps the (faster, no-sort) hash join. Only worker joins are
+     * affected — shard-scan and coordinator-reduce sessions always prefer hash join. Default
+     * {@code 20_000_000}: above the dimension builds that fit comfortably in memory (TPC-H supplier 100K,
+     * part 2M, partsupp 8M at sf=10) and below the fact-table-scale builds that OOM. Set to
+     * {@code Long.MAX_VALUE} to disable (always hash join — the pre-SMJ behavior) or {@code 0} to force
+     * sort-merge on every worker join (A/B benchmarking).
+     */
+    public static final Setting<Long> MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS = Setting.longSetting(
+        "analytics.mpp.worker.sort_merge_join_min_rows",
+        20_000_000L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-strategy sub-toggle for distributed <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
      * strategy): a decomposable {@code GROUP BY} over a distributed join is split PARTIAL (on the join's
      * worker tier, per-partition) + FINAL (gathered to the coordinator) by the general post-CBO pass
@@ -317,6 +342,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_DISTRIBUTE_MIN_ROWS,
+        MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,
         MPP_SHUFFLE_SPILL_MAX_BYTES,

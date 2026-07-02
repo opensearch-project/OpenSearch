@@ -424,6 +424,12 @@ pub async unsafe fn create_worker_session_context(
     let mut config = SessionConfig::new();
     config.options_mut().execution.target_partitions = query_config.target_partitions;
     config.options_mut().execution.batch_size = query_config.batch_size;
+    // When the coordinator estimates this worker join's build side is too large for an in-memory
+    // hash table, it sets prefer_hash_join=false so DataFusion's physical planner emits a spillable
+    // SortMergeJoinExec instead of the non-spillable HashJoinExec build.
+    // The physical planner reads this at create_physical_plan time; EnforceSorting inserts the
+    // (spillable) SortExecs the SMJ needs.
+    config.options_mut().optimizer.prefer_hash_join = query_config.prefer_hash_join;
 
     let state = SessionStateBuilder::new()
         .with_config(config)

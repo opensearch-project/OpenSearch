@@ -662,7 +662,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // broadcast instruction on its consumer stage, then dispatches the broadcast-free DAG (shuffle
         // promotion if it still distributes a join). Broadcast is an instruction, not a stage role, so a
         // stage that is both a broadcast consumer AND a shuffle producer (q3/q8/q9) runs without conflict.
-        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver).run(
+        // Read the worker sort-merge-join floor live (dynamic-aware) so a PUT /_cluster/settings update
+        // takes effect without a restart; UnifiedDispatch hands it to ShuffleEnrichment, which sets
+        // prefer_hash_join=false on a worker join whose estimated build exceeds it.
+        long sortMergeJoinMinRows = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS);
+        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver, sortMergeJoinMinRows).run(
             context,
             dag,
             UnifiedDispatch.captureSinkFactory(context, dag, capabilityRegistry, clusterService),

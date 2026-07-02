@@ -95,7 +95,8 @@ public class UnifiedDispatchTests extends OpenSearchTestCase {
             scheduler,
             mock(ClusterService.class),
             mock(CapabilityRegistry.class),
-            /* preferMetadataDriver */ false
+            /* preferMetadataDriver */ false,
+            /* sortMergeJoinMinRows */ Long.MAX_VALUE
         );
         dispatch.run(ctx, dag, buildStage -> mock(ExchangeSink.class), /* queryExecutionSink */ null, terminal);
 

@@ -19,7 +19,11 @@ import java.io.IOException;
  * table) and returns it as the {@link BackendExecutionContext}, so subsequent
  * {@link ShuffleScanInstructionNode} handlers can register named-input streams against it.
  *
- * <p>Workers are stateless — no extra fields needed beyond the type marker.
+ * <p>Beyond the buffer-triple key + expected-sender counts, the node carries the per-worker-stage
+ * {@code preferHashJoin} decision: the coordinator sets it {@code false} when it estimates this
+ * worker join's build side is too large for an in-memory hash table, so the backend builds a
+ * spillable sort-merge join instead of the non-spillable hash-join build. Defaults {@code true}
+ * (hash-join, the historical behavior).
  *
  * @opensearch.internal
  */
@@ -30,6 +34,7 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
     private final int partitionIndex;
     private final int leftExpectedSenders;
     private final int rightExpectedSenders;
+    private final boolean preferHashJoin;
 
     /**
      * @param queryId             worker buffer triple key
@@ -37,19 +42,22 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
      * @param partitionIndex      worker buffer triple key
      * @param leftExpectedSenders expected isLast count from left producers for this partition
      * @param rightExpectedSenders expected isLast count from right producers for this partition
+     * @param preferHashJoin      false → the backend builds a spillable sort-merge join for this worker
      */
     public ShuffleWorkerSetupInstructionNode(
         String queryId,
         int targetStageId,
         int partitionIndex,
         int leftExpectedSenders,
-        int rightExpectedSenders
+        int rightExpectedSenders,
+        boolean preferHashJoin
     ) {
         this.queryId = queryId;
         this.targetStageId = targetStageId;
         this.partitionIndex = partitionIndex;
         this.leftExpectedSenders = leftExpectedSenders;
         this.rightExpectedSenders = rightExpectedSenders;
+        this.preferHashJoin = preferHashJoin;
     }
 
     public ShuffleWorkerSetupInstructionNode(StreamInput in) throws IOException {
@@ -58,6 +66,7 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         this.partitionIndex = in.readVInt();
         this.leftExpectedSenders = in.readVInt();
         this.rightExpectedSenders = in.readVInt();
+        this.preferHashJoin = in.readBoolean();
     }
 
     public String getQueryId() {
@@ -80,6 +89,10 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         return rightExpectedSenders;
     }
 
+    public boolean getPreferHashJoin() {
+        return preferHashJoin;
+    }
+
     @Override
     public InstructionType type() {
         return InstructionType.SETUP_SHUFFLE_WORKER;
@@ -92,5 +105,6 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         out.writeVInt(partitionIndex);
         out.writeVInt(leftExpectedSenders);
         out.writeVInt(rightExpectedSenders);
+        out.writeBoolean(preferHashJoin);
     }
 }

@@ -124,7 +124,8 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
             /* rightExpectedSenders */ 4,
             /* queryId */ "qid-test",
             /* leftProducerStageId */ 11,
-            /* rightProducerStageId */ 12
+            /* rightProducerStageId */ 12,
+            /* preferHashJoin */ true
         );
 
         List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
@@ -164,7 +165,7 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         Stage consumer = new Stage(/* stageId */ 4, null, List.of(), null, null, null);
         consumer.setPlanAlternatives(List.of(new StagePlan(null, "df")));
 
-        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 2, 7, 3, "qid", 1, 2);
+        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 2, 7, 3, "qid", 1, 2, /* preferHashJoin */ false);
 
         ShuffleWorkerSetupInstructionNode setup = (ShuffleWorkerSetupInstructionNode) consumer.getPlanAlternatives()
             .get(0)
@@ -175,6 +176,7 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         assertEquals(3, setup.getRightExpectedSenders());
         assertEquals("qid", setup.getQueryId());
         assertEquals(4, setup.getTargetStageId());
+        assertFalse("preferHashJoin flows through to the setup placeholder", setup.getPreferHashJoin());
     }
 
     private static Stage newProducerStage(int stageId, int partitionCount, List<Integer> hashKeys) {

@@ -53,7 +53,12 @@ public class ShuffleWorkerSetupHandler implements FragmentInstructionHandler<Shu
         DataFusionService dataFusionService = plugin.getDataFusionService();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
-        WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
+        // The node-global snapshot carries the default (prefer_hash_join=true); the coordinator's
+        // per-worker-stage decision on this instruction overrides it, so a large-build worker join
+        // gets a spillable sort-merge join while other stages keep the hash-join default.
+        WireConfigSnapshot snapshot = WireConfigSnapshot.builder(plugin.getDatafusionSettings().getSnapshot())
+            .preferHashJoin(node.getPreferHashJoin())
+            .build();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);
