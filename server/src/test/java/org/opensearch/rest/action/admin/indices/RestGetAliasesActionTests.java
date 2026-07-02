@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -40,7 +39,6 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
