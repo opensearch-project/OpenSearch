@@ -200,12 +200,13 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
 
         doThrow(
             new IOException(
-                "Shard [[clickbench][0]] replicas failed to sync within 30s. " + "Replicas still behind: 1, max checkpoints behind: 2"
+                "[REPLICA_SYNC_TIMEOUT] Shard [[clickbench][0]] replicas failed to sync within 30s. "
+                    + "Replicas still behind: 1, max checkpoints behind: 2"
             )
         ).when(mockIndexShard).waitForReplicaSync(any(TimeValue.class));
 
         IOException ex = expectThrows(IOException.class, () -> executeShardOperation(mockIndexShard, primaryShardRouting));
-        assertThat(ex.getMessage(), containsString("replicas failed to sync within"));
+        assertThat(ex.getMessage(), containsString("[REPLICA_SYNC_TIMEOUT]"));
 
         // Verify permit was released despite the exception
         verify(mockPermit, timeout(5000)).close();

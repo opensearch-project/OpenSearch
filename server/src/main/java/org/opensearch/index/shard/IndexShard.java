@@ -3846,6 +3846,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Stable marker substring embedded in every replica-sync-timeout message. Used for detection
+     * in mixed-version clusters or log parsing, analogous to
+     * {@link org.opensearch.storage.action.tiering.MergeDrainTimeoutException#MERGE_DRAIN_TIMEOUT_MARKER}.
+     */
+    public static final String REPLICA_SYNC_TIMEOUT_MARKER = "[REPLICA_SYNC_TIMEOUT]";
+
+    /**
      * Waits for all tracked replicas to be in sync with the primary's latest checkpoint.
      * Polls every 500ms until either all replicas report {@code checkpointsBehindCount == 0}
      * or the timeout is exceeded.
@@ -3889,7 +3896,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long behindCount = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0).count();
         long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
         throw new IOException(
-            "Shard ["
+            REPLICA_SYNC_TIMEOUT_MARKER
+                + " Shard ["
                 + shardId
                 + "] replicas failed to sync within "
                 + timeout
