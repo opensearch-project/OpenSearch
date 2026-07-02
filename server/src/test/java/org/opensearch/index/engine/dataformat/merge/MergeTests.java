@@ -15,6 +15,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
@@ -179,6 +181,8 @@ public class MergeTests extends OpenSearchTestCase {
         return new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mergeResult, oneMerge) -> {},
+            () -> {},
+            () -> {},
             () -> {},
             SHARD_ID,
             idxSettings,
@@ -345,7 +349,7 @@ public class MergeTests extends OpenSearchTestCase {
             NOOP_MERGE_LISTENER,
             () -> 1L
         );
-        MergeResult result = handler.doMerge(new OneMerge(List.of(seg)));
+        MergeResult result = handler.doMerge(new OneMerge(List.of(seg)), Double.POSITIVE_INFINITY);
 
         assertSame(expectedResult, result);
     }
@@ -402,12 +406,80 @@ public class MergeTests extends OpenSearchTestCase {
             createNoopHandler(emptySnapshotSupplier()),
             (mr, om) -> {},
             () -> {},
+            () -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
         );
         scheduler.enableAutoIOThrottle();
         assertNotNull(scheduler.stats());
+    }
+
+    public void testMergeIORateLimitDefaultsToInfinity() {
+        MergeScheduler scheduler = createMergeScheduler();
+        assertEquals(Double.POSITIVE_INFINITY, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeIORateLimitFromClusterSetting() {
+        Settings nodeSettings = Settings.builder()
+            .put(ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING.getKey(), "50.0")
+            .build();
+        Settings indexSettings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
+            .build();
+        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", indexSettings), nodeSettings);
+        MergeScheduler scheduler = new MergeScheduler(
+            createNoopHandler(emptySnapshotSupplier()),
+            (mr, om) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            SHARD_ID,
+            idxSettings,
+            mockThreadPool()
+        );
+        assertEquals(50.0, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeIORateLimitDynamicUpdate() {
+        Settings indexSettings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
+            .build();
+        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", indexSettings), Settings.EMPTY);
+        MergeScheduler scheduler = new MergeScheduler(
+            createNoopHandler(emptySnapshotSupplier()),
+            (mr, om) -> {},
+            () -> {},
+            () -> {},
+            () -> {},
+            SHARD_ID,
+            idxSettings,
+            mockThreadPool()
+        );
+        assertEquals(Double.POSITIVE_INFINITY, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+
+        idxSettings.getMergeSchedulerConfig().setIORateLimitMBPerSec(25.0);
+        assertEquals(25.0, scheduler.getMergeIORateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeInputCarriesRateLimit() {
+        MergeInput input = MergeInput.builder()
+            .segments(List.of())
+            .newWriterGeneration(1L)
+            .rateLimitMBPerSec(42.0)
+            .build();
+        assertEquals(42.0, input.rateLimitMBPerSec(), 0.0);
+    }
+
+    public void testMergeInputDefaultRateLimitIsInfinity() {
+        MergeInput input = MergeInput.builder()
+            .segments(List.of())
+            .newWriterGeneration(1L)
+            .build();
+        assertEquals(Double.POSITIVE_INFINITY, input.rateLimitMBPerSec(), 0.0);
     }
 
     // ---- MergeScheduler: integration with real merge execution ----
@@ -429,6 +501,8 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> captured.set(mr),
+            () -> {},
+            () -> {},
             () -> {},
             SHARD_ID,
             mergeSchedulerSettings(),
@@ -454,8 +528,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> {},
-            () -> {},
-            SHARD_ID,
+            () -> {}, () -> {}, () -> {}, SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
         );
@@ -479,7 +552,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {
             captured.set(mr);
             latch.countDown();
-        }, () -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        }, () -> {}, () -> {}, () -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
 
         onForceMergeThread(() -> scheduler.forceMerge(1));
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -521,8 +594,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> {},
-            () -> {},
-            SHARD_ID,
+            () -> {}, () -> {}, () -> {}, SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
         );
@@ -583,8 +655,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> {},
-            () -> {},
-            SHARD_ID,
+            () -> {}, () -> {}, () -> {}, SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
         );
@@ -605,8 +676,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> {},
-            () -> {},
-            SHARD_ID,
+            () -> {}, () -> {}, () -> {}, SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
         );
@@ -634,6 +704,8 @@ public class MergeTests extends OpenSearchTestCase {
             handler,
             (mr, om) -> {},
             () -> cleanupCalled.set(true),
+            () -> {},
+            () -> {},
             SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
@@ -665,8 +737,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             applyCallback,
-            () -> {},
-            SHARD_ID,
+            () -> {}, () -> {}, () -> {}, SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
         );
@@ -678,7 +749,7 @@ public class MergeTests extends OpenSearchTestCase {
     public void testForceMergeWithNoSegmentsIsNoop() throws Exception {
         MergeScheduler scheduler = new MergeScheduler(createNoopHandler(emptySnapshotSupplier()), (mr, om) -> {
             fail("applyMergeChanges should not be called");
-        }, () -> { fail("onMergeFailureCleanup should not be called"); }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        }, () -> { fail("onMergeFailureCleanup should not be called"); }, () -> {}, () -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
 
         onForceMergeThread(() -> scheduler.forceMerge(1));
     }
@@ -695,8 +766,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> {},
-            () -> {},
-            SHARD_ID,
+            () -> {}, () -> {}, () -> {}, SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
         );

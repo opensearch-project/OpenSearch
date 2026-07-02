@@ -48,14 +48,18 @@ public class MergeScheduler {
     private final MergeHandler mergeHandler;
     private final BiConsumer<MergeResult, OneMerge> applyMergeChanges;
     private final Runnable onMergeFailureCleanup;
+    private final Runnable activateThrottling;
+    private final Runnable deactivateThrottling;
     private final ThreadPool threadPool;
     private final AtomicInteger activeMerges = new AtomicInteger(0);
+    private final AtomicBoolean isThrottling = new AtomicBoolean(false);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final Semaphore forceMergeLock = new Semaphore(1);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final List<Runnable> onDrainedListeners = new CopyOnWriteArrayList<>();
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
+    private volatile double ioRateLimitMBPerSec;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final IndexSettings indexSettings;
     private final MergeStatsTracker mergeStatsTracker = new MergeStatsTracker();
@@ -75,6 +79,8 @@ public class MergeScheduler {
      * @param mergeHandler          the handler that selects and executes merges
      * @param applyMergeChanges     callback to apply merge results (e.g., update the catalog)
      * @param onMergeFailureCleanup callback invoked when a merge fails and cleanup is performed
+     * @param activateThrottling    callback to activate indexing throttle when merge pressure is high
+     * @param deactivateThrottling  callback to deactivate indexing throttle when merge pressure subsides
      * @param shardId               the shard this scheduler is associated with
      * @param indexSettings         the index settings providing merge scheduler configuration
      * @param threadPool            the OpenSearch thread pool for executing merge tasks
@@ -83,6 +89,8 @@ public class MergeScheduler {
         MergeHandler mergeHandler,
         BiConsumer<MergeResult, OneMerge> applyMergeChanges,
         Runnable onMergeFailureCleanup,
+        Runnable activateThrottling,
+        Runnable deactivateThrottling,
         ShardId shardId,
         IndexSettings indexSettings,
         ThreadPool threadPool
@@ -90,6 +98,8 @@ public class MergeScheduler {
         this.mergeHandler = mergeHandler;
         this.applyMergeChanges = applyMergeChanges;
         this.onMergeFailureCleanup = onMergeFailureCleanup;
+        this.activateThrottling = activateThrottling;
+        this.deactivateThrottling = deactivateThrottling;
         this.threadPool = threadPool;
         logger = Loggers.getLogger(getClass(), shardId);
         this.indexSettings = indexSettings;
@@ -104,23 +114,29 @@ public class MergeScheduler {
     public synchronized void refreshConfig() {
         int newMaxThreadCount = mergeSchedulerConfig.getMaxThreadCount();
         int newMaxMergeCount = mergeSchedulerConfig.getMaxMergeCount();
+        double newIORateLimit = mergeSchedulerConfig.getIORateLimitMBPerSec();
 
-        if (newMaxThreadCount == this.maxConcurrentMerges && newMaxMergeCount == this.maxMergeCount) {
+        if (newMaxThreadCount == this.maxConcurrentMerges && newMaxMergeCount == this.maxMergeCount
+            && newIORateLimit == this.ioRateLimitMBPerSec) {
             return;
         }
 
         logger.info(
             () -> new ParameterizedMessage(
-                "Updating from merge scheduler config: maxThreadCount {} -> {}, " + "maxMergeCount {} -> {}",
+                "Updating from merge scheduler config: maxThreadCount {} -> {}, "
+                    + "maxMergeCount {} -> {}, ioRateLimitMBPerSec {} -> {}",
                 this.maxConcurrentMerges,
                 newMaxThreadCount,
                 this.maxMergeCount,
-                newMaxMergeCount
+                newMaxMergeCount,
+                this.ioRateLimitMBPerSec,
+                newIORateLimit
             )
         );
 
         this.maxConcurrentMerges = newMaxThreadCount;
         this.maxMergeCount = newMaxMergeCount;
+        this.ioRateLimitMBPerSec = newIORateLimit;
     }
 
     /**
@@ -138,6 +154,7 @@ public class MergeScheduler {
         if (!isFrozen()) {
             mergeHandler.findAndRegisterMerges();
         }
+        evaluateThrottle();
         executeMerge();
     }
 
@@ -297,6 +314,14 @@ public class MergeScheduler {
     }
 
     /**
+     * Returns the cluster-level IO rate limit for background merges in MB per second.
+     * A value of Double.POSITIVE_INFINITY indicates no rate limiting.
+     */
+    public double getMergeIORateLimitMBPerSec() {
+        return mergeSchedulerConfig.getIORateLimitMBPerSec();
+    }
+
+    /**
      * Returns the current merge statistics for this scheduler.
      *
      * @return the merge stats
@@ -318,6 +343,7 @@ public class MergeScheduler {
             try {
                 submitMergeTask(oneMerge);
             } catch (Exception e) {
+                activeMerges.decrementAndGet();
                 mergeHandler.onMergeFailure(oneMerge);
                 onMergeFailureCleanup.run();
             }
@@ -343,6 +369,7 @@ public class MergeScheduler {
                 // uncaught exception on the merge thread pool.
             } finally {
                 activeMerges.decrementAndGet();
+                evaluateThrottle();
                 // Fire all drain listeners if all merges completed and none pending
                 if (isFrozen() && activeMerges.get() == 0 && !mergeHandler.hasPendingMerges() && !onDrainedListeners.isEmpty()) {
                     List<Runnable> listeners = List.copyOf(onDrainedListeners);
@@ -380,7 +407,7 @@ public class MergeScheduler {
         long tookMS = 0;
         try {
             mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
-            MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+            MergeResult mergeResult = mergeHandler.doMerge(oneMerge, mergeSchedulerConfig.getIORateLimitMBPerSec());
             applyMergeChanges.accept(mergeResult, oneMerge);
             mergeHandler.onMergeFinished(oneMerge, isFrozen());
             tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
@@ -392,6 +419,31 @@ public class MergeScheduler {
             throw e instanceof IOException ? (IOException) e : new IOException(e);
         } finally {
             mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
+        }
+    }
+
+    private synchronized void evaluateThrottle() {
+        int numMergesInFlight = activeMerges.get() + mergeHandler.getPendingMergeCount();
+        if (numMergesInFlight > maxMergeCount) {
+            if (isThrottling.getAndSet(true) == false) {
+                logger.info("now throttling indexing: numMergesInFlight={}, maxMergeCount={}", numMergesInFlight, maxMergeCount);
+                try {
+                    activateThrottling.run();
+                } catch (Exception e) {
+                    isThrottling.set(false);
+                    logger.warn("exception in activateThrottling callback", e);
+                }
+            }
+        } else if (numMergesInFlight < maxMergeCount) {
+            if (isThrottling.getAndSet(false)) {
+                logger.info("stop throttling indexing: numMergesInFlight={}, maxMergeCount={}", numMergesInFlight, maxMergeCount);
+                try {
+                    deactivateThrottling.run();
+                } catch (Exception e) {
+                    isThrottling.set(true);
+                    logger.warn("exception in deactivateThrottling callback", e);
+                }
+            }
         }
     }
 }

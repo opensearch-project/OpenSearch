@@ -246,14 +246,19 @@ public class MergeHandler {
      * Executes the given merge operation by delegating to the {@link Merger}.
      *
      * @param oneMerge the merge to execute
+     * @param rateLimitMBPerSec IO rate limit in MB/s; Double.POSITIVE_INFINITY means unlimited
      * @return the result of the merge
      * @throws IOException if the merge operation fails
      */
-    public MergeResult doMerge(OneMerge oneMerge) throws IOException {
+    public MergeResult doMerge(OneMerge oneMerge, double rateLimitMBPerSec) throws IOException {
         assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merge must have at least one segment";
         long generation = generationProvider.get();
         assert generation > 0 : "merge writer generation must be positive but was: " + generation;
-        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).newWriterGeneration(generation).build();
+        MergeInput mergeInput = MergeInput.builder()
+            .segments(oneMerge.getSegmentsToMerge())
+            .newWriterGeneration(generation)
+            .rateLimitMBPerSec(rateLimitMBPerSec)
+            .build();
         MergeResult result = merger.merge(mergeInput);
         assert result != null : "merger must return a non-null MergeResult";
         assert result.getMergedWriterFileSet().isEmpty() == false : "merge result must contain at least one format's files";

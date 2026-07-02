@@ -15,6 +15,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.test.IndexSettingsModule;
@@ -25,7 +26,10 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -67,7 +71,7 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
     }
 
     private MergeScheduler newScheduler(MergeHandler mergeHandler, IndexModule.TieringState tieringState) {
-        return new MergeScheduler(mergeHandler, (result, merge) -> {}, () -> {}, shardId, indexSettings(tieringState), threadPool);
+        return new MergeScheduler(mergeHandler, (result, merge) -> {}, () -> {}, () -> {}, () -> {}, shardId, indexSettings(tieringState), threadPool);
     }
 
     public void testFreezeBlocksTriggerMerges() {
@@ -148,7 +152,7 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
         OneMerge merge2 = new OneMerge(List.of(s2));
 
         when(mergeHandler.findForceMerges(1)).thenReturn(List.of(merge1, merge2));
-        when(mergeHandler.doMerge(merge1)).thenReturn(new MergeResult(Map.of()));
+        when(mergeHandler.doMerge(any(), anyDouble())).thenReturn(new MergeResult(Map.of()));
 
         final java.util.concurrent.atomic.AtomicReference<MergeScheduler> schedulerRef =
             new java.util.concurrent.atomic.AtomicReference<>();
@@ -156,6 +160,8 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             mergeHandler,
             (result, merge) -> { schedulerRef.get().shutdown(); },
+            () -> {},
+            () -> {},
             () -> {},
             shardId,
             indexSettings(IndexModule.TieringState.HOT),
@@ -171,7 +177,76 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
             Thread.currentThread().setName(oldName);
         }
 
-        verify(mergeHandler).doMerge(merge1);
-        verify(mergeHandler, never()).doMerge(merge2);
+        verify(mergeHandler).doMerge(any(), anyDouble());
+        verify(mergeHandler, times(1)).doMerge(any(), anyDouble());
+    }
+
+    public void testThrottlingActivatesWhenMergesExceedMaxCount() {
+        AtomicInteger activateCount = new AtomicInteger();
+        AtomicInteger deactivateCount = new AtomicInteger();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
+                .build()
+        );
+
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        // After findAndRegisterMerges, 3 pending merges exceed maxMergeCount=2
+        when(mergeHandler.getPendingMergeCount()).thenReturn(3);
+        when(mergeHandler.hasPendingMerges()).thenReturn(false);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            mergeHandler,
+            (result, merge) -> {},
+            () -> {},
+            activateCount::incrementAndGet,
+            deactivateCount::incrementAndGet,
+            shardId,
+            idxSettings,
+            threadPool
+        );
+
+        scheduler.triggerMerges();
+        assertEquals("throttle should have activated", 1, activateCount.get());
+
+        // Now simulate merges draining below threshold
+        when(mergeHandler.getPendingMergeCount()).thenReturn(1);
+        scheduler.triggerMerges();
+        assertEquals("throttle should have deactivated", 1, deactivateCount.get());
+    }
+
+    public void testThrottlingNotActivatedWhenMergesWithinLimit() {
+        AtomicInteger activateCount = new AtomicInteger();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
+                .build()
+        );
+
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        when(mergeHandler.getPendingMergeCount()).thenReturn(2);
+        when(mergeHandler.hasPendingMerges()).thenReturn(false);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            mergeHandler,
+            (result, merge) -> {},
+            () -> {},
+            activateCount::incrementAndGet,
+            () -> {},
+            shardId,
+            idxSettings,
+            threadPool
+        );
+
+        scheduler.triggerMerges();
+        assertEquals("throttle should not activate when merges within limit", 0, activateCount.get());
     }
 }

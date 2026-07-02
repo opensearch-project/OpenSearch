@@ -219,7 +219,7 @@ public class MergeHandlerTests extends OpenSearchTestCase {
         when(merger.merge(any(MergeInput.class))).thenReturn(result);
 
         OneMerge merge = new OneMerge(List.of(s1));
-        MergeResult actual = handler.doMerge(merge);
+        MergeResult actual = handler.doMerge(merge, Double.POSITIVE_INFINITY);
 
         assertSame(result, actual);
         verify(merger).merge(any(MergeInput.class));

@@ -318,6 +318,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterMergeSchedulerConfig.CLUSTER_MAX_THREAD_COUNT_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_MAX_MERGE_COUNT_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_AUTO_THROTTLE_SETTING,
+                ClusterMergeSchedulerConfig.CLUSTER_IO_RATE_LIMIT_MB_PER_SEC_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,

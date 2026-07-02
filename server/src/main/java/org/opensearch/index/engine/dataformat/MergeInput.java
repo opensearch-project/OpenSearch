@@ -23,14 +23,14 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, double rateLimitMBPerSec) {
 
     public MergeInput {
         segments = List.copyOf(segments);
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration, builder.rateLimitMBPerSec);
     }
 
     /**
@@ -60,6 +60,7 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
         private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
+        private double rateLimitMBPerSec = Double.POSITIVE_INFINITY;
 
         private Builder() {}
 
@@ -104,6 +105,18 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
          */
         public Builder newWriterGeneration(long newWriterGeneration) {
             this.newWriterGeneration = newWriterGeneration;
+            return this;
+        }
+
+        /**
+         * Sets the IO rate limit in MB per second for the merge.
+         * A value of Double.POSITIVE_INFINITY means no rate limiting.
+         *
+         * @param rateLimitMBPerSec the rate limit in MB/s
+         * @return this builder
+         */
+        public Builder rateLimitMBPerSec(double rateLimitMBPerSec) {
+            this.rateLimitMBPerSec = rateLimitMBPerSec;
             return this;
         }
 

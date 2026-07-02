@@ -109,7 +109,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenReturn(secondaryResult);
 
         MergeHandler handler = createHandler();
-        MergeResult result = handler.doMerge(oneMerge);
+        MergeResult result = handler.doMerge(oneMerge, Double.POSITIVE_INFINITY);
 
         assertNotNull(result);
         assertEquals(2, result.getMergedWriterFileSet().size());
@@ -147,7 +147,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             () -> 1L
         );
 
-        MergeResult result = handler.doMerge(oneMerge);
+        MergeResult result = handler.doMerge(oneMerge, Double.POSITIVE_INFINITY);
         assertNotNull(result);
         assertEquals(1, result.getMergedWriterFileSet().size());
         assertSame(mergedWfs, result.getMergedWriterFileSetForDataformat(primaryFormat));
@@ -165,7 +165,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenThrow(new IOException("primary disk error"));
 
         MergeHandler handler = createHandler();
-        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
         assertNotNull(ex.getCause());
         assertEquals("primary disk error", ex.getCause().getMessage());
     }
@@ -185,7 +185,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary disk error"));
 
         MergeHandler handler = createHandler();
-        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
         assertNotNull(ex.getCause());
         assertEquals("secondary disk error", ex.getCause().getMessage());
     }
@@ -232,7 +232,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             () -> 1L
         );
 
-        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
         assertNotNull(ex.getCause());
         // Fail-fast: only the first secondary failure is reported, no suppressed exceptions
         assertEquals(0, ex.getCause().getSuppressed().length);
@@ -253,7 +253,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
         MergeHandler handler = createHandler();
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handler.doMerge(oneMerge));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
         assertTrue(ex.getMessage().contains("row-ID mapping"));
         assertTrue(ex.getMessage().contains("secondaries"));
     }
@@ -278,7 +278,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary fail"));
 
         MergeHandler handler = createHandler();
-        expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
 
         assertFalse("Stale merged file should be deleted on failure", Files.exists(staleFile));
     }
@@ -300,7 +300,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         MergeHandler handler = createHandler();
         // Should not throw during cleanup even though file doesn't exist
-        expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
     }
 
     // ========== doMerge: no cleanup when mergedWriterFileSet is empty ==========
@@ -315,7 +315,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenThrow(new IOException("primary fail"));
 
         MergeHandler handler = createHandler();
-        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
         assertEquals("primary fail", ex.getCause().getMessage());
     }
 
@@ -341,7 +341,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenReturn(secondaryResult);
 
         MergeHandler handler = createHandler();
-        MergeResult result = handler.doMerge(oneMerge);
+        MergeResult result = handler.doMerge(oneMerge, Double.POSITIVE_INFINITY);
 
         assertNotNull(result);
         assertEquals(2, result.getMergedWriterFileSet().size());
@@ -384,7 +384,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             () -> 1L
         );
 
-        MergeResult result = handler.doMerge(oneMerge);
+        MergeResult result = handler.doMerge(oneMerge, Double.POSITIVE_INFINITY);
         assertNotNull(result);
         assertEquals(1, result.getMergedWriterFileSet().size());
     }
@@ -562,7 +562,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = createHandler();
         // The merge fails due to secondary, cleanup tries to delete "mp.dat" (a non-empty dir)
         // which throws DirectoryNotEmptyException — caught and logged, not re-thrown
-        expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
+        expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge, Double.POSITIVE_INFINITY));
         // The directory should still exist since deleteIfExists fails on non-empty dirs
         assertTrue(Files.exists(dirAsFile));
     }

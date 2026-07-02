@@ -892,6 +892,45 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "access private fields to simulate merge pressure and verify throttle integration")
+    public void testMergeThrottleIntegration() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            assertFalse("engine should not be throttled initially", engine.isThrottled());
+
+            // Access the private mergeScheduler
+            java.lang.reflect.Field schedulerField = DataFormatAwareEngine.class.getDeclaredField("mergeScheduler");
+            schedulerField.setAccessible(true);
+            org.opensearch.index.engine.dataformat.merge.MergeScheduler scheduler =
+                (org.opensearch.index.engine.dataformat.merge.MergeScheduler) schedulerField.get(engine);
+
+            // Access the scheduler's activeMerges to simulate in-flight merge pressure
+            java.lang.reflect.Field activeMergesField = scheduler.getClass().getDeclaredField("activeMerges");
+            activeMergesField.setAccessible(true);
+            java.util.concurrent.atomic.AtomicInteger activeMerges =
+                (java.util.concurrent.atomic.AtomicInteger) activeMergesField.get(scheduler);
+
+            // Access maxMergeCount to know the threshold
+            java.lang.reflect.Field maxMergeCountField = scheduler.getClass().getDeclaredField("maxMergeCount");
+            maxMergeCountField.setAccessible(true);
+            int maxMergeCount = (int) maxMergeCountField.get(scheduler);
+            assertTrue("maxMergeCount should be positive", maxMergeCount > 0);
+
+            // Simulate merge pressure: set activeMerges above maxMergeCount
+            activeMerges.set(maxMergeCount + 1);
+
+            // triggerMerges evaluates throttle: activeMerges + pendingMerges > maxMergeCount
+            scheduler.triggerMerges();
+            assertTrue("engine should be throttled when merge pressure exceeds threshold", engine.isThrottled());
+
+            // Simulate merges completing: drop activeMerges below threshold
+            activeMerges.set(0);
+            scheduler.triggerMerges();
+            assertFalse("engine should not be throttled after merge pressure subsides", engine.isThrottled());
+        }
+    }
+
     public void testEngineConfig() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             assertThat(engine.config(), notNullValue());
