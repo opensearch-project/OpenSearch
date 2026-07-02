@@ -6,7 +6,12 @@
  * compatible open source license.
  */
 
-//! Minimal HyperLogLog copy from DataFusion (Apache-2.0). Wire-compatible with DF54's Binary state format.
+//! Minimal HyperLogLog copy from DataFusion (Apache-2.0).
+//!
+//! NOTE: Uses HLL_P=10 (1024-byte register array) instead of upstream's 14 (16384 bytes).
+//! NOT wire-compatible with upstream DataFusion's P=14 sketches — every node must run
+//! this same precision. Smaller sketches let a single emitted Arrow batch carry many more
+//! groups before hitting Arrow's 2 GiB per-column cap.
 //! TODO: Remove this file when upgrading to DataFusion 55+ (HyperLogLog becomes pub).
 
 use datafusion::common::{internal_datafusion_err, DataFusionError, Result};
@@ -14,7 +19,11 @@ use datafusion::scalar::ScalarValue;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-const HLL_P: usize = 14;
+// Reduced from 14 to 10 so partial-aggregate state fits under Arrow's 2 GiB
+// per-column cap. P=10 → 1024 bytes/group (vs 16384 at P=14). Per-shard emit
+// can hold ~2M groups before overflow (vs ~131k at P=14).
+// Trade-off: standard error ~3.25% (was ~0.81% at P=14).
+const HLL_P: usize = 10;
 const HLL_Q: usize = 64 - HLL_P;
 const NUM_REGISTERS: usize = 1 << HLL_P;
 const HLL_P_MASK: u64 = (NUM_REGISTERS as u64) - 1;

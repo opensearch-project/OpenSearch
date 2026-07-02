@@ -23,8 +23,11 @@
 use std::hash::BuildHasher;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, BooleanArray, StringViewArray};
-use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
+use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, BooleanArray, PrimitiveArray, StringViewArray};
+use datafusion::arrow::datatypes::{
+    ArrowPrimitiveType, DataType, Field, FieldRef, Int8Type, Int16Type, Int32Type, Int64Type,
+    UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+};
 use datafusion::common::{downcast_value, internal_datafusion_err, Result};
 use datafusion::execution::context::SessionContext;
 use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
@@ -75,6 +78,21 @@ impl AggregateUDFImpl for SafeApproxDistinct {
         let data_type = acc_args.expr_fields[0].data_type();
         match data_type {
             DataType::Utf8View => Ok(Box::new(Utf8ViewHLLAccumulator::new())),
+            // Route integer types through our P=10 HLL so the reduced precision
+            // applies end-to-end. Without this, upstream's accumulator (P=14)
+            // overflows Arrow's 2 GiB per-column cap at >131k groups.
+            DataType::Int8 => Ok(Box::new(NumericHLLAccumulator::<Int8Type>::new())),
+            DataType::Int16 => Ok(Box::new(NumericHLLAccumulator::<Int16Type>::new())),
+            DataType::Int32 => Ok(Box::new(NumericHLLAccumulator::<Int32Type>::new())),
+            DataType::Int64 => Ok(Box::new(NumericHLLAccumulator::<Int64Type>::new())),
+            DataType::UInt8 => Ok(Box::new(NumericHLLAccumulator::<UInt8Type>::new())),
+            DataType::UInt16 => Ok(Box::new(NumericHLLAccumulator::<UInt16Type>::new())),
+            DataType::UInt32 => Ok(Box::new(NumericHLLAccumulator::<UInt32Type>::new())),
+            DataType::UInt64 => Ok(Box::new(NumericHLLAccumulator::<UInt64Type>::new())),
+            // FINAL stage receives partial state as Binary. Route through our
+            // P=10 HLL so merge_batch deserializes 1024-byte sketches correctly
+            // (upstream expects P=14 / 16384 bytes and rejects ours).
+            DataType::Binary => Ok(Box::new(MergeOnlyHLLAccumulator::new())),
             _ => approx_distinct_udaf().inner().accumulator(acc_args),
         }
     }
@@ -216,6 +234,108 @@ impl Accumulator for BooleanDistinctAccumulator {
 
     fn size(&self) -> usize {
         std::mem::size_of::<Self>()
+    }
+}
+
+// ── Numeric HLL: routes integer-typed dc() inputs through our P=10 HLL ──
+
+#[derive(Debug)]
+struct NumericHLLAccumulator<T>
+where
+    T: ArrowPrimitiveType + std::fmt::Debug,
+    T::Native: std::hash::Hash,
+{
+    hll: HyperLogLog<T::Native>,
+}
+
+impl<T> NumericHLLAccumulator<T>
+where
+    T: ArrowPrimitiveType + std::fmt::Debug,
+    T::Native: std::hash::Hash,
+{
+    fn new() -> Self {
+        Self { hll: HyperLogLog::new() }
+    }
+}
+
+impl<T> Accumulator for NumericHLLAccumulator<T>
+where
+    T: ArrowPrimitiveType + std::fmt::Debug,
+    T::Native: std::hash::Hash,
+{
+    fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
+        let array: &PrimitiveArray<T> = downcast_value!(values[0], PrimitiveArray, T);
+        for i in 0..array.len() {
+            if !array.is_null(i) {
+                self.hll.add(&array.value(i));
+            }
+        }
+        Ok(())
+    }
+
+    fn merge_batch(&mut self, states: &[ArrayRef]) -> Result<()> {
+        let binary_array = downcast_value!(states[0], BinaryArray);
+        for v in binary_array.iter() {
+            let v = v.ok_or_else(|| internal_datafusion_err!("Invalid HLL binary state"))?;
+            let other: HyperLogLog<T::Native> = v.try_into()?;
+            self.hll.merge(&other);
+        }
+        Ok(())
+    }
+
+    fn state(&mut self) -> Result<Vec<ScalarValue>> {
+        Ok(vec![self.hll.to_scalar()])
+    }
+
+    fn evaluate(&mut self) -> Result<ScalarValue> {
+        Ok(ScalarValue::UInt64(Some(self.hll.count() as u64)))
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+    }
+}
+
+// ── FINAL-stage HLL: merges P=10 partial-state binaries from shards ──
+
+#[derive(Debug)]
+struct MergeOnlyHLLAccumulator {
+    hll: HyperLogLog<u8>,
+}
+
+impl MergeOnlyHLLAccumulator {
+    fn new() -> Self {
+        Self { hll: HyperLogLog::new() }
+    }
+}
+
+impl Accumulator for MergeOnlyHLLAccumulator {
+    fn update_batch(&mut self, _values: &[ArrayRef]) -> Result<()> {
+        Err(internal_datafusion_err!(
+            "MergeOnlyHLLAccumulator: update_batch is not supported (FINAL-only)"
+        ))
+    }
+
+    fn merge_batch(&mut self, states: &[ArrayRef]) -> Result<()> {
+        let binary_array = downcast_value!(states[0], BinaryArray);
+        for v in binary_array.iter() {
+            let v = v.ok_or_else(|| internal_datafusion_err!("Invalid HLL binary state"))?;
+            let other: HyperLogLog<u8> = v.try_into()?;
+            self.hll.merge(&other);
+        }
+        Ok(())
+    }
+
+    fn state(&mut self) -> Result<Vec<ScalarValue>> {
+        Ok(vec![self.hll.to_scalar()])
+    }
+
+    fn evaluate(&mut self) -> Result<ScalarValue> {
+        Ok(ScalarValue::UInt64(Some(self.hll.count() as u64)))
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self)
     }
 }
 
