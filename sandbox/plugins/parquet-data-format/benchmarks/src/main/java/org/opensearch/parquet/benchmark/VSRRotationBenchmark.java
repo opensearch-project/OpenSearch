@@ -145,7 +145,7 @@ public class VSRRotationBenchmark {
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexMetadata indexMetadata = IndexMetadata.builder("benchmark-index").settings(idxSettings).build();
         indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        vsrManager = new VSRManager(filePath, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync, 0L);
+        vsrManager = new VSRManager(filePath, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync, 0L, null);
     }
 
     @Benchmark

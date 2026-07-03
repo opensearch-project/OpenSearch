@@ -115,7 +115,7 @@ public class GetService implements Closeable {
             // ReaderHandle registers the native pointer with NativeHandle so downstream
             // validatePointer() calls in executeQueryAsync() find it in the live set.
             MonoFileWriterSet segment = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(segment), null, List.of(), List.of())) {
+            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(segment), null)) {
                 long readerPtr = readerHandle.getPointer();
                 // Internal-search get-by-row-id: the native side ignores Substrait and builds a
                 // DataFrame plan filtering `__row_id__ = rowId` with pushdown enabled. __row_id__ is
@@ -143,7 +143,7 @@ public class GetService implements Closeable {
                 String parquetDir = parquetSet.directory();
                 String parquetFile = parquetSet.files().iterator().next();
                 MonoFileWriterSet writerSet = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-                try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(writerSet), null, List.of(), List.of())) {
+                try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(writerSet), null)) {
                     long readerPtr = readerHandle.getPointer();
                     // Internal-search seq-no scan: the native side ignores Substrait and builds a
                     // DataFrame plan filtering `_seq_no > seqNoFloor`, projecting only the version

@@ -13,6 +13,7 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 import org.opensearch.parquet.stats.ParquetNativeRuntimeStats;
+import org.opensearch.parquet.encryption.PmeFileEncryptionInputs;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -42,8 +43,10 @@ public class RustBridge {
     private static final MethodHandle WRITE;
     private static final MethodHandle FINALIZE_WRITER;
     private static final MethodHandle GET_FILE_METADATA;
+    private static final MethodHandle GET_FILE_METADATA_DECRYPTED;
     private static final MethodHandle GET_COLUMN_METADATA;
     private static final MethodHandle GET_FILTERED_BYTES;
+    private static final MethodHandle READ_KEY_METADATA;
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
@@ -60,6 +63,9 @@ public class RustBridge {
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
+        // parquet_create_writer(file, file_len, schema_address,
+        //   footer_key, footer_key_len, key_metadata_json, key_metadata_json_len,
+        //   aad_prefix, aad_prefix_len) -> i64
         CREATE_WRITER = linker.downcallHandle(
             lib.find("parquet_create_writer").orElseThrow(),
             FunctionDescriptor.of(
@@ -76,17 +82,18 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,   // nulls_first (vals, count)
-                ValueLayout.JAVA_LONG    // writer_generation
+                ValueLayout.JAVA_LONG,   // writer_generation
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // footer_key
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // key_metadata_json
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG   // aad_prefix
             )
         );
         WRITE = linker.downcallHandle(
             lib.find("parquet_write").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG
             )
         );
         FINALIZE_WRITER = linker.downcallHandle(
@@ -120,6 +127,21 @@ public class RustBridge {
                 ValueLayout.ADDRESS   // num_row_groups_out
             )
         );
+        // parquet_get_file_metadata_decrypted(file, footer_key, footer_key_len,
+        //   aad_prefix, aad_prefix_len, version_out, num_rows_out, created_by_buf,
+        //   created_by_buf_len, created_by_len_out) -> i64
+        GET_FILE_METADATA_DECRYPTED = linker.downcallHandle(
+            lib.find("parquet_get_file_metadata_decrypted").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // file
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // footer_key
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // aad_prefix
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS,     // version_out, num_rows_out
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // created_by_buf, len
+                ValueLayout.ADDRESS                           // created_by_len_out
+            )
+        );
         GET_FILTERED_BYTES = linker.downcallHandle(
             lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
@@ -133,6 +155,16 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS
+            )
+        );
+        // parquet_read_key_metadata(file, file_len, out_buf, out_buf_len, out_len_out) -> i64
+        READ_KEY_METADATA = linker.downcallHandle(
+            lib.find("parquet_read_key_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // file
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,  // out_buf
+                ValueLayout.ADDRESS                           // out_len_out
             )
         );
         ON_SETTINGS_UPDATE = linker.downcallHandle(
@@ -292,7 +324,8 @@ public class RustBridge {
 
     public static void initLogger() {}
 
-    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
+    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration,
+                             PmeFileEncryptionInputs encryptionInputs)
         throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
@@ -314,7 +347,13 @@ public class RustBridge {
                 (long) sortConfig.reverseSorts().size(),
                 nullsFirstArray,
                 (long) sortConfig.nullsFirst().size(),
-                writerGeneration
+                writerGeneration,
+                encryptionInputs != null ? call.bytes(encryptionInputs.footerKey()) : MemorySegment.NULL,
+                encryptionInputs != null ? (long) encryptionInputs.footerKey().length : 0L,
+                encryptionInputs != null ? call.bytes(encryptionInputs.keyMetadataJson()) : MemorySegment.NULL,
+                encryptionInputs != null ? (long) encryptionInputs.keyMetadataJson().length : 0L,
+                encryptionInputs != null ? call.bytes(encryptionInputs.aadPrefix()) : MemorySegment.NULL,
+                encryptionInputs != null ? (long) encryptionInputs.aadPrefix().length : 0L
             );
         }
     }
@@ -431,6 +470,106 @@ public class RustBridge {
             int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
             return new String(out.data().asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
         }
+    }
+
+    /**
+     * Reads the encrypted Parquet file metadata using the provided per-file encryption inputs.
+     *
+     * @param file             path to the encrypted Parquet file
+     * @param encryptionInputs per-file PME inputs containing the derived footer key and AAD prefix
+     * @return file metadata
+     * @throws IOException if reading or decryption fails
+     */
+    public static ParquetFileMetadata getFileMetadata(String file, PmeFileEncryptionInputs encryptionInputs) throws IOException {
+        if (encryptionInputs == null) {
+            return getFileMetadata(file);
+        }
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            byte[] footerKeyBytes = encryptionInputs.footerKey();
+            byte[] aadBytes = encryptionInputs.aadPrefix();
+            var footerKey = call.bytes(footerKeyBytes);
+            var aadPrefix = call.bytes(aadBytes);
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var out = call.outBuffer(1024);
+            call.invokeIO(
+                GET_FILE_METADATA_DECRYPTED,
+                f.segment(), f.len(),
+                footerKey, (long) footerKeyBytes.length,
+                aadPrefix, (long) aadBytes.length,
+                versionOut, numRowsOut,
+                out.data(), (long) out.capacity(),
+                out.lenOut()
+            );
+            int createdByLen = out.actualLength();
+            return new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null,
+                0L,
+                0
+            );
+        }
+    }
+
+    /**
+     * Returns the decrypted row count for an encrypted Parquet file.
+     *
+     * @param file             path to the encrypted Parquet file
+     * @param encryptionInputs per-file PME inputs containing the derived footer key and AAD prefix
+     * @return total row count
+     * @throws IOException if reading or decryption fails
+     */
+    public static long getDecryptedNumRows(String file, PmeFileEncryptionInputs encryptionInputs) throws IOException {
+        return getFileMetadata(file, encryptionInputs).numRows();
+    }
+
+    /**
+     * Reads the plaintext {@code key_metadata} bytes from an encrypted Parquet file's
+     * {@code FileCryptoMetaData} without decrypting the footer.
+     *
+     * <p>Returns {@code null} if the file is not encrypted or has no {@code key_metadata}.
+     *
+     * @param file path to the Parquet file
+     * @return UTF-8 JSON key metadata bytes, or {@code null}
+     * @throws IOException if the file cannot be read or is malformed
+     */
+    public static byte[] readKeyMetadata(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var out = call.outBuffer(256);
+            long rc = call.invokeIO(
+                READ_KEY_METADATA,
+                f.segment(), f.len(),
+                out.data(), (long) out.capacity(),
+                out.lenOut()
+            );
+            if (rc == 1) {
+                // Not encrypted or no key_metadata.
+                return null;
+            }
+            int len = out.actualLength();
+            if (len < 0) {
+                return null;
+            }
+            return out.data().asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+        }
+    }
+
+    /**
+     * Alias for {@link #readKeyMetadata(String)} — reads the plaintext {@code key_metadata}
+     * bytes from an encrypted Parquet file's {@code FileCryptoMetaData} without decrypting
+     * the footer.
+     *
+     * @param file path to the Parquet file
+     * @return raw key_metadata bytes, or {@code null} if not encrypted / no metadata
+     * @throws IOException if the file cannot be read or is malformed
+     */
+    public static byte[] readParquetKeyMetadata(String file) throws IOException {
+        return readKeyMetadata(file);
     }
 
     public static long getFilteredNativeBytesUsed(String pathPrefix) {

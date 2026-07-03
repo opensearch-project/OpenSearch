@@ -13,8 +13,7 @@ use std::thread;
 use tempfile::tempdir;
 
 use crate::test_utils::*;
-use crate::writer::NativeParquetWriter;
-use crate::writer::SETTINGS_STORE;
+use crate::writer::{NativeParquetWriter, ParquetEncryptionOptions, SETTINGS_STORE};
 use crate::native_settings::NativeSettings;
 
 use std::fs::File;
@@ -32,7 +31,7 @@ fn test_create_writer_success() {
 fn test_create_writer_invalid_path() {
     let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
     let (_schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(invalid_path.to_string(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![], 0);
+    let result = NativeParquetWriter::create_writer(invalid_path.to_string(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![], 0, None);
     assert!(result.is_err());
     cleanup_ffi_schema(schema_ptr);
 }
@@ -40,7 +39,7 @@ fn test_create_writer_invalid_path() {
 #[test]
 fn test_create_writer_invalid_schema_pointer() {
     let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
-    let result = NativeParquetWriter::create_writer(filename, "test-index".to_string(), 0, vec![], vec![], vec![], 0);
+    let result = NativeParquetWriter::create_writer(filename, "test-index".to_string(), 0, vec![], vec![], vec![], 0, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
 }
@@ -50,12 +49,75 @@ fn test_create_writer_multiple_times_same_file() {
     let (_temp_dir, filename) = get_temp_file_path("duplicate.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (_, schema_ptr2) = create_test_ffi_schema();
-    let result2 = NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr2, vec![], vec![], vec![], 0);
+    let result2 = NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr2, vec![], vec![], vec![], 0, None);
     assert!(result2.is_err());
     assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
     cleanup_ffi_schema(schema_ptr2);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
 }
+
+#[test]
+fn test_create_writer_with_pme_encryption() {
+    let (_temp_dir, filename) = get_temp_file_path("pme.parquet");
+    let (_schema, schema_ptr) = create_test_ffi_schema();
+    let encryption_options = Some(ParquetEncryptionOptions {
+        footer_key: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        key_metadata_json: b"{\"key\":\"test\"}".to_vec(),
+        aad_prefix: vec![],
+    });
+
+    let result = NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![], 0, encryption_options);
+    assert!(result.is_ok());
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+    assert!(finalize_result.crc32 != 0);
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_get_file_metadata_decrypted_with_footer_key() {
+    let (_temp_dir, filename) = get_temp_file_path("pme_decrypted_read.parquet");
+    let (_schema, schema_ptr) = create_test_ffi_schema();
+    let footer_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    let encryption_options = Some(ParquetEncryptionOptions {
+        footer_key: footer_key.clone(),
+        key_metadata_json: b"{\"key\":\"test\"}".to_vec(),
+        aad_prefix: vec![],
+    });
+
+    NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![], 0, encryption_options).unwrap();
+    let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
+    NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
+    cleanup_ffi_data(array_ptr, data_schema_ptr);
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let decrypted_metadata = NativeParquetWriter::get_file_metadata_decrypted(filename.clone(), footer_key, None).unwrap();
+    assert_eq!(decrypted_metadata.num_rows(), 3);
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_get_file_metadata_decrypted_with_wrong_footer_key_fails() {
+    let (_temp_dir, filename) = get_temp_file_path("pme_wrong_key_read.parquet");
+    let (_schema, schema_ptr) = create_test_ffi_schema();
+    let encryption_options = Some(ParquetEncryptionOptions {
+        footer_key: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        key_metadata_json: b"{\"key\":\"test\"}".to_vec(),
+        aad_prefix: vec![],
+    });
+
+    NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![], 0, encryption_options).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let result = NativeParquetWriter::get_file_metadata_decrypted(
+        filename.clone(),
+        vec![9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
+        None,
+    );
+    assert!(result.is_err());
+    cleanup_ffi_schema(schema_ptr);
+}
+
 
 #[test]
 fn test_write_data_success() {
@@ -138,6 +200,7 @@ fn test_finalize_writer_with_data_returns_correct_metadata() {
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
     assert!(metadata.metadata.file_metadata().version() > 0);
+    assert_eq!(metadata.metadata.file_metadata().schema_descr().num_columns(), 2);
     assert_ne!(metadata.crc32, 0, "CRC32 should be non-zero for a file with data");
     cleanup_ffi_schema(schema_ptr);
 }
@@ -157,7 +220,7 @@ fn test_close_multiple_times_same_file() {
     cleanup_ffi_data(array_ptr, data_schema_ptr);
     let result1 = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result1.is_ok());
-    let result2 = NativeParquetWriter::finalize_writer(filename);
+    let result2 = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result2.is_err());
     assert!(result2.unwrap_err().to_string().contains("Writer not found"));
     cleanup_ffi_schema(schema_ptr);

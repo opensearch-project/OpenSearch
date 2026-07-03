@@ -26,6 +26,8 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.encryption.PmeFileEncryptionInputs;
+import org.opensearch.parquet.encryption.PmeKeyDerivation;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
@@ -37,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ParquetWriterTests extends ParquetBaseTests {
 
@@ -97,106 +100,126 @@ public class ParquetWriterTests extends ParquetBaseTests {
 
     public void testAddDocReturnsSuccess() throws Exception {
         String filePath = createTempDir().resolve("success.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(
-            filePath,
-            1L,
-            1L,
-            new ParquetDataFormat(),
-            schema,
-            () -> schema,
-            bufferPool,
-            indexSettings,
-            threadPool,
-            null
-        );
-
-        ParquetDocumentInput doc = new ParquetDocumentInput();
-        populateMetadataFields(doc);
-        doc.addField(idField, 1);
-        doc.addField(nameField, "alice");
-        doc.addField(scoreField, 100L);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
-        WriteResult result = writer.addDoc(doc);
-        assertTrue(result instanceof WriteResult.Success);
-        doc.close();
-        writer.flush(FlushInput.EMPTY);
+        try (ParquetWriter writer = new ParquetWriter(
+            filePath, 1L, 1L, new ParquetDataFormat(), schema, () -> schema, bufferPool, indexSettings, threadPool, null
+        )) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(idField, 1);
+            doc.addField(nameField, "alice");
+            doc.addField(scoreField, 100L);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            WriteResult result = writer.addDoc(doc);
+            assertTrue(result instanceof WriteResult.Success);
+            doc.close();
+            writer.flush(FlushInput.EMPTY);
+        }
     }
 
     public void testSingleDocumentFlush() throws Exception {
         String filePath = createTempDir().resolve("single.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(
-            filePath,
-            1L,
-            1L,
-            new ParquetDataFormat(),
-            schema,
-            () -> schema,
-            bufferPool,
-            indexSettings,
-            threadPool,
-            null
-        );
+        try (ParquetWriter writer = new ParquetWriter(
+            filePath, 1L, 1L, new ParquetDataFormat(), schema, () -> schema, bufferPool, indexSettings, threadPool, null
+        )) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(idField, 42);
+            doc.addField(nameField, "bob");
+            doc.addField(scoreField, 500L);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            writer.addDoc(doc);
+            doc.close();
 
-        ParquetDocumentInput doc = new ParquetDocumentInput();
-        populateMetadataFields(doc);
-        doc.addField(idField, 42);
-        doc.addField(nameField, "bob");
-        doc.addField(scoreField, 500L);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
-        writer.addDoc(doc);
-        doc.close();
-
-        writer.flush(FlushInput.EMPTY);
-        assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
+            writer.flush(FlushInput.EMPTY);
+            assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
+        }
     }
 
     public void testMultipleDocumentsFlush() throws Exception {
         String filePath = createTempDir().resolve("multi.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(
-            filePath,
-            1L,
-            1L,
-            new ParquetDataFormat(),
-            schema,
-            () -> schema,
-            bufferPool,
-            indexSettings,
-            threadPool,
-            null
-        );
+        try (ParquetWriter writer = new ParquetWriter(
+            filePath, 1L, 1L, new ParquetDataFormat(), schema, () -> schema, bufferPool, indexSettings, threadPool, null
+        )) {
+            for (int i = 0; i < 10; i++) {
+                ParquetDocumentInput doc = new ParquetDocumentInput();
+                populateMetadataFields(doc);
+                doc.addField(idField, i);
+                doc.addField(nameField, "user_" + i);
+                doc.addField(scoreField, (long) (i * 100));
+                doc.setRowId("__row_id__", i);
+                writer.addDoc(doc);
+                doc.close();
+            }
 
-        for (int i = 0; i < 10; i++) {
-            ParquetDocumentInput doc = new ParquetDocumentInput();
-            populateMetadataFields(doc);
-            doc.addField(idField, i);
-            doc.addField(nameField, "user_" + i);
-            doc.addField(scoreField, (long) (i * 100));
-            doc.setRowId("__row_id__", i);
-            writer.addDoc(doc);
-            doc.close();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            assertNotNull(fileInfos);
+            assertTrue(Files.exists(Path.of(filePath)));
+            assertEquals(10, RustBridge.getFileMetadata(filePath).numRows());
         }
-
-        FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
-        assertNotNull(fileInfos);
-        assertTrue(Files.exists(Path.of(filePath)));
-        assertEquals(10, RustBridge.getFileMetadata(filePath).numRows());
     }
 
     public void testFlushWithNoDocuments() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(
-            filePath,
-            1L,
-            1L,
-            new ParquetDataFormat(),
-            schema,
-            () -> schema,
-            bufferPool,
-            indexSettings,
-            threadPool,
-            null
+        try (ParquetWriter writer = new ParquetWriter(
+            filePath, 1L, 1L, new ParquetDataFormat(), schema, () -> schema, bufferPool, indexSettings, threadPool, null
+        )) {
+            assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+        }
+    }
+
+    public void testSyncAfterFlush() throws Exception {
+        String filePath = createTempDir().resolve("sync.parquet").toString();
+        try (ParquetWriter writer = new ParquetWriter(
+            filePath, 1L, 1L, new ParquetDataFormat(), schema, () -> schema, bufferPool, indexSettings, threadPool, null
+        )) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(idField, 1);
+            doc.addField(nameField, "alice");
+            doc.addField(scoreField, 100L);
+            doc.setRowId("__row_id__", 0);
+            writer.addDoc(doc);
+            doc.close();
+
+            writer.flush(FlushInput.EMPTY);
+            assertTrue(Files.exists(Path.of(filePath)));
+        }
+    }
+
+    public void testFlushPersistsPerFilePmeMetadata() throws Exception {
+        String filePath = createTempDir().resolve("encrypted.parquet").toString();
+
+        // Build encryption inputs directly from known key material.
+        byte[] dataKey = randomByteArrayOfLength(32);
+        byte[] messageId = randomByteArrayOfLength(16);
+        byte[] footerKey = PmeKeyDerivation.deriveFooterKey(dataKey, messageId);
+        byte[] aadPrefix = PmeKeyDerivation.buildAadPrefix(messageId);
+        PmeFileEncryptionInputs encryptionConfig = PmeFileEncryptionInputs.forDecryption(footerKey, aadPrefix);
+
+        FileInfos fileInfos;
+        try (ParquetWriter writer = new ParquetWriter(
+            filePath, 1L, 1L, new ParquetDataFormat(), schema, () -> schema, bufferPool, indexSettings, threadPool, null, encryptionConfig
+        )) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(idField, 7);
+            doc.addField(nameField, "enc");
+            doc.addField(scoreField, 700L);
+            doc.setRowId("__row_id__", 0);
+            writer.addDoc(doc);
+            doc.close();
+
+            fileInfos = writer.flush(FlushInput.EMPTY);
+        }
+        String fileName = Path.of(filePath).getFileName().toString();
+        Map<String, String> metadata = fileInfos.writerFilesMap().values().iterator().next().metadataForFile(fileName);
+
+        // PME key_metadata is now stored only in the Parquet file footer — not in catalog metadata.
+        // The WriterFileSet must be empty to avoid duplicating key material in the catalog.
+        assertTrue(
+            "Encrypted Parquet file must not emit PME per-file catalog metadata; got: " + metadata,
+            metadata.isEmpty()
         );
-        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {

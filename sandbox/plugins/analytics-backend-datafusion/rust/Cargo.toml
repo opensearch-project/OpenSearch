@@ -12,7 +12,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 libc = "0.2"
-datafusion = { workspace = true }
+datafusion = { workspace = true, features = ["parquet_encryption"] }
 datafusion-expr = { workspace = true }
 datafusion-datasource = { workspace = true }
 datafusion-common = { workspace = true }
@@ -46,6 +46,9 @@ async-trait = { workspace = true }
 chrono = { workspace = true }
 roaring = "=0.10.12"
 thiserror = { workspace = true }
+# Required to use thrift::protocol::TCompactInputProtocol for parsing
+# parquet::format::FileCryptoMetaData in pme_reader.rs.
+thrift = "=0.17.0"
 
 # convert_tz UDF
 chrono-tz = "=0.10.4"
@@ -103,6 +106,7 @@ proptest = { workspace = true }
 # Used only by tiered_storage_integration_tests.rs, which exercise FoyerCache /
 # TieredBlockCache directly through the TieredObjectStore.
 opensearch-block-cache = { path = "../../block-cache-foyer/src/main/rust" }
+bytes = { workspace = true }
 
 [[bench]]
 name = "query_bench"

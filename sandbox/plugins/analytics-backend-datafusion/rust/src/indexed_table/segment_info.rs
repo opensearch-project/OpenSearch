@@ -22,6 +22,7 @@ use datafusion::parquet::file::metadata::ParquetMetaData;
 use super::parquet_bridge;
 use super::stream::RowGroupInfo;
 use super::table_provider::SegmentFileInfo;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::catalog::Session;
@@ -30,6 +31,8 @@ use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
+use datafusion_common::config::TableParquetOptions;
+use parquet::encryption::decrypt::FileDecryptionProperties;
 
 /// Parquet footer kv key under which the writer stamps the writer generation.
 /// Must match `parquet-data-format`'s `WRITER_GENERATION_KEY`.
@@ -40,6 +43,11 @@ const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
 ///
 /// `writer_generations[i]` is the writer generation of `object_metas[i]`. Both slices
 /// must have the same length.
+///
+/// `file_footer_keys` / `file_aad_prefixes` – per-file PME keys (filename → bytes).
+/// When non-empty, per-file `FileDecryptionProperties` are built and passed to
+/// `load_parquet_metadata` so the encrypted footer can be read. `infer_schema`
+/// likewise uses a PME-configured `ParquetFormat`.
 ///
 /// The returned schema is the **union across all segment parquet files**,
 /// computed by `ParquetFormat::infer_schema` — the same function
@@ -55,6 +63,8 @@ pub async fn build_segments(
     writer_generations: &[i64],
     metadata_cache: Arc<dyn FileMetadataCache>,
     sort_fields: &[String],
+    file_footer_keys: &HashMap<String, Vec<u8>>,
+    file_aad_prefixes: &HashMap<String, Vec<u8>>,
 ) -> Result<(Vec<SegmentFileInfo>, arrow::datatypes::SchemaRef), String> {
     if object_metas.len() != writer_generations.len() {
         return Err(format!(
@@ -72,6 +82,9 @@ pub async fn build_segments(
     let mut cumulative_rows: u64 = 0;
 
     for (seg_ord, meta) in object_metas.iter().enumerate() {
+        // Build per-file decryption properties if a footer key is registered for this file.
+        let decryption_props = build_decryption_props(&meta.location, file_footer_keys, file_aad_prefixes);
+
         // Per-segment parquet metadata (RG info, page index) — still needed
         // regardless of schema derivation. The file_metadata_cache on the
         // RuntimeEnv that `infer_schema` uses below shares this data when
@@ -85,6 +98,7 @@ pub async fn build_segments(
             &meta.location,
             meta.clone(),
             Arc::clone(&metadata_cache),
+            decryption_props,
         )
         .await
         .map_err(|e| format!("parquet metadata {}: {}", meta.location, e))?;
@@ -147,12 +161,39 @@ pub async fn build_segments(
     //      if configured.
     // Use Utf8View — ParquetOpener's apply_file_schema_type_coercions keeps the file/table
     // schemas aligned, so QTF's coordinator-declared Utf8View matches the produced batches.
-    let format = ParquetFormat::default().with_force_view_types(true);
-    let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
+    //
+    // When the shard contains PME-encrypted files, the ParquetFormat must be configured
+    // with the PME factory_id so infer_schema can decrypt the footer during schema fetch.
+    let format: Box<dyn FileFormat> = if file_footer_keys.is_empty() == false {
+        use crate::query_executor::OPENSEARCH_PME_FACTORY_ID;
+        let mut opts = TableParquetOptions::default();
+        opts.crypto.factory_id = Some(OPENSEARCH_PME_FACTORY_ID.to_owned());
+        Box::new(ParquetFormat::new().with_force_view_types(true).with_options(opts))
+    } else {
+        Box::new(ParquetFormat::default().with_force_view_types(true))
+    };
+    let schema = FileFormat::infer_schema(format.as_ref(), state, &store, object_metas)
         .await
         .map_err(|e| format!("infer_schema union: {}", e))?;
 
     Ok((segments, schema))
+}
+
+/// Build `FileDecryptionProperties` for a single file if a footer key is registered for it.
+fn build_decryption_props(
+    location: &object_store::path::Path,
+    file_footer_keys: &HashMap<String, Vec<u8>>,
+    file_aad_prefixes: &HashMap<String, Vec<u8>>,
+) -> Option<Arc<FileDecryptionProperties>> {
+    let filename = location.filename()?;
+    let footer_key = file_footer_keys.get(filename)?;
+    let mut builder = FileDecryptionProperties::builder(footer_key.clone());
+    if let Some(aad) = file_aad_prefixes.get(filename) {
+        if aad.is_empty() == false {
+            builder = builder.with_aad_prefix(aad.clone());
+        }
+    }
+    builder.build().ok()
 }
 
 /// Read the writer generation out of a parquet footer's key-value metadata and panic if
@@ -304,6 +345,26 @@ mod tests {
         Arc::new(DefaultFilesMetadataCache::new(50 * 1024 * 1024))
     }
 
+    /// Shorthand: call `build_segments` without PME keys (plain-text files).
+    async fn build_segments_plain(
+        state: &dyn datafusion::catalog::Session,
+        store: Arc<dyn object_store::ObjectStore>,
+        object_metas: &[object_store::ObjectMeta],
+        writer_generations: &[i64],
+        metadata_cache: Arc<dyn FileMetadataCache>,
+    ) -> Result<(Vec<SegmentFileInfo>, arrow::datatypes::SchemaRef), String> {
+        build_segments(
+            state,
+            store,
+            object_metas,
+            writer_generations,
+            metadata_cache,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .await
+    }
+
     /// Write a parquet file with the given schema + arrays into `dir`
     /// under `filename`. Returns the absolute filesystem path.
     fn write_parquet(
@@ -368,7 +429,7 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
         let gens: Vec<i64> = (0..metas.len() as i64).collect();
-        let (segments, merged) = build_segments(
+        let (segments, merged) = build_segments_plain(
             &ctx.state(),
             Arc::clone(&store),
             &metas,
@@ -425,7 +486,7 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
         let gens: Vec<i64> = (0..metas.len() as i64).collect();
-        let (_segments, merged) = build_segments(
+        let (_segments, merged) = build_segments_plain(
             &ctx.state(),
             Arc::clone(&store),
             &metas,
@@ -492,7 +553,7 @@ mod tests {
         let gens_ab: Vec<i64> = (0..metas_ab.len() as i64).collect();
         let gens_ba: Vec<i64> = (0..metas_ba.len() as i64).collect();
 
-        let (_, schema_ab) = build_segments(
+        let (_, schema_ab) = build_segments_plain(
             &ctx.state(),
             Arc::clone(&store),
             &metas_ab,
@@ -502,7 +563,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let (_, schema_ba) = build_segments(
+        let (_, schema_ba) = build_segments_plain(
             &ctx.state(),
             Arc::clone(&store),
             &metas_ba,
@@ -555,7 +616,7 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
         let gens: Vec<i64> = (0..metas.len() as i64).collect();
-        let result = build_segments(
+        let result = build_segments_plain(
             &ctx.state(),
             Arc::clone(&store),
             &metas,

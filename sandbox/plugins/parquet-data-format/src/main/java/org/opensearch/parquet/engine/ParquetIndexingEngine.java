@@ -28,6 +28,8 @@ import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.encryption.PmeContext;
+import org.opensearch.parquet.encryption.PmeFileEncryptionInputs;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
@@ -60,11 +62,8 @@ import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT
  *   <li>A shared {@link ArrowBufferPool} for Arrow memory allocation across all writers.</li>
  *   <li>Writer creation per writer generation, each producing a separate Parquet file.</li>
  *   <li>Native memory usage reporting (Arrow allocations + Rust-side allocations).</li>
+ *   <li>Optional PME encryption via {@link PmeContext} (one per engine, null if unencrypted).</li>
  * </ul>
- *
- * <p>Node-level {@link Settings} are passed through to each {@link ParquetWriter} at creation
- * time, where writer-specific settings (e.g., {@code parquet.max_rows_per_vsr}) are
- * extracted and applied.
  */
 public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput> {
 
@@ -88,6 +87,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
     private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
+    /** Non-null when the index is configured for PME encryption; null otherwise. */
+    private final PmeContext pmeContext;
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -156,6 +157,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.nodeSettings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
+        this.pmeContext = initializePmeContext(indexSettings, shardPath);
         try {
             Files.createDirectory(shardPath.resolve(dataFormat.name()));
         } catch (FileAlreadyExistsException ex) {
@@ -245,6 +247,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         long mappingVersion = mappingVersionSupplier.get();
         Schema schema = getOrBuildSchema();
         Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
+        PmeFileEncryptionInputs encryptionInputs = null;
+        if (pmeContext != null) {
+            try {
+                encryptionInputs = pmeContext.createFileEncryptionInputs();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create PME encryption inputs for " + filePath, e);
+            }
+        }
         return new ParquetWriter(
             filePath.toString(),
             config.writerGeneration(),
@@ -256,7 +266,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             indexSettings,
             threadPool,
             checksumStrategy,
-            statsTracker
+            statsTracker,
+            encryptionInputs
         );
     }
 
@@ -349,6 +360,33 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             );
         }
         bufferPool.close();
+        if (pmeContext != null) {
+            pmeContext.evict();
+        }
+    }
+
+    /**
+     * Initializes the per-engine {@link PmeContext} if the index is configured for encryption.
+     * Returns {@code null} for unencrypted indices.
+     *
+     * <p>The index-level keyfile (at {@code <index-data-dir>/keyfile}) is created atomically
+     * on first call; concurrent shard engines race on {@code CREATE_NEW}, the loser reads the
+     * winner's file.
+     */
+    private static PmeContext initializePmeContext(IndexSettings indexSettings, ShardPath shardPath) {
+        if (indexSettings == null) {
+            return null;
+        }
+        // Index-level data directory: parent of all shard directories.
+        // shardPath.getDataPath() = .../indices/{uuid}/{shardId}/index
+        //   -> .getParent() = .../indices/{uuid}/{shardId}
+        //   -> .getParent().getParent() = .../indices/{uuid}  (index-level dir)
+        Path indexDataPath = shardPath.getDataPath().getParent().getParent();
+        try {
+            return PmeContext.create(indexSettings, indexDataPath, shardPath.getShardId().id());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to initialize PME context for index " + indexSettings.getIndex().getUUID(), e);
+        }
     }
 
     /**

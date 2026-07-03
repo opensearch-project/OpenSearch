@@ -14,6 +14,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,6 +49,26 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         assertEquals(original.writerGeneration(), deserialized.writerGeneration());
         assertEquals(original.files(), deserialized.files());
         assertEquals(original.numRows(), deserialized.numRows());
+        assertEquals(original.perFileMetadata(), deserialized.perFileMetadata());
+    }
+
+    public void testPerFileMetadataRoundTrip() throws Exception {
+        WriterFileSet original = new WriterFileSet(
+            "/tmp/original",
+            3L,
+            Set.of("_0.parquet"),
+            42L,
+            Map.of("_0.parquet", Map.of("opensearch.pme.encrypted", "true", "opensearch.pme.kms.instance_id", "kms-1"))
+        );
+
+        WriterFileSet deserialized = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new WriterFileSet(in, "/tmp/other")
+        );
+
+        assertEquals(original.perFileMetadata(), deserialized.perFileMetadata());
+        assertEquals("true", deserialized.metadataForFile("_0.parquet").get("opensearch.pme.encrypted"));
     }
 
     public void testStreamRoundTripPreservesFormatVersion() throws Exception {
@@ -74,6 +95,9 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom("cfs", "si", "dat", "parquet"));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000), 0L);
+        Map<String, Map<String, String>> metadata = randomBoolean()
+            ? Map.of()
+            : Map.of(files.iterator().next(), Map.of("opensearch.pme.encrypted", "true"));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000), 0L, metadata);
     }
 }

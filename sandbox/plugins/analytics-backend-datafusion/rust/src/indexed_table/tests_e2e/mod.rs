@@ -306,6 +306,7 @@ async fn run_tree_and_plan(
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();

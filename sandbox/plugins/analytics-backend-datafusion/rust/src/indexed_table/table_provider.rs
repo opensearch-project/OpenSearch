@@ -55,7 +55,8 @@ use super::partitioning::{
     compute_assignments, compute_assignments_one_per_segment, segments_chain_on_sort_key,
     PartitionAssignment, SegmentChunk, SegmentLayout,
 };
-use super::stream::{IndexedExec, RowGroupInfo};
+use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use datafusion_execution::parquet_encryption::EncryptionFactory;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
@@ -210,6 +211,9 @@ pub struct IndexedTableConfig {
     /// down to `IndexReader` so the scan cooperatively stops when the query task
     /// is cancelled. `None` for untracked queries (`context_id == 0`) and tests.
     pub cancellation_token: Option<tokio_util::sync::CancellationToken>,
+    /// Per-shard PME decryption factory. When set, DataFusion calls it for each
+    /// file to get `FileDecryptionProperties` before reading column data.
+    pub encryption_factory: Option<Arc<dyn EncryptionFactory>>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -704,6 +708,7 @@ impl ExecutionPlan for QueryShardExec {
                 row_id_output_index: self.row_id_output_index,
                 dynamic_filter: dynamic_filter.clone(),
                 cancellation_token: self.config.cancellation_token.clone(),
+                encryption_factory: self.config.encryption_factory.clone(),
             };
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
@@ -834,6 +839,7 @@ mod tests {
             sort_fields: vec![],
             sort_orders: vec![],
             cancellation_token: None,
+            encryption_factory: None,
         }
     }
 

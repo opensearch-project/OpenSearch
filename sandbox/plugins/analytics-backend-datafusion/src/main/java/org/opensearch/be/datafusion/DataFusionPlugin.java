@@ -23,6 +23,7 @@ import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -83,6 +84,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import io.substrait.extension.DefaultExtensionCatalog;
@@ -954,13 +956,30 @@ public class DataFusionPlugin extends Plugin
                 }
             }
         }
+        // TODO: At the moment, PME uses index.store.parquet.crypto.* settings (not the Lucene-plugin index.store.crypto.* keys).
+        // This is because the setting is defined by the Lucene plugin, even though it should be defined
+        // in a generic place. We should find a consolidated location for this.
+        // However, CryptoMetadata.fromIndexSettings() assumes the Lucene-Plugin style keys, so
+        // we can't use it. So, we must extract them manually.
+        Optional<CryptoMetadata> cryptoMetadata = Optional.empty();
+        if (indexSettings != null) {
+            org.opensearch.common.settings.Settings raw = indexSettings.getSettings();
+            String keyProviderName = raw.get("index.store.parquet.crypto.key_provider");
+            if (keyProviderName != null && !keyProviderName.isEmpty()) {
+                String keyProviderType = raw.get("index.store.parquet.crypto.key_provider_type", "");
+                cryptoMetadata = Optional.of(
+                    new CryptoMetadata(keyProviderName, keyProviderType, org.opensearch.common.settings.Settings.EMPTY)
+                );
+            }
+        }
         return new DatafusionReaderManager(
             settings.format(),
             settings.shardPath(),
             dataFusionService,
             dataformatAwareStoreHandle,
             sortFields,
-            sortOrders
+            sortOrders,
+            cryptoMetadata
         );
     }
 

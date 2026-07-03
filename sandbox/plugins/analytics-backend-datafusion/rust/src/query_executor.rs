@@ -6,9 +6,12 @@
  * compatible open source license.
  */
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use native_bridge_common::log_debug;
+use async_trait::async_trait;
+use arrow::datatypes::SchemaRef;
 use datafusion::{
     common::DataFusionError,
     datasource::listing::ListingTableUrl,
@@ -20,18 +23,77 @@ use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFile
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{col, lit};
+use datafusion_common::config::EncryptionFactoryOptions;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion_execution::parquet_encryption::EncryptionFactory;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
+use object_store::path::Path;
+use parquet::encryption::decrypt::FileDecryptionProperties;
+use parquet::encryption::encrypt::FileEncryptionProperties;
 use prost::Message;
 use substrait::proto::Plan;
 
 use crate::api::{DataFusionRuntime, ShardFileInfo};
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::helper::{build_query_runtime_env_with_store, build_query_session_context, register_listing_table};
+use crate::helper::{build_query_runtime_env_with_store, build_query_session_context, register_listing_table, register_listing_table_with_format};
 use crate::session_context::SessionContextHandle;
+
+pub const OPENSEARCH_PME_FACTORY_ID: &str = "opensearch_pme";
+
+#[derive(Debug)]
+pub struct OpenSearchPmeDecryptionFactory {
+    file_footer_keys: Arc<HashMap<String, Vec<u8>>>,
+    file_aad_prefixes: Arc<HashMap<String, Vec<u8>>>,
+}
+
+impl OpenSearchPmeDecryptionFactory {
+    pub fn new(file_footer_keys: Arc<HashMap<String, Vec<u8>>>, file_aad_prefixes: Arc<HashMap<String, Vec<u8>>>) -> Self {
+        Self { file_footer_keys, file_aad_prefixes }
+    }
+}
+
+#[async_trait]
+impl EncryptionFactory for OpenSearchPmeDecryptionFactory {
+    async fn get_file_encryption_properties(
+        &self,
+        _config: &EncryptionFactoryOptions,
+        _schema: &SchemaRef,
+        _file_path: &Path,
+    ) -> datafusion_common::Result<Option<Arc<FileEncryptionProperties>>> {
+        Ok(None)
+    }
+
+    async fn get_file_decryption_properties(
+        &self,
+        _config: &EncryptionFactoryOptions,
+        file_path: &Path,
+    ) -> datafusion_common::Result<Option<Arc<FileDecryptionProperties>>> {
+        let filename = match file_path.filename() {
+            Some(f) => f,
+            None => return Ok(None),
+        };
+        match self.file_footer_keys.get(filename) {
+            Some(footer_key) => {
+                let mut builder = FileDecryptionProperties::builder(footer_key.clone());
+                // Set the AAD prefix if present — required for files written with an AAD prefix.
+                if let Some(aad_prefix) = self.file_aad_prefixes.get(filename) {
+                    if !aad_prefix.is_empty() {
+                        builder = builder.with_aad_prefix(aad_prefix.clone());
+                    }
+                }
+                let properties = builder
+                    .build()
+                    .map_err(|e| DataFusionError::Execution(format!("Failed to build PME decryption properties: {}", e)))?;
+                Ok(Some(properties))
+            }
+            None => Ok(None),
+        }
+    }
+}
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
 /// File access goes through DataFusion's registered object store.
@@ -45,6 +107,8 @@ pub async fn execute_query(
     object_metas: Arc<Vec<ObjectMeta>>,
     table_name: String,
     plan_bytes: Vec<u8>,
+    file_footer_keys: Arc<HashMap<String, Vec<u8>>>,
+    file_aad_prefixes: Arc<HashMap<String, Vec<u8>>>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
@@ -65,6 +129,25 @@ pub async fn execute_query(
         query_memory_pool,
     )?;
 
+    // Register the PME decryption factory when the shard contains encrypted files.
+    // Both the factory registration AND the ParquetFormat factory_id option are required:
+    // registration alone is insufficient — DataFusion only calls get_file_decryption_properties
+    // when ParquetFormat.options.crypto.factory_id is set.
+    let parquet_format = if file_footer_keys.is_empty() == false {
+        runtime_env.register_parquet_encryption_factory(
+            OPENSEARCH_PME_FACTORY_ID,
+            Arc::new(OpenSearchPmeDecryptionFactory::new(
+                Arc::clone(&file_footer_keys),
+                Arc::clone(&file_aad_prefixes),
+            )),
+        );
+        let mut parquet_options = datafusion_common::config::TableParquetOptions::default();
+        parquet_options.crypto.factory_id = Some(OPENSEARCH_PME_FACTORY_ID.to_owned());
+        ParquetFormat::new().with_options(parquet_options)
+    } else {
+        ParquetFormat::new()
+    };
+
     // Build a fresh session context per query (default optimizer rules on the
     // vanilla path). TODO : Tune this during planning per query.
     let ctx = build_query_session_context(
@@ -77,7 +160,7 @@ pub async fn execute_query(
     // Register the standard DataFusion ListingTable. This function only runs the vanilla
     // (non-row-id) path — QTF row-id plans always route to the indexed executor.
     // Declares the per-file sort order when the index has `index.sort.field`.
-    register_listing_table(&ctx, &table_name, table_path, sort_fields, sort_orders).await?;
+    register_listing_table_with_format(&ctx, &table_name, table_path, sort_fields, sort_orders, parquet_format).await?;
 
     // Planning: build the query DataFrame (Substrait decode for normal search, native filter for an
     // engine-internal point lookup). Physical planning + execution below is shared by both.

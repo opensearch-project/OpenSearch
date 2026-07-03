@@ -1,0 +1,2 @@
+.cluster*.log
+.cluster.pid

@@ -24,6 +24,7 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.encryption.PmeFileEncryptionInputs;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.vsr.VSRManager;
@@ -126,18 +127,83 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
     ) {
-        this(
+        this(file, writerGeneration, mappingVersion, dataFormat, schema, schemaSupplier, bufferPool, indexSettings, threadPool, checksumStrategy, (ParquetShardStatsTracker) null, null);
+    }
+
+    /**
+     * Creates a new ParquetWriter with optional PME encryption.
+     *
+     * <p>If {@code encryptionInputs} is non-null, the footer key is zeroed immediately after
+     * the native writer is initialized inside {@link VSRManager}.
+     *
+     * @param encryptionInputs per-file PME inputs; {@code null} writes an unencrypted file
+     */
+    public ParquetWriter(
+        String file,
+        long writerGeneration,
+        long mappingVersion,
+        ParquetDataFormat dataFormat,
+        Schema schema,
+        Supplier<Schema> schemaSupplier,
+        ArrowBufferPool bufferPool,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        PmeFileEncryptionInputs encryptionInputs
+    ) {
+        this.file = file;
+        this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
+        this.dataFormat = dataFormat;
+        this.checksumStrategy = checksumStrategy;
+        this.schemaSupplier = schemaSupplier;
+        this.stats = null;
+        this.vsrManager = new VSRManager(
             file,
-            writerGeneration,
-            mappingVersion,
-            dataFormat,
-            schema,
-            schemaSupplier,
-            bufferPool,
             indexSettings,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
             threadPool,
-            checksumStrategy,
-            new ParquetShardStatsTracker()
+            writerGeneration,
+            encryptionInputs
+        );
+    }
+
+    /**
+     * Creates a new ParquetWriter with both stats tracking and optional PME encryption.
+     */
+    public ParquetWriter(
+        String file,
+        long writerGeneration,
+        long mappingVersion,
+        ParquetDataFormat dataFormat,
+        Schema schema,
+        Supplier<Schema> schemaSupplier,
+        ArrowBufferPool bufferPool,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ParquetShardStatsTracker stats,
+        PmeFileEncryptionInputs encryptionInputs
+    ) {
+        this.file = file;
+        this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
+        this.dataFormat = dataFormat;
+        this.checksumStrategy = checksumStrategy;
+        this.schemaSupplier = schemaSupplier;
+        this.stats = stats;
+        this.vsrManager = new VSRManager(
+            file,
+            indexSettings,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            threadPool,
+            writerGeneration,
+            stats,
+            encryptionInputs
         );
     }
 
@@ -156,9 +222,9 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
                 return new WriteResult.Failure(e, -1, -1, -1);
             }
             acceptedRows++;
-            stats.addDocsIndexed(1);
+            if (stats != null) stats.addDocsIndexed(1);
             return new WriteResult.Success(1L, 1L, 1L);
-        }, stats::addIndexTimeMillis);
+        }, stats != null ? stats::addIndexTimeMillis : millis -> {});
     }
 
     @Override
@@ -201,14 +267,16 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             checksumStrategy.registerChecksum(new FileMetadata(dataFormat.name(), fileName), metadata.crc32(), writerGeneration);
         }
 
-        MonoFileWriterSet monoFileSet = MonoFileWriterSet.of(
+        MonoFileWriterSet fileSet = MonoFileWriterSet.of(
             filePath.getParent().toAbsolutePath(),
             writerGeneration,
             fileName,
             metadata.numRows(),
             ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION
         );
-        return FileInfos.builder().putWriterFileSet(dataFormat, monoFileSet).rowIdMapping(vsrManager.getRowIdMapping()).build();
+
+
+        return FileInfos.builder().putWriterFileSet(dataFormat, fileSet).rowIdMapping(vsrManager.getRowIdMapping()).build();
     }
 
     @Override
@@ -255,6 +323,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         }
     }
 
+
     @Override
     public void close() throws IOException {
         try {
@@ -263,5 +332,4 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             state = WriterState.CLOSED;
         }
     }
-
 }

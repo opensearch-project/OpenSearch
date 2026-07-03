@@ -1021,6 +1021,7 @@ dependencies = [
  "foldhash 0.2.0",
  "half",
  "hashbrown 0.17.1",
+ "hex",
  "indexmap",
  "itertools 0.14.0",
  "libc",
@@ -1205,6 +1206,7 @@ dependencies = [
  "log",
  "object_store",
  "parking_lot",
+ "parquet",
  "rand 0.9.4",
  "tempfile",
  "url",
@@ -2874,6 +2876,7 @@ dependencies = [
  "substrait",
  "tempfile",
  "thiserror 1.0.69",
+ "thrift",
  "tokio",
  "tokio-metrics",
  "tokio-stream",
@@ -2902,10 +2905,14 @@ name = "opensearch-parquet-format"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-array",
+ "arrow-buffer",
  "arrow-ipc",
+ "arrow-schema",
  "crc32fast",
  "dashmap 5.5.3",
  "lazy_static",
+ "log",
  "native-bridge-common",
  "opensearch-parquet-format",
  "parquet",
@@ -3040,6 +3047,7 @@ dependencies = [
  "num-traits",
  "object_store",
  "paste",
+ "ring",
  "seq-macro",
  "simdutf8",
  "snap",
@@ -4217,6 +4225,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "threadpool"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
+dependencies = [
+ "num_cpus",
+]
+
+[[package]]
 name = "thrift"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4224,7 +4241,9 @@ checksum = "7e54bc85fc7faa8bc175c4bab5b92ba8d9a3ce893d0e9f42cc455c8ab16a9e09"
 dependencies = [
  "byteorder",
  "integer-encoding",
+ "log",
  "ordered-float",
+ "threadpool",
 ]
 
 [[package]]

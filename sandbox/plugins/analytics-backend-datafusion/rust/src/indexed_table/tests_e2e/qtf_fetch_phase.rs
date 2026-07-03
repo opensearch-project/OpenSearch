@@ -130,6 +130,7 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();
@@ -233,6 +234,7 @@ async fn fetch_phase(
         file_schema: file_schema.clone(),
         files: vec![shard_file],
         store_url: store_url.clone(),
+        encryption_factory: None,
     }));
 
     // Register object store and table
@@ -444,6 +446,7 @@ async fn test_qtf_full_loop_two_segments() {
         file_schema: file_schema.clone(),
         files: vec![shard_file],
         store_url: store_url.clone(),
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();

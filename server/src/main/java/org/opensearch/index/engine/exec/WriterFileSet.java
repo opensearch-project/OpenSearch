@@ -16,9 +16,12 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -45,13 +48,35 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
     private final Set<String> files;
     private final long numRows;
     private final long formatVersion;
+    private final Map<String, Map<String, String>> perFileMetadata;
 
     public WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, long formatVersion) {
+        this(directory, writerGeneration, files, numRows, formatVersion, Map.of());
+    }
+
+    /** Convenience constructor (no formatVersion, with perFileMetadata). */
+    public WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, Map<String, Map<String, String>> perFileMetadata) {
+        this(directory, writerGeneration, files, numRows, 0L, perFileMetadata);
+    }
+
+    public WriterFileSet(
+        String directory,
+        long writerGeneration,
+        Set<String> files,
+        long numRows,
+        long formatVersion,
+        Map<String, Map<String, String>> perFileMetadata
+    ) {
         this.directory = directory;
         this.writerGeneration = writerGeneration;
         this.files = Set.copyOf(files);
         this.numRows = numRows;
         this.formatVersion = formatVersion;
+        Map<String, Map<String, String>> normalizedMetadata = new HashMap<>();
+        for (Map.Entry<String, Map<String, String>> entry : perFileMetadata.entrySet()) {
+            normalizedMetadata.put(entry.getKey(), Map.copyOf(entry.getValue()));
+        }
+        this.perFileMetadata = Map.copyOf(normalizedMetadata);
     }
 
     /**
@@ -69,6 +94,21 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         this.formatVersion = version == DataformatAwareCatalogSnapshot.SERIALIZATION_VERSION_ONE
             ? in.readLong()
             : LuceneVersionConverter.encode(Version.LATEST);
+        this.perFileMetadata = readPerFileMetadata(in);
+    }
+
+    /** Deserializes using the current serialization version. */
+    public WriterFileSet(StreamInput in, String directory) throws IOException {
+        this(in, directory, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION);
+    }
+
+    private static Map<String, Map<String, String>> readPerFileMetadata(StreamInput in) throws IOException {
+        try {
+            return in.readMap(StreamInput::readString, stream -> stream.readMap(StreamInput::readString, StreamInput::readString));
+        } catch (EOFException e) {
+            // Older snapshots may not contain per-file metadata; treat as empty.
+            return Map.of();
+        }
     }
 
     public String directory() {
@@ -91,6 +131,14 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         return formatVersion;
     }
 
+    public Map<String, Map<String, String>> perFileMetadata() {
+        return perFileMetadata;
+    }
+
+    public Map<String, String> metadataForFile(String fileName) {
+        return perFileMetadata.getOrDefault(fileName, Map.of());
+    }
+
     public long getTotalSize() {
         return files.stream().mapToLong(file -> {
             try {
@@ -111,6 +159,8 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
             + files
             + ", formatVersion="
             + formatVersion
+            + ", metadataFiles="
+            + perFileMetadata.keySet()
             + '}';
     }
 
@@ -120,6 +170,11 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         out.writeStringCollection(files);
         out.writeLong(numRows);
         out.writeLong(formatVersion);
+        out.writeMap(
+            perFileMetadata,
+            StreamOutput::writeString,
+            (stream, metadata) -> stream.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeString)
+        );
     }
 
     @Override
@@ -160,6 +215,7 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         private long numRows;
         private long formatVersion = 0L;
         private final Set<String> files = new HashSet<>();
+        private final Map<String, Map<String, String>> perFileMetadata = new HashMap<>();
 
         public Builder directory(Path directory) {
             this.directory = directory;
@@ -191,6 +247,18 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
             return this;
         }
 
+        public Builder addFileMetadata(String fileName, Map<String, String> metadata) {
+            this.perFileMetadata.put(fileName, Map.copyOf(metadata));
+            return this;
+        }
+
+        public Builder addPerFileMetadata(Map<String, Map<String, String>> metadataByFile) {
+            for (Map.Entry<String, Map<String, String>> entry : metadataByFile.entrySet()) {
+                addFileMetadata(entry.getKey(), entry.getValue());
+            }
+            return this;
+        }
+
         public WriterFileSet build() {
             if (directory == null) {
                 throw new IllegalStateException("directory must be set");
@@ -200,7 +268,7 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
                 throw new IllegalStateException("writerGeneration must be set");
             }
 
-            return new WriterFileSet(directory.toString(), writerGeneration, files, numRows, formatVersion);
+            return new WriterFileSet(directory.toString(), writerGeneration, files, numRows, formatVersion, perFileMetadata);
         }
     }
 }

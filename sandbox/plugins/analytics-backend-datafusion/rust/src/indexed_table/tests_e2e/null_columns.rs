@@ -389,6 +389,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

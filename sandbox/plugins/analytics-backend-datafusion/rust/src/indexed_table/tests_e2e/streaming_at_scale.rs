@@ -461,6 +461,7 @@ async fn run_large(
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();
@@ -919,6 +920,7 @@ async fn run_large_partitioned(
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

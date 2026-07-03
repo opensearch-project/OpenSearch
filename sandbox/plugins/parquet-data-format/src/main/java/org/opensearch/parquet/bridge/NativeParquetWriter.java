@@ -12,6 +12,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.plugin.stats.StatsRecorder;
+import org.opensearch.parquet.encryption.PmeFileEncryptionInputs;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,7 +49,7 @@ public class NativeParquetWriter {
      */
     public NativeParquetWriter(String filePath, ParquetShardStatsTracker stats) {
         this.filePath = filePath;
-        this.stats = stats;
+        this.stats = stats != null ? stats : new ParquetShardStatsTracker();
     }
 
     /**
@@ -58,6 +59,29 @@ public class NativeParquetWriter {
      */
     public NativeParquetWriter(String filePath) {
         this(filePath, new ParquetShardStatsTracker());
+    }
+
+    /**
+     * Convenience constructor that creates AND immediately initializes the native writer.
+     *
+     * <p>Intended for tests and simple write-paths that do not need deferred initialization.
+     * Uses an empty sort config and writer generation 0. The {@code encryptionInputs}
+     * are zeroed immediately after the native writer is created.
+     *
+     * @param filePath         path to the Parquet file to write
+     * @param schemaAddress    native memory address of the Arrow schema
+     * @param encryptionInputs per-file PME inputs; {@code null} writes an unencrypted file
+     * @throws IOException if the native writer creation fails
+     */
+    public NativeParquetWriter(String filePath, long schemaAddress, PmeFileEncryptionInputs encryptionInputs) throws IOException {
+        this(filePath);
+        initialize(
+            java.nio.file.Path.of(filePath).getFileName().toString(),
+            schemaAddress,
+            ParquetSortConfig.empty(),
+            0L,
+            encryptionInputs
+        );
     }
 
     /**
@@ -72,10 +96,32 @@ public class NativeParquetWriter {
      * @throws IllegalStateException if already initialized
      */
     public void initialize(String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration) throws IOException {
+        initialize(indexName, schemaAddress, sortConfig, writerGeneration, null);
+    }
+
+    /**
+     * Initializes the native Rust Parquet writer with optional PME encryption.
+     *
+     * @param indexName         the index name for settings lookup
+     * @param schemaAddress     the native memory address of the Arrow schema
+     * @param sortConfig        the sort configuration for the Parquet file
+     * @param writerGeneration  the writer generation to store in file metadata
+     * @param encryptionInputs  per-file PME inputs; {@code null} writes an unencrypted file
+     * @throws IOException if the native writer creation fails
+     * @throws IllegalStateException if already initialized
+     */
+    public void initialize(String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration,
+                           PmeFileEncryptionInputs encryptionInputs) throws IOException {
         if (initialized) {
             throw new IllegalStateException("Writer already initialized: " + filePath);
         }
-        RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig, writerGeneration);
+        try {
+            RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig, writerGeneration, encryptionInputs);
+        } finally {
+            if (encryptionInputs != null) {
+                encryptionInputs.zero();
+            }
+        }
         initialized = true;
     }
 

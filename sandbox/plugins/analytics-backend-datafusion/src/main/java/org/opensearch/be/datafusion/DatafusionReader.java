@@ -18,8 +18,10 @@ import org.opensearch.plugins.NativeStoreHandle;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * DataFusion reader for JNI operations.
@@ -38,7 +40,7 @@ public class DatafusionReader implements Closeable {
     private final ReaderHandle readerHandle;
 
     /**
-     * Creates a DatafusionReader for the given shard directory and per-segment files.
+     * Creates a DatafusionReader for the given shard directory and per-segment files (no encryption).
      * <p>
      * Each {@link WriterFileSet} is narrowed to a {@link MonoFileWriterSet} — Parquet
      * produces exactly one file per segment. This fails fast if a multi-file set is
@@ -50,12 +52,32 @@ public class DatafusionReader implements Closeable {
      * @param sortFields index.sort.field values (empty list when the index has no sort). Parallel to {@code sortOrders}.
      * @param sortOrders index.sort.order values ("asc"/"desc"), parallel to {@code sortFields}.
      */
+    /**
+     * Creates a DatafusionReader without encryption (plaintext files).
+     */
+    public DatafusionReader(String directoryPath, Collection<WriterFileSet> writerFileSets, NativeStoreHandle dataformatAwareStoreHandle) {
+        this(directoryPath, writerFileSets, dataformatAwareStoreHandle, List.of(), List.of(), Map.of(), Map.of());
+    }
+
+    /**
+     * Creates a DatafusionReader with per-file footer keys and AAD prefixes for PME-encrypted files.
+     *
+     * @param directoryPath  shard data directory
+     * @param writerFileSets the per-segment file sets from the catalog snapshot
+     * @param dataformatAwareStoreHandle per-format native store handle (null on hot, live on warm)
+     * @param sortFields index.sort.field values (empty list when the index has no sort). Parallel to {@code sortOrders}.
+     * @param sortOrders index.sort.order values ("asc"/"desc"), parallel to {@code sortFields}.
+     * @param fileFooterKeys map from absolute file path to 32-byte AES-GCM footer key
+     * @param fileAadPrefixes map from absolute file path to binary AAD prefix bytes
+     */
     public DatafusionReader(
         String directoryPath,
         Collection<WriterFileSet> writerFileSets,
         NativeStoreHandle dataformatAwareStoreHandle,
         List<String> sortFields,
-        List<String> sortOrders
+        List<String> sortOrders,
+        Map<String, byte[]> fileFooterKeys,
+        Map<String, byte[]> fileAadPrefixes
     ) {
         this.directoryPath = directoryPath;
         List<MonoFileWriterSet> segments;
@@ -64,7 +86,7 @@ public class DatafusionReader implements Closeable {
         } else {
             segments = writerFileSets.stream().map(MonoFileWriterSet::from).toList();
         }
-        readerHandle = new ReaderHandle(directoryPath, segments, dataformatAwareStoreHandle, sortFields, sortOrders);
+        readerHandle = new ReaderHandle(directoryPath, segments, dataformatAwareStoreHandle, sortFields, sortOrders, fileFooterKeys, fileAadPrefixes);
     }
 
     /**

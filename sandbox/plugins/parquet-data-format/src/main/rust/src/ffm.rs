@@ -11,15 +11,17 @@
 //! Return convention: `>= 0` success, `< 0` error pointer (negate to get ptr,
 //! call `native_error_message`/`native_error_free`).
 
+use std::fs::File;
 use std::slice;
 use std::str;
 
-use native_bridge_common::{ffm_safe, log_debug};
+use native_bridge_common::ffm_safe;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 
 use crate::native_settings::NativeSettings;
 use crate::field_config::FieldConfig;
 use crate::merge;
-use crate::writer::{NativeParquetWriter, SETTINGS_STORE};
+use crate::writer::{NativeParquetWriter, ParquetEncryptionOptions, SETTINGS_STORE};
 
 unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
     if ptr.is_null() {
@@ -66,10 +68,43 @@ unsafe fn bool_array_from_raw(
     (0..n).map(|i| *vals.add(i) != 0).collect()
 }
 
+unsafe fn optional_bytes_from_raw(ptr: *const u8, len: i64) -> Result<Option<Vec<u8>>, String> {
+    if ptr.is_null() {
+        return Ok(None);
+    }
+    if len < 0 {
+        return Err(format!("negative byte length: {}", len));
+    }
+    if len == 0 {
+        return Ok(Some(Vec::new()));
+    }
+    let bytes = slice::from_raw_parts(ptr, len as usize);
+    Ok(Some(bytes.to_vec()))
+}
+
+unsafe fn required_bytes_from_raw(ptr: *const u8, len: i64, field: &str) -> Result<Vec<u8>, String> {
+    if ptr.is_null() {
+        return Err(format!("{}: null pointer", field));
+    }
+    if len < 0 {
+        return Err(format!("{}: negative length {}", field, len));
+    }
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    let bytes = slice::from_raw_parts(ptr, len as usize);
+    Ok(bytes.to_vec())
+}
+
 // ---------------------------------------------------------------------------
 // Writer lifecycle
 // ---------------------------------------------------------------------------
 
+/// Creates a native Parquet writer.
+///
+/// Encryption is activated when `footer_key_ptr` is non-null. All three encryption fields
+/// (`footer_key`, `key_metadata_json`, `aad_prefix`) must be provided together.
+/// Pass null pointers and zero lengths for an unencrypted file.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_create_writer(
@@ -86,6 +121,12 @@ pub unsafe extern "C" fn parquet_create_writer(
     nulls_first_vals: *const i64,
     nulls_first_count: i64,
     writer_generation: i64,
+    footer_key_ptr: *const u8,
+    footer_key_len: i64,
+    key_metadata_json_ptr: *const u8,
+    key_metadata_json_len: i64,
+    aad_prefix_ptr: *const u8,
+    aad_prefix_len: i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_create_writer file: {}", e))?.to_string();
@@ -96,7 +137,21 @@ pub unsafe extern "C" fn parquet_create_writer(
     let reverse_sorts = bool_array_from_raw(reverse_vals, reverse_count);
     let nulls_first = bool_array_from_raw(nulls_first_vals, nulls_first_count);
 
-    NativeParquetWriter::create_writer(filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation)
+    let encryption_options = if footer_key_ptr.is_null() {
+        None
+    } else {
+        let footer_key = required_bytes_from_raw(footer_key_ptr, footer_key_len, "footer_key")
+            .map_err(|e| format!("parquet_create_writer: {}", e))?;
+        let key_metadata_json = required_bytes_from_raw(
+            key_metadata_json_ptr, key_metadata_json_len, "key_metadata_json")
+            .map_err(|e| format!("parquet_create_writer: {}", e))?;
+        let aad_prefix = optional_bytes_from_raw(aad_prefix_ptr, aad_prefix_len)
+            .map_err(|e| format!("parquet_create_writer: aad_prefix: {}", e))?
+            .unwrap_or_default();
+        Some(ParquetEncryptionOptions { footer_key, key_metadata_json, aad_prefix })
+    };
+
+    NativeParquetWriter::create_writer(filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation, encryption_options)
         .map(|_| 0)
         .map_err(|e| e.to_string())
 }
@@ -216,9 +271,6 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
     out_buf_len: i64,
     out_len: *mut i64,
 ) -> i64 {
-    use parquet::file::reader::{FileReader, SerializedFileReader};
-    use std::fs::File;
-
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_column_metadata: {}", e))?.to_string();
     let file = File::open(&filename).map_err(|e| format!("Failed to open file: {}", e))?;
     let reader = SerializedFileReader::new(file).map_err(|e| format!("Failed to read parquet: {}", e))?;
@@ -257,6 +309,86 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, n);
     if !out_len.is_null() { *out_len = n as i64; }
     Ok(0)
+}
+
+/// Reads encrypted Parquet file metadata.
+/// footer_key and aad_prefix are required when non-null.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_get_file_metadata_decrypted(
+    file_ptr: *const u8,
+    file_len: i64,
+    footer_key_ptr: *const u8,
+    footer_key_len: i64,
+    aad_prefix_ptr: *const u8,
+    aad_prefix_len: i64,
+    version_out: *mut i32,
+    num_rows_out: *mut i64,
+    created_by_buf: *mut u8,
+    created_by_buf_len: i64,
+    created_by_len_out: *mut i64,
+) -> i64 {
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_get_file_metadata_decrypted: {}", e))?.to_string();
+    let footer_key = required_bytes_from_raw(footer_key_ptr, footer_key_len, "footer_key")
+        .map_err(|e| format!("parquet_get_file_metadata_decrypted: {}", e))?;
+    if footer_key.is_empty() {
+        return Err("parquet_get_file_metadata_decrypted: footer_key must not be empty".to_string());
+    }
+    let aad_prefix = optional_bytes_from_raw(aad_prefix_ptr, aad_prefix_len)
+        .map_err(|e| format!("parquet_get_file_metadata_decrypted: aad_prefix: {}", e))?;
+
+    let fm = NativeParquetWriter::get_file_metadata_decrypted(filename, footer_key, aad_prefix)
+        .map_err(|e| e.to_string())?;
+    if !version_out.is_null() { *version_out = fm.version(); }
+    if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+    if let Some(cb) = fm.created_by() {
+        if !created_by_buf.is_null() && created_by_buf_len > 0 {
+            let bytes = cb.as_bytes();
+            let n = bytes.len().min(created_by_buf_len as usize);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
+            if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+        }
+    } else if !created_by_len_out.is_null() {
+        *created_by_len_out = -1;
+    }
+    Ok(0)
+}
+
+
+/// Reads the plaintext `key_metadata` bytes from `FileCryptoMetaData` without decrypting.
+///
+/// Returns 0 and writes bytes to `out_buf` if key_metadata is present.
+/// Returns 1 if the file is not encrypted or has no key_metadata (out_buf untouched).
+/// Returns negative error code on failure.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_read_key_metadata(
+    file_ptr: *const u8,
+    file_len: i64,
+    out_buf: *mut u8,
+    out_buf_len: i64,
+    out_len_out: *mut i64,
+) -> i64 {
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_read_key_metadata: {}", e))?.to_string();
+
+    match NativeParquetWriter::read_key_metadata(filename).map_err(|e| e.to_string())? {
+        None => Ok(1), // Not encrypted or no key_metadata
+        Some(key_metadata) => {
+            let n = key_metadata.len();
+            if !out_buf.is_null() && out_buf_len > 0 {
+                let copy_len = n.min(out_buf_len as usize);
+                std::ptr::copy_nonoverlapping(key_metadata.as_ptr(), out_buf, copy_len);
+                if !out_len_out.is_null() {
+                    *out_len_out = copy_len as i64;
+                }
+            } else if !out_len_out.is_null() {
+                *out_len_out = n as i64;
+            }
+            Ok(0)
+        }
+    }
 }
 
 #[no_mangle]

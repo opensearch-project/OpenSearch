@@ -25,6 +25,7 @@ use datafusion_datasource::file_groups::FileGroup;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 use datafusion_datasource::table_schema::TableSchema;
 use datafusion_datasource::PartitionedFile;
+use datafusion_execution::parquet_encryption::EncryptionFactory;
 
 pub use crate::api::ShardFileInfo;
 
@@ -32,6 +33,9 @@ pub struct ShardTableConfig {
     pub file_schema: SchemaRef,
     pub files: Vec<ShardFileInfo>,
     pub store_url: ObjectStoreUrl,
+    /// PME decryption factory — when set, DataFusion calls it for each file to
+    /// derive `FileDecryptionProperties` before reading column data.
+    pub encryption_factory: Option<Arc<dyn EncryptionFactory>>,
 }
 
 pub struct ShardTableProvider {
@@ -110,6 +114,12 @@ impl TableProvider for ShardTableProvider {
         );
 
         let parquet_source = ParquetSource::new(table_schema);
+        // Wire PME decryption factory when the shard contains encrypted files.
+        let parquet_source = if let Some(ref factory) = self.config.encryption_factory {
+            parquet_source.with_encryption_factory(Arc::clone(factory))
+        } else {
+            parquet_source
+        };
 
         let mut builder = FileScanConfigBuilder::new(
             self.config.store_url.clone(),

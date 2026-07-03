@@ -125,6 +125,32 @@ public final class NativeCall implements AutoCloseable {
         return new StrArray(ptrs, lens, strings.length);
     }
 
+    /**
+     * Parallel pointer and length arrays for passing byte-array lists to native code.
+     */
+    public record ByteArrayList(MemorySegment ptrs, MemorySegment lens, long count) {
+    }
+
+    /**
+     * Marshal a Java byte[][] into parallel native arrays of pointers and lengths.
+     */
+    public ByteArrayList bytesArray(byte[][] arrays) {
+        ensureOpen();
+        if (arrays == null) {
+            throw new NullPointerException("Cannot marshal null byte array list to native");
+        }
+        MemorySegment ptrs = arena.allocate(ValueLayout.ADDRESS, arrays.length);
+        MemorySegment lens = arena.allocate(ValueLayout.JAVA_LONG, arrays.length);
+        for (int i = 0; i < arrays.length; i++) {
+            if (arrays[i] == null) {
+                throw new NullPointerException("Cannot marshal null byte array at index " + i);
+            }
+            ptrs.setAtIndex(ValueLayout.ADDRESS, i, arena.allocateFrom(ValueLayout.JAVA_BYTE, arrays[i]));
+            lens.setAtIndex(ValueLayout.JAVA_LONG, i, arrays[i].length);
+        }
+        return new ByteArrayList(ptrs, lens, arrays.length);
+    }
+
     // ---- Out-buffer with overflow detection ----
 
     /**

@@ -52,7 +52,9 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        allocator.close();
+        if (allocator != null) {
+            allocator.close();
+        }
         super.tearDown();
     }
 
@@ -234,6 +236,50 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         try (ArrowExport dataExport = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
             expectThrows(IOException.class, () -> writer.write(dataExport.getArrayAddress(), 0L));
         }
+    }
+
+    public void testGetFileMetadataForEncryptedFileRequiresDecryptionConfig() throws Exception {
+        String filePath = createTempDir().resolve("encrypted-read.parquet").toString();
+
+        // Build a fixed data key and message_id so we can reconstruct read inputs after write.
+        byte[] dataKey = new byte[32];
+        byte[] messageId = new byte[16];
+        random().nextBytes(dataKey);
+        random().nextBytes(messageId);
+
+        byte[] footerKey = org.opensearch.parquet.encryption.PmeKeyDerivation.deriveFooterKey(dataKey, messageId);
+        byte[] aadPrefix = org.opensearch.parquet.encryption.PmeKeyDerivation.buildAadPrefix(messageId);
+        // writeConfig is zeroed by NativeParquetWriter after creation; keep footerKey/aadPrefix for reads.
+        org.opensearch.parquet.encryption.PmeFileEncryptionInputs writeConfig =
+            org.opensearch.parquet.encryption.PmeFileEncryptionInputs.forDecryption(footerKey, aadPrefix);
+
+        NativeParquetWriter writer;
+        try (ArrowExport export = exportSchema()) {
+            writer = new NativeParquetWriter(filePath, export.getSchemaAddress(), writeConfig);
+        }
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
+            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
+        writer.flush();
+
+        // Build a fresh decryption config from the still-valid local key bytes.
+        org.opensearch.parquet.encryption.PmeFileEncryptionInputs decryptionConfig =
+            org.opensearch.parquet.encryption.PmeFileEncryptionInputs.forDecryption(footerKey, aadPrefix);
+
+        expectThrows(IOException.class, () -> RustBridge.getFileMetadata(filePath));
+        ParquetFileMetadata decryptedMetadata = RustBridge.getFileMetadata(filePath, decryptionConfig);
+        assertEquals(1L, decryptedMetadata.numRows());
+
+        long decryptedRows = RustBridge.getDecryptedNumRows(filePath, decryptionConfig);
+        assertEquals(1L, decryptedRows);
+
+        // Wrong key: same messageId but different dataKey → different footerKey → decryption fails.
+        byte[] wrongDataKey = new byte[32];
+        random().nextBytes(wrongDataKey);
+        byte[] wrongFooterKey = org.opensearch.parquet.encryption.PmeKeyDerivation.deriveFooterKey(wrongDataKey, messageId);
+        org.opensearch.parquet.encryption.PmeFileEncryptionInputs wrongKeyConfig =
+            org.opensearch.parquet.encryption.PmeFileEncryptionInputs.forDecryption(wrongFooterKey, aadPrefix);
+        expectThrows(IOException.class, () -> RustBridge.getDecryptedNumRows(filePath, wrongKeyConfig));
     }
 
     private NativeParquetWriter createWriter(String filePath) throws Exception {

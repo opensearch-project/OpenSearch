@@ -862,7 +862,32 @@ public final class ParquetSettings {
             BLOOM_FILTER_ENABLED_VALUE_SETTING,
             TYPE_ENCODING_SETTINGS,
             TYPE_COMPRESSION_SETTINGS,
-            TYPE_BLOOM_FILTER_SETTINGS
+            TYPE_BLOOM_FILTER_SETTINGS,
+            CRYPTO_KEY_PROVIDER,
+            CRYPTO_KEY_PROVIDER_TYPE
         );
     }
+
+    /**
+     * Index-scoped setting: name of the PME master key provider.
+     * TODO: Consolidate this with setting from Lucene encryption plugin.
+     */
+    public static final Setting<String> CRYPTO_KEY_PROVIDER = Setting.simpleString(
+        "index.store.parquet.crypto.key_provider",
+        Setting.Property.NodeScope,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
+
+    /**
+     * Index-scoped setting: type of the PME master key provider (e.g. {@code "mock-pme"}).
+     * TODO: Consolidate this with setting from Lucene encryption plugin.
+     */
+    public static final Setting<String> CRYPTO_KEY_PROVIDER_TYPE = Setting.simpleString(
+        "index.store.parquet.crypto.key_provider_type",
+        "aws-kms",
+        Setting.Property.NodeScope,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
 }

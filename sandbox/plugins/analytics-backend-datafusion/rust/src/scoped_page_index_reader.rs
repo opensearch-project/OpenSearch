@@ -221,6 +221,7 @@ impl AsyncFileReader for ScopedPageIndexReader {
                 &location,
                 object_meta,
                 Arc::clone(&metadata_cache),
+                None,
             )
             .await
             .map_err(|e| ParquetError::General(format!("footer metadata {location}: {e}")))?;
