@@ -163,12 +163,26 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             triggerTrimOnMinRemoteGenReferencedChange.set(false);
         }
 
+        if (indexDeleted == false && tryScheduleRemotePurge() == false) {
+            return;
+        }
+
         // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
         // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
         // We try to acquire 2 permits and if we can not, we return from here itself.
         if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
+            if (indexDeleted == false) {
+                completeRemotePurgeScheduling();
+            }
             return;
         }
+
+        Runnable onRemotePurgeComplete = () -> {
+            remoteGenerationDeletionPermits.release();
+            if (indexDeleted == false) {
+                completeRemotePurgeCycle();
+            }
+        };
 
         ActionListener<List<BlobMetadata>> listMetadataFilesListener = new ActionListener<>() {
             @Override
@@ -179,6 +193,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     if (indexDeleted == false && metadataFiles.size() <= 1) {
                         logger.debug("No stale translog metadata files found");
                         remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                        completeRemotePurgeCycle();
                         return;
                     }
 
@@ -186,6 +201,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
                         logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
                         remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                        completeRemotePurgeCycle();
                         return;
                     }
 
@@ -199,6 +215,9 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     if (metadataFilesToBeDeleted.isEmpty()) {
                         logger.debug("No metadata files to delete");
                         remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                        if (indexDeleted == false) {
+                            completeRemotePurgeCycle();
+                        }
                         return;
                     }
 
@@ -232,16 +251,14 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                             translogTransferManager.deleteGenerationAsync(
                                 primaryTermSupplier.getAsLong(),
                                 generationsToBeDeleted,
-                                remoteGenerationDeletionPermits::release
+                                onRemotePurgeComplete
                             );
                         } catch (Exception e) {
                             logger.error("Exception in delete generations flow", e);
-                            // Release permit that is meant for metadata files and return
-                            remoteGenerationDeletionPermits.release();
-                            assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
-                                + remoteGenerationDeletionPermits.availablePermits()
-                                + " is not equal to "
-                                + REMOTE_DELETION_PERMITS;
+                            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                            if (indexDeleted == false) {
+                                completeRemotePurgeCycle();
+                            }
                             return;
                         }
                     } else {
@@ -251,17 +268,22 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     if (metadataFilesToBeDeleted.isEmpty() == false) {
                         // Delete stale metadata files
                         try {
-                            translogTransferManager.deleteMetadataFilesAsync(
-                                metadataFilesToBeDeleted,
-                                remoteGenerationDeletionPermits::release
+                            int maxFilesToDelete = Math.min(
+                                metadataFilesToBeDeleted.size(),
+                                translogTransferManager.getTranslogPurgeBatchSize() * translogTransferManager
+                                    .getEffectiveMaxBatchesPerCycle(
+                                        metadataFiles.size() == translogTransferManager.getTranslogPurgeListLimit(),
+                                        metadataFiles.size()
+                                    )
                             );
+                            List<String> metadataFilesThisCycle = metadataFilesToBeDeleted.subList(0, maxFilesToDelete);
+                            translogTransferManager.deleteMetadataFilesInBatches(metadataFilesThisCycle, onRemotePurgeComplete);
                         } catch (Exception e) {
                             logger.error("Exception in delete metadata files flow", e);
-                            // Permits is already released by deleteMetadataFilesAsync
-                            assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
-                                + remoteGenerationDeletionPermits.availablePermits()
-                                + " is not equal to "
-                                + REMOTE_DELETION_PERMITS;
+                            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                            if (indexDeleted == false) {
+                                completeRemotePurgeCycle();
+                            }
                             return;
                         }
 
@@ -276,20 +298,26 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                 } catch (Exception e) {
                     logger.error("Exception in trimUnreferencedReaders", e);
                     remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
-                    assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
-                        + remoteGenerationDeletionPermits.availablePermits()
-                        + " is not equal to "
-                        + REMOTE_DELETION_PERMITS;
+                    if (indexDeleted == false) {
+                        completeRemotePurgeCycle();
+                    }
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                if (indexDeleted == false) {
+                    completeRemotePurgeCycle();
+                }
                 logger.error("Exception while listing translog metadata files", e);
             }
         };
-        translogTransferManager.listTranslogMetadataFilesAsync(listMetadataFilesListener);
+        if (indexDeleted) {
+            translogTransferManager.listTranslogMetadataFilesAsync(listMetadataFilesListener);
+        } else {
+            translogTransferManager.listTranslogMetadataFilesForPurgeAsync(listMetadataFilesListener);
+        }
     }
 
     private long getMinGenerationToKeepInRemote() {
