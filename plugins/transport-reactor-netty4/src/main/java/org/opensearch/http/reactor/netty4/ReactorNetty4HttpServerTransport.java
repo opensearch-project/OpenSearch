@@ -83,6 +83,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.Connection;
 import reactor.netty.DisposableChannel;
 import reactor.netty.DisposableServer;
+import reactor.netty.NettyPipeline;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRequest;
@@ -314,8 +315,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
-                .doOnConnection(conn -> conn.addHandlerFirst(
-                    NettyPipeline.HttpDecompressor, createDecompressor()))
+                .doOnConnection(conn -> conn.addHandlerFirst(NettyPipeline.HttpDecompressor, createDecompressor()))
                 .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()).maxConcurrentStreams(h2MaxConcurrentStreams))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
@@ -381,8 +381,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         .runOn(sharedGroup.getLowLevelGroup())
                         .bindAddress(() -> socketAddress)
                         .compress(true)
-                        .doOnConnection(conn -> conn.addHandlerFirst(
-                            NettyPipeline.HttpDecompressor, createDecompressor()))
+                        .doOnConnection(conn -> conn.addHandlerFirst(NettyPipeline.HttpDecompressor, createDecompressor()))
                         .httpRequestDecoder(
                             spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                                 .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
