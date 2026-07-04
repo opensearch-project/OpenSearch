@@ -315,7 +315,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .bindAddress(() -> socketAddress)
                 .compress(true)
                 .doOnConnection(conn -> conn.addHandlerFirst(
-                    "request_decompressor", createDecompressor()))
+                    NettyPipeline.HttpDecompressor, createDecompressor()))
                 .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()).maxConcurrentStreams(h2MaxConcurrentStreams))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
