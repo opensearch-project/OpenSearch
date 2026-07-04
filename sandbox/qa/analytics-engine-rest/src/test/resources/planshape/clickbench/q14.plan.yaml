@@ -39,19 +39,23 @@ plans:
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], preserve_partitioning=[true]
             ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, approx_distinct(<scrubbed>.UserID)[hll_registers]@1 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@1) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
-                FilterExec: SearchPhrase@0 != 
-                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+              AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                    FilterExec: SearchPhrase@0 != 
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
     shard_physical_nseg: |
       ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, approx_distinct(<scrubbed>.UserID)@1 as u]
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], preserve_partitioning=[true]
             ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, approx_distinct(<scrubbed>.UserID)[hll_registers]@1 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@1) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
-                FilterExec: SearchPhrase@0 != 
-                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+              AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
+                    FilterExec: SearchPhrase@0 != 
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
