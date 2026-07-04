@@ -382,7 +382,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         .bindAddress(() -> socketAddress)
                         .compress(true)
                         .doOnConnection(conn -> conn.addHandlerFirst(
-                            "request_decompressor", createDecompressor()))
+                            NettyPipeline.HttpDecompressor, createDecompressor()))
                         .httpRequestDecoder(
                             spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                                 .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
