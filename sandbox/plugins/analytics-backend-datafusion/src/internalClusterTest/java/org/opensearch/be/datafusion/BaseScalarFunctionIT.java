@@ -160,7 +160,6 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
         // This lets scalar-JSON UDF tests assert both the happy path (row 1 → length 3)
         // and the non-array → NULL path (row 6) from real column values.
         client().prepareIndex(BANK_INDEX)
-            .setId("1")
             .setSource(
                 "account_number",
                 1,
@@ -175,7 +174,6 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
             )
             .get();
         client().prepareIndex(BANK_INDEX)
-            .setId("6")
             .setSource(
                 "account_number",
                 6,

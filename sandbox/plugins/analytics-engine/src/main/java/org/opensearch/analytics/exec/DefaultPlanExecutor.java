@@ -11,11 +11,14 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -49,6 +52,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -58,6 +63,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
@@ -178,6 +184,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // from the RelNode's TableScan nodes.
         String[] indices = RelNodeUtils.extractIndices(logicalFragment);
         AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices);
+        applyParentTask(request, queryCtx);
         client.execute(
             AnalyticsQueryAction.INSTANCE,
             request,
@@ -192,11 +199,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // searchExecutor. The SecurityFilter also evaluates index permissions on this path.
         String[] indices = RelNodeUtils.extractIndices(logicalFragment);
         AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices, true);
+        applyParentTask(request, queryCtx);
         client.execute(
             AnalyticsQueryAction.INSTANCE,
             request,
             ActionListener.wrap(resp -> listener.onResponse(resp.getProfiledResult()), listener::onFailure)
         );
+    }
+
+    /**
+     * Registers the analytics query task as a child of the front-end task so a front-end cancel
+     * (disconnect / timeout / {@code _tasks/_cancel}) cascades into the query and its fragments.
+     * Set here, not in {@code createTask}, because the parent {@link TaskId} needs the local node id.
+     */
+    private void applyParentTask(AnalyticsQueryRequest request, QueryRequestContext queryCtx) {
+        if (queryCtx == null || queryCtx.parentTask() == null) {
+            return;
+        }
+        request.setParentTask(new TaskId(clusterService.localNode().getId(), queryCtx.parentTask().getId()));
     }
 
     /**
@@ -242,7 +262,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         );
         plannerContext.setPlannerSettings(plannerSettings);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
-        final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
+        final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
@@ -251,7 +271,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
-        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
+        final long planningTimeMs = TimeUnit.NANOSECONDS.toMillis(planningTimeNanos);
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
@@ -392,7 +412,27 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // immediately. The listener is wrapped to convert backend-specific exceptions.
         ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(listener::onResponse, e -> {
             Exception converted = e instanceof Exception ex ? contextProvider.convertException(ex) : new RuntimeException(e);
-            listener.onFailure(converted);
+            // A typed status (e.g. a 429 breaker) often arrives buried in a wrapper —
+            // ShardFragmentStageExecution reports shard failures as RuntimeException("Stage N failed", cause),
+            // so isInternalError (top-level only) would redact it to a generic 500 and drop the chain. Surface
+            // the buried status-bearing exception directly so 429/503 reach the client instead of an opaque 500.
+            Exception statusBearing = statusBearingCause(converted);
+            if (statusBearing != null) {
+                listener.onFailure(statusBearing);
+            } else if (converted == e && isInternalError(converted)) {
+                AnalyticsQueryTask queryTask = (AnalyticsQueryTask) task;
+                String queryId = queryTask.getQueryId();
+                String identifier = "unassigned".equals(queryId)
+                    ? "task_id=" + task.getId()
+                    : "task_id=" + task.getId() + ", query_id=" + queryId;
+                logger.error(
+                    new org.apache.logging.log4j.message.ParameterizedMessage("[analytics-engine] internal error [{}]", identifier),
+                    converted
+                );
+                listener.onFailure(new RuntimeException("Internal error [" + identifier + "]"));
+            } else {
+                listener.onFailure(converted);
+            }
         });
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
@@ -424,6 +464,26 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 );
             }
         });
+    }
+
+    /**
+     * Returns true if the exception would produce a 500 response and should be redacted.
+     */
+    private static boolean isInternalError(Exception e) {
+        return ExceptionsHelper.status(e) == RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    /**
+     * Walks the cause/suppressed chain for a typed {@link OpenSearchException} carrying a non-500 status
+     * (e.g. a 429 breaker wrapped as {@code RuntimeException("Stage N failed", cbe)}). Returns it so the
+     * real status reaches the client instead of being redacted to a generic 500; null when the failure is
+     * genuinely internal and the redaction path should run.
+     */
+    static Exception statusBearingCause(Exception converted) {
+        return ExceptionsHelper.<OpenSearchException>unwrapCausesAndSuppressed(
+            converted,
+            t -> t instanceof OpenSearchException ose && ose.status() != RestStatus.INTERNAL_SERVER_ERROR
+        ).map(t -> (Exception) t).orElse(null);
     }
 
     /**

@@ -28,12 +28,12 @@ public class NativeSettings {
     private final Double bloomFilterFpp;
     private final Long bloomFilterNdv;
     private final Long sortInMemoryThresholdBytes;
-    private final Integer sortBatchSize;
     private final Integer rowGroupMaxRows;
     private final Long rowGroupMaxBytes;
     private final Integer mergeBatchSize;
     private final Integer mergeRayonThreads;
     private final Integer mergeIoThreads;
+    private final Integer mergeDeferredColumnThreshold;
     private final Map<String, String> fieldEncodings;
     private final Map<String, String> fieldCompressions;
     private final Map<String, Boolean> fieldBloomFilterEnabled;
@@ -54,12 +54,12 @@ public class NativeSettings {
         this.bloomFilterFpp = builder.bloomFilterFpp;
         this.bloomFilterNdv = builder.bloomFilterNdv;
         this.sortInMemoryThresholdBytes = builder.sortInMemoryThresholdBytes;
-        this.sortBatchSize = builder.sortBatchSize;
         this.rowGroupMaxRows = builder.rowGroupMaxRows;
         this.rowGroupMaxBytes = builder.rowGroupMaxBytes;
         this.mergeBatchSize = builder.mergeBatchSize;
         this.mergeRayonThreads = builder.mergeRayonThreads;
         this.mergeIoThreads = builder.mergeIoThreads;
+        this.mergeDeferredColumnThreshold = builder.mergeDeferredColumnThreshold;
         this.fieldEncodings = builder.fieldEncodings != null ? Collections.unmodifiableMap(builder.fieldEncodings) : Collections.emptyMap();
         this.fieldCompressions = builder.fieldCompressions != null
             ? Collections.unmodifiableMap(builder.fieldCompressions)
@@ -122,10 +122,6 @@ public class NativeSettings {
         return sortInMemoryThresholdBytes;
     }
 
-    public Integer getSortBatchSize() {
-        return sortBatchSize;
-    }
-
     public Integer getRowGroupMaxRows() {
         return rowGroupMaxRows;
     }
@@ -144,6 +140,10 @@ public class NativeSettings {
 
     public Integer getMergeIoThreads() {
         return mergeIoThreads;
+    }
+
+    public Integer getMergeDeferredColumnThreshold() {
+        return mergeDeferredColumnThreshold;
     }
 
     public Map<String, String> getFieldEncodings() {
@@ -193,12 +193,12 @@ public class NativeSettings {
         private Double bloomFilterFpp;
         private Long bloomFilterNdv;
         private Long sortInMemoryThresholdBytes;
-        private Integer sortBatchSize;
         private Integer rowGroupMaxRows;
         private Long rowGroupMaxBytes;
         private Integer mergeBatchSize;
         private Integer mergeRayonThreads;
         private Integer mergeIoThreads;
+        private Integer mergeDeferredColumnThreshold;
         private Map<String, String> fieldEncodings;
         private Map<String, String> fieldCompressions;
         private Map<String, Boolean> fieldBloomFilterEnabled;
@@ -258,11 +258,6 @@ public class NativeSettings {
             return this;
         }
 
-        public Builder sortBatchSize(Integer v) {
-            this.sortBatchSize = v;
-            return this;
-        }
-
         public Builder rowGroupMaxRows(Integer v) {
             this.rowGroupMaxRows = v;
             return this;
@@ -285,6 +280,11 @@ public class NativeSettings {
 
         public Builder mergeIoThreads(Integer v) {
             this.mergeIoThreads = v;
+            return this;
+        }
+
+        public Builder mergeDeferredColumnThreshold(Integer v) {
+            this.mergeDeferredColumnThreshold = v;
             return this;
         }
 

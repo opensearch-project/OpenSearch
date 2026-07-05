@@ -557,7 +557,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     WindowFunction.ARG_MAX,
                     WindowFunctionAdapters.argMax(),
                     WindowFunction.DISTINCT_COUNT_APPROX,
-                    WindowFunctionAdapters.distinctCountApprox()
+                    WindowFunctionAdapters.distinctCountApprox(),
+                    // COUNT(DISTINCT x) OVER(...) → os_count_distinct(x) OVER(...). Non-distinct
+                    // COUNT(x) passes through unchanged.
+                    WindowFunction.COUNT,
+                    WindowFunctionAdapters.countDistinctExact()
                 );
             }
 
@@ -652,7 +656,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DatePartAdapters minute = DatePartAdapters.minute();
                 // WEEK/WEEK_OF_YEAR follow MySQL mode 0 (Sunday-first), not ISO; date_part('week') is ISO-only
                 RustUdfDateTimeAdapters.OsWeekAdapter week = new RustUdfDateTimeAdapters.OsWeekAdapter();
-                DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
+                // NowFspAdapter (not the plain NowAdapter) so the optional fractional-seconds
+                // precision arg — now(fsp) / current_timestamp(fsp) — is dropped before Substrait
+                // conversion; DataFusion now() is niladic and fsp is intentionally ignored
+                // (matches the SQL-plugin reference). Covers NOW, CURRENT_TIMESTAMP, SYSDATE.
+                ScalarFunctionAdapter now = new NowFspAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 DayOfWeekAdapter dayOfWeek = new DayOfWeekAdapter();
@@ -679,6 +687,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ATAN, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN)),
                     Map.entry(ScalarFunction.ATAN2, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN2)),
                     Map.entry(ScalarFunction.RADIANS, new NumericToDoubleAdapter(SqlStdOperatorTable.RADIANS)),
+                    // RAND(): maps to DataFusion's niladic random() (the SqlStdOperatorTable.RAND ->
+                    // "random" sig). RAND(seed): rejected with a clear error — dropping the seed would
+                    // silently turn deterministic seeded output into non-deterministic random().
+                    Map.entry(ScalarFunction.RAND, new RandSeedAdapter()),
                     Map.entry(ScalarFunction.DEGREES, new NumericToDoubleAdapter(SqlStdOperatorTable.DEGREES)),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CAST, ipBinaryCast),
@@ -1008,6 +1020,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
         return new DatafusionResultStream(streamHandle, allocator);
+    }
+
+    @Override
+    public void cancelByContext(long contextId) {
+        // Fire the per-context cancellation token so the fetch stream's cross_rt task breaks
+        // cooperatively. No-op for an unknown contextId.
+        if (contextId != 0) {
+            NativeBridge.cancelQuery(contextId);
+        }
     }
 
     public Exception convertException(Exception original) {

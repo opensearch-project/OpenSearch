@@ -2,6 +2,22 @@
 ---
 urn: extension:org.opensearch:window_functions
 window_functions:
+  - name: os_count_distinct
+    description: >-
+      Window form of `os_count_distinct(x)`. Emitted as the substrait window
+      function for `count(distinct x) OVER(...)` (a partner of the like-named
+      aggregate UDAF) so the operator name carries DISTINCT semantics — see
+      `os_count_distinct` in `opensearch_aggregate_functions.yaml` for the
+      rationale (DataFusion 54.x's substrait window consumer drops the
+      AggregationInvocation::DISTINCT bit).
+    impls:
+      - args:
+          - name: x
+            value: any
+        decomposable: MANY
+        intermediate: any?
+        return: i64
+        window_type: STREAMING
   - name: internal_pattern
     description: >-
       PPL `patterns ... method=BRAIN mode=label`. Window form of

@@ -24,8 +24,10 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -47,6 +49,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -58,8 +61,11 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.DummyShardLock;
@@ -68,6 +74,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -78,6 +85,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -88,7 +97,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -157,6 +169,10 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * expects to find: translog UUID, seq-no info, history UUID, etc.
      */
     private void bootstrapStoreWithMetadata(Store store, String translogUUID) throws IOException {
+        bootstrapStoreWithMetadata(store, translogUUID, SequenceNumbers.NO_OPS_PERFORMED);
+    }
+
+    private void bootstrapStoreWithMetadata(Store store, String translogUUID, long maxSeqNo) throws IOException {
         try (
             IndexWriter writer = new IndexWriter(
                 store.directory(),
@@ -167,7 +183,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             Map<String, String> commitData = new HashMap<>();
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
             commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
-            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             commitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
             commitData.put(Engine.HISTORY_UUID_KEY, UUID.randomUUID().toString());
             writer.setLiveCommitData(commitData.entrySet());
@@ -193,6 +209,32 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         List<ReferenceManager.RefreshListener> externalListeners,
         List<ReferenceManager.RefreshListener> internalListeners
     ) {
+        return buildDFAEngineConfig(store, translogPath, externalListeners, internalListeners, IndexModule.TieringState.HOT.name());
+    }
+
+    /** Builds a HOT-tier DFA {@link EngineConfig} carrying the given {@link DocumentLookupProvider}. */
+    private EngineConfig buildDFAEngineConfig(Store store, Path translogPath, DocumentLookupProvider documentLookupProvider) {
+        return buildDFAEngineConfig(store, translogPath, List.of(), List.of(), IndexModule.TieringState.HOT.name(), documentLookupProvider);
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners,
+        String tieringState
+    ) {
+        return buildDFAEngineConfig(store, translogPath, externalListeners, internalListeners, tieringState, null);
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners,
+        String tieringState,
+        DocumentLookupProvider documentLookupProvider
+    ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -200,6 +242,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
                 .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState)
                 .build()
         );
 
@@ -241,6 +284,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 public void onFailedEngine(String reason, Exception e) {}
             })
             .mapperService(mapperService)
+            .documentLookupProvider(documentLookupProvider)
             .build();
     }
 
@@ -271,8 +315,66 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
+     * Append-only optimizable variant of {@link #indexOp}: a non-negative autoGeneratedIdTimestamp
+     * with isRetry=false makes {@link IndexingStrategyPlanner} take the optimizedAppendOnly path
+     * (no safe-access enforcement).
+     */
+    private Engine.Index appendOnlyOp(ParsedDocument doc) {
+        return new Engine.Index(
+            new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())),
+            doc,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    /** Explicit-id index with a caller-supplied version/versionType (for version-conflict tests). */
+    private Engine.Index indexOpWithVersion(ParsedDocument doc, long version, VersionType versionType) {
+        return new Engine.Index(
+            new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())),
+            doc,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            version,
+            versionType,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            -1,
+            false,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    /** Explicit-id index with compare-and-set ifSeqNo/ifPrimaryTerm (for optimistic-concurrency tests). */
+    private Engine.Index indexOpWithIfSeqNo(ParsedDocument doc, long ifSeqNo, long ifPrimaryTerm) {
+        return new Engine.Index(
+            new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())),
+            doc,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            -1,
+            false,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
      * Wraps {@link EngineTestCase#createParsedDoc(String, String)} to attach a
-     * {@link MockDocumentInput}. {@link DataFormatAwareEngine#indexIntoEngine} requires a
+     * {@link MockDocumentInput}. {@link DataFormatAwareEngine#index} requires a
      * non-null {@code DocumentInput} on every doc (it calls {@code addField} for version,
      * seqNo, primaryTerm), but the base helper leaves that field null because production
      * code (e.g., {@code IndexShard.applyIndexOperation}) populates it via
@@ -311,6 +413,64 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 engine.getProcessedLocalCheckpoint(),
                 equalTo((long) numDocs - 1)
             );
+        }
+    }
+
+    /**
+     * {@link DataFormatAwareEngine#acquireHistoryRetentionLock()} must return a lock that pins a translog
+     * generation in the deletion policy for as long as it is held, and releases that generation when closed.
+     * Peer recovery / primary relocation relies on this to keep translog history available for the duration
+     * of recovery.
+     */
+    public void testAcquireHistoryRetentionLockPinsTranslogGeneration() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            int numDocs = randomIntBetween(1, 20);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+
+            // The retention lock pins a generation in the translog's deletion policy.
+            TranslogDeletionPolicy deletionPolicy = ((InternalTranslogManager) engine.translogManager()).getTranslog().getDeletionPolicy();
+            // No retention locks are held before acquiring one.
+            deletionPolicy.assertNoOpenTranslogRefs();
+
+            Closeable retentionLock = engine.acquireHistoryRetentionLock();
+            assertThat(retentionLock, notNullValue());
+            // While the lock is held there is an open translog reference pinning a generation.
+            expectThrows(AssertionError.class, deletionPolicy::assertNoOpenTranslogRefs);
+
+            // Releasing the lock releases the pinned generation.
+            retentionLock.close();
+            deletionPolicy.assertNoOpenTranslogRefs();
+        }
+    }
+
+    /**
+     * {@link DataFormatAwareEngine#countNumberOfHistoryOperations(String, long, long)} must count only the
+     * operations whose seqNo falls within the requested {@code [fromSeqNo, toSeqNo]} range, de-duplicated --
+     * i.e. the operations actually yielded by the changes snapshot for that range, not the raw operation
+     * count of the underlying translog generations.
+     */
+    public void testCountNumberOfHistoryOperationsRespectsSeqNoRange() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertThat(result.getSeqNo(), equalTo((long) i));
+            }
+            // Ensure the buffered translog operations are durable and readable by the changes snapshot.
+            engine.translogManager().syncTranslog();
+
+            // Full range counts every operation.
+            assertThat(engine.countNumberOfHistoryOperations("test", 0, Long.MAX_VALUE), equalTo(numDocs));
+
+            // Sub-ranges count only the operations whose seqNo lies within [fromSeqNo, toSeqNo].
+            assertThat(engine.countNumberOfHistoryOperations("test", 5, 9), equalTo(5));
+            assertThat(engine.countNumberOfHistoryOperations("test", 0, 4), equalTo(5));
+            assertThat(engine.countNumberOfHistoryOperations("test", 3, 6), equalTo(4));
+            assertThat(engine.countNumberOfHistoryOperations("test", 7, Long.MAX_VALUE), equalTo(3));
+            // A range above the highest seqNo contains no operations.
+            assertThat(engine.countNumberOfHistoryOperations("test", numDocs, Long.MAX_VALUE), equalTo(0));
         }
     }
 
@@ -747,7 +907,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testRefreshNeeded() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            assertTrue(engine.refreshNeeded());
+            assertTrue(engine.
+
+                refreshNeeded());
         }
     }
 
@@ -1999,8 +2161,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /**
      * Covers {@code DataFormatAwareEngine.applyMergeChanges}: a forceMerge over two
      * previously-refreshed segments must (1) replace the source segments in the catalog
-     * with a single merged segment, (2) invoke beforeRefresh/afterRefresh exactly once
-     * each on registered refresh listeners while holding the refresh lock, and
+     * with a single merged segment, (2) restrict its beforeRefresh/afterRefresh
+     * notifications to {@code RemoteStoreRefreshListener} instances only, so a plain
+     * refresh listener that fires on real refreshes is NOT invoked by the merge, and
      * (3) release the refresh lock on exit so a subsequent {@code refresh()} proceeds.
      *
      * <p>The system-property gate on {@code MERGE_ENABLED_PROPERTY} applies only to
@@ -2008,7 +2171,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * straight to {@code MergeScheduler.forceMerge} and does not consult it, so this
      * test drives the merge end-to-end without touching system properties.
      */
-    public void testApplyMergeChangesUpdatesCatalogAndNotifiesListeners() throws Exception {
+    public void testApplyMergeChangesUpdatesCatalogAndSkipsNonRemoteStoreListeners() throws Exception {
         AtomicInteger beforeCalls = new AtomicInteger();
         AtomicInteger afterCalls = new AtomicInteger();
         // Records call order: 'B' for beforeRefresh, 'A' for afterRefresh.
@@ -2072,12 +2235,17 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 }
             }, 10, java.util.concurrent.TimeUnit.SECONDS);
 
-            // applyMergeChanges must have invoked the listeners exactly once each, in order.
-            assertThat("beforeRefresh must fire exactly once for the merge", beforeCalls.get() - beforeAfterSeed, equalTo(1));
-            assertThat("afterRefresh must fire exactly once for the merge", afterCalls.get() - afterAfterSeed, equalTo(1));
+            // applyMergeChanges must notify only RemoteStoreRefreshListener instances. The plain
+            // listener registered here is not one, so the merge must NOT invoke it.
+            assertThat(
+                "merge must not invoke beforeRefresh on a non-remote-store listener",
+                beforeCalls.get() - beforeAfterSeed,
+                equalTo(0)
+            );
+            assertThat("merge must not invoke afterRefresh on a non-remote-store listener", afterCalls.get() - afterAfterSeed, equalTo(0));
             synchronized (callOrder) {
-                // Seed cycles contribute "BABA"; the merge must append exactly "BA".
-                assertThat("call order must be before-then-after for every cycle", callOrder.toString(), equalTo("BABABA"));
+                // Seed cycles contribute "BABA"; the merge must append nothing for this listener.
+                assertThat("merge must not append before/after for a non-remote-store listener", callOrder.toString(), equalTo("BABA"));
             }
 
             // Sanity: the refreshLock must have been released. A follow-up refresh must
@@ -3255,6 +3423,1073 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             int secondFill = engine.fillSeqNoGaps(primaryTerm.get());
             assertEquals("no further NoOps on second call", 0, secondFill);
             assertEquals(5L, engine.getProcessedLocalCheckpoint());
+        }
+    }
+
+    // --- Tiering freeze behavior ---
+
+    /** Creates a DFA engine whose index settings already carry the given tiering state (freeze-on-open path). */
+    private DataFormatAwareEngine createDFAEngineWithTieringState(Store store, Path translogPath, IndexModule.TieringState state)
+        throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, List.of(), List.of(), state.name()));
+    }
+
+    /** Updates the engine's live index settings to the given tiering state (without invoking onSettingsChanged). */
+    private void setTieringStateSetting(DataFormatAwareEngine engine, IndexModule.TieringState state) {
+        IndexSettings indexSettings = engine.config().getIndexSettings();
+        Settings newSettings = Settings.builder()
+            .put(indexSettings.getSettings())
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), state.name())
+            .build();
+        indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(newSettings).build());
+    }
+
+    private void notifySettingsChanged(DataFormatAwareEngine engine) {
+        engine.onSettingsChanged(TimeValue.MINUS_ONE, org.opensearch.core.common.unit.ByteSizeValue.ZERO, 0L);
+    }
+
+    public void testFreezeForTieringBlocksPrimaryIndex() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testFreezeForTieringIsIdempotent() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            engine.freezeForTiering(); // second call must be a no-op, not throw
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    /**
+     * Many threads call {@link DataFormatAwareEngine#freezeForTiering()} simultaneously. The atomic
+     * {@code compareAndSet} guard must make this idempotent under concurrency: no thread throws, and
+     * the engine ends frozen (a primary index op is rejected).
+     */
+    public void testConcurrentFreezeForTiering_EndsFrozen() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            int numThreads = 8;
+            CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            AtomicReference<Throwable> error = new AtomicReference<>();
+            Thread[] threads = new Thread[numThreads];
+            for (int t = 0; t < numThreads; t++) {
+                threads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        engine.freezeForTiering();
+                    } catch (Throwable e) {
+                        error.compareAndSet(null, e);
+                    }
+                });
+                threads[t].start();
+            }
+            for (Thread t : threads) {
+                t.join();
+            }
+
+            assertNull("concurrent freezeForTiering must not throw", error.get());
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    /**
+     * Simulates parallel tier/cancel: freezer threads repeatedly call {@code freezeForTiering()} while a
+     * single thread toggles the tiering state setting (HOT_TO_WARM ⇄ HOT) and drives
+     * {@code onSettingsChanged}. Only that one thread mutates index settings, so the test targets the
+     * freeze-state CAS rather than {@code IndexSettings} concurrency. After the storm, driving a
+     * definitive state must converge the engine consistently (no deadlock, no torn state observable
+     * through the index guard).
+     */
+    public void testConcurrentFreezeAndSettingsUnfreeze_ConvergesConsistently() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            int freezers = 4;
+            int iterations = 100;
+            AtomicReference<Throwable> error = new AtomicReference<>();
+            CyclicBarrier barrier = new CyclicBarrier(freezers + 1);
+            Thread[] threads = new Thread[freezers + 1];
+
+            for (int t = 0; t < freezers; t++) {
+                threads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        for (int n = 0; n < iterations; n++) {
+                            engine.freezeForTiering();
+                        }
+                    } catch (Throwable e) {
+                        error.compareAndSet(null, e);
+                    }
+                });
+                threads[t].start();
+            }
+            // Single settings-mutating thread toggles the tiering state and notifies, racing the freezers.
+            threads[freezers] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int n = 0; n < iterations; n++) {
+                        setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+                        notifySettingsChanged(engine);
+                        setTieringStateSetting(engine, IndexModule.TieringState.HOT);
+                        notifySettingsChanged(engine);
+                    }
+                } catch (Throwable e) {
+                    error.compareAndSet(null, e);
+                }
+            });
+            threads[freezers].start();
+
+            for (Thread t : threads) {
+                t.join();
+            }
+            assertNull("concurrent freeze/unfreeze must not deadlock or throw", error.get());
+
+            // Converge to a definitive HOT state: engine must unfreeze cleanly and accept writes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT);
+            notifySettingsChanged(engine);
+            assertEquals(Engine.Result.Type.SUCCESS, engine.index(indexOp(createParsedDocWithInput("hot", null))).getResultType());
+
+            // Converge to HOT_TO_WARM: engine must freeze cleanly and block writes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            notifySettingsChanged(engine);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("warm", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testFrozenEngineSkipsNonForceFlush() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.index(indexOp(createParsedDocWithInput("0", null)));
+            engine.freezeForTiering();
+            // A non-force flush while frozen must return early without committing.
+            engine.flush(false, true);
+            // A force flush is the prepare path and must proceed.
+            engine.flush(true, true);
+        }
+    }
+
+    public void testFrozenEngineSkipsRefreshExceptPrepareAndFlushSources() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            // These sources are skipped while frozen (no exception, simply a no-op).
+            engine.refresh("write indexing buffer");
+            engine.maybeRefresh("external");
+            // These two bypass the freeze and are allowed to proceed.
+            engine.refresh("prepare_tiering");
+            engine.refresh("flush");
+        }
+    }
+
+    public void testFrozenEngineBlocksForceMerge() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.freezeForTiering();
+            // Force merge while frozen returns early without scheduling a merge.
+            engine.forceMerge(false, 1, false, false, false, UUID.randomUUID().toString());
+        }
+    }
+
+    /**
+     * Verifies the merge-count / drain wrappers delegate to the merge scheduler. On a freshly
+     * recovered engine with no indexing or merges, the scheduler reports zero active merges and
+     * no pending queue, and {@code onMergesDrained} fires the listener immediately
+     * (already drained).
+     */
+    public void testMergeCountWrappers_IdleEngine_ReportZeroAndAlreadyDrained() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            assertEquals("idle engine has no active merges", 0, engine.getActiveMergeCount());
+            assertFalse("idle engine has no pending merges", engine.hasPendingMerges());
+
+            AtomicBoolean listenerFired = new AtomicBoolean(false);
+            engine.onMergesDrained(() -> listenerFired.set(true));
+
+            assertTrue("listener fires immediately when idle engine is already drained", listenerFired.get());
+        }
+    }
+
+    public void testConstructorFreezesWhenOpenedMidTiering() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngineWithTieringState(store, createTempDir(), IndexModule.TieringState.HOT_TO_WARM)) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            // Opened with INDEX_TIERING_STATE=HOT_TO_WARM — engine must be frozen on construction,
+            // before any onSettingsChanged call.
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testOnSettingsChangedFreezesOnHotToWarm() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            // Initially HOT — indexing works.
+            engine.index(indexOp(createParsedDocWithInput("0", null)));
+            // Transition to HOT_TO_WARM and notify — engine freezes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            notifySettingsChanged(engine);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("1", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testOnSettingsChangedUnfreezesOnReturnToHot() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            notifySettingsChanged(engine);
+            expectThrows(IllegalStateException.class, () -> engine.index(indexOp(createParsedDocWithInput("0", null))));
+            // Tiering cancelled — state returns to HOT, engine unfreezes and indexing resumes.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT);
+            notifySettingsChanged(engine);
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+        }
+    }
+
+    public void testIsFrozenForTieringLiveSettingsFallback() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            // Settings reflect HOT_TO_WARM but onSettingsChanged has NOT been called (the cached flag is
+            // still false). The live-settings fallback must still block the operation.
+            setTieringStateSetting(engine, IndexModule.TieringState.HOT_TO_WARM);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("0", null)))
+            );
+            assertThat(e.getMessage(), containsString("frozen for tiering"));
+        }
+    }
+
+    public void testOnSettingsChangedUnrecognizedTieringValueNotFrozen() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            IndexSettings indexSettings = engine.config().getIndexSettings();
+            Settings newSettings = Settings.builder()
+                .put(indexSettings.getSettings())
+                .put(IndexModule.INDEX_TIERING_STATE.getKey(), "NOT_A_REAL_STATE")
+                .build();
+            indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(newSettings).build());
+            notifySettingsChanged(engine);
+            // Unrecognized value is treated as not frozen — indexing still works.
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("0", null)));
+            assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+        }
+    }
+
+    public void testDocCountLimitRejectsIndexingAboveMax() throws Exception {
+        final int maxDocs = randomIntBetween(1, 20);
+        MockIndexingExecutionEngine limitedEngine = new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public long maxIndexableDocs() {
+                return maxDocs;
+            }
+        };
+        MockDataFormatPlugin limitedPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return limitedEngine;
+            }
+        };
+
+        EngineConfig config = buildFailingEngineConfig(limitedPlugin, new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {}
+        });
+        try (DataFormatAwareEngine eng = new DataFormatAwareEngine(config)) {
+            int numDocs = between(maxDocs + 1, maxDocs * 2);
+            for (int i = 0; i < numDocs; i++) {
+                final long maxSeqNo = eng.getProcessedLocalCheckpoint();
+                Engine.IndexResult result = eng.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                if (i < maxDocs) {
+                    assertThat("doc " + i + " should succeed", result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    assertNull(result.getFailure());
+                    assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
+                } else {
+                    assertThat("doc " + i + " should be rejected", result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                    assertNotNull(result.getFailure());
+                    assertThat(result.getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(
+                        result.getFailure().getMessage(),
+                        containsString("Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "]")
+                    );
+                    assertThat("seq no must not be assigned on rejection", result.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+                    assertThat("local checkpoint must not advance on rejection", eng.getProcessedLocalCheckpoint(), equalTo(maxSeqNo));
+                }
+            }
+            // Engine must remain open on primary even after rejections
+            eng.refresh("verify-still-open");
+        }
+    }
+
+    public void testConcurrentIndexAndRefreshDocCountNeverUnderCounts() throws Exception {
+        Path translogPath = createTempDir();
+        try (DataFormatAwareEngine eng = createDFAEngine(store, translogPath)) {
+            int numThreads = 4;
+            int docsPerThread = 50;
+            int totalDocs = numThreads * docsPerThread;
+            CyclicBarrier barrier = new CyclicBarrier(numThreads + 1); // +1 for refresh thread
+            AtomicInteger successCount = new AtomicInteger();
+
+            Thread[] indexThreads = new Thread[numThreads];
+            for (int t = 0; t < numThreads; t++) {
+                final int threadId = t;
+                indexThreads[t] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        for (int d = 0; d < docsPerThread; d++) {
+                            Engine.IndexResult result = eng.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
+                            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                                successCount.incrementAndGet();
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                indexThreads[t].start();
+            }
+
+            // Refresh thread that runs concurrently with indexing
+            Thread refreshThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < 10; i++) {
+                        eng.refresh("concurrent-refresh-" + i);
+                        Thread.sleep(5);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            refreshThread.start();
+
+            for (Thread t : indexThreads)
+                t.join(30_000);
+            refreshThread.join(30_000);
+
+            // Final refresh to flush remaining buffered docs
+            eng.refresh("final");
+
+            // Verify: catalogSnapshot docs + pendingRowCount must equal successCount
+            try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                long catalogDocs = ref.get().getNumDocs();
+                assertThat("catalog must contain all successfully indexed docs", catalogDocs, equalTo((long) successCount.get()));
+            }
+        }
+    }
+
+    private DataFormatAwareEngine createDFAEngineWithLookupProvider(Store store, Path translogPath, DocumentLookupProvider provider)
+        throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, provider));
+    }
+
+    private Engine.Get realtimeGet(String id) {
+        return new Engine.Get(true, true, id, new Term(IdFieldMapper.NAME, Uid.encodeId(id)));
+    }
+
+    private DocumentLookupProvider mockLookupProvider() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(DocumentLookupResult.notFound(""));
+        when(provider.getVersionMetadata(any(), any(), any(), any())).thenReturn(DocumentLookupResult.notFound(""));
+        return provider;
+    }
+
+    public void testGetMaxSeqNoOfUpdatesOrDeletes() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        }
+    }
+
+    public void testCurrentOngoingRefreshCheckpoint() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            assertThat(engine.currentOngoingRefreshCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+            for (int i = 0; i < 5; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            engine.refresh("test");
+            assertThat(engine.currentOngoingRefreshCheckpoint(), greaterThanOrEqualTo(0L));
+        }
+    }
+
+    /** Calls the new getById(Engine.Get, searcherFactory) and unwraps the pre-materialized lookup.
+     *  DFA engines ignore the searcher factory, so a no-op factory is supplied. */
+    private static DocumentLookupResult getByIdLookup(DataFormatAwareEngine engine, Engine.Get get) throws IOException {
+        Engine.GetResult result = engine.getById(get, (source, scope) -> null);
+        return result.exists() ? ((DocumentLookupResult.PreMaterialized) result).lookup() : DocumentLookupResult.notFound(get.id());
+    }
+
+    public void testGetByIdThrowsWhenNoProvider() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Get get = realtimeGet("1");
+            expectThrows(UnsupportedOperationException.class, () -> getByIdLookup(engine, get));
+        }
+    }
+
+    public void testGetByIdReturnsNotFoundWhenEmptyCatalog() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            Engine.Get get = realtimeGet("1");
+            DocumentLookupResult result = getByIdLookup(engine, get);
+            assertFalse("should be not found on empty catalog", result.exists());
+        }
+    }
+
+    public void testGetByIdReturnsDocFromTranslog() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            // Realtime get with readFromTranslog finds it in translog via versionMap location
+            Engine.Get get = realtimeGet("1");
+            DocumentLookupResult result = getByIdLookup(engine, get);
+            assertTrue("doc should be found from translog", result.exists());
+            assertThat(result.seqNo(), equalTo(0L));
+        }
+    }
+
+    public void testGetByIdReturnsDocFromParquetAfterRefresh() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+            // Non-realtime get falls through to provider
+            Engine.Get get = new Engine.Get(false, false, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1")));
+            DocumentLookupResult result = getByIdLookup(engine, get);
+            assertTrue("doc should be found from parquet", result.exists());
+        }
+    }
+
+    /**
+     * Covers resolveDocVersion falling back to DocumentLookupProvider when versionMap miss.
+     * Also covers incrementIndexVersionLookup (called inside resolveDocVersion on provider path).
+     */
+    public void testResolveDocVersionFallsBackToProvider() throws IOException {
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getVersionMetadata(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 5L, true, null, 3L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+            // Re-index same doc — resolveDocVersion misses versionMap (cleared by refresh rotation),
+            // falls back to provider which returns version=5. MATCH_ANY accepts.
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
+        }
+    }
+
+    /** Reflectively obtains the engine's LiveVersionMap. resolveDocVersion/getVersionFromMap assert the
+     *  per-uid keyed lock is held, so callers must wrap in {@code versionMap.acquireLock(uid)}. */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's versionMap field")
+    private LiveVersionMap versionMapOf(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+        vmField.setAccessible(true);
+        return (LiveVersionMap) vmField.get(engine);
+    }
+
+    /** resolveDocVersion branch 1: versionMap miss with no provider returns null. */
+    public void testResolveDocVersionReturnsNullWhenNoProvider() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Index op = indexOp(createParsedDocWithInput("1", null));
+            try (org.opensearch.common.lease.Releasable ignored = versionMapOf(engine).acquireLock(op.uid().bytes())) {
+                assertNull(engine.resolveDocVersion(op, true));
+            }
+        }
+    }
+
+    /** resolveDocVersion branch 2: versionMap miss with an empty catalog returns null (provider not consulted). */
+    public void testResolveDocVersionReturnsNullOnEmptyCatalog() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), mockLookupProvider())) {
+            Engine.Index op = indexOp(createParsedDocWithInput("1", null));
+            try (org.opensearch.common.lease.Releasable ignored = versionMapOf(engine).acquireLock(op.uid().bytes())) {
+                assertNull(engine.resolveDocVersion(op, true));
+            }
+        }
+    }
+
+    /** resolveDocVersion branch 4: versionMap miss, provider consulted, getById returns NOT_FOUND → null. */
+    public void testResolveDocVersionReturnsNullWhenProviderNotFound() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), mockLookupProvider())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+            Engine.Index op = indexOp(createParsedDocWithInput("2", null));
+            try (org.opensearch.common.lease.Releasable ignored = versionMapOf(engine).acquireLock(op.uid().bytes())) {
+                assertNull(engine.resolveDocVersion(op, true));
+            }
+        }
+    }
+
+    /** resolveDocVersion branch 6: versionMap hit returns the stored IndexVersionValue. */
+    public void testResolveDocVersionReturnsVersionMapHit() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            Engine.Index op = indexOp(createParsedDocWithInput("1", null));
+            VersionValue vv;
+            try (org.opensearch.common.lease.Releasable ignored = versionMapOf(engine).acquireLock(op.uid().bytes())) {
+                vv = engine.resolveDocVersion(op, true);
+            }
+            assertNotNull(vv);
+            assertThat(vv.version, equalTo(1L));
+            assertThat(vv.seqNo, equalTo(0L));
+        }
+    }
+
+    /**
+     * Covers restoreVersionMapAndCheckpointTracker + compareOpToVersionMapOnSeqNo.
+     * The provider returns docs for seqNos 0-3 so checkpoint advances contiguously.
+     */
+    public void testRestoreVersionMapAndCheckpointTracker() throws IOException {
+        Path translogPath = createTempDir();
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getDocsAboveSeqNo(anyLong(), any(), any(), any())).thenReturn(
+            List.of(
+                new DocumentLookupResult("a", 1L, true, null, 0L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("b", 1L, true, null, 1L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("c", 1L, true, null, 2L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("d", 1L, true, null, 3L, 1L, Map.of(), Map.of())
+            )
+        );
+        when(provider.getVersionMetadata(any(), any(), any(), any())).thenReturn(DocumentLookupResult.notFound("x"));
+
+        // Bootstrap with maxSeqNo=3, localCheckpoint=-1 (triggers restore)
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid, 3L);
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, provider);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // All seqNos 0-3 marked → checkpoint advances to 3
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(3L));
+        }
+    }
+
+    /**
+     * Covers compareOpToVersionMapOnSeqNo returning OP_STALE_OR_EQUAL.
+     * Provider returns entries for id "x" at seqNo=2 and seqNo=5, plus a duplicate at seqNo=5.
+     * The stale entry (seqNo=2) is overwritten by OP_NEWER, the duplicate (same seqNo=5) is skipped.
+     */
+    public void testRestoreVersionMapSkipsStaleEntries() throws IOException {
+        Path translogPath = createTempDir();
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        // Return all seqNos 0-5 so checkpoint advances, with duplicate id "x" at seqNo 2 and 5
+        when(provider.getDocsAboveSeqNo(anyLong(), any(), any(), any())).thenReturn(
+            List.of(
+                new DocumentLookupResult("a", 1L, true, null, 0L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("b", 1L, true, null, 1L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("x", 1L, true, null, 2L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("c", 1L, true, null, 3L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("d", 1L, true, null, 4L, 1L, Map.of(), Map.of()),
+                new DocumentLookupResult("x", 2L, true, null, 5L, 1L, Map.of(), Map.of()),
+                // Duplicate id "x" at same seqNo=5 → hits seqNo == versionValue.seqNo → OP_STALE_OR_EQUAL
+                new DocumentLookupResult("x", 2L, true, null, 5L, 1L, Map.of(), Map.of())
+            )
+        );
+        when(provider.getVersionMetadata(any(), any(), any(), any())).thenReturn(DocumentLookupResult.notFound("x"));
+
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid, 5L);
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, provider);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // All seqNos 0-5 contiguous → checkpoint = 5
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(5L));
+            // Index "x" again — should succeed (versionMap has version=2 from seqNo=5 entry)
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("x", null)));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
+        }
+    }
+
+    public void testRestoreVersionMapThrowsOnIOException() throws IOException {
+        Path translogPath = createTempDir();
+        DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
+        when(provider.getDocsAboveSeqNo(anyLong(), any(), any(), any())).thenThrow(new IOException("simulated read failure"));
+
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid, 3L);
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, provider);
+        EngineCreationFailureException ex = expectThrows(EngineCreationFailureException.class, () -> new DataFormatAwareEngine(config));
+        assertThat(ex.getMessage(), containsString("failed to restore version map"));
+        assertThat(ex.getCause(), instanceOf(IOException.class));
+    }
+
+    /**
+     * Covers getVersionFromMap unsafe path: versionMap.isUnsafe() triggers refresh + enforceSafeAccess.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to mark versionMap as unsafe")
+    public void testGetVersionFromMapUnsafePathTriggersRefresh() throws Exception {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+            java.lang.reflect.Field mapsField = LiveVersionMap.class.getDeclaredField("maps");
+            mapsField.setAccessible(true);
+            Object maps = mapsField.get(versionMap);
+            java.lang.reflect.Field currentField = maps.getClass().getDeclaredField("current");
+            currentField.setAccessible(true);
+            Object current = currentField.get(maps);
+            java.lang.reflect.Method markUnsafe = current.getClass().getDeclaredMethod("markAsUnsafe");
+            markUnsafe.setAccessible(true);
+            markUnsafe.invoke(current);
+
+            assertTrue("versionMap should be unsafe", versionMap.isUnsafe());
+
+            long genBefore;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                genBefore = ref.get().getGeneration();
+            }
+
+            getByIdLookup(engine, realtimeGet("1"));
+
+            long genAfter;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                genAfter = ref.get().getGeneration();
+            }
+            assertThat("refresh should have been triggered by unsafe versionMap", genAfter, greaterThan(genBefore));
+            assertFalse("versionMap should be safe after refresh", versionMap.isUnsafe());
+        }
+    }
+
+    /**
+     * DFAE port of InternalEngineTests.testVersionMapAfterAutoIDDocument (delete step dropped —
+     * engine.delete() is unsupported in this harness). Verifies LiveVersionMap safe-access
+     * transitions: optimized append-only skips the map; an explicit-id index enforces safe access
+     * and stores the entry; safe access is carried over across refresh.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's versionMap field")
+    public void testVersionMapAfterAutoIDDocument() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+
+            // Optimized append-only: no safe access enforced, nothing stored in the current map.
+            engine.index(appendOnlyOp(createParsedDocWithInput("1", null)));
+            assertFalse(versionMap.isSafeAccessRequired());
+            assertTrue(versionMap.getAllCurrent().isEmpty());
+
+            // Explicit-id index of the same id: enforces safe access and stores the entry.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertTrue(versionMap.isSafeAccessRequired());
+            assertEquals(1, versionMap.getAllCurrent().size());
+
+            // Refresh rotates the map; safe access is carried over.
+            engine.refresh("test");
+            assertTrue(versionMap.isSafeAccessRequired());
+
+            // Append-only under active safe access still stores the entry.
+            engine.index(appendOnlyOp(createParsedDocWithInput("2", null)));
+            assertEquals(1, versionMap.getAllCurrent().size());
+        }
+    }
+
+    /**
+     * A: write-path version conflict resolved from the versionMap. EXTERNAL version=5 then a stale
+     * EXTERNAL version=3 hits isVersionConflictForWrites (IndexingStrategyPlanner) → conflict.
+     */
+    public void testIndexVersionConflictFromVersionMap() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.IndexResult first = engine.index(indexOpWithVersion(createParsedDocWithInput("1", null), 5L, VersionType.EXTERNAL));
+            assertThat(first.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            Engine.IndexResult stale = engine.index(indexOpWithVersion(createParsedDocWithInput("1", null), 3L, VersionType.EXTERNAL));
+            assertThat(stale.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(stale.getFailure(), instanceOf(VersionConflictEngineException.class));
+        }
+    }
+
+    /**
+     * B: optimistic-concurrency conflict on the write path. After indexing id "1" (seqNo 0), an index
+     * with a non-matching ifSeqNo hits the seqNo/term conflict branch (IndexingStrategyPlanner) → conflict.
+     */
+    public void testIndexIfSeqNoConflict() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            Engine.IndexResult result = engine.index(indexOpWithIfSeqNo(createParsedDocWithInput("1", null), 99L, primaryTerm.get()));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+        }
+    }
+
+    /**
+     * C: optimized append-only ops never enter safe-access mode — they leave the current map empty
+     * and mark it unsafe (LiveVersionMap.maybePutIndexUnderLock else-branch).
+     */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's versionMap field")
+    public void testAppendOnlyMarksVersionMapUnsafe() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+
+            int n = randomIntBetween(2, 5);
+            for (int i = 0; i < n; i++) {
+                engine.index(appendOnlyOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            assertFalse(versionMap.isSafeAccessRequired());
+            assertTrue(versionMap.getAllCurrent().isEmpty());
+            assertTrue(versionMap.isUnsafe());
+        }
+    }
+
+    /**
+     * Covers getById paths: delete check, version conflict, seqNo/primaryTerm conflict.
+     * Uses reflection to inject a DeleteVersionValue into versionMap since engine.delete() is unsupported.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to inject DeleteVersionValue into versionMap")
+    public void testGetByIdDeleteAndConflictPaths() throws Exception {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            // Index a doc so versionMap has an IndexVersionValue
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            // --- Path 1: versionValue.isDelete() ---
+            // Inject a DeleteVersionValue into versionMap via reflection
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+            org.apache.lucene.util.BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1")).bytes();
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(2L, 1L, 1L, System.currentTimeMillis()));
+            }
+
+            Engine.Get getForDelete = realtimeGet("1");
+            DocumentLookupResult deleteResult = getByIdLookup(engine, getForDelete);
+            assertFalse("deleted doc should return not found", deleteResult.exists());
+
+            // --- Path 2: version conflict for reads ---
+            // Put back an IndexVersionValue so we can test version conflict
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                versionMap.putIndexUnderLock(uid, new IndexVersionValue(null, 5L, 0L, 1L));
+            }
+
+            Engine.Get getWithConflict = realtimeGet("1").version(3L).versionType(VersionType.EXTERNAL);
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, getWithConflict));
+
+            // --- Path 3: seqNo/primaryTerm conflict (seqNo matches, primaryTerm doesn't) ---
+            Engine.Get getWithSeqNoConflict = realtimeGet("1").setIfSeqNo(99L).setIfPrimaryTerm(1L);
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, getWithSeqNoConflict));
+
+            // --- Path 4: primaryTerm mismatch (seqNo matches but primaryTerm doesn't) ---
+            // versionMap has seqNo=0, primaryTerm=1 from the IndexVersionValue above
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                versionMap.putIndexUnderLock(uid, new IndexVersionValue(null, 5L, 0L, 1L));
+            }
+            Engine.Get getWithPtConflict = realtimeGet("1").setIfSeqNo(0L).setIfPrimaryTerm(999L);
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, getWithPtConflict));
+
+            // --- Path 5: seqNo and primaryTerm both match — no conflict, falls through ---
+            Engine.Get getNoConflict = realtimeGet("1").setIfSeqNo(0L).setIfPrimaryTerm(1L);
+            DocumentLookupResult noConflictResult = getByIdLookup(engine, getNoConflict);
+            assertNotNull("should not throw when seqNo and primaryTerm match", noConflictResult);
+
+            // --- Path 6: GC deletes in resolveDocVersion ---
+            // Inject an expired DeleteVersionValue (time far in the past) so gc_deletes nullifies it
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(3L, 2L, 1L, 1L)); // time=1ms (epoch start, expired)
+            }
+            // Index same doc again — resolveDocVersion finds expired DeleteVersionValue, nullifies it,
+            // treats as new doc (version NOT_FOUND)
+            Engine.IndexResult gcResult = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(gcResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            // --- Path 7: translog readOperation returns null (bogus location) ---
+            // Covers the negative path: if (operation != null) is false, falls through to refreshIfNeeded
+            Translog.Location bogusLocation = new Translog.Location(999L, 0L, 1);
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                versionMap.putIndexUnderLock(uid, new IndexVersionValue(bogusLocation, 6L, 3L, 1L));
+            }
+            Engine.Get getWithBadTranslog = realtimeGet("1");
+            DocumentLookupResult translogNullResult = getByIdLookup(engine, getWithBadTranslog);
+            assertNotNull("should fall through when translog returns null", translogNullResult);
+        }
+    }
+
+    /**
+     * Tests that engine close is graceful when concurrent index, refresh, and flush operations
+     * are in flight. Verifies no unhandled exceptions escape and the engine transitions to closed.
+     */
+    public void testGracefulCloseUnderConcurrentLoad() throws Exception {
+        try (Store store = createStore()) {
+            DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+
+            final AtomicBoolean stop = new AtomicBoolean(false);
+            final AtomicReference<Exception> failure = new AtomicReference<>();
+            final CountDownLatch started = new CountDownLatch(3);
+
+            // Thread 1: continuous indexing
+            Thread indexThread = new Thread(() -> {
+                started.countDown();
+                int i = 0;
+                while (stop.get() == false) {
+                    try {
+                        engine.index(indexOp(createParsedDocWithInput(Integer.toString(i++), null)));
+                    } catch (AlreadyClosedException e) {
+                        break; // expected during close
+                    } catch (Exception e) {
+                        if (stop.get() == false) {
+                            failure.compareAndSet(null, e);
+                        }
+                        break;
+                    }
+                }
+            });
+
+            // Thread 2: continuous refresh
+            Thread refreshThread = new Thread(() -> {
+                started.countDown();
+                while (stop.get() == false) {
+                    try {
+                        engine.refresh("concurrent-test");
+                    } catch (AlreadyClosedException e) {
+                        break;
+                    } catch (Exception e) {
+                        if (stop.get() == false) {
+                            failure.compareAndSet(null, e);
+                        }
+                        break;
+                    }
+                }
+            });
+
+            // Thread 3: periodic flush
+            Thread flushThread = new Thread(() -> {
+                started.countDown();
+                while (stop.get() == false) {
+                    try {
+                        engine.flush(false, true);
+                        Thread.sleep(10);
+                    } catch (AlreadyClosedException e) {
+                        break;
+                    } catch (FlushFailedEngineException e) {
+                        // flush may be disabled during translog recovery or after close
+                        break;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    } catch (Exception e) {
+                        if (stop.get() == false) {
+                            failure.compareAndSet(null, e);
+                        }
+                        break;
+                    }
+                }
+            });
+
+            indexThread.start();
+            refreshThread.start();
+            flushThread.start();
+
+            // Wait for all threads to start
+            assertTrue(started.await(5, TimeUnit.SECONDS));
+
+            // Let them run briefly
+            Thread.sleep(200);
+
+            // Close the engine while operations are in-flight
+            stop.set(true);
+            engine.close();
+
+            // Wait for threads to finish
+            indexThread.join(10_000);
+            refreshThread.join(10_000);
+            flushThread.join(10_000);
+
+            assertFalse("Index thread should have stopped", indexThread.isAlive());
+            assertFalse("Refresh thread should have stopped", refreshThread.isAlive());
+            assertFalse("Flush thread should have stopped", flushThread.isAlive());
+
+            // No unexpected exceptions
+            if (failure.get() != null) {
+                throw new AssertionError("Unexpected exception during concurrent close", failure.get());
+            }
+        }
+    }
+
+    /**
+     * Reproduces the composite checkpoint-inflation data-loss bug (the one behind the
+     * doc-count gap observed after a primary relocation under sustained ingest).
+     *
+     * <p>Mechanism: {@code flush()} calls {@code refresh("flush")} — which snapshots the
+     * writers frozen at {@code checkoutAll} — and then commits
+     * {@code LOCAL_CHECKPOINT = getProcessedCheckpoint()} read <b>after</b> that refresh. If a
+     * document is processed <b>during</b> the flush (after the snapshot is frozen but before the
+     * checkpoint is read) it lands in a NEW writer that is not in the snapshot, yet it advances
+     * the processed checkpoint. The commit therefore records a checkpoint that is AHEAD of what
+     * the durable snapshot actually contains. On recovery, replay starts at {@code committed+1}
+     * and the band in between is seeded as "already processed", so it is never replayed — the
+     * acknowledged docs are silently lost.
+     *
+     * <p>We inject the in-window document via an {@code afterRefresh} listener (it fires
+     * synchronously at the end of {@code refresh()}, i.e. after the snapshot is built but, when
+     * called from inside {@code flush()}, before {@code flush()} reads the checkpoint). We then
+     * assert the engine-level invariant the fix must restore: the committed
+     * {@code LOCAL_CHECKPOINT} must NOT exceed the highest seqno durably persisted in the
+     * snapshot.
+     */
+    public void testFlushMustNotCommitCheckpointAheadOfPersistedSnapshot() throws Exception {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        InMemoryCommitter committer = new InMemoryCommitter(store);
+
+        final AtomicReference<DataFormatAwareEngine> engineRef = new AtomicReference<>();
+        final AtomicBoolean armed = new AtomicBoolean(false);
+        final AtomicBoolean fired = new AtomicBoolean(false);
+        final List<Long> injectedSeqNos = new ArrayList<>();
+
+        // Fires at the END of refresh() — after the catalog snapshot has been built, but
+        // (when called from inside flush()) before flush() reads getProcessedCheckpoint().
+        ReferenceManager.RefreshListener injector = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (armed.get() && fired.compareAndSet(false, true)) {
+                    DataFormatAwareEngine eng = engineRef.get();
+                    try {
+                        for (int i = 10; i <= 12; i++) {
+                            Engine.IndexResult r = eng.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                            injectedSeqNos.add(r.getSeqNo());
+                        }
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of(injector))
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(createMockRegistry())
+            .committerFactory(c -> committer)
+            .eventListener(new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {}
+            })
+            .mapperService(mapperService)
+            .build();
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engineRef.set(engine);
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            // Pre-flush docs: seqnos 0..9 — captured by the flush's refresh snapshot.
+            for (int i = 0; i < 10; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            assertThat("processed checkpoint before flush", engine.getProcessedLocalCheckpoint(), equalTo(9L));
+
+            // Arm the injector: during flush()'s refresh, seqnos 10,11,12 get indexed into a NEW
+            // writer (after the snapshot is frozen) but before the commit reads the checkpoint.
+            armed.set(true);
+            engine.flush(false, true);
+
+            assertThat("injector ran inside the flush window", injectedSeqNos, equalTo(List.of(10L, 11L, 12L)));
+            assertThat("all 13 ops were processed/acked", engine.getProcessedLocalCheckpoint(), equalTo(12L));
+
+            // What the commit DURABLY persisted: only seqnos 0..9 made it into the snapshot.
+            long persistedRows;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                persistedRows = ref.get()
+                    .getSegments()
+                    .stream()
+                    .mapToLong(s -> s.dfGroupedSearchableFiles().get(mockDataFormat.name()).numRows())
+                    .sum();
+            }
+            assertThat("snapshot durably persisted only the pre-flush docs [0..9]", persistedRows, equalTo(10L));
+            final long persistedMaxSeqNo = persistedRows - 1; // contiguous 0..9 -> max seqno 9
+
+            // What the commit CLAIMS is durable.
+            long committedCheckpoint = Long.parseLong(committer.getLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
+            // INVARIANT the fix must restore: committed LOCAL_CHECKPOINT must not exceed the max
+            // seqno actually present in the committed snapshot. Otherwise recovery replays from
+            // committedCheckpoint+1 and silently drops (persistedMaxSeqNo, committedCheckpoint].
+            assertThat(
+                "committed LOCAL_CHECKPOINT ("
+                    + committedCheckpoint
+                    + ") must not exceed the max seqno durably persisted in the snapshot ("
+                    + persistedMaxSeqNo
+                    + "); recovery would otherwise skip and lose seqnos "
+                    + (persistedMaxSeqNo + 1)
+                    + ".."
+                    + committedCheckpoint,
+                committedCheckpoint,
+                lessThanOrEqualTo(persistedMaxSeqNo)
+            );
         }
     }
 }

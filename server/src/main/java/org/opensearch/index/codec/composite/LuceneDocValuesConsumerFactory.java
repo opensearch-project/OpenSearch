@@ -11,6 +11,7 @@ package org.opensearch.index.codec.composite;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesConsumerWrapper;
 import org.apache.lucene.index.SegmentWriteState;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 
 import java.io.IOException;
 
@@ -58,7 +59,9 @@ public class LuceneDocValuesConsumerFactory {
             dataCodec,
             dataExtension,
             metaCodec,
-            metaExtension
+            metaExtension,
+            Composite912DocValuesFormat.SKIP_INDEX_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.SKIP_INDEX_DOC_VALUES_EXTENSION
         );
         return lucene90DocValuesConsumerWrapper.getLucene90DocValuesConsumer();
 
