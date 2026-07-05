@@ -134,8 +134,23 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
     private void connectInternal() throws TTransportException {
         String uri = config.getMetastoreUri().replace("thrift://", "");
         String[] hostPort = uri.split(":");
+        if (hostPort.length != 2 || hostPort[0].isEmpty()) {
+            throw new TTransportException("Invalid metastore URI [" + config.getMetastoreUri() + "]. Expected format: thrift://host:port");
+        }
         String host = hostPort[0];
-        int port = Integer.parseInt(hostPort[1]);
+        int port;
+        try {
+            port = Integer.parseInt(hostPort[1]);
+        } catch (NumberFormatException e) {
+            throw new TTransportException(
+                "Invalid port ["
+                    + hostPort[1]
+                    + "] in metastore URI ["
+                    + config.getMetastoreUri()
+                    + "]. "
+                    + "Expected format: thrift://host:port"
+            );
+        }
 
         if (config.getAuthMode() == HiveSourceConfig.AuthMode.KERBEROS) {
             loginWithKerberos();

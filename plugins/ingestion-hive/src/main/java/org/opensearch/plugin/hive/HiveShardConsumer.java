@@ -336,7 +336,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Supports both partition-name and create-time ordering strategies.
      */
     void discoverNewPartitions() throws Exception {
-        // Reset work queue before fetching new partitions
+        // Reset work queue before fetching new partitions. Callers only invoke this when
+        // all prior work is consumed, so the reader should already be closed; close it
+        // defensively so a future caller cannot leak an open reader.
+        closeCurrentReader();
         pendingWork.clear();
         currentWorkIndex = 0;
 

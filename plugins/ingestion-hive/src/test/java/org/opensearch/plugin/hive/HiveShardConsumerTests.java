@@ -264,4 +264,59 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         // currentFileIndex must not have advanced, so a retry would attempt the same file
         assertEquals(0, consumer.pendingWork.getFirst().currentFileIndex);
     }
+
+    public void testDiscoverNewPartitionsClosesOpenReader() throws Exception {
+        HiveShardConsumer consumer = createConsumer();
+
+        final boolean[] readerClosed = { false };
+        HiveFileReader openReader = new HiveFileReader() {
+            @Override
+            public java.util.Map<String, Object> readNext() {
+                return null;
+            }
+
+            @Override
+            public void close() {
+                readerClosed[0] = true;
+            }
+        };
+        java.lang.reflect.Field readerField = HiveShardConsumer.class.getDeclaredField("currentFileReader");
+        readerField.setAccessible(true);
+        readerField.set(consumer, openReader);
+
+        MetastoreCatalog emptyCatalog = new MetastoreCatalog() {
+            @Override
+            public void connect() {}
+
+            @Override
+            public void reconnect() {}
+
+            @Override
+            public TableInfo getTableInfo(String database, String table) {
+                return null;
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getAllPartitions(String database, String table) {
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getPartitionsByFilter(String database, String table, String filter) {
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public void close() {}
+        };
+        java.lang.reflect.Field catalogField = HiveShardConsumer.class.getDeclaredField("catalog");
+        catalogField.setAccessible(true);
+        catalogField.set(consumer, emptyCatalog);
+        consumer.partitionKeys = List.of("dt");
+
+        consumer.discoverNewPartitions();
+
+        assertTrue("open reader must be closed before the work queue is reset", readerClosed[0]);
+        assertNull(readerField.get(consumer));
+    }
 }
