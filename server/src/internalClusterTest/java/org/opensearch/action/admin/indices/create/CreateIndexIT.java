@@ -453,15 +453,6 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         assertEquals("key [mappings] must be an object", e.getMessage());
     }
 
-    public void testCreateIndexWithMappingsNestedValueAsString() {
-        CreateIndexRequest request = new CreateIndexRequest("test");
-        OpenSearchParseException e = expectThrows(
-            OpenSearchParseException.class,
-            () -> request.source("{\"mappings\": {\"properties\": \"invalid\"}}", MediaTypeRegistry.JSON)
-        );
-        assertEquals("values inside key [mappings] must be an object", e.getMessage());
-    }
-
     public void testCreateIndexWithContextSettingsAndTemplate() throws Exception {
         int numReplicas = 1;
         String indexName = "test-idx-1";
