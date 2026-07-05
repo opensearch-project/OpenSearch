@@ -283,8 +283,12 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(cfg_target_partitions.max(1))
         .force_strategy(force_strategy)
-        .force_pushdown(force_pushdown)
         .batch_size(cfg_batch_size.unwrap_or([128, 1024, 8192][seed as usize % 3]));
+    // `force_pushdown` overrides the node-wide indexed_pushdown_filters default;
+    // `None` leaves the default in place.
+    if let Some(push) = force_pushdown {
+        qcb = qcb.indexed_pushdown_filters(push);
+    }
     if let Some(msr) = cfg_min_skip_run {
         qcb = qcb.min_skip_run_default(msr);
     }
@@ -306,6 +310,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         )),
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -473,7 +478,7 @@ async fn run_single_collector_query(
     let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(force_strategy)
-        .force_pushdown(Some(true))
+        .indexed_pushdown_filters(true)
         .batch_size([128, 1024, 8192][loaded.segments.len() % 3]);
     if let Some(msr) = min_skip_run_override {
         qcb = qcb.min_skip_run_default(msr);
@@ -492,6 +497,7 @@ async fn run_single_collector_query(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -685,12 +691,16 @@ async fn run_with_factory_plan(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
-    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+    let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(force_strategy)
-        .force_pushdown(force_pushdown)
-        .batch_size([256, 1024, 8192][loaded.segments.len() % 3])
-        .build();
+        .batch_size([256, 1024, 8192][loaded.segments.len() % 3]);
+    // `force_pushdown` overrides the node-wide indexed_pushdown_filters default;
+    // `None` leaves the default in place.
+    if let Some(push) = force_pushdown {
+        qcb = qcb.indexed_pushdown_filters(push);
+    }
+    let qc = qcb.build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
@@ -704,6 +714,7 @@ async fn run_with_factory_plan(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

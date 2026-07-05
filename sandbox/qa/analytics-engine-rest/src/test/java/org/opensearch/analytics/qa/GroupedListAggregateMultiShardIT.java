@@ -84,13 +84,13 @@ public class GroupedListAggregateMultiShardIT extends AnalyticsRestTestCase {
         client().performRequest(health);
 
         // 4 docs distributed across the 2 shards by _id hash. grp ∈ {1,2}, str_value ∈ {x,y}.
-        String bulk = "{\"index\":{\"_id\":\"1\"}}\n"
+        String bulk = "{\"index\":{}}\n"
             + "{\"num_value\":10,\"grp\":1,\"str_value\":\"x\"}\n"
-            + "{\"index\":{\"_id\":\"2\"}}\n"
+            + "{\"index\":{}}\n"
             + "{\"num_value\":20,\"grp\":2,\"str_value\":\"y\"}\n"
-            + "{\"index\":{\"_id\":\"3\"}}\n"
+            + "{\"index\":{}}\n"
             + "{\"num_value\":30,\"grp\":1,\"str_value\":\"x\"}\n"
-            + "{\"index\":{\"_id\":\"4\"}}\n"
+            + "{\"index\":{}}\n"
             + "{\"num_value\":40,\"grp\":2,\"str_value\":\"y\"}\n";
 
         Request bulkRequest = new Request("POST", "/" + INDEX + "/_bulk");

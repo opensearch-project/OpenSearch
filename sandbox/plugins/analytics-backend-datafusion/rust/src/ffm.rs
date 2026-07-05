@@ -48,11 +48,12 @@ use crate::api::DataFusionRuntime;
 use crate::cache;
 use crate::datafusion_query_config::InternalSearch;
 use crate::custom_cache_manager::CustomCacheManager;
-use crate::eviction_policy::PolicyType;
+use crate::eviction_policy::CacheEvictionPolicy;
 use crate::runtime_manager::RuntimeManager;
 use crate::statistics_cache::CustomStatisticsCache;
 
 use datafusion::execution::cache::DefaultFilesMetadataCache;
+use crate::cache::page_index;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
@@ -217,6 +218,14 @@ pub extern "C" fn df_set_min_target_partitions(value: i64) {
 #[no_mangle]
 pub extern "C" fn df_set_reduce_target_partitions(value: i64) {
     api::set_reduce_target_partitions(value);
+}
+
+/// Sets the spill-exemption cap in bytes (the total in-flight allocation allowed
+/// through the 85% spill gate by spillable consumers so they can finish spilling).
+/// Live-tunable; takes effect on the next try_grow. Java: NativeBridge.setSpillExemptCapBytes(long).
+#[no_mangle]
+pub extern "C" fn df_set_spill_exempt_cap_bytes(value: i64) {
+    crate::memory_guard::set_spill_exempt_cap_bytes(value.max(0) as u64);
 }
 
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
@@ -774,15 +783,14 @@ pub unsafe extern "C" fn df_create_cache(
     let eviction_type = str_from_raw(eviction_type_ptr, eviction_type_len)
         .map_err(|e| format!("df_create_cache: eviction_type: {}", e))?;
 
-    let policy_type = match eviction_type.to_uppercase().as_str() {
-        "LRU" => PolicyType::Lru,
-        "LFU" => PolicyType::Lfu,
-        _ => {
-            return Err(format!(
-                "df_create_cache: unsupported eviction type: {}",
-                eviction_type
-            ))
-        }
+    // Parse the eviction type string into the unified CacheEvictionPolicy enum.
+    // All four cache types share one enum — the per-cache match below enforces
+    // which policies are valid for each type.
+    let policy = match eviction_type.to_uppercase().as_str() {
+        "LRU"  => CacheEvictionPolicy::Lru,
+        "LFU"  => CacheEvictionPolicy::Lfu,
+        "FIFO" => CacheEvictionPolicy::Fifo,
+        _ => return Err(format!("df_create_cache: unsupported eviction type: {}", eviction_type)),
     };
 
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
@@ -790,17 +798,35 @@ pub unsafe extern "C" fn df_create_cache(
 
     match cache_type {
         cache::CACHE_TYPE_METADATA => {
+            // METADATA uses DefaultFilesMetadataCache (has its own LRU); eviction
+            // type is accepted but not forwarded.
             let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
             let metadata_cache = Arc::new(cache::MutexFileMetadataCache::new(inner_cache));
             manager.set_file_metadata_cache(metadata_cache);
         }
         cache::CACHE_TYPE_STATS => {
+            if policy == CacheEvictionPolicy::Fifo {
+                return Err("df_create_cache: STATISTICS cache does not support FIFO eviction".to_string());
+            }
             let stats_cache = Arc::new(CustomStatisticsCache::new(
-                policy_type,
+                policy,
                 size_limit as usize,
                 0.8,
             ));
             manager.set_statistics_cache(stats_cache);
+        }
+        cache::CACHE_TYPE_COLUMN_INDEX => {
+            // CI/OI use BoundedCache<FIFO>; eviction type must be FIFO.
+            if policy != CacheEvictionPolicy::Fifo {
+                return Err(format!("df_create_cache: COLUMN_INDEX cache only supports FIFO eviction, got {eviction_type}"));
+            }
+            manager.set_column_index_cache(size_limit as usize);
+        }
+        cache::CACHE_TYPE_OFFSET_INDEX => {
+            if policy != CacheEvictionPolicy::Fifo {
+                return Err(format!("df_create_cache: OFFSET_INDEX cache only supports FIFO eviction, got {eviction_type}"));
+            }
+            manager.set_offset_index_cache(size_limit as usize);
         }
         _ => {
             return Err(format!(
@@ -847,6 +873,78 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
 
     manager.add_files(&file_paths, rt_handle)
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
+    Ok(0)
+}
+
+/// Warmup: load footer (lightweight) into heap and promote footer + page/offset
+/// index bytes to the metadata Foyer tier (never-evict) through the store.
+///
+/// After this call:
+/// - file_metadata_cache (heap): lightweight ParquetMetaData (footer only, no page indexes)
+/// - data Foyer: raw footer + page index bytes (via get_ranges populate)
+/// - metadata Foyer: the same ranges promoted via `MetadataCachingStore::put_metadata`
+///
+/// Promotion happens entirely in Rust inside `CustomCacheManager::add_files_with_store`;
+/// the Java caller only supplies the file paths.
+///
+/// # Safety
+/// - `runtime_ptr` must be a valid pointer from `df_create_global_runtime`.
+/// - `store_ptr` must be a valid `Box<Arc<dyn MetadataCachingStore>>` pointer (produced by
+///   `ts_get_object_store_box_ptr`).
+/// - `files_ptr[i]` must point to `files_len_ptr[i]` valid UTF-8 bytes.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_add_files_with_store(
+    runtime_ptr: i64,
+    store_ptr: i64,
+    files_ptr: *const *const u8,
+    files_len_ptr: *const i64,
+    files_count: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_add_files_with_store: null runtime pointer".to_string());
+    }
+    if store_ptr == 0 {
+        return Err("df_cache_manager_add_files_with_store: null store pointer".to_string());
+    }
+
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
+        .ok_or_else(|| "df_cache_manager_add_files_with_store: no cache manager".to_string())?;
+
+    // Pointer type is `Arc<dyn MetadataCachingStore>`; the manager calls `put_metadata`
+    // directly via the trait, no downcast needed.
+    let store_box = &*(store_ptr
+        as *const std::sync::Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>);
+    let store = std::sync::Arc::clone(store_box);
+
+    let mut file_paths = Vec::with_capacity(files_count as usize);
+    for i in 0..files_count as usize {
+        let ptr = *files_ptr.add(i);
+        let len = *files_len_ptr.add(i);
+        file_paths.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?
+                .to_string(),
+        );
+    }
+
+    let rt_manager = get_rt_manager()
+        .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?;
+    let rt_handle = rt_manager.io_runtime.handle();
+
+    let results = manager.add_files_with_store(&file_paths, store, rt_handle)
+        .map_err(|e| format!("df_cache_manager_add_files_with_store: {}", e))?;
+
+    // Log summary
+    let success_count = results.iter().filter(|(_, ok)| *ok).count();
+    native_bridge_common::log_info!(
+        "df_cache_manager_add_files_with_store: {} files, {} warmed (page-index promoted to metadata Foyer)",
+        files_count, success_count
+    );
+
     Ok(0)
 }
 
@@ -1076,6 +1174,40 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     })
 }
 
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_update_size_limit(
+    runtime_ptr: i64,
+    cache_type_ptr: *const u8,
+    cache_type_len: i64,
+    new_limit: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_update_size_limit: null runtime pointer".to_string());
+    }
+    if new_limit < 0 {
+        return Err(format!("df_cache_manager_update_size_limit: negative limit {}", new_limit));
+    }
+    let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_update_size_limit: no cache manager configured".to_string()
+    })?;
+    match cache_type {
+        cache::CACHE_TYPE_METADATA => {
+            manager.update_metadata_cache_limit(new_limit as usize);
+            Ok(0)
+        }
+        cache::CACHE_TYPE_STATS => {
+            manager.update_statistics_cache_limit(new_limit as usize)
+                .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+            Ok(0)
+        }
+        _ => Err(format!("df_cache_manager_update_size_limit: unsupported cache type: {}", cache_type)),
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn df_close_session_context(ptr: i64) {
     crate::session_context::close_session_context(ptr);
@@ -1103,14 +1235,12 @@ pub unsafe extern "C" fn df_execute_with_context(
     let mgr_for_spawn = Arc::clone(&mgr);
 
     // Route based on whether the session was configured for indexed execution,
-    // or if the plan projects __row_id__ (QTF query phase) under a non-ListingTable
-    // fetch strategy.
+    // or if the plan projects __row_id__ (QTF query phase). QTF row-id computation
+    // always runs in the indexed executor.
     let has_row_id = plan_bytes
         .windows(crate::ROW_ID_COLUMN_NAME.len())
         .any(|w| w == crate::ROW_ID_COLUMN_NAME.as_bytes());
-    let query_strategy = session_handle.query_config.query_strategy;
-    let use_indexed = session_handle.indexed_config.is_some()
-        || (has_row_id && query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
+    let use_indexed = session_handle.indexed_config.is_some() || has_row_id;
     if use_indexed {
         // Extract target_partitions BEFORE boxing into raw pointer (session_handle is consumed).
         let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
@@ -1333,6 +1463,57 @@ pub unsafe extern "C" fn df_execute_local_prepared_plan(
     // (the QTF coordinator-reduce path runs synchronously inside the SEARCH-thread FFM
     // call and gating it can deadlock).
     api::execute_local_prepared_plan(session_ptr, &mgr, context_id, None).map_err(|e| e.to_string())
+}
+
+// ── Scoped page-index cache limit setters ────────────────────────────────────
+//
+// These are wired from Java at startup (CacheUtils.createCacheConfig) and on
+// dynamic setting changes (DataFusionPlugin settings consumers). They forward
+// to the process-global caches in crate::cache::page_index.
+//
+// NOTE: On main these are stubs that do nothing — the cache module from PR 1
+// is not yet present. Once PR 1 merges the bodies replace these no-ops.
+
+/// Set the byte budget of the process-global scoped ColumnIndex cache.
+/// Zero is ignored; negative returns an error.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_set_column_index_cache_limit(size_limit: i64) -> i64 {
+    if size_limit < 0 {
+        return Err(format!("df_set_column_index_cache_limit: negative limit {}", size_limit));
+    }
+    page_index::set_column_index_cache_limit(size_limit as usize);
+    Ok(0)
+}
+
+/// Set the byte budget of the process-global scoped OffsetIndex cache.
+/// Zero is ignored; negative returns an error.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_set_offset_index_cache_limit(size_limit: i64) -> i64 {
+    if size_limit < 0 {
+        return Err(format!("df_set_offset_index_cache_limit: negative limit {}", size_limit));
+    }
+    page_index::set_offset_index_cache_limit(size_limit as usize);
+    Ok(0)
+}
+
+/// Clear the process-global scoped page-index caches (drop entries + reset counters).
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_clear_scoped_page_index_cache() -> i64 {
+    page_index::clear_scoped_cache();
+    Ok(0)
+}
+
+/// Enable or disable the scoped page-index feature.
+/// When disabled: metadata cache retains full page index (fallback mode).
+/// When enabled (default): metadata cache strips page index; scoped caches handle it.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
+    page_index::set_scoped_page_index_enabled(enabled != 0);
+    Ok(0)
 }
 
 #[cfg(test)]

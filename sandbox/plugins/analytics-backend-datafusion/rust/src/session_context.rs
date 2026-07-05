@@ -24,14 +24,17 @@ use datafusion::{
     execution::memory_pool::MemoryPool,
     execution::runtime_env::RuntimeEnvBuilder,
     execution::SessionStateBuilder,
+    physical_plan::ExecutionPlan,
     prelude::*,
 };
 use log::error;
 use object_store::ObjectMeta;
 
 use crate::api::{DataFusionRuntime, ShardView};
+use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::query_tracker::QueryTrackingContext;
+use crate::scoped_index_optimizer::ScopedPageIndexOptimizer;
 
 /// Opaque handle holding a configured SessionContext between FFM calls.
 pub struct SessionContextHandle {
@@ -56,10 +59,14 @@ pub struct SessionContextHandle {
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
     /// IO runtime handle for bloom filter reads and other async I/O dispatched
-    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    /// from CPU executor threads.
     pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
+    /// True when the shard Substrait fragment contains a FetchRel (Sort+Limit = TopK).
+    /// Detected once in `create_session_context` from plan_bytes and reused in
+    /// `prepare_partial_plan` to apply PartialReduce for CSS correctness.
+    pub(crate) has_topk: bool,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
     /// Phantom reservation holding pool capacity for untracked memory.
@@ -197,7 +204,17 @@ pub async unsafe fn create_session_context(
     let phantom = phantom_reservation.map(|b| b.phantom_reservation);
 
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    // Detect TopK once from the Substrait bytes: a FetchRel (Sort+Limit) in a partial-agg
+    // fragment means OpenSearchTopKRewriter fired. Stored on the handle so prepare_partial_plan
+    // can apply PartialReduce without re-scanning the physical plan.
+    let has_topk = has_partial_aggregate && substrait_has_fetch_rel(plan_bytes);
+    config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
+    // Disable DataFusion's adaptive skip-partial-aggregation when TopK is active.
+    // If DF abandons partial agg midstream, the partial state sent to the coordinator is
+    // incomplete — TopK sees wrong group counts and produces incorrect results.
+    if has_topk {
+        config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
+    }
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
@@ -216,17 +233,15 @@ pub async unsafe fn create_session_context(
             datafusion::physical_optimizer::optimizer::PhysicalOptimizer::new().rules
         });
 
-    // For ListingTable query strategy:
-    // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
-    // 2. Add ProjectRowIdOptimizer (physical) — computes __row_id__ + row_base.
-    if query_config.query_strategy == crate::datafusion_query_config::QueryStrategy::ListingTable {
-        state_builder = state_builder
-            .with_analyzer_rule(
-                Arc::new(crate::project_row_id_analyzer::ProjectRowIdAnalyzer::new())
-            )
-            .with_physical_optimizer_rule(
-                Arc::new(crate::project_row_id_optimizer::ProjectRowIdOptimizer)
-            );
+    // Install the scoped page-index reader factory on every parquet scan.
+    // Also, this SHOULD be the last optimizer to see all projections / predicates
+    if page_index::is_scoped_page_index_enabled() {
+        state_builder = state_builder.with_physical_optimizer_rule(Arc::new(
+            ScopedPageIndexOptimizer::new(
+                Arc::clone(&shard_view.store),
+                runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+            ),
+        ));
     }
 
     let state = state_builder.build();
@@ -269,6 +284,26 @@ pub async unsafe fn create_session_context(
     } else {
         table_name.to_string()
     };
+
+    // Pre-warm the metadata cache footer-only before infer_schema fires.
+    // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
+    // on a cache miss — fetching full page index bytes. By pre-warming here with
+    // PageIndexPolicy::Skip via load_parquet_metadata, every infer_schema call becomes
+    // a cache hit and never touches the page index bytes.
+    // Cache key is meta.location (Path) — same key infer_schema uses.
+    // Empty shard: loop is a no-op; infer_schema is also skipped below.
+    {
+        let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+        for meta in shard_view.object_metas.as_ref() {
+            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
+                Arc::clone(&shard_view.store),
+                &meta.location,
+                meta.clone(),
+                Arc::clone(&metadata_cache),
+            )
+            .await;
+        }
+    }
 
     // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
     // below populates columns from the substrait base_schema.
@@ -355,6 +390,7 @@ pub async unsafe fn create_session_context(
         query_config,
         io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
+        has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
     };
@@ -425,18 +461,75 @@ pub async fn prepare_partial_plan(
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+
     // Strip first on the raw physical plan so `force_aggregate_mode(Partial)` can find the
     // Final/Partial pair without a RelabelExec wrapper at the root pre-empting the walk.
     // Then derive `target_schema` and wrap with RelabelExec from the stripped plan's actual
     // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
     // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
     // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
-    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial, handle.has_topk)?;
 
     let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
     let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
     handle.prepared_plan = Some(stripped);
     Ok(())
+}
+
+
+/// Returns true if the Substrait plan bytes contain a FetchRel (Sort+Limit node).
+/// A FetchRel in a shard fragment means `OpenSearchTopKRewriter` inserted a per-shard
+/// Sort+Limit — TopK is active. Used in `create_session_context` to detect TopK before
+/// the DataFusion physical plan is built, so the result can be stored on the handle and
+/// reused in `prepare_partial_plan` without re-scanning the physical plan.
+///
+/// Single-shard (SINGLE aggregate mode) never has `has_partial_aggregate=true` so this
+/// function is only called for multi-shard partial-aggregate fragments.
+///
+/// # Upgrade path note
+/// This detection avoids adding a new boolean field to the Java→Rust FFI surface
+/// (which would break wire compatibility with older nodes during rolling upgrades —
+/// old coordinators serialising `PartialAggregateInstructionNode` without the field
+/// would be misread by new data nodes). The Substrait plan bytes are already part of
+/// the existing wire contract and do not change format.
+///
+/// TODO: Once AnalyticsCore supports a versioned flag/hint mechanism, replace this
+/// Substrait scan with an explicit flag passed through the instruction pipeline.
+/// That would be cleaner and avoid re-parsing the plan bytes, but requires a
+/// backward-compatible flag delivery path that does not exist today.
+fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
+    use prost::Message;
+    use substrait::proto::rel::RelType;
+
+    fn rel_has_fetch(rel: &substrait::proto::Rel) -> bool {
+        match rel.rel_type.as_ref() {
+            Some(RelType::Fetch(f)) => f.count_mode.is_some(),
+            Some(RelType::Sort(s)) => s.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Project(p)) => p.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Filter(f)) => f.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Aggregate(a)) => a.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            // TODO: enumerate remaining rel types explicitly and panic on unknown ones.
+            Some(other) => {
+                native_bridge_common::log_debug!(
+                    "substrait_has_fetch_rel: {:?} — no TopK fetch",
+                    std::mem::discriminant(other)
+                );
+                false
+            }
+            None => false,
+        }
+    }
+
+    let Ok(plan) = substrait::proto::Plan::decode(plan_bytes) else { return false; };
+    plan.relations.iter().any(|pr| {
+        match pr.rel_type.as_ref() {
+            Some(substrait::proto::plan_rel::RelType::Root(rr)) => {
+                rr.input.as_ref().map_or(false, |r| rel_has_fetch(r))
+            }
+            Some(substrait::proto::plan_rel::RelType::Rel(r)) => rel_has_fetch(r),
+            None => false,
+        }
+    })
 }
 
 /// Attempt to acquire a memory budget using cached parquet metadata.
@@ -656,6 +749,7 @@ mod tests {
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
+            has_topk: false,
             prepared_plan: None,
             phantom_reservation: None,
         };
@@ -806,5 +900,161 @@ mod tests {
         assert!(Arc::ptr_eq(&got_a, &store_a), "env_a must resolve to its own store");
         assert!(Arc::ptr_eq(&got_b, &store_b), "env_b must resolve to its own store");
         assert!(!Arc::ptr_eq(&got_a, &got_b), "per-query stores must be independent across queries");
+    }
+
+    #[test]
+    fn test_skip_partial_agg_disabled_when_has_topk() {
+        // skip_partial must be disabled (1.0) when TopK is active — if DF abandons partial
+        // agg midstream the partial state is incomplete and TopK sees wrong group counts.
+        let mut config = SessionConfig::new();
+        let has_topk = true;
+        if has_topk {
+            config.options_mut().execution.skip_partial_aggregation_probe_ratio_threshold = 1.0;
+        }
+        assert_eq!(
+            config.options().execution.skip_partial_aggregation_probe_ratio_threshold,
+            1.0,
+            "skip_partial must be disabled (1.0) when TopK is active"
+        );
+    }
+
+    #[test]
+    fn test_skip_partial_agg_default_when_no_topk() {
+        // When has_topk=false, skip_partial retains DF default (0.8) — no perf regression
+        // for non-TopK multi-shard queries.
+        let config = SessionConfig::new();
+        assert_eq!(
+            config.options().execution.skip_partial_aggregation_probe_ratio_threshold,
+            0.8,
+            "non-TopK queries must retain DF default threshold"
+        );
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_empty() {
+        assert!(!substrait_has_fetch_rel(&[]), "empty bytes → false");
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_with_fetch() {
+        use prost::Message;
+        use substrait::proto::expression::literal::LiteralType;
+        use substrait::proto::expression::{Literal, RexType};
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{Expression, FetchRel, Plan, PlanRel, Rel, SortRel, fetch_rel, plan_rel};
+
+        // Build: FetchRel(count=10) wrapping SortRel — same as what DataFusion Substrait
+        // producer emits for Sort(fetch=10, ...) from OpenSearchTopKRewriter.
+        let sort_rel = Box::new(Rel {
+            rel_type: Some(RelType::Sort(Box::new(SortRel {
+                common: None,
+                input: None,
+                sorts: vec![],
+                advanced_extension: None,
+            }))),
+        });
+        let fetch_rel = Box::new(Rel {
+            rel_type: Some(RelType::Fetch(Box::new(FetchRel {
+                common: None,
+                input: Some(sort_rel),
+                offset_mode: None,
+                count_mode: Some(fetch_rel::CountMode::CountExpr(Box::new(Expression {
+                    rex_type: Some(RexType::Literal(Literal {
+                        nullable: false,
+                        type_variation_reference: 0,
+                        literal_type: Some(LiteralType::I64(10)),
+                    })),
+                }))),
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*fetch_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(substrait_has_fetch_rel(&bytes), "FetchRel(count=10) → true");
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_with_fetch_no_count_mode() {
+        use prost::Message;
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{FetchRel, Plan, PlanRel, Rel, plan_rel};
+
+        // FetchRel exists but count_mode is None — not a real limit, should not trigger TopK.
+        let fetch_rel = Box::new(Rel {
+            rel_type: Some(RelType::Fetch(Box::new(FetchRel {
+                common: None,
+                input: None,
+                offset_mode: None,
+                count_mode: None,
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*fetch_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(!substrait_has_fetch_rel(&bytes), "FetchRel without count_mode → false");
+    }
+
+    #[test]
+    fn test_substrait_has_fetch_rel_without_fetch() {
+        use prost::Message;
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{Plan, PlanRel, Rel, SortRel, plan_rel};
+
+        // Sort without fetch → no FetchRel → false
+        let sort_rel = Box::new(Rel {
+            rel_type: Some(RelType::Sort(Box::new(SortRel {
+                common: None,
+                input: None,
+                sorts: vec![],
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*sort_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(!substrait_has_fetch_rel(&bytes), "SortRel without FetchRel → false");
+    }
+
+    /// A Join rel at the root — exercises the `Some(other)` arm that logs and returns false.
+    /// Shard fragments never have Join above a TopK FetchRel, so this correctly returns false.
+    #[test]
+    fn test_substrait_has_fetch_rel_join_returns_false() {
+        use prost::Message;
+        use substrait::proto::rel::RelType;
+        use substrait::proto::{JoinRel, Plan, PlanRel, Rel, plan_rel};
+
+        let join_rel = Box::new(Rel {
+            rel_type: Some(RelType::Join(Box::new(JoinRel {
+                common: None,
+                left: None,
+                right: None,
+                r#type: 0,
+                expression: None,
+                post_join_filter: None,
+                advanced_extension: None,
+            }))),
+        });
+        let plan = Plan {
+            relations: vec![PlanRel {
+                rel_type: Some(plan_rel::RelType::Rel(*join_rel)),
+            }],
+            ..Default::default()
+        };
+        let bytes = plan.encode_to_vec();
+        assert!(!substrait_has_fetch_rel(&bytes), "Join rel → false (no TopK in shard fragment with Join)");
     }
 }

@@ -24,6 +24,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -96,6 +97,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -2159,8 +2161,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /**
      * Covers {@code DataFormatAwareEngine.applyMergeChanges}: a forceMerge over two
      * previously-refreshed segments must (1) replace the source segments in the catalog
-     * with a single merged segment, (2) invoke beforeRefresh/afterRefresh exactly once
-     * each on registered refresh listeners while holding the refresh lock, and
+     * with a single merged segment, (2) restrict its beforeRefresh/afterRefresh
+     * notifications to {@code RemoteStoreRefreshListener} instances only, so a plain
+     * refresh listener that fires on real refreshes is NOT invoked by the merge, and
      * (3) release the refresh lock on exit so a subsequent {@code refresh()} proceeds.
      *
      * <p>The system-property gate on {@code MERGE_ENABLED_PROPERTY} applies only to
@@ -2168,7 +2171,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * straight to {@code MergeScheduler.forceMerge} and does not consult it, so this
      * test drives the merge end-to-end without touching system properties.
      */
-    public void testApplyMergeChangesUpdatesCatalogAndNotifiesListeners() throws Exception {
+    public void testApplyMergeChangesUpdatesCatalogAndSkipsNonRemoteStoreListeners() throws Exception {
         AtomicInteger beforeCalls = new AtomicInteger();
         AtomicInteger afterCalls = new AtomicInteger();
         // Records call order: 'B' for beforeRefresh, 'A' for afterRefresh.
@@ -2232,12 +2235,17 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 }
             }, 10, java.util.concurrent.TimeUnit.SECONDS);
 
-            // applyMergeChanges must have invoked the listeners exactly once each, in order.
-            assertThat("beforeRefresh must fire exactly once for the merge", beforeCalls.get() - beforeAfterSeed, equalTo(1));
-            assertThat("afterRefresh must fire exactly once for the merge", afterCalls.get() - afterAfterSeed, equalTo(1));
+            // applyMergeChanges must notify only RemoteStoreRefreshListener instances. The plain
+            // listener registered here is not one, so the merge must NOT invoke it.
+            assertThat(
+                "merge must not invoke beforeRefresh on a non-remote-store listener",
+                beforeCalls.get() - beforeAfterSeed,
+                equalTo(0)
+            );
+            assertThat("merge must not invoke afterRefresh on a non-remote-store listener", afterCalls.get() - afterAfterSeed, equalTo(0));
             synchronized (callOrder) {
-                // Seed cycles contribute "BABA"; the merge must append exactly "BA".
-                assertThat("call order must be before-then-after for every cycle", callOrder.toString(), equalTo("BABABA"));
+                // Seed cycles contribute "BABA"; the merge must append nothing for this listener.
+                assertThat("merge must not append before/after for a non-remote-store listener", callOrder.toString(), equalTo("BABA"));
             }
 
             // Sanity: the refreshLock must have been released. A follow-up refresh must
@@ -3901,8 +3909,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             // Re-index same doc — resolveDocVersion misses versionMap (cleared by refresh rotation),
             // falls back to provider which returns version=5. MATCH_ANY accepts.
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
-            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-            assertThat(result.getSeqNo(), equalTo(1L));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
         }
     }
 
@@ -4022,7 +4030,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo(5L));
             // Index "x" again — should succeed (versionMap has version=2 from seqNo=5 entry)
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("x", null)));
-            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
         }
     }
 
@@ -4332,6 +4341,155 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             if (failure.get() != null) {
                 throw new AssertionError("Unexpected exception during concurrent close", failure.get());
             }
+        }
+    }
+
+    /**
+     * Reproduces the composite checkpoint-inflation data-loss bug (the one behind the
+     * doc-count gap observed after a primary relocation under sustained ingest).
+     *
+     * <p>Mechanism: {@code flush()} calls {@code refresh("flush")} — which snapshots the
+     * writers frozen at {@code checkoutAll} — and then commits
+     * {@code LOCAL_CHECKPOINT = getProcessedCheckpoint()} read <b>after</b> that refresh. If a
+     * document is processed <b>during</b> the flush (after the snapshot is frozen but before the
+     * checkpoint is read) it lands in a NEW writer that is not in the snapshot, yet it advances
+     * the processed checkpoint. The commit therefore records a checkpoint that is AHEAD of what
+     * the durable snapshot actually contains. On recovery, replay starts at {@code committed+1}
+     * and the band in between is seeded as "already processed", so it is never replayed — the
+     * acknowledged docs are silently lost.
+     *
+     * <p>We inject the in-window document via an {@code afterRefresh} listener (it fires
+     * synchronously at the end of {@code refresh()}, i.e. after the snapshot is built but, when
+     * called from inside {@code flush()}, before {@code flush()} reads the checkpoint). We then
+     * assert the engine-level invariant the fix must restore: the committed
+     * {@code LOCAL_CHECKPOINT} must NOT exceed the highest seqno durably persisted in the
+     * snapshot.
+     */
+    public void testFlushMustNotCommitCheckpointAheadOfPersistedSnapshot() throws Exception {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        InMemoryCommitter committer = new InMemoryCommitter(store);
+
+        final AtomicReference<DataFormatAwareEngine> engineRef = new AtomicReference<>();
+        final AtomicBoolean armed = new AtomicBoolean(false);
+        final AtomicBoolean fired = new AtomicBoolean(false);
+        final List<Long> injectedSeqNos = new ArrayList<>();
+
+        // Fires at the END of refresh() — after the catalog snapshot has been built, but
+        // (when called from inside flush()) before flush() reads getProcessedCheckpoint().
+        ReferenceManager.RefreshListener injector = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (armed.get() && fired.compareAndSet(false, true)) {
+                    DataFormatAwareEngine eng = engineRef.get();
+                    try {
+                        for (int i = 10; i <= 12; i++) {
+                            Engine.IndexResult r = eng.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                            injectedSeqNos.add(r.getSeqNo());
+                        }
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of(injector))
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(createMockRegistry())
+            .committerFactory(c -> committer)
+            .eventListener(new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {}
+            })
+            .mapperService(mapperService)
+            .build();
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engineRef.set(engine);
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            // Pre-flush docs: seqnos 0..9 — captured by the flush's refresh snapshot.
+            for (int i = 0; i < 10; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            assertThat("processed checkpoint before flush", engine.getProcessedLocalCheckpoint(), equalTo(9L));
+
+            // Arm the injector: during flush()'s refresh, seqnos 10,11,12 get indexed into a NEW
+            // writer (after the snapshot is frozen) but before the commit reads the checkpoint.
+            armed.set(true);
+            engine.flush(false, true);
+
+            assertThat("injector ran inside the flush window", injectedSeqNos, equalTo(List.of(10L, 11L, 12L)));
+            assertThat("all 13 ops were processed/acked", engine.getProcessedLocalCheckpoint(), equalTo(12L));
+
+            // What the commit DURABLY persisted: only seqnos 0..9 made it into the snapshot.
+            long persistedRows;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                persistedRows = ref.get()
+                    .getSegments()
+                    .stream()
+                    .mapToLong(s -> s.dfGroupedSearchableFiles().get(mockDataFormat.name()).numRows())
+                    .sum();
+            }
+            assertThat("snapshot durably persisted only the pre-flush docs [0..9]", persistedRows, equalTo(10L));
+            final long persistedMaxSeqNo = persistedRows - 1; // contiguous 0..9 -> max seqno 9
+
+            // What the commit CLAIMS is durable.
+            long committedCheckpoint = Long.parseLong(committer.getLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
+            // INVARIANT the fix must restore: committed LOCAL_CHECKPOINT must not exceed the max
+            // seqno actually present in the committed snapshot. Otherwise recovery replays from
+            // committedCheckpoint+1 and silently drops (persistedMaxSeqNo, committedCheckpoint].
+            assertThat(
+                "committed LOCAL_CHECKPOINT ("
+                    + committedCheckpoint
+                    + ") must not exceed the max seqno durably persisted in the snapshot ("
+                    + persistedMaxSeqNo
+                    + "); recovery would otherwise skip and lose seqnos "
+                    + (persistedMaxSeqNo + 1)
+                    + ".."
+                    + committedCheckpoint,
+                committedCheckpoint,
+                lessThanOrEqualTo(persistedMaxSeqNo)
+            );
         }
     }
 }

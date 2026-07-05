@@ -177,7 +177,7 @@ async fn run_two_segment_query(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -192,6 +192,7 @@ async fn run_two_segment_query(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -390,7 +391,7 @@ async fn run_two_segment_query_witness(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -405,6 +406,7 @@ async fn run_two_segment_query_witness(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -601,7 +603,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -616,6 +618,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -1110,7 +1113,7 @@ async fn run_wide_segments(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -1125,6 +1128,7 @@ async fn run_wide_segments(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -1469,7 +1473,7 @@ async fn run_wide_segments_with_stats_pruning(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(num_partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -1484,6 +1488,7 @@ async fn run_wide_segments_with_stats_pruning(
         prune_tree_config: Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema.clone())),
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
