@@ -70,6 +70,7 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
+    /** Optional setting to override the unicast hosts file location. Relative paths resolve against the config directory. */
     public static final Setting<String> UNICAST_HOSTS_FILE_PATH_SETTING = Setting.simpleString(
         "discovery.file.hosts_path",
         "",
