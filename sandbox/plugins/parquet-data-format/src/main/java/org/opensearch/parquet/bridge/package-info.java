@@ -29,7 +29,7 @@
  *
  * <h2>Writer Lifecycle</h2>
  * <pre>
- * createWriter(filePath, schemaAddress)  — initialize native writer with Arrow schema
+ * createWriter(filePath, schemaAddress, encryptionConfig) — initialize native writer with Arrow schema (+ optional PME)
  * write(arrayAddress, schemaAddress)     — send a batch of Arrow data (repeatable)
  * finalizeWriter(filePath)                  — finalize Parquet file, returns metadata
  * syncToDisk(filePath)                  — fsync the file to durable storage

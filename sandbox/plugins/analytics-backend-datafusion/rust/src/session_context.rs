@@ -72,6 +72,12 @@ pub struct SessionContextHandle {
     /// Phantom reservation holding pool capacity for untracked memory.
     /// Dropped when the handle is closed, releasing the capacity.
     pub(crate) phantom_reservation: Option<datafusion::execution::memory_pool::MemoryReservation>,
+    /// Per-file PME footer keys (filename → 32-byte AES-GCM key). Carried from
+    /// `ShardView` so the indexed execution path can pass them to `build_segments`
+    /// for metadata decryption and to `IndexedTableConfig` for column data decryption.
+    pub file_footer_keys: Arc<std::collections::HashMap<String, Vec<u8>>>,
+    /// Per-file PME AAD prefixes (filename → binary AAD prefix).
+    pub file_aad_prefixes: Arc<std::collections::HashMap<String, Vec<u8>>>,
 }
 
 /// Configuration for indexed execution with filter delegation, provided by Java.
@@ -190,6 +196,20 @@ pub async unsafe fn create_session_context(
         Arc::clone(&shard_view.store),
     );
 
+    // Register PME decryption factory when footer keys are present.
+    // Both the factory registration AND the ParquetFormat factory_id must be set —
+    // DataFusion only calls the factory when the format is configured with the matching id.
+    if shard_view.file_footer_keys.is_empty() == false {
+        use crate::query_executor::{OPENSEARCH_PME_FACTORY_ID, OpenSearchPmeDecryptionFactory};
+        runtime_env.register_parquet_encryption_factory(
+            OPENSEARCH_PME_FACTORY_ID,
+            Arc::new(OpenSearchPmeDecryptionFactory::new(
+                Arc::clone(&shard_view.file_footer_keys),
+                Arc::clone(&shard_view.file_aad_prefixes),
+            )),
+        );
+    }
+
     // Acquire memory budget from cached parquet metadata (zero I/O).
     // On cache miss (first query for this shard), skip — subsequent queries benefit.
     let phantom_reservation = try_acquire_budget(
@@ -258,12 +278,24 @@ pub async unsafe fn create_session_context(
 
     // Register default ListingTable for parquet scans.
     //
+    // When PME footer keys are present, configure the ParquetFormat with the factory id
+    // so DataFusion's scan path calls get_file_decryption_properties on the registered factory.
     // `target_partitions` on the listing options drives the sort-aware bin-packer in
     // `split_groups_by_statistics_with_target_partitions`. We set it to the session's
     // effective partition count so the bin-packer produces up to N groups (one file per
     // group when min/max ranges can't chain). The session-state's `target_partitions`
     // controls EnforceDistribution; this one is independent.
-    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
+    let parquet_format: Arc<dyn datafusion::datasource::file_format::FileFormat> =
+        if shard_view.file_footer_keys.is_empty() == false {
+            use crate::query_executor::OPENSEARCH_PME_FACTORY_ID;
+            use datafusion_common::config::TableParquetOptions;
+            let mut parquet_options = TableParquetOptions::default();
+            parquet_options.crypto.factory_id = Some(OPENSEARCH_PME_FACTORY_ID.to_owned());
+            Arc::new(ParquetFormat::new().with_options(parquet_options))
+        } else {
+            Arc::new(ParquetFormat::default())
+        };
+    let mut listing_options = ListingOptions::new(parquet_format)
         .with_file_extension(".parquet")
         .with_collect_stat(true)
         .with_target_partitions(effective_partitions);
@@ -300,6 +332,7 @@ pub async unsafe fn create_session_context(
                 &meta.location,
                 meta.clone(),
                 Arc::clone(&metadata_cache),
+                None,
             )
             .await;
         }
@@ -393,6 +426,8 @@ pub async unsafe fn create_session_context(
         has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
+        file_footer_keys: Arc::clone(&shard_view.file_footer_keys),
+        file_aad_prefixes: Arc::clone(&shard_view.file_aad_prefixes),
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
@@ -752,6 +787,8 @@ mod tests {
             has_topk: false,
             prepared_plan: None,
             phantom_reservation: None,
+            file_footer_keys: Arc::new(std::collections::HashMap::new()),
+            file_aad_prefixes: Arc::new(std::collections::HashMap::new()),
         };
         (handle, buf)
     }

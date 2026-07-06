@@ -493,7 +493,7 @@ impl CustomCacheManager {
         let location = object_meta.location.clone();
         let meta = object_meta.clone();
         let (schema, _size, pq_meta) = rt_handle.block_on(async {
-            parquet_bridge::load_parquet_metadata_with_meta(store, &location, meta, metadata_cache).await
+            parquet_bridge::load_parquet_metadata_with_meta(store, &location, meta, metadata_cache, None).await
         })?;
 
         Ok(Some((schema, pq_meta)))

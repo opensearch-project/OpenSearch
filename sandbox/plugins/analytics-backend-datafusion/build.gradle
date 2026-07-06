@@ -102,6 +102,13 @@ dependencies {
   testImplementation project(':plugins:arrow-base')
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 
+  // Test-only: provides NativeParquetWriter + PmeKey* classes for writing encrypted Parquet files
+  // in DataFusionEncryptedQueryExecutionTests. Not part of the runtime plugin classpath.
+  // TODO: Possibly consolidate this to shared plugin
+  testImplementation project(':sandbox:plugins:parquet-data-format')
+  // plugin-stats-spi is compileOnly in parquet-data-format; expose it explicitly for tests
+  // that call NativeParquetWriter.write() / flush() which use StatsRecorder at runtime.
+  testImplementation project(':sandbox:libs:plugin-stats-spi')
 }
 
 test {

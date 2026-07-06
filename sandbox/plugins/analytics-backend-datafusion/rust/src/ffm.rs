@@ -12,6 +12,7 @@ use std::slice;
 use std::str;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 use log::warn;
 use native_bridge_common::ffm_safe;
@@ -57,6 +58,32 @@ use crate::cache::page_index;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
+unsafe fn bytes_from_raw<'a>(ptr: *const u8, len: i64, arg_name: &str) -> Result<&'a [u8], String> {
+    if len < 0 {
+        return Err(format!("negative {} length: {}", arg_name, len));
+    }
+    if len == 0 {
+        return Ok(&[]);
+    }
+    if ptr.is_null() {
+        return Err(format!("null {} pointer", arg_name));
+    }
+    Ok(slice::from_raw_parts(ptr, len as usize))
+}
+
+unsafe fn ptr_array_from_raw<'a, T>(ptr: *const T, count: i64, arg_name: &str) -> Result<&'a [T], String> {
+    if count < 0 {
+        return Err(format!("negative {} count: {}", arg_name, count));
+    }
+    if count == 0 {
+        return Ok(&[]);
+    }
+    if ptr.is_null() {
+        return Err(format!("null {} pointer", arg_name));
+    }
+    Ok(slice::from_raw_parts(ptr, count as usize))
+}
+
 unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
     if ptr.is_null() {
         return Err("null string pointer".to_string());
@@ -66,6 +93,66 @@ unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> 
     }
     let bytes = slice::from_raw_parts(ptr, len as usize);
     str::from_utf8(bytes).map_err(|e| format!("invalid UTF-8: {}", e))
+}
+
+unsafe fn str_from_raw_named<'a>(ptr: *const u8, len: i64, arg_name: &str) -> Result<&'a str, String> {
+    if ptr.is_null() {
+        return Err(format!("null {} pointer", arg_name));
+    }
+    if len < 0 {
+        return Err(format!("negative {} length: {}", arg_name, len));
+    }
+
+    let bytes = bytes_from_raw(ptr, len, arg_name)?;
+    str::from_utf8(bytes).map_err(|e| format!("invalid UTF-8 for {}: {}", arg_name, e))
+}
+
+unsafe fn string_array_from_raw(
+    ptrs: *const *const u8,
+    lens: *const i64,
+    count: i64,
+    arg_name: &str,
+) -> Result<Vec<String>, String> {
+    let ptrs = ptr_array_from_raw(ptrs, count, &format!("{} pointers", arg_name))?;
+    let lens = ptr_array_from_raw(lens, count, &format!("{} lengths", arg_name))?;
+    let mut values = Vec::with_capacity(count.max(0) as usize);
+    for (idx, (&ptr, &len)) in ptrs.iter().zip(lens.iter()).enumerate() {
+        values.push(str_from_raw_named(ptr, len, &format!("{}[{}]", arg_name, idx))?.to_string());
+    }
+    Ok(values)
+}
+
+unsafe fn footer_keys_from_raw(
+    key_files_ptr: *const *const u8,
+    key_files_len_ptr: *const i64,
+    key_files_count: i64,
+    key_bytes_ptr: *const *const u8,
+    key_bytes_len_ptr: *const i64,
+    key_bytes_count: i64,
+) -> Result<HashMap<String, Vec<u8>>, String> {
+    if key_files_count != key_bytes_count {
+        return Err("key file and key byte counts must match".to_string());
+    }
+
+    let key_files = string_array_from_raw(key_files_ptr, key_files_len_ptr, key_files_count, "key_files")?;
+    let key_ptrs = ptr_array_from_raw(key_bytes_ptr, key_bytes_count, "key_bytes pointers")?;
+    let key_lens = ptr_array_from_raw(key_bytes_len_ptr, key_bytes_count, "key_bytes lengths")?;
+    let mut file_footer_keys = HashMap::with_capacity(key_files_count.max(0) as usize);
+
+    for (idx, ((file_name, &key_ptr), &key_len)) in key_files
+        .iter()
+        .zip(key_ptrs.iter())
+        .zip(key_lens.iter())
+        .enumerate()
+    {
+        let key = bytes_from_raw(key_ptr, key_len, &format!("key_bytes[{}]", idx))?.to_vec();
+        if key.is_empty() {
+            return Err(format!("empty footer key for file {}", file_name));
+        }
+        file_footer_keys.insert(file_name.clone(), key);
+    }
+
+    Ok(file_footer_keys)
 }
 
 fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
@@ -255,6 +342,18 @@ pub unsafe extern "C" fn df_create_reader(
     sort_orders_ptr: *const *const u8,
     sort_orders_len_ptr: *const i64,
     sort_count: i64,
+    key_files_ptr: *const *const u8,
+    key_files_len_ptr: *const i64,
+    key_files_count: i64,
+    key_bytes_ptr: *const *const u8,
+    key_bytes_len_ptr: *const i64,
+    key_bytes_count: i64,
+    aad_files_ptr: *const *const u8,
+    aad_files_len_ptr: *const i64,
+    aad_files_count: i64,
+    aad_bytes_ptr: *const *const u8,
+    aad_bytes_len_ptr: *const i64,
+    aad_bytes_count: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
         .map_err(|e| format!("df_create_reader: {}", e))?;
@@ -292,6 +391,14 @@ pub unsafe extern "C" fn df_create_reader(
                 .to_string(),
         );
     }
+    let file_footer_keys = footer_keys_from_raw(
+        key_files_ptr, key_files_len_ptr, key_files_count,
+        key_bytes_ptr, key_bytes_len_ptr, key_bytes_count,
+    ).map_err(|e| format!("df_create_reader: {}", e))?;
+    let file_aad_prefixes = footer_keys_from_raw(
+        aad_files_ptr, aad_files_len_ptr, aad_files_count,
+        aad_bytes_ptr, aad_bytes_len_ptr, aad_bytes_count,
+    ).map_err(|e| format!("df_create_reader: {}", e))?;
     let mgr = get_rt_manager()?;
     api::create_reader(
         table_path,
@@ -299,6 +406,8 @@ pub unsafe extern "C" fn df_create_reader(
         writer_generations,
         sort_fields,
         sort_orders,
+        file_footer_keys,
+        file_aad_prefixes,
         &mgr,
         store_ptr,
     )
@@ -309,6 +418,102 @@ pub unsafe extern "C" fn df_create_reader(
 pub unsafe extern "C" fn df_close_reader(ptr: i64) {
     api::close_reader(ptr);
 }
+
+/// Read `FileCryptoMetaData.key_metadata` from the tail of a Parquet file via
+/// range reads against the object store identified by `store_ptr`.
+///
+/// Signature: `(table_path_ptr, table_path_len, filename_ptr, filename_len,
+///              store_ptr, out_buf_ptr, out_buf_cap, out_len_ptr) → i64`
+///
+/// Return values (success half ≥ 0):
+/// - `0` — encrypted file; `key_metadata` bytes written to `out_buf`; length in `*out_len_ptr`.
+/// - `1` — not encrypted (PAR1 magic) or no `key_metadata` present; `out_buf` unchanged.
+/// - `< 0` — error; negated pointer to a heap-allocated error string (freed by `checkResult`).
+///
+/// Java `NativeBridge.readFooterKeyMetadata` maps 0→bytes, 1→null, <0→throw.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_read_footer_key_metadata(
+    table_path_ptr: *const u8,
+    table_path_len: i64,
+    filename_ptr: *const u8,
+    filename_len: i64,
+    store_ptr: i64,
+    out_buf_ptr: *mut u8,
+    out_buf_cap: i64,
+    out_len_ptr: *mut i64,
+) -> i64 {
+    use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+    use datafusion::datasource::listing::ListingTableUrl;
+
+    let table_path = str_from_raw(table_path_ptr, table_path_len)
+        .map_err(|e| format!("df_read_footer_key_metadata: {}", e))?;
+    let filename = str_from_raw(filename_ptr, filename_len)
+        .map_err(|e| format!("df_read_footer_key_metadata: {}", e))?;
+    if out_buf_ptr.is_null() {
+        return Err("df_read_footer_key_metadata: null out_buf_ptr".to_string());
+    }
+    if out_len_ptr.is_null() {
+        return Err("df_read_footer_key_metadata: null out_len_ptr".to_string());
+    }
+    if out_buf_cap <= 0 {
+        return Err(format!("df_read_footer_key_metadata: out_buf_cap must be positive, got {}", out_buf_cap));
+    }
+
+    // Resolve the object store: same logic as `create_reader` in `api.rs`.
+    let store: std::sync::Arc<dyn object_store::ObjectStore> = if store_ptr > 0 {
+        // store_ptr > 0: warm / tiered shard. The value is a pointer to a
+        // heap-allocated `Arc<dyn ObjectStore>` created by `TieredStorageBridge` /
+        // `ParquetDataFormatStoreHandler` and kept alive by the Java
+        // `NativeStoreHandle` for the duration of this call.
+        // SAFETY: lifetime is guaranteed by the caller.
+        let boxed = &*(store_ptr as *const std::sync::Arc<dyn object_store::ObjectStore>);
+        std::sync::Arc::clone(boxed)
+    } else {
+        // store_ptr == 0: hot / local shard. Build a minimal throw-away
+        // `RuntimeEnv` with the DataFusion defaults, which registers a
+        // `LocalFileSystem` object store for `file://` URLs and absolute paths.
+        // The `RuntimeEnv` is dropped immediately after the two range reads
+        // complete; it carries no cached state and does not interact with the
+        // global DataFusion runtime.
+        let table_url = ListingTableUrl::parse(table_path)
+            .map_err(|e| format!("df_read_footer_key_metadata: invalid table path: {}", e))?;
+        let default_rt = RuntimeEnvBuilder::new()
+            .build()
+            .map_err(|e| format!("df_read_footer_key_metadata: runtime build failed: {}", e))?;
+        default_rt
+            .object_store(&table_url)
+            .map_err(|e| format!("df_read_footer_key_metadata: object_store resolution failed: {}", e))?
+    };
+
+    let mgr = get_rt_manager()?;
+    // Issues exactly two `ObjectStore::get_range` calls — one for the 8-byte
+    // tail (magic + `FileCryptoMetaData` length) and one for the Thrift payload.
+    // The full file is never downloaded.
+    let result = timed_block_on(
+        &mgr.io_runtime,
+        "read_footer_key_metadata",
+        crate::pme_reader::read_footer_key_metadata(store.as_ref(), table_path, filename),
+    )
+    .map_err(|e| e.to_string())?;
+
+    match result {
+        None => Ok(1), // not encrypted / no key_metadata
+        Some(bytes) => {
+            let len = bytes.len() as i64;
+            if len > out_buf_cap {
+                return Err(format!(
+                    "df_read_footer_key_metadata: key_metadata ({} bytes) exceeds out_buf_cap ({})",
+                    len, out_buf_cap
+                ));
+            }
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf_ptr, bytes.len());
+            *out_len_ptr = len;
+            Ok(0)
+        }
+    }
+}
+
 
 #[ffm_safe]
 #[no_mangle]
@@ -561,6 +766,12 @@ pub unsafe extern "C" fn df_sql_to_substrait(
         .map_err(|e| format!("df_sql_to_substrait: table_name: {}", e))?;
     let sql =
         str_from_raw(sql_ptr, sql_len).map_err(|e| format!("df_sql_to_substrait: sql: {}", e))?;
+    if out_cap < 0 {
+        return Err(format!("df_sql_to_substrait: negative output capacity: {}", out_cap));
+    }
+    if out_cap > 0 && out_ptr.is_null() {
+        return Err("df_sql_to_substrait: null output buffer pointer".to_string());
+    }
     let bytes = api::sql_to_substrait(shard_view_ptr, table_name, sql, runtime_ptr, &mgr)
         .map_err(|e| e.to_string())?;
     write_out_buffer(&bytes, out_ptr, out_cap, out_len, "substrait plan")?;
@@ -1621,4 +1832,82 @@ mod tests {
         // ── Cleanup ──
         shutdown_test_runtime();
     }
+
+    #[test]
+    fn test_bytes_from_raw_rejects_negative_length() {
+        let err = unsafe { bytes_from_raw(std::ptr::null(), -1, "plan") }.unwrap_err();
+        assert!(err.contains("negative plan length"));
+    }
+
+    #[test]
+    fn test_string_array_from_raw_rejects_missing_lengths_pointer() {
+        let value = b"file.parquet";
+        let ptrs = [value.as_ptr()];
+        let err = unsafe { string_array_from_raw(ptrs.as_ptr(), std::ptr::null(), 1, "files") }.unwrap_err();
+        assert!(err.contains("null files lengths pointer"));
+    }
+
+    #[test]
+    fn test_footer_keys_from_raw_rejects_count_mismatch() {
+        let err = unsafe {
+            footer_keys_from_raw(
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+                std::ptr::null(),
+                std::ptr::null(),
+                0,
+            )
+        }
+        .unwrap_err();
+        assert!(err.contains("counts must match"));
+    }
+
+    #[test]
+    fn test_footer_keys_from_raw_rejects_empty_key() {
+        let file = b"test.parquet";
+        let key: [u8; 0] = [];
+        let file_ptrs = [file.as_ptr()];
+        let file_lens = [file.len() as i64];
+        let key_ptrs = [key.as_ptr()];
+        let key_lens = [0_i64];
+
+        let err = unsafe {
+            footer_keys_from_raw(
+                file_ptrs.as_ptr(),
+                file_lens.as_ptr(),
+                1,
+                key_ptrs.as_ptr(),
+                key_lens.as_ptr(),
+                1,
+            )
+        }
+        .unwrap_err();
+        assert!(err.contains("empty footer key for file test.parquet"));
+    }
+
+    #[test]
+    fn test_footer_keys_from_raw_parses_valid_input() {
+        let file = b"test.parquet";
+        let key = [1_u8, 2, 3, 4];
+        let file_ptrs = [file.as_ptr()];
+        let file_lens = [file.len() as i64];
+        let key_ptrs = [key.as_ptr()];
+        let key_lens = [key.len() as i64];
+
+        let keys = unsafe {
+            footer_keys_from_raw(
+                file_ptrs.as_ptr(),
+                file_lens.as_ptr(),
+                1,
+                key_ptrs.as_ptr(),
+                key_lens.as_ptr(),
+                1,
+            )
+        }
+        .unwrap();
+
+        assert_eq!(keys.get("test.parquet"), Some(&key.to_vec()));
+    }
 }
+

@@ -15,8 +15,12 @@ use arrow_ipc::reader::FileReader as IpcFileReader;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;
+use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use parquet::encryption::decrypt::FileDecryptionProperties;
+use parquet::encryption::encrypt::FileEncryptionProperties;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -364,6 +368,18 @@ lazy_static! {
 
 pub struct NativeParquetWriter;
 
+/// Per-file PME encryption inputs passed from the Java bridge.
+///
+/// All fields are already fully derived by the Java side:
+/// - `footer_key`: 32-byte derived AES-256 key (HMAC-SHA384 two-step derivation)
+/// - `key_metadata_json`: v1 JSON bytes for `FileCryptoMetaData.key_metadata`
+/// - `aad_prefix`: binary AAD prefix (domain + version + data_key_id + message_id)
+pub struct ParquetEncryptionOptions {
+    pub footer_key: Vec<u8>,
+    pub key_metadata_json: Vec<u8>,
+    pub aad_prefix: Vec<u8>,
+}
+
 impl NativeParquetWriter {
     /// Returns true if a writer is currently open for the given filename.
     pub fn has_writer(filename: &str) -> bool {
@@ -388,6 +404,7 @@ impl NativeParquetWriter {
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
         writer_generation: i64,
+        encryption_options: Option<ParquetEncryptionOptions>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         log_debug!(
             "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, writer_generation: {}",
@@ -441,8 +458,21 @@ impl NativeParquetWriter {
         } else {
             let file = File::create(&temp_filename)?;
             let (crc_file, crc_handle) = CrcWriter::new(file);
-            let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation), &schema)
-                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
+            let enc_file_props = if let Some(ref opts) = encryption_options {
+                let enc_builder = FileEncryptionProperties::builder(opts.footer_key.clone())
+                    .with_footer_key_metadata(opts.key_metadata_json.clone());
+                let enc_builder = if opts.aad_prefix.is_empty() == false {
+                    enc_builder.with_aad_prefix(opts.aad_prefix.clone())
+                } else {
+                    enc_builder
+                };
+                Some(enc_builder.build()?)
+            } else {
+                None
+            };
+            let props = WriterPropertiesBuilder::build_with_generation_and_encryption(
+                &settings, Some(writer_generation), &schema, enc_file_props
+            ).map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
             (WriterVariant::Parquet(Arc::new(Mutex::new(writer))), Some(crc_handle))
         };
@@ -573,7 +603,7 @@ impl NativeParquetWriter {
                         Ok(mutex) => {
                             let writer = mutex.into_inner().unwrap();
                             match writer.close() {
-                                Ok(_) => {
+                                Ok(parquet_metadata) => {
                                     let crc32 = crc_handle.map(|h| h.crc32()).unwrap_or(0);
                                     log_info!("Successfully closed temp writer for: {}", temp_filename);
 
@@ -582,10 +612,11 @@ impl NativeParquetWriter {
 
                                     log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
 
-                                    let file = File::open(&filename)?;
-                                    let reader = SerializedFileReader::new(file)?;
-                                    let parquet_metadata = reader.metadata().clone();
 
+                                    // Use metadata returned by ArrowWriter::close() directly.
+                                    // This avoids re-reading the (potentially encrypted) footer
+                                    // via SerializedFileReader, which would fail without
+                                    // decryption properties.
                                     Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32, row_id_mapping: None }))
                                 }
                                 Err(e) => {
@@ -821,4 +852,260 @@ impl NativeParquetWriter {
             filename, metadata.file_metadata().version(), metadata.file_metadata().num_rows(), metadata.num_row_groups());
         Ok(metadata)
     }
+
+    /// Reads the encrypted Parquet file metadata using the provided footer key and AAD prefix.
+    pub fn get_file_metadata_decrypted(
+        filename: String,
+        footer_key: Vec<u8>,
+        aad_prefix: Option<Vec<u8>>,
+    ) -> Result<parquet::file::metadata::FileMetaData, Box<dyn std::error::Error>> {
+        let file = File::open(&filename)?;
+        let mut dec_builder = FileDecryptionProperties::builder(footer_key);
+        if let Some(aad) = aad_prefix {
+            if aad.is_empty() == false {
+                dec_builder = dec_builder.with_aad_prefix(aad);
+            }
+        }
+        let decryption_properties = dec_builder.build()?;
+        let options = ArrowReaderOptions::new().with_file_decryption_properties(decryption_properties);
+        let metadata = ArrowReaderMetadata::load(&file, options)?;
+        let file_metadata = metadata.metadata().file_metadata().clone();
+        log_debug!(
+            "Decrypted metadata for {}: version={}, num_rows={}",
+            filename, file_metadata.version(), file_metadata.num_rows()
+        );
+        Ok(file_metadata)
+    }
+
+
+    /// Reads the plaintext `key_metadata` bytes from an encrypted Parquet file's
+    /// `FileCryptoMetaData` without decrypting the footer.
+    ///
+    /// Returns `None` if the file is not encrypted (magic "PAR1") or has no `key_metadata`.
+    /// Returns `Some(bytes)` with the raw key_metadata bytes otherwise.
+    pub fn read_key_metadata(filename: String) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
+        let mut file = File::open(&filename)?;
+        let file_size = file.seek(SeekFrom::End(0))?;
+        if file_size < 8 {
+            return Err(format!("File too small to be a valid Parquet file: {}", filename).into());
+        }
+
+        // Read last 8 bytes: [footer_or_crypto_meta_len: 4 le bytes] [magic: 4 bytes]
+        file.seek(SeekFrom::End(-8))?;
+        let mut tail = [0u8; 8];
+        file.read_exact(&mut tail)?;
+
+        let magic = &tail[4..8];
+        if magic != b"PARE" {
+            // Not an encrypted Parquet file — no key_metadata.
+            return Ok(None);
+        }
+
+        // Encrypted file: last 8 bytes = [FileCryptoMetaData_len: i32 le][b"PARE"]
+        let crypto_meta_len = i32::from_le_bytes([tail[0], tail[1], tail[2], tail[3]]);
+        if crypto_meta_len <= 0 {
+            return Err(format!("Invalid FileCryptoMetaData length {} in {}", crypto_meta_len, filename).into());
+        }
+        let crypto_meta_len = crypto_meta_len as u64;
+        if file_size < 8 + crypto_meta_len {
+            return Err(format!("FileCryptoMetaData length exceeds file size in {}", filename).into());
+        }
+
+        // Read FileCryptoMetaData Thrift compact bytes
+        file.seek(SeekFrom::End(-(8 + crypto_meta_len as i64)))?;
+        let mut crypto_meta_bytes = vec![0u8; crypto_meta_len as usize];
+        file.read_exact(&mut crypto_meta_bytes)?;
+
+        // Parse FileCryptoMetaData using parquet-rs Thrift types.
+        // FileCryptoMetaData compact Thrift layout:
+        //   field 1 (EncryptionAlgorithm, type struct): parse and skip
+        //   field 2 (key_metadata, type binary, optional): if present, read bytes
+        // We use a minimal hand-rolled parser to avoid thrift crate version coupling.
+        parse_key_metadata_from_file_crypto_meta(&crypto_meta_bytes)
+    }
+}
+
+/// Minimal Thrift compact protocol parser for `FileCryptoMetaData.key_metadata`.
+///
+/// We only need field 2 (binary, optional). We skip field 1 (EncryptionAlgorithm struct)
+/// by recursively skipping the struct, then read field 2 if present.
+fn parse_key_metadata_from_file_crypto_meta(bytes: &[u8]) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
+    let mut pos = 0usize;
+
+    // Thrift compact field header: (delta << 4) | type
+    // Type codes: 1=bool_true, 2=bool_false, 3=i8, 4=i16, 5=i32, 6=i64, 7=double,
+    //             8=binary, 9=list, 10=set, 11=map, 12=struct
+
+    let mut last_field_id: i16 = 0;
+
+    loop {
+        if pos >= bytes.len() {
+            break;
+        }
+        let byte = bytes[pos];
+        pos += 1;
+
+        if byte == 0x00 {
+            // STOP field — end of struct
+            break;
+        }
+
+        let delta = (byte >> 4) as i16;
+        let type_id = byte & 0x0F;
+
+        let field_id = if delta == 0 {
+            // zig-zag encoded full field id follows
+            let (fid, consumed) = read_zigzag_i16(&bytes[pos..])?;
+            pos += consumed;
+            fid
+        } else {
+            last_field_id + delta
+        };
+        last_field_id = field_id;
+
+        match field_id {
+            1 => {
+                // EncryptionAlgorithm — type must be struct (0x0C)
+                if type_id != 0x0C {
+                    return Err(format!("Expected struct for field 1, got type {}", type_id).into());
+                }
+                pos = skip_thrift_struct(bytes, pos)?;
+            }
+            2 => {
+                // key_metadata — type must be binary (0x08)
+                if type_id != 0x08 {
+                    return Err(format!("Expected binary for field 2, got type {}", type_id).into());
+                }
+                let (len, consumed) = read_varint_u64(&bytes[pos..])?;
+                pos += consumed;
+                let len = len as usize;
+                if pos + len > bytes.len() {
+                    return Err("key_metadata length exceeds buffer".into());
+                }
+                let key_metadata = bytes[pos..pos + len].to_vec();
+                return Ok(Some(key_metadata));
+            }
+            _ => {
+                // Skip unknown field
+                pos = skip_thrift_field(bytes, pos, type_id)?;
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+/// Skip a complete Thrift compact struct (including nested structs), returning new position.
+fn skip_thrift_struct(bytes: &[u8], mut pos: usize) -> Result<usize, Box<dyn std::error::Error>> {
+    let mut last_field_id: i16 = 0;
+    loop {
+        if pos >= bytes.len() {
+            break;
+        }
+        let byte = bytes[pos];
+        pos += 1;
+        if byte == 0x00 {
+            break; // STOP
+        }
+        let delta = (byte >> 4) as i16;
+        let type_id = byte & 0x0F;
+        let field_id = if delta == 0 {
+            let (fid, consumed) = read_zigzag_i16(&bytes[pos..])?;
+            pos += consumed;
+            fid
+        } else {
+            last_field_id + delta
+        };
+        last_field_id = field_id;
+        pos = skip_thrift_field(bytes, pos, type_id)?;
+    }
+    Ok(pos)
+}
+
+/// Skip a single Thrift compact field value of the given type, returning new position.
+fn skip_thrift_field(bytes: &[u8], mut pos: usize, type_id: u8) -> Result<usize, Box<dyn std::error::Error>> {
+    match type_id {
+        0x01 | 0x02 => { /* bool: no extra bytes */ }
+        0x03 => { pos += 1; } // i8: 1 byte
+        0x04 | 0x05 | 0x06 => {
+            // i16/i32/i64: zigzag varint
+            let (_, consumed) = read_varint_u64(&bytes[pos..])?;
+            pos += consumed;
+        }
+        0x07 => { pos += 8; } // double: 8 bytes
+        0x08 => {
+            // binary: varint length + bytes
+            let (len, consumed) = read_varint_u64(&bytes[pos..])?;
+            pos += consumed + len as usize;
+        }
+        0x09 | 0x0A => {
+            // list/set: size_and_type byte, then elements
+            if pos >= bytes.len() {
+                return Err("Unexpected end of buffer in list/set".into());
+            }
+            let size_type = bytes[pos];
+            pos += 1;
+            let elem_type = size_type & 0x0F;
+            let size = if (size_type >> 4) == 0x0F {
+                let (s, consumed) = read_varint_u64(&bytes[pos..])?;
+                pos += consumed;
+                s as usize
+            } else {
+                (size_type >> 4) as usize
+            };
+            for _ in 0..size {
+                pos = skip_thrift_field(bytes, pos, elem_type)?;
+            }
+        }
+        0x0B => {
+            // map: size varint, then key_type/val_type byte, then entries
+            let (size, consumed) = read_varint_u64(&bytes[pos..])?;
+            pos += consumed;
+            if size > 0 {
+                if pos >= bytes.len() {
+                    return Err("Unexpected end of buffer in map".into());
+                }
+                let kv_type = bytes[pos];
+                pos += 1;
+                let key_type = (kv_type >> 4) & 0x0F;
+                let val_type = kv_type & 0x0F;
+                for _ in 0..size {
+                    pos = skip_thrift_field(bytes, pos, key_type)?;
+                    pos = skip_thrift_field(bytes, pos, val_type)?;
+                }
+            }
+        }
+        0x0C => {
+            // nested struct: recurse
+            pos = skip_thrift_struct(bytes, pos)?;
+        }
+        _ => {
+            return Err(format!("Unknown Thrift compact type id: {}", type_id).into());
+        }
+    }
+    Ok(pos)
+}
+
+fn read_varint_u64(bytes: &[u8]) -> Result<(u64, usize), Box<dyn std::error::Error>> {
+    let mut value: u64 = 0;
+    let mut shift = 0u32;
+    let mut consumed = 0usize;
+    for &b in bytes {
+        consumed += 1;
+        value |= ((b & 0x7F) as u64) << shift;
+        if b & 0x80 == 0 {
+            return Ok((value, consumed));
+        }
+        shift += 7;
+        if shift >= 64 {
+            return Err("Varint overflow".into());
+        }
+    }
+    Err("Unexpected end of varint".into())
+}
+
+fn read_zigzag_i16(bytes: &[u8]) -> Result<(i16, usize), Box<dyn std::error::Error>> {
+    let (n, consumed) = read_varint_u64(bytes)?;
+    let zigzag = ((n >> 1) as i16) ^ (-((n & 1) as i16));
+    Ok((zigzag, consumed))
 }

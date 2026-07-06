@@ -44,9 +44,11 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 use datafusion_datasource::source::DataSourceExec;
 use datafusion_datasource::PartitionedFile;
+use datafusion_execution::parquet_encryption::EncryptionFactory;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use object_store::{ObjectStore, ObjectStoreExt};
+use parquet::encryption::decrypt::FileDecryptionProperties;
 use prost::bytes::Bytes;
 
 // ── Parquet Metadata Loading ─────────────────────────────────────────
@@ -56,6 +58,9 @@ use prost::bytes::Bytes;
 /// On a cache hit the cached (footer-only) metadata is returned with no IO.
 /// On a cache miss we fetch with `PageIndexPolicy::Skip` — never fetching page
 /// index bytes — then store the footer in the cache for future hits.
+///
+/// `decryption_props` – when `Some`, the PME footer key is passed through so
+/// the encrypted footer can be read. Plain-text files ignore this parameter.
 ///
 /// Issues a `head()` to learn the file's size + last-modified. Callers that
 /// already hold an authoritative [`ObjectMeta`] (e.g. from the listing snapshot
@@ -67,12 +72,13 @@ pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
     metadata_cache: Arc<dyn FileMetadataCache>,
+    decryption_props: Option<Arc<FileDecryptionProperties>>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let meta = store
         .head(location)
         .await
         .map_err(|e| format!("object-store head {location}: {e}"))?;
-    load_parquet_metadata_with_meta(store, location, meta, metadata_cache).await
+    load_parquet_metadata_with_meta(store, location, meta, metadata_cache, decryption_props).await
 }
 
 /// Like [`load_parquet_metadata`] but uses a caller-supplied [`ObjectMeta`]
@@ -85,6 +91,7 @@ pub async fn load_parquet_metadata_with_meta(
     location: &object_store::path::Path,
     meta: object_store::ObjectMeta,
     metadata_cache: Arc<dyn FileMetadataCache>,
+    decryption_props: Option<Arc<FileDecryptionProperties>>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let size = meta.size;
 
@@ -119,9 +126,13 @@ pub async fn load_parquet_metadata_with_meta(
         Some(m) => m,
         None => {
             let mut reader = ParquetObjectReader::new(Arc::clone(&store), location.clone());
+            let mut metadata_reader = ParquetMetaDataReader::new()
+                .with_page_index_policy(policy);
+            if let Some(props) = decryption_props {
+                metadata_reader = metadata_reader.with_decryption_properties(Some(props));
+            }
             let fetched = Arc::new(
-                ParquetMetaDataReader::new()
-                    .with_page_index_policy(policy)
+                metadata_reader
                     .load_and_finish(&mut reader, size)
                     .await
                     .map_err(|e| format!("load parquet metadata {location}: {e}"))?,
@@ -171,6 +182,9 @@ pub struct RowGroupStreamConfig {
     pub projection: Option<Vec<usize>>,
     pub predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     pub io_stats: Arc<ReadIoStats>,
+    /// When set, DataFusion calls this factory for each file to get per-file
+    /// `FileDecryptionProperties` so column data can be decrypted during scan.
+    pub encryption_factory: Option<Arc<dyn EncryptionFactory>>,
 }
 
 /// Create a stream that reads a single row group using `RowSelection`.
@@ -240,6 +254,12 @@ fn create_stream_with_access_plan(
         // cannot use page index because we have collector bitset matches that are not visible
         // with just parquet predicates
         .with_enable_page_index(false);
+
+    // Wire PME decryption factory so DataFusion resolves per-file
+    // FileDecryptionProperties before reading column data.
+    if let Some(ref factory) = config.encryption_factory {
+        parquet_source = parquet_source.with_encryption_factory(Arc::clone(factory));
+    }
 
     if push_predicate {
         if let Some(ref pred) = config.predicate {

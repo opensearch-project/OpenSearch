@@ -403,6 +403,7 @@ async fn execute_and_collect(
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();

@@ -1,0 +1,15 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Mock PME KMS plugin for development and integration testing. ' +
+    'Provides a dummy MasterKeyProvider that uses random 32-byte keys with identity ' +
+    'decryption (no real KMS required). NOT for production use.'
+  classname = 'org.opensearch.crypto.mock.MockPmeKmsPlugin'
+}
+

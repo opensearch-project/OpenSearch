@@ -135,6 +135,8 @@ pub async fn execute_indexed_query(
         has_topk: false,
         prepared_plan: None,
         phantom_reservation: None,
+        file_footer_keys: Arc::clone(&shard_view.file_footer_keys),
+        file_aad_prefixes: Arc::clone(&shard_view.file_aad_prefixes),
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
 
@@ -870,6 +872,9 @@ async unsafe fn execute_indexed_with_context_inner(
     let sort_orders = handle.sort_orders;
     let query_context = handle.query_context;
     let io_handle = handle.io_handle;
+    // Extract PME maps before handle is fully consumed.
+    let file_footer_keys = handle.file_footer_keys;
+    let file_aad_prefixes = handle.file_aad_prefixes;
     // Extract context_id early so it can be captured by the per-segment closures
     // below. The closures pass it through every FFM upcall so Java can route each
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
@@ -904,6 +909,8 @@ async unsafe fn execute_indexed_with_context_inner(
         writer_generations.as_ref(),
         metadata_cache,
         &sort_fields,
+        &file_footer_keys,
+        &file_aad_prefixes,
     )
     .await
     .map_err(DataFusionError::Execution)?;
@@ -1304,6 +1311,18 @@ async unsafe fn execute_indexed_with_context_inner(
         .map_err(|e| DataFusionError::Execution(format!("parse table_path URL: {}", e)))?;
     let store_url = ObjectStoreUrl::parse(format!("{}://{}", parsed.scheme(), parsed.authority()))?;
 
+    // Build PME decryption factory for column-data decryption in the indexed scan path.
+    let encryption_factory: Option<std::sync::Arc<dyn datafusion_execution::parquet_encryption::EncryptionFactory>> =
+        if file_footer_keys.is_empty() == false {
+            use crate::query_executor::OpenSearchPmeDecryptionFactory;
+            Some(std::sync::Arc::new(OpenSearchPmeDecryptionFactory::new(
+                Arc::clone(&file_footer_keys),
+                Arc::clone(&file_aad_prefixes),
+            )))
+        } else {
+            None
+        };
+
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments,
@@ -1318,6 +1337,7 @@ async unsafe fn execute_indexed_with_context_inner(
         sort_fields: sort_fields.clone(),
         sort_orders: sort_orders.clone(),
         cancellation_token: crate::query_tracker::get_cancellation_token(context_id),
+        encryption_factory,
     }));
     ctx.register_table(&register_name, provider)?;
 

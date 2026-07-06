@@ -56,6 +56,7 @@ use super::parquet_bridge::{self, RowGroupStreamConfig};
 use super::row_selection::{build_mask, build_row_selection_with_min_skip_run, PositionMap};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use datafusion::physical_plan::coalesce::{LimitedBatchCoalescer, PushBatchStatus};
+use datafusion_execution::parquet_encryption::EncryptionFactory;
 use std::time::{Duration, Instant};
 
 /// Row group metadata.
@@ -390,6 +391,9 @@ pub struct IndexedExec {
     /// dispatching further row groups and `IndexedStream` stops draining.
     /// `None` disables cancellation checks.
     pub(crate) cancellation_token: Option<tokio_util::sync::CancellationToken>,
+    /// PME decryption factory — when set, DataFusion calls it for each file to get
+    /// per-file `FileDecryptionProperties` so column data can be decrypted during scan.
+    pub(crate) encryption_factory: Option<Arc<dyn EncryptionFactory>>,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -485,6 +489,7 @@ impl ExecutionPlan for IndexedExec {
             self.emit_row_ids,
             self.row_id_output_index,
             self.dynamic_filter.clone(),
+            self.encryption_factory.clone(),
         )))
     }
 }
@@ -562,6 +567,9 @@ struct IndexedStream {
     /// was pushed. Owns its own snapshot generation tracking, so it must NOT be
     /// shared across sibling segment streams.
     dynamic_rg_pruner: Option<super::dynamic_filter::DynamicRgPruner>,
+    /// PME decryption factory — when set, DataFusion calls it for each file to get
+    /// per-file `FileDecryptionProperties` so column data can be decrypted during scan.
+    encryption_factory: Option<Arc<dyn EncryptionFactory>>,
 }
 
 impl IndexedStream {
@@ -587,6 +595,7 @@ impl IndexedStream {
         emit_row_ids: bool,
         row_id_output_index: Option<usize>,
         dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+        encryption_factory: Option<Arc<dyn EncryptionFactory>>,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
         let batch_coalescer =
@@ -631,6 +640,7 @@ impl IndexedStream {
             emit_row_ids,
             row_id_output_index,
             dynamic_rg_pruner,
+            encryption_factory,
         }
     }
 
@@ -673,6 +683,7 @@ impl IndexedStream {
                 .io_stats
                 .clone()
                 .unwrap_or_else(|| Arc::new(super::parquet_bridge::ReadIoStats::default())),
+            encryption_factory: self.encryption_factory.clone(),
         }
     }
 

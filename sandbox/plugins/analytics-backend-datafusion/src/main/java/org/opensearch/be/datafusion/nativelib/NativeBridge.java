@@ -151,6 +151,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
     private static final MethodHandle FETCH_BY_ROW_IDS;
     private static final MethodHandle UPDATE_CONCURRENCY_GATE;
+    private static final MethodHandle READ_FOOTER_KEY_METADATA;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -236,6 +237,12 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
+        // df_create_reader(path, path_len,
+        //   files_ptrs, files_lens, writer_generations, count, store_ptr,
+        //   key_files_ptrs, key_files_lens, key_files_count,
+        //   key_bytes_ptrs, key_bytes_lens, key_bytes_count,
+        //   aad_files_ptrs, aad_files_lens, aad_files_count,
+        //   aad_bytes_ptrs, aad_bytes_lens, aad_bytes_count) -> i64
         CREATE_READER = linker.downcallHandle(
             lib.find("df_create_reader").orElseThrow(),
             FunctionDescriptor.of(
@@ -251,7 +258,19 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,    // sort_fields_len_ptr
                 ValueLayout.ADDRESS,    // sort_orders_ptr (parallel String[] for index.sort.order: "asc"|"desc")
                 ValueLayout.ADDRESS,    // sort_orders_len_ptr
-                ValueLayout.JAVA_LONG   // sort_count (0 when index has no sort)
+                ValueLayout.JAVA_LONG,  // sort_count (0 when index has no sort)
+                ValueLayout.ADDRESS,    // key_files_ptrs
+                ValueLayout.ADDRESS,    // key_files_lens
+                ValueLayout.JAVA_LONG,  // key_files_count
+                ValueLayout.ADDRESS,    // key_bytes_ptrs
+                ValueLayout.ADDRESS,    // key_bytes_lens
+                ValueLayout.JAVA_LONG,  // key_bytes_count
+                ValueLayout.ADDRESS,    // aad_files_ptrs
+                ValueLayout.ADDRESS,    // aad_files_lens
+                ValueLayout.JAVA_LONG,  // aad_files_count
+                ValueLayout.ADDRESS,    // aad_bytes_ptrs
+                ValueLayout.ADDRESS,    // aad_bytes_lens
+                ValueLayout.JAVA_LONG   // aad_bytes_count
             )
         );
 
@@ -635,6 +654,25 @@ public final class NativeBridge {
             lib.find("df_update_concurrency_gate").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
         );
+
+        // i64 df_read_footer_key_metadata(table_path_ptr, table_path_len,
+        //   filename_ptr, filename_len, store_ptr,
+        //   out_buf_ptr, out_buf_cap, out_len_ptr) → i64
+        // Returns 0 = key_metadata written; 1 = not encrypted; <0 = error.
+        READ_FOOTER_KEY_METADATA = linker.downcallHandle(
+            lib.find("df_read_footer_key_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,    // table_path_ptr
+                ValueLayout.JAVA_LONG,  // table_path_len
+                ValueLayout.ADDRESS,    // filename_ptr
+                ValueLayout.JAVA_LONG,  // filename_len
+                ValueLayout.JAVA_LONG,  // store_ptr
+                ValueLayout.ADDRESS,    // out_buf_ptr
+                ValueLayout.JAVA_LONG,  // out_buf_cap
+                ValueLayout.ADDRESS     // out_len_ptr
+            )
+        );
     }
 
     private NativeBridge() {}
@@ -895,7 +933,7 @@ public final class NativeBridge {
     // ---- Reader management (confined Arena for path + file strings) ----
 
     /**
-     * Creates a native reader. Returns an opaque native pointer.
+     * Creates a native reader with footer keys and AAD prefixes for PME-encrypted files. Returns an opaque native pointer.
      * Freed by {@link #closeDatafusionReader}.
      *
      * @param path     shard data directory
@@ -913,7 +951,9 @@ public final class NativeBridge {
         List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
         NativeStoreHandle dataformatAwareStoreHandle,
         List<String> sortFields,
-        List<String> sortOrders
+        List<String> sortOrders,
+        java.util.Map<String, byte[]> fileFooterKeys,
+        java.util.Map<String, byte[]> fileAadPrefixes
     ) {
         long storePtr = 0L;
         if (dataformatAwareStoreHandle != null) {
@@ -935,6 +975,14 @@ public final class NativeBridge {
                     + ") must have the same length"
             );
         }
+        if (fileFooterKeys == null) fileFooterKeys = java.util.Map.of();
+        if (fileAadPrefixes == null) fileAadPrefixes = java.util.Map.of();
+        java.util.List<java.util.Map.Entry<String, byte[]>> keyEntries = new java.util.ArrayList<>(fileFooterKeys.entrySet());
+        java.util.List<java.util.Map.Entry<String, byte[]>> aadEntries = new java.util.ArrayList<>(fileAadPrefixes.entrySet());
+        String[] keyFiles = keyEntries.stream().map(java.util.Map.Entry::getKey).toArray(String[]::new);
+        byte[][] keyBytes = keyEntries.stream().map(java.util.Map.Entry::getValue).toArray(byte[][]::new);
+        String[] aadFiles = aadEntries.stream().map(java.util.Map.Entry::getKey).toArray(String[]::new);
+        byte[][] aadBytes = aadEntries.stream().map(java.util.Map.Entry::getValue).toArray(byte[][]::new);
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
@@ -943,6 +991,10 @@ public final class NativeBridge {
             );
             var sf = call.strArray(sortFields.toArray(String[]::new));
             var so = call.strArray(sortOrders.toArray(String[]::new));
+            var kf = call.strArray(keyFiles);
+            var kb = call.bytesArray(keyBytes);
+            var af = call.strArray(aadFiles);
+            var ab = call.bytesArray(aadBytes);
             return call.invoke(
                 CREATE_READER,
                 p.segment(),
@@ -956,13 +1008,48 @@ public final class NativeBridge {
                 sf.lens(),
                 so.ptrs(),
                 so.lens(),
-                sf.count()
+                sf.count(),
+                kf.ptrs(),
+                kf.lens(),
+                kf.count(),
+                kb.ptrs(),
+                kb.lens(),
+                kb.count(),
+                af.ptrs(),
+                af.lens(),
+                af.count(),
+                ab.ptrs(),
+                ab.lens(),
+                ab.count()
             );
         }
     }
 
+    public static long createDatafusionReader(
+        String path,
+        List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle
+    ) {
+        return createDatafusionReader(path, segments, dataformatAwareStoreHandle,
+            List.of(), List.of(), java.util.Map.of(), java.util.Map.of());
+    }
+
     public static void closeDatafusionReader(long ptr) {
         NativeCall.invokeVoid(CLOSE_READER, ptr);
+    }
+
+    /**
+     * Convenience overload for {@link #executeQueryAsync} with no context and no query config
+     * (contextId=0, queryConfigPtr=0). Intended for tests and simple query paths.
+     */
+    public static void executeQueryAsync(
+        long readerPtr,
+        String tableName,
+        byte[] substraitPlan,
+        long runtimePtr,
+        ActionListener<Long> listener
+    ) {
+        executeQueryAsync(readerPtr, tableName, substraitPlan, runtimePtr, 0L, 0L, listener);
     }
 
     // ---- Query execution (confined Arena for tableName + plan bytes) ----
@@ -974,6 +1061,9 @@ public final class NativeBridge {
     /** {@code internal_search_mode}: seq-no scan — native plan filters {@code _seq_no > bound}, {@code substraitPlan} ignored. */
     public static final long INTERNAL_SEARCH_SEQ_NO_ABOVE = 2L;
 
+    /**
+     * Executes a query asynchronously with explicit context and config pointers.
+     */
     public static void executeQueryAsync(
         long readerPtr,
         String tableName,
@@ -1770,4 +1860,49 @@ public final class NativeBridge {
     }
 
     public static void initLogger() {}
+
+    /**
+     * Sentinel returned by {@link #readFooterKeyMetadata} when the file is not encrypted
+     * (PAR1 magic) or the encrypted footer has no {@code key_metadata} field.
+     * MUST match {@code Ok(1)} returned by {@code df_read_footer_key_metadata} in Rust.
+     */
+    private static final long READ_FOOTER_KEY_METADATA_NOT_ENCRYPTED = 1L;
+
+    /**
+     * Reads {@code FileCryptoMetaData.key_metadata} from the tail of a Parquet file via
+     * two object-store range reads — never downloads the full file.
+     *
+     * @param tablePath the shard data directory (absolute path or object-store URL)
+     * @param filename  the Parquet file name relative to {@code tablePath}
+     * @param storePtr  native object-store pointer ({@code NativeStoreHandle.getPointer()}),
+     *                  or {@code 0} to use the default local filesystem
+     * @return the raw {@code key_metadata} bytes if the file is PME-encrypted,
+     *         or {@code null} if the file is plain-text or has no {@code key_metadata}
+     * @throws RuntimeException on I/O error, malformed footer, or unsupported magic
+     */
+    public static byte[] readFooterKeyMetadata(String tablePath, String filename, long storePtr) {
+        try (var call = new NativeCall()) {
+            var tp = call.str(tablePath);
+            var fn = call.str(filename);
+            // V1 key_metadata JSON has no variable-size fields:
+            //   {"version":1,"data_key_id":"default","message_id":"<22 chars>"}
+            //   prefix (51) + base64url(16-byte message_id without padding: ⌈16/3⌉×4 − 2 = 22) + suffix "}" (2) = 75 bytes exactly.
+            //   base64url formula: 16 = 5×3 + 1 → 20 full-group chars + 2 remainder chars, no padding = 22.
+            // 128 bytes is used as a power-of-two ceiling that tolerates minor future v2 format changes.
+            // If the buffer is exceeded, Rust returns an error (< 0) without writing any bytes and
+            // the call throws RuntimeException — fail-closed, no truncated or partial output.
+            var out = call.outBuffer(128);
+            long rc = call.invoke(
+                READ_FOOTER_KEY_METADATA,
+                tp.segment(), tp.len(),
+                fn.segment(), fn.len(),
+                storePtr,
+                out.data(), (long) out.capacity(), out.lenOut()
+            );
+            if (rc == READ_FOOTER_KEY_METADATA_NOT_ENCRYPTED) {
+                return null;
+            }
+            return out.toByteArray();
+        }
+    }
 }

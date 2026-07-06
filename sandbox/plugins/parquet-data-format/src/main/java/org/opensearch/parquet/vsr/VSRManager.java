@@ -24,6 +24,7 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
+import org.opensearch.parquet.encryption.PmeFileEncryptionInputs;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
@@ -76,6 +77,7 @@ public class VSRManager implements AutoCloseable {
     private final int ROTATION_TIMEOUT = 120;
     private LongAdder rowCount = new LongAdder();
     private long acceptedRows = 0L;
+    private final PmeFileEncryptionInputs encryptionInputs;
 
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
@@ -90,7 +92,7 @@ public class VSRManager implements AutoCloseable {
         long writerGeneration,
         ParquetShardStatsTracker stats
     ) {
-        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats);
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats, null);
     }
 
     /**
@@ -114,7 +116,8 @@ public class VSRManager implements AutoCloseable {
             threadPool,
             true,
             writerGeneration,
-            new ParquetShardStatsTracker()
+            new ParquetShardStatsTracker(),
+            null
         );
     }
 
@@ -128,20 +131,40 @@ public class VSRManager implements AutoCloseable {
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
         ThreadPool threadPool,
+        long writerGeneration,
+        PmeFileEncryptionInputs encryptionInputs
+    ) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, null, encryptionInputs);
+    }
+
+    /**
+     * Creates a new VSRManager with stats and optional encryption.
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
+        long writerGeneration,
+        ParquetShardStatsTracker stats,
+        PmeFileEncryptionInputs encryptionInputs
+    ) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats, encryptionInputs);
+    }
+
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
         boolean runAsync,
         long writerGeneration
     ) {
-        this(
-            fileName,
-            indexSettings,
-            schema,
-            bufferPool,
-            maxRowsPerVSR,
-            threadPool,
-            runAsync,
-            writerGeneration,
-            new ParquetShardStatsTracker()
-        );
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync, writerGeneration, new ParquetShardStatsTracker(), null);
     }
 
     /**
@@ -157,6 +180,7 @@ public class VSRManager implements AutoCloseable {
      *                 if false, they run on the calling thread (for benchmarks/tests)
      * @param writerGeneration the writer generation to store in file metadata
      * @param stats shard-level stats tracker
+     * @param encryptionInputs per-file PME inputs; {@code null} for unencrypted
      */
     public VSRManager(
         String fileName,
@@ -167,15 +191,17 @@ public class VSRManager implements AutoCloseable {
         ThreadPool threadPool,
         boolean runAsync,
         long writerGeneration,
-        ParquetShardStatsTracker stats
+        ParquetShardStatsTracker stats,
+        PmeFileEncryptionInputs encryptionInputs
     ) {
         this.fileName = fileName;
         this.indexSettings = indexSettings;
         this.writerGeneration = writerGeneration;
-        this.stats = stats;
+        this.stats = stats != null ? stats : new ParquetShardStatsTracker();
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
+        this.encryptionInputs = encryptionInputs;
         this.managedVSR.set(vsrPool.getActiveVSR());
         this.writer = new NativeParquetWriter(fileName, stats);
     }
@@ -360,11 +386,12 @@ public class VSRManager implements AutoCloseable {
             if (writer != null) {
                 writer.flush();
             }
-            vsrPool.close();
-            managedVSR.set(null);
         } catch (Exception e) {
             logger.error("Error during close for {}: {}", fileName, e.getMessage());
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
+        } finally {
+            vsrPool.close();
+            managedVSR.set(null);
         }
     }
 
@@ -376,7 +403,7 @@ public class VSRManager implements AutoCloseable {
             String indexName = indexSettings.getIndex().getName();
             ParquetSortConfig sortConfig = new ParquetSortConfig(indexSettings);
             try (ArrowSchema schema = vsr.exportSchema()) {
-                writer.initialize(indexName, schema.memoryAddress(), sortConfig, writerGeneration);
+                writer.initialize(indexName, schema.memoryAddress(), sortConfig, writerGeneration, encryptionInputs);
             }
         }
     }

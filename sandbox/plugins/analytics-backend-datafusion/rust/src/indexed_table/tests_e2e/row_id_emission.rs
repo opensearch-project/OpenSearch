@@ -120,6 +120,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();
@@ -291,6 +292,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();
@@ -560,6 +562,7 @@ async fn test_row_id_with_data_columns() {
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();
@@ -816,6 +819,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
+        encryption_factory: None,
     }));
 
     let ctx = SessionContext::new();

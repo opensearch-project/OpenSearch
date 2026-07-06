@@ -108,6 +108,25 @@ impl WriterPropertiesBuilder {
 
     /// Builds WriterProperties with an optional writer generation stored as key-value metadata.
     pub fn build_with_generation(config: &NativeSettings, writer_generation: Option<i64>, schema: &ArrowSchema) -> Result<WriterProperties, String> {
+        Ok(Self::build_inner(config, writer_generation, schema)?.build())
+    }
+
+    /// Builds WriterProperties with optional writer generation and optional PME encryption.
+    pub fn build_with_generation_and_encryption(
+        config: &NativeSettings,
+        writer_generation: Option<i64>,
+        schema: &ArrowSchema,
+        encryption: Option<std::sync::Arc<parquet::encryption::encrypt::FileEncryptionProperties>>,
+    ) -> Result<WriterProperties, String> {
+        let mut builder = Self::build_inner(config, writer_generation, schema)?;
+        if let Some(enc) = encryption {
+            builder = builder.with_file_encryption_properties(enc);
+        }
+        Ok(builder.build())
+    }
+
+    /// Returns the inner WriterPropertiesBuilder with all settings applied (without calling .build()).
+    fn build_inner(config: &NativeSettings, writer_generation: Option<i64>, schema: &ArrowSchema) -> Result<parquet::file::properties::WriterPropertiesBuilder, String> {
         let mut builder = WriterProperties::builder();
 
         // Apply compression settings
@@ -138,7 +157,7 @@ impl WriterPropertiesBuilder {
         }
         builder = builder.set_key_value_metadata(Some(kv_metadata));
 
-        Ok(builder.build())
+        Ok(builder)
     }
 
     /// Applies compression settings to the builder.

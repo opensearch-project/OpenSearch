@@ -106,7 +106,20 @@ pub async fn register_listing_table(
     sort_fields: &[String],
     sort_orders: &[String],
 ) -> Result<(), DataFusionError> {
-    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
+    register_listing_table_with_format(ctx, table_name, table_path, sort_fields, sort_orders, ParquetFormat::new()).await
+}
+
+/// Like [`register_listing_table`] but accepts a pre-configured [`ParquetFormat`]
+/// (e.g. one with PME encryption options already set).
+pub async fn register_listing_table_with_format(
+    ctx: &SessionContext,
+    table_name: &str,
+    table_path: ListingTableUrl,
+    sort_fields: &[String],
+    sort_orders: &[String],
+    parquet_format: ParquetFormat,
+) -> Result<(), DataFusionError> {
+    let mut listing_options = ListingOptions::new(Arc::new(parquet_format))
         .with_file_extension(".parquet")
         .with_collect_stat(true);
     if let Some(sort_exprs) = build_file_sort_order(sort_fields, sort_orders) {
