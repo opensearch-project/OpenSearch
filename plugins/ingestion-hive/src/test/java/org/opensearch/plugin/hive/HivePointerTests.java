@@ -98,6 +98,15 @@ public class HivePointerTests extends OpenSearchTestCase {
         assertNotEquals(p1, p3);
     }
 
+    public void testFromStringRejectsNonObjectJson() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HivePointer.fromString("42"));
+        assertTrue(e.getMessage(), e.getMessage().contains("expected a JSON object"));
+    }
+
+    public void testFromStringRejectsEmptyString() {
+        expectThrows(IllegalArgumentException.class, () -> HivePointer.fromString(""));
+    }
+
     public void testToString() {
         HivePointer pointer = new HivePointer("dt=2026-04-15", "file:///a.parquet", 0, 100);
         assertTrue(pointer.toString().contains("dt=2026-04-15"));

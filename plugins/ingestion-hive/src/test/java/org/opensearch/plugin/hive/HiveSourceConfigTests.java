@@ -168,6 +168,23 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         assertTrue(config.getHadoopProperties().isEmpty());
     }
 
+    public void testHadoopConfigSkipsNullValues() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("hadoop_config.fs.s3a.endpoint", null);
+        params.put("hadoop_config.fs.s3a.region", "us-east-1");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        assertEquals("us-east-1", config.getHadoopProperties().get("fs.s3a.region"));
+        assertFalse(
+            "a null value must be skipped, not stored as the string \"null\"",
+            config.getHadoopProperties().containsKey("fs.s3a.endpoint")
+        );
+    }
+
     public void testHadoopPropertiesImmutable() {
         Map<String, Object> params = new HashMap<>();
         params.put("metastore_uri", "thrift://localhost:9083");

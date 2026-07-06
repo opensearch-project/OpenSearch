@@ -104,7 +104,9 @@ public class HiveSourceConfig {
         Map<String, String> hadoop = new HashMap<>();
         String prefix = "hadoop_config.";
         for (Map.Entry<String, Object> entry : params.entrySet()) {
-            if (entry.getKey().startsWith(prefix)) {
+            if (entry.getKey().startsWith(prefix) && entry.getValue() != null) {
+                // Skip null values: String.valueOf(null) would inject the literal
+                // string "null" into the Hadoop configuration.
                 hadoop.put(entry.getKey().substring(prefix.length()), String.valueOf(entry.getValue()));
             }
         }

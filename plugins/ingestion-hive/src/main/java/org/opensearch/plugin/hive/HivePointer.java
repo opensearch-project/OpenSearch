@@ -105,7 +105,9 @@ public class HivePointer implements IngestionShardPointer {
             String file = null;
             long row = 0;
             long seq = 0;
-            parser.nextToken(); // START_OBJECT
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Malformed HivePointer, expected a JSON object: " + s);
+            }
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String field = parser.currentName();
                 parser.nextToken();
