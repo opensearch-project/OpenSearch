@@ -9,6 +9,7 @@
 package org.opensearch.plugin.hive;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -16,6 +17,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 import org.apache.hadoop.conf.Configuration;
@@ -29,6 +31,7 @@ import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -88,10 +91,26 @@ public class S3HadoopFileSystem extends FileSystem {
         try {
             HeadObjectResponse head = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
             return new FileStatus(head.contentLength(), false, 1, 0, head.lastModified().toEpochMilli(), path);
-        } catch (Exception e) {
-            // May be a directory prefix
+        } catch (S3Exception e) {
+            if (e.statusCode() != 404) {
+                throw new IOException("Failed to get status of s3://" + bucket + "/" + key, e);
+            }
+            // No object at this key: it may still be a directory prefix. Probe below.
+        } catch (SdkException e) {
+            throw new IOException("Failed to get status of s3://" + bucket + "/" + key, e);
+        }
+
+        String prefix = key.endsWith("/") ? key : key + "/";
+        ListObjectsV2Response probe;
+        try {
+            probe = s3Client.listObjectsV2(ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).maxKeys(1).build());
+        } catch (SdkException e) {
+            throw new IOException("Failed to get status of s3://" + bucket + "/" + key, e);
+        }
+        if (probe.keyCount() > 0) {
             return new FileStatus(0, true, 1, 0, 0, path);
         }
+        throw new FileNotFoundException("No such file or directory: s3://" + bucket + "/" + key);
     }
 
     @Override
