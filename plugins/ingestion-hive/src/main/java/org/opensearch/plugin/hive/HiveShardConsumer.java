@@ -151,8 +151,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         for (int i = 0; i < pendingWork.size(); i++) {
             PartitionWork work = pendingWork.get(i);
             if (work.partitionName.equals(pointer.getPartitionName())) {
-                // Set watermark to the partition before the target so incremental
-                // discovery will include the target partition's successors
+                // Advance the watermark to the target partition so incremental
+                // discovery fetches only its successors; the target itself is
+                // already in pendingWork and is consumed from there
                 watermark = pointer.getPartitionName();
                 watermarkPartitionTime = work.partitionTime;
                 watermarkCreateTime = work.createTime;
@@ -275,7 +276,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 if (currentFileReader != null) {
                     prepareCurrentFileResume();
                 }
-                reconnectMetastore();
+                if (catalog != null) {
+                    // catalog is null when the initial connection itself failed;
+                    // the retried action re-runs ensureInitialized and reconnects.
+                    reconnectMetastore();
+                }
                 return action.execute();
             } catch (Exception retryEx) {
                 retryEx.addSuppressed(e);
