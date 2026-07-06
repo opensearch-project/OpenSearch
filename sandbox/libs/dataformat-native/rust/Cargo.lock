@@ -2852,6 +2852,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-substrait",
  "fancy-regex",
+ "foldhash 0.2.0",
  "futures",
  "jsonpath-rust",
  "libc",
