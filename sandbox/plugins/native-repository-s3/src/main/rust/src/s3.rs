@@ -107,6 +107,16 @@ pub fn build(
         builder = builder.with_retry(retry);
     }
 
+    // If the analytics engine has installed a dedicated IO runtime, route HTTP
+    // requests (and response-body streaming) onto it via SpawnedReqwestConnector
+    // — DataFusion's `thread_pools` example mechanism. This keeps network IO and
+    // its completion work (TLS, body assembly) off the CPU runtime that drives
+    // query decode. No-op when no IO runtime is installed (e.g. unit tests).
+    if let Some(io) = native_bridge_common::io_runtime::io_handle() {
+        builder = builder
+            .with_http_connector(object_store::client::SpawnedReqwestConnector::new(io));
+    }
+
     Ok(Arc::new(builder.build()?))
 }
 
@@ -171,5 +181,144 @@ mod tests {
     fn test_extra_unknown_fields_ignored() {
         let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","unknown_field":"value"}"#;
         assert!(build(config, None).is_ok());
+    }
+
+    // ── IO-runtime dispatch (SpawnedReqwestConnector) ────────────────────────
+    //
+    // These assert the warm path: an S3 store built while an IO runtime handle is
+    // installed routes its HTTP requests onto that runtime (the
+    // `SpawnedReqwestConnector` wiring in `build`), so the IO runtime's worker
+    // poll counter advances. With no handle installed, the store falls back to the
+    // default connector and the IO runtime stays idle. `worker_poll_count` is the
+    // exact counter the DataFusion `_stats` API exports as `total_polls_count`.
+
+    use std::io::Write as _;
+    use std::net::TcpListener as StdTcpListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// Minimal localhost HTTP server: accepts connections and replies with a fixed
+    /// `200 OK` + tiny body to ANY request, until `stop` is set. Lets us exercise
+    /// the real `AmazonS3` HTTP client end-to-end without a container or real S3.
+    /// Runs on its own std thread so it is independent of any tokio runtime.
+    fn spawn_mock_http() -> (String, Arc<AtomicBool>, std::thread::JoinHandle<()>) {
+        let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_c = Arc::clone(&stop);
+        let handle = std::thread::spawn(move || {
+            use std::io::Read as _;
+            while !stop_c.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((mut sock, _)) => {
+                        // Drain the request headers (best-effort) then reply.
+                        let mut buf = [0u8; 1024];
+                        let _ = sock.read(&mut buf);
+                        let body = b"hello-from-mock-s3";
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nAccept-Ranges: bytes\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = sock.write_all(resp.as_bytes());
+                        let _ = sock.write_all(body);
+                        let _ = sock.flush();
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        (format!("http://{}", addr), stop, handle)
+    }
+
+    /// Sum of per-worker poll counts for a runtime — the same metric the
+    /// production `_stats` API reports as `io_runtime.total_polls_count`.
+    fn worker_polls(handle: &tokio::runtime::Handle) -> u64 {
+        let m = handle.metrics();
+        (0..m.num_workers()).map(|i| m.worker_poll_count(i)).sum()
+    }
+
+    fn s3_config(endpoint: &str) -> String {
+        format!(
+            r#"{{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"{}"}}"#,
+            endpoint
+        )
+    }
+
+    /// Drive a single `get` against `endpoint` on a throwaway driver runtime
+    /// (separate from `io_rt`, so any polls observed on `io_rt` can only come from
+    /// the connector), returning the IO runtime's worker-poll delta across it.
+    fn poll_delta_for_get(io_rt: &tokio::runtime::Runtime, endpoint: &str) -> u64 {
+        let driver_rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let store = build(&s3_config(endpoint), None).expect("build s3 store");
+        let before = worker_polls(io_rt.handle());
+        let _ = driver_rt.block_on(async move {
+            store
+                .get_opts(
+                    &object_store::path::Path::from("some-object"),
+                    object_store::GetOptions::default(),
+                )
+                .await
+        });
+        worker_polls(io_rt.handle()) - before
+    }
+
+    /// Warm-path assertion + its control, in ONE test because the IO handle is a
+    /// process-global that parallel tests would race on.
+    ///
+    /// * WITH a handle installed → the S3 store's HTTP request is polled on that
+    ///   IO runtime (the `SpawnedReqwestConnector` wiring), so its
+    ///   `worker_poll_count` advances.
+    /// * WITHOUT a handle (a runtime never installed) → that runtime sees zero
+    ///   polls, proving the warm-case polls come from the connector, not ambient
+    ///   activity.
+    #[test]
+    fn io_runtime_services_s3_reads_only_when_handle_installed() {
+        let (endpoint, stop, server) = spawn_mock_http();
+
+        let io_rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("test-io")
+            .enable_all()
+            .build()
+            .unwrap();
+        // A second runtime that we observe but NEVER install as the IO handle.
+        let uninstalled_rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("test-uninstalled")
+            .enable_all()
+            .build()
+            .unwrap();
+
+        // WARM: handle installed → io_rt must poll the request.
+        native_bridge_common::io_runtime::set_io_handle(io_rt.handle().clone());
+        let installed_delta = poll_delta_for_get(&io_rt, &endpoint);
+
+        // CONTROL: a runtime that was never installed must see nothing from the read.
+        let uninstalled_delta = poll_delta_for_get(&uninstalled_rt, &endpoint);
+
+        native_bridge_common::io_runtime::clear_io_handle();
+        stop.store(true, Ordering::Relaxed);
+        let _ = server.join();
+
+        assert!(
+            installed_delta > 0,
+            "IO runtime worker_poll_count must advance across an S3 read \
+             (delta={}) — SpawnedReqwestConnector is not dispatching HTTP onto the \
+             installed IO runtime",
+            installed_delta
+        );
+        assert_eq!(
+            uninstalled_delta, 0,
+            "a runtime never installed as the IO handle must see no polls from an \
+             S3 read (delta={}) — the warm-case polls would then be ambient noise",
+            uninstalled_delta
+        );
     }
 }

@@ -153,7 +153,7 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
         health.addParameter("timeout", "30s");
         client().performRequest(health);
 
-        String bulk = "{\"index\":{\"_id\":\"1\"}}\n"
+        String bulk = "{\"index\":{}}\n"
             + "{"
             + "\"boolean_value\":true,"
             + "\"byte_value\":4,"

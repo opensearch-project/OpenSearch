@@ -228,8 +228,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         SpillStats spill = buildSpillStats();
         return new DataFusionStats(
             nativeStats.getNativeExecutorsStats(),
-            nativeStats.getDatanodeGateStats(),
-            nativeStats.getCoordinatorGateStats(),
+            nativeStats.getFragmentExecutorGateStats(),
+            nativeStats.getAdaptiveBudgetStats(),
             spill,
             nativeStats.getCacheStats(),
             nativeStats.getSearchStats()
@@ -263,6 +263,23 @@ public class DataFusionService extends AbstractLifecycleComponent {
             NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filePaths.toArray(new String[0]));
         } catch (Exception e) {
             logger.warn("Failed to register new files with native cache", e);
+        }
+    }
+
+    /**
+     * Warmup files through the TieredObjectStore — reads metadata via the store
+     * (populating Foyer caches) and puts into heap cache. For warm nodes where
+     * files are on S3, this routes through the registry to remote storage.
+     *
+     * @param filePaths absolute paths of the files to warm
+     * @param storeBoxPtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer from TieredStorageBridge.getObjectStoreBoxPtr
+     */
+    public void onFilesAddedWithStore(Collection<String> filePaths, long storeBoxPtr) {
+        if (filePaths == null || filePaths.isEmpty()) return;
+        try {
+            NativeBridge.cacheManagerAddFilesWithStore(runtimeHandle.get(), storeBoxPtr, filePaths.toArray(new String[0]));
+        } catch (Exception e) {
+            logger.warn("Failed to warmup files with store", e);
         }
     }
 

@@ -138,4 +138,13 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     default Exception getTragicException() {
         return null;
     }
+
+    /**
+     * Returns the maximum number of documents this engine can index per shard.
+     * Used by {@link org.opensearch.index.engine.DocumentCountTracker} to enforce
+     * the document count limit. Defaults to {@link Long#MAX_VALUE} (unlimited).
+     */
+    default long maxIndexableDocs() {
+        return Long.MAX_VALUE;
+    }
 }

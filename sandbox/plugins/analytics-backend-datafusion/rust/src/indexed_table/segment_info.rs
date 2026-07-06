@@ -77,9 +77,13 @@ pub async fn build_segments(
         // RuntimeEnv that `infer_schema` uses below shares this data when
         // both are pointed at the same object location, so this isn't a
         // duplicated cold fetch in practice.
-        let (file_schema, size, pq_meta) = parquet_bridge::load_parquet_metadata(
+        // `meta` is the authoritative listing snapshot — pass it through so the
+        // footer load resolves from cache without a redundant `head()` syscall
+        // per segment.
+        let (file_schema, size, pq_meta) = parquet_bridge::load_parquet_metadata_with_meta(
             Arc::clone(&store),
             &meta.location,
+            meta.clone(),
             Arc::clone(&metadata_cache),
         )
         .await

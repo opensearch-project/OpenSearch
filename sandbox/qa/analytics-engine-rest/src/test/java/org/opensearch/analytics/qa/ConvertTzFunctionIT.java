@@ -52,20 +52,60 @@ public class ConvertTzFunctionIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Out-of-range {@code from} offset ({@code -17:00}, beyond ±14:00) → NULL, matching reference PPL
-     * (ConvertTZFunctionIT#nullFromFieldUnder). Pins the canonicalize pass-through that lets the
-     * runtime UDF surface NULL instead of the identity short-circuit folding the call away.
+     * Out-of-range {@code from} offset ({@code -17:00}, well below the negative cap) → NULL, matching
+     * reference PPL (ConvertTZFunctionIT#nullFromFieldUnder).
      */
     public void testNullOnOutOfRangeFromOffset() throws IOException {
         assertFirstRowNull(oneRow() + "| eval v = convert_tz('2021-05-30 11:34:50', '-17:00', '+08:00') | fields v");
     }
 
     /**
-     * Out-of-range {@code to} offset ({@code +15:00}, beyond ±14:00) → NULL, matching reference PPL
-     * (ConvertTZFunctionIT#nullToFieldOver).
+     * Out-of-range {@code to} offset ({@code +15:00}, above the positive cap) → NULL, matching reference
+     * PPL (ConvertTZFunctionIT#nullToFieldOver).
      */
     public void testNullOnOutOfRangeToOffset() throws IOException {
         assertFirstRowNull(oneRow() + "| eval v = convert_tz('2021-05-12 11:34:50', '-12:00', '+15:00') | fields v");
+    }
+
+    /**
+     * Just below the negative cap ({@code -14:00}) → NULL. MySQL's CONVERT_TZ band is
+     * {@code [-13:59, +14:00]}; pre-fix the adapter accepted any {@code hours <= 14}
+     * and returned a shifted timestamp. Mirrors {@code ConvertTZFunctionIT#nullField2Under}.
+     */
+    public void testNullOnJustBelowNegativeCap() throws IOException {
+        assertFirstRowNull(oneRow() + "| eval v = convert_tz('2021-05-30 11:34:50', '-14:00', '+08:00') | fields v");
+    }
+
+    /**
+     * Just above the positive cap ({@code +14:01}) → NULL. Mirrors
+     * {@code ConvertTZFunctionIT#nullField3Over} — the boundary the original adapter missed.
+     */
+    public void testNullOnJustAbovePositiveCap() throws IOException {
+        assertFirstRowNull(oneRow() + "| eval v = convert_tz('2021-05-12 11:34:50', '-12:00', '+14:01') | fields v");
+    }
+
+    /**
+     * Negative-cap boundary ({@code -13:59}) is in-band on both sides → identity short-circuit
+     * returns the timestamp unchanged. Mirrors {@code ConvertTZFunctionIT#inRangeMinOnPoint};
+     * regression guard against the boundary-tightening accidentally rejecting the cap itself.
+     */
+    public void testInBandNegativeCapShortCircuits() throws IOException {
+        assertFirstRowString(
+            oneRow() + "| eval v = convert_tz('2021-05-12 15:00:00', '-13:59', '-13:59') | fields v",
+            "2021-05-12 15:00:00"
+        );
+    }
+
+    /**
+     * Positive-cap boundary ({@code +14:00}) is in-band → UDF fallback applies the offset.
+     * Pre-fix this passed because the bound was {@code hours <= 14}; post-fix the explicit
+     * band check still admits {@code +14:00} exactly.
+     */
+    public void testInBandPositiveCapAppliesOffset() throws IOException {
+        assertFirstRowString(
+            oneRow() + "| eval v = convert_tz('2021-05-12 00:00:00', '+00:00', '+14:00') | fields v",
+            "2021-05-12 14:00:00"
+        );
     }
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {

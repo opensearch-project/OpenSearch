@@ -220,11 +220,12 @@ fn parse_tz(s: &str) -> Option<TzSpec> {
 
 /// Parse `±HH:MM` → seconds east of UTC; None if not an offset literal.
 ///
-/// Bounds ({@code hours ∈ [0,14], minutes ∈ [0,59]}) match the Java adapter's
-/// {@code canonicalizeTz}. For literal-path inputs the Java side has already
-/// validated and canonicalized, so the defensive checks here only fire for
-/// column-valued tz — where a malformed entry yields a NULL row, matching the
-/// documented lenient behavior.
+/// Bounds match MySQL's `CONVERT_TZ` band: `[-13:59, +14:00]` (legacy parity
+/// with `DateTimeUtils.isValidMySqlTimeZoneId`). The Java adapter
+/// (`ConvertTzAdapter::canonicalizeTz`) folds out-of-band literals to NULL at
+/// plan time; this defensive check covers column-valued tz strings, where a
+/// malformed entry yields a NULL row and matches the documented lenient
+/// behavior.
 fn parse_offset_seconds(s: &str) -> Option<i32> {
     let bytes = s.as_bytes();
     if bytes.len() != 6 {
@@ -240,7 +241,12 @@ fn parse_offset_seconds(s: &str) -> Option<i32> {
     }
     let hours: i32 = s.get(1..3)?.parse().ok()?;
     let minutes: i32 = s.get(4..6)?.parse().ok()?;
-    if hours > 14 || minutes > 59 {
+    if minutes > 59 {
+        return None;
+    }
+    let total_minutes = hours * 60 + minutes;
+    let max_minutes = if sign < 0 { 13 * 60 + 59 } else { 14 * 60 };
+    if total_minutes > max_minutes {
         return None;
     }
     Some(sign * (hours * 3600 + minutes * 60))
@@ -325,10 +331,24 @@ mod tests {
     fn parse_offset_rejects_malformed() {
         assert_eq!(parse_offset_seconds("bogus"), None);
         assert_eq!(parse_offset_seconds("0500"), None);
-        // Hour >14 is beyond canonicalization bounds — Java rejects at plan time,
-        // we reject at runtime for column-valued paths.
+        // Out-of-band offsets — Java folds these to NULL at plan time;
+        // this catches the column-valued path.
         assert_eq!(parse_offset_seconds("+15:00"), None);
         assert_eq!(parse_offset_seconds("+05:60"), None);
+    }
+
+    // MySQL's CONVERT_TZ band: positive offsets cap at +14:00, negative offsets
+    // cap at -13:59. Matches legacy DateTimeUtils.isValidMySqlTimeZoneId.
+    #[test]
+    fn parse_offset_enforces_mysql_band() {
+        // Boundary OKs.
+        assert_eq!(parse_offset_seconds("+14:00"), Some(14 * 3600));
+        assert_eq!(parse_offset_seconds("-13:59"), Some(-(13 * 3600 + 59 * 60)));
+        // Just outside.
+        assert_eq!(parse_offset_seconds("+14:01"), None);
+        assert_eq!(parse_offset_seconds("-14:00"), None);
+        // Well outside.
+        assert_eq!(parse_offset_seconds("-17:00"), None);
     }
 
     // Offset → offset: simple wall-clock delta, no calendar.
@@ -504,5 +524,59 @@ mod tests {
         assert!(!arr.is_null(0));
         assert!(arr.is_null(1));
         assert!(arr.is_null(2));
+    }
+
+    // Column-valued tz strings can't be validated plan-side, so the UDF must
+    // null them out at row time. Both just-outside-the-band entries (-14:00,
+    // +14:01) and well-outside ones (+15:00) must collapse to NULL.
+    #[test]
+    fn invoke_out_of_band_offset_strings_yield_nulls() {
+        let udf = ConvertTzUdf::new();
+        let ts = TimestampMillisecondArray::from(vec![
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+            Some(1_704_456_000_000),
+        ]);
+        let from = StringArray::from(vec![
+            Some("+00:00"),
+            Some("-14:00"), // just past negative cap
+            Some("+15:00"), // well past positive cap
+            Some("+00:00"),
+        ]);
+        let to = StringArray::from(vec![
+            Some("+14:00"), // boundary OK
+            Some("+00:00"),
+            Some("+00:00"),
+            Some("+14:01"), // just past positive cap
+        ]);
+        let args = ScalarFunctionArgs {
+            args: vec![
+                ColumnarValue::Array(Arc::new(ts)),
+                ColumnarValue::Array(Arc::new(from)),
+                ColumnarValue::Array(Arc::new(to)),
+            ],
+            number_rows: 4,
+            arg_fields: vec![],
+            return_field: Arc::new(datafusion::arrow::datatypes::Field::new(
+                "out",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            )),
+            config_options: Arc::new(datafusion::config::ConfigOptions::new()),
+        };
+        let out = udf.invoke_with_args(args).unwrap();
+        let arr = match out {
+            ColumnarValue::Array(a) => a,
+            _ => panic!("expected array"),
+        };
+        let arr = arr
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        assert!(!arr.is_null(0), "in-band +14:00 must produce a value");
+        assert!(arr.is_null(1), "from=-14:00 (out-of-band) must yield NULL");
+        assert!(arr.is_null(2), "from=+15:00 (out-of-band) must yield NULL");
+        assert!(arr.is_null(3), "to=+14:01 (out-of-band) must yield NULL");
     }
 }

@@ -91,7 +91,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -111,7 +111,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
             qc.target_partitions = 1;
             qc.force_strategy = Some(FilterStrategy::BooleanMask);
-            qc.force_pushdown = Some(false);
+            qc.indexed_pushdown_filters = false;
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
@@ -119,6 +119,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -261,7 +262,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -281,7 +282,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
             qc.target_partitions = 1;
             qc.force_strategy = Some(FilterStrategy::BooleanMask);
-            qc.force_pushdown = Some(false);
+            qc.indexed_pushdown_filters = false;
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
@@ -289,6 +290,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -529,7 +531,7 @@ async fn test_row_id_with_data_columns() {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -549,7 +551,7 @@ async fn test_row_id_with_data_columns() {
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
             qc.target_partitions = 1;
             qc.force_strategy = Some(FilterStrategy::BooleanMask);
-            qc.force_pushdown = Some(false);
+            qc.indexed_pushdown_filters = false;
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
@@ -557,6 +559,7 @@ async fn test_row_id_with_data_columns() {
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -784,7 +787,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -804,7 +807,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
             qc.target_partitions = 1;
             qc.force_strategy = Some(FilterStrategy::BooleanMask);
-            qc.force_pushdown = Some(false);
+            qc.indexed_pushdown_filters = false;
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
@@ -812,6 +815,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

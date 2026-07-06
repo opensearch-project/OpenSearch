@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -55,6 +56,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     private final Map<DataFormat, Writer<DocumentInput<?>>> secondaryWritersByFormat;
     private final long writerGeneration;
     private final FailureHandlerStrategy failureHandler;
+    private final CompositeShardStatsTracker statsTracker;
     private volatile boolean closed;
     private long mappingVersion;
     /** Successful addDoc count — every incoming rowId must equal this. */
@@ -103,6 +105,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         }
         this.secondaryWritersByFormat = Collections.unmodifiableMap(secondaries);
         this.failureHandler = new FailureHandlerStrategy();
+        this.statsTracker = engine.statsTracker();
     }
 
     @Override
@@ -116,11 +119,15 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             throw new IllegalStateException("rowId [" + doc.getRowId() + "] does not match accepted row count [" + acceptedRows + "]");
         }
 
+        // Count every write attempt so write_*_failures can be read as a rate.
+        statsTracker.incWriteTotal();
+
         // Roll back exactly the writers we've called addDoc on, in order.
         List<Writer<DocumentInput<?>>> touched = new ArrayList<>();
         touched.add(primaryWriter);
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         if (primaryResult instanceof WriteResult.Failure pf) {
+            statsTracker.incWritePrimaryFailures();
             logger.warn(
                 () -> new ParameterizedMessage("Failed to add document in primary format [{}], rolling back", primaryFormat.name()),
                 pf.cause()
@@ -136,6 +143,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             touched.add(writer);
             WriteResult result = writer.addDoc(inputEntry.getValue());
             if (result instanceof WriteResult.Failure sf) {
+                statsTracker.incWriteSecondaryFailures();
                 logger.warn(
                     () -> new ParameterizedMessage("Failed to add document in secondary format [{}], rolling back", format.name()),
                     sf.cause()
@@ -212,6 +220,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     @Override
     public void updateMappingVersion(long newVersion) {
         if (newVersion > this.mappingVersion) {
+            statsTracker.incMappingUpdateExecutedTotal();
             this.mappingVersion = newVersion;
             primaryWriter.updateMappingVersion(newVersion);
             for (Writer<?> w : secondaryWritersByFormat.values()) {

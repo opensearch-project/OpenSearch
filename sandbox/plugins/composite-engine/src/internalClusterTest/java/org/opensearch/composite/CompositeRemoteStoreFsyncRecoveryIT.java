@@ -93,10 +93,7 @@ public class CompositeRemoteStoreFsyncRecoveryIT extends RemoteStoreBaseIntegTes
 
     private void indexDocs(int count, int offset) {
         for (int i = 0; i < count; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(offset + i))
-                .setSource("name", "doc_" + (offset + i), "value", offset + i)
-                .get();
+            client().prepareIndex(INDEX_NAME).setSource("name", "doc_" + (offset + i), "value", offset + i).get();
         }
     }
 

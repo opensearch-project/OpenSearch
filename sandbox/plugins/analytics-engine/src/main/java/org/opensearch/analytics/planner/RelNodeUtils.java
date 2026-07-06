@@ -16,9 +16,12 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -32,7 +35,9 @@ import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.core.common.Strings;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -163,6 +168,24 @@ public class RelNodeUtils {
     }
 
     /**
+     * Finds all nodes of the given type reachable from {@code node} (walks the full tree, all inputs).
+     * Unlike {@link #findNode} (which returns only the topmost match via the first-input chain), this
+     * sees every match — e.g. a WHERE filter below an Aggregate AND a HAVING filter above it, which
+     * do not merge (FILTER_MERGE does not cross the Aggregate). Order is pre-order (topmost first).
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> List<T> findAllNodes(RelNode node, Class<T> type) {
+        List<T> out = new ArrayList<>();
+        if (type.isInstance(node)) {
+            out.add((T) node);
+        }
+        for (RelNode input : node.getInputs()) {
+            out.addAll(findAllNodes(input, type));
+        }
+        return out;
+    }
+
+    /**
      * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
      * searching all inputs. Returns {@code null} if none is present.
      */
@@ -208,7 +231,15 @@ public class RelNodeUtils {
         }
         if (node instanceof TableScan scan) {
             java.util.List<String> names = scan.getTable().getQualifiedName();
-            indices.add(names.get(names.size() - 1));
+            String tableName = names.get(names.size() - 1);
+            // PPL multi-source queries (source=a,b) produce a single TableScan with a
+            // comma-delimited table name. Split so each index is evaluated independently
+            // by the security filter — same logic as IndexResolution.
+            for (String idx : Strings.splitStringByCommaToArray(tableName)) {
+                if (!idx.isEmpty()) {
+                    indices.add(idx);
+                }
+            }
         }
         for (RelNode input : node.getInputs()) {
             if (!collectIndices(input, indices, depth + 1)) {
@@ -308,5 +339,23 @@ public class RelNodeUtils {
             }
             return new RexInputRef(newIdx, newRowType.getFieldList().get(newIdx).getType());
         }
+    }
+
+    /**
+     * Recursively flattens nested same-operator AND/OR calls so the condition satisfies
+     * {@link RexUtil#isFlat(RexNode)} (the invariant asserted by {@link org.apache.calcite.rel.core.Filter}'s
+     * constructor). Calcite's {@code RexUtil.flatten(RexBuilder, RexNode)} only flattens the root
+     * call's direct operands; wrapping it in a {@link RexShuttle} applies it bottom-up, so each
+     * node is flattened after its children — making one pass fully recursive. Pure structural
+     * flatten: {@code flatten} splices same-op children only, with no de-duplication or
+     * simplification.
+     */
+    public static RexNode deepFlatten(RexBuilder rexBuilder, RexNode node) {
+        return node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitCall(RexCall call) {
+                return RexUtil.flatten(rexBuilder, super.visitCall(call));
+            }
+        });
     }
 }

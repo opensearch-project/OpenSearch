@@ -36,7 +36,7 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
     private static final String LOCAL_STATS_ENDPOINT = "/_plugins/_analytics_backend_datafusion/_local/stats";
 
     /**
-     * All 8 stat sections that a full (unfiltered) response should contain.
+     * All 7 stat sections that a full (unfiltered) response should contain.
      */
     private static final Set<String> ALL_SECTIONS = Set.of(
         "io_runtime",
@@ -45,8 +45,8 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
         "query_execution",
         "stream_next",
         "plan_setup",
-        "datanode_gate",
-        "coordinator_gate",
+        "fragment_executor_gate",
+        "adaptive_budget",
         "disk_spill"
     );
 
@@ -60,7 +60,7 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
     /**
      * GET /_plugins/_analytics_backend_datafusion/stats
      * Verify HTTP 200, verify _nodes, cluster_name, nodes keys exist,
-     * verify all 8 stat sections in each node entry.
+     * verify all 7 stat sections in each node entry.
      */
     public void testAllStatsFromAllNodes() throws Exception {
         Response response = client().performRequest(new Request("GET", STATS_ENDPOINT));
@@ -149,11 +149,11 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
     }
 
     /**
-     * GET /_plugins/_analytics_backend_datafusion/stats/io_runtime,datanode_gate
+     * GET /_plugins/_analytics_backend_datafusion/stats/io_runtime,fragment_executor_gate
      * Verify only those 2 sections in node entries.
      */
     public void testMultipleStatFilter() throws Exception {
-        Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/io_runtime,datanode_gate"));
+        Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/io_runtime,fragment_executor_gate"));
         assertEquals("expected HTTP 200", 200, response.getStatusLine().getStatusCode());
 
         JsonNode root = parseResponse(response);
@@ -166,11 +166,11 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
             JsonNode nodeEntry = nodesMap.get(nodeId);
 
             assertTrue("node must contain 'io_runtime'", nodeEntry.has("io_runtime"));
-            assertTrue("node must contain 'datanode_gate'", nodeEntry.has("datanode_gate"));
+            assertTrue("node must contain 'fragment_executor_gate'", nodeEntry.has("fragment_executor_gate"));
 
             // Verify no other stat sections are present
             for (String section : ALL_SECTIONS) {
-                if (!section.equals("io_runtime") && !section.equals("datanode_gate")) {
+                if (!section.equals("io_runtime") && !section.equals("fragment_executor_gate")) {
                     assertFalse(
                         "filtered response must NOT contain '" + section + "'",
                         nodeEntry.has(section)

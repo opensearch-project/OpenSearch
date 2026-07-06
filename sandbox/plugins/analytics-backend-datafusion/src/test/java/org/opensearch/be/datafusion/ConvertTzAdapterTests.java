@@ -85,13 +85,21 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertEquals("UTC", ConvertTzAdapter.canonicalizeTz("UTC"));
     }
 
-    public void testCanonicalizeTzPassesOutOfRangeOffsetsThroughUnchanged() {
-        // Syntactically-valid but out-of-range offsets are NOT rejected at plan time.
-        // They pass through verbatim so the runtime UDF (rust convert_tz::parse_offset_seconds)
-        // returns None and the row surfaces as NULL — matching legacy PPL semantics
-        // (DateTimeFunctionIT#testConvertTZ expects NULL rows for '-17:00' / '+15:00').
-        assertEquals("hours > 14 must pass through, not throw", "+15:00", ConvertTzAdapter.canonicalizeTz("+15:00"));
-        assertEquals("minutes > 59 must pass through, not throw", "+05:60", ConvertTzAdapter.canonicalizeTz("+05:60"));
+    public void testCanonicalizeTzAcceptsBoundaryOffsets() {
+        // MySQL CONVERT_TZ band: [-13:59, +14:00] (legacy DateTimeUtils.isValidMySqlTimeZoneId).
+        assertEquals("+14:00", ConvertTzAdapter.canonicalizeTz("+14:00"));
+        assertEquals("-13:59", ConvertTzAdapter.canonicalizeTz("-13:59"));
+    }
+
+    public void testCanonicalizeTzRejectsOffsetsOutsideMysqlBand() {
+        // The Java adapter folds these to typed NULL at plan time; the catch in adapt()
+        // turns the IAE into a NULL literal so callers see {@code SELECT CONVERT_TZ(...,'-14:00','+08:00')}
+        // return NULL, matching ConvertTZFunctionIT#nullField2Under / nullField3Over.
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+14:01"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("-14:00"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("-17:00"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+15:00"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+05:60"));
     }
 
     public void testCanonicalizeTzRejectsUnknownIana() {
@@ -186,7 +194,7 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         );
     }
 
-    /** unknown IANA literal -> typed NULL (out-of-range offsets fall through to the UDF for runtime NULL). */
+    /** unknown IANA literal -> typed NULL. */
     public void testAdaptUnknownIanaLiteralReturnsTypedNull() {
         RexCall original = buildConvertTz("Mars/Olympus", "UTC");
         RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
@@ -194,6 +202,22 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertTrue(adapted instanceof RexLiteral);
         assertTrue(((RexLiteral) adapted).isNull());
         assertEquals(original.getType(), adapted.getType());
+    }
+
+    /** Out-of-band offset literal -> typed NULL (matches MySQL CONVERT_TZ semantics). */
+    public void testAdaptOutOfBandOffsetLiteralReturnsTypedNull() {
+        for (String[] pair : new String[][] {
+            { "-14:00", "+08:00" }, // ConvertTZFunctionIT#nullField2Under
+            { "-12:00", "+14:01" }, // ConvertTZFunctionIT#nullField3Over
+            { "+15:00", "+00:00" }, // legacy PPL DateTimeFunctionIT#testConvertTZ
+        }) {
+            RexCall original = buildConvertTz(pair[0], pair[1]);
+            RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+            assertTrue("expected NULL literal for [" + pair[0] + "," + pair[1] + "], got " + adapted, adapted instanceof RexLiteral);
+            assertTrue(((RexLiteral) adapted).isNull());
+            assertEquals(original.getType(), adapted.getType());
+        }
     }
 
     /**

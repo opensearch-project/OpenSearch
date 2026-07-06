@@ -416,6 +416,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
+    private static final long REPLICA_SYNC_POLL_INTERVAL_MS = 500;
+
     private final DataFormatRegistry dataFormatRegistry;
 
     private final Map<String, FormatChecksumStrategy> checksumStrategies;
@@ -1050,10 +1052,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 forceRefreshes.close();
 
                 boolean syncTranslog = (isRemoteTranslogEnabled() || this.isMigratingToRemote())
-                    && Durability.ASYNC == indexSettings.getTranslogDurability();
-                // Since all the index permits are acquired at this point, the translog buffer will not change.
-                // It is safe to perform sync of translogs now as this will ensure for remote-backed indexes, the
-                // translogs has been uploaded to the remote store.
+                    && (Durability.ASYNC == indexSettings.getTranslogDurability() || indexSettings.isPluggableDataFormatEnabled());
+                // Force a final, blocking translog upload to remote for ALL remote-backed indexes before draining
+                // uploads below. This must run for REQUEST durability too, not just ASYNC: with REQUEST the freshest
+                // acked ops may still be in the buffered upload path and not yet on remote. If we drained without
+                // this sync, the pending upload would hit the drained syncPermit, no-op (TLOG-SKIP), and those acked
+                // ops would never reach remote, silently lost on handoff since the target recovers from remote.
                 if (syncTranslog) {
                     maybeSync();
                 }
@@ -1532,7 +1536,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
-        return applyOnEngine(getIndexer(), engine -> engine.get(get, this::acquireSearcher));
+        try {
+            return getIndexer().getById(get, this::acquireSearcher);
+        } catch (IOException e) {
+            throw new OpenSearchException("get-by-id failed for id [" + get.id() + "]", e);
+        }
     }
 
     /**
@@ -1636,6 +1644,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MergeStats mergeStats = engine.getMergeStats();
         mergeStats.addUnreferencedFileCleanUpStats(engine.unreferencedFileCleanUpsPerformed());
         return mergeStats;
+    }
+
+    /**
+     * Explicitly freezes the engine for tiering. Closes the race window where the
+     * cluster state with HOT_TO_WARM hasn't propagated to this data node yet.
+     * After this call, no new merges can start and in-flight merges are drained.
+     * <p>
+     * Throws {@link UnsupportedOperationException} when the indexer does not support
+     * tiering (Lucene-backed primaries, replicas, read-only engines). Callers must
+     * gate on the index being tier-eligible before invoking. No-op when the shard's
+     * indexer is not yet initialised.
+     */
+    public void freezeForTiering() {
+        assert routingEntry().primary() : "freezeForTiering should only be called on primary shards";
+        final Indexer engine = getIndexerOrNull();
+        if (engine != null) {
+            engine.freezeForTiering();
+        }
+    }
+
+    /**
+     * Registers a listener that fires when all in-flight merge operations have completed.
+     * If merges are already drained (none active, none pending), fires the listener
+     * immediately inline. Otherwise, the listener will be invoked on the merge thread
+     * when the last merge finishes.
+     * <p>
+     * Throws {@link UnsupportedOperationException} when the indexer does not maintain
+     * a drainable merge queue (Lucene-backed primaries, replicas, read-only engines).
+     * Callers must gate on the index being tier-eligible before invoking. No-op when
+     * the shard's indexer is not yet initialised.
+     *
+     * @param listener the callback to fire when merges are drained
+     */
+    public void onMergesDrained(Runnable listener) {
+        assert routingEntry().primary() : "onMergesDrained should only be called on primary shards";
+        final Indexer engine = getIndexerOrNull();
+        if (engine != null) {
+            engine.onMergesDrained(listener);
+        }
+    }
+
+    /**
+     * Returns the number of currently active (in-flight) merge tasks. Returns the live
+     * count from the underlying merge scheduler — {@link DataFormatAwareEngine} reports
+     * its internal counter; Lucene-backed engines report
+     * {@code MergeStats.getCurrent()}; replica / read-only engines report {@code 0}.
+     * Returns {@code 0} when the shard's indexer is not yet initialised.
+     *
+     * @return the active merge count
+     */
+    public int getActiveMergeCount() {
+        final Indexer engine = getIndexerOrNull();
+        return engine == null ? 0 : engine.getActiveMergeCount();
+    }
+
+    /**
+     * Returns whether any merges are queued but not yet started. Reports orthogonally from
+     * {@link #getActiveMergeCount()} — {@code true} only when merges are queued, regardless
+     * of how many are currently running. Returns {@code false} when the shard's indexer is
+     * not yet initialised.
+     */
+    public boolean hasPendingMerges() {
+        final Indexer engine = getIndexerOrNull();
+        return engine != null && engine.hasPendingMerges();
     }
 
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
@@ -3771,6 +3843,77 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Set<SegmentReplicationShardStats> getReplicationStatsForTrackedReplicas() {
         return replicationTracker.getSegmentReplicationStats();
+    }
+
+    /**
+     * Stable marker substring embedded in every replica-sync-timeout message. Used for detection
+     * in mixed-version clusters or log parsing, analogous to
+     * {@link org.opensearch.storage.action.tiering.MergeDrainTimeoutException#MERGE_DRAIN_TIMEOUT_MARKER}.
+     */
+    public static final String REPLICA_SYNC_TIMEOUT_MARKER = "[REPLICA_SYNC_TIMEOUT]";
+
+    /**
+     * Waits for all tracked replicas to be in sync with the primary's latest checkpoint.
+     * Polls every 500ms until either all replicas report {@code checkpointsBehindCount == 0}
+     * or the timeout is exceeded.
+     * <p>
+     * Used during tiering preparation to verify replicas are in sync after
+     * {@code waitForRemoteStoreSync()} — ensures replicas have downloaded the latest
+     * segments before shard relocation begins.
+     *
+     * @param timeout maximum time to wait for replicas to sync
+     * @throws IOException if replicas fail to sync within the timeout
+     */
+    public void waitForReplicaSync(TimeValue timeout) throws IOException {
+        if (!indexSettings.isSegRepEnabledOrRemoteNode()) {
+            return;
+        }
+        long startNanos = System.nanoTime();
+        Set<SegmentReplicationShardStats> stats = Set.of();
+        while (System.nanoTime() - startNanos < timeout.nanos()) {
+            stats = getReplicationStatsForTrackedReplicas();
+            if (stats.isEmpty()
+                || stats.stream()
+                    .allMatch(
+                        s -> s.getCheckpointsBehindCount() == 0 && s.getBytesBehindCount() == 0 && s.getCurrentReplicationTimeMillis() == 0
+                    )) {
+                logger.debug("All replicas in sync for shard [{}]", shardId);
+                return;
+            }
+            long behindReplicas = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0 || s.getBytesBehindCount() > 0).count();
+            long maxCheckpointsBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0);
+            logger.debug(
+                "Waiting for replica sync on shard [{}]: {} replica(s) still behind, max checkpoints behind: {}, max bytes behind: {}",
+                shardId,
+                behindReplicas,
+                maxCheckpointsBehind,
+                maxBytesBehind
+            );
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenSearchException("Interrupted waiting for replica sync on shard [" + shardId + "]", e);
+            }
+        }
+        // Build diagnostic message with per-replica details
+        long behindCount = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0 || s.getBytesBehindCount() > 0).count();
+        long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+        long maxBytes = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0);
+        throw new IOException(
+            REPLICA_SYNC_TIMEOUT_MARKER
+                + " Shard ["
+                + shardId
+                + "] replicas failed to sync within "
+                + timeout
+                + ". Replicas still behind: "
+                + behindCount
+                + ", max checkpoints behind: "
+                + maxBehind
+                + ", max bytes behind: "
+                + maxBytes
+        );
     }
 
     public ReplicationStats getReplicationStats() {

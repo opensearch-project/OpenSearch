@@ -32,12 +32,12 @@ pub struct NativeSettings {
     pub reverse_sorts: Vec<bool>,
     pub nulls_first: Vec<bool>,
     pub sort_in_memory_threshold_bytes: Option<u64>,
-    pub sort_batch_size: Option<usize>,
     pub merge_batch_size: Option<usize>,
     pub row_group_max_rows: Option<usize>,
     pub row_group_max_bytes: Option<usize>,
     pub merge_rayon_threads: Option<usize>,
     pub merge_io_threads: Option<usize>,
+    pub merge_deferred_column_threshold: Option<usize>,
 }
 
 impl NativeSettings {
@@ -89,10 +89,6 @@ impl NativeSettings {
         self.sort_in_memory_threshold_bytes.unwrap_or(32 * 1024 * 1024)
     }
 
-    pub fn get_sort_batch_size(&self) -> usize {
-        self.sort_batch_size.unwrap_or(8192)
-    }
-
     pub fn get_merge_batch_size(&self) -> usize {
         self.merge_batch_size.unwrap_or(100_000)
     }
@@ -111,6 +107,10 @@ impl NativeSettings {
 
     pub fn get_merge_io_threads(&self) -> Option<usize> {
         self.merge_io_threads
+    }
+
+    pub fn get_merge_deferred_column_threshold(&self) -> usize {
+        self.merge_deferred_column_threshold.unwrap_or(0)
     }
 }
 

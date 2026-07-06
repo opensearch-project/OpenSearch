@@ -92,6 +92,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -505,7 +507,35 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 createSnapshotPreValidations(currentState, repositoryData, repositoryName, snapshotName);
 
-                List<String> indices = new ArrayList<>(currentState.metadata().indices().keySet());
+                // Exclude warm-tiered pluggable-data-format indexes from V2 snapshots; they are
+                // not currently restorable. The rest of the cluster is captured normally.
+                final List<String> allIndices = new ArrayList<>(currentState.metadata().indices().keySet());
+                final List<String> excludedWarmDfa = new ArrayList<>();
+                final List<String> indices = new ArrayList<>();
+                for (String indexName : allIndices) {
+                    IndexMetadata idxMd = currentState.metadata().index(indexName);
+                    if (idxMd != null
+                        && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(idxMd.getSettings())
+                        && IndexModule.IS_WARM_INDEX_SETTING.get(idxMd.getSettings())) {
+                        excludedWarmDfa.add(indexName);
+                    } else {
+                        indices.add(indexName);
+                    }
+                }
+                if (excludedWarmDfa.isEmpty() == false) {
+                    logger.info(
+                        "[{}][{}] excluding [{}] warm-tiered pluggable data format index(es) from snapshot v2 (not currently supported)",
+                        repositoryName,
+                        snapshotName,
+                        excludedWarmDfa.size()
+                    );
+                    logger.trace(
+                        "[{}][{}] excluded warm-tiered pluggable data format indexes from snapshot v2: {}",
+                        repositoryName,
+                        snapshotName,
+                        excludedWarmDfa
+                    );
+                }
 
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     currentState,

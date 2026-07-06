@@ -157,6 +157,7 @@ async fn run_indexed(
                     0,
                     None,
                     None,
+                    std::collections::HashMap::new(),
                 ),
             );
             Ok(eval)
@@ -174,7 +175,6 @@ async fn run_indexed(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .batch_size(RG_ROWS)
-        .indexed_dynamic_filter_pushdown(true)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -189,6 +189,7 @@ async fn run_indexed(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

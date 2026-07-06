@@ -43,7 +43,7 @@ public class MaxAggregationProtoUtils {
 
         ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
             .field(maxAggProto.hasField() ? maxAggProto.getField() : null)
-            .missing(maxAggProto.hasMissing() ? FieldValueProtoUtils.fromProto(maxAggProto.getMissing()) : null)
+            .missing(maxAggProto.hasMissing() ? FieldValueProtoUtils.fromProto(maxAggProto.getMissing(), false) : null)
             .valueType(maxAggProto.hasValueType() ? maxAggProto.getValueType() : null)
             .format(maxAggProto.hasFormat() ? maxAggProto.getFormat() : null)
             .script(maxAggProto.hasScript() ? ScriptProtoUtils.parseFromProtoRequest(maxAggProto.getScript()) : null)

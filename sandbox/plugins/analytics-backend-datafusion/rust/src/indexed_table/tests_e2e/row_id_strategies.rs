@@ -6,10 +6,10 @@
  * compatible open source license.
  */
 
-//! End-to-end correctness tests for row ID emission across all three strategies.
+//! End-to-end correctness tests for shard-global row ID computation.
 //!
 //! These tests create real parquet files with known `___row_id` values and verify
-//! that all three `QueryStrategy` variants produce identical shard-global row IDs.
+//! that the row-base prefix-sum produces unique, contiguous shard-global row IDs.
 
 #[cfg(test)]
 mod tests {
@@ -26,7 +26,6 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::api::{build_shard_files, FileRowMetadata};
-    use crate::datafusion_query_config::QueryStrategy;
     use crate::project_row_id_optimizer::ProjectRowIdOptimizer;
 
     /// Create a test parquet file with `___row_id` column containing positional indices.
@@ -282,13 +281,6 @@ mod tests {
         assert_eq!(result.schema().field(0).name(), "a");
         assert_eq!(result.schema().field(1).name(), "b");
     }
-
-    #[test]
-    fn test_query_strategy_default_is_none() {
-        let config = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
-        assert_eq!(config.query_strategy, QueryStrategy::None);
-    }
-
 
     #[test]
     fn test_build_shard_files_empty() {

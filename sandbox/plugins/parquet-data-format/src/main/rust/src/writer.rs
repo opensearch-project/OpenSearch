@@ -22,9 +22,11 @@ use std::sync::{Arc, Mutex};
 
 use crate::{log_error, log_debug, log_info};
 use crate::crc_writer::CrcWriter;
-use crate::merge::{merge_sorted, schema::ROW_ID_COLUMN_NAME};
+use crate::memory::write_pool;
+use crate::merge::{merge_sorted_with_pool, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
 /// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
 #[derive(Debug)]
@@ -148,7 +150,7 @@ impl SortingChunkedWriter {
         Ok(())
     }
 
-    fn write(&mut self, batch: &RecordBatch) -> Result<(), Box<dyn std::error::Error>> {
+    fn write(&mut self, batch: &RecordBatch, reservation: &mut MemoryReservation) -> Result<(), Box<dyn std::error::Error>> {
         if self.current_ipc_writer.is_none() {
             return Ok(());
         }
@@ -162,7 +164,7 @@ impl SortingChunkedWriter {
         if self.current_chunk_bytes > 0
             && self.current_chunk_bytes + incoming_batch_bytes > self.memory_threshold_bytes
         {
-            self.flush_and_sort_chunk()?;
+            self.flush_and_sort_chunk(reservation)?;
         }
 
         // If the batch itself fits within the threshold, write it directly.
@@ -200,27 +202,31 @@ impl SortingChunkedWriter {
 
                 // Flush after each slice that fills the budget.
                 if self.current_chunk_bytes >= self.memory_threshold_bytes {
-                    self.flush_and_sort_chunk()?;
+                    self.flush_and_sort_chunk(reservation)?;
                 }
             }
         }
 
         // Safety net: flush if we ended up at or above the threshold.
         if self.current_chunk_bytes >= self.memory_threshold_bytes {
-            self.flush_and_sort_chunk()?;
+            self.flush_and_sort_chunk(reservation)?;
         }
 
         Ok(())
     }
 
     /// Close the current IPC file, read it back, sort, write as sorted Parquet chunk.
-    fn flush_and_sort_chunk(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn flush_and_sort_chunk(&mut self, reservation: &mut MemoryReservation) -> Result<(), Box<dyn std::error::Error>> {
         use arrow::array::Int64Array;
 
         log_debug!(
             "flush_and_sort_chunk: chunk_idx={}, current_chunk_bytes={}, current_rows={}, row_id_memory_size={}",
             self.chunk_idx, self.current_chunk_bytes, self.current_rows, self.memory_size()
         );
+
+        // Reserve memory for sort (read-back + sorted copy coexist = 2× chunk)
+        let sort_reserve = self.current_chunk_bytes as usize * 2;
+        reservation.request(sort_reserve)?;
 
         // Close the IPC writer
         if let Some(mut writer) = self.current_ipc_writer.take() {
@@ -242,6 +248,7 @@ impl SortingChunkedWriter {
 
         if batches.is_empty() {
             // Nothing to sort, just reopen
+            reservation.shrink(sort_reserve);
             let _ = std::fs::remove_file(&ipc_path);
             self.open_new_ipc()?;
             return Ok(());
@@ -288,6 +295,13 @@ impl SortingChunkedWriter {
         self.chunk_crcs.push(crc32);
         self.chunk_idx += 1;
 
+        // Release sort memory
+        // Release sort working memory (read-back + sorted copy no longer alive)
+        reservation.shrink(sort_reserve);
+        // Track accumulated row_ids for this chunk — Vec<i64> per chunk persists until finish()
+        let row_ids_bytes = self.current_rows * std::mem::size_of::<i64>();
+        reservation.grow(row_ids_bytes);
+
         // Delete the IPC staging file and open a fresh one
         let _ = std::fs::remove_file(&ipc_path);
         self.open_new_ipc()?;
@@ -295,9 +309,9 @@ impl SortingChunkedWriter {
     }
 
     /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + CRCs.
-    fn finish(mut self) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
+    fn finish(mut self, reservation: &mut MemoryReservation) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
         if self.current_rows > 0 {
-            self.flush_and_sort_chunk()?;
+            self.flush_and_sort_chunk(reservation)?;
         }
         // Close and remove the trailing IPC staging file
         if let Some(mut writer) = self.current_ipc_writer.take() {
@@ -335,6 +349,7 @@ struct WriterState {
     settings: NativeSettings,
     crc_handle: Option<crate::crc_writer::CrcHandle>,
     writer_generation: i64,
+    reservation: MemoryReservation,
 }
 
 /// Path suffix for the intermediate Arrow IPC file used during sort-on-close.
@@ -437,6 +452,7 @@ impl NativeParquetWriter {
             settings,
             crc_handle,
             writer_generation,
+            reservation: MemoryReservation::new(write_pool(), "parquet_writer", PoolBehavior::IgnoreLimit),
         });
 
         Ok(())
@@ -462,17 +478,29 @@ impl NativeParquetWriter {
                 let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
                 log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
 
-                if let Some(state) = WRITERS.get_mut(&temp_filename) {
+                if let Some(mut state) = WRITERS.get_mut(&temp_filename) {
                     match &state.variant {
                         WriterVariant::Ipc(writer_arc) => {
                             log_debug!("Writing RecordBatch to IPC staging file");
+                            let writer_arc = writer_arc.clone();
                             let mut writer = writer_arc.lock().unwrap();
-                            writer.write(&record_batch)?;
+                            writer.write(&record_batch, &mut state.reservation)?;
                         }
                         WriterVariant::Parquet(writer_arc) => {
                             log_debug!("Writing RecordBatch to Parquet file");
+                            let batch_bytes = record_batch.get_array_memory_size();
+                            // Reserve 3× batch as estimate — ArrowWriter encoding may temporarily
+                            // hold dictionary, compressed pages, and data page buffers.
+                            let estimated = batch_bytes * 3;
+                            let writer_arc = writer_arc.clone();
+                            state.reservation.reserve_estimated(estimated)?;
                             let mut writer = writer_arc.lock().unwrap();
+                            let before = writer.memory_size();
                             writer.write(&record_batch)?;
+                            // Reconcile: adjust reservation to actual delta reported by ArrowWriter
+                            let actual = writer.memory_size().saturating_sub(before);
+                            drop(writer);
+                            state.reservation.reconcile(estimated, actual);
                         }
                     }
                     Ok(())
@@ -492,7 +520,7 @@ impl NativeParquetWriter {
         log_debug!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
 
         if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState { variant, settings, crc_handle, writer_generation } = state;
+            let WriterState { variant, settings, crc_handle, writer_generation, mut reservation } = state;
             let index_name = settings.index_name.as_deref().unwrap_or("");
 
             match variant {
@@ -502,7 +530,7 @@ impl NativeParquetWriter {
                             let chunked_writer = mutex.into_inner().unwrap();
                             let total_rows = chunked_writer.total_rows();
                             let schema = chunked_writer.schema.clone();
-                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish()?;
+                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish(&mut reservation)?;
                             log_info!(
                                 "Successfully closed sorting chunked writer for: {}, total_rows={}, chunks={}",
                                 temp_filename, total_rows, chunk_paths.len()
@@ -511,7 +539,7 @@ impl NativeParquetWriter {
                             let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
                                 &chunk_paths, &chunk_row_ids, &chunk_crcs, &filename, index_name,
                                 &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first,
-                                writer_generation, schema.clone(),
+                                writer_generation, schema.clone(), &mut reservation,
                             )?;
 
                             // Clean up sorted chunk files only after successful finalization.
@@ -525,6 +553,12 @@ impl NativeParquetWriter {
                             let file = File::open(&filename)?;
                             let reader = SerializedFileReader::new(file)?;
                             let parquet_metadata = reader.metadata().clone();
+
+                            // Detach mapping from reservation before handing to FFI/Java.
+                            // FFI layer will track it via write_pool().grow/shrink.
+                            if let Some(ref mapping) = row_id_mapping {
+                                reservation.shrink(mapping.len() * std::mem::size_of::<i64>());
+                            }
 
                             Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32, row_id_mapping }))
                         }
@@ -587,6 +621,7 @@ impl NativeParquetWriter {
         nulls_first: &[bool],
         writer_generation: i64,
         schema: Arc<arrow::datatypes::Schema>,
+        reservation: &mut MemoryReservation,
     ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
         if chunk_paths.is_empty() {
             log_info!("finalize_sorted_chunks: no chunks, writing empty Parquet file");
@@ -614,6 +649,9 @@ impl NativeParquetWriter {
             let row_id_mapping = if !chunk_row_ids.is_empty() && !chunk_row_ids[0].is_empty() {
                 let ids = &chunk_row_ids[0];
                 let total = ids.len();
+                let mapping_bytes = total * std::mem::size_of::<i64>();
+                // Reserve for permutation Vec<i64> before allocating
+                reservation.request(mapping_bytes)?;
                 let mut mapping = vec![0i64; total];
                 for (new_pos, &old_row_id) in ids.iter().enumerate() {
                     let orig_idx = old_row_id as usize;
@@ -636,7 +674,8 @@ impl NativeParquetWriter {
             chunk_paths.len(), output_filename
         );
 
-        let merge_output = merge_sorted(
+        let mut merge_reservation = MemoryReservation::new(write_pool(), "writer:k_way_merge", PoolBehavior::IgnoreLimit);
+        let merge_output = merge_sorted_with_pool(
             chunk_paths,
             output_filename,
             index_name,
@@ -644,6 +683,7 @@ impl NativeParquetWriter {
             reverse_sorts,
             nulls_first,
             writer_generation,
+            &mut merge_reservation,
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()
@@ -655,8 +695,12 @@ impl NativeParquetWriter {
         );
 
         // Build the flat permutation: result[original_row_id] = new_row_id
+        let crc32 = merge_output.crc32;
         let row_id_mapping = if !merge_output.mapping.is_empty() && !chunk_row_ids.is_empty() {
             let total = merge_output.mapping.len();
+            let mapping_bytes = total * std::mem::size_of::<i64>();
+            // Reserve 2× mapping: merge_output.mapping (alive) + flat_mapping (about to allocate)
+            reservation.request(mapping_bytes * 2)?;
             let mut flat_mapping = vec![0i64; total];
             for i in 0..total {
                 flat_mapping[i] = i as i64;
@@ -671,6 +715,9 @@ impl NativeParquetWriter {
                     pos += 1;
                 }
             }
+            drop(merge_output);
+            // merge_output.mapping freed — release its share, flat_mapping remains tracked
+            reservation.shrink(mapping_bytes);
             log_info!("finalize_sorted_chunks: produced {} permutation entries for {}", flat_mapping.len(), output_filename);
             Some(flat_mapping)
         } else {
@@ -681,7 +728,7 @@ impl NativeParquetWriter {
             "finalize_sorted_chunks: DONE file={}, chunks={}, merge_duration={:?}",
             output_filename, chunk_paths.len(), merge_duration
         );
-        Ok((merge_output.crc32, row_id_mapping))
+        Ok((crc32, row_id_mapping))
     }
 
     /// Sort a batch using RowConverter: converts sort columns into compact
@@ -760,18 +807,7 @@ impl NativeParquetWriter {
         let mut total_memory = 0;
         for entry in WRITERS.iter() {
             if entry.key().starts_with(&path_prefix) {
-                match &entry.value().variant {
-                    WriterVariant::Parquet(writer_arc) => {
-                        if let Ok(writer) = writer_arc.lock() {
-                            total_memory += writer.memory_size();
-                        }
-                    }
-                    WriterVariant::Ipc(writer_arc) => {
-                        if let Ok(writer) = writer_arc.lock() {
-                            total_memory += writer.memory_size();
-                        }
-                    }
-                }
+                total_memory += entry.value().reservation.size();
             }
         }
         Ok(total_memory)

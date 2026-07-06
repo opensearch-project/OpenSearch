@@ -28,7 +28,7 @@ tasks.named('compileInternalClusterTestJava').configure {
 
 tasks.named('internalClusterTest').configure {
   jvmArgs += [
-    '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED',
+    '--add-opens=java.base/java.nio=ALL-UNNAMED',
     '--enable-native-access=ALL-UNNAMED'
   ]
 }
@@ -59,6 +59,7 @@ dependencies {
   internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
   internalClusterTestImplementation project(':sandbox:libs:analytics-framework')
   internalClusterTestImplementation project(':sandbox:plugins:native-repository-fs')
   // Netty4 HTTP transport for ITs that use the low-level RestClient (e.g., DataFormatStatsIT, *DataFormatApi*IT).

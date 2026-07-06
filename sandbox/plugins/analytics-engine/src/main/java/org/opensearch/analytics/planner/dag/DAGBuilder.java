@@ -283,16 +283,15 @@ public class DAGBuilder {
             new Stage(childStageId, childFragment, grandchildren, reducer.getExchangeInfo(), childSinkProvider, targetResolver)
         );
 
-        // Use the reducer's OUTPUT rowType so QTF's appended ___ugsi (set on erRowType by the
-        // rewriter) flows into the parent stage's partition schema. No-op for non-QTF reducers.
-        OpenSearchRelNode reducerInput = (OpenSearchRelNode) reducer.getInput();
+        // Source both rowType and FSI from the reducer so they stay aligned 1:1 (its input lacks
+        // QTF's ___ugsi entry). No-op for non-QTF reducers.
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
             reducer.getCluster(),
             reducer.getTraitSet(),
             childStageId,
             reducer.getRowType(),
             reducer.getViableBackends(),
-            reducerInput.getOutputFieldStorage()
+            reducer.getOutputFieldStorage()
         );
         return new OpenSearchExchangeReducer(
             reducer.getCluster(),

@@ -81,6 +81,10 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     /** Guards the teardown body so concurrent + sequential close paths don't run it twice. */
     final java.util.concurrent.atomic.AtomicBoolean torndown = new java.util.concurrent.atomic.AtomicBoolean();
 
+    /** Signalled when reduce's finally completes teardown. closeImpl awaits this
+     *  when cancelled during REDUCING state so the allocator isn't closed prematurely. */
+    private final java.util.concurrent.CountDownLatch reduceDone = new java.util.concurrent.CountDownLatch(1);
+
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this(ctx, runtimeHandle, null);
     }
@@ -359,9 +363,17 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     protected Exception closeImpl() {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
         if (before == SinkState.REDUCING) {
-            // Drain parked — dropping senders/outStream now would panic in drop_in_place.
+            // Drain in flight — fire cancel so it unblocks, then wait for reduce's
+            // finally to complete teardown (releases Arrow batches from the allocator).
             fireCancelQuery();
-            return null;  // reduce()'s finally calls closeImpl directly to tear down.
+            try {
+                if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    logger.warn("[reduce-sink] timed out waiting for reduce teardown: taskId={}", ctx.taskId());
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return null;
         }
         // before == READY (we just won) or DONE (reduce's finally calling us, or duplicate close).
         if (torndown.compareAndSet(false, true) == false) {
@@ -405,6 +417,8 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         Exception failure = null;
         try {
             drainOutputIntoDownstream(outStream);
+            // Extract DataFusion execution metrics + physical plan after drain (before close)
+            this.executionMetrics = NativeBridge.streamGetMetrics(outStream.getPointer());
         } catch (Exception e) {
             failure = e;
         } finally {
@@ -417,6 +431,9 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
+            // Signal that teardown is complete — unblocks any concurrent closeImpl()
+            // waiting on REDUCING state (cancel path) so the allocator can close safely.
+            reduceDone.countDown();
         }
         if (failure == null) {
             listener.onResponse(null);

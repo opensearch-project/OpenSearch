@@ -60,7 +60,7 @@ public class RegexpSerializerTests extends OpenSearchTestCase {
     }
 
     public void testRegexpProducesRegexpQuery() {
-        QueryBuilder qb = serializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) regexpCall(".*google\\.com.*"), FIELD_STORAGE);
+        QueryBuilder qb = serializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) regexpCall("google\\.com"), FIELD_STORAGE);
         assertTrue(qb instanceof RegexpQueryBuilder);
         RegexpQueryBuilder rq = (RegexpQueryBuilder) qb;
         assertEquals("url", rq.fieldName());
@@ -74,6 +74,6 @@ public class RegexpSerializerTests extends OpenSearchTestCase {
         QueryBuilder qb = serializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) regexpCall("error[0-9]+"), withSubfield);
         RegexpQueryBuilder rq = (RegexpQueryBuilder) qb;
         assertEquals("msg.keyword", rq.fieldName());
-        assertEquals("error[0-9]+", rq.value());
+        assertEquals(".*error[0-9]+.*", rq.value());
     }
 }

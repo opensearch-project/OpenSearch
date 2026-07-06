@@ -159,4 +159,36 @@ public class RestoreServiceTests extends OpenSearchTestCase {
             () -> RestoreService.validateReplicationTypeRestoreSettings(snapshot, ReplicationType.SEGMENT.toString(), indexMetadata)
         );
     }
+
+    // Tests for internal vs user ignore settings filter separation (PR #20494)
+
+    public void testInternalIgnoreOverridesProtection() {
+        var filter = RestoreService.createSettingsFilterPredicate(
+            new String[] {},
+            new String[] { "index.remote_store.*" },
+            RestoreService.getUserUnremovableSettings()
+        );
+        // Internal pattern can filter protected settings
+        assertFalse(filter.test("index.remote_store.enabled"));
+    }
+
+    public void testUserIgnoreRespectsProtection() {
+        var filter = RestoreService.createSettingsFilterPredicate(
+            new String[] { "index.number_of_replicas" },
+            new String[] {},
+            RestoreService.getUserUnremovableSettings()
+        );
+        // User cannot filter protected settings
+        assertTrue(filter.test("index.number_of_replicas"));
+    }
+
+    public void testUserIgnoreWorksForNonProtected() {
+        var filter = RestoreService.createSettingsFilterPredicate(
+            new String[] { "index.custom.*" },
+            new String[] {},
+            RestoreService.getUserUnremovableSettings()
+        );
+        // User can filter non-protected settings
+        assertFalse(filter.test("index.custom.setting"));
+    }
 }

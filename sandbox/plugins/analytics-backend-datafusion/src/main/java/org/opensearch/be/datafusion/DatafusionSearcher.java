@@ -73,14 +73,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         try {
             streamPtr = future.join();
         } catch (Exception exception) {
-            if (containsRecursionLimit(exception)) {
-                throw new IllegalArgumentException(
-                    "Query too deeply nested: the expression exceeds the maximum nesting depth supported by the execution engine. "
-                        + "Simplify the query by reducing nested function calls.",
-                    exception
-                );
-            }
-            throw new IOException("Query execution with session context failed", exception);
+            throw convertOrWrap(exception, "Query execution with session context failed");
         }
         // NativeBridge#executeWithContextAsync has already marked the handle consumed (which
         // closes the Java wrapper) on both success and native-error paths; no explicit close
@@ -121,9 +114,22 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         try {
             streamPtr = future.join();
         } catch (Exception e) {
-            throw new IOException("Query execution failed", e);
+            throw convertOrWrap(e, "Query execution failed");
         }
         context.setStreamHandle(new StreamHandle(streamPtr, runtimeHandle));
+    }
+
+    /**
+     * Unwraps CompletionException and rethrows RuntimeException subtypes directly (the bridge
+     * already converts native errors via NativeErrorConverter). Unrecognized errors are wrapped
+     * in IOException.
+     */
+    private static IOException convertOrWrap(Exception exception, String fallbackMessage) {
+        Throwable cause = exception instanceof java.util.concurrent.CompletionException ? exception.getCause() : exception;
+        if (cause instanceof RuntimeException rte) {
+            throw rte;
+        }
+        return new IOException(fallbackMessage, exception);
     }
 
     /**
@@ -137,18 +143,5 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
     public void close() {
         // ReaderHandle lifecycle is owned by DatafusionReader / EngineReaderManager,
         // not by the searcher. Do not close it here.
-    }
-
-    // TODO: Handle recursion limit on the Rust side (e.g. increase prost decode limit or
-    // return a structured error code) so Java doesn't need to pattern-match on error messages.
-    private static boolean containsRecursionLimit(Throwable t) {
-        for (int depth = 0; t != null && depth < NativeErrorConverter.MAX_CAUSE_CHAIN_DEPTH; depth++) {
-            String msg = t.getMessage();
-            if (msg != null && msg.contains("recursion limit reached")) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
     }
 }

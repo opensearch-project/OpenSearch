@@ -12,6 +12,7 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.be.datafusion.DataFusionService;
+import org.opensearch.be.datafusion.stats.AdaptiveBudgetStats;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
@@ -116,9 +117,9 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
      *   <li>{@code query_execution} &rarr; {@link NativeExecutorsStats#getTaskMonitors()}.get("query_execution")</li>
      *   <li>{@code stream_next} &rarr; {@link NativeExecutorsStats#getTaskMonitors()}.get("stream_next")</li>
      *   <li>{@code plan_setup} &rarr; {@link NativeExecutorsStats#getTaskMonitors()}.get("plan_setup")</li>
-     *   <li>{@code datanode_gate} &rarr; {@link DataFusionStats#getDatanodeGateStats()}</li>
-     *   <li>{@code coordinator_gate} &rarr; {@link DataFusionStats#getCoordinatorGateStats()}</li>
-     *   <li>{@code disk_spill} &rarr; {@link DataFusionStats#getSpillStats()}</li>
+     *   <li>{@code fragment_executor_gate} &rarr; {@link DataFusionStats#getFragmentExecutorGateStats()}</li>
+     *   <li>{@code adaptive_budget} &rarr; {@link DataFusionStats#getAdaptiveBudgetStats()}</li>
+     *   <li>{@code spill} &rarr; {@link DataFusionStats#getSpillStats()}</li>
      * </ul>
      *
      * @param stats  the full stats (may be null)
@@ -134,8 +135,13 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
         }
 
         // Determine which gate stats to include
-        PartitionGateStats datanodeGate = filter.contains("datanode_gate") ? stats.getDatanodeGateStats() : null;
-        PartitionGateStats coordinatorGate = filter.contains("coordinator_gate") ? stats.getCoordinatorGateStats() : null;
+        PartitionGateStats fragmentExecutorGate = filter.contains("fragment_executor_gate") ? stats.getFragmentExecutorGateStats() : null;
+
+        // Determine which budget stats to include
+        AdaptiveBudgetStats adaptiveBudget = filter.contains("adaptive_budget") ? stats.getAdaptiveBudgetStats() : null;
+
+        // Determine which spill stats to include
+        SpillStats spillStats = filter.contains("disk_spill") ? stats.getSpillStats() : null;
 
         // Determine which NativeExecutorsStats sections to include
         NativeExecutorsStats nativeStats = stats.getNativeExecutorsStats();
@@ -168,8 +174,6 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
             }
         }
 
-        SpillStats spill = filter.contains("disk_spill") ? stats.getSpillStats() : null;
-
-        return new DataFusionStats(filteredNativeStats, datanodeGate, coordinatorGate, spill);
+        return new DataFusionStats(filteredNativeStats, fragmentExecutorGate, adaptiveBudget, spillStats);
     }
 }

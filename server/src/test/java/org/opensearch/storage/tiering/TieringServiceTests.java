@@ -646,6 +646,81 @@ public class TieringServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("deleted before tiering cancellation"));
     }
 
+    /**
+     * Failover case: the in-memory tiering set was lost (e.g., cluster-manager change), but the
+     * persisted state shows a HOT_TO_WARM migration in progress. Cancel must be accepted (no throw)
+     * via the isMigrationInProgress fallback.
+     */
+    public void testValidateTieringCancelRequest_NotInMemoryButHotToWarm_Accepted() {
+        Settings h2wSettings = Settings.builder()
+            .put(INDEX_TIERING_STATE.getKey(), HOT_TO_WARM.toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .build();
+        IndexMetadata h2wMetadata = IndexMetadata.builder("test-index").settings(h2wSettings).numberOfShards(1).numberOfReplicas(1).build();
+
+        RoutingTable routingTable = mock(RoutingTable.class);
+        when(clusterState.routingTable()).thenReturn(routingTable);
+        when(routingTable.hasIndex(testIndex)).thenReturn(true);
+
+        assertFalse("Precondition: index must not be tracked in memory", tieringService.isIndexBeingTiered(testIndex));
+        // Must NOT throw — the persisted HOT_TO_WARM state makes the index cancellable after failover.
+        tieringService.validateTieringCancelRequest(testIndex, h2wMetadata, clusterState);
+    }
+
+    /**
+     * Direction-agnostic fallback: a WARM_TO_HOT index not tracked in memory is also accepted.
+     * (The target tier here is WARM, so the "already reached target" guard does not trip.)
+     */
+    public void testValidateTieringCancelRequest_NotInMemoryButWarmToHot_Accepted() {
+        Settings w2hSettings = Settings.builder()
+            .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM_TO_HOT.toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .build();
+        IndexMetadata w2hMetadata = IndexMetadata.builder("test-index").settings(w2hSettings).numberOfShards(1).numberOfReplicas(1).build();
+
+        RoutingTable routingTable = mock(RoutingTable.class);
+        when(clusterState.routingTable()).thenReturn(routingTable);
+        when(routingTable.hasIndex(testIndex)).thenReturn(true);
+
+        assertFalse("Precondition: index must not be tracked in memory", tieringService.isIndexBeingTiered(testIndex));
+        // Must NOT throw.
+        tieringService.validateTieringCancelRequest(testIndex, w2hMetadata, clusterState);
+    }
+
+    /**
+     * Boundary: a terminal WARM index that is NOT tracked in memory must still be rejected —
+     * isMigrationInProgress returns false for terminal states, so the fallback does not apply.
+     */
+    public void testValidateTieringCancelRequest_NotInMemoryAndTerminalWarm_Rejected() {
+        Settings warmSettings = Settings.builder()
+            .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM.toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .build();
+        IndexMetadata warmMetadata = IndexMetadata.builder("test-index")
+            .settings(warmSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        RoutingTable routingTable = mock(RoutingTable.class);
+        when(clusterState.routingTable()).thenReturn(routingTable);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> tieringService.validateTieringCancelRequest(testIndex, warmMetadata, clusterState)
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("not currently undergoing tiering operation"));
+    }
+
     public void testCancelTiering_SubmitsClusterStateTask() {
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         AllocationService allocationSvc = mock(AllocationService.class);

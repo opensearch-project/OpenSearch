@@ -23,6 +23,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeUtil;
 import org.apache.calcite.sql.validate.SqlUserDefinedFunction;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -87,20 +88,27 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
     }
 
     /**
-     * Regression: when the timestamp operand is NOT NULL (e.g. {@code earliest('now', utc_timestamp())}
-     * where utc_timestamp() and the folded literal are both non-null), the comparison's inferred
-     * return type is {@code BOOLEAN NOT NULL}, but the EARLIEST call was declared nullable BOOLEAN.
-     * The adapter must pin the result to the call's declared type or the enclosing Project/Filter
-     * trips Calcite's {@code BOOLEAN vs BOOLEAN NOT NULL} assertion at execution time.
+     * Regression: with NOT NULL timestamp + NOT NULL folded RHS, the comparison's natural type is
+     * {@code BOOLEAN NOT NULL} but the call was declared {@code BOOLEAN NULLABLE}. Pinning back via
+     * {@code makeCast} would emit a pure-nullability cast, which Calcite's {@code Filter.isValid}
+     * rejects. The adapter must return the bare comparison; result type equals call type modulo
+     * nullability.
      */
-    public void testNotNullTimestampOperandPinsResultType() {
+    public void testNotNullComparisonAgainstNullableCallReturnsBareComparison() {
         RelDataType notNullTs = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3), false);
         RexNode notNullTsRef = rexBuilder.makeInputRef(notNullTs, 0);
         RelDataType nullableBool = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
         RexCall call = (RexCall) rexBuilder.makeCall(nullableBool, earliestUdf, List.of(rexBuilder.makeLiteral("now"), notNullTsRef));
+        assertTrue("precondition: call's declared type must be BOOLEAN NULLABLE", call.getType().isNullable());
 
         RexNode result = earliestAdapter.adapt(call, List.of(), cluster);
-        assertEquals("rewrite must preserve the call's declared (nullable BOOLEAN) type", call.getType(), result.getType());
+
+        assertEquals("result must be the bare >= comparison, not a CAST", SqlKind.GREATER_THAN_OR_EQUAL, result.getKind());
+        assertFalse("comparison must be NOT NULL when both operands are NOT NULL", result.getType().isNullable());
+        assertTrue(
+            "result type must equal call type modulo nullability",
+            SqlTypeUtil.equalSansNullability(typeFactory, result.getType(), call.getType())
+        );
     }
 
     // ── Absolute literal: emits TIMESTAMP_LITERAL, no symbolic now() ───────────

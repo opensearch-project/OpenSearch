@@ -117,6 +117,19 @@ aggregate_functions:
           - name: percentile
             value: any2
         return: any1
+  - name: os_count_distinct
+    description: >-
+      Exact distinct count for use in a window context. PPL
+      `count(distinct x) OVER(...)` would normally lower to substrait `count`
+      with `AggregationInvocation::DISTINCT`, but DataFusion 54.x's substrait
+      consumer drops that bit on window functions. Routing through this named
+      UDAF encodes DISTINCT in the operator name, sidestepping the bug.
+      Custom Rust UDAF in `rust/src/udaf/os_count_distinct.rs`.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: i64
   - name: internal_pattern
     description: >-
       PPL `patterns ... method=BRAIN` (aggregation mode). Custom Rust UDAF in

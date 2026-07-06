@@ -43,6 +43,7 @@ public final class AnalyticsQuerySettings {
                 ? List.of(
                     "IS_NULL",
                     "IS_NOT_NULL",
+                    "NOT_EQUALS",
                     "LIKE",
                     "GREATER_THAN",
                     "GREATER_THAN_OR_EQUAL",

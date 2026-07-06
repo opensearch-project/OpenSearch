@@ -24,6 +24,10 @@ import java.util.List;
  * Produces a {@link RegexpQueryBuilder} against the field (or its keyword exact-match subfield).
  *
  * <p>Expected RexCall shape: {@code REGEXP($colIdx, patternLiteral)}.
+ *
+ * <p>PPL/MySQL REGEXP is substring-find but Lucene's {@link RegexpQueryBuilder} is anchored,
+ * so the pattern is wrapped with leading/trailing {@code .*}. Lucene regex has no {@code ^}/{@code $}
+ * anchors, so wrapping cannot break user-supplied patterns.
  */
 public class RegexpSerializer extends AbstractQuerySerializer {
 
@@ -57,6 +61,6 @@ public class RegexpSerializer extends AbstractQuerySerializer {
             pattern = raw != null ? raw.toString() : "";
         }
 
-        return new RegexpQueryBuilder(fieldName, pattern);
+        return new RegexpQueryBuilder(fieldName, ".*" + pattern + ".*");
     }
 }

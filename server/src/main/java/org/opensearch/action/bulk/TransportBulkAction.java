@@ -1002,7 +1002,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return null;
         }
         if (indexRoutingTable.shards().size() == 1) {
-            return indexRoutingTable.shards().get(0).shardId();
+            ShardRouting primary = indexRoutingTable.iterator().next().primaryShard();
+            return primary != null ? primary.shardId() : null;
         }
 
         // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
@@ -1031,7 +1032,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Map<String, List<ShardRouting>> node2Shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable.shards().values()) {
             ShardRouting primary = shardRoutingTable.primaryShard();
-            if (primary.active()) {
+            if (primary != null && primary.active()) {
                 node2Shards.compute(primary.currentNodeId(), (nodeId, shardList) -> {
                     if (shardList == null) {
                         shardList = new ArrayList<>();

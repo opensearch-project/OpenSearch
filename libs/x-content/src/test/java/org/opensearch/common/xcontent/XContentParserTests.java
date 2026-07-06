@@ -162,11 +162,11 @@ public class XContentParserTests extends OpenSearchTestCase {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals(field, parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
                 if (xContentType != XContentType.YAML) {
+                    assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
                     assertThrows(StreamConstraintsException.class, () -> parser.text());
                 } else {
-                    assertThrows(JsonParseException.class, () -> parser.nextToken());
+                    assertThrows(StreamConstraintsException.class, () -> parser.nextToken());
                 }
             }
         }
@@ -223,7 +223,7 @@ public class XContentParserTests extends OpenSearchTestCase {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 // See please https://github.com/FasterXML/jackson-dataformats-binary/issues/392, support
                 // for CBOR, Smile is coming
-                if (xContentType != XContentType.JSON) {
+                if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
                     assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                     assertEquals(field, parser.currentName());
                     assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());

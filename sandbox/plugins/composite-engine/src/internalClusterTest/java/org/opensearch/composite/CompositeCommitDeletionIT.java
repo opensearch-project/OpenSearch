@@ -90,10 +90,7 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
     private void indexDocs(int count, int startId) {
         for (int i = startId; i < startId + count; i++) {
-            assertEquals(
-                RestStatus.CREATED,
-                client().prepareIndex().setIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("field", i).get().status()
-            );
+            assertEquals(RestStatus.CREATED, client().prepareIndex().setIndex(INDEX_NAME).setSource("field", i).get().status());
         }
     }
 

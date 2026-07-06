@@ -105,7 +105,7 @@ dependencies {
 }
 
 test {
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   systemProperty 'test.policy.contents', file('src/main/plugin-metadata/plugin-security.policy').text
