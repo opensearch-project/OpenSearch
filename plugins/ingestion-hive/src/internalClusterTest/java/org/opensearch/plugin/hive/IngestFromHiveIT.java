@@ -21,7 +21,6 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
-import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
@@ -44,6 +43,7 @@ import org.junit.Before;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -160,15 +160,18 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
         // Pause ingestion
         client().admin().indices().pauseIngestion(Requests.pauseIngestionRequest(indexName)).get();
 
-        // Verify pause has taken effect
-        assertBusy(() -> {
+        // Verify pause has taken effect: wait until the poller has actually
+        // transitioned to PAUSED, not just acknowledged the pause request,
+        // so no in-flight batch can still be written after this point
+        waitForState(() -> {
             GetIngestionStateResponse state = client().admin()
                 .indices()
                 .getIngestionState(Requests.getIngestionStateRequest(indexName))
                 .get();
-            for (ShardIngestionState shardState : state.getShardStates()) {
-                assertTrue("Poller should be paused", shardState.isPollerPaused());
-            }
+            return state.getShardStates().length == 1
+                && state.getFailedShards() == 0
+                && Arrays.stream(state.getShardStates())
+                    .allMatch(s -> s.isPollerPaused() && s.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // Add a new partition while paused
