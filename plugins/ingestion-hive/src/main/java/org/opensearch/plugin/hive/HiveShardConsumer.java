@@ -511,15 +511,38 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             for (int j = 0; j < i; j++) {
                 String[] kv = segments[j].split("=", 2);
                 if (!clause.isEmpty()) clause.append(" AND ");
-                clause.append(kv[0]).append(" = \"").append(kv[1]).append("\"");
+                clause.append(kv[0]).append(" = ").append(quoteFilterValue(kv[1]));
             }
             String[] kv = segments[i].split("=", 2);
             if (!clause.isEmpty()) clause.append(" AND ");
             String op = (inclusive && i == segments.length - 1) ? " >= " : " > ";
-            clause.append(kv[0]).append(op).append("\"").append(kv[1]).append("\"");
+            clause.append(kv[0]).append(op).append(quoteFilterValue(kv[1]));
             clauses.add("(" + clause + ")");
         }
         return clauses.isEmpty() ? "" : String.join(" OR ", clauses);
+    }
+
+    /**
+     * Quotes a partition value for a Metastore filter expression. The Metastore filter
+     * grammar accepts backslash escapes lexically, but both Hive 3.x (TrimQuotes) and
+     * 4.x (unquoteString) only strip the outer quotes without unescaping, so escaping
+     * would silently change the compared value. Switch the quote character instead,
+     * and reject the rare values this grammar cannot express.
+     */
+    static String quoteFilterValue(String value) {
+        if (value.endsWith("\\")) {
+            // A trailing backslash would escape the closing quote and break the lexer.
+            throw new IllegalArgumentException("Partition value ending with a backslash cannot be used in a Metastore filter: " + value);
+        }
+        if (value.contains("\"") == false) {
+            return "\"" + value + "\"";
+        }
+        if (value.contains("'") == false) {
+            return "'" + value + "'";
+        }
+        throw new IllegalArgumentException(
+            "Partition value containing both quote characters cannot be used in a Metastore filter: " + value
+        );
     }
 
     String partitionToName(MetastoreCatalog.PartitionInfo partition) {

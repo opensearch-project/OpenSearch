@@ -319,4 +319,28 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertTrue("open reader must be closed before the work queue is reset", readerClosed[0]);
         assertNull(readerField.get(consumer));
     }
+
+    public void testQuoteFilterValueSwitchesToSingleQuotesForDoubleQuotedValues() {
+        assertEquals("\"plain\"", HiveShardConsumer.quoteFilterValue("plain"));
+        assertEquals("'va\"lue'", HiveShardConsumer.quoteFilterValue("va\"lue"));
+        assertEquals("\"it's\"", HiveShardConsumer.quoteFilterValue("it's"));
+        assertEquals("\"a\\\\b\"", HiveShardConsumer.quoteFilterValue("a\\\\b"));
+    }
+
+    public void testQuoteFilterValueRejectsInexpressibleValues() {
+        IllegalArgumentException both = expectThrows(IllegalArgumentException.class, () -> HiveShardConsumer.quoteFilterValue("a\"b'c"));
+        assertTrue(both.getMessage(), both.getMessage().contains("both quote characters"));
+
+        IllegalArgumentException trailing = expectThrows(
+            IllegalArgumentException.class,
+            () -> HiveShardConsumer.quoteFilterValue("value\\")
+        );
+        assertTrue(trailing.getMessage(), trailing.getMessage().contains("backslash"));
+    }
+
+    public void testBuildPartitionFilterQuotesValueContainingDoubleQuote() {
+        HiveShardConsumer consumer = createConsumer();
+        String filter = consumer.buildPartitionFilter("dt=va\"lue", false);
+        assertEquals("(dt > 'va\"lue')", filter);
+    }
 }
