@@ -107,7 +107,9 @@ public class S3HadoopFileSystem extends FileSystem {
         } catch (SdkException e) {
             throw new IOException("Failed to get status of s3://" + bucket + "/" + key, e);
         }
-        if (probe.keyCount() > 0) {
+        // contents() is never null in SDK v2; keyCount() is a nullable Integer that
+        // S3-compatible stores may omit, so do not rely on it.
+        if (probe.contents().isEmpty() == false) {
             return new FileStatus(0, true, 1, 0, 0, path);
         }
         throw new FileNotFoundException("No such file or directory: s3://" + bucket + "/" + key);

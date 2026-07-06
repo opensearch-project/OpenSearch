@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -59,7 +60,9 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
         when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
             (S3Exception) S3Exception.builder().statusCode(404).message("no such key").build()
         );
-        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(ListObjectsV2Response.builder().keyCount(1).build());
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(
+            ListObjectsV2Response.builder().contents(S3Object.builder().key("warehouse/db/table/dt=2024-01-01/f.parquet").build()).build()
+        );
 
         FileStatus status = fileSystem.getFileStatus(new Path("s3://bucket/warehouse/db/table/dt=2024-01-01"));
 
@@ -70,7 +73,7 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
         when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
             (S3Exception) S3Exception.builder().statusCode(404).message("no such key").build()
         );
-        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(ListObjectsV2Response.builder().keyCount(0).build());
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(ListObjectsV2Response.builder().build());
 
         expectThrows(FileNotFoundException.class, () -> fileSystem.getFileStatus(new Path("s3://bucket/missing/path")));
     }
