@@ -25,6 +25,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.hive.metastore.Database;
 import org.opensearch.plugin.hive.metastore.FieldSchema;
@@ -88,7 +89,7 @@ public class IngestFromHiveKerberosIT extends OpenSearchSingleNodeTestCase {
         for (String idx : new String[] { "hive-kerberos-test-index", "hive-kerberos-test-index-2" }) {
             try {
                 client().admin().indices().prepareDelete(idx).get();
-            } catch (Exception e) {
+            } catch (IndexNotFoundException e) {
                 // index may not exist if test failed early
             }
         }
