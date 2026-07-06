@@ -458,7 +458,7 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), 0L, randomPerFileMetadata(files));
+        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), 0L);
     }
 
     private Segment randomSegment() {
@@ -540,15 +540,7 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), 0L, randomPerFileMetadata(files));
-    }
-
-    private Map<String, Map<String, String>> randomPerFileMetadata(Set<String> files) {
-        if (randomBoolean()) {
-            return Map.of();
-        }
-        String file = randomFrom(files.toArray(new String[0]));
-        return Map.of(file, Map.of("opensearch.pme.encrypted", "true", "opensearch.pme.kms.instance_id", randomAlphaOfLength(5)));
+        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), 0L);
     }
 
     private void assertSnapshotFieldsEqual(String context, DataformatAwareCatalogSnapshot expected, DataformatAwareCatalogSnapshot actual) {
@@ -587,7 +579,6 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
                 assertEquals(context + ": writerGeneration", expectedWfs.writerGeneration(), actualWfs.writerGeneration());
                 assertEquals(context + ": files", expectedWfs.files(), actualWfs.files());
                 assertEquals(context + ": numRows", expectedWfs.numRows(), actualWfs.numRows());
-                assertEquals(context + ": perFileMetadata", expectedWfs.perFileMetadata(), actualWfs.perFileMetadata());
             }
         }
         assertEquals(context + ": lastWriterGeneration", expected.getLastWriterGeneration(), actual.getLastWriterGeneration());
