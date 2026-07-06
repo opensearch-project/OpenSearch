@@ -46,7 +46,7 @@ import java.util.List;
  */
 public class S3HadoopFileSystem extends FileSystem {
 
-    private URI uri;
+    URI uri;
     S3Client s3Client;
     private Path workingDir;
 
@@ -138,8 +138,14 @@ public class S3HadoopFileSystem extends FileSystem {
                 Path dirPath = keyToPath(bucket, commonPrefix.prefix());
                 statuses.add(new FileStatus(0, true, 1, 0, 0, dirPath));
             }
+            if (Boolean.TRUE.equals(response.isTruncated()) == false || response.nextContinuationToken() == null) {
+                // The null-token check guards against S3-compatible stores that
+                // report a truncated listing without a continuation token, which
+                // would otherwise loop forever re-listing the first page.
+                break;
+            }
             requestBuilder.continuationToken(response.nextContinuationToken());
-        } while (Boolean.TRUE.equals(response.isTruncated()));
+        } while (true);
 
         return statuses.toArray(new FileStatus[0]);
     }
@@ -277,7 +283,12 @@ public class S3HadoopFileSystem extends FileSystem {
 
         @Override
         public int read(long position, byte[] buffer, int offset, int length) throws IOException {
-            String range = "bytes=" + position + "-" + (position + length - 1);
+            if (length == 0) return 0;
+            if (position >= contentLength) return -1;
+            // Clamp the end of the range; a start at or past EOF or an inverted
+            // range would be rejected by S3 with 416 instead of signaling EOF.
+            long endInclusive = Math.min(position + length - 1, contentLength - 1);
+            String range = "bytes=" + position + "-" + endInclusive;
             try (
                 ResponseInputStream<GetObjectResponse> resp = s3Client.getObject(
                     GetObjectRequest.builder().bucket(bucket).key(key).range(range).build()

@@ -30,6 +30,7 @@ import java.time.Instant;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +45,7 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
         s3Client = mock(S3Client.class);
         fileSystem = new S3HadoopFileSystem();
         fileSystem.s3Client = s3Client;
+        fileSystem.uri = java.net.URI.create("s3://bucket");
     }
 
     public void testGetFileStatusReturnsFileWhenObjectExists() throws Exception {
@@ -108,6 +110,34 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
         // A range like "bytes=10-9" would be rejected by S3 with 416; EOF must be
         // reported without issuing any getObject call.
         verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    public void testPositionalReadAtEofReturnsEofWithoutS3Call() throws Exception {
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().contentLength(10L).build());
+
+        try (FSDataInputStream in = fileSystem.open(new Path("s3://bucket/data/file.parquet"), 4096)) {
+            byte[] buf = new byte[4];
+            assertEquals(-1, in.read(10L, buf, 0, buf.length));
+            assertEquals(0, in.read(5L, buf, 0, 0));
+        }
+
+        verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    public void testListStatusStopsWhenTruncatedResponseHasNoToken() throws Exception {
+        // Broken S3-compatible stores can report isTruncated without a
+        // continuation token; the listing must terminate instead of looping.
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(
+            ListObjectsV2Response.builder()
+                .contents(S3Object.builder().key("data/f1.parquet").size(1L).lastModified(Instant.ofEpochMilli(1000)).build())
+                .isTruncated(true)
+                .build()
+        );
+
+        FileStatus[] statuses = fileSystem.listStatus(new Path("s3://bucket/data"));
+
+        assertEquals(1, statuses.length);
+        verify(s3Client, times(1)).listObjectsV2(any(ListObjectsV2Request.class));
     }
 
     public void testSequentialReadOfEmptyObjectReturnsEof() throws Exception {
