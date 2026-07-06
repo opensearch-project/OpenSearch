@@ -158,6 +158,7 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
 
         TTransportException lastException = null;
         for (int attempt = 0; attempt <= config.getMaxRetries(); attempt++) {
+            TTransport t = null;
             try {
                 if (attempt > 0) {
                     logger.info("Retrying Metastore connection (attempt {}/{})", attempt, config.getMaxRetries());
@@ -165,7 +166,6 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
                 }
 
                 TSocket socket = new TSocket(host, port, config.getConnectTimeoutMillis());
-                TTransport t;
                 if (config.getTransportMode() == HiveSourceConfig.TransportMode.FRAMED) {
                     t = new TFramedTransport(socket);
                 } else {
@@ -198,14 +198,28 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
                 );
                 return;
             } catch (TTransportException e) {
+                // A SASL handshake failure leaves the underlying TCP socket connected, so
+                // close whatever this attempt opened before retrying.
+                closeQuietly(t);
                 lastException = e;
                 logger.warn("Failed to connect to Metastore (attempt {}): {}", attempt + 1, e.getMessage());
             } catch (InterruptedException e) {
+                closeQuietly(t);
                 Thread.currentThread().interrupt();
                 throw new TTransportException("Interrupted during retry", e);
             }
         }
         throw new TTransportException("Failed to connect to Metastore after " + config.getMaxRetries() + " retries", lastException);
+    }
+
+    private void closeQuietly(TTransport t) {
+        if (t != null) {
+            try {
+                t.close();
+            } catch (Exception e) {
+                logger.debug("Error closing transport from failed connection attempt", e);
+            }
+        }
     }
 
     private void loginWithKerberos() throws TTransportException {
