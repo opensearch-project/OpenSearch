@@ -1266,6 +1266,192 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSearchReplicaRoutingWithCustomPreferenceWhenStrict() throws Exception {
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int numSearchReplicas = 2;
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            // Strict search-only routing is enabled by default.
+            OperationRouting opRouting = new OperationRouting(
+                Settings.builder().build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+                indexNames,
+                numShards,
+                numReplicas,
+                numSearchReplicas
+            );
+
+            threadPool = new TestThreadPool("testSearchReplicaRoutingWithCustomPreferenceWhenStrict");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // A caller-supplied preference that does not start with '_' must still be confined to search replicas.
+            String customPreference = "user-session-123";
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, customPreference);
+            assertThat("one group per shard", groupIterator.size(), equalTo(numShards));
+            for (ShardIterator shardIterator : groupIterator) {
+                assertThat("Only search replicas should be routed to", shardIterator.size(), equalTo(numSearchReplicas));
+                for (ShardRouting shardRouting : shardIterator) {
+                    assertTrue("Custom preference must resolve only to search replicas", shardRouting.isSearchOnly());
+                }
+            }
+
+            // The same custom preference should deterministically resolve to the same ordering across calls.
+            GroupShardsIterator<ShardIterator> firstIterator = opRouting.searchShards(state, indexNames, null, customPreference);
+            GroupShardsIterator<ShardIterator> repeatIterator = opRouting.searchShards(state, indexNames, null, customPreference);
+            List<ShardRouting> firstOrder = new ArrayList<>();
+            firstIterator.iterator().next().forEach(firstOrder::add);
+            List<ShardRouting> repeatOrder = new ArrayList<>();
+            repeatIterator.iterator().next().forEach(repeatOrder::add);
+            assertFalse("Determinism check requires a non-empty ordering", firstOrder.isEmpty());
+            assertEquals("Custom preference routing must be consistent across requests", firstOrder, repeatOrder);
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
+    public void testSearchReplicaRoutingWithCustomPreferenceWhenNotStrict() throws Exception {
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int numSearchReplicas = 2;
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            OperationRouting opRouting = new OperationRouting(
+                Settings.builder().build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            opRouting.setStrictSearchOnlyShardRouting(false);
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+                indexNames,
+                numShards,
+                numReplicas,
+                numSearchReplicas
+            );
+
+            threadPool = new TestThreadPool("testSearchReplicaRoutingWithCustomPreferenceWhenNotStrict");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // With strict routing disabled, a custom preference must not be confined to search replicas.
+            String customPreference = "user-session-123";
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, customPreference);
+            assertThat("one group per shard", groupIterator.size(), equalTo(numShards));
+            for (ShardIterator shardIterator : groupIterator) {
+                assertThat("All active shards should be routable", shardIterator.size(), equalTo(numReplicas + numSearchReplicas + 1));
+                boolean hasNonSearchOnly = false;
+                for (ShardRouting shardRouting : shardIterator) {
+                    if (shardRouting.isSearchOnly() == false) {
+                        hasNonSearchOnly = true;
+                    }
+                }
+                assertTrue("Non-search shards must be reachable when routing is not strict", hasNonSearchOnly);
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
+    public void testExplicitPrimaryPreferenceIsHonoredOverSearchReplicaRouting() throws Exception {
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int numSearchReplicas = 2;
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            // Strict search-only routing is enabled by default.
+            OperationRouting opRouting = new OperationRouting(
+                Settings.builder().build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+                indexNames,
+                numShards,
+                numReplicas,
+                numSearchReplicas
+            );
+
+            threadPool = new TestThreadPool("testExplicitPrimaryPreferenceIsHonoredOverSearchReplicaRouting");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // An explicit '_' preference must win over strict search-replica routing.
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, Preference.PRIMARY.type());
+            assertThat("one group per shard", groupIterator.size(), equalTo(numShards));
+            for (ShardIterator shardIterator : groupIterator) {
+                assertThat("Only the primary should be routed to", shardIterator.size(), equalTo(1));
+                for (ShardRouting shardRouting : shardIterator) {
+                    assertTrue("Explicit _primary preference must resolve to the primary", shardRouting.primary());
+                    assertFalse("Explicit _primary preference must not resolve to a search replica", shardRouting.isSearchOnly());
+                }
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
+    public void testGetWithCustomPreferenceIsNotConfinedToSearchReplicas() throws Exception {
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int numSearchReplicas = 2;
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            // Strict search-only routing is enabled by default.
+            OperationRouting opRouting = new OperationRouting(
+                Settings.builder().build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+                indexNames,
+                numShards,
+                numReplicas,
+                numSearchReplicas
+            );
+
+            threadPool = new TestThreadPool("testGetWithCustomPreferenceIsNotConfinedToSearchReplicas");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // Realtime GET must never be confined to search replicas, even with strict routing and a custom preference.
+            ShardIterator shardIterator = opRouting.getShards(state, indexName, 0, "user-session-123");
+            assertThat("All active shards should be routable for GET", shardIterator.size(), equalTo(numReplicas + numSearchReplicas + 1));
+            boolean hasNonSearchOnly = false;
+            for (ShardRouting shardRouting : shardIterator) {
+                if (shardRouting.isSearchOnly() == false) {
+                    hasNonSearchOnly = true;
+                }
+            }
+            assertTrue("GET must be able to reach the primary or writer replicas", hasNonSearchOnly);
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
     private DiscoveryNode[] setupNodes() {
         // Sets up two data nodes in zone-a and one data node in zone-b
         List<String> zones = Arrays.asList("a", "a", "b");
