@@ -280,9 +280,7 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
                 readerClosed[0] = true;
             }
         };
-        java.lang.reflect.Field readerField = HiveShardConsumer.class.getDeclaredField("currentFileReader");
-        readerField.setAccessible(true);
-        readerField.set(consumer, openReader);
+        consumer.currentFileReader = openReader;
 
         MetastoreCatalog emptyCatalog = new MetastoreCatalog() {
             @Override
@@ -309,15 +307,13 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
             @Override
             public void close() {}
         };
-        java.lang.reflect.Field catalogField = HiveShardConsumer.class.getDeclaredField("catalog");
-        catalogField.setAccessible(true);
-        catalogField.set(consumer, emptyCatalog);
+        consumer.catalog = emptyCatalog;
         consumer.partitionKeys = List.of("dt");
 
         consumer.discoverNewPartitions();
 
         assertTrue("open reader must be closed before the work queue is reset", readerClosed[0]);
-        assertNull(readerField.get(consumer));
+        assertNull(consumer.currentFileReader);
     }
 
     public void testQuoteFilterValueSwitchesToSingleQuotesForDoubleQuotedValues() {
@@ -467,16 +463,12 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         };
     }
 
-    private static void injectCatalog(HiveShardConsumer consumer, MetastoreCatalog catalog) throws Exception {
-        java.lang.reflect.Field f = HiveShardConsumer.class.getDeclaredField("catalog");
-        f.setAccessible(true);
-        f.set(consumer, catalog);
+    private static void injectCatalog(HiveShardConsumer consumer, MetastoreCatalog catalog) {
+        consumer.catalog = catalog;
     }
 
-    private static void setLastMetastoreQueryTime(HiveShardConsumer consumer) throws Exception {
-        java.lang.reflect.Field f = HiveShardConsumer.class.getDeclaredField("lastMetastoreQueryTime");
-        f.setAccessible(true);
-        f.setLong(consumer, System.currentTimeMillis());
+    private static void setLastMetastoreQueryTime(HiveShardConsumer consumer) {
+        consumer.lastMetastoreQueryTime = System.currentTimeMillis();
     }
 
     public void testPointerBasedLagIsUnknownBeforeFirstDiscovery() {

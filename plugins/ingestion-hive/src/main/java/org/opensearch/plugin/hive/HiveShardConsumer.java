@@ -51,7 +51,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private final int numShards;
 
     // Catalog connection for metadata queries (table schema, partition discovery)
-    private MetastoreCatalog catalog;
+    MetastoreCatalog catalog;
     private Configuration hadoopConf;
     private MessageType tableSchema;
     private String tableInputFormat;
@@ -62,14 +62,14 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private String watermark;
     private String watermarkPartitionTime;
     private long watermarkCreateTime;
-    private long lastMetastoreQueryTime;
+    long lastMetastoreQueryTime;
 
     // Current processing state: pendingWork is the queue of partitions to process.
     // Each PartitionWork tracks its files and progress. sequenceNumber is a monotonically
     // increasing counter used for pointer ordering and checkpoint recovery.
     List<PartitionWork> pendingWork;
     int currentWorkIndex;
-    private HiveFileReader currentFileReader;
+    HiveFileReader currentFileReader;
     private String currentFile;
     private long currentRowIndex;
     // Row to skip to when reopening the current file after a transient read failure.
@@ -322,10 +322,12 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 // Return the rows already read so nothing is lost, and arrange for the
                 // next call to reopen this file and continue from the current row.
                 logger.warn(
-                    "Transient read failure on shard {} file {} at row {}; returning partial batch and resuming from this position",
-                    shardId,
-                    currentFile,
-                    currentRowIndex,
+                    new ParameterizedMessage(
+                        "Transient read failure on shard {} file {} at row {}; returning partial batch and resuming from this position",
+                        shardId,
+                        currentFile,
+                        currentRowIndex
+                    ),
                     e
                 );
                 prepareCurrentFileResume();

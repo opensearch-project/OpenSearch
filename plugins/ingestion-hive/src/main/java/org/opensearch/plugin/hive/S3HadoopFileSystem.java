@@ -47,7 +47,7 @@ import java.util.List;
 public class S3HadoopFileSystem extends FileSystem {
 
     private URI uri;
-    private S3Client s3Client;
+    S3Client s3Client;
     private Path workingDir;
 
     @Override

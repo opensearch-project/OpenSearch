@@ -23,7 +23,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -40,9 +39,7 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
         super.setUp();
         s3Client = mock(S3Client.class);
         fileSystem = new S3HadoopFileSystem();
-        final Field clientField = S3HadoopFileSystem.class.getDeclaredField("s3Client");
-        clientField.setAccessible(true);
-        clientField.set(fileSystem, s3Client);
+        fileSystem.s3Client = s3Client;
     }
 
     public void testGetFileStatusReturnsFileWhenObjectExists() throws Exception {
