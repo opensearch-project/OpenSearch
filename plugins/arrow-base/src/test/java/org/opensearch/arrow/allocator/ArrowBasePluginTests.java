@@ -28,12 +28,13 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
     }
 
     public void testFlightAndIngestMinDerivedFromBudget() {
-        // With node.native_memory.limit set, mins derive as percentages
+        // With node.native_memory.limit set, mins derive as percentages. No warm role here, so
+        // ingest uses the non-warm default.
         Settings s = Settings.builder().put("node.native_memory.limit", "1gb").build();
         long budget = 1024L * 1024 * 1024;
-        // flight min = 2% of budget, ingest min = 4% of budget
+        // flight min = 2% of budget, ingest min = 2% of budget (non-warm)
         assertEquals(Long.valueOf(budget * 2 / 100), ArrowBasePlugin.FLIGHT_MIN_SETTING.get(s));
-        assertEquals(Long.valueOf(budget * 4 / 100), ArrowBasePlugin.INGEST_MIN_SETTING.get(s));
+        assertEquals(Long.valueOf(budget * 2 / 100), ArrowBasePlugin.INGEST_MIN_SETTING.get(s));
     }
 
     public void testPoolMaxDefaultsAreLongMaxValueWhenAcUnset() {
@@ -47,14 +48,24 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
         Settings s = Settings.builder().put("node.native_memory.limit", "10gb").build();
         long limit = 10L * 1024 * 1024 * 1024;
         assertEquals(Long.valueOf(limit * 5 / 100), ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s));
-        assertEquals(Long.valueOf(limit * 8 / 100), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
+        // No warm role, so ingest uses the non-warm default (5%).
+        assertEquals(Long.valueOf(limit * 5 / 100), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
         assertEquals(Long.valueOf(limit * 5 / 100), ArrowBasePlugin.QUERY_MAX_SETTING.get(s));
+    }
+
+    public void testIngestPoolDefaultsAreReducedOnWarmNodes() {
+        // Warm nodes shrink the ingest pool (min 1%, max 3%) to free budget for the metadata cache.
+        Settings s = Settings.builder().put("node.native_memory.limit", "10gb").putList("node.roles", "warm").build();
+        long limit = 10L * 1024 * 1024 * 1024;
+        assertEquals(Long.valueOf(limit * 1 / 100), ArrowBasePlugin.INGEST_MIN_SETTING.get(s));
+        assertEquals(Long.valueOf(limit * 3 / 100), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
     }
 
     public void testPoolMaxDefaultsIgnoreBufferPercent() {
         Settings s = Settings.builder().put("node.native_memory.limit", "1000b").put("node.native_memory.buffer_percent", 20).build();
         assertEquals(Long.valueOf(50L), ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s));
-        assertEquals(Long.valueOf(80L), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
+        // No warm role, so ingest uses the non-warm default (5% of 1000 = 50).
+        assertEquals(Long.valueOf(50L), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
         assertEquals(Long.valueOf(50L), ArrowBasePlugin.QUERY_MAX_SETTING.get(s));
     }
 

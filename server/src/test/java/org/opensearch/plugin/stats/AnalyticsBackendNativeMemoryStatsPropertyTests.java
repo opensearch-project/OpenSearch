@@ -9,10 +9,15 @@
 package org.opensearch.plugin.stats;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Property-based tests for {@link AnalyticsBackendNativeMemoryStats} serialization round-trip.
@@ -39,8 +44,9 @@ public class AnalyticsBackendNativeMemoryStatsPropertyTests extends OpenSearchTe
         for (int i = 0; i < 100; i++) {
             long allocatedBytes = generateRandomLong();
             long residentBytes = generateRandomLong();
+            long purgeCount = randomLongBetween(0, Long.MAX_VALUE);
 
-            AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes, purgeCount);
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 original.writeTo(out);
@@ -48,15 +54,12 @@ public class AnalyticsBackendNativeMemoryStatsPropertyTests extends OpenSearchTe
                     AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
                     assertEquals(
-                        "allocatedBytes mismatch on iteration " + i + " for values: [" + allocatedBytes + ", " + residentBytes + "]",
+                        "allocatedBytes mismatch on iteration " + i,
                         original.getAllocatedBytes(),
                         deserialized.getAllocatedBytes()
                     );
-                    assertEquals(
-                        "residentBytes mismatch on iteration " + i + " for values: [" + allocatedBytes + ", " + residentBytes + "]",
-                        original.getResidentBytes(),
-                        deserialized.getResidentBytes()
-                    );
+                    assertEquals("residentBytes mismatch on iteration " + i, original.getResidentBytes(), deserialized.getResidentBytes());
+                    assertEquals("purgeCount mismatch on iteration " + i, original.getPurgeCount(), deserialized.getPurgeCount());
                 }
             }
         }
@@ -75,27 +78,31 @@ public class AnalyticsBackendNativeMemoryStatsPropertyTests extends OpenSearchTe
 
         for (long allocated : edgeValues) {
             for (long resident : edgeValues) {
-                AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocated, resident);
+                AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocated, resident, 0);
 
                 try (BytesStreamOutput out = new BytesStreamOutput()) {
                     original.writeTo(out);
                     try (StreamInput in = out.bytes().streamInput()) {
                         AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
-                        assertEquals(
-                            "allocatedBytes mismatch for boundary values: [" + allocated + ", " + resident + "]",
-                            original.getAllocatedBytes(),
-                            deserialized.getAllocatedBytes()
-                        );
-                        assertEquals(
-                            "residentBytes mismatch for boundary values: [" + allocated + ", " + resident + "]",
-                            original.getResidentBytes(),
-                            deserialized.getResidentBytes()
-                        );
+                        assertEquals("allocatedBytes mismatch", original.getAllocatedBytes(), deserialized.getAllocatedBytes());
+                        assertEquals("residentBytes mismatch", original.getResidentBytes(), deserialized.getResidentBytes());
+                        assertEquals("purgeCount mismatch", 0L, deserialized.getPurgeCount());
                     }
                 }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContentIncludesPurgeCount() throws Exception {
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(1024L, 2048L, 5);
+        String json = Strings.toString(MediaTypeRegistry.JSON, stats);
+        Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+        Map<String, Object> ab = (Map<String, Object>) root.get("analytics_backend");
+        assertEquals(1024L, ((Number) ab.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) ab.get("resident_bytes")).longValue());
+        assertEquals(5L, ((Number) ab.get("purge_count")).longValue());
     }
 
     /**

@@ -14,7 +14,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -114,7 +113,11 @@ public class FragmentConversionDriver {
             // Derive filter tree shape BEFORE stripping (annotations must be intact). The deriver
             // mirrors the combiner's post-combine shape so the data node's classification matches
             // the tree it actually receives.
-            OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
+            // Pushdown+merge rules leave delegated annotations only in the bottommost (WHERE) filter;
+            // a HAVING stays in a separate un-delegated filter above the Aggregate. Pick the WHERE,
+            // not findNode's topmost (HAVING → NO_DELEGATION → collector skipped → over-count).
+            List<OpenSearchFilter> filters = RelNodeUtils.findAllNodes(plan.resolvedFragment(), OpenSearchFilter.class);
+            OpenSearchFilter filter = filters.isEmpty() ? null : filters.getLast();
             FilterTreeShape treeShape = filter != null
                 ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
                 : FilterTreeShape.NO_DELEGATION;
@@ -239,7 +242,7 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
-            if (containsEngineNativeAggregate(resolvedFragment, AggregateMode.PARTIAL)) {
+            if (containsPartialAggregate(resolvedFragment)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
         } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
@@ -248,7 +251,15 @@ public class FragmentConversionDriver {
         return instructions;
     }
 
-    /** Tree-walks for an engine-native-merge aggregate in the given mode. */
+    // TODO: consolidate with isAggregatePath / findBuriedPartialAggregate into a shared utility
+    private static boolean containsPartialAggregate(RelNode root) {
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) return true;
+        for (RelNode child : root.getInputs()) {
+            if (containsPartialAggregate(child)) return true;
+        }
+        return false;
+    }
+
     private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
         if (root instanceof OpenSearchAggregate agg
             && agg.getMode() == mode
@@ -259,10 +270,6 @@ public class FragmentConversionDriver {
             if (containsEngineNativeAggregate(child, mode)) return true;
         }
         return false;
-    }
-
-    private static boolean isPureReorderProject(org.apache.calcite.rel.core.Project project) {
-        return project.getProjects().stream().allMatch(e -> e instanceof org.apache.calcite.rex.RexInputRef);
     }
 
     /**
@@ -534,14 +541,10 @@ public class FragmentConversionDriver {
             }
 
             // Single-input operator above the final-fragment boundary — convert child first, then attach.
+            // A pure-reorder Project above an engine-native-merge FINAL is emitted like any other operator;
+            // dropping it would strand operators above it (e.g. Sort) with the post-reorder schema over
+            // un-reordered data, corrupting the final column order.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
-            // Skip pure-reorder Project above engine-native-merge FINAL — DataFusion's substrait
-            // consumer can't bind reordered field names against the FINAL aggregate's state columns.
-            if (node instanceof org.apache.calcite.rel.core.Project p
-                && isPureReorderProject(p)
-                && containsEngineNativeAggregate(node.getInputs().getFirst(), AggregateMode.FINAL)) {
-                return innerBytes;
-            }
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
@@ -564,7 +567,7 @@ public class FragmentConversionDriver {
             if (node instanceof OpenSearchFilter filter && resolver instanceof AnnotationResolver ar) {
                 // Combine delegated predicates in a single pass, then strip with simple unwrapper
                 RexNode resolved = ar.resolveTree(filter.getCondition());
-                RexNode flattened = RexUtil.flatten(node.getCluster().getRexBuilder(), resolved);
+                RexNode flattened = RelNodeUtils.deepFlatten(node.getCluster().getRexBuilder(), resolved);
                 return LogicalFilter.create(strippedChildren.getFirst(), flattened);
             }
             return openSearchNode.stripAnnotations(strippedChildren, resolver);

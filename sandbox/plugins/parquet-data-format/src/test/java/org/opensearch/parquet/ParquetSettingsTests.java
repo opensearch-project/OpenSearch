@@ -292,4 +292,94 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         assertEquals(0.01, fpp.get("utf8"), 0.0001);
         assertEquals(Long.valueOf(50000L), ndv.get("int64"));
     }
+
+    // --- RAM-scaled batch-size default tests ---
+
+    private static final long GIB = 1024L * 1024 * 1024;
+
+    public void testMaxRowsPerVsrDefaultScalesWithRam() {
+        int base = ParquetSettings.DEFAULT_MAX_ROWS_PER_VSR;       // 65,536 @ 64 GiB
+        int floor = ParquetSettings.MAX_ROWS_PER_VSR_FLOOR;        // 8,192
+        int ceil = ParquetSettings.MAX_ROWS_PER_VSR_CEIL;         // 131,072
+        // Matrix (total RAM -> VSR rows)
+        assertEquals(8_192, ParquetSettings.deriveBatchSizeDefault(8 * GIB, base, floor, ceil));
+        assertEquals(16_384, ParquetSettings.deriveBatchSizeDefault(16 * GIB, base, floor, ceil));
+        assertEquals(32_768, ParquetSettings.deriveBatchSizeDefault(32 * GIB, base, floor, ceil));
+        assertEquals(65_536, ParquetSettings.deriveBatchSizeDefault(64 * GIB, base, floor, ceil)); // anchor
+        assertEquals(131_072, ParquetSettings.deriveBatchSizeDefault(128 * GIB, base, floor, ceil));
+        assertEquals(131_072, ParquetSettings.deriveBatchSizeDefault(256 * GIB, base, floor, ceil)); // capped
+    }
+
+    public void testMergeBatchSizeDefaultScalesWithRam() {
+        int base = ParquetSettings.DEFAULT_MERGE_BATCH_SIZE;       // 100,000 @ 64 GiB
+        int floor = ParquetSettings.MERGE_BATCH_SIZE_FLOOR;        // 12,500
+        int ceil = ParquetSettings.MERGE_BATCH_SIZE_CEIL;         // 100,000
+        assertEquals(12_500, ParquetSettings.deriveBatchSizeDefault(8 * GIB, base, floor, ceil));
+        assertEquals(25_000, ParquetSettings.deriveBatchSizeDefault(16 * GIB, base, floor, ceil));
+        assertEquals(50_000, ParquetSettings.deriveBatchSizeDefault(32 * GIB, base, floor, ceil));
+        assertEquals(100_000, ParquetSettings.deriveBatchSizeDefault(64 * GIB, base, floor, ceil)); // anchor (== ceil)
+        assertEquals(100_000, ParquetSettings.deriveBatchSizeDefault(128 * GIB, base, floor, ceil)); // capped
+        assertEquals(100_000, ParquetSettings.deriveBatchSizeDefault(256 * GIB, base, floor, ceil)); // capped
+    }
+
+    public void testBatchSizeDefaultsClampToFloorAndCeiling() {
+        int vsrBase = ParquetSettings.DEFAULT_MAX_ROWS_PER_VSR;
+        int vsrFloor = ParquetSettings.MAX_ROWS_PER_VSR_FLOOR;
+        int vsrCeil = ParquetSettings.MAX_ROWS_PER_VSR_CEIL;
+        // Below anchor/8 -> clamps to floor; far above -> clamps to ceiling.
+        assertEquals(vsrFloor, ParquetSettings.deriveBatchSizeDefault(2 * GIB, vsrBase, vsrFloor, vsrCeil));
+        assertEquals(vsrCeil, ParquetSettings.deriveBatchSizeDefault(1024 * GIB, vsrBase, vsrFloor, vsrCeil));
+
+        int mrgBase = ParquetSettings.DEFAULT_MERGE_BATCH_SIZE;
+        int mrgFloor = ParquetSettings.MERGE_BATCH_SIZE_FLOOR;
+        int mrgCeil = ParquetSettings.MERGE_BATCH_SIZE_CEIL;
+        assertEquals(mrgFloor, ParquetSettings.deriveBatchSizeDefault(2 * GIB, mrgBase, mrgFloor, mrgCeil));
+        assertEquals(mrgCeil, ParquetSettings.deriveBatchSizeDefault(1024 * GIB, mrgBase, mrgFloor, mrgCeil));
+    }
+
+    public void testSortInMemoryThresholdDefaultScalesWithRam() {
+        int base = ParquetSettings.SORT_IN_MEMORY_THRESHOLD_BASE_MB;   // 32 MiB @ 64 GiB
+        int floor = ParquetSettings.SORT_IN_MEMORY_THRESHOLD_FLOOR_MB; // 16 MiB
+        int ceil = ParquetSettings.SORT_IN_MEMORY_THRESHOLD_CEIL_MB;  // 64 MiB
+        // (total RAM -> sort threshold, in MiB)
+        assertEquals(16, ParquetSettings.deriveBatchSizeDefault(8 * GIB, base, floor, ceil));   // 4 -> floor
+        assertEquals(16, ParquetSettings.deriveBatchSizeDefault(16 * GIB, base, floor, ceil));  // 8 -> floor
+        assertEquals(16, ParquetSettings.deriveBatchSizeDefault(32 * GIB, base, floor, ceil));  // 16
+        assertEquals(32, ParquetSettings.deriveBatchSizeDefault(64 * GIB, base, floor, ceil));  // anchor
+        assertEquals(64, ParquetSettings.deriveBatchSizeDefault(128 * GIB, base, floor, ceil)); // 64 (ceil)
+        assertEquals(64, ParquetSettings.deriveBatchSizeDefault(256 * GIB, base, floor, ceil)); // capped
+    }
+
+    public void testSortInMemoryThresholdFallsBackToBaseWhenRamUnavailable() {
+        assertEquals(
+            ParquetSettings.SORT_IN_MEMORY_THRESHOLD_BASE_MB,
+            ParquetSettings.deriveBatchSizeDefault(
+                -1,
+                ParquetSettings.SORT_IN_MEMORY_THRESHOLD_BASE_MB,
+                ParquetSettings.SORT_IN_MEMORY_THRESHOLD_FLOOR_MB,
+                ParquetSettings.SORT_IN_MEMORY_THRESHOLD_CEIL_MB
+            )
+        );
+    }
+
+    public void testBatchSizeDefaultFallsBackToBaseWhenRamUnavailable() {
+        assertEquals(
+            ParquetSettings.DEFAULT_MAX_ROWS_PER_VSR,
+            ParquetSettings.deriveBatchSizeDefault(
+                -1,
+                ParquetSettings.DEFAULT_MAX_ROWS_PER_VSR,
+                ParquetSettings.MAX_ROWS_PER_VSR_FLOOR,
+                ParquetSettings.MAX_ROWS_PER_VSR_CEIL
+            )
+        );
+        assertEquals(
+            ParquetSettings.DEFAULT_MERGE_BATCH_SIZE,
+            ParquetSettings.deriveBatchSizeDefault(
+                0,
+                ParquetSettings.DEFAULT_MERGE_BATCH_SIZE,
+                ParquetSettings.MERGE_BATCH_SIZE_FLOOR,
+                ParquetSettings.MERGE_BATCH_SIZE_CEIL
+            )
+        );
+    }
 }

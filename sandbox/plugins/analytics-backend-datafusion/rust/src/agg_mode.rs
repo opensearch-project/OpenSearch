@@ -16,7 +16,7 @@ use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptim
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
 use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::projection::ProjectionExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{ExecutionPlan, ExecutionPlanProperties};
 use datafusion_common::Result;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,14 +38,17 @@ pub(crate) fn physical_optimizer_rules_without_combine(
 }
 
 /// Applies aggregate mode stripping to a physical plan.
+/// `has_topk`: when true and stripping to Partial, replaces Final/FinalPartitioned with
+/// PartialReduce so CSS partitions are merged by group key before the TopK sort truncates.
 pub(crate) fn apply_aggregate_mode(
     plan: Arc<dyn ExecutionPlan>,
     mode: Mode,
+    has_topk: bool,
 ) -> Result<Arc<dyn ExecutionPlan>> {
     match mode {
         Mode::Default => Ok(plan),
-        Mode::Partial => force_aggregate_mode(plan, AggregateMode::Partial),
-        Mode::Final => force_aggregate_mode(plan, AggregateMode::Final),
+        Mode::Partial => force_aggregate_mode(plan, AggregateMode::Partial, has_topk),
+        Mode::Final => force_aggregate_mode(plan, AggregateMode::Final, false),
     }
 }
 
@@ -59,6 +62,7 @@ pub(crate) fn partial_aggregate_schema(plan: &Arc<dyn ExecutionPlan>) -> Option<
 fn force_aggregate_mode(
     plan: Arc<dyn ExecutionPlan>,
     target: AggregateMode,
+    has_topk: bool,
 ) -> Result<Arc<dyn ExecutionPlan>> {
     if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
         // Treat `FinalPartitioned` as `Final`: DataFusion picks `FinalPartitioned` for
@@ -71,32 +75,47 @@ fn force_aggregate_mode(
             let new_children: Vec<Arc<dyn ExecutionPlan>> = agg
                 .children()
                 .into_iter()
-                .map(|c| force_aggregate_mode(Arc::clone(c), target))
+                .map(|c| force_aggregate_mode(Arc::clone(c), target, has_topk))
                 .collect::<Result<_>>()?;
             return plan.with_new_children(new_children);
         }
         // Mode mismatch — strip this node
         match target {
             AggregateMode::Partial => {
-                // Current node is Final; find the Partial subtree below
+                // Current node is Final/FinalPartitioned.
+                // When TopK is active and the input has multiple partitions (CSS), replace
+                // with PartialReduce instead of stripping. PartialReduce keeps agg.input()
+                // (RepartitionExec(Hash) → Partial(×N)) so CSS partitions are merged by
+                // group key before TopK truncation. Skip when input_partitions=1 — PartialReduce
+                // over a single partition is redundant and adds unnecessary overhead.
+                if has_topk && agg.input().output_partitioning().partition_count() > 1 {
+                    return Ok(Arc::new(AggregateExec::try_new(
+                        AggregateMode::PartialReduce,
+                        agg.group_expr().clone(),
+                        agg.aggr_expr().to_vec(),
+                        agg.filter_expr().to_vec(),
+                        Arc::clone(agg.input()),
+                        agg.input_schema(),
+                    )?));
+                }
+                // Normal path: strip Final, return Partial subtree
                 if let Some(partial_subtree) = find_partial_input(Arc::clone(agg.input())) {
                     return Ok(partial_subtree);
                 }
-                // If no Partial found below, the input itself is the Partial
                 Ok(Arc::clone(agg.input()))
             }
             AggregateMode::Final => {
                 // Current node is Partial; skip it, return its child
                 // (the Final above will keep itself)
                 let child = agg.children()[0];
-                force_aggregate_mode(Arc::clone(child), target)
+                force_aggregate_mode(Arc::clone(child), target, false)
             }
             _ => Ok(plan),
         }
     } else if plan.children().len() == 1 {
         // Single-input wrapper — recurse transparently.
         let old_child = Arc::clone(plan.children()[0]);
-        let new_child = force_aggregate_mode(old_child.clone(), target)?;
+        let new_child = force_aggregate_mode(old_child.clone(), target, has_topk)?;
 
         // DataFusion's ProjectionMapping::try_new asserts col.name() == input_schema.field(i).name();
         // with_new_children triggers it. Remap columns to the post-strip schema so it passes.
@@ -235,7 +254,7 @@ mod tests {
             plan_string(&plan)
         );
 
-        let result = apply_aggregate_mode(plan, Mode::Partial).unwrap();
+        let result = apply_aggregate_mode(plan, Mode::Partial, false).unwrap();
         let result_modes = find_agg_modes(&result);
         assert!(
             result_modes.contains(&AggregateMode::Partial),
@@ -253,7 +272,7 @@ mod tests {
     async fn test_strip_final_over_scan() {
         // Final(Partial(memtable)) → strip to Final only (Partial removed)
         let plan = make_agg_plan().await;
-        let result = apply_aggregate_mode(plan, Mode::Final).unwrap();
+        let result = apply_aggregate_mode(plan, Mode::Final, false).unwrap();
         let result_modes = find_agg_modes(&result);
         assert!(
             result_modes.contains(&AggregateMode::Final),
@@ -276,13 +295,13 @@ mod tests {
         let modes = find_agg_modes(&plan);
         if modes.len() < 2 {
             // If optimizer collapsed it, just verify Mode::Partial works
-            let result = apply_aggregate_mode(plan, Mode::Partial).unwrap();
+            let result = apply_aggregate_mode(plan, Mode::Partial, false).unwrap();
             let result_modes = find_agg_modes(&result);
             assert!(!result_modes.contains(&AggregateMode::Final));
             return;
         }
 
-        let result = apply_aggregate_mode(plan, Mode::Partial).unwrap();
+        let result = apply_aggregate_mode(plan, Mode::Partial, false).unwrap();
         let result_modes = find_agg_modes(&result);
         assert!(
             !result_modes.contains(&AggregateMode::Final),
@@ -297,7 +316,7 @@ mod tests {
         // Final → CoalescePartitions → Partial → scan; strip to Final
         let plan = make_agg_plan().await;
         // The simple plan has CoalescePartitions between Final and Partial
-        let result = apply_aggregate_mode(plan, Mode::Final).unwrap();
+        let result = apply_aggregate_mode(plan, Mode::Final, false).unwrap();
         let result_modes = find_agg_modes(&result);
         assert!(
             !result_modes.contains(&AggregateMode::Partial),
@@ -332,10 +351,35 @@ mod tests {
         assert!(display_before.contains("AggregateExec: mode=Final"), "expected Final in plan");
         assert!(display_before.contains("AggregateExec: mode=Partial"), "expected Partial in plan");
 
-        let stripped = apply_aggregate_mode(plan, Mode::Partial).unwrap();
+        let stripped = apply_aggregate_mode(plan, Mode::Partial, false).unwrap();
         let display_after = plan_string(&stripped);
         assert!(!display_after.contains("mode=Final"), "Final should be stripped");
         assert!(display_after.contains("mode=Partial"), "Partial should remain");
+    }
+
+    /// When has_topk=true and the input has multiple partitions (CSS), Final/FinalPartitioned
+    /// must be replaced with PartialReduce rather than stripped, so the coordinator receives
+    /// correctly merged partial state instead of per-partition-truncated results.
+    #[tokio::test]
+    async fn test_apply_partial_with_topk_produces_partial_reduce() {
+        let plan = make_agg_plan_with_repartition().await;
+        let display_before = plan_string(&plan);
+        // With target_partitions=4 and GROUP BY, DF produces FinalPartitioned.
+        assert!(
+            display_before.contains("mode=FinalPartitioned") || display_before.contains("mode=Final"),
+            "expected Final/FinalPartitioned in multi-partition plan, got:\n{display_before}"
+        );
+
+        let result = apply_aggregate_mode(plan, Mode::Partial, true).unwrap();
+        let modes = find_agg_modes(&result);
+        assert!(
+            modes.contains(&AggregateMode::PartialReduce),
+            "has_topk=true with multi-partition input must produce PartialReduce, got modes: {modes:?}"
+        );
+        assert!(
+            !modes.contains(&AggregateMode::Final) && !modes.contains(&AggregateMode::FinalPartitioned),
+            "Final/FinalPartitioned must not remain after stripping"
+        );
     }
 
 }

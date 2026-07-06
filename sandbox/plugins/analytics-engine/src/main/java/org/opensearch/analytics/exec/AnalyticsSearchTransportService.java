@@ -30,6 +30,7 @@ import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActio
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportChannel;
@@ -162,7 +163,19 @@ public class AnalyticsSearchTransportService {
                     batchSchema = root.getSchema();
                     batchAllocator = root.getFieldVectors().getFirst().getAllocator();
                 }
-                channel.sendResponseBatch(new FragmentExecutionArrowResponse(root));
+                // On success Flight takes ownership of root. If sendResponseBatch throws (e.g. the
+                // stream already closed after a mid-stream failure), Flight never took ownership, so
+                // close root here to avoid leaking the imported batch.
+                try {
+                    channel.sendResponseBatch(new FragmentExecutionArrowResponse(root));
+                } catch (Exception e) {
+                    try {
+                        root.close();
+                    } catch (Exception ce) {
+                        e.addSuppressed(ce);
+                    }
+                    throw e;
+                }
             }
 
             @Override
@@ -188,7 +201,7 @@ public class AnalyticsSearchTransportService {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    channel.sendResponse(e);
+                    channel.sendResponse(AnalyticsTransportErrors.toWireError(e));
                 } catch (Exception sendException) {
                     throw new RuntimeException(sendException);
                 }
@@ -196,8 +209,23 @@ public class AnalyticsSearchTransportService {
         };
     }
 
-    Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+    /** Closes a response's claimed Arrow root if present, swallowing close failures. */
+    private static void closeResponseQuietly(FragmentExecutionArrowResponse response) {
+        if (response == null || response.getRoot() == null) {
+            return;
+        }
+        try {
+            response.getRoot().close();
+        } catch (Exception ignore) {}
+    }
+
+    Transport.Connection getConnection(DiscoveryNode node) {
+        if (node == null) {
+            // The target left the cluster between planning and dispatch. Surface a clean
+            // ConnectTransportException instead of letting a null node reach the connection
+            // manager, where it NPEs ("Cannot invoke Object.hashCode() because key is null").
+            throw new ConnectTransportException(null, "target node left the cluster before dispatch");
+        }
         return transportService.getConnection(node);
     }
 
@@ -260,17 +288,28 @@ public class AnalyticsSearchTransportService {
 
             @Override
             public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                // We own each claimed response root until it's handed to the consumer. `last`/`next`
+                // hold what the loop still owns; null each the instant ownership transfers so the
+                // finally can release any undelivered prefetch on failure (stream.close() frees only
+                // the cursor, not claimed roots).
+                FragmentExecutionArrowResponse last = null;
+                FragmentExecutionArrowResponse next = null;
+                // Set true only on an expected end (full drain or sentinel). Any other exit leaves it
+                // false so the finally cancel()s the stream rather than just closing the cursor.
+                boolean terminatedCleanly = false;
                 try {
-                    FragmentExecutionArrowResponse last = stream.nextResponse();
+                    last = stream.nextResponse();
                     while (last != null) {
                         // Profiling sentinel: 0 rows with metadata attached. Deliver metrics and exit.
                         if (last.getRoot() != null && last.getRoot().getRowCount() == 0 && last.getMetadata() != null) {
                             listener.onStreamComplete(last.getMetadata());
                             last.getRoot().close();
+                            last = null;
+                            terminatedCleanly = true;
                             return;
                         }
 
-                        FragmentExecutionArrowResponse next = stream.nextResponse();
+                        next = stream.nextResponse();
                         // Treat sentinel as end-of-stream: the current batch is the last real data batch.
                         boolean nextIsSentinel = next != null
                             && next.getRoot() != null
@@ -283,23 +322,48 @@ public class AnalyticsSearchTransportService {
                         if (nextIsSentinel) {
                             listener.onStreamComplete(next.getMetadata());
                             next.getRoot().close();
+                            next = null;
                         }
 
-                        boolean keepReading = listener.onStreamResponse(last, isLast);
-                        if (!keepReading || nextIsSentinel) {
+                        // Consumer takes ownership of `last` (it closes the root on all its paths).
+                        // Null our ref before the call so a throw can't make finally double-close it.
+                        FragmentExecutionArrowResponse delivering = last;
+                        last = null;
+                        boolean keepReading = listener.onStreamResponse(delivering, isLast);
+                        if (nextIsSentinel) {
+                            // Sentinel = clean end-of-stream; producer is already completing.
+                            terminatedCleanly = true;
+                            return;
+                        }
+                        if (!keepReading) {
+                            // Consumer stopped early (satisfied or stage failed); the finally cancels
+                            // the stream. Release any undelivered prefetch first.
                             if (!isLast && next != null) {
                                 if (next.getRoot() != null) next.getRoot().close();
-                                stream.cancel("reduce input satisfied (downstream consumer finished)", null);
+                                next = null;
                             }
                             return;
                         }
                         last = next;
+                        next = null;
                     }
+                    // Loop exited because nextResponse() returned null — the stream drained fully.
+                    terminatedCleanly = true;
                 } catch (Exception e) {
-                    listener.onFailure(e);
+                    listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
+                    // Release any batches the loop still owns and never delivered.
+                    closeResponseQuietly(last);
+                    closeResponseQuietly(next);
+                    // On an abnormal exit, cancel() (not close()) so the data-node producer tears down
+                    // its FlightServerChannel; close() alone frees only this cursor and strands the
+                    // producer's streamRoot. Mirrors core StreamSearchTransportService.
                     try {
-                        stream.close();
+                        if (terminatedCleanly) {
+                            stream.close();
+                        } else {
+                            stream.cancel("analytics stream aborted before clean end-of-stream", null);
+                        }
                     } catch (Exception ignore) {}
                     pending.finishAndRunNext();
                 }
@@ -317,7 +381,7 @@ public class AnalyticsSearchTransportService {
             @Override
             public void handleException(TransportException e) {
                 try {
-                    listener.onFailure(e);
+                    listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
                     pending.finishAndRunNext();
                 }
@@ -327,11 +391,11 @@ public class AnalyticsSearchTransportService {
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
         pending.tryRun(() -> {
             try {
-                Transport.Connection connection = getConnection(null, targetNode.getId());
+                Transport.Connection connection = getConnection(targetNode);
                 transportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
-                    listener.onFailure(e);
+                    listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
                     pending.finishAndRunNext();
                 }

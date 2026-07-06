@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -23,12 +24,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+
+import static org.opensearch.arrow.allocator.ArrowBasePlugin.DEFAULT_OVERCOMMIT_ENABLED;
+import static org.opensearch.arrow.allocator.ArrowBasePlugin.DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD;
 
 /**
  * Arrow-backed implementation of {@link NativeAllocator}.
@@ -49,6 +58,20 @@ public class ArrowNativeAllocator implements NativeAllocator {
     private volatile Supplier<long[]> nativeMemoryStatsSupplier;
     private volatile long budget = Long.MAX_VALUE;
 
+    // ─── Over-commit admission (allocator-owned decision) ────────────────────────
+    /** Node-level native memory utilization % (0–100), or negative when unavailable. Injected by the node. */
+    private volatile DoubleSupplier nativeMemoryPressureSupplier;
+    /** Feature gate. When false, {@link #tryOverCommit()} always rejects (status-quo behavior). */
+    private volatile boolean overCommitEnabled = DEFAULT_OVERCOMMIT_ENABLED;
+    /** Node native pressure % at/above which over-commit is refused. */
+    private volatile double overCommitPressureThreshold = DEFAULT_OVERCOMMIT_PRESSURE_THRESHOLD;
+    /** Permit gate bounding the number of concurrently over-committing operations (sized once at startup). */
+    private final SetOnce<Semaphore> overCommitPermits = new SetOnce<>();
+    /** Outstanding over-commit leases keyed by their token, so a token from the native side can be released. */
+    private final ConcurrentMap<Long, OverCommitLease> outstandingOverCommits = new ConcurrentHashMap<>();
+    /** Monotonic source of over-commit tokens. Starts at 0, which is reserved for "no grant". */
+    private final AtomicLong overCommitTokenSeq = new AtomicLong();
+
     /**
      * Creates a new allocator with a fresh RootAllocator.
      */
@@ -63,6 +86,173 @@ public class ArrowNativeAllocator implements NativeAllocator {
      */
     public void setBudget(long budget) {
         this.budget = budget;
+    }
+
+    // ─── Over-commit admission API (called by pool-full paths across all pool types) ─────────────
+
+    /**
+     * Installs the node-level native-memory pressure supplier (percent 0–100, or negative if unavailable).
+     *
+     * @param supplier supplies the current node native-memory utilization percentage
+     */
+    public void setNativeMemoryPressureSupplier(DoubleSupplier supplier) {
+        this.nativeMemoryPressureSupplier = supplier;
+    }
+
+    /**
+     * Enables/disables the over-commit fallback (feature gate).
+     *
+     * @param enabled whether the over-commit fallback is enabled
+     */
+    public void setOverCommitEnabled(boolean enabled) {
+        this.overCommitEnabled = enabled;
+    }
+
+    /**
+     * Sets the node native-pressure % at/above which over-commit is refused.
+     *
+     * @param thresholdPercent the native-memory pressure percentage threshold
+     */
+    public void setOverCommitPressureThreshold(double thresholdPercent) {
+        this.overCommitPressureThreshold = thresholdPercent;
+    }
+
+    /**
+     * Sets the maximum number of concurrently over-committing operations. Applied once at startup.
+     *
+     * @param max the maximum number of concurrent over-commits
+     */
+    public void setMaxConcurrentOverCommits(int max) {
+        this.overCommitPermits.set(new Semaphore(Math.max(ArrowBasePlugin.OVERCOMMIT_MAX_CONCURRENT_MIN, max)));
+    }
+
+    /** Current node-level native memory pressure %, or -1 when unavailable (signal missing / not ready). */
+    double currentNativePressurePercent() {
+        DoubleSupplier s = this.nativeMemoryPressureSupplier;
+        if (s == null) {
+            return -1.0;
+        }
+        try {
+            return s.getAsDouble();
+        } catch (RuntimeException e) {
+            return -1.0;
+        }
+    }
+
+    /**
+     * Allocator-owned decision: may a full pool over-commit right now? Grants only when the feature is
+     * enabled, node-level native memory pressure is below the threshold, and a concurrency permit is
+     * available. On a grant this returns a {@link OverCommitLease} that the caller MUST
+     * {@link OverCommitLease#close() close} exactly once when the over-committing operation completes
+     * (the permit is held until then); on rejection it returns {@link Optional#empty()}.
+     *
+     * <p>This is the safe, in-JVM entry point: the only way to release a permit is to close a lease
+     * that this method minted, so a permit can never be released without first being acquired.
+     *
+     * <p>Generic across pool types (Arrow-backed pools via allocation-failure hooks, virtual/native
+     * pools via the FFM upcall through {@link #tryOverCommitToken()}). Never throws.
+     *
+     * @return a lease on grant, or empty on rejection
+     */
+    public Optional<OverCommitLease> tryOverCommit() {
+        try {
+            if (overCommitEnabled == false) {
+                return Optional.empty();
+            }
+            double pressure = currentNativePressurePercent();
+            if (pressure < 0) {
+                logger.debug("Over-commit unavailable: native memory pressure signal not ready");
+                return Optional.empty();
+            }
+            if (pressure >= overCommitPressureThreshold) {
+                logger.debug("Over-commit refused: native memory pressure {}% >= threshold {}%", pressure, overCommitPressureThreshold);
+                return Optional.empty();
+            }
+            logger.debug(
+                "Native memory pressure {}% within threshold {}%; attempting over-commit permit acquire",
+                pressure,
+                overCommitPressureThreshold
+            );
+            // Permit gate: at most max_concurrent over-commits in flight. The permit is held
+            // until the lease is closed when the over-committing operation completes.
+            Semaphore permits = overCommitPermits.get();
+            if (permits == null) {
+                logger.warn("Over-commit enabled but permit pool is not initialized; refusing over-commit");
+                return Optional.empty();
+            }
+            if (permits.tryAcquire()) {
+                long token = overCommitTokenSeq.incrementAndGet();
+                OverCommitLease lease = new OverCommitLease(token);
+                outstandingOverCommits.put(token, lease);
+                logger.debug(
+                    "Over-commit granted; acquired permit (token {}, {} permits now available)",
+                    token,
+                    permits.availablePermits()
+                );
+                return Optional.of(lease);
+            }
+            logger.warn("Over-commit refused: concurrency limit reached (all max_concurrent permits in use)");
+            return Optional.empty();
+        } catch (Throwable t) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * FFM upcall entry point for native pools: performs the same decision as {@link #tryOverCommit()}
+     * but returns an opaque token instead of a lease object (which cannot cross the native boundary).
+     * The native side stores the token and passes it back to {@link #releaseOverCommitToken(long)} on
+     * release. Never throws — returns {@code 0} on any rejection or error.
+     *
+     * @return a nonzero grant token, or {@code 0} if the over-commit was rejected
+     */
+    public long tryOverCommitToken() {
+        return tryOverCommit().map(OverCommitLease::id).orElse(0L);
+    }
+
+    /**
+     * FFM upcall entry point for native pools: releases the over-commit permit previously granted
+     * under {@code token}. An unknown, stale, or already-released token is a no-op, so a spurious
+     * native release can never over-release the permit gate.
+     *
+     * @param token the grant token returned by {@link #tryOverCommitToken()}
+     */
+    public void releaseOverCommitToken(long token) {
+        OverCommitLease lease = outstandingOverCommits.get(token);
+        if (lease != null) {
+            lease.close();
+        }
+    }
+
+    /**
+     * A capability handle for a single granted over-commit. Minted only by
+     * {@link ArrowNativeAllocator#tryOverCommit()}; closing it releases the underlying permit exactly
+     * once (idempotent), so double-close and unpaired release are both harmless.
+     */
+    public final class OverCommitLease implements AutoCloseable {
+        private final long id;
+        private final AtomicBoolean released = new AtomicBoolean(false);
+
+        private OverCommitLease(long id) {
+            this.id = id;
+        }
+
+        /** The opaque token identifying this grant (used to release across the native boundary). */
+        public long id() {
+            return id;
+        }
+
+        @Override
+        public void close() {
+            if (released.compareAndSet(false, true)) {
+                outstandingOverCommits.remove(id);
+                Semaphore permits = overCommitPermits.get();
+                if (permits != null) {
+                    permits.release();
+                    logger.debug("Released over-commit permit (token {}, {} permits now available)", id, permits.availablePermits());
+                }
+            }
+        }
     }
 
     // ─── Public / SPI methods ───────────────────────────────────────────────────

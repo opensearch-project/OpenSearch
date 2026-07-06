@@ -78,7 +78,7 @@ public class TermsAggregationBuilderConverter implements AggregationBuilderProto
         // common fields for ValuesSourceAggregation
         ValuesSourceProtoFields valuesSourceFields = ValuesSourceProtoFields.builder()
             .field(terms.hasField() ? terms.getField() : null)
-            .missing(terms.hasMissing() ? FieldValueProtoUtils.fromProto(terms.getMissing()) : null)
+            .missing(terms.hasMissing() ? FieldValueProtoUtils.fromProto(terms.getMissing(), false) : null)
             .valueType(terms.hasValueType() ? terms.getValueType() : null)
             .format(terms.hasFormat() ? terms.getFormat() : null)
             .script(terms.hasScript() ? ScriptProtoUtils.parseFromProtoRequest(terms.getScript()) : null)

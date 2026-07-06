@@ -292,15 +292,19 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (mode == AggregateMode.SINGLE) {
-            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-                RelTrait trait = getInput().getTraitSet().getTrait(index);
-                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
+        for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+            RelTrait trait = getInput().getTraitSet().getTrait(index);
+            if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
+                || distribution.getType() == RelDistribution.Type.ANY;
+
+            // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
+            // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
+            if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
+                return planner.getCostFactory().makeInfiniteCost();
             }
         }
         return planner.getCostFactory().makeTinyCost();

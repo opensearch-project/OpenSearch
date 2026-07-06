@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -23,6 +24,8 @@ import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.queue.DefaultLockableHolder;
 import org.opensearch.common.queue.LockablePool;
 import org.opensearch.common.unit.TimeValue;
@@ -31,6 +34,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -54,6 +58,8 @@ import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.DocumentLookupSupport;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
@@ -67,6 +73,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -79,6 +86,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
@@ -90,6 +98,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -145,6 +154,8 @@ public class DataFormatAwareEngine implements Indexer {
 
     private final IndexingExecutionEngine indexingExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final DocumentCountTracker documentCountTracker;
+    private final AtomicLong pendingRowCount = new AtomicLong();
     private final LockablePool<DefaultLockableHolder<Writer<?>>> writerPool;
     private final AtomicLong writerGenerationCounter;
 
@@ -162,9 +173,18 @@ public class DataFormatAwareEngine implements Indexer {
     private final LocalCheckpointTracker localCheckpointTracker;
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
 
+    // Wall-clock time (ms) of the last version-map delete-tombstone prune; used to throttle maybePruneDeletes().
+    protected volatile long lastDeleteVersionPruneTimeMSec;
+
     // Throttling
     private final IndexingThrottler throttle;
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
+
+    @Nullable
+    private final DocumentLookupProvider documentLookupProvider;
+    private final DocumentMetadataResolver documentMetadataResolver;
+    // Shared get-by-id flow (parquet lookup + read version-conflict checks), common to all DataFormatAware* engines.
+    private final DocumentLookupSupport documentLookup;
 
     // Timestamps and seq-no markers
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
@@ -190,6 +210,16 @@ public class DataFormatAwareEngine implements Indexer {
     // Merge
     private final MergeScheduler mergeScheduler;
 
+    /**
+     * When {@code true}, tiering-sensitive operations are blocked: primary index ops, merges,
+     * refresh, flush, and merge-result catalog commits (each with documented bypasses below).
+     * Set in three places: the constructor (freeze-on-open when a shard opens mid-tiering),
+     * {@link #onSettingsChanged} (when INDEX_TIERING_STATE transitions to HOT_TO_WARM),
+     * and {@link #freezeForTiering()} (explicitly, from the prepare action). Cleared when the state
+     * returns to HOT (tiering cancel or prepare failure).
+     */
+    private final AtomicBoolean frozenForTiering = new AtomicBoolean(false);
+
     // TODO Refactor these flush managing activities into FlushManager.
 
     // Segments flushed inline outside refresh — by indexing threads (preIndex cooperative drain)
@@ -208,6 +238,9 @@ public class DataFormatAwareEngine implements Indexer {
     // Latch for the current refresh cycle — decremented by any thread that flushes a writer.
     // Refresh thread awaits this before proceeding with catalog commit.
     private volatile CountDownLatch activeFlushLatch;
+    private final LiveVersionMap versionMap;
+    private final CounterMetric numVersionLookups = new CounterMetric();
+    private final CounterMetric numIndexVersionsLookups = new CounterMetric();
 
     /**
      * System property to enable or disable pluggable dataformat merge operations.
@@ -247,8 +280,15 @@ public class DataFormatAwareEngine implements Indexer {
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
         this.throttle = new IndexingThrottler();
+        this.documentLookupProvider = engineConfig.getDocumentLookupProvider();
+        this.documentMetadataResolver = engineConfig.getDocumentMetadataResolver() != null
+            ? engineConfig.getDocumentMetadataResolver()
+            : DocumentMetadataResolver.NOOP;
+        this.documentLookup = new DocumentLookupSupport(shardId, this.documentLookupProvider, this.documentMetadataResolver);
+        this.versionMap = new LiveVersionMap();
 
         List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
+        refreshListeners.add(versionMap);
         if (engineConfig.getInternalRefreshListener() != null) {
             refreshListeners.addAll(engineConfig.getInternalRefreshListener());
         }
@@ -302,6 +342,7 @@ public class DataFormatAwareEngine implements Indexer {
 
             // 4. Initialize local checkpoint tracker
             this.localCheckpointTracker = createLocalCheckpointTracker(LocalCheckpointTracker::new);
+            this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
                 SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo())
             );
@@ -394,18 +435,27 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }, logger);
             this.refreshListeners.add(this.statsCache);
+            this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
+                // First get active writes as active writes are only reduced after catalog snapshot refresh
+                // This prevents under-accounting
+                long docsIngested = pendingRowCount.get();
+                try (var cs = catalogSnapshotManager.acquireSnapshot()) {
+                    docsIngested += cs.get().getNumDocs();
+                }
+                return docsIngested;
+            }, indexingExecutionEngine.maxIndexableDocs());
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig.getIndexSettings(),
                 engineConfig.getShardId(),
-                new LiveVersionMap(),
+                this.versionMap,
                 maxUnsafeAutoIdTimestamp::get,
                 () -> 0L,
                 localCheckpointTracker::getProcessedCheckpoint,
                 this::hasBeenProcessedBefore,
                 op -> OpVsEngineDocStatus.OP_NEWER,
-                (a, b) -> null,
+                this::resolveDocVersion,
                 this::updateAutoIdTimestamp,
-                (a, b) -> null
+                documentCountTracker::tryAcquireInFlightDocs
             );
             // All critical engine components must be initialized before the engine is considered ready
             assert translogManager != null : "translog manager must be initialized";
@@ -433,15 +483,24 @@ public class DataFormatAwareEngine implements Indexer {
                     return gen;
                 }
             );
-            this.mergeScheduler = new MergeScheduler(
-                mergeHandler,
-                this::applyMergeChanges,
-                catalogSnapshotManager::incrementUnreferencedFileCleanUps,
-                shardId,
-                engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()
-            );
 
+            // Restore version map and checkpoint tracker after recovery.
+            restoreVersionMapAndCheckpointTracker();
+
+            // Merge failure cleanup: cleans up unreferenced files and acts as a safety net
+            // for refreshLock. The preMergeCommitHook acquires refreshLock on the merge thread;
+            // if the merge fails before applyMergeChanges can release it, this callback ensures
+            // the lock is not permanently held.
+            this.mergeScheduler = new MergeScheduler(mergeHandler, this::applyMergeChanges, () -> {
+                try {
+                    catalogSnapshotManager.incrementUnreferencedFileCleanUps();
+                } finally {
+                    if (refreshLock.isHeldByCurrentThread()) {
+                        logger.debug("releasing refreshLock held after merge failure (safety-net unlock)");
+                        refreshLock.unlock();
+                    }
+                }
+            }, shardId, engineConfig.getIndexSettings(), engineConfig.getThreadPool());
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -546,6 +605,10 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
+        if (isFrozenForTiering() && index.origin() == Engine.Operation.Origin.PRIMARY) {
+            throw new IllegalStateException("Engine is frozen for tiering — index operations blocked");
+        }
+
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         // DataFormatAwareEngine is the primary-side engine in a segment-replication cluster.
         // Replicas use a separate engine (analogous to NRTReplicationEngine) that consumes segments.
@@ -554,9 +617,13 @@ public class DataFormatAwareEngine implements Indexer {
             || index.origin() == Engine.Operation.Origin.LOCAL_RESET)
             : "DataFormatAwareEngine only supports PRIMARY, LOCAL_TRANSLOG_RECOVERY, or LOCAL_RESET origins but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
-        try (ReleasableLock ignored = readLock.acquire()) {
+        int rows = 0;
+        try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
-            try (Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}) {
+            try (
+                Releasable ignored = versionMap.acquireLock(index.uid().bytes());
+                Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}
+            ) {
                 lastWriteNanos = index.startTime();
                 final IndexingStrategy plan;
                 if (index.origin() == Engine.Operation.Origin.PRIMARY) {
@@ -564,6 +631,7 @@ public class DataFormatAwareEngine implements Indexer {
                 } else {
                     plan = indexingStrategyPlanner.planOperationAsNonPrimary(index);
                 }
+                rows = plan.reservedDocs;
                 final Engine.IndexResult indexResult;
                 if (plan.earlyResultOnPreFlightError.isPresent()) {
                     assert index.origin() == Engine.Operation.Origin.PRIMARY : index.origin();
@@ -612,6 +680,10 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
                 return indexResult;
+            } finally {
+                if (rows > 0) {
+                    documentCountTracker.releaseInFlightDocs(rows);
+                }
             }
         } catch (RuntimeException | IOException e) {
             maybeFailEngine("index id[" + index.id() + "] origin[" + index.origin() + "]", e);
@@ -652,6 +724,7 @@ public class DataFormatAwareEngine implements Indexer {
                     + "] must match operation seq no ["
                     + index.seqNo()
                     + "]";
+                pendingRowCount.incrementAndGet();
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
                 try {
@@ -687,6 +760,10 @@ public class DataFormatAwareEngine implements Indexer {
             final Translog.Location location;
             if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                 location = translogManager.add(new Translog.Index(index, indexResult));
+                versionMap.maybePutIndexUnderLock(
+                    index.uid().bytes(),
+                    new IndexVersionValue(location, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
+                );
             } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
                 && indexResult.getFailure() != null
                 && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
@@ -868,6 +945,9 @@ public class DataFormatAwareEngine implements Indexer {
             ensureOpen();
             ensureNoTragicException();
             refreshLock.lock();
+
+            // refresh only if new segments have been created or force param is true
+            notifyRefreshListenersBefore();
             try (GatedCloseable<CatalogSnapshot> catalogSnapshot = catalogSnapshotManager.acquireSnapshot()) {
                 if (store.tryIncRef()) {
                     try {
@@ -877,6 +957,7 @@ public class DataFormatAwareEngine implements Indexer {
 
                         final long flushAllStartNanos = System.nanoTime();
                         int writerCount = writers.size();
+                        long rowsToRelease = 0L;
 
                         // Add all checked-out writers to the shared flushQueue with a latch
                         // so the refresh thread can wait for ALL writers to be flushed
@@ -891,34 +972,41 @@ public class DataFormatAwareEngine implements Indexer {
                         Writer<?> writerToFlush;
                         while ((writerToFlush = flushQueue.poll()) != null) {
                             ensureOpen(); // short-circuit if engine has failed/closed concurrently
-                            final long writerFlushStartNanos = System.nanoTime();
-                            FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
-                            final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
+                            try {
+                                final long writerFlushStartNanos = System.nanoTime();
+                                FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
+                                final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
 
-                            Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());
-                            boolean hasFiles = false;
-                            for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                                Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());
+                                boolean hasFiles = false;
+                                for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                                    logger.trace(
+                                        "Writer gen={} flushed format=[{}] files={}",
+                                        writerToFlush.generation(),
+                                        entry.getKey().name(),
+                                        entry.getValue().files()
+                                    );
+                                    segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                                    hasFiles = true;
+                                }
                                 logger.trace(
-                                    "Writer gen={} flushed format=[{}] files={}",
+                                    "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
+                                    source,
                                     writerToFlush.generation(),
-                                    entry.getKey().name(),
-                                    entry.getValue().files()
+                                    writerFlushElapsedMs,
+                                    hasFiles
                                 );
-                                segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
-                                hasFiles = true;
+                                if (hasFiles) {
+                                    Segment segment = segmentBuilder.build();
+                                    newSegments.add(segment);
+                                    rowsToRelease += segment.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
+                                }
+                                refreshed |= hasFiles;
+                            } catch (Exception e) {
+                                IOUtils.closeWhileHandlingException(writerToFlush);
+                                throw e;
                             }
-                            logger.trace(
-                                "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
-                                source,
-                                writerToFlush.generation(),
-                                writerFlushElapsedMs,
-                                hasFiles
-                            );
                             toClose.add(writerToFlush);
-                            if (hasFiles) {
-                                newSegments.add(segmentBuilder.build());
-                            }
-                            refreshed |= hasFiles;
                             flushLatch.countDown();
                         }
 
@@ -945,6 +1033,7 @@ public class DataFormatAwareEngine implements Indexer {
                         Segment pendingSeg;
                         while ((pendingSeg = pendingSegments.poll()) != null) {
                             newSegments.add(pendingSeg);
+                            rowsToRelease += pendingSeg.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
                             refreshed = true;
                         }
                         // Drain pending writers so they get closed after addIndexes incorporates their files
@@ -972,8 +1061,6 @@ public class DataFormatAwareEngine implements Indexer {
                             .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
                             : "new segment generation collides with an existing segment generation";
 
-                        // refresh only if new segments have been created or force param is true
-                        notifyRefreshListenersBefore();
                         if (refreshed) {
                             final long engineRefreshStartNanos = System.nanoTime();
                             long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
@@ -998,21 +1085,27 @@ public class DataFormatAwareEngine implements Indexer {
 
                             final long commitStartNanos = System.nanoTime();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                            assert rowsToRelease > 0L : "Rows to release from active writes should be greater than 0 but was: "
+                                + rowsToRelease
+                                + " for shard: "
+                                + shardId;
+                            pendingRowCount.addAndGet(-rowsToRelease);
                             final long commitElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
                             logger.trace("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
                         } else if ("flush".equals(source)) {
                             catalogSnapshotManager.bumpGeneration();
                         }
-                        notifyRefreshListenersAfter(refreshed);
                     } finally {
                         store.decRef();
                     }
                     if (refreshed) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                        maybePruneDeletes();
                         triggerPossibleMerges(); // trigger merges
                     }
                 }
             } finally {
+                notifyRefreshListenersAfter(refreshed);
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
@@ -1075,6 +1168,17 @@ public class DataFormatAwareEngine implements Indexer {
                 // latestCatalogSnapshot between commit() and updateLastCommitInfo(). Reentrant.
                 refreshLock.lock();
                 try {
+                    // Capture the processed checkpoint BEFORE refreshing. The refresh persists the
+                    // current writer buffer into the catalog snapshot; any operation processed
+                    // concurrently DURING this flush lands in a NEW writer that is not part of this
+                    // snapshot. Committing the live (post-refresh) processed checkpoint would
+                    // over-claim those ops, so a subsequent recovery/relocation would start replay
+                    // past them (seeding them as "already processed") and silently drop them.
+                    // Capturing here keeps the committed local checkpoint <= what the snapshot
+                    // durably contains, mirroring Lucene's InternalEngine.commitIndexWriter (which
+                    // captures the checkpoint before IndexWriter.commit flushes). See
+                    // DataFormatAwareEngineTests#testFlushMustNotCommitCheckpointAheadOfPersistedSnapshot.
+                    final long committedLocalCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
                     // Refresh first to flush buffered data to segments
                     refresh("flush");
                     translogManager.rollTranslogGeneration();
@@ -1096,10 +1200,7 @@ public class DataFormatAwareEngine implements Indexer {
                             );
                             commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
                             commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                            commitData.put(
-                                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
-                                Long.toString(localCheckpointTracker.getProcessedCheckpoint())
-                            );
+                            commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(committedLocalCheckpoint));
                             commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                             commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                             commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
@@ -1155,6 +1256,10 @@ public class DataFormatAwareEngine implements Indexer {
                 flushLock.unlock();
             }
         }
+
+        if (engineConfig.isEnableGcDeletes()) {
+            pruneDeletedTombstones();
+        }
     }
 
     /** Flushes the engine with default parameters (non-forced, wait if ongoing). */
@@ -1192,6 +1297,20 @@ public class DataFormatAwareEngine implements Indexer {
         refresh("write indexing buffer");
     }
 
+    /**
+     * Forces a merge to reduce the number of segments to at most {@code maxNumSegments}.
+     * <p>
+     * This method is a no-op for {@code upgrade}, {@code upgradeOnlyAncientSegments}, and
+     * {@code onlyExpungeDeletes} operations since those are Lucene-specific concepts not
+     * applicable to the data format engine.
+     * <p>
+     * When {@code flush} is true, a full flush is performed first to ensure all in-flight
+     * indexing data (pending VSR writes, buffered segments) is committed before merge
+     * candidate selection runs. This guarantees force merge operates on the complete
+     * set of segments.
+     * <p>
+     * Runs synchronously on the calling {@code FORCE_MERGE} thread.
+     */
     @Override
     public void forceMerge(
         boolean flush,
@@ -1201,7 +1320,17 @@ public class DataFormatAwareEngine implements Indexer {
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
     ) throws EngineException, IOException {
-        mergeScheduler.forceMerge(1);
+        if (upgrade || upgradeOnlyAncientSegments || onlyExpungeDeletes) {
+            return;
+        }
+        if (isFrozenForTiering()) {
+            logger.debug("forceMerge blocked — engine is frozen for tiering");
+            return;
+        }
+        mergeScheduler.forceMerge(maxNumSegments);
+        if (flush) {
+            flush(true, true);
+        }
     }
 
     /** {@inheritDoc} Returns the heap RAM bytes used by the indexing execution engine. */
@@ -1250,6 +1379,7 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+        maybePruneDeletes();
         if (engineConfig.isAutoGeneratedIDsOptimizationEnabled() == false) {
             updateAutoIdTimestamp(Long.MAX_VALUE, true);
         }
@@ -1259,6 +1389,45 @@ public class DataFormatAwareEngine implements Indexer {
 
         // This checks if the settings related to merge are changed and based on that updates the local variables in the class
         mergeScheduler.refreshConfig();
+        updateTieringFreezeState();
+    }
+
+    /**
+     * Detects tiering state transitions and freezes/unfreezes the engine accordingly.
+     * Only freezes for HOT_TO_WARM (actual data migration in progress).
+     * The prepare action explicitly calls freezeForTiering() while the index is still
+     * HOT, so there is no separate transient state to freeze on here.
+     * Unfreeze logic covers both cancel (HOT_TO_WARM → HOT) and prepare failure
+     * (frozen-while-HOT → HOT) to ensure merge scheduler resumes.
+     */
+    private void updateTieringFreezeState() {
+        String tieringStateStr = engineConfig.getIndexSettings()
+            .getSettings()
+            .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        boolean shouldFreeze;
+        try {
+            IndexModule.TieringState tieringState = IndexModule.TieringState.valueOf(tieringStateStr);
+            shouldFreeze = tieringState == IndexModule.TieringState.HOT_TO_WARM;
+        } catch (IllegalArgumentException e) {
+            // Unrecognized tiering-state value — treat as not frozen, but surface the misconfiguration.
+            logger.warn(
+                "Unrecognized {} value [{}]; treating engine as not frozen for tiering",
+                IndexModule.INDEX_TIERING_STATE.getKey(),
+                tieringStateStr
+            );
+            shouldFreeze = false;
+        }
+        if (shouldFreeze) {
+            if (frozenForTiering.compareAndSet(false, true)) {
+                logger.info("Freezing engine for tiering — blocking merges, refresh, flush, and catalog commits");
+                mergeScheduler.freeze();
+            }
+        } else {
+            if (frozenForTiering.compareAndSet(true, false)) {
+                logger.info("Unfreezing engine — tiering cancelled, resuming normal operations");
+                mergeScheduler.unfreeze();
+            }
+        }
     }
 
     /** {@inheritDoc} Always returns {@code true} — a refresh is always considered needed. */
@@ -1266,6 +1435,61 @@ public class DataFormatAwareEngine implements Indexer {
     public boolean refreshNeeded() {
         // A refresh is needed if there are operations since the last refresh
         return true;
+    }
+
+    /**
+     * Returns true if the engine is frozen for tiering and the operation should be blocked.
+     * <p>
+     * Prefers the cached volatile flag, which is set by the constructor on open, by
+     * {@link #onSettingsChanged} on a tiering transition, and by {@link #freezeForTiering()}. The
+     * live-settings fallback also returns true for a shard opened mid-tiering (restart/relocation) —
+     * though the constructor already covers that — and, more importantly, closes the apply-ordering
+     * gap on a live engine where the index settings already reflect HOT_TO_WARM but
+     * {@link #onSettingsChanged} has not yet flipped the flag, so a request arriving in that window
+     * is still blocked. (Requests already past this guard are drained separately by the prepare
+     * action acquiring all primary permits.)
+     */
+    private boolean isFrozenForTiering() {
+        if (frozenForTiering.get()) {
+            return true;
+        }
+        // Fallback: read live settings to close the apply-ordering gap described above.
+        String state = engineConfig.getIndexSettings()
+            .getSettings()
+            .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+        return IndexModule.TieringState.HOT_TO_WARM.name().equals(state);
+    }
+
+    /**
+     * Registers a listener that fires when all in-flight merges have completed.
+     * If merges are already drained, fires the listener immediately inline.
+     * Otherwise, the listener will fire on the merge thread when
+     * the last merge finishes.
+     *
+     * @param listener the callback to fire when merges are drained
+     */
+    @Override
+    public void onMergesDrained(Runnable listener) {
+        mergeScheduler.onDrained(listener);
+    }
+
+    /**
+     * Returns the number of currently active (in-flight) merge tasks.
+     *
+     * @return the active merge count, or 0 if no merges are running
+     */
+    @Override
+    public int getActiveMergeCount() {
+        return mergeScheduler.getActiveMergeCount();
+    }
+
+    /**
+     * Returns whether any merges are queued but not yet started. DFA primary delegates
+     * directly to its {@link MergeScheduler} (orthogonal to active count).
+     */
+    @Override
+    public boolean hasPendingMerges() {
+        return mergeScheduler.hasPendingMerges();
     }
 
     /** {@inheritDoc} Delegates to {@link #refresh(String)} and always returns {@code true}. */
@@ -1278,7 +1502,24 @@ public class DataFormatAwareEngine implements Indexer {
     /** No-op — data-format engines do not maintain Lucene-style delete tombstones. */
     @Override
     public void maybePruneDeletes() {
-        // No-op: data-format engines do not maintain Lucene-style delete tombstones
+        // Pruning walks the deletes map taking a per-uid lock, so it is throttled to once per 1/4 of gcDeletes,
+        // mirroring InternalEngine. The version map carries delete tombstones used by the get-by-id/version path.
+        if (engineConfig.isEnableGcDeletes()
+            && engineConfig.getThreadPool().relativeTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
+            pruneDeletedTombstones();
+        }
+    }
+
+    /**
+     * Prunes delete tombstones from the version map: those older than one GC-delete cycle whose sequence number
+     * is at most the processed checkpoint (the single trimming strategy used by {@code InternalEngine}, correct
+     * on both primary and replica). Updates {@link #lastDeleteVersionPruneTimeMSec}.
+     */
+    protected void pruneDeletedTombstones() {
+        final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
+        final long maxTimestampToPrune = timeMSec - engineConfig.getIndexSettings().getGcDeletesInMillis();
+        versionMap.pruneTombstones(maxTimestampToPrune, localCheckpointTracker.getProcessedCheckpoint());
+        lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     /**
@@ -1323,7 +1564,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        throw new UnsupportedOperationException("updates/deletes not supported");
+        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
     }
 
     @Override
@@ -1511,7 +1752,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public Closeable acquireHistoryRetentionLock() {
-        return () -> {};
+        return translogManager.acquireHistoryRetentionLock();
     }
 
     /**
@@ -1616,6 +1857,7 @@ public class DataFormatAwareEngine implements Indexer {
      * recovery replay the translog. The writer is checked out of the pool before any work that
      * could throw, so on throw the caller can still safely flag it as checked-out.
      */
+
     private boolean retireWriterIfNeeded(DefaultLockableHolder<Writer<?>> lockedWriter) {
         Writer<?> writer = lockedWriter.get();
         WriterState postState = writer.state();
@@ -1695,6 +1937,78 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
         return catalogSnapshotManager.serializeToCommitFormat(catalogSnapshot);
+    }
+
+    /**
+     * Delegates get-by-id to the installed {@link DocumentLookupProvider}, acquiring a
+     * per-format reader on the current snapshot and passing it to the plugin.
+     * Throws {@link UnsupportedOperationException} if no plugin is wired.
+     */
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        if (documentLookup.isSupported() == false) {
+            throw new UnsupportedOperationException("getById not supported: no DocumentLookupProvider installed");
+        }
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            if (get.realtime()) {
+                VersionValue versionValue;
+                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+                    versionValue = getVersionFromMap(get.uid().bytes());
+                }
+                if (versionValue != null) {
+                    if (versionValue.isDelete()) {
+                        return Engine.GetResult.NOT_EXISTS;
+                    }
+                    if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
+                        throw new VersionConflictEngineException(
+                            shardId,
+                            get.id(),
+                            get.versionType().explainConflictForReads(versionValue.version, get.version())
+                        );
+                    }
+                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                        && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
+                        throw new VersionConflictEngineException(
+                            shardId,
+                            get.id(),
+                            get.getIfSeqNo(),
+                            get.getIfPrimaryTerm(),
+                            versionValue.seqNo,
+                            versionValue.term
+                        );
+                    }
+                    if (get.isReadFromTranslog() && versionValue.getLocation() != null) {
+                        try {
+                            Translog.Operation operation = translogManager.readOperation(versionValue.getLocation());
+                            if (operation != null) {
+                                Translog.Index index = (Translog.Index) operation;
+                                return new DocumentLookupResult(
+                                    get.id(),
+                                    index.version(),
+                                    true,
+                                    index.source(),
+                                    index.seqNo(),
+                                    index.primaryTerm(),
+                                    Map.of(),
+                                    Map.of()
+                                ).toGetResult();
+                            }
+                        } catch (IOException e) {
+                            throw new EngineException(shardId, "failed to read operation from translog", e);
+                        }
+                    }
+                    assert versionValue.seqNo >= 0 : versionValue;
+                }
+            }
+
+            // Fall through: read from parquet
+            try (GatedCloseable<Reader> readerRef = acquireReader()) {
+                DocumentLookupResult result = documentLookup.lookupFromReader(get, readerRef.get());
+                return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
+            }
+        } // readLock
     }
 
     /**
@@ -1792,9 +2106,20 @@ public class DataFormatAwareEngine implements Indexer {
             refreshLock.lock();
         }
         try (GatedCloseable<CatalogSnapshot> oldSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-            notifyRefreshListenersBefore();
+            // A merge only swaps segments in the catalog; it does not advance the checkpoint, so
+            // checkpoint-publishing listeners must not be notified. We invoke only the
+            // RemoteStoreRefreshListener so the merged segments get uploaded to the remote store.
+            for (ReferenceManager.RefreshListener refreshListener : refreshListeners) {
+                if (refreshListener instanceof RemoteStoreRefreshListener) {
+                    refreshListener.beforeRefresh();
+                }
+            }
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
-            notifyRefreshListenersAfter(true);
+            for (ReferenceManager.RefreshListener refreshListener : refreshListeners) {
+                if (refreshListener instanceof RemoteStoreRefreshListener) {
+                    refreshListener.afterRefresh(true);
+                }
+            }
         } catch (Exception ex) {
             try {
                 logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);
@@ -1813,6 +2138,9 @@ public class DataFormatAwareEngine implements Indexer {
             logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
             return;
         }
+        if (isFrozenForTiering()) {
+            return;
+        }
         mergeScheduler.triggerMerges();
     }
 
@@ -1821,12 +2149,21 @@ public class DataFormatAwareEngine implements Indexer {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
+                this.versionMap.clear();
+                // Stop accepting new merges immediately
+                mergeScheduler.shutdown();
                 // Discard any pending segments not yet picked up by refresh
                 pendingSegments.clear();
                 // Close any writers queued for deferred close (their files won't reach the catalog)
                 Writer<?> pendingWriter;
                 while ((pendingWriter = pendingWritersToClose.poll()) != null) {
                     IOUtils.closeWhileHandlingException(pendingWriter);
+                }
+                // Close writers still in the flush queue (checked out of pool, not yet flushed).
+                // Without this, their LuceneWriter IndexWriter locks remain in LOCK_HELD.
+                Writer<?> queuedWriter;
+                while ((queuedWriter = flushQueue.poll()) != null) {
+                    IOUtils.closeWhileHandlingException(queuedWriter);
                 }
                 // Close all writers still in the pool (unflushed writers from the current cycle)
                 for (var holder : writerPool.checkoutAll()) {
@@ -1863,6 +2200,126 @@ public class DataFormatAwareEngine implements Indexer {
             }
             throw ioException;
         }
+    }
+
+    protected VersionValue resolveDocVersion(final Engine.Operation op, boolean loadSeqNo) throws IOException {
+        assert incrementVersionLookup();
+        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
+        if (versionValue == null) {
+            if (documentLookupProvider == null) {
+                return null;
+            }
+            assert incrementIndexVersionLookup();
+            DocumentLookupResult lookupResult;
+            try (GatedCloseable<Reader> readerRef = acquireReader()) {
+                Reader reader = readerRef.get();
+                if (reader.catalogSnapshot().getSegments().isEmpty()) {
+                    return null;
+                }
+                lookupResult = documentLookupProvider.getVersionMetadata(op.id(), reader, shardId.getIndex(), documentMetadataResolver);
+            }
+            if (lookupResult.version() != Versions.NOT_FOUND) {
+                versionValue = new IndexVersionValue(null, lookupResult.version(), lookupResult.seqNo(), lookupResult.primaryTerm());
+            }
+        } else {
+            if (engineConfig.isEnableGcDeletes()
+                && versionValue.isDelete()
+                && (engineConfig.getThreadPool().relativeTimeInMillis()
+                    - ((DeleteVersionValue) versionValue).time) > getGcDeletesInMillis()) {
+                versionValue = null;
+            }
+        }
+        return versionValue;
+    }
+
+    long getGcDeletesInMillis() {
+        return engineConfig.getIndexSettings().getGcDeletesInMillis();
+    }
+
+    private boolean incrementVersionLookup() { // only used by asserts
+        numVersionLookups.inc();
+        return true;
+    }
+
+    private boolean incrementIndexVersionLookup() {
+        numIndexVersionsLookups.inc();
+        return true;
+    }
+
+    private static OpVsEngineDocStatus compareOpToVersionMapOnSeqNo(String id, long seqNo, long primaryTerm, VersionValue versionValue) {
+        Objects.requireNonNull(versionValue);
+        if (seqNo > versionValue.seqNo) {
+            return OpVsEngineDocStatus.OP_NEWER;
+        } else if (seqNo == versionValue.seqNo) {
+            assert versionValue.term == primaryTerm : "primary term not matched; id="
+                + id
+                + " seq_no="
+                + seqNo
+                + " op_term="
+                + primaryTerm
+                + " existing_term="
+                + versionValue.term;
+            return OpVsEngineDocStatus.OP_STALE_OR_EQUAL;
+        } else {
+            return OpVsEngineDocStatus.OP_STALE_OR_EQUAL;
+        }
+    }
+
+    private void restoreVersionMapAndCheckpointTracker() {
+        try {
+            final long persistedCheckpoint = localCheckpointTracker.getPersistedCheckpoint();
+            if (documentLookupProvider != null) {
+                try (GatedCloseable<Reader> readerRef = acquireReader()) {
+                    List<DocumentLookupResult> docs = documentLookupProvider.getDocsAboveSeqNo(
+                        persistedCheckpoint,
+                        readerRef.get(),
+                        shardId.getIndex(),
+                        documentMetadataResolver
+                    );
+                    for (DocumentLookupResult doc : docs) {
+                        localCheckpointTracker.markSeqNoAsProcessed(doc.seqNo());
+                        localCheckpointTracker.markSeqNoAsPersisted(doc.seqNo());
+                        final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())).bytes();
+                        try (Releasable ignored = versionMap.acquireLock(uid)) {
+                            final VersionValue curr = versionMap.getUnderLock(uid);
+                            if (curr == null
+                                || compareOpToVersionMapOnSeqNo(
+                                    doc.id(),
+                                    doc.seqNo(),
+                                    doc.primaryTerm(),
+                                    curr
+                                ) == OpVsEngineDocStatus.OP_NEWER) {
+                                versionMap.putIndexUnderLock(
+                                    uid,
+                                    new IndexVersionValue(null, doc.version(), doc.seqNo(), doc.primaryTerm())
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new EngineCreationFailureException(
+                config().getShardId(),
+                "failed to restore version map and local checkpoint tracker",
+                e
+            );
+        }
+    }
+
+    private VersionValue getVersionFromMap(BytesRef id) {
+        if (versionMap.isUnsafe()) {
+            synchronized (versionMap) {
+                // we are switching from an unsafe map to a safe map. This might happen concurrently
+                // but we only need to do this once since the last operation per ID is to add to the version
+                // map so once we pass this point we can safely lookup from the version map.
+                if (versionMap.isUnsafe()) {
+                    refresh("unsafe_version_map");
+                }
+                versionMap.enforceSafeAccess();
+            }
+        }
+        return versionMap.getUnderLock(id);
     }
 
     private void awaitPendingClose() {
@@ -2095,5 +2552,26 @@ public class DataFormatAwareEngine implements Indexer {
     /** Returns the store. Visible for testing only. */
     Store getStore() {
         return store;
+    }
+
+    /**
+     * Explicitly freezes the engine for tiering. Called by {@code TransportPrepareTieringAction}
+     * after flush and remote sync are complete, just before the state transitions to HOT_TO_WARM.
+     * Idempotent and thread-safe — a no-op if already frozen. The atomic {@code compareAndSet}
+     * ensures only one caller wins the freeze transition under parallel tier/cancel.
+     * <p>
+     * After this call:
+     * <ul>
+     *   <li>No new merges will be registered (existing in-flight and pending merges drain to completion)</li>
+     *   <li>Primary indexing operations are rejected with "frozen for tiering"</li>
+     *   <li>{@link #triggerPossibleMerges()} becomes a no-op</li>
+     * </ul>
+     */
+    @Override
+    public void freezeForTiering() {
+        if (frozenForTiering.compareAndSet(false, true)) {
+            mergeScheduler.freeze();
+            logger.info("Engine explicitly frozen for tiering by prepare action");
+        }
     }
 }

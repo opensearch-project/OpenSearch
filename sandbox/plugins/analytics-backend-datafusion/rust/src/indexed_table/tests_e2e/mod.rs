@@ -15,6 +15,7 @@
 
 #![cfg(test)]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -49,6 +50,7 @@ mod qtf_fetch_phase;
 mod row_id_emission;
 mod row_id_strategies;
 mod schema_drift;
+mod sort_reverse_row_id;
 mod streaming_at_scale;
 
 // ── Test fixture: parquet table with 16 rows ────────────────────────
@@ -272,7 +274,7 @@ async fn run_tree_and_plan(
                     ),
                 ),
                 collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None,
+                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -288,7 +290,7 @@ async fn run_tree_and_plan(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -303,6 +305,7 @@ async fn run_tree_and_plan(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

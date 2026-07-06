@@ -94,10 +94,7 @@ public class CompositeRelocationFailureIT extends RemoteStoreBaseIntegTestCase {
 
     private void indexDocs(int count, int startId) {
         for (int i = startId; i < startId + count; i++) {
-            assertEquals(
-                RestStatus.CREATED,
-                client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("name", "doc_" + i, "value", i).get().status()
-            );
+            assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setSource("name", "doc_" + i, "value", i).get().status());
         }
     }
 
@@ -134,7 +131,7 @@ public class CompositeRelocationFailureIT extends RemoteStoreBaseIntegTestCase {
             int id = 10000;
             while (!stopIndexing.get()) {
                 try {
-                    client().prepareIndex(INDEX_NAME).setId("concurrent_" + id).setSource("name", "concurrent_" + id, "value", id).get();
+                    client().prepareIndex(INDEX_NAME).setSource("name", "concurrent_" + id, "value", id).get();
                     successCount.incrementAndGet();
                     id++;
                     Thread.sleep(10); // Pace writes to avoid overwhelming during relocation

@@ -12,12 +12,16 @@
 
 use datafusion::execution::context::SessionContext;
 
+pub mod approx_distinct_safe;
 pub mod internal_pattern;
 pub mod list_merge;
+pub mod os_count_distinct;
 pub mod take;
 
 pub fn register_all(ctx: &SessionContext) {
     take::register_all(ctx);
     list_merge::register_all(ctx);
     internal_pattern::register_all(ctx);
+    os_count_distinct::register_all(ctx);
+    approx_distinct_safe::register_all(ctx);
 }

@@ -117,7 +117,7 @@ public class StatsFailureIT extends AbstractCompositeEngineIT {
         FailableLuceneDataFormatPlugin.failOnNthWrite(3);
         for (int i = 50; i < 70; i++) {
             try {
-                client().prepareIndex(idx).setId(String.valueOf(i)).setSource("name", "injection_" + i, "value", i).get();
+                client().prepareIndex(idx).setSource("name", "injection_" + i, "value", i).get();
             } catch (Exception expected) {
                 // Engine failure causes indexing exceptions — expected.
                 break;

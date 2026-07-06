@@ -47,12 +47,13 @@ use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess};
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
-use datafusion::execution::memory_pool::TrackConsumersPool;
+use datafusion::execution::memory_pool::{MemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::execute_stream;
+use datafusion::physical_plan::metrics::MetricValue;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
@@ -62,10 +63,16 @@ use roaring::RoaringBitmap;
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::custom_cache_manager::CustomCacheManager;
+use crate::datafusion_query_config::DatafusionQueryConfig;
+use crate::helper::{build_query_runtime_env_with_store, new_query_tracking_context};
+use crate::indexed_executor::execute_indexed_query;
 use crate::local_executor::LocalSession;
 use crate::memory::{DynamicLimitHandle, DynamicLimitPool};
+use crate::memory_guard::{per_query_spill_budget, SpillBudget};
 use crate::partition_stream::PartitionStreamSender;
-use crate::query_tracker::{self, QueryTrackingContext};
+use crate::phantom_corrector::PhantomCorrector;
+use crate::query_executor;
+use crate::query_tracker::{self, QueryTrackingContext, QueryType};
 use crate::runtime_manager::RuntimeManager;
 use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
 
@@ -87,6 +94,9 @@ pub struct QueryStreamHandle {
     /// Physical plan reference for post-execution metrics extraction.
     /// Available after execution completes; read via `df_stream_get_metrics`.
     physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+    /// Fires when the spawned CPU task has fully dropped; `stream_close` waits on it so borrowed
+    /// input batches are released before the per-query allocator closes. `None` outside coordinator-reduce.
+    task_done: Option<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl QueryStreamHandle {
@@ -109,6 +119,31 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
+        }
+    }
+
+    /// Attaches the task-completion signal `stream_close` joins on before the allocator closes.
+    pub fn with_task_done(mut self, task_done: tokio::sync::oneshot::Receiver<()>) -> Self {
+        self.task_done = Some(task_done);
+        self
+    }
+
+    pub fn new_with_plan(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        plan: Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+    ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: None,
+            has_views,
+            _concurrency_permit: permit,
+            physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -126,6 +161,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
         }
     }
 
@@ -144,6 +180,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -153,19 +190,47 @@ impl QueryStreamHandle {
         let plan = self.physical_plan.as_ref()?;
         let mut map = serde_json::Map::new();
         Self::collect_metrics(plan.as_ref(), &mut map);
-        if map.is_empty() {
-            return None;
-        }
+        // Include the physical plan display text
+        let plan_text = datafusion::physical_plan::displayable(plan.as_ref()).indent(true).to_string();
+        map.insert("physical_plan".to_string(), serde_json::Value::String(plan_text));
         serde_json::to_vec(&map).ok()
     }
 
     fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
         if let Some(metrics) = plan.metrics() {
             for m in metrics.iter() {
-                let name = m.value().name().to_string();
-                let value = m.value().as_usize() as i64;
-                // Later operators override earlier ones if same name — leaf (scan) metrics take priority
-                map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                let add = |map: &mut serde_json::Map<String, serde_json::Value>, key: String, delta: i64| {
+                    let prev = map.get(&key).and_then(|v| v.as_i64()).unwrap_or(0);
+                    map.insert(key, serde_json::Value::Number(serde_json::Number::from(prev + delta)));
+                };
+                match m.value() {
+                    MetricValue::PruningMetrics { name, pruning_metrics } => {
+                        add(map, format!("{}_pruned", name), pruning_metrics.pruned() as i64);
+                        add(map, format!("{}_matched", name), pruning_metrics.matched() as i64);
+                    }
+                    MetricValue::StartTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("start_timestamp").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+                        if v > 0 && v < prev {
+                            map.insert("start_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::EndTimestamp(_) => {
+                        let v = m.value().as_usize() as i64;
+                        let prev = map.get("end_timestamp").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if v > prev {
+                            map.insert("end_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                        }
+                    }
+                    MetricValue::Ratio { .. } | MetricValue::Gauge { .. } | MetricValue::CurrentMemoryUsage(_) => {
+                        let name = m.value().name().to_string();
+                        let value = m.value().as_usize() as i64;
+                        map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                    }
+                    other => {
+                        add(map, other.name().to_string(), other.as_usize() as i64);
+                    }
+                }
             }
         }
         for child in plan.children() {
@@ -334,9 +399,14 @@ pub struct ShardView {
     /// Index sort fields, in priority order. Sourced from the index's
     /// `index.sort.field` setting on the Java side. Empty when the index has
     /// no `index.sort.field` configured. Parallel to `sort_orders`.
-    /// Used to build `ListingOptions.with_file_sort_order(...)` so DataFusion
-    /// advertises `output_ordering` from the scan and enables the
-    /// `sort_prefix` optimization on TopK / SortPreservingMerge.
+    ///
+    /// Two consumers today:
+    ///   - Vanilla path: `ListingOptions.with_file_sort_order(...)` so DataFusion advertises
+    ///     `output_ordering` from the scan and the `sort_prefix` optimization fires on
+    ///     TopK / SortPreservingMerge.
+    ///   - Indexed path (`indexed_executor`): when the query's leading ORDER BY runs counter
+    ///     to catalog-snapshot order, the per-shard segment iteration is reversed so a TopK
+    ///     above us can prune via parquet page statistics.
     pub sort_fields: Vec<String>,
     /// Index sort directions per field — values: `"asc"` or `"desc"`.
     /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
@@ -424,11 +494,7 @@ pub fn create_global_runtime(
         crate::memory_guard::mark_spill_disabled();
         DiskManagerBuilder::default().with_mode(DiskManagerMode::Disabled)
     } else {
-        let effective_spill_limit = if spill_limit == 0 {
-            resolve_dynamic_spill_limit(spill_dir)
-        } else {
-            spill_limit as u64
-        };
+        let effective_spill_limit = spill_limit as u64;
 
         // Wipe leaked entries from a prior non-graceful shutdown.
         //
@@ -693,7 +759,8 @@ pub fn get_reduce_target_partitions() -> usize {
 /// `filenames` are kept in the order supplied by the caller.
 ///
 /// `store_ptr`: 0 = use default LocalFileSystem (hot path),
-/// >0 = Box<Arc<dyn ObjectStore>> pointer (routes reads through TieredObjectStore).
+/// >0 = `Box<Arc<dyn MetadataCachingStore>>` pointer (routes reads through TieredObjectStore;
+///       trait upcasts to `dyn ObjectStore` for DataFusion APIs that take `Arc<dyn ObjectStore>`).
 pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
@@ -722,14 +789,27 @@ pub fn create_reader(
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 
     // Resolve the object store: if store_ptr > 0, clone the Arc from the boxed pointer.
+    // Pointer type is `Arc<dyn MetadataCachingStore>` (since 2026-06); trait-upcast to
+    // `Arc<dyn ObjectStore>` for the DataFusion APIs below.
     // Otherwise use default LocalFileSystem.
     let store: Arc<dyn ObjectStore> = if store_ptr > 0 {
-        let boxed = unsafe { &*(store_ptr as *const Arc<dyn ObjectStore>) };
-        Arc::clone(boxed)
+        let boxed = unsafe {
+            &*(store_ptr as *const Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>)
+        };
+        // Bind first, then trait-upcast at the let-binding boundary
+        // (Arc::clone alone can't infer the supertrait return type).
+        let mc_arc: Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore> =
+            Arc::clone(boxed);
+        mc_arc
     } else {
         let default_rt = RuntimeEnvBuilder::new().build()?;
         default_rt.object_store(&table_url)?
     };
+
+    // A Java-supplied store (store_ptr > 0) is a remote/warm store: fetch the whole
+    // page-index region so query range keys match eager warm-population (warm hits).
+    // The default LocalFileSystem has no warm tier → keep the narrow scoped fetch.
+    crate::cache::page_index::set_whole_region_fetch_enabled(store_ptr > 0);
 
     let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
         store.as_ref(),
@@ -777,59 +857,29 @@ pub async unsafe fn execute_query(
     manager: &RuntimeManager,
     context_id: i64,
     query_config: crate::datafusion_query_config::DatafusionQueryConfig,
+    internal_search: crate::datafusion_query_config::InternalSearch,
 ) -> Result<i64, DataFusionError> {
     let shard_view = &*(shard_view_ptr as *const ShardView);
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
     let cpu_executor = manager.cpu_executor();
 
-    // Create per-query context — auto-registers in the global registry
+    // Create per-query context (auto-registers in the global registry) and extract
+    // its per-query memory pool overlaying the global pool.
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone(), query_tracker::QueryType::Shard);
+    let (mut query_context, query_memory_pool) = new_query_tracking_context(
+        context_id,
+        global_pool.clone(),
+        QueryType::Shard,
+    );
 
-    let query_memory_pool = query_context
-        .memory_pool()
-        .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
+    // Apply disk-pressure capping + memory budget, attaching phantom
+    // reservation/corrector to the query context.
+    let (effective_config, phantom_corrector) =
+        resolve_effective_config(shard_view, runtime, &global_pool, &query_config, &mut query_context);
 
-    // Check disk pressure: when spill is on and disk is dangerously low, reduce
-    // parallelism so each query produces less spill volume. When spill is off, disk
-    // health is irrelevant — there is no spill to throttle, so parallelism stays at
-    // the configured value. One statvfs call (~1µs) only on the enabled path.
-    let disk_capped_partitions = match crate::memory_guard::per_query_spill_budget() {
-        crate::memory_guard::SpillBudget::Critical => 1,
-        crate::memory_guard::SpillBudget::Disabled
-        | crate::memory_guard::SpillBudget::Available(_) => query_config.target_partitions,
-    };
-
-    // Acquire memory budget: reserve phantom for untracked memory.
-    // Best-effort from cached metadata (zero I/O). If not cached, skip budget
-    // — first query warms the cache, subsequent queries benefit.
-    let (effective_config, phantom_corrector) = {
-        let mut cfg = query_config.clone();
-        cfg.target_partitions = disk_capped_partitions;
-        let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, &global_pool, &cfg) {
-            cfg.target_partitions = budget.target_partitions;
-            cfg.batch_size = budget.batch_size;
-            let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
-            let estimated_batch_bytes = if budget.phantom_bytes > 0 && batches_in_pipeline > 0 {
-                budget.phantom_bytes / batches_in_pipeline
-            } else {
-                cfg.batch_size * 100 // fallback
-            };
-            let corrector = Arc::new(crate::phantom_corrector::PhantomCorrector::new_from_metadata(
-                budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
-            ));
-            query_context.set_phantom_reservation(budget.phantom_reservation);
-            Some(query_context.set_phantom_corrector(corrector))
-        } else {
-            None
-        };
-        (cfg, corrector)
-    };
-
-    // Peek at plan bytes for routing signals.
-    // - is_indexed: index_filter UDF present (indexed query path)
-    // - has_row_id: __row_id__ column requested (QTF query phase)
-    let (is_indexed, has_row_id) = inspect_plan_bytes(plan_bytes);
+    // Route to the indexed executor when the plan has an index_filter UDF or
+    // requests __row_id__ (QTF query phase); otherwise the ListingTable path.
+    let use_indexed = use_indexed_path(plan_bytes);
 
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
@@ -840,30 +890,19 @@ pub async unsafe fn execute_query(
     // in single-JVM test topologies where coordinator and data node share a gate.
 
     let query_future = async move {
-        // Routing logic:
-        // 1. Indexed query (has index_filter) → always indexed path
-        // 2. Has __row_id__ but not indexed (non-indexed + sort) → consult QueryStrategy
-        //    - ListingTable → vanilla path with ShardTableProvider + ProjectRowIdOptimizer
-        //    - IndexedPredicateOnly → indexed path (position-based row IDs)
-        //    - None → vanilla path (no row ID computation)
-        // 3. Neither → vanilla path
-        let use_indexed = is_indexed
-            || (has_row_id && effective_config.query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
-
         if use_indexed {
-            let qc = Arc::new(effective_config);
-            crate::indexed_executor::execute_indexed_query(
+            execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
                 shard_view,
                 runtime,
                 cpu_executor,
                 query_memory_pool,
-                qc,
+                effective_config,
                 context_id,
             ).await
         } else {
-            crate::query_executor::execute_query(
+            query_executor::execute_query(
                 shard_view.table_path.clone(),
                 shard_view.object_metas.clone(),
                 table_name.to_string(),
@@ -877,6 +916,7 @@ pub async unsafe fn execute_query(
                 phantom_corrector,
                 &shard_view.sort_fields,
                 &shard_view.sort_orders,
+                internal_search,
             ).await
         }
     };
@@ -916,17 +956,17 @@ pub async unsafe fn fetch_by_row_ids(
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
     use crate::indexed_table::segment_info::build_segments;
-    use crate::query_executor::{build_query_runtime_env, store_url_from_table_path, wrap_stream_as_handle};
+    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle};
 
     // ── 1. Build RuntimeEnv + SessionContext ──
 
-    let runtime_env = build_query_runtime_env(runtime, &shard_view.table_path, shard_view.object_metas.as_ref())?;
-
-    // Register shard-specific object store on file:// scheme for this query.
-    runtime_env.register_object_store(
-        &url::Url::parse("file://").unwrap(),
+    let runtime_env = build_query_runtime_env_with_store(
+        runtime,
+        &shard_view.table_path,
+        shard_view.object_metas.as_ref(),
         Arc::clone(&shard_view.store),
-    );
+        None,
+    )?;
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = true;
@@ -1057,8 +1097,6 @@ pub async unsafe fn fetch_by_row_ids(
     Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime, context_id))
 }
 
-/// it; the failure mode is documented here to keep the dispatch contract
-/// explicit.
 /// Resolve the dynamic spill limit based on available disk space.
 /// Uses 80% of available space on the spill directory's filesystem.
 /// Falls back to 8GB if disk space cannot be determined.
@@ -1087,15 +1125,20 @@ fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
     }
 }
 
-/// Inspect substrait plan bytes for routing signals.
-/// Returns (has_index_filter, has_row_id).
-fn inspect_plan_bytes(plan_bytes: &[u8]) -> (bool, bool) {
+/// Whether a shard query routes to the indexed executor (vs the ListingTable path),
+/// decided by scanning the substrait plan bytes for two needles: the `index_filter`
+/// UDF name and the `__row_id__` column name. Either one → indexed path.
+///
+/// This is a cheap byte-substring scan, not a parse. A false positive on
+/// `index_filter` takes the indexed path and then fails in `execute_indexed_query`
+/// when `classify_filter` returns `None` (no automatic retry on the ListingTable
+/// path) — unreachable in practice because the needle is not a valid DataFusion
+/// identifier a plan would otherwise contain.
+fn use_indexed_path(plan_bytes: &[u8]) -> bool {
     const INDEX_FILTER: &[u8] = b"index_filter";
     const ROW_ID: &[u8] = crate::ROW_ID_COLUMN_NAME.as_bytes();
-    (
-        plan_bytes.windows(INDEX_FILTER.len()).any(|w| w == INDEX_FILTER),
-        plan_bytes.windows(ROW_ID.len()).any(|w| w == ROW_ID),
-    )
+    plan_bytes.windows(INDEX_FILTER.len()).any(|w| w == INDEX_FILTER)
+        || plan_bytes.windows(ROW_ID.len()).any(|w| w == ROW_ID)
 }
 
 /// Best-effort budget acquisition from cached parquet metadata.
@@ -1104,17 +1147,51 @@ fn inspect_plan_bytes(plan_bytes: &[u8]) -> (bool, bool) {
 /// If cached: extracts the schema + measured row bytes, acquires budget.
 /// If not cached: returns None (first query — skip budget, warm cache).
 /// Zero I/O in all cases.
-/// Best-effort budget acquisition from cached parquet metadata.
-///
-/// Looks up the first file's ParquetMetaData from the file metadata cache.
-/// If cached: extracts the schema + measured row bytes, acquires budget.
-/// If not cached: returns None (first query — skip budget, warm cache).
-/// Zero I/O in all cases.
+fn resolve_effective_config(
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    global_pool: &Arc<dyn MemoryPool>,
+    query_config: &DatafusionQueryConfig,
+    query_context: &mut QueryTrackingContext,
+) -> (Arc<DatafusionQueryConfig>, Option<Arc<PhantomCorrector>>) {
+    // Disk pressure: when spill is on and disk is dangerously low, cap parallelism
+    // to 1 so each query produces less spill volume. When spill is off, disk health
+    // is irrelevant — no spill to throttle. One statvfs call (~1µs) only when enabled.
+    let disk_capped_partitions = match per_query_spill_budget() {
+        SpillBudget::Critical => 1,
+        SpillBudget::Disabled | SpillBudget::Available(_) => query_config.target_partitions,
+    };
+
+    // Acquire memory budget: reserve phantom for untracked memory. Best-effort from
+    // cached metadata (zero I/O); if not cached, skip budget (first query warms the
+    // cache, subsequent queries benefit).
+    let mut cfg = query_config.clone();
+    cfg.target_partitions = disk_capped_partitions;
+    let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, global_pool, &cfg) {
+        cfg.target_partitions = budget.target_partitions;
+        cfg.batch_size = budget.batch_size;
+        let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
+        let estimated_batch_bytes = if budget.phantom_bytes > 0 && batches_in_pipeline > 0 {
+            budget.phantom_bytes / batches_in_pipeline
+        } else {
+            cfg.batch_size * 100 // fallback
+        };
+        let corrector = Arc::new(PhantomCorrector::new_from_metadata(
+            budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
+        ));
+        query_context.set_phantom_reservation(budget.phantom_reservation);
+        Some(query_context.set_phantom_corrector(corrector))
+    } else {
+        None
+    };
+    (Arc::new(cfg), corrector)
+}
+
 fn try_acquire_budget_from_cache(
     shard_view: &ShardView,
     runtime: &DataFusionRuntime,
-    pool: &Arc<dyn datafusion::execution::memory_pool::MemoryPool>,
-    config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    pool: &Arc<dyn MemoryPool>,
+    config: &DatafusionQueryConfig,
 ) -> Option<crate::query_budget::QueryMemoryBudget> {
     use datafusion::execution::cache::CacheAccessor;
     use parquet::arrow::parquet_to_arrow_schema;
@@ -1265,8 +1342,42 @@ fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
 /// # Safety
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
-    if stream_ptr != 0 {
-        let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    if stream_ptr == 0 {
+        return;
+    }
+    let mut handle = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    let context_id = handle._query_tracking_context.context_id();
+    // Grab the CPU runtime handle BEFORE drop — drop removes the tracker from
+    // the registry, making it unreachable for flush_cpu_runtime.
+    let cpu_rt_handle = query_tracker::take_cpu_runtime_handle(context_id);
+    // Dropping the handle aborts the CPU task but does not wait for it; on the coordinator-reduce
+    // path that task still holds Java-borrowed input batches. Wait for it to fully unwind (signal
+    // fires once its batches drop) before returning, so the caller's allocator close is safe.
+    let task_done = handle.task_done.take();
+    drop(handle);
+    if let Some(rx) = task_done {
+        if let Some(mgr) = crate::ffm::try_get_rt_manager() {
+            // Already aborted, so this resolves as soon as the task unwinds; 30s is a backstop
+            // against a wedged task hanging the reduce thread. If it fires we proceed anyway and
+            // may leak the borrow — log it so a recurring timeout is visible rather than silent.
+            let timed_out = mgr
+                .io_runtime
+                .block_on(async { tokio::time::timeout(std::time::Duration::from_secs(30), rx).await })
+                .is_err();
+            if timed_out {
+                native_bridge_common::log_error!(
+                    "stream_close: timed out after 30s waiting for the reduce CPU task to release \
+                     borrowed buffers; proceeding with allocator close (possible leak)"
+                );
+            }
+        }
+    }
+    // After dropping the QueryStreamHandle (which drops CrossRtStream → JoinSet →
+    // aborts the CPU task), flush the runtime so the cascading abort of
+    // pull_from_input tasks (holding GroupValues buffers) is processed now rather
+    // than lingering in tokio's deferred drop queue on an idle runtime.
+    if let Some(rt) = cpu_rt_handle {
+        query_tracker::flush_cpu_runtime_with_handle(&rt, context_id);
     }
 }
 
@@ -1289,7 +1400,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
+    use datafusion::execution::cache::cache_manager::CachedFileList;
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -1309,21 +1420,7 @@ pub unsafe fn sql_to_substrait(
             },
             CachedFileList::new(object_metas.as_ref().clone()),
         );
-        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-            .with_cache_manager(
-                CacheManagerConfig::default()
-                    .with_list_files_cache(Some(list_file_cache))
-                    .with_file_metadata_cache(Some(
-                        runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                    ))
-                    .with_metadata_cache_limit(
-                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                    )
-                    .with_file_statistics_cache(
-                        runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                    ),
-            )
-            .build()?;
+        let runtime_env = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
 
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())
@@ -1462,12 +1559,14 @@ fn derive_schema_from_partial_plan(
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
-    // Engine-native-merge (HLL): Partial has Binary fields that differ from the top (Int64).
-    // Use Partial schema + Root.names so coordinator sees the correct Binary wire type.
-    // All other plans: use top schema directly (matches main behavior).
+    // Engine-native-merge: Partial state types differ from Final output (Binary HLL sketches,
+    // or List state for sub-32-bit bitmap accumulators). Use Partial schema + Root.names so
+    // the coordinator sees the correct wire type.
     if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
-        let has_binary = partial_schema.fields().iter().any(|f| matches!(f.data_type(), arrow::datatypes::DataType::Binary));
-        if has_binary && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+        let has_nontrivial_state = partial_schema.fields().iter().any(|f| {
+            matches!(f.data_type(), arrow::datatypes::DataType::Binary | arrow::datatypes::DataType::List(_))
+        });
+        if has_nontrivial_state && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
             use arrow::datatypes::{Field, Schema};
             let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
             let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())
@@ -1725,7 +1824,7 @@ pub async unsafe fn execute_local_plan(
     // a `cancel_query(context_id)` call from Java interrupts even before the
     // first batch is produced (planning, from_substrait_plan, repartition
     // setup, etc. can all take non-trivial time on a wide reduce).
-    let df_stream = cancellation::cancellable(
+    let (df_stream, physical_plan) = cancellation::cancellable(
         token.as_ref(),
         context_id,
         session.execute_substrait(substrait_bytes),
@@ -1737,14 +1836,18 @@ pub async unsafe fn execute_local_plan(
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
-    let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
+    let cpu_exec = manager.cpu_executor();
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Reduce path: cancel via the token only, do NOT register the abort handle — an abort() mid-send
+    // would skip the cross_rt drop+drain cleanup and leak the aggregate's in-flight GroupValues.
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Attach the teardown signal so stream_close releases borrowed input batches before allocator close.
+    let handle = QueryStreamHandle::new_with_plan(wrapped, query_context, permit, physical_plan).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1773,6 +1876,7 @@ pub unsafe fn execute_local_prepared_plan(
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    let token = query_tracker::get_cancellation_token(context_id);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
     // stream channels that require a Tokio reactor. Enter the IO runtime's
@@ -1780,14 +1884,17 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let (cross_rt_stream, abort_handle) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
-    if let Some(h) = abort_handle {
-        query_tracker::set_abort_handle(context_id, h);
+    let cpu_exec = manager.cpu_executor();
+    let (cross_rt_stream, _abort_handle, task_done) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+    // Prepared-reduce path: same as execute_local_plan — token-only cancel, no abort handle.
+    if let Some(rt) = cpu_exec.handle() {
+        query_tracker::set_cpu_runtime_handle(context_id, rt);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Same teardown signal as execute_local_plan.
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1834,9 +1941,10 @@ pub unsafe fn sender_send(
     array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
-    let batch = RecordBatch::from(struct_array);
-
-    Ok(sender.send_blocking(Ok(batch), io_handle))
+    // Zero-copy: from_ffi BORROWS the Java buffers, keeping them alive until DataFusion drops the
+    // batch. stream_close's teardown barrier releases that borrow before the allocator closes.
+    let borrowed_batch = RecordBatch::from(struct_array);
+    Ok(sender.send_blocking(Ok(borrowed_batch), io_handle))
 }
 
 /// Closes a partition stream sender. Dropping the sender closes the mpsc,
@@ -1906,11 +2014,10 @@ mod tests {
     #[test]
     fn create_global_runtime_with_spill_dir_enables_disk_manager() {
         // Non-empty spill_dir takes the Directories(...) path. tmp_files_enabled() must
-        // be true so spill attempts succeed. Passing spill_limit=0 also exercises the
-        // dynamic-limit resolver (resolve_dynamic_spill_limit + set_spill_dir). The
-        // budget must NOT be Disabled — set_spill_dir flips SPILL_ENABLED on. Whether
-        // it's Available or Critical depends on the test host's free disk; both prove
-        // the enabled-path branch is taken.
+        // be true so spill attempts succeed. The budget must NOT be Disabled —
+        // set_spill_dir flips SPILL_ENABLED on. Whether it's Available or Critical
+        // depends on the test host's free disk; both prove the enabled-path branch
+        // is taken.
         //
         // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
         // file in the directory before the call and assert it's gone after.
@@ -1923,7 +2030,7 @@ mod tests {
         fs::write(&sentinel, b"stale spill data").expect("seed sentinel");
         assert!(sentinel.exists(), "sentinel must exist before runtime build");
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
@@ -1938,6 +2045,11 @@ mod tests {
         assert!(
             runtime.runtime_env.disk_manager.tmp_files_enabled(),
             "expected DiskManagerMode::Directories when spill_dir is set"
+        );
+        assert_eq!(
+            runtime.runtime_env.disk_manager.max_temp_directory_size(),
+            1024 * 1024 * 1024,
+            "DiskManager cap must equal the positive spill_limit passed in"
         );
         assert_ne!(
             crate::memory_guard::per_query_spill_budget(),
@@ -1975,7 +2087,7 @@ mod tests {
         assert!(top_file.exists());
         assert!(nested_file.exists());
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1: original names gone (renamed to *.stale).
