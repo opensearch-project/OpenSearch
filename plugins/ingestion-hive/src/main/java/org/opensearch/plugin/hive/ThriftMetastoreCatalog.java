@@ -32,6 +32,8 @@ import org.opensearch.secure_sm.AccessController;
 import javax.security.sasl.SaslException;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.List;
@@ -131,26 +133,28 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
         return new PartitionInfo(p.getValues(), p.getSd().getLocation(), p.getCreateTime());
     }
 
-    private void connectInternal() throws TTransportException {
-        String uri = config.getMetastoreUri().replace("thrift://", "");
-        String[] hostPort = uri.split(":");
-        if (hostPort.length != 2 || hostPort[0].isEmpty()) {
-            throw new TTransportException("Invalid metastore URI [" + config.getMetastoreUri() + "]. Expected format: thrift://host:port");
-        }
-        String host = hostPort[0];
-        int port;
+    /**
+     * Parses and validates a metastore URI of the form thrift://host:port.
+     * URI.getHost() is null for malformed authorities (empty host, non-numeric
+     * port, unbracketed IPv6), so those are rejected as well.
+     */
+    static URI parseMetastoreUri(String metastoreUri) throws TTransportException {
+        URI parsed;
         try {
-            port = Integer.parseInt(hostPort[1]);
-        } catch (NumberFormatException e) {
-            throw new TTransportException(
-                "Invalid port ["
-                    + hostPort[1]
-                    + "] in metastore URI ["
-                    + config.getMetastoreUri()
-                    + "]. "
-                    + "Expected format: thrift://host:port"
-            );
+            parsed = new URI(metastoreUri);
+        } catch (URISyntaxException e) {
+            throw new TTransportException("Invalid metastore URI [" + metastoreUri + "]. Expected format: thrift://host:port");
         }
+        if ("thrift".equalsIgnoreCase(parsed.getScheme()) == false || parsed.getHost() == null || parsed.getPort() == -1) {
+            throw new TTransportException("Invalid metastore URI [" + metastoreUri + "]. Expected format: thrift://host:port");
+        }
+        return parsed;
+    }
+
+    private void connectInternal() throws TTransportException {
+        URI parsed = parseMetastoreUri(config.getMetastoreUri());
+        String host = parsed.getHost();
+        int port = parsed.getPort();
 
         if (config.getAuthMode() == HiveSourceConfig.AuthMode.KERBEROS) {
             loginWithKerberos();

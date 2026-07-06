@@ -35,7 +35,26 @@ public class ThriftMetastoreCatalogTests extends OpenSearchTestCase {
     }
 
     public void testConnectRejectsNonNumericPort() {
+        // java.net.URI treats an authority with a non-numeric port as having no
+        // host, so this fails the same host/port validation as the other cases.
         IOException e = expectThrows(IOException.class, () -> createCatalog("thrift://host:port").connect());
-        assertTrue(e.getMessage(), e.getMessage().contains("Invalid port"));
+        assertTrue(e.getMessage(), e.getMessage().contains("Expected format: thrift://host:port"));
+    }
+
+    public void testConnectRejectsWrongScheme() {
+        IOException e = expectThrows(IOException.class, () -> createCatalog("http://host:9083").connect());
+        assertTrue(e.getMessage(), e.getMessage().contains("Expected format: thrift://host:port"));
+    }
+
+    public void testParseMetastoreUriAcceptsHostPort() throws Exception {
+        java.net.URI parsed = ThriftMetastoreCatalog.parseMetastoreUri("thrift://metastore-host:9083");
+        assertEquals("metastore-host", parsed.getHost());
+        assertEquals(9083, parsed.getPort());
+    }
+
+    public void testParseMetastoreUriAcceptsIpv6Literal() throws Exception {
+        java.net.URI parsed = ThriftMetastoreCatalog.parseMetastoreUri("thrift://[::1]:9083");
+        assertEquals("[::1]", parsed.getHost());
+        assertEquals(9083, parsed.getPort());
     }
 }
