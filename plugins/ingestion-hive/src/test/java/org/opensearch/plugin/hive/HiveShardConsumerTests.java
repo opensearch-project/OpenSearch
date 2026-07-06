@@ -471,6 +471,114 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         consumer.lastMetastoreQueryTime = System.currentTimeMillis();
     }
 
+    public void testLatestResetRecordsMetastoreQueryTime() throws Exception {
+        HiveShardConsumer consumer = createConsumer();
+        consumer.partitionKeys = List.of("dt");
+
+        final int[] getAllCalls = { 0 };
+        MetastoreCatalog countingCatalog = new MetastoreCatalog() {
+            @Override
+            public void connect() {}
+
+            @Override
+            public void reconnect() {}
+
+            @Override
+            public TableInfo getTableInfo(String database, String table) {
+                return null;
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getAllPartitions(String database, String table) {
+                getAllCalls[0]++;
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getPartitionsByFilter(String database, String table, String filter) {
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public void close() {}
+        };
+        injectCatalog(consumer, countingCatalog);
+
+        HivePointer latest = new HivePointer("__LATEST__", "", 0, 0);
+        List<?> batch = consumer.readNext(latest, true, 10, 1000);
+
+        assertTrue(batch.isEmpty());
+        assertTrue("latest reset must record the metastore query time", consumer.lastMetastoreQueryTime > 0);
+        assertEquals("the read after a latest reset must not immediately re-query the metastore", 1, getAllCalls[0]);
+    }
+
+    public void testSeekResetsStaleWatermarkPartitionTime() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("partition_order", "partition-time");
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        List<Map<String, Object>> fileRows = List.of(Map.of("id", 0), Map.of("id", 1));
+        HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config) {
+            @Override
+            List<String> listDataFiles(String location) {
+                return List.of("/p/f0.parquet");
+            }
+
+            @Override
+            HiveFileReader createFileReader(String filePath) {
+                return new HiveFileReader() {
+                    private int next = 0;
+
+                    @Override
+                    public Map<String, Object> readNext() {
+                        return next < fileRows.size() ? fileRows.get(next++) : null;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+        };
+        consumer.partitionKeys = List.of("dt");
+        MetastoreCatalog catalog = new MetastoreCatalog() {
+            @Override
+            public void connect() {}
+
+            @Override
+            public void reconnect() {}
+
+            @Override
+            public TableInfo getTableInfo(String database, String table) {
+                return null;
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getAllPartitions(String database, String table) {
+                return new ArrayList<>(List.of(new PartitionInfo(List.of("2024-01-01"), "/p", 100)));
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getPartitionsByFilter(String database, String table, String filter) {
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public void close() {}
+        };
+        injectCatalog(consumer, catalog);
+
+        // Simulate a framework retry on a consumer whose watermark already advanced
+        // to the target partition's time (the partition had completed before the retry).
+        consumer.watermarkPartitionTime = "2024-01-01";
+
+        List<?> batch = consumer.readNext(new HivePointer("dt=2024-01-01", "/p/f0.parquet", 0, 0), true, 10, 1000);
+
+        assertEquals("seek must re-discover the target partition despite the stale watermark", 2, batch.size());
+    }
+
     public void testPointerBasedLagIsUnknownBeforeFirstDiscovery() {
         HiveShardConsumer consumer = createConsumer();
         assertEquals(-1L, consumer.getPointerBasedLag(null));

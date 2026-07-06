@@ -170,8 +170,7 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
                 .get();
             return state.getShardStates().length == 1
                 && state.getFailedShards() == 0
-                && Arrays.stream(state.getShardStates())
-                    .allMatch(s -> s.isPollerPaused() && s.getPollerState().equalsIgnoreCase("paused"));
+                && Arrays.stream(state.getShardStates()).allMatch(s -> s.isPollerPaused() && s.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // Add a new partition while paused

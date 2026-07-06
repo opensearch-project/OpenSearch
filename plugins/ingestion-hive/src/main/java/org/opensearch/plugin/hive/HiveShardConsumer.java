@@ -60,7 +60,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     // Partition tracking: watermark tracks the last fully-processed partition so that
     // incremental discovery only fetches partitions newer than the watermark.
     private String watermark;
-    private String watermarkPartitionTime;
+    String watermarkPartitionTime;
     private long watermarkCreateTime;
     long lastMetastoreQueryTime;
 
@@ -120,13 +120,20 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 watermarkCreateTime = existing.stream().mapToInt(MetastoreCatalog.PartitionInfo::getCreateTime).max().orElse(0);
             }
             sequenceNumber = 0;
+            // The metastore was just queried above; record it so the next read
+            // honors the monitor interval instead of immediately re-querying.
+            lastMetastoreQueryTime = System.currentTimeMillis();
             logger.info("Shard {} reset to latest, skipping {} existing partitions", shardId, existing.size());
             return;
         }
 
         // Set watermark to the pointer's partition and use inclusive filter so that
         // discoverNewPartitions fetches this partition and everything after it.
+        // All three watermark variants must be reset; a stale watermarkPartitionTime
+        // would exclude the target partition from the discovery below in
+        // partition-time mode and silently skip the rows being retried.
         this.watermark = pointer.getPartitionName();
+        this.watermarkPartitionTime = "";
         this.watermarkCreateTime = 0;
         this.sequenceNumber = includeStart ? pointer.getSequenceNumber() : pointer.getSequenceNumber() + 1;
         this.pendingWork = new ArrayList<>();
@@ -525,7 +532,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
     }
 
-    private List<String> listDataFiles(String location) throws IOException {
+    List<String> listDataFiles(String location) throws IOException {
         Path path = new Path(location);
         ClassLoader original = Thread.currentThread().getContextClassLoader();
         try {
