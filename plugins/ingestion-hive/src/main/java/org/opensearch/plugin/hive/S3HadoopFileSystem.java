@@ -228,6 +228,12 @@ public class S3HadoopFileSystem extends FileSystem {
 
         private void openStream() {
             if (stream != null) return;
+            if (pos >= contentLength) {
+                // At or past EOF: a range like "bytes=N-(N-1)" is invalid and S3
+                // rejects it with 416 instead of signaling EOF. Leave the stream
+                // unopened; the read methods report EOF when the stream is null.
+                return;
+            }
             String range = "bytes=" + pos + "-" + (contentLength - 1);
             stream = s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).range(range).build());
         }
@@ -235,6 +241,7 @@ public class S3HadoopFileSystem extends FileSystem {
         @Override
         public int read() throws IOException {
             openStream();
+            if (stream == null) return -1;
             int b = stream.read();
             if (b >= 0) pos++;
             return b;
@@ -242,7 +249,9 @@ public class S3HadoopFileSystem extends FileSystem {
 
         @Override
         public int read(byte[] buf, int off, int len) throws IOException {
+            if (len == 0) return 0;
             openStream();
+            if (stream == null) return -1;
             int n = stream.read(buf, off, len);
             if (n > 0) pos += n;
             return n;

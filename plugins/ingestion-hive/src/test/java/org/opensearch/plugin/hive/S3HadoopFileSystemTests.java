@@ -10,6 +10,7 @@ package org.opensearch.plugin.hive;
 
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -17,6 +18,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.opensearch.test.OpenSearchTestCase;
@@ -27,6 +29,8 @@ import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class S3HadoopFileSystemTests extends OpenSearchTestCase {
@@ -89,5 +93,30 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
 
         IOException e = expectThrows(IOException.class, () -> fileSystem.getFileStatus(new Path("s3://bucket/data/file.parquet")));
         assertTrue(e.getMessage(), e.getMessage().contains("Failed to get status"));
+    }
+
+    public void testSequentialReadAtEofReturnsEofWithoutS3Call() throws Exception {
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().contentLength(10L).build());
+
+        try (FSDataInputStream in = fileSystem.open(new Path("s3://bucket/data/file.parquet"), 4096)) {
+            in.seek(10);
+            assertEquals(-1, in.read());
+            byte[] buf = new byte[8];
+            assertEquals(-1, in.read(buf, 0, buf.length));
+        }
+
+        // A range like "bytes=10-9" would be rejected by S3 with 416; EOF must be
+        // reported without issuing any getObject call.
+        verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    public void testSequentialReadOfEmptyObjectReturnsEof() throws Exception {
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().contentLength(0L).build());
+
+        try (FSDataInputStream in = fileSystem.open(new Path("s3://bucket/data/empty.parquet"), 4096)) {
+            assertEquals(-1, in.read());
+        }
+
+        verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
 }
