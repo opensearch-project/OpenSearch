@@ -72,6 +72,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private HiveFileReader currentFileReader;
     private String currentFile;
     private long currentRowIndex;
+    // Row to skip to when reopening the current file after a transient read failure.
+    private long resumeRowIndex;
     private long sequenceNumber;
     private boolean seekInclusive;
 
@@ -108,6 +110,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * correct file and row.
      */
     private void seekToPointer(HivePointer pointer, boolean includeStart) throws Exception {
+        resumeRowIndex = 0;
         // Handle "latest" reset: skip all existing partitions, only read new ones
         if (LATEST_PARTITION_SENTINEL.equals(pointer.getPartitionName())) {
             List<MetastoreCatalog.PartitionInfo> existing = catalog.getAllPartitions(config.getDatabase(), config.getTable());
@@ -262,10 +265,13 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         } catch (IOException e) {
             logger.warn("IO error for shard {}, attempting recovery: {}", shardId, e.getMessage());
             try {
-                closeCurrentReader();
+                if (currentFileReader != null) {
+                    prepareCurrentFileResume();
+                }
                 reconnectMetastore();
                 return action.execute();
             } catch (Exception retryEx) {
+                retryEx.addSuppressed(e);
                 throw new RuntimeException("Read failure for shard " + shardId + " after retry", retryEx);
             }
         } catch (Exception e) {
@@ -309,7 +315,22 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         List<ReadResult<HivePointer, HiveMessage>> results = new ArrayList<>();
         long count = 0;
         while (count < maxMessages) {
-            Map<String, Object> row = currentFileReader.readNext();
+            Map<String, Object> row;
+            try {
+                row = currentFileReader.readNext();
+            } catch (IOException e) {
+                // Return the rows already read so nothing is lost, and arrange for the
+                // next call to reopen this file and continue from the current row.
+                logger.warn(
+                    "Transient read failure on shard {} file {} at row {}; returning partial batch and resuming from this position",
+                    shardId,
+                    currentFile,
+                    currentRowIndex,
+                    e
+                );
+                prepareCurrentFileResume();
+                return results;
+            }
             if (row == null) {
                 // Current file exhausted, try the next file
                 closeCurrentReader();
@@ -432,8 +453,23 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             if (work.currentFileIndex < work.files.size()) {
                 // More files in current partition: open the next one
                 currentFile = work.files.get(work.currentFileIndex);
-                currentRowIndex = 0;
                 currentFileReader = createFileReader(currentFile);
+                if (resumeRowIndex > 0) {
+                    // Reopening after a transient failure: skip the rows that were
+                    // already delivered from this file.
+                    try {
+                        for (long r = 0; r < resumeRowIndex; r++) {
+                            if (currentFileReader.readNext() == null) break;
+                        }
+                    } catch (IOException e) {
+                        closeCurrentReader();
+                        throw e;
+                    }
+                    currentRowIndex = resumeRowIndex;
+                    resumeRowIndex = 0;
+                } else {
+                    currentRowIndex = 0;
+                }
                 work.currentFileIndex++;
                 return true;
             } else {
@@ -453,11 +489,27 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Creates a file reader based on the table's input format.
      * Currently supports Parquet. Additional formats (ORC, Avro, etc.) can be added here.
      */
-    private HiveFileReader createFileReader(String filePath) throws IOException {
+    HiveFileReader createFileReader(String filePath) throws IOException {
         if (tableInputFormat != null && tableInputFormat.toLowerCase(Locale.ROOT).contains("parquet")) {
             return new ParquetHiveFileReader(filePath, hadoopConf, tableSchema);
         }
         throw new IOException("Unsupported input format: " + tableInputFormat);
+    }
+
+    /**
+     * Prepares to resume the file that was being read when a transient failure occurred:
+     * closes the reader, re-queues the file, and remembers the next undelivered row so
+     * that openNextFile reopens the same file and skips the rows already delivered.
+     */
+    private void prepareCurrentFileResume() {
+        closeCurrentReader();
+        if (currentWorkIndex < pendingWork.size()) {
+            PartitionWork work = pendingWork.get(currentWorkIndex);
+            if (work.currentFileIndex > 0) {
+                work.currentFileIndex--;
+                resumeRowIndex = currentRowIndex;
+            }
+        }
     }
 
     private void closeCurrentReader() {

@@ -343,4 +343,139 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         String filter = consumer.buildPartitionFilter("dt=va\"lue", false);
         assertEquals("(dt > 'va\"lue')", filter);
     }
+
+    public void testTransientReadFailureResumesSameFileWithoutLossOrDuplicates() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        List<Map<String, Object>> fileRows = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            fileRows.add(Map.of("id", i));
+        }
+
+        // First reader delivers two rows then fails; the second reader replays the whole file.
+        List<HiveFileReader> readers = new ArrayList<>();
+        HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config) {
+            @Override
+            HiveFileReader createFileReader(String filePath) {
+                boolean failing = readers.isEmpty();
+                HiveFileReader reader = new HiveFileReader() {
+                    private int next = 0;
+
+                    @Override
+                    public Map<String, Object> readNext() throws IOException {
+                        if (failing && next == 2) {
+                            throw new IOException("transient read failure");
+                        }
+                        return next < fileRows.size() ? fileRows.get(next++) : null;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+                readers.add(reader);
+                return reader;
+            }
+        };
+        consumer.partitionKeys = List.of("dt");
+        consumer.pendingWork.add(new HiveShardConsumer.PartitionWork("dt=2024-01-01", "", List.of("/p/f0.parquet"), 100));
+        consumer.currentWorkIndex = 0;
+        injectCatalog(consumer, noopCatalog(false));
+        setLastMetastoreQueryTime(consumer);
+
+        List<?> firstBatch = consumer.readNext(10, 1000);
+        assertEquals("rows read before the failure must be delivered", 2, firstBatch.size());
+
+        List<?> secondBatch = consumer.readNext(10, 1000);
+        assertEquals("remaining rows must be delivered after resume", 3, secondBatch.size());
+
+        assertEquals("failed file must be reopened exactly once", 2, readers.size());
+        List<Long> rowIndexes = new ArrayList<>();
+        for (Object r : firstBatch) {
+            rowIndexes.add(
+                ((org.opensearch.index.IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>) r).getPointer().getRowIndex()
+            );
+        }
+        for (Object r : secondBatch) {
+            rowIndexes.add(
+                ((org.opensearch.index.IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>) r).getPointer().getRowIndex()
+            );
+        }
+        assertEquals("no gaps and no duplicates across the failure", List.of(0L, 1L, 2L, 3L, 4L), rowIndexes);
+    }
+
+    public void testRetryFailureKeepsOriginalExceptionAsSuppressed() throws Exception {
+        HiveShardConsumer consumer = new HiveShardConsumer("test", 0, createConfig()) {
+            @Override
+            HiveFileReader createFileReader(String filePath) throws IOException {
+                throw new IOException("file open failed");
+            }
+        };
+        consumer.partitionKeys = List.of("dt");
+        consumer.pendingWork.add(new HiveShardConsumer.PartitionWork("dt=2024-01-01", "", List.of("/p/f0.parquet"), 100));
+        consumer.currentWorkIndex = 0;
+        injectCatalog(consumer, noopCatalog(true));
+        setLastMetastoreQueryTime(consumer);
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> consumer.readNext(10, 1000));
+        Throwable retryFailure = ex.getCause();
+        assertNotNull(retryFailure);
+        assertEquals("original failure must be preserved as suppressed", 1, retryFailure.getSuppressed().length);
+        assertTrue(retryFailure.getSuppressed()[0] instanceof IOException);
+    }
+
+    private static HiveSourceConfig createConfig() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        return new HiveSourceConfig(params, 1);
+    }
+
+    private static MetastoreCatalog noopCatalog(final boolean failOnReconnect) {
+        return new MetastoreCatalog() {
+            @Override
+            public void connect() {}
+
+            @Override
+            public void reconnect() throws IOException {
+                if (failOnReconnect) {
+                    throw new IOException("reconnect failed");
+                }
+            }
+
+            @Override
+            public TableInfo getTableInfo(String database, String table) {
+                return null;
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getAllPartitions(String database, String table) {
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public java.util.List<PartitionInfo> getPartitionsByFilter(String database, String table, String filter) {
+                return java.util.Collections.emptyList();
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    private static void injectCatalog(HiveShardConsumer consumer, MetastoreCatalog catalog) throws Exception {
+        java.lang.reflect.Field f = HiveShardConsumer.class.getDeclaredField("catalog");
+        f.setAccessible(true);
+        f.set(consumer, catalog);
+    }
+
+    private static void setLastMetastoreQueryTime(HiveShardConsumer consumer) throws Exception {
+        java.lang.reflect.Field f = HiveShardConsumer.class.getDeclaredField("lastMetastoreQueryTime");
+        f.setAccessible(true);
+        f.setLong(consumer, System.currentTimeMillis());
+    }
 }
