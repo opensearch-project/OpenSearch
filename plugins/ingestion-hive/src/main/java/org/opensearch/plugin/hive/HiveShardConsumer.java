@@ -666,7 +666,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     @Override
     public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
-        if (pendingWork == null) return 0;
+        if (pendingWork == null || lastMetastoreQueryTime == 0) {
+            // The framework treats -1 as "lag unknown"; 0 would mean fully caught up
+            // and could complete warmup prematurely before the first discovery runs.
+            return -1;
+        }
         return pendingWork.size() - currentWorkIndex;
     }
 

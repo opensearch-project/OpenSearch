@@ -478,4 +478,19 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         f.setAccessible(true);
         f.setLong(consumer, System.currentTimeMillis());
     }
+
+    public void testPointerBasedLagIsUnknownBeforeFirstDiscovery() {
+        HiveShardConsumer consumer = createConsumer();
+        assertEquals(-1L, consumer.getPointerBasedLag(null));
+    }
+
+    public void testPointerBasedLagCountsRemainingPartitionsAfterDiscovery() throws Exception {
+        HiveShardConsumer consumer = createConsumer();
+        consumer.pendingWork.add(new HiveShardConsumer.PartitionWork("dt=2024-01-01", "", List.of("/p/f0.parquet"), 100));
+        consumer.pendingWork.add(new HiveShardConsumer.PartitionWork("dt=2024-01-02", "", List.of("/p/f1.parquet"), 101));
+        consumer.currentWorkIndex = 0;
+        setLastMetastoreQueryTime(consumer);
+
+        assertEquals(2L, consumer.getPointerBasedLag(null));
+    }
 }
