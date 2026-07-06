@@ -13,6 +13,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IngestionShardPointer;
@@ -92,7 +94,13 @@ public class HivePointer implements IngestionShardPointer {
      * @return the deserialized HivePointer
      */
     public static HivePointer fromString(String s) {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, s)) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                s
+            )
+        ) {
             String partition = null;
             String file = null;
             long row = 0;

@@ -65,7 +65,6 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
 
     private static final String DATABASE = "test_db";
     private static final String TABLE_NAME = "events";
-    private static final String WAREHOUSE_CONTAINER_PATH = "/opt/hive/data/warehouse";
 
     private static final MessageType PARQUET_SCHEMA = MessageTypeParser.parseMessageType("""
         message events {
