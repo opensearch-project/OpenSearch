@@ -9,6 +9,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::parquet_page_cache::is_scoped_page_index_enabled;
 use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
 use datafusion::execution::cache::cache_manager::{
     CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
@@ -16,9 +17,8 @@ use datafusion::execution::cache::cache_manager::{
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::cache::DefaultFilesMetadataCache;
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use object_store::path::Path;
 use native_bridge_common::log_error;
-use crate::parquet_page_cache::is_scoped_page_index_enabled;
+use object_store::path::Path;
 
 // Cache type constants
 pub const CACHE_TYPE_METADATA: &str = "METADATA";
@@ -297,14 +297,20 @@ mod strip_page_index_tests {
     fn put_strips_page_index_and_get_returns_footer_only() {
         let bytes = parquet_with_page_index();
         let entry = full_index_entry(&bytes);
-        assert!(page_index_present(&entry), "precondition: entry has page index");
+        assert!(
+            page_index_present(&entry),
+            "precondition: entry has page index"
+        );
 
         let cache = MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(64 * 1024 * 1024));
         let key = Path::from("data.parquet");
         cache.put(&key, entry);
 
         let got = cache.get(&key).expect("entry must be retrievable");
-        assert!(!page_index_present(&got), "cached entry must be footer-only after put");
+        assert!(
+            !page_index_present(&got),
+            "cached entry must be footer-only after put"
+        );
         let cached = got
             .file_metadata
             .as_any()
@@ -312,7 +318,10 @@ mod strip_page_index_tests {
             .unwrap();
         let m = cached.parquet_metadata();
         assert!(m.num_row_groups() > 0);
-        assert!(m.row_group(0).column(0).statistics().is_some(), "footer stats must survive");
+        assert!(
+            m.row_group(0).column(0).statistics().is_some(),
+            "footer stats must survive"
+        );
     }
 
     #[test]

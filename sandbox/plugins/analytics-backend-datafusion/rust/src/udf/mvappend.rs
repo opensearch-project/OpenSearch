@@ -39,8 +39,8 @@ use datafusion::arrow::array::{
     Float32Array, Float32Builder, Float64Array, Float64Builder, GenericListArray, Int16Array,
     Int16Builder, Int32Array, Int32Builder, Int64Array, Int64Builder, Int8Array, Int8Builder,
     ListArray, ListBuilder, StringArray, StringBuilder, StringViewArray, StringViewBuilder,
-    UInt16Array, UInt16Builder, UInt32Array, UInt32Builder, UInt64Array, UInt64Builder,
-    UInt8Array, UInt8Builder,
+    UInt16Array, UInt16Builder, UInt32Array, UInt32Builder, UInt64Array, UInt64Builder, UInt8Array,
+    UInt8Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::plan_err;
@@ -88,8 +88,11 @@ impl ScalarUDFImpl for MvappendUdf {
         }
         // Java adapter pre-coerces every operand to either ARRAY<E> or E for a
         // single E. Use whichever element type we see first.
-        let element_type = element_type(arg_types)
-            .ok_or_else(|| DataFusionError::Plan("mvappend: unable to determine element type from operand types".to_string()))?;
+        let element_type = element_type(arg_types).ok_or_else(|| {
+            DataFusionError::Plan(
+                "mvappend: unable to determine element type from operand types".to_string(),
+            )
+        })?;
         Ok(DataType::List(Arc::new(Field::new(
             "item",
             element_type,
@@ -109,8 +112,16 @@ impl ScalarUDFImpl for MvappendUdf {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let n = args.number_rows;
-        let element_type = element_type(&args.arg_fields.iter().map(|f| f.data_type().clone()).collect::<Vec<_>>())
-            .ok_or_else(|| DataFusionError::Internal("mvappend: lost element type at invoke".to_string()))?;
+        let element_type = element_type(
+            &args
+                .arg_fields
+                .iter()
+                .map(|f| f.data_type().clone())
+                .collect::<Vec<_>>(),
+        )
+        .ok_or_else(|| {
+            DataFusionError::Internal("mvappend: lost element type at invoke".to_string())
+        })?;
 
         // Materialize each operand as an ArrayRef whose Arrow type is either
         // {element_type} or List<element_type>. Scalar operands replicate to n rows.
@@ -130,16 +141,17 @@ impl ScalarUDFImpl for MvappendUdf {
                         if arr.is_null(row) {
                             continue;
                         }
-                        if let Some(list_arr) = arr.as_any().downcast_ref::<GenericListArray<i32>>() {
+                        if let Some(list_arr) = arr.as_any().downcast_ref::<GenericListArray<i32>>()
+                        {
                             // Iterate elements of the list at this row.
                             let row_list = list_arr.value(row);
-                            let typed = row_list
-                                .as_any()
-                                .downcast_ref::<$Scalar>()
-                                .ok_or_else(|| DataFusionError::Internal(format!(
-                                    "mvappend: list element vector type mismatch ({:?})",
-                                    row_list.data_type()
-                                )))?;
+                            let typed =
+                                row_list.as_any().downcast_ref::<$Scalar>().ok_or_else(|| {
+                                    DataFusionError::Internal(format!(
+                                        "mvappend: list element vector type mismatch ({:?})",
+                                        row_list.data_type()
+                                    ))
+                                })?;
                             for i in 0..typed.len() {
                                 if !typed.is_null(i) {
                                     builder.values().append_value(typed.value(i));
@@ -185,7 +197,9 @@ impl ScalarUDFImpl for MvappendUdf {
             DataType::Decimal128(precision, scale) => {
                 let inner = Decimal128Builder::new()
                     .with_precision_and_scale(*precision, *scale)
-                    .map_err(|e| DataFusionError::Plan(format!("mvappend: decimal builder: {e}")))?;
+                    .map_err(|e| {
+                        DataFusionError::Plan(format!("mvappend: decimal builder: {e}"))
+                    })?;
                 let mut builder = ListBuilder::new(inner);
                 for row in 0..n {
                     let mut any_value = false;
@@ -193,15 +207,18 @@ impl ScalarUDFImpl for MvappendUdf {
                         if arr.is_null(row) {
                             continue;
                         }
-                        if let Some(list_arr) = arr.as_any().downcast_ref::<GenericListArray<i32>>() {
+                        if let Some(list_arr) = arr.as_any().downcast_ref::<GenericListArray<i32>>()
+                        {
                             let row_list = list_arr.value(row);
                             let typed = row_list
                                 .as_any()
                                 .downcast_ref::<Decimal128Array>()
-                                .ok_or_else(|| DataFusionError::Internal(format!(
-                                    "mvappend: list element vector type mismatch ({:?})",
-                                    row_list.data_type()
-                                )))?;
+                                .ok_or_else(|| {
+                                    DataFusionError::Internal(format!(
+                                        "mvappend: list element vector type mismatch ({:?})",
+                                        row_list.data_type()
+                                    ))
+                                })?;
                             for i in 0..typed.len() {
                                 if !typed.is_null(i) {
                                     builder.values().append_value(typed.value(i));
@@ -449,7 +466,10 @@ mod tests {
         }
         let inner = list.value(row);
         let typed = inner.as_primitive::<datafusion::arrow::datatypes::Int32Type>();
-        (0..typed.len()).filter(|i| !typed.is_null(*i)).map(|i| typed.value(i)).collect()
+        (0..typed.len())
+            .filter(|i| !typed.is_null(*i))
+            .map(|i| typed.value(i))
+            .collect()
     }
 
     #[test]

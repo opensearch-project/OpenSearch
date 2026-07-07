@@ -80,7 +80,7 @@ impl CacheKey {
             let range_part = &self.0[sep_pos + SEPARATOR.len_utf8()..];
             if let Some(dash_pos) = range_part.find('-') {
                 let start_str = &range_part[..dash_pos];
-                let end_str   = &range_part[dash_pos + 1..];
+                let end_str = &range_part[dash_pos + 1..];
                 if let (Ok(start), Ok(end)) = (start_str.parse::<u64>(), end_str.parse::<u64>()) {
                     return end.saturating_sub(start);
                 }
@@ -118,7 +118,7 @@ pub(crate) fn key_byte_size(raw_key: &str) -> i64 {
         let range_part = &raw_key[sep_pos + SEPARATOR.len_utf8()..];
         if let Some(dash_pos) = range_part.find('-') {
             let start_str = &range_part[..dash_pos];
-            let end_str   = &range_part[dash_pos + 1..];
+            let end_str = &range_part[dash_pos + 1..];
             if let (Ok(start), Ok(end)) = (start_str.parse::<u64>(), end_str.parse::<u64>()) {
                 return end.saturating_sub(start) as i64;
             }
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn range_keys_for_same_path_share_index_prefix() {
-        let k0 = range_cache_key("/data/file.parquet", 0,    4096);
+        let k0 = range_cache_key("/data/file.parquet", 0, 4096);
         let k1 = range_cache_key("/data/file.parquet", 4096, 8192);
         assert!(k0.as_str().starts_with("/data/file.parquet"));
         assert!(k1.as_str().starts_with("/data/file.parquet"));
@@ -278,5 +278,4 @@ mod tests {
         let key = range_cache_key("/data/file.parquet", 0, u64::MAX);
         assert_eq!(key.range_len(), u64::MAX);
     }
-
 }

@@ -73,7 +73,8 @@ impl CrossRtStream {
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
     ) -> Self {
-        let (cross_rt, _abort_handle, _done_rx) = Self::new_with_df_error_stream_cancellable(stream, exec, None);
+        let (cross_rt, _abort_handle, _done_rx) =
+            Self::new_with_df_error_stream_cancellable(stream, exec, None);
         cross_rt
     }
 
@@ -132,13 +133,12 @@ impl CrossRtStream {
                     JobError::Panic { msg } => {
                         DataFusionError::Execution(format!("Panic: {}", msg))
                     }
-                    JobError::WorkerGone => {
-                        DataFusionError::Execution("Worker gone".to_string())
-                    }
+                    JobError::WorkerGone => DataFusionError::Execution("Worker gone".to_string()),
                 };
                 tx.send(Err(err)).await.ok();
             }
-        }.boxed();
+        }
+        .boxed();
 
         let cross_rt = Self {
             driver,
@@ -322,12 +322,16 @@ mod tests {
             stream::iter(vec![Ok(test_batch(&[1, 2, 3]))]),
         ));
 
-        let (cross, _abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), None);
+        let (cross, _abort, done_rx) =
+            CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), None);
         let wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
         tokio::pin!(wrapped);
         while wrapped.next().await.is_some() {}
 
-        assert!(done_rx.await.is_ok(), "done_rx must fire once the spawned task fully drops");
+        assert!(
+            done_rx.await.is_ok(),
+            "done_rx must fire once the spawned task fully drops"
+        );
         exec.join_blocking();
     }
 
@@ -341,11 +345,14 @@ mod tests {
             stream::pending::<Result<RecordBatch, DataFusionError>>(),
         ));
 
-        let (cross, abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), None);
+        let (cross, abort, done_rx) =
+            CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), None);
         // Hold the stream so the abort, not a drop, is what ends the task.
         let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
 
-        abort.expect("cancellable constructor yields an abort handle").abort();
+        abort
+            .expect("cancellable constructor yields an abort handle")
+            .abort();
 
         let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
         assert!(fired.is_ok(), "done_rx must fire after the task is aborted");
@@ -365,16 +372,25 @@ mod tests {
         ));
 
         let token = CancellationToken::new();
-        let (cross, _abort, done_rx) =
-            CrossRtStream::new_with_df_error_stream_cancellable(inner, exec.clone(), Some(token.clone()));
+        let (cross, _abort, done_rx) = CrossRtStream::new_with_df_error_stream_cancellable(
+            inner,
+            exec.clone(),
+            Some(token.clone()),
+        );
         // Hold the stream so a consumer-side drop is NOT what ends the task — the token is.
         let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
 
         token.cancel();
 
         let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
-        assert!(fired.is_ok(), "cancelling the token must break the loop and fire done_rx");
-        assert!(fired.unwrap().is_ok(), "done_rx must complete, not be dropped");
+        assert!(
+            fired.is_ok(),
+            "cancelling the token must break the loop and fire done_rx"
+        );
+        assert!(
+            fired.unwrap().is_ok(),
+            "done_rx must complete, not be dropped"
+        );
         exec.join_blocking();
     }
 
@@ -385,7 +401,10 @@ mod tests {
         let exec = test_exec();
         let schema = test_schema();
         let batches = vec![Ok(test_batch(&[1, 2, 3])), Ok(test_batch(&[4, 5]))];
-        let inner = Box::pin(RecordBatchStreamAdapter::new(schema.clone(), stream::iter(batches)));
+        let inner = Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            stream::iter(batches),
+        ));
 
         let token = CancellationToken::new(); // never cancelled
         let (cross, _abort, done_rx) =
@@ -397,8 +416,14 @@ mod tests {
         while let Some(batch) = wrapped.next().await {
             total_rows += batch.unwrap().num_rows();
         }
-        assert_eq!(total_rows, 5, "all rows delivered when the token is never fired");
-        assert!(done_rx.await.is_ok(), "done_rx fires on normal drain even with a token present");
+        assert_eq!(
+            total_rows, 5,
+            "all rows delivered when the token is never fired"
+        );
+        assert!(
+            done_rx.await.is_ok(),
+            "done_rx fires on normal drain even with a token present"
+        );
         exec.join_blocking();
     }
 
@@ -420,7 +445,10 @@ mod tests {
         let _wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
 
         let fired = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx).await;
-        assert!(fired.is_ok(), "a pre-cancelled token must still terminate the task");
+        assert!(
+            fired.is_ok(),
+            "a pre-cancelled token must still terminate the task"
+        );
         exec.join_blocking();
     }
 }

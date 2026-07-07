@@ -140,10 +140,7 @@ fn gen_binary_predicate_expr(
     Arc::new(BinaryExpr::new(col_expr, op, lit_expr))
 }
 
-fn pick_literal_for(
-    rng: &mut StdRng,
-    dt: &datafusion::arrow::datatypes::DataType,
-) -> ScalarValue {
+fn pick_literal_for(rng: &mut StdRng, dt: &datafusion::arrow::datatypes::DataType) -> ScalarValue {
     use datafusion::arrow::datatypes::{DataType, TimeUnit};
     let strategy = rng.gen_range(0..100u32);
     match dt {
@@ -246,11 +243,12 @@ impl DelegatedBackendCollectorFactory for MockDelegatedBackendCollectorFactory {
         _doc_min: i32,
         _doc_max: i32,
     ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
-        let matching = self
-            .match_sets
-            .get(&provider_key)
-            .cloned()
-            .ok_or_else(|| format!("MockDelegatedBackend: no match-set for provider_key={}", provider_key))?;
+        let matching = self.match_sets.get(&provider_key).cloned().ok_or_else(|| {
+            format!(
+                "MockDelegatedBackend: no match-set for provider_key={}",
+                provider_key
+            )
+        })?;
         Ok(Arc::new(StaticBitsetCollector { matching }) as Arc<dyn RowGroupDocsCollector>)
     }
 }
@@ -298,9 +296,15 @@ fn compare_cell_lit_true(cell: &CellValue, op: Operator, lit: &ScalarValue) -> b
         };
     }
     let ord: Option<Ordering> = match (cell, lit) {
-        (CellValue::Utf8(c), ScalarValue::Utf8(l)) => Some(bail_unknown!(c).as_str().cmp(bail_unknown!(l).as_str())),
-        (CellValue::Int32(c), ScalarValue::Int32(l)) => Some(bail_unknown!(c).cmp(bail_unknown!(l))),
-        (CellValue::Int64(c), ScalarValue::Int64(l)) => Some(bail_unknown!(c).cmp(bail_unknown!(l))),
+        (CellValue::Utf8(c), ScalarValue::Utf8(l)) => {
+            Some(bail_unknown!(c).as_str().cmp(bail_unknown!(l).as_str()))
+        }
+        (CellValue::Int32(c), ScalarValue::Int32(l)) => {
+            Some(bail_unknown!(c).cmp(bail_unknown!(l)))
+        }
+        (CellValue::Int64(c), ScalarValue::Int64(l)) => {
+            Some(bail_unknown!(c).cmp(bail_unknown!(l)))
+        }
         (CellValue::Float64(c), ScalarValue::Float64(l)) => {
             let c = bail_unknown!(c);
             let l = bail_unknown!(l);
@@ -312,7 +316,9 @@ fn compare_cell_lit_true(cell: &CellValue, op: Operator, lit: &ScalarValue) -> b
         (CellValue::Boolean(c), ScalarValue::Boolean(l)) => {
             Some((*bail_unknown!(c) as i32).cmp(&(*bail_unknown!(l) as i32)))
         }
-        (CellValue::Date32(c), ScalarValue::Date32(l)) => Some(bail_unknown!(c).cmp(bail_unknown!(l))),
+        (CellValue::Date32(c), ScalarValue::Date32(l)) => {
+            Some(bail_unknown!(c).cmp(bail_unknown!(l)))
+        }
         (CellValue::TimestampNanos(c), ScalarValue::TimestampNanosecond(l, _)) => {
             Some(bail_unknown!(c).cmp(bail_unknown!(l)))
         }
@@ -450,8 +456,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         use datafusion::common::tree_node::TreeNode;
         let mut indices = std::collections::BTreeSet::new();
         let _ = residual_physical.apply(|node| {
-            if let Some(col) = node
-                .downcast_ref::<datafusion::physical_expr::expressions::Column>()
+            if let Some(col) = node.downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
             }

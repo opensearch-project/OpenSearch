@@ -639,10 +639,12 @@ impl ObjectStore for ErrorStore {
         &self,
         locations: BoxStream<'static, OsResult<Path>>,
     ) -> BoxStream<'static, OsResult<Path>> {
-        Box::pin(locations.map(|_| Err(object_store::Error::Generic {
-            store: "ErrorStore",
-            source: "simulated error".into(),
-        })))
+        Box::pin(locations.map(|_| {
+            Err(object_store::Error::Generic {
+                store: "ErrorStore",
+                source: "simulated error".into(),
+            })
+        }))
     }
 
     fn list(&self, _prefix: Option<&Path>) -> BoxStream<'static, OsResult<ObjectMeta>> {
@@ -696,11 +698,7 @@ fn test_register_file_remote_without_remote_path_returns_err() {
     let registry = Arc::new(TieredStorageRegistry::new());
     let local = Arc::new(InMemory::new());
     let tiered = TieredObjectStore::new(registry, local as _);
-    let result = tiered.register_file(
-        "/a.parquet",
-        FileLocation::Remote,
-        None,
-    );
+    let result = tiered.register_file("/a.parquet", FileLocation::Remote, None);
     assert!(result.is_err());
 }
 
@@ -904,7 +902,11 @@ async fn test_head_directory_path_returns_synthetic_when_registry_has_entries() 
     let (registry, _local, _remote, tiered) = setup();
 
     // Register a file so registry is non-empty
-    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/a.parquet")), 1024);
+    let entry = TieredFileEntry::with_size(
+        FileLocation::Remote,
+        Some(Arc::from("remote/a.parquet")),
+        1024,
+    );
     registry.register("data/parquet/a.parquet", entry);
 
     // head() on a directory path should return NotFound — DataFusion uses list()
@@ -912,20 +914,30 @@ async fn test_head_directory_path_returns_synthetic_when_registry_has_entries() 
     // DataFusion "this is not a file" and it proceeds to list().
     let result = tiered.head(&Path::from("data/parquet")).await;
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), object_store::Error::NotFound { .. }));
+    assert!(matches!(
+        result.unwrap_err(),
+        object_store::Error::NotFound { .. }
+    ));
 }
 
 #[tokio::test]
 async fn test_head_directory_path_with_trailing_slash() {
     let (registry, _local, _remote, tiered) = setup();
 
-    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/b.parquet")), 2048);
+    let entry = TieredFileEntry::with_size(
+        FileLocation::Remote,
+        Some(Arc::from("remote/b.parquet")),
+        2048,
+    );
     registry.register("data/parquet/b.parquet", entry);
 
     // Trailing slash also treated as directory — returns NotFound
     let result = tiered.head(&Path::from("data/parquet/")).await;
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), object_store::Error::NotFound { .. }));
+    assert!(matches!(
+        result.unwrap_err(),
+        object_store::Error::NotFound { .. }
+    ));
 }
 
 #[tokio::test]
@@ -942,12 +954,18 @@ async fn test_head_file_path_not_treated_as_directory() {
     let (registry, _local, _remote, tiered) = setup();
 
     // Register a file so registry is non-empty
-    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/c.parquet")), 512);
+    let entry = TieredFileEntry::with_size(
+        FileLocation::Remote,
+        Some(Arc::from("remote/c.parquet")),
+        512,
+    );
     registry.register("data/parquet/c.parquet", entry);
 
     // head() on a file path (has extension) should NOT use directory check
     // — it should try registry lookup, then remote, then local
-    let result = tiered.head(&Path::from("data/parquet/nonexistent.parquet")).await;
+    let result = tiered
+        .head(&Path::from("data/parquet/nonexistent.parquet"))
+        .await;
     // Not in registry, not local → NotFound
     assert!(result.is_err());
 }
@@ -958,30 +976,48 @@ async fn test_head_file_path_not_treated_as_directory() {
 fn test_resolve_range_bounded_returns_bounds_directly() {
     let (_registry, _local, _remote, tiered) = setup();
     // Bounded needs no registry/size — returned verbatim.
-    assert_eq!(tiered.resolve_range("any.parquet", &GetRange::Bounded(10..20)), Some((10, 20)));
+    assert_eq!(
+        tiered.resolve_range("any.parquet", &GetRange::Bounded(10..20)),
+        Some((10, 20))
+    );
 }
 
 #[test]
 fn test_resolve_range_suffix_uses_registry_size() {
     let (registry, _local, _remote, tiered) = setup();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 1000));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 1000),
+    );
     // Suffix(64) → (size - 64, size).
-    assert_eq!(tiered.resolve_range("a.parquet", &GetRange::Suffix(64)), Some((936, 1000)));
+    assert_eq!(
+        tiered.resolve_range("a.parquet", &GetRange::Suffix(64)),
+        Some((936, 1000))
+    );
 }
 
 #[test]
 fn test_resolve_range_offset_uses_registry_size() {
     let (registry, _local, _remote, tiered) = setup();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 1000));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 1000),
+    );
     // Offset(100) → (100, size).
-    assert_eq!(tiered.resolve_range("a.parquet", &GetRange::Offset(100)), Some((100, 1000)));
+    assert_eq!(
+        tiered.resolve_range("a.parquet", &GetRange::Offset(100)),
+        Some((100, 1000))
+    );
 }
 
 #[test]
 fn test_resolve_range_suffix_none_when_unregistered() {
     let (_registry, _local, _remote, tiered) = setup();
     // No registry entry → size unavailable → cache bypassed (None).
-    assert_eq!(tiered.resolve_range("missing.parquet", &GetRange::Suffix(64)), None);
+    assert_eq!(
+        tiered.resolve_range("missing.parquet", &GetRange::Suffix(64)),
+        None
+    );
 }
 
 #[test]
@@ -989,7 +1025,10 @@ fn test_resolve_range_offset_none_when_size_zero() {
     let (registry, _local, _remote, tiered) = setup();
     // size 0 (default) is filtered out → None.
     registry.register("z.parquet", TieredFileEntry::new(FileLocation::Local, None));
-    assert_eq!(tiered.resolve_range("z.parquet", &GetRange::Offset(10)), None);
+    assert_eq!(
+        tiered.resolve_range("z.parquet", &GetRange::Offset(10)),
+        None
+    );
 }
 
 // -- Cache routing tests (MockBlockCache) -----------------------------------
@@ -1031,17 +1070,29 @@ impl BlockCache for MockBlockCache {
     }
 
     fn put(&self, key: &CacheKey, data: Bytes) {
-        self.data.lock().unwrap().insert(key.as_str().to_string(), data);
+        self.data
+            .lock()
+            .unwrap()
+            .insert(key.as_str().to_string(), data);
     }
 
     fn put_metadata(&self, key: &CacheKey, data: Bytes) {
-        self.meta.lock().unwrap().insert(key.as_str().to_string(), data);
+        self.meta
+            .lock()
+            .unwrap()
+            .insert(key.as_str().to_string(), data);
     }
 
     fn evict_prefix(&self, prefix: &str) {
         self.evicted.lock().unwrap().push(prefix.to_string());
-        self.data.lock().unwrap().retain(|k, _| !k.starts_with(prefix));
-        self.meta.lock().unwrap().retain(|k, _| !k.starts_with(prefix));
+        self.data
+            .lock()
+            .unwrap()
+            .retain(|k, _| !k.starts_with(prefix));
+        self.meta
+            .lock()
+            .unwrap()
+            .retain(|k, _| !k.starts_with(prefix));
     }
 
     fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
@@ -1051,7 +1102,12 @@ impl BlockCache for MockBlockCache {
     }
 }
 
-fn setup_with_cache() -> (Arc<TieredStorageRegistry>, Arc<InMemory>, Arc<MockBlockCache>, TieredObjectStore) {
+fn setup_with_cache() -> (
+    Arc<TieredStorageRegistry>,
+    Arc<InMemory>,
+    Arc<MockBlockCache>,
+    TieredObjectStore,
+) {
     let registry = Arc::new(TieredStorageRegistry::new());
     let local = Arc::new(InMemory::new());
     let cache = Arc::new(MockBlockCache::default());
@@ -1063,13 +1119,19 @@ fn setup_with_cache() -> (Arc<TieredStorageRegistry>, Arc<InMemory>, Arc<MockBlo
 #[tokio::test]
 async fn test_put_metadata_served_from_cache_on_get_opts() {
     let (registry, _local, _cache, tiered) = setup_with_cache();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 1000));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 1000),
+    );
 
     // Warmup promotes the footer range into the metadata tier. No local file exists,
     // so a successful read proves the bytes were served from the cache.
     tiered.put_metadata("a.parquet", &[936..1000], &[Bytes::from_static(b"FOOTER")]);
 
-    let opts = GetOptions { range: Some(GetRange::Bounded(936..1000)), ..Default::default() };
+    let opts = GetOptions {
+        range: Some(GetRange::Bounded(936..1000)),
+        ..Default::default()
+    };
     let bytes = tiered
         .get_opts(&Path::from("a.parquet"), opts)
         .await
@@ -1083,13 +1145,22 @@ async fn test_put_metadata_served_from_cache_on_get_opts() {
 #[tokio::test]
 async fn test_put_metadata_routes_to_metadata_tier_only() {
     let (registry, _local, cache, tiered) = setup_with_cache();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 1000));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 1000),
+    );
 
     tiered.put_metadata("a.parquet", &[936..1000], &[Bytes::from_static(b"FOOTER")]);
 
     let key = range_cache_key("a.parquet", 936, 1000);
-    assert!(cache.meta.lock().unwrap().contains_key(key.as_str()), "metadata tier populated");
-    assert!(!cache.data.lock().unwrap().contains_key(key.as_str()), "data tier must NOT be populated by put_metadata");
+    assert!(
+        cache.meta.lock().unwrap().contains_key(key.as_str()),
+        "metadata tier populated"
+    );
+    assert!(
+        !cache.data.lock().unwrap().contains_key(key.as_str()),
+        "data tier must NOT be populated by put_metadata"
+    );
 }
 
 #[tokio::test]
@@ -1103,12 +1174,21 @@ async fn test_put_metadata_noop_without_cache() {
 async fn test_get_opts_miss_populates_data_tier() {
     let (registry, local, cache, tiered) = setup_with_cache();
     local
-        .put(&Path::from("a.parquet"), PutPayload::from_static(b"0123456789"))
+        .put(
+            &Path::from("a.parquet"),
+            PutPayload::from_static(b"0123456789"),
+        )
         .await
         .unwrap();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 10));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 10),
+    );
 
-    let opts = GetOptions { range: Some(GetRange::Bounded(0..4)), ..Default::default() };
+    let opts = GetOptions {
+        range: Some(GetRange::Bounded(0..4)),
+        ..Default::default()
+    };
     let bytes = tiered
         .get_opts(&Path::from("a.parquet"), opts)
         .await
@@ -1120,20 +1200,38 @@ async fn test_get_opts_miss_populates_data_tier() {
 
     // A get_opts miss populates the DATA tier (never the metadata tier).
     let key = range_cache_key("a.parquet", 0, 4);
-    assert!(cache.data.lock().unwrap().contains_key(key.as_str()), "data tier populated on miss");
-    assert!(!cache.meta.lock().unwrap().contains_key(key.as_str()), "get_opts must not populate metadata tier");
+    assert!(
+        cache.data.lock().unwrap().contains_key(key.as_str()),
+        "data tier populated on miss"
+    );
+    assert!(
+        !cache.meta.lock().unwrap().contains_key(key.as_str()),
+        "get_opts must not populate metadata tier"
+    );
 }
 
 #[tokio::test]
 async fn test_get_ranges_full_hit_served_from_cache() {
     // Empty local store proves the cache served the read.
     let (registry, _local, cache, tiered) = setup_with_cache();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 100));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 100),
+    );
 
-    cache.put(&range_cache_key("a.parquet", 0, 4), Bytes::from_static(b"AAAA"));
-    cache.put(&range_cache_key("a.parquet", 4, 8), Bytes::from_static(b"BBBB"));
+    cache.put(
+        &range_cache_key("a.parquet", 0, 4),
+        Bytes::from_static(b"AAAA"),
+    );
+    cache.put(
+        &range_cache_key("a.parquet", 4, 8),
+        Bytes::from_static(b"BBBB"),
+    );
 
-    let results = tiered.get_ranges(&Path::from("a.parquet"), &[0..4, 4..8]).await.unwrap();
+    let results = tiered
+        .get_ranges(&Path::from("a.parquet"), &[0..4, 4..8])
+        .await
+        .unwrap();
     assert_eq!(results[0].as_ref(), b"AAAA");
     assert_eq!(results[1].as_ref(), b"BBBB");
 }
@@ -1142,35 +1240,65 @@ async fn test_get_ranges_full_hit_served_from_cache() {
 async fn test_get_ranges_partial_miss_fetches_and_populates() {
     let (registry, local, cache, tiered) = setup_with_cache();
     local
-        .put(&Path::from("a.parquet"), PutPayload::from_static(b"0123456789"))
+        .put(
+            &Path::from("a.parquet"),
+            PutPayload::from_static(b"0123456789"),
+        )
         .await
         .unwrap();
-    registry.register("a.parquet", TieredFileEntry::with_size(FileLocation::Local, None, 10));
+    registry.register(
+        "a.parquet",
+        TieredFileEntry::with_size(FileLocation::Local, None, 10),
+    );
 
     // Pre-seed only [0,4); [5,8) misses and is fetched from local.
-    cache.put(&range_cache_key("a.parquet", 0, 4), Bytes::from_static(b"AAAA"));
+    cache.put(
+        &range_cache_key("a.parquet", 0, 4),
+        Bytes::from_static(b"AAAA"),
+    );
 
-    let results = tiered.get_ranges(&Path::from("a.parquet"), &[0..4, 5..8]).await.unwrap();
+    let results = tiered
+        .get_ranges(&Path::from("a.parquet"), &[0..4, 5..8])
+        .await
+        .unwrap();
     assert_eq!(results[0].as_ref(), b"AAAA", "hit served from cache");
     assert_eq!(results[1].as_ref(), b"567", "miss fetched from local store");
 
     // The previously-missing range is now cached.
     let miss_key = range_cache_key("a.parquet", 5, 8);
-    assert!(cache.data.lock().unwrap().contains_key(miss_key.as_str()), "miss range populated into data tier");
+    assert!(
+        cache.data.lock().unwrap().contains_key(miss_key.as_str()),
+        "miss range populated into data tier"
+    );
 }
 
 #[tokio::test]
 async fn test_evict_path_evicts_cache_prefix() {
     let (_registry, _local, cache, tiered) = setup_with_cache();
 
-    cache.put_metadata(&range_cache_key("seg/a.parquet", 0, 4), Bytes::from_static(b"m"));
-    cache.put(&range_cache_key("seg/a.parquet", 4, 8), Bytes::from_static(b"d"));
+    cache.put_metadata(
+        &range_cache_key("seg/a.parquet", 0, 4),
+        Bytes::from_static(b"m"),
+    );
+    cache.put(
+        &range_cache_key("seg/a.parquet", 4, 8),
+        Bytes::from_static(b"d"),
+    );
 
     tiered.evict_path("seg/a.parquet");
 
-    assert_eq!(cache.evicted.lock().unwrap().as_slice(), &["seg/a.parquet".to_string()]);
-    assert!(cache.data.lock().unwrap().is_empty(), "data tier cleared for the evicted prefix");
-    assert!(cache.meta.lock().unwrap().is_empty(), "metadata tier cleared for the evicted prefix");
+    assert_eq!(
+        cache.evicted.lock().unwrap().as_slice(),
+        &["seg/a.parquet".to_string()]
+    );
+    assert!(
+        cache.data.lock().unwrap().is_empty(),
+        "data tier cleared for the evicted prefix"
+    );
+    assert!(
+        cache.meta.lock().unwrap().is_empty(),
+        "metadata tier cleared for the evicted prefix"
+    );
 }
 
 #[test]
