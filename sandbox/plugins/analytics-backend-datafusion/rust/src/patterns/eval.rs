@@ -150,9 +150,11 @@ fn calculate_score(tokens: &[String], candidate: &[String]) -> f64 {
     }
     let mut score = 0u64;
     for (preprocessed_token, candidate_token) in tokens.iter().zip(candidate.iter()) {
-        if preprocessed_token == candidate_token {
-            score += 1;
-        } else if preprocessed_token.starts_with("<*") && candidate_token.starts_with("<token") {
+        // A position matches when the tokens are equal, or when a wildcard
+        // input (`<*…>`) lines up with a numbered candidate token (`<token…>`).
+        if preprocessed_token == candidate_token
+            || (preprocessed_token.starts_with("<*") && candidate_token.starts_with("<token"))
+        {
             score += 1;
         }
     }

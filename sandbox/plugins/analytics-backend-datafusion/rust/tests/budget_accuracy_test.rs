@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_array::{Float64Array, Int64Array, RecordBatch, StringArray};
-use datafusion::common::DataFusionError;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
@@ -127,7 +126,7 @@ async fn measure_actual_bytes(
     plan: Arc<dyn ExecutionPlan>,
     ctx: Arc<datafusion::execution::TaskContext>,
 ) -> (usize, usize, usize) {
-    let num_partitions = plan.properties().output_partitioning().partition_count();
+    let _num_partitions = plan.properties().output_partitioning().partition_count();
     let streams = execute_stream_partitioned(plan, ctx).unwrap();
 
     let total_bytes = Arc::new(AtomicUsize::new(0));
@@ -244,16 +243,8 @@ async fn validate_budget_accuracy_inner(
         measure_actual_bytes(physical_plan, ctx.task_ctx()).await;
 
     // Compute actual average batch size (this is what flows through channels)
-    let avg_batch_bytes = if actual_batches > 0 {
-        actual_total_bytes / actual_batches
-    } else {
-        0
-    };
-    let actual_avg_row_bytes = if actual_rows > 0 {
-        actual_total_bytes / actual_rows
-    } else {
-        0
-    };
+    let avg_batch_bytes = actual_total_bytes.checked_div(actual_batches).unwrap_or(0);
+    let actual_avg_row_bytes = actual_total_bytes.checked_div(actual_rows).unwrap_or(0);
 
     // Formula prediction
     let predicted_avg_row_bytes = estimate_avg_row_bytes(schema);
@@ -450,13 +441,13 @@ async fn budget_accuracy_metadata_based_is_tighter() {
 
     let tmp = TempDir::new().unwrap();
     let schema = create_parquet_data(tmp.path(), 100_000, 4);
-    let dir = format!("file://{}/", tmp.path().to_str().unwrap());
+    let _dir = format!("file://{}/", tmp.path().to_str().unwrap());
 
     // Read parquet metadata from the first file
     let first_file = std::fs::read_dir(tmp.path())
         .unwrap()
         .filter_map(|e| e.ok())
-        .find(|e| e.path().extension().map_or(false, |ext| ext == "parquet"))
+        .find(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
         .unwrap();
     let reader =
         SerializedFileReader::new(std::fs::File::open(first_file.path()).unwrap()).unwrap();

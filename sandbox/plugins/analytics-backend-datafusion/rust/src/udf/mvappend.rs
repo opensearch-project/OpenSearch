@@ -38,8 +38,8 @@ use datafusion::arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, BooleanBuilder, Decimal128Array, Decimal128Builder,
     Float32Array, Float32Builder, Float64Array, Float64Builder, GenericListArray, Int16Array,
     Int16Builder, Int32Array, Int32Builder, Int64Array, Int64Builder, Int8Array, Int8Builder,
-    ListArray, ListBuilder, StringArray, StringBuilder, StringViewArray, StringViewBuilder,
-    UInt16Array, UInt16Builder, UInt32Array, UInt32Builder, UInt64Array, UInt64Builder, UInt8Array,
+    ListBuilder, StringArray, StringBuilder, StringViewArray, StringViewBuilder, UInt16Array,
+    UInt16Builder, UInt32Array, UInt32Builder, UInt64Array, UInt64Builder, UInt8Array,
     UInt8Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
@@ -405,7 +405,7 @@ fn append_string_scalar<B: StrAppend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::AsArray;
+    use datafusion::arrow::array::{AsArray, ListArray};
     use datafusion::common::ScalarValue;
 
     fn run(args: Vec<ColumnarValue>, n: usize) -> ArrayRef {

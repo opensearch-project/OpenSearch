@@ -19,6 +19,7 @@ use std::sync::Arc;
 use datafusion::arrow::array::{Array, Int32Array};
 use datafusion::execution::context::SessionContext;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use futures::StreamExt;
 
 use super::corpus::Corpus;
@@ -78,9 +79,11 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_out.is_none() {
             schema_out = Some(meta.schema().clone());
         }
@@ -121,6 +124,9 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
 /// Execute one tree end-to-end: wire mock collectors, build the table
 /// provider, query it, return the set of `__doc_id` values that came
 /// back.
+// Re-exported test helper retained for fuzz harness callers; not all build
+// configurations exercise it.
+#[allow(dead_code)]
 pub(in crate::indexed_table::tests_e2e) async fn execute_tree(
     _corpus: &Corpus,
     loaded: &LoadedSegment,
@@ -690,6 +696,9 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
 /// at decode time. `pushdown_predicate` provides the residual predicate
 /// to hand parquet via `with_predicate` — mirrors what
 /// `execute_indexed_query` computes from the BoolNode for production.
+// Convenience wrapper over `run_with_factory_plan`; retained for harness
+// callers even when a given build configuration doesn't invoke it.
+#[allow(dead_code)]
 async fn run_with_factory(
     loaded: &LoadedSegment,
     factory: EvaluatorFactory,
@@ -707,6 +716,9 @@ async fn run_with_factory(
     .0
 }
 
+// Full plan-returning variant; retained for harness callers even when a
+// given build configuration doesn't invoke it.
+#[allow(dead_code)]
 async fn run_with_factory_plan(
     loaded: &LoadedSegment,
     factory: EvaluatorFactory,
@@ -1169,7 +1181,7 @@ mod tests {
         use rand::rngs::StdRng;
         use rand::seq::SliceRandom;
         use rand::SeedableRng;
-        let mut rng = StdRng::seed_from_u64(0x1beef_2222);
+        let mut rng = StdRng::seed_from_u64(0x0001_beef_2222);
         let mut candidates: Vec<i32> = (0..corpus.num_rows() as i32).collect();
         candidates.shuffle(&mut rng);
         candidates.truncate(corpus.num_rows() / 20);
@@ -1244,7 +1256,7 @@ mod tests {
         use rand::seq::SliceRandom;
         use rand::SeedableRng;
         let mut rng = StdRng::seed_from_u64(0xbeef_1111);
-        let mut mkset = |rng: &mut StdRng| -> Vec<i32> {
+        let mkset = |rng: &mut StdRng| -> Vec<i32> {
             let mut v: Vec<i32> = (0..corpus.num_rows() as i32).collect();
             v.shuffle(rng);
             v.truncate(corpus.num_rows() / 20);

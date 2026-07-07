@@ -12,8 +12,6 @@
 
 use std::sync::Arc;
 
-use super::udf_identity;
-
 use chrono::{DateTime, Datelike, NaiveTime, TimeZone, Timelike, Utc};
 use datafusion::arrow::array::{
     Array, ArrayRef, AsArray, Int64Builder, StringArray, Time32MillisecondArray, Time32SecondArray,
@@ -284,7 +282,7 @@ fn extract_for_unit(unit: &str, dt: DateTime<Utc>) -> Option<i64> {
         "DAY" => Some(dd),
         "WEEK" => Some(dt.iso_week().week() as i64),
         "MONTH" => Some(mo),
-        "QUARTER" => Some(((mo - 1) / 3 + 1) as i64),
+        "QUARTER" => Some((mo - 1) / 3 + 1),
         "YEAR" => Some(yy),
         "DOW" => Some(dt.weekday().number_from_monday() as i64),
         "DOY" => Some(dt.ordinal() as i64),

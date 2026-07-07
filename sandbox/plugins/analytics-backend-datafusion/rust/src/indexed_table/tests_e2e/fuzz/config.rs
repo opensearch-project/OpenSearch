@@ -125,6 +125,8 @@ pub(in crate::indexed_table::tests_e2e) struct FixtureConfig {
     /// predicate-generation and the pruner, but do NOT exist in the
     /// parquet files. Simulates schema drift / schema evolution. Empty
     /// in most presets.
+    // Read by planned schema-drift fuzz presets; currently only written.
+    #[allow(dead_code)]
     pub phantom_columns: Vec<(String, ColumnKind)>,
 
     /// Probability (0.0..=1.0) that a generated binary-op predicate
@@ -132,6 +134,8 @@ pub(in crate::indexed_table::tests_e2e) struct FixtureConfig {
     /// different columns, rather than a single-column predicate.
     /// Exercises the grid multi-column-OR pruning path that
     /// `PruningPredicate::split_conjunction` discards in DataFusion.
+    // Read by planned multi-column-OR fuzz presets; currently only written.
+    #[allow(dead_code)]
     pub multi_column_or_pct: f64,
 
     /// Override `min_skip_run_default` in the query config. When `Some`,

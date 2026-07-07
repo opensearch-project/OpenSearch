@@ -21,9 +21,7 @@ use datafusion::{
     execution::cache::{CacheAccessor, DefaultListFilesCache},
     execution::context::SessionContext,
     execution::memory_pool::MemoryPool,
-    execution::runtime_env::RuntimeEnvBuilder,
     execution::SessionStateBuilder,
-    physical_plan::ExecutionPlan,
     prelude::*,
 };
 use log::error;
@@ -71,6 +69,8 @@ pub struct SessionContextHandle {
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
     /// Phantom reservation holding pool capacity for untracked memory.
     /// Dropped when the handle is closed, releasing the capacity.
+    // Held purely for its RAII drop side-effect (releases pool capacity); never read.
+    #[allow(dead_code)]
     pub(crate) phantom_reservation: Option<datafusion::execution::memory_pool::MemoryReservation>,
 }
 
@@ -153,6 +153,11 @@ pub(crate) fn widen_schema_from_plan(
 
 /// Creates a SessionContext with per-query RuntimeEnv and registers the default
 /// ListingTable provider for parquet scans.
+///
+/// # Safety
+/// `runtime_ptr` and `shard_view_ptr` must be valid, non-null pointers to a live
+/// `DataFusionRuntime` and `ShardView` respectively (borrowed for the duration of
+/// the call), and `plan_bytes` must reference a valid byte slice.
 pub async unsafe fn create_session_context(
     runtime_ptr: i64,
     shard_view_ptr: i64,
@@ -206,7 +211,7 @@ pub async unsafe fn create_session_context(
 
     // Acquire memory budget from cached parquet metadata (zero I/O).
     // On cache miss (first query for this shard), skip — subsequent queries benefit.
-    let phantom_reservation = try_acquire_budget(runtime, &global_pool, &shard_view, &query_config);
+    let phantom_reservation = try_acquire_budget(runtime, &global_pool, shard_view, &query_config);
     let effective_partitions = phantom_reservation
         .as_ref()
         .map(|b| b.target_partitions)
@@ -433,6 +438,13 @@ pub unsafe fn close_session_context(ptr: i64) {
 /// Creates a SessionContext configured for indexed execution with filter delegation.
 /// Registers the `delegated_predicate` UDF and stores the tree shape + predicate count
 /// for use during execution.
+///
+/// # Safety
+/// `runtime_ptr` and `shard_view_ptr` must be valid, non-null pointers to a live
+/// `DataFusionRuntime` and `ShardView` respectively (borrowed for the duration of
+/// the call), and `plan_bytes` must reference a valid byte slice.
+// Real FFM-facing API; argument count mirrors the Java-provided indexed-execution inputs.
+#[allow(clippy::too_many_arguments)]
 pub async unsafe fn create_session_context_indexed(
     runtime_ptr: i64,
     shard_view_ptr: i64,
@@ -539,10 +551,10 @@ fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
     fn rel_has_fetch(rel: &substrait::proto::Rel) -> bool {
         match rel.rel_type.as_ref() {
             Some(RelType::Fetch(f)) => f.count_mode.is_some(),
-            Some(RelType::Sort(s)) => s.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
-            Some(RelType::Project(p)) => p.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
-            Some(RelType::Filter(f)) => f.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
-            Some(RelType::Aggregate(a)) => a.input.as_ref().map_or(false, |r| rel_has_fetch(r)),
+            Some(RelType::Sort(s)) => s.input.as_ref().is_some_and(|r| rel_has_fetch(r)),
+            Some(RelType::Project(p)) => p.input.as_ref().is_some_and(|r| rel_has_fetch(r)),
+            Some(RelType::Filter(f)) => f.input.as_ref().is_some_and(|r| rel_has_fetch(r)),
+            Some(RelType::Aggregate(a)) => a.input.as_ref().is_some_and(|r| rel_has_fetch(r)),
             // TODO: enumerate remaining rel types explicitly and panic on unknown ones.
             Some(other) => {
                 native_bridge_common::log_debug!(
@@ -560,7 +572,7 @@ fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
     };
     plan.relations.iter().any(|pr| match pr.rel_type.as_ref() {
         Some(substrait::proto::plan_rel::RelType::Root(rr)) => {
-            rr.input.as_ref().map_or(false, |r| rel_has_fetch(r))
+            rr.input.as_ref().is_some_and(rel_has_fetch)
         }
         Some(substrait::proto::plan_rel::RelType::Rel(r)) => rel_has_fetch(r),
         None => false,
@@ -576,7 +588,6 @@ fn try_acquire_budget(
     config: &DatafusionQueryConfig,
 ) -> Option<crate::query_budget::QueryMemoryBudget> {
     use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
-    use datafusion::execution::cache::CacheAccessor;
     use parquet::arrow::parquet_to_arrow_schema;
 
     let first_meta = shard_view.object_metas.first()?;
@@ -946,9 +957,7 @@ mod tests {
     /// another shard's store and failed with "No such file or directory".
     #[tokio::test]
     async fn test_per_query_object_store_registry_is_isolated() {
-        use datafusion::execution::object_store::{
-            DefaultObjectStoreRegistry, ObjectStoreRegistry,
-        };
+        use datafusion::execution::object_store::DefaultObjectStoreRegistry;
         use object_store::memory::InMemory;
         use object_store::ObjectStore;
         use url::Url;

@@ -35,7 +35,7 @@ use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, 
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner, StatsPruneTree};
 use crate::indexed_table::row_selection::{
-    bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
+    bitmap_to_packed_bits, packed_bits_to_boolean_array, PositionMap,
 };
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_optimizer::pruning::PruningPredicate;
@@ -111,6 +111,9 @@ impl DelegatedBackendCollectorFactory for FfmDelegatedBackendCollectorFactory {
 /// views via `BooleanBuffer::new(buf.clone(), bit_offset, bit_len)`.
 /// Length of the underlying buffer covers `mask_len` bits (= rg_num_rows).
 struct SingleCollectorState {
+    // Retained candidate bitmap: only read by unit tests today, but kept as
+    // part of the prefetched state for debugging/inspection of the collector.
+    #[allow(dead_code)]
     candidates: RoaringBitmap,
     mask_buffer: datafusion::arrow::buffer::Buffer,
     mask_len: usize,
@@ -200,6 +203,9 @@ pub struct BloomConfig {
 }
 
 impl SingleCollectorEvaluator {
+    // Real constructor wiring together the collector, pruning, metrics, and
+    // delegation machinery — each argument is a distinct collaborator.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         collector: Option<Arc<dyn RowGroupDocsCollector>>,
         page_pruner: Arc<PagePruner>,
@@ -252,7 +258,7 @@ fn should_consult_lucene(
     threshold: f64,
 ) -> bool {
     let surviving_rows = match page_ranges {
-        None => rg.num_rows as i64,
+        None => rg.num_rows,
         Some(ranges) => ranges.iter().map(|(lo, hi)| (hi - lo) as i64).sum::<i64>(),
     };
     if rg.num_rows == 0 {
@@ -658,6 +664,7 @@ mod tests {
     use datafusion::parquet::arrow::arrow_reader::ArrowReaderMetadata;
     use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
     use std::fmt;
     use std::sync::Arc;
     use tempfile::NamedTempFile;
@@ -676,7 +683,7 @@ mod tests {
             max_doc: i32,
         ) -> Result<Vec<u64>, String> {
             let span = (max_doc - min_doc) as usize;
-            let mut bitset = vec![0u64; (span + 63) / 64];
+            let mut bitset = vec![0u64; span.div_ceil(64)];
             for &doc in &self.docs {
                 if doc >= min_doc && doc < max_doc {
                     let idx = (doc - min_doc) as usize;
@@ -706,7 +713,7 @@ mod tests {
             writer.close().unwrap();
         }
         let file = tmp.reopen().unwrap();
-        let options = ArrowReaderOptions::new().with_page_index(true);
+        let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional);
         let meta = ArrowReaderMetadata::load(&file, options).unwrap();
         let pruner = PagePruner::new(
             meta.schema(),

@@ -60,9 +60,9 @@ use prost::bytes::Bytes;
 /// Issues a `head()` to learn the file's size + last-modified. Callers that
 /// already hold an authoritative [`ObjectMeta`] (e.g. from the listing snapshot
 /// passed into a `ParquetFileReaderFactory`) should call
-/// [`load_parquet_metadata_with_meta`] instead — the `head()` is a `File::open`
-/// + `fstat` syscall per call on local stores, which adds up under repeated
-/// per-file reader creation.
+/// [`load_parquet_metadata_with_meta`] instead — the `head()` is a
+/// `File::open` + `fstat` syscall per call on local stores, which adds up
+/// under repeated per-file reader creation.
 pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
@@ -226,6 +226,13 @@ fn create_stream_with_access_plan(
     access_plan: ParquetAccessPlan,
     push_predicate: bool,
 ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
+    // NOTE: must stay on the deprecated `with_extensions` (not `with_extension`). DataFusion's
+    // Parquet opener retrieves the ParquetAccessPlan via the legacy `insert_dyn` keying that
+    // `with_extensions` uses; `with_extension` keys by concrete type instead, so the opener
+    // silently fails to find the access plan → row selection/predicates are not applied and the
+    // scan returns wrong rows (verified: swapping to `with_extension` breaks 102 boolean_algebra
+    // e2e tests). TODO: migrate once we key the lookup to the concrete extension type.
+    #[allow(deprecated)]
     let partitioned_file = PartitionedFile::new(config.file_path.clone(), config.file_size)
         .with_extensions(Arc::new(access_plan));
 

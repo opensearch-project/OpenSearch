@@ -52,6 +52,9 @@ static RELEASE_COLLECTOR: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 /// Not annotated `#[ffm_safe]` because that macro is specific to the
 /// `-> i64` error-pointer convention. We use a manual `catch_unwind`
 /// instead, though the body (atomic stores) can't realistically panic.
+// FFI entry point invoked by Java; safety contract is the FFM ABI, not a
+// Rust-callable API.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn df_register_filter_tree_callbacks(
     create_provider: CreateProviderFn,

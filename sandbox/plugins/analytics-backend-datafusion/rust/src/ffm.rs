@@ -7,6 +7,13 @@
  */
 
 //! FFM bridge for DataFusion.
+//!
+//! Every public function here is an `extern "C"` FFM entry point invoked from
+//! Java via raw `i64`/pointer handles. Documenting per-function `# Safety`
+//! preconditions would be redundant across ~57 identical FFI boundaries, so the
+//! `missing_safety_doc` lint is allowed at the module level; the general FFI
+//! contract (valid, non-freed handles owned by the Java side) applies uniformly.
+#![allow(clippy::missing_safety_doc)]
 
 use std::slice;
 use std::str;
@@ -522,7 +529,7 @@ pub unsafe extern "C" fn df_stream_get_metrics(
 #[no_mangle]
 pub unsafe extern "C" fn df_free_metrics_buf(ptr: *mut u8, len: i64) {
     if !ptr.is_null() && len > 0 {
-        let _ = Box::from_raw(std::slice::from_raw_parts_mut(ptr, len as usize));
+        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len as usize));
     }
 }
 
@@ -1437,7 +1444,7 @@ pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i
             .custom_cache_manager
             .as_ref()
             .map(pack_cache_stats)
-            .unwrap_or_else(CacheStatsRepr::default)
+            .unwrap_or_default()
     } else {
         CacheStatsRepr::default()
     };

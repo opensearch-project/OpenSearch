@@ -13,7 +13,6 @@
 //! schema evolution (see [`resolve_predicate_parquet_columns`] for details).
 
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
@@ -46,7 +45,6 @@ pub fn resolve_predicate_parquet_columns(
     predicate_column_names: &[String],
     file_schema: &SchemaRef,
 ) -> Vec<usize> {
-    let parquet_schema = metadata.file_metadata().schema_descr();
     resolve_with_schema(file_schema, metadata, predicate_column_names)
 }
 

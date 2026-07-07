@@ -238,7 +238,7 @@ impl TakeAccumulator {
     /// The Calcite plan materializes the literal `n` as a constant column —
     /// every row carries the same value, so reading row 0 is sufficient.
     fn resolve_limit_from(&mut self, n_col: &ArrayRef) -> Result<()> {
-        if self.limit.is_some() || n_col.len() == 0 {
+        if self.limit.is_some() || n_col.is_empty() {
             return Ok(());
         }
         let scalar = ScalarValue::try_from_array(n_col, 0)?;

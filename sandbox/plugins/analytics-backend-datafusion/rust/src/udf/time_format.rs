@@ -11,8 +11,6 @@
 //! (%d→"00", %Y→"0000"); date-only name tokens (%W, %a, %M, %D, %j, %w, %U/%u,
 //! %V/%v, %X/%x, %b) cause the whole render to collapse to NULL.
 
-use super::udf_identity;
-
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{plan_err, Result};
 use datafusion::execution::context::SessionContext;

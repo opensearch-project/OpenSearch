@@ -95,8 +95,8 @@ fn eval_approx_distinct(state_col: &ArrayRef) -> Result<ColumnarValue> {
             order_bys: &[],
             name: "x",
             is_distinct: false,
-            exprs: &[expr.clone()],
-            expr_fields: &[field.clone()],
+            exprs: std::slice::from_ref(&expr),
+            expr_fields: std::slice::from_ref(&field),
             is_reversed: false,
         })?;
         let state_array: ArrayRef = Arc::new(BinaryArray::from(vec![binary.value(i)]));
@@ -114,7 +114,6 @@ mod tests {
     use super::*;
     use datafusion::arrow::array::BinaryArray;
     use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
-    use datafusion::logical_expr::Accumulator;
 
     #[test]
     fn test_reduce_eval_approx_distinct() {
@@ -133,8 +132,8 @@ mod tests {
                 order_bys: &[],
                 name: "x",
                 is_distinct: false,
-                exprs: &[expr.clone()],
-                expr_fields: &[field.clone()],
+                exprs: std::slice::from_ref(&expr),
+                expr_fields: std::slice::from_ref(&field),
                 is_reversed: false,
             })
             .unwrap();

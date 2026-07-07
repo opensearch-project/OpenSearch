@@ -203,9 +203,7 @@ impl Slot {
     fn extend(&mut self, next: Option<String>) {
         match self {
             Slot::Single(first) => {
-                let mut v = Vec::with_capacity(2);
-                v.push(first.take());
-                v.push(next);
+                let v = vec![first.take(), next];
                 *self = Slot::List(v);
             }
             Slot::List(v) => v.push(next),
@@ -301,9 +299,10 @@ fn build_path(path: &[String]) -> String {
         if segment == ARRAY_MARKER {
             s.push_str(ARRAY_MARKER);
         } else {
-            if !s.is_empty() && !s.ends_with(ARRAY_MARKER) {
-                s.push('.');
-            } else if s.ends_with(ARRAY_MARKER) {
+            // Separate field names with `.`; the leading segment gets none.
+            // (Both a plain field boundary and an array-marker boundary need a
+            // separator, which together is exactly "s is non-empty".)
+            if !s.is_empty() {
                 s.push('.');
             }
             s.push_str(segment);
@@ -526,7 +525,7 @@ mod tests {
         let udf = JsonExtractAllUdf::new();
         for variant in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
             assert_eq!(
-                udf.coerce_types(&[variant.clone()]).unwrap(),
+                udf.coerce_types(std::slice::from_ref(&variant)).unwrap(),
                 vec![variant.clone()],
                 "CoerceMode::Utf8 should pass {variant:?} through unchanged"
             );

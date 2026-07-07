@@ -135,7 +135,7 @@ fn simulate_concurrent_queries(
 
                         let operator_state_bytes = budget.batch_size * avg_row_bytes / 2;
                         let consumer = MemoryConsumer::new("simulated_hash_agg");
-                        let mut reservation = consumer.register(&pool);
+                        let reservation = consumer.register(&pool);
                         if reservation.try_grow(operator_state_bytes).is_err() {
                             budgeted_spills.fetch_add(1, Ordering::Relaxed);
                         }
@@ -187,7 +187,7 @@ fn simulate_concurrent_queries(
                 // No budget — allocate at full configured parallelism
                 let operator_state_bytes = batch_size * avg_row_bytes / 2;
                 let consumer = MemoryConsumer::new("simulated_hash_agg_nobudget");
-                let mut reservation = consumer.register(&pool);
+                let reservation = consumer.register(&pool);
                 if reservation.try_grow(operator_state_bytes).is_err() {
                     unbudgeted_spills.fetch_add(1, Ordering::Relaxed);
                 }
@@ -350,8 +350,8 @@ fn print_result(label: &str, r: &SimulationResult) {
         }
     );
     println!("├────────────────── LATENCY (per query, includes 10ms sleep) ──────┤");
-    let (b_avg, b_min, b_p50, b_p99) = latency_stats(&r.budgeted_latencies_ns);
-    let (u_avg, u_min, u_p50, u_p99) = latency_stats(&r.unbudgeted_latencies_ns);
+    let (b_avg, _b_min, b_p50, b_p99) = latency_stats(&r.budgeted_latencies_ns);
+    let (u_avg, _u_min, u_p50, u_p99) = latency_stats(&r.unbudgeted_latencies_ns);
     println!(
         "│ With budget:    avg={}, p50={}, p99={:<12} │",
         fmt_ns(b_avg),

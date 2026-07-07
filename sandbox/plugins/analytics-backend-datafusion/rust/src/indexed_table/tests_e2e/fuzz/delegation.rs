@@ -122,7 +122,6 @@ fn gen_binary_predicate_expr(
     rng: &mut StdRng,
     schema: &datafusion::arrow::datatypes::SchemaRef,
 ) -> Arc<dyn PhysicalExpr> {
-    use datafusion::arrow::datatypes::DataType;
     let col_idx = rng.gen_range(1..schema.fields().len());
     let field = schema.field(col_idx);
     let col_expr: Arc<dyn PhysicalExpr> = Arc::new(Column::new(field.name(), col_idx));

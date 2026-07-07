@@ -12,6 +12,7 @@
 //! segment evaluates to UNKNOWN for that predicate and gets filtered out.
 
 use super::*;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 
 // ══════════════════════════════════════════════════════════════════════
 // Missing-column fixture — parquet written without a column that the
@@ -58,7 +59,7 @@ fn build_missing_col_fixture() -> MissingColFixture {
     let tmp = NamedTempFile::new().unwrap();
     let (file, path) = tmp.keep().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(512)
+        .set_max_row_group_row_count(Some(512))
         .set_data_page_row_count_limit(128)
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
@@ -74,8 +75,11 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
     let f = missing_col_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -287,8 +291,11 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
 
     let f = missing_col_fixture();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     // Schema handed to the pruner includes the missing column.
     let drift_schema = schema_with_missing();
     let pruner = PagePruner::new(&drift_schema, meta.metadata().clone(), drift_schema.clone());
@@ -384,7 +391,7 @@ async fn query_with_mismatched_schema(
     let tmp = NamedTempFile::new().unwrap();
     let (file, path) = tmp.keep().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(256)
+        .set_max_row_group_row_count(Some(256))
         .build();
     let mut w = ArrowWriter::try_new(file, file_schema, Some(props)).unwrap();
     w.write(batch).unwrap();
@@ -392,8 +399,11 @@ async fn query_with_mismatched_schema(
 
     let size = std::fs::metadata(&path).unwrap().len();
     let rfile = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&rfile, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &rfile,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
     let mut offset = 0i64;

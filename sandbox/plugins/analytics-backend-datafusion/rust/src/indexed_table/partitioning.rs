@@ -91,10 +91,10 @@ pub fn compute_assignments(
 
     for (i, rg) in all_rgs.iter().enumerate() {
         // Flush in-progress chunk if segment changed
-        if chunk_seg.is_some() && chunk_seg != Some(rg.segment_idx) {
-            if !chunk_rg_indices.is_empty() {
+        if let Some(seg) = chunk_seg {
+            if seg != rg.segment_idx && !chunk_rg_indices.is_empty() {
                 current_chunks.push(SegmentChunk {
-                    segment_idx: chunk_seg.unwrap(),
+                    segment_idx: seg,
                     doc_min: chunk_doc_min,
                     doc_max: chunk_doc_max,
                     row_group_indices: chunk_rg_indices.clone(),

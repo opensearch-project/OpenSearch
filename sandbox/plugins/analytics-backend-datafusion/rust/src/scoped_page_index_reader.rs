@@ -263,6 +263,8 @@ impl AsyncFileReader for ScopedPageIndexReader {
 
 #[cfg(test)]
 mod tests {
+    // test-only: guard serializes global-cache tests; held across .await intentionally
+    #![allow(clippy::await_holding_lock)]
     use super::*;
     use arrow::array::{Int32Array, RecordBatch};
     use arrow::datatypes::{DataType, Field, Schema};
@@ -295,7 +297,7 @@ mod tests {
         )
         .unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)

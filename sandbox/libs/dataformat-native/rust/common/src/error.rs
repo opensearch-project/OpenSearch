@@ -11,7 +11,7 @@
 //! Convention: FFM functions return `i64`.
 //!   - `>= 0` → success (value or pointer)
 //!   - `< 0`  → error. Negate to get a pointer to a heap-allocated error.
-//!              Call `native_error_message` to read, `native_error_free` to free.
+//!     Call `native_error_message` to read, `native_error_free` to free.
 
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -48,12 +48,26 @@ where
 }
 
 /// Returns a pointer to the null-terminated error message.
+///
+/// # Safety
+///
+/// `ptr` must be a value previously produced by [`into_error_ptr`] (i.e. the
+/// negated pointer, re-negated back to a positive `i64`) that has not yet been
+/// freed via [`native_error_free`]. Passing any other value yields a dangling
+/// or invalid pointer when reinterpreted as `*const c_char`.
 #[no_mangle]
 pub unsafe extern "C" fn native_error_message(ptr: i64) -> *const c_char {
     ptr as *const c_char
 }
 
 /// Frees a heap-allocated error string.
+///
+/// # Safety
+///
+/// `ptr` must be either `0` or a pointer previously produced by
+/// [`into_error_ptr`] (re-negated back to a positive `i64`) that has not
+/// already been freed. Double-freeing or passing an arbitrary value results in
+/// undefined behavior.
 #[no_mangle]
 pub unsafe extern "C" fn native_error_free(ptr: i64) {
     if ptr != 0 {
@@ -62,6 +76,12 @@ pub unsafe extern "C" fn native_error_free(ptr: i64) {
 }
 
 /// Deliberately panics with the given message. For testing panic handling.
+///
+/// # Safety
+///
+/// `msg_ptr` must point to at least `msg_len` initialized bytes of valid UTF-8
+/// that remain live for the duration of the call. `msg_len` must be
+/// non-negative and must not exceed the length of the buffer at `msg_ptr`.
 #[no_mangle]
 pub unsafe extern "C" fn native_test_panic(msg_ptr: *const u8, msg_len: i64) -> i64 {
     match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| -> Result<i64, String> {
@@ -85,6 +105,12 @@ pub unsafe extern "C" fn native_test_panic(msg_ptr: *const u8, msg_len: i64) -> 
 }
 
 /// Returns an error (not a panic) with the given message. For testing error handling.
+///
+/// # Safety
+///
+/// `msg_ptr` must point to at least `msg_len` initialized bytes of valid UTF-8
+/// that remain live for the duration of the call. `msg_len` must be
+/// non-negative and must not exceed the length of the buffer at `msg_ptr`.
 #[no_mangle]
 pub unsafe extern "C" fn native_test_error(msg_ptr: *const u8, msg_len: i64) -> i64 {
     let msg = std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg_ptr, msg_len as usize));
@@ -93,6 +119,12 @@ pub unsafe extern "C" fn native_test_error(msg_ptr: *const u8, msg_len: i64) -> 
 
 /// Validates a string from (ptr, len). Returns 0 on valid UTF-8, error pointer on invalid input.
 /// Used for testing input validation (null ptr, negative len, bad UTF-8).
+///
+/// # Safety
+///
+/// If `ptr` is non-null it must point to at least `len` initialized bytes that
+/// remain live for the duration of the call. `len` is validated internally, so
+/// a null `ptr` or negative `len` are handled gracefully rather than being UB.
 #[no_mangle]
 pub unsafe extern "C" fn native_test_validate_str(ptr: *const u8, len: i64) -> i64 {
     if ptr.is_null() {

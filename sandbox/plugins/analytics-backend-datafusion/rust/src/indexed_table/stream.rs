@@ -33,9 +33,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
+use datafusion::arrow::array::{Array, BooleanArray};
 use datafusion::arrow::compute::filter_record_batch;
-use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result;
 use datafusion::execution::SendableRecordBatchStream;
@@ -571,6 +571,9 @@ struct IndexedStream {
     /// Cumulative row offset for this segment within the shard.
     global_base: u64,
     /// When true, the `___row_id` column is computed from position.
+    /// Retained on the stream for provenance/debugging; row-id emission is
+    /// currently driven via `row_id_output_index`.
+    #[allow(dead_code)]
     emit_row_ids: bool,
     /// Index in the output schema where computed `___row_id` is inserted.
     row_id_output_index: Option<usize>,
