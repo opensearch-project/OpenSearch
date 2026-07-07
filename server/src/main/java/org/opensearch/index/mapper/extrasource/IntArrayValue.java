@@ -15,73 +15,73 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A float array value used in {@link ExtraFieldValue}.
+ * An int array value used in {@link ExtraFieldValue}.
  *
  * <p>Supports both primitive (decoded) and packed (little-endian) representations.</p>
  */
-public non-sealed interface FloatArrayValue extends ExtraFieldValue {
+public non-sealed interface IntArrayValue extends ExtraFieldValue {
 
     @Override
     default Type type() {
-        return Type.FLOAT_ARRAY;
+        return Type.INT_ARRAY;
     }
 
     /**
-     * Creates a {@link FloatArrayValue} from packed little-endian bytes.
+     * Creates an {@link IntArrayValue} from packed little-endian bytes.
      *
-     * @param packed the packed float bytes (dimension * 4 bytes)
-     * @param dimension the number of float elements
-     * @return a float-array value backed by the provided bytes
+     * @param packed the packed int bytes (dimension * 4 bytes)
+     * @param dimension the number of int elements
+     * @return an int-array value backed by the provided bytes
      * @throws IllegalArgumentException if the byte length does not match {@code dimension * 4}
      */
-    static FloatArrayValue fromPackedBytes(BytesReference packed, int dimension) {
-        return PackedFloatArray.fromPackedBytes(packed, dimension);
+    static IntArrayValue fromPackedBytes(BytesReference packed, int dimension) {
+        return PackedIntArray.fromPackedBytes(packed, dimension);
     }
 
     /**
-     * Creates a {@link FloatArrayValue} from a packed little-endian byte array.
+     * Creates an {@link IntArrayValue} from a packed little-endian byte array.
      *
-     * @param packed the packed float bytes (dimension * 4 bytes)
-     * @param dimension the number of float elements
-     * @return a float-array value backed by the provided array
+     * @param packed the packed int bytes (dimension * 4 bytes)
+     * @param dimension the number of int elements
+     * @return an int-array value backed by the provided array
      * @throws IllegalArgumentException if the byte length does not match {@code dimension * 4}
      */
-    static FloatArrayValue fromPackedArray(byte[] packed, int dimension) {
-        return PackedFloatArray.fromPackedArray(packed, dimension);
+    static IntArrayValue fromPackedArray(byte[] packed, int dimension) {
+        return PackedIntArray.fromPackedArray(packed, dimension);
     }
 
     /**
-     * Creates a {@link FloatArrayValue} from a float array.
+     * Creates an {@link IntArrayValue} from an int array.
      *
-     * @param values the float values
-     * @return a float-array value backed by the provided array
+     * @param values the int values
+     * @return an int-array value backed by the provided array
      */
-    static FloatArrayValue fromFloatArray(float[] values) {
-        return new PrimitiveFloatArray(values);
+    static IntArrayValue fromIntArray(int[] values) {
+        return new PrimitiveIntArray(values);
     }
 
-    /** Number of float elements. */
+    /** Number of int elements. */
     int dimension();
 
     /** True if backed by little-endian packed bytes. */
     boolean isPackedLE();
 
     /**
-     * Packed bytes for the float vector (LE, 4 * dimension bytes).
+     * Packed bytes for the int vector (LE, 4 * dimension bytes).
      * Only valid when isPackedLE() == true.
      */
     BytesReference packedBytes();
 
     /** Random access (packed reads 4 bytes at i*4; non-packed returns v[i]). */
-    float get(int i);
+    int get(int i);
 
     /**
-     * Convenience; allocates a float array for packed values.
+     * Convenience; allocates an int array for packed values.
      * Zero-copy decoding is used when the packed value is backed by a usable byte array.
      * For other BytesReference implementations, decoding may lazily materialize one cached
      * byte array.
      */
-    float[] asFloatArray();
+    int[] asIntArray();
 
     @Override
     default int size() {
@@ -96,13 +96,13 @@ public non-sealed interface FloatArrayValue extends ExtraFieldValue {
 
     void writePayloadTo(StreamOutput out) throws IOException;
 
-    static FloatArrayValue readBodyFrom(StreamInput in) throws IOException {
+    static IntArrayValue readBodyFrom(StreamInput in) throws IOException {
         final boolean packedLE = in.readBoolean();
         if (packedLE) {
             final int dim = in.readVInt();
-            return PackedFloatArray.readBodyFrom(in, dim);
+            return PackedIntArray.readBodyFrom(in, dim);
         } else {
-            return PrimitiveFloatArray.readBodyFrom(in);
+            return PrimitiveIntArray.readBodyFrom(in);
         }
     }
 }
