@@ -79,7 +79,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=PASSTHROUGH", config.getTopic(), partitionId);
     }
 
-    void initialize() throws Exception {
+    protected void initialize() throws Exception {
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
             (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(
@@ -101,12 +101,16 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             partitionId,
             config.getTopicMetadataFetchTimeoutMs()
         );
+    }
 
-        Map<String, Object> avroParams = config.getAvroParams();
-        if (!avroParams.isEmpty()) {
-            this.payloadDecoder = AvroPayloadDecoder.create(avroParams);
-            logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=AvroPayloadDecoder", topic, partitionId);
-        }
+    /**
+     * Override the payload decoder after {@link #initialize()}. Plugins that provide their own
+     * decoding implementation (e.g. Avro support) call this to inject a custom decoder.
+     *
+     * @param decoder the decoder to use; must not be null
+     */
+    public synchronized void setPayloadDecoder(PayloadDecoder decoder) {
+        this.payloadDecoder = java.util.Objects.requireNonNull(decoder, "decoder");
     }
 
     /**

@@ -30,7 +30,6 @@ public class KafkaSourceConfig {
     private final int topicMetadataFetchTimeoutMs;
 
     private final Map<String, Object> consumerConfigsMap;
-    private final Map<String, Object> avroParams;
 
     /**
      * Extracts and look for required and optional kafka consumer configurations.
@@ -66,16 +65,6 @@ public class KafkaSourceConfig {
         consumerConfigsMap.remove(PROP_BOOTSTRAP_SERVERS);
         consumerConfigsMap.remove(PROP_TOPIC_METADATA_FETCH_TIMEOUT_MS);
 
-        // extract and remove avro.* params — they are not Kafka consumer properties
-        this.avroParams = new HashMap<>();
-        consumerConfigsMap.entrySet().removeIf(e -> {
-            if (e.getKey().startsWith(AvroPayloadDecoder.AVRO_PREFIX)) {
-                avroParams.put(e.getKey(), e.getValue());
-                return true;
-            }
-            return false;
-        });
-
         // add or overwrite required configurations with defaults if not present
         consumerConfigsMap.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetResetConfig);
         consumerConfigsMap.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
@@ -109,16 +98,6 @@ public class KafkaSourceConfig {
 
     public Map<String, Object> getConsumerConfigurations() {
         return consumerConfigsMap;
-    }
-
-    /**
-     * Get the avro.* parameters extracted from the source config.
-     * These are not passed to the Kafka consumer — they configure {@link AvroPayloadDecoder}.
-     *
-     * @return map of avro.* parameters, empty if Avro decoding is not configured
-     */
-    public Map<String, Object> getAvroParams() {
-        return avroParams;
     }
 
     /**
