@@ -151,8 +151,8 @@ fn test_concurrent_writes_different_files() {
         schema_ptrs.push(schema_ptr);
     }
 
-    for i in 0..file_count {
-        let filename = filenames[i].clone();
+    for filename in &filenames {
+        let filename = filename.clone();
         let success_count = Arc::clone(&success_count);
         let handle = thread::spawn(move || {
             for _ in 0..2 {
@@ -414,7 +414,7 @@ use std::fs::File;
 fn read_column_compression(path: &str, col_name: &str) -> Compression {
     let reader = SerializedFileReader::new(File::open(path).unwrap()).unwrap();
     let meta = reader.metadata();
-    let schema = meta.file_metadata().schema_descr();
+    let _schema = meta.file_metadata().schema_descr();
     let rg = meta.row_group(0);
     for i in 0..rg.num_columns() {
         let col = rg.column(i);

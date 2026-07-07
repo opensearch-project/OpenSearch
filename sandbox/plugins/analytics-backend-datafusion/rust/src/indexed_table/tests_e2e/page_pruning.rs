@@ -47,6 +47,7 @@ use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::Operator;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
 use datafusion::parquet::arrow::ArrowWriter;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
 use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
 use datafusion::physical_expr::PhysicalExpr;
@@ -93,7 +94,7 @@ fn write_fixture() -> NamedTempFile {
         })
         .collect();
     let brands: Vec<&str> = (0..NUM_PAGES)
-        .flat_map(|p| std::iter::repeat(labels[p]).take(ROWS_PER_PAGE))
+        .flat_map(|p| std::iter::repeat_n(labels[p], ROWS_PER_PAGE))
         .collect();
     let batch = RecordBatch::try_new(
         schema.clone(),
@@ -105,7 +106,7 @@ fn write_fixture() -> NamedTempFile {
     .unwrap();
     let tmp = NamedTempFile::new().unwrap();
     let props = WriterProperties::builder()
-        .set_max_row_group_size(NUM_ROWS)
+        .set_max_row_group_row_count(Some(NUM_ROWS))
         .set_data_page_row_count_limit(ROWS_PER_PAGE)
         .set_write_batch_size(ROWS_PER_PAGE)
         .set_statistics_enabled(EnabledStatistics::Page)
@@ -194,8 +195,11 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -757,7 +761,7 @@ async fn complex_deep_nesting_range_propagation_4_levels() {
     // Verify page 1 prices are all even-indexed (even doc IDs → even prices in page 1)
     let page1_prices: Vec<i32> = prices
         .iter()
-        .filter(|&&p| p >= 10_000 && p < 11_024)
+        .filter(|&&p| (10_000..11_024).contains(&p))
         .copied()
         .collect();
     assert_eq!(page1_prices.len(), 512);
@@ -766,7 +770,7 @@ async fn complex_deep_nesting_range_propagation_4_levels() {
     // Verify all of page 2 is present
     let page2_prices: Vec<i32> = prices
         .iter()
-        .filter(|&&p| p >= 20_000 && p < 21_024)
+        .filter(|&&p| (20_000..21_024).contains(&p))
         .copied()
         .collect();
     assert_eq!(page2_prices.len(), 1024);
@@ -866,15 +870,15 @@ async fn complex_5_wide_or_mixed_predicates_collectors() {
     // Count by page:
     let p1: Vec<_> = prices
         .iter()
-        .filter(|&&p| p >= 10_000 && p < 11_024)
+        .filter(|&&p| (10_000..11_024).contains(&p))
         .collect();
     let p2: Vec<_> = prices
         .iter()
-        .filter(|&&p| p >= 20_000 && p < 21_024)
+        .filter(|&&p| (20_000..21_024).contains(&p))
         .collect();
     let p3: Vec<_> = prices
         .iter()
-        .filter(|&&p| p >= 30_000 && p < 31_024)
+        .filter(|&&p| (30_000..31_024).contains(&p))
         .collect();
     let p0: Vec<_> = prices.iter().filter(|&&p| p < 1_024).collect();
 
@@ -967,7 +971,7 @@ async fn complex_cascading_and_with_not_at_depth() {
     assert_eq!(prices.len(), 512);
 
     // All prices should be in page 2 range
-    assert!(prices.iter().all(|&p| p >= 20_000 && p < 21_024));
+    assert!(prices.iter().all(|&p| (20_000..21_024).contains(&p)));
     // All should be even-indexed within page 2
     assert!(prices.iter().all(|&p| (p - 20_000) % 2 == 0));
 

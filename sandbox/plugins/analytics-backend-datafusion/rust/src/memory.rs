@@ -287,23 +287,23 @@ impl MemoryPool for DynamicLimitPool {
         let limit = dynamic_limit.load(Ordering::Acquire);
         let used = self.used.load(Ordering::Relaxed);
         // Only attempt override if the allocation is plausible (won't overflow).
-        if used.checked_add(additional).is_some() {
-            if crate::memory_guard::should_override(
+        if used.checked_add(additional).is_some()
+            && crate::memory_guard::should_override(
                 limit,
                 crate::memory_guard::OverrideContext::Execution,
-            ) {
-                // jemalloc confirms headroom — allow the grow
-                let _ = self
-                    .used
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
-                        u.checked_add(additional)
-                    });
-                if exempted {
-                    self.exempt_outstanding
-                        .fetch_add(additional, Ordering::Relaxed);
-                }
-                return Ok(());
+            )
+        {
+            // jemalloc confirms headroom — allow the grow
+            let _ = self
+                .used
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
+                    u.checked_add(additional)
+                });
+            if exempted {
+                self.exempt_outstanding
+                    .fetch_add(additional, Ordering::Relaxed);
             }
+            return Ok(());
         }
 
         // Both pool and jemalloc confirm pressure. Check if RSS is critical —
@@ -372,7 +372,7 @@ mod tests {
     fn test_try_grow_within_limit() {
         let (pool, _handle) = new_pool(1024);
         let consumer = MemoryConsumer::new("test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
         assert!(reservation.try_grow(512).is_ok());
         assert_eq!(pool.reserved(), 512);
     }
@@ -381,7 +381,7 @@ mod tests {
     fn test_try_grow_exceeds_limit() {
         let (pool, _handle) = new_pool(1024);
         let consumer = MemoryConsumer::new("test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
         assert!(reservation.try_grow(2048).is_err());
         assert_eq!(pool.reserved(), 0);
     }
@@ -390,7 +390,7 @@ mod tests {
     fn test_dynamic_limit_increase() {
         let (pool, handle) = new_pool(1024);
         let consumer = MemoryConsumer::new("test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         // Fails at 1024 limit
         assert!(reservation.try_grow(2048).is_err());
@@ -407,7 +407,7 @@ mod tests {
     fn test_dynamic_limit_decrease_existing_reservations_kept() {
         let (pool, handle) = new_pool(4096);
         let consumer = MemoryConsumer::new("test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         // Reserve 2048
         assert!(reservation.try_grow(2048).is_ok());
@@ -420,7 +420,7 @@ mod tests {
 
         // But new allocations fail
         let consumer2 = MemoryConsumer::new("test2");
-        let mut reservation2 = consumer2.register(&pool);
+        let reservation2 = consumer2.register(&pool);
         assert!(reservation2.try_grow(1).is_err());
     }
 
@@ -428,7 +428,7 @@ mod tests {
     fn test_try_grow_overflow_protection() {
         let (pool, _handle) = new_pool(usize::MAX);
         let consumer = MemoryConsumer::new("test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
         assert!(reservation.try_grow(1024).is_ok());
         // `additional == usize::MAX` would overflow `used + additional`.
         // checked_add inside fetch_update must reject it cleanly.
@@ -476,7 +476,7 @@ mod tests {
                 thread::spawn(move || {
                     barrier.wait();
                     let consumer = MemoryConsumer::new("race");
-                    let mut reservation = consumer.register(&pool);
+                    let reservation = consumer.register(&pool);
                     // Retry until either allocation succeeds OR the handle reports
                     // the new limit is visible. The previous fixed-iteration loop
                     // flaked on fast runners because the allocator could exhaust
@@ -515,7 +515,7 @@ mod tests {
         assert_eq!(handle.tripped_count(), 0);
 
         let consumer = MemoryConsumer::new("hash_agg");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         // First grow succeeds
         assert!(reservation.try_grow(512).is_ok());
@@ -541,12 +541,12 @@ mod tests {
 
         // Consumer A takes 1500 bytes
         let consumer_a = MemoryConsumer::new("sort_buffer");
-        let mut res_a = consumer_a.register(&pool);
+        let res_a = consumer_a.register(&pool);
         assert!(res_a.try_grow(1500).is_ok());
 
         // Consumer B tries 1000 bytes — only 548 available → rejected
         let consumer_b = MemoryConsumer::new("hash_agg");
-        let mut res_b = consumer_b.register(&pool);
+        let res_b = consumer_b.register(&pool);
         assert!(res_b.try_grow(1000).is_err());
         assert_eq!(handle.tripped_count(), 1);
 
@@ -562,7 +562,7 @@ mod tests {
     fn test_tripped_count_zero_when_all_grows_succeed() {
         let (pool, handle) = new_pool(1_000_000);
         let consumer = MemoryConsumer::new("scan");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         for _ in 0..100 {
             assert!(reservation.try_grow(1000).is_ok());
@@ -589,7 +589,7 @@ mod tests {
         }
 
         let consumer = MemoryConsumer::new("hard_guard_test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         // The hard guard fires before the CAS — even a tiny grow should be rejected
         let result = reservation.try_grow(1024);
@@ -612,7 +612,7 @@ mod tests {
         let (pool, handle) = new_pool(limit);
 
         let consumer = MemoryConsumer::new("large_pool_test");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         // A small allocation should succeed — RSS is far below 95% of 1TB
         let result = reservation.try_grow(4096);

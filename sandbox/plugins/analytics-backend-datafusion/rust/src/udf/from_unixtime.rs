@@ -11,8 +11,6 @@
 
 use std::sync::Arc;
 
-use super::udf_identity;
-
 use datafusion::arrow::array::{Array, ArrayRef, AsArray, TimestampMicrosecondBuilder};
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{exec_err, plan_err, Result, ScalarValue};

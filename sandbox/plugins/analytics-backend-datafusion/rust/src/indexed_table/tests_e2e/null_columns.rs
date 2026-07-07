@@ -13,6 +13,7 @@
 //! RGs" combinations that the random-distribution 10k fixture rarely hits.
 
 use super::*;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 
 // ══════════════════════════════════════════════════════════════════════
 // Null-density fixture — 4096 rows, 4 RGs, columns deliberately NULL at
@@ -82,7 +83,7 @@ fn build_null_fixture() -> NullFixture {
     let tmp = NamedTempFile::new().unwrap();
     let (file, path) = tmp.keep().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(1024)
+        .set_max_row_group_row_count(Some(1024))
         .set_data_page_row_count_limit(256)
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
@@ -310,8 +311,11 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
 
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 

@@ -427,7 +427,7 @@ impl WriterPropertiesBuilder {
     fn parse_compression_type(compression_type: &str, level: i32) -> Result<Compression, String> {
         match compression_type.to_uppercase().as_str() {
             "ZSTD" => Ok(Compression::ZSTD(
-                ZstdLevel::try_new(level).unwrap_or(ZstdLevel::default()),
+                ZstdLevel::try_new(level).unwrap_or_default(),
             )),
             "SNAPPY" => Ok(Compression::SNAPPY),
             "GZIP" => Ok(Compression::GZIP(
@@ -1023,7 +1023,7 @@ mod tests {
     #[test]
     fn test_bloom_filter_default_is_false() {
         let config = NativeSettings::default();
-        assert_eq!(config.get_bloom_filter_enabled(), false);
+        assert!(!config.get_bloom_filter_enabled());
         let schema = schema_with(vec![("test_col", ArrowDataType::Utf8)]);
         let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
         let col_path = parquet::schema::types::ColumnPath::from("test_col");

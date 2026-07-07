@@ -13,7 +13,7 @@
 //! TODO: Evaluate if DF's UDAF extension points (e.g. AccumulatorArgs overrides or
 //!       custom PhysicalOptimizerRule to inject CastExec) can avoid same-name overrides.
 
-use datafusion::arrow::array::{Array, ArrayRef, StringArray, StringViewArray};
+use datafusion::arrow::array::{ArrayRef, StringArray, StringViewArray};
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{downcast_value, Result};
 use datafusion::execution::context::SessionContext;

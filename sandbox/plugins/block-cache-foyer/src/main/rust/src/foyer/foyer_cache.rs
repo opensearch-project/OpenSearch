@@ -67,7 +67,7 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
         }
         "psync" => {
             native_bridge_common::log_info!("[block-cache] io_engine=psync forced by config");
-            return PsyncIoEngineConfig::new().boxed();
+            PsyncIoEngineConfig::new().boxed()
         }
         other => {
             if other != "auto" {
@@ -150,6 +150,7 @@ impl Drop for ActiveBytesGuard<'_> {
 /// 1. By the independent periodic persist task every `persist_interval_secs` seconds
 ///    (when `used_bytes` has changed since the last write — zero-write when idle).
 /// 2. Unconditionally in `Drop` (graceful shutdown).
+///
 /// On crash (`Drop` not called), only the Foyer disk data is recovered;
 /// key_index starts empty (same as before this feature was added).
 ///
@@ -296,6 +297,9 @@ impl FoyerCache {
     /// # Panics
     /// Panics if the Tokio runtime cannot be created or if Foyer fails to
     /// build the cache (e.g. insufficient disk space or invalid path).
+    // clippy::too_many_arguments — each parameter is a distinct required cache-construction
+    // knob (sizes, dir, intervals, thresholds); bundling into a struct only relocates the list.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         disk_bytes: usize,
         disk_dir: impl Into<PathBuf>,
@@ -419,6 +423,18 @@ impl FoyerCache {
             let sweep_threshold_atomic_clone = Arc::clone(&instance.sweep_threshold_ratio);
             let sweep_disk_bytes = disk_bytes;
 
+            // clippy::never_loop + derived lints — the inner loop currently only exits via
+            // `return`, so the outer restart/backoff scaffolding below (restart_count, backoff
+            // sleep, the "exited unexpectedly" log) is unreachable today. Kept intentionally
+            // as-is (restart-on-unexpected-exit intent); allow rather than restructure. The
+            // extra lints suppress the unreachable-code / unused-var noise that follows from it.
+            #[allow(
+                clippy::never_loop,
+                unused_variables,
+                unused_mut,
+                unreachable_code,
+                unused_labels
+            )]
             instance._runtime.spawn(async move {
                 native_bridge_common::log_info!(
                     "[block-cache] sweep task started: interval={}s", sweep_interval_secs
@@ -489,6 +505,16 @@ impl FoyerCache {
             let persist_dir = instance.cache_dir.clone();
             let persist_interval = Duration::from_secs(persist_interval_secs);
 
+            // clippy::never_loop + derived lints — see the sweep task above: the inner loop exits
+            // only via `return`, so the outer restart/backoff scaffolding is unreachable today.
+            // Kept intentionally as-is; allow rather than restructure.
+            #[allow(
+                clippy::never_loop,
+                unused_variables,
+                unused_mut,
+                unreachable_code,
+                unused_labels
+            )]
             instance._runtime.spawn(async move {
                 native_bridge_common::log_info!(
                     "[block-cache] persist task started: interval={}s",

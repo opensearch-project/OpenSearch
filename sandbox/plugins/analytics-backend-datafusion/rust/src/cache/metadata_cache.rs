@@ -240,6 +240,7 @@ mod strip_page_index_tests {
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
     use datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
     use object_store::ObjectMeta;
     use prost::bytes::Bytes;
@@ -275,7 +276,7 @@ mod strip_page_index_tests {
     fn full_index_entry(bytes: &Bytes) -> CachedFileMetadataEntry {
         let meta = ArrowReaderMetadata::load(
             &bytes.clone(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         let pq = meta.metadata().clone();
@@ -329,7 +330,7 @@ mod strip_page_index_tests {
         let bytes = parquet_with_page_index();
         let meta = ArrowReaderMetadata::load(
             &bytes.clone(),
-            ArrowReaderOptions::new().with_page_index(false),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Skip),
         )
         .unwrap();
         let pq = meta.metadata().clone();

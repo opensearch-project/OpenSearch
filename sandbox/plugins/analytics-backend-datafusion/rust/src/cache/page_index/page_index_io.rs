@@ -17,22 +17,20 @@ use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, BooleanArray, UInt64Array};
-use arrow::datatypes::SchemaRef;
-use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::{
     ColumnChunkMetaData, OffsetIndexBuilder, ParquetColumnIndex, ParquetMetaData,
     ParquetOffsetIndex,
 };
 use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
+// TODO: migrate to ParquetMetaDataReader once arrow-rs exposes a page-index
+// column/row-group projection (apache/arrow-rs#8643). These are currently the
+// only PUBLIC column-subset decoders, so we keep the deprecated import scoped.
+#[allow(deprecated)]
 use datafusion::parquet::file::page_index::index_reader::{
     read_columns_indexes, read_offset_indexes,
 };
 use datafusion::parquet::file::reader::{ChunkReader, Length};
-use datafusion::physical_expr::PhysicalExpr;
-use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
-use datafusion::scalar::ScalarValue;
 use object_store::ObjectStore;
 use parquet::file::page_index::offset_index::OffsetIndexMetaData;
 use prost::bytes::{buf, Buf, Bytes};
@@ -660,32 +658,35 @@ impl BufferChunkReader {
     }
 }
 #[cfg(test)]
+// test-only: each test takes `CACHE_TEST_GUARD` (a std Mutex) to serialize access to the
+// global scoped-index cache, and holds it across `.await` intentionally so the whole test
+// body runs under the lock. Not a production deadlock risk.
+#[allow(clippy::await_holding_lock)]
 mod tests {
     use super::super::column_schema_resolver::{
         resolve_predicate_parquet_columns, resolve_predicate_parquet_columns_pair,
     };
     use super::super::{
         clear_scoped_cache_for_test, column_index_cache_stats, offset_index_cache_stats,
-        scoped_cache_stats, set_column_index_cache_limit_for_test, set_whole_region_fetch_enabled,
-        ScopedCacheStats, SCOPED_CACHE_TEST_GUARD,
+        set_column_index_cache_limit_for_test, set_whole_region_fetch_enabled, ScopedCacheStats,
     };
     use super::*;
     use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruner};
     use arrow::array::{Int32Array, RecordBatch};
-    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use datafusion::common::ScalarValue;
     use datafusion::logical_expr::Operator;
     use datafusion::parquet::arrow::arrow_reader::{
         ArrowReaderMetadata, ArrowReaderOptions, RowSelection, RowSelector,
     };
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
     use datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
     use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
     use datafusion::physical_expr::PhysicalExpr;
     use object_store::memory::InMemory;
     use object_store::path::Path as ObjPath;
     use object_store::{ObjectStoreExt, PutPayload};
-    use parquet::arrow::parquet_to_arrow_schema;
 
     use super::super::SCOPED_CACHE_TEST_GUARD as CACHE_TEST_GUARD;
 
@@ -708,7 +709,7 @@ mod tests {
         )
         .unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -737,7 +738,7 @@ mod tests {
         )
         .unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(10)
+            .set_max_row_group_row_count(Some(10))
             .set_data_page_row_count_limit(5)
             .set_write_batch_size(5)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -774,7 +775,7 @@ mod tests {
         )
         .unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(ROWS as usize)
+            .set_max_row_group_row_count(Some(ROWS as usize))
             .set_data_page_row_count_limit(32)
             .set_write_batch_size(32)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -799,7 +800,7 @@ mod tests {
     fn footer_only(bytes: &Bytes) -> Arc<ParquetMetaData> {
         ArrowReaderMetadata::load(
             &bytes.clone(),
-            ArrowReaderOptions::new().with_page_index(false),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Skip),
         )
         .unwrap()
         .metadata()
@@ -809,7 +810,7 @@ mod tests {
     fn full_index(bytes: &Bytes) -> Arc<ParquetMetaData> {
         ArrowReaderMetadata::load(
             &bytes.clone(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap()
         .metadata()
@@ -855,7 +856,7 @@ mod tests {
             .build()
             .map_err(|e| format!("build reader: {e}"))?;
         let mut out = Vec::new();
-        while let Some(next) = reader.next() {
+        for next in reader.by_ref() {
             let batch = next.map_err(|e| format!("read batch: {e}"))?;
             let a = batch
                 .column(0)
@@ -1025,7 +1026,7 @@ mod tests {
         )
         .unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)

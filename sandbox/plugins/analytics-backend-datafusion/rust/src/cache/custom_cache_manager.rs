@@ -19,7 +19,7 @@ use datafusion::execution::cache::cache_manager::{
 };
 use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
-use log::{debug, error};
+use log::error;
 use native_bridge_common::log_debug;
 use object_store::path::Path;
 use object_store::ObjectMeta;
@@ -113,7 +113,7 @@ fn create_object_meta_from_file(
 
     let modified = metadata
         .modified()
-        .map(|t| DateTime::<Utc>::from(t))
+        .map(DateTime::<Utc>::from)
         .unwrap_or_else(|_| Utc::now());
 
     let object_meta = ObjectMeta {
@@ -135,6 +135,12 @@ pub struct CustomCacheManager {
     statistics_cache: Option<Arc<CustomStatisticsCache>>,
     column_index_registered: bool,
     offset_index_registered: bool,
+}
+
+impl Default for CustomCacheManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CustomCacheManager {
@@ -384,7 +390,7 @@ impl CustomCacheManager {
             crate::cache::metadata_cache::CACHE_TYPE_STATS => self
                 .statistics_cache
                 .as_ref()
-                .map_or(false, |cache| cache.contains_key(&Path::from(file_path))),
+                .is_some_and(|cache| cache.contains_key(&Path::from(file_path))),
             metadata_cache::CACHE_TYPE_COLUMN_INDEX => {
                 if !self.column_index_registered {
                     return false;
@@ -716,7 +722,6 @@ impl CustomCacheManager {
         // Put lightweight footer-only metadata into heap cache
         use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
         use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
-        use datafusion::execution::cache::CacheAccessor;
         let cached_entry = CachedFileMetadataEntry::new(
             object_meta.clone(),
             Arc::new(CachedParquetMetaData::new(Arc::clone(&parquet_metadata))),
@@ -991,7 +996,6 @@ impl CustomCacheManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::eviction_policy::PolicyType;
     use crate::cache::page_index::{
         clear_scoped_cache_for_test, column_index_cache_stats, offset_index_cache_stats,
         SCOPED_CACHE_TEST_GUARD,
@@ -1122,7 +1126,7 @@ mod tests {
         let schema = Arc::new(Schema::new(fields));
 
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(stats)

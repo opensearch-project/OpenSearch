@@ -132,6 +132,8 @@ const PER_COLUMN_DECODE_OVERHEAD_BYTES: usize = 4 * 1024;
 const MIN_BATCH_SIZE: usize = 1024;
 
 /// Default minimum target_partitions floor (used if the dynamic setting hasn't been set).
+// Retained for reference/future use of the dynamic target_partitions floor.
+#[allow(dead_code)]
 const DEFAULT_MIN_TARGET_PARTITIONS: usize = 1;
 
 /// Computed budget for a query. Carries the phantom reservation that must be
@@ -311,7 +313,7 @@ fn acquire_budget_inner(
             target_partitions, batch_size
         ))
         .with_can_spill(true);
-        let mut reservation = consumer.register(pool);
+        let reservation = consumer.register(pool);
 
         match reservation.try_grow(phantom_bytes) {
             Ok(()) => {
@@ -469,7 +471,7 @@ pub fn estimate_avg_row_bytes(schema: &SchemaRef) -> usize {
         }
     }
     // Null bitmaps: 1 bit per nullable column per row, rounded up to bytes
-    total += (nullable_count + 7) / 8;
+    total += nullable_count.div_ceil(8);
     total.max(8)
 }
 
@@ -731,7 +733,7 @@ mod tests {
 
         // Simulate an operator trying to allocate from the same pool
         let consumer = MemoryConsumer::new("hash_agg");
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
 
         // Try to allocate what's left
         let remaining = 10_000_000 - after_phantom;

@@ -37,7 +37,6 @@ macro_rules! udf_identity {
         }
     };
 }
-pub(crate) use udf_identity;
 
 /// Input-type categories for UDF argument slots. Each mode declares a canonical
 /// arrow target type plus the set of sources that coerce to it; invalid sources

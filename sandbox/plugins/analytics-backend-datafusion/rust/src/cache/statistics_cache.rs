@@ -439,6 +439,10 @@ impl CustomStatisticsCache {
             .unwrap_or(0)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn clear(&self) {
         self.inner_cache.clear();
         if let Ok(mut state) = self.memory_state.lock() {
@@ -626,7 +630,7 @@ mod tests {
             cache.put_statistics(&path, stats, &meta);
         }
         assert!(cache.memory_consumed() <= 1000);
-        assert!(cache.len() > 0);
+        assert!(!cache.is_empty());
     }
 
     #[test]
@@ -800,7 +804,7 @@ mod tests {
         for handle in handles {
             handle.join().unwrap();
         }
-        assert!(cache.len() > 0);
+        assert!(!cache.is_empty());
     }
 
     #[test]

@@ -22,7 +22,7 @@
 //! resulting {@code array_element(map_extract(...), 1)} chain to one of the
 //! per-field scalar UDFs.
 
-use datafusion::arrow::array::{ArrayRef, AsArray, StringArray, StringBuilder};
+use datafusion::arrow::array::{ArrayRef, StringArray, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::Result;
 use datafusion::execution::context::SessionContext;
@@ -289,6 +289,7 @@ fn read_f64_at(arr: &ArrayRef, i: usize) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::arrow::array::AsArray;
     use std::sync::Arc;
 
     #[test]

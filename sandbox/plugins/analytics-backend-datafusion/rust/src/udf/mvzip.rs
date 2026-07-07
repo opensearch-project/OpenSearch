@@ -29,8 +29,8 @@ use std::sync::Arc;
 
 use datafusion::arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, Float32Array, Float64Array, GenericListArray,
-    Int16Array, Int32Array, Int64Array, Int8Array, ListArray, ListBuilder, StringArray,
-    StringBuilder, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Int16Array, Int32Array, Int64Array, Int8Array, ListArray, ListBuilder, StringBuilder,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::{plan_err, ScalarValue};

@@ -20,6 +20,7 @@ use datafusion::execution::context::SessionContext;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Operator;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use datafusion::physical_expr::expressions::{BinaryExpr, Literal};
 use datafusion::physical_expr::PhysicalExpr;
 use futures::StreamExt;
@@ -49,8 +50,11 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
     let size = std::fs::metadata(&path).unwrap().len();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();

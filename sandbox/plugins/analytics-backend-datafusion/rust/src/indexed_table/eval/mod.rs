@@ -265,6 +265,9 @@ pub trait TreeEvaluator: Send + Sync {
     /// map = no page-level predicate pruning; each Predicate leaf falls
     /// back to "every row is a candidate" (safe, identity for the
     /// candidate stage).
+    // Real evaluation API: each parameter carries distinct evaluation context
+    // (tree, row-group context, leaf source, pruning state, metrics).
+    #[allow(clippy::too_many_arguments)]
     fn prefetch(
         &self,
         tree: &ResolvedNode,
@@ -285,6 +288,9 @@ pub trait TreeEvaluator: Send + Sync {
     /// position (identity under full-scan; non-trivial under block-granular
     /// RowSelection). `batch_offset` is the delivered-row index of the
     /// first row in this batch.
+    // Real evaluation API: batch, cached candidate state, and row-position
+    // translation are all distinct inputs to per-batch refinement.
+    #[allow(clippy::too_many_arguments)]
     fn on_batch(
         &self,
         tree: &ResolvedNode,
@@ -460,7 +466,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             let mut rg_candidates = RoaringBitmap::new();
             let mut run_start: Option<u32> = None;
             let mut run_end: u32 = 0; // inclusive
-            let mut flush = |bm: &mut RoaringBitmap, start: u32, end_inclusive: u32| {
+            let flush = |bm: &mut RoaringBitmap, start: u32, end_inclusive: u32| {
                 // Range API is half-open; end_inclusive+1 handles the
                 // edge case at u32::MAX via saturating add (roaring
                 // clamps at u32::MAX internally).
@@ -731,6 +737,7 @@ mod tests {
     use datafusion::arrow::record_batch::RecordBatch;
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
 
     fn empty_pruner() -> Arc<PagePruner> {
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
@@ -745,7 +752,7 @@ mod tests {
         writer.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         Arc::new(PagePruner::new(

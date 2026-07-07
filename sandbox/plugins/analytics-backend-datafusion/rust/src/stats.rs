@@ -80,6 +80,7 @@ pub struct PartitionGateRepr {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct CacheGroupRepr {
     pub hit_count: i64,
     pub miss_count: i64,
@@ -89,34 +90,12 @@ pub struct CacheGroupRepr {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct CacheStatsRepr {
     pub metadata_cache: CacheGroupRepr,
     pub statistics_cache: CacheGroupRepr,
     pub column_index_cache: CacheGroupRepr,
     pub offset_index_cache: CacheGroupRepr,
-}
-
-impl Default for CacheGroupRepr {
-    fn default() -> Self {
-        Self {
-            hit_count: 0,
-            miss_count: 0,
-            entry_count: 0,
-            memory_bytes: 0,
-            size_limit_bytes: 0,
-        }
-    }
-}
-
-impl Default for CacheStatsRepr {
-    fn default() -> Self {
-        Self {
-            metadata_cache: CacheGroupRepr::default(),
-            statistics_cache: CacheGroupRepr::default(),
-            column_index_cache: CacheGroupRepr::default(),
-            offset_index_cache: CacheGroupRepr::default(),
-        }
-    }
 }
 
 #[repr(C)]
@@ -342,7 +321,7 @@ mod tests {
             .enable_all()
             .build()
             .unwrap();
-        let monitor = RuntimeMonitor::new(&rt.handle());
+        let monitor = RuntimeMonitor::new(rt.handle());
         let result = pack_runtime_metrics(&monitor, rt.handle());
         assert_eq!(result.workers_count, 2);
     }
@@ -354,7 +333,7 @@ mod tests {
             .enable_all()
             .build()
             .unwrap();
-        let monitor = RuntimeMonitor::new(&rt.handle());
+        let monitor = RuntimeMonitor::new(rt.handle());
         let result = pack_runtime_metrics(&monitor, rt.handle());
         assert_eq!(result.workers_count, 3);
         assert!(result.total_polls_count >= 0);
@@ -452,7 +431,7 @@ mod tests {
         // A buffer smaller than 680 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
-        assert!(layout::BUFFER_BYTE_SIZE > 0);
+        const { assert!(layout::BUFFER_BYTE_SIZE > 0) };
     }
 
     #[test]

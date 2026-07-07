@@ -81,9 +81,8 @@ pub fn parse_pattern(pattern: &str, compiled_pattern: &Regex) -> ParseResult {
     let mut is_token: Vec<bool> = Vec::new();
     let mut token_order: Vec<String> = Vec::new();
     let mut last_end = 0usize;
-    let mut token_count = 1usize;
 
-    for m in compiled_pattern.find_iter(pattern) {
+    for (token_count, m) in (1usize..).zip(compiled_pattern.find_iter(pattern)) {
         let start = m.start();
         let end = m.end();
         if start > last_end {
@@ -93,7 +92,6 @@ pub fn parse_pattern(pattern: &str, compiled_pattern: &Regex) -> ParseResult {
         parts.push(pattern[start..end].to_string());
         is_token.push(true);
         token_order.push(format!("<token{}>", token_count));
-        token_count += 1;
         last_end = end;
     }
     if last_end < pattern.len() {

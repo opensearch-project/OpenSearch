@@ -339,6 +339,9 @@ fn convert_mstime(s: &str) -> Option<f64> {
 }
 
 #[cfg(test)]
+// clippy::approx_constant — the `3.14` literals below are arbitrary decimal parse fixtures,
+// not intended approximations of PI; using std::f64::consts::PI would change the assertions.
+#[allow(clippy::approx_constant)]
 mod tests {
     use super::*;
 

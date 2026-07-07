@@ -21,7 +21,7 @@ use datafusion::logical_expr::{
 };
 
 use super::json_common::StringArrayView;
-use super::{coerce_args, udf_identity, CoerceMode};
+use super::{coerce_args, CoerceMode};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(ConvUdf::new()));

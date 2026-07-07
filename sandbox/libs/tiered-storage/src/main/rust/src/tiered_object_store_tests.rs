@@ -1116,6 +1116,9 @@ fn setup_with_cache() -> (
     (registry, local, cache, tiered)
 }
 
+// The `&[start..end]` args are intentionally a one-element slice of a Range
+// (the put_metadata API takes `&[Range<u64>]`), not a range-based collection.
+#[allow(clippy::single_range_in_vec_init)]
 #[tokio::test]
 async fn test_put_metadata_served_from_cache_on_get_opts() {
     let (registry, _local, _cache, tiered) = setup_with_cache();
@@ -1142,6 +1145,8 @@ async fn test_put_metadata_served_from_cache_on_get_opts() {
     assert_eq!(bytes.as_ref(), b"FOOTER");
 }
 
+// The `&[start..end]` arg is intentionally a one-element slice of a Range.
+#[allow(clippy::single_range_in_vec_init)]
 #[tokio::test]
 async fn test_put_metadata_routes_to_metadata_tier_only() {
     let (registry, _local, cache, tiered) = setup_with_cache();
@@ -1163,6 +1168,8 @@ async fn test_put_metadata_routes_to_metadata_tier_only() {
     );
 }
 
+// The `&[start..end]` arg is intentionally a one-element slice of a Range.
+#[allow(clippy::single_range_in_vec_init)]
 #[tokio::test]
 async fn test_put_metadata_noop_without_cache() {
     // No cache attached — must be a no-op, not a panic.

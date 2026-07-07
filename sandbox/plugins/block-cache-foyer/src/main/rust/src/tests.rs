@@ -38,8 +38,8 @@ const IO_ENGINE: &str = "auto";
 /// `lru_eviction_retains_keys_in_key_index`, etc.) create their own caches with
 /// explicit sizes and are unaffected by these constants.
 const TEST_CACHE_DISK_BYTES: usize = 4 * 1024 * 1024; // 4 MB disk capacity
-const TEST_CACHE_BLOCK_SIZE: usize = 1 * 1024 * 1024; // 1 MB block size (must be ≤ disk)
-const TEST_BUFFER_POOL_SIZE: usize = 1 * 1024 * 1024; // 1 MB buffer pool (≥ block_size)
+const TEST_CACHE_BLOCK_SIZE: usize = 1024 * 1024; // 1 MB block size (must be ≤ disk)
+const TEST_BUFFER_POOL_SIZE: usize = 1024 * 1024; // 1 MB buffer pool (≥ block_size)
 const TEST_SUBMIT_QUEUE_SIZE: usize = 2 * 1024 * 1024; // 2 MB submit queue (≥ 2× buffer pool)
 
 fn test_cache() -> (FoyerCache, TempDir) {
@@ -238,8 +238,8 @@ fn clear_updates_removed_count_and_removed_bytes() {
     let (cache, _dir) = test_cache();
 
     // Two files, one range each: 0-100 = 100 bytes, 0-200 = 200 bytes → total 300 bytes, 2 entries.
-    put_range(&cache, "/data/a.parquet", 0, 100, &vec![0u8; 100]);
-    put_range(&cache, "/data/b.parquet", 0, 200, &vec![0u8; 200]);
+    put_range(&cache, "/data/a.parquet", 0, 100, &[0u8; 100]);
+    put_range(&cache, "/data/b.parquet", 0, 200, &[0u8; 200]);
 
     let removed_count_before = cache
         .stats
@@ -648,7 +648,7 @@ fn lru_eviction_retains_keys_in_key_index() {
     // Writes 8 × 256KB = 2MB total into a 1MB cache to trigger LRU eviction pressure.
     let dir = TempDir::new().unwrap();
     let cache = FoyerCache::new(
-        1 * 1024 * 1024,
+        1024 * 1024,
         dir.path(),
         256 * 1024,
         256 * 1024,
@@ -893,8 +893,8 @@ fn evict_prefix_updates_removed_bytes_and_used_bytes() {
     let (cache, _dir) = test_cache();
 
     // Two ranges: 0-100 = 100 bytes, 100-300 = 200 bytes → total 300 bytes.
-    put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
-    put_range(&cache, "/data/file.parquet", 100, 300, &vec![0u8; 200]);
+    put_range(&cache, "/data/file.parquet", 0, 100, &[0u8; 100]);
+    put_range(&cache, "/data/file.parquet", 100, 300, &[0u8; 200]);
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     let used_before = cache
@@ -945,7 +945,7 @@ fn evict_prefix_updates_removed_bytes_and_used_bytes() {
 #[test]
 fn evict_prefix_on_nonexistent_prefix_does_not_change_stats() {
     let (cache, _dir) = test_cache();
-    put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
+    put_range(&cache, "/data/file.parquet", 0, 100, &[0u8; 100]);
 
     let removed_before = cache
         .stats
@@ -1296,12 +1296,8 @@ fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
 
     // A freshly created cache has no hits, misses, evictions, used bytes, or active reads.
     // Sections 0 and 1 are identical (Foyer is currently single-tier).
-    for i in 0..20 {
-        assert_eq!(
-            out[i], 0,
-            "out[{i}] should be 0 for a fresh cache, got {}",
-            out[i]
-        );
+    for (i, &val) in out.iter().enumerate() {
+        assert_eq!(val, 0, "out[{i}] should be 0 for a fresh cache, got {val}");
     }
 
     let destroy_rc = unsafe { foyer_destroy_cache(ptr) };
@@ -1835,7 +1831,7 @@ fn persist_task_last_persisted_reset_forces_persist_after_recovery() {
             0,
             false,
         );
-        put_range(&cache1, "/data/reset_test.parquet", 0, 100, &vec![0u8; 100]);
+        put_range(&cache1, "/data/reset_test.parquet", 0, 100, &[0u8; 100]);
         // Drop writes key_index.json with used_bytes=100.
     }
     assert!(
@@ -1970,11 +1966,11 @@ fn sweep_once_processes_exactly_one_shard() {
 
     // Inject one unique stale key per shard directly via raw shard access.
     // Each key is unique so it hashes to a predictable shard via the raw write.
-    for i in 0..shard_count {
+    for (i, shard) in shards.iter().enumerate() {
         let prefix = format!("shard_test_{}", i);
         let key = format!("{}\x1F0-100", prefix);
         // Direct shard write bypasses DashMap's hashing — we control exactly which shard gets the key.
-        shards[i].write().insert(
+        shard.write().insert(
             prefix,
             dashmap::SharedValue::new({
                 let mut s = std::collections::HashSet::new();
@@ -2460,9 +2456,8 @@ fn sweep_threshold_disabled_never_skips() {
     );
 
     // used_bytes = 0 (empty cache)
-    assert_eq!(
-        cache.should_skip_sweep(),
-        false,
+    assert!(
+        !cache.should_skip_sweep(),
         "threshold=0.0: should never skip even when cache is empty"
     );
 
@@ -2471,9 +2466,8 @@ fn sweep_threshold_disabled_never_skips() {
         TEST_CACHE_DISK_BYTES as i64,
         std::sync::atomic::Ordering::Relaxed,
     );
-    assert_eq!(
-        cache.should_skip_sweep(),
-        false,
+    assert!(
+        !cache.should_skip_sweep(),
         "threshold=0.0: should never skip even when cache is 100% full"
     );
 }
@@ -2501,9 +2495,8 @@ fn sweep_threshold_skips_when_usage_below_threshold() {
         .stats
         .used_bytes
         .store(0, std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
+    assert!(
         cache.should_skip_sweep(),
-        true,
         "usage=0% < threshold=75%: sweep must be skipped"
     );
 
@@ -2513,21 +2506,19 @@ fn sweep_threshold_skips_when_usage_below_threshold() {
         .stats
         .used_bytes
         .store(half, std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
+    assert!(
         cache.should_skip_sweep(),
-        true,
         "usage=50% < threshold=75%: sweep must be skipped"
     );
 
     // usage = 74.9% → below 75% → skip
-    let below = ((TEST_CACHE_DISK_BYTES as f64 * 0.749) as i64);
+    let below = (TEST_CACHE_DISK_BYTES as f64 * 0.749) as i64;
     cache
         .stats
         .used_bytes
         .store(below, std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
+    assert!(
         cache.should_skip_sweep(),
-        true,
         "usage=74.9% < threshold=75%: sweep must be skipped"
     );
 }
@@ -2551,26 +2542,24 @@ fn sweep_threshold_runs_when_usage_at_or_above_threshold() {
     );
 
     // usage = exactly 75% → NOT below → do NOT skip
-    let exact = ((TEST_CACHE_DISK_BYTES as f64 * 0.75) as i64);
+    let exact = (TEST_CACHE_DISK_BYTES as f64 * 0.75) as i64;
     cache
         .stats
         .used_bytes
         .store(exact, std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
-        cache.should_skip_sweep(),
-        false,
+    assert!(
+        !cache.should_skip_sweep(),
         "usage=75% == threshold=75%: sweep must NOT be skipped"
     );
 
     // usage = 90% → above 75% → do NOT skip
-    let above = ((TEST_CACHE_DISK_BYTES as f64 * 0.90) as i64);
+    let above = (TEST_CACHE_DISK_BYTES as f64 * 0.90) as i64;
     cache
         .stats
         .used_bytes
         .store(above, std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
-        cache.should_skip_sweep(),
-        false,
+    assert!(
+        !cache.should_skip_sweep(),
         "usage=90% > threshold=75%: sweep must NOT be skipped"
     );
 
@@ -2579,9 +2568,8 @@ fn sweep_threshold_runs_when_usage_at_or_above_threshold() {
         TEST_CACHE_DISK_BYTES as i64,
         std::sync::atomic::Ordering::Relaxed,
     );
-    assert_eq!(
-        cache.should_skip_sweep(),
-        false,
+    assert!(
+        !cache.should_skip_sweep(),
         "usage=100% > threshold=75%: sweep must NOT be skipped"
     );
 }
@@ -2605,14 +2593,13 @@ fn sweep_threshold_one_skips_unless_completely_full() {
     );
 
     // usage = 99.9% → still below 100% → skip
-    let almost_full = ((TEST_CACHE_DISK_BYTES as f64 * 0.999) as i64);
+    let almost_full = (TEST_CACHE_DISK_BYTES as f64 * 0.999) as i64;
     cache
         .stats
         .used_bytes
         .store(almost_full, std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
+    assert!(
         cache.should_skip_sweep(),
-        true,
         "threshold=1.0, usage=99.9%: sweep must be skipped"
     );
 
@@ -2621,9 +2608,8 @@ fn sweep_threshold_one_skips_unless_completely_full() {
         TEST_CACHE_DISK_BYTES as i64,
         std::sync::atomic::Ordering::Relaxed,
     );
-    assert_eq!(
-        cache.should_skip_sweep(),
-        false,
+    assert!(
+        !cache.should_skip_sweep(),
         "threshold=1.0, usage=100%: sweep must NOT be skipped"
     );
 }
@@ -2652,9 +2638,8 @@ fn sweep_threshold_negative_used_bytes_treated_as_zero() {
         .used_bytes
         .store(-100, std::sync::atomic::Ordering::Relaxed);
     // usage = max(−100, 0) / disk = 0 / disk = 0.0 < 0.5 → skip
-    assert_eq!(
+    assert!(
         cache.should_skip_sweep(),
-        true,
         "negative used_bytes must be clamped to 0; ratio 0.0 < threshold 0.5 → skip"
     );
 }
@@ -2686,9 +2671,8 @@ fn sweep_once_ignores_threshold_guard() {
         .insert("data/file.parquet\x1F0-100".to_string());
 
     // usage = 0 → should_skip_sweep() is true (below 99% threshold)
-    assert_eq!(
+    assert!(
         cache.should_skip_sweep(),
-        true,
         "precondition: threshold guard would skip"
     );
 
@@ -2809,8 +2793,8 @@ fn recovery_used_bytes_initialized_from_snapshot() {
             false,
         );
         // 3 ranges: 100 + 200 + 300 = 600 bytes total.
-        put_range(&cache, "/data/f.parquet", 0, 100, &vec![0u8; 100]);
-        put_range(&cache, "/data/f.parquet", 100, 300, &vec![0u8; 200]);
+        put_range(&cache, "/data/f.parquet", 0, 100, &[0u8; 100]);
+        put_range(&cache, "/data/f.parquet", 100, 300, &[0u8; 200]);
         put_range(&cache, "/data/f.parquet", 300, 600, &vec![0u8; 300]);
         // Drop persists.
     }
@@ -3167,7 +3151,7 @@ fn persist_task_does_not_fire_when_cache_idle() {
             false,
         );
         // Single put to trigger the first persist.
-        put_range(&cache, "/data/idle.parquet", 0, 100, &vec![0u8; 100]);
+        put_range(&cache, "/data/idle.parquet", 0, 100, &[0u8; 100]);
 
         // Wait for the first persist (sentinel → current triggers it).
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -3290,7 +3274,7 @@ fn persist_task_not_spawned_when_interval_is_zero() {
             0, // disabled
             false,
         );
-        put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
+        put_range(&cache, "/data/file.parquet", 0, 100, &[0u8; 100]);
 
         // Wait 2 seconds — file must NOT appear (no persist task).
         std::thread::sleep(std::time::Duration::from_millis(2000));
@@ -3412,13 +3396,7 @@ fn graceful_shutdown_snapshot_is_valid_json_with_correct_content() {
             512,
             &vec![0u8; 256],
         );
-        put_range(
-            &cache,
-            "/data/nodes/0/shard2.parquet",
-            0,
-            128,
-            &vec![0u8; 128],
-        );
+        put_range(&cache, "/data/nodes/0/shard2.parquet", 0, 128, &[0u8; 128]);
         // Drop writes key_index.json.
     }
 
@@ -3465,7 +3443,7 @@ fn no_tmp_file_left_after_graceful_shutdown() {
             0,
             false,
         );
-        put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
+        put_range(&cache, "/data/file.parquet", 0, 100, &[0u8; 100]);
         // Drop writes and renames.
     }
     assert!(
@@ -3559,10 +3537,10 @@ fn no_tmp_file_on_clean_startup() {
     );
 }
 
-/// Stale entries in the recovered snapshot (keys that Foyer did not recover due
-/// to LRU eviction before the last persist) are cleaned up by sweep_once().
-/// The cache is usable throughout — stale keys don't cause panics or incorrect
-/// behavior; they just occupy key_index until swept.
+// Stale entries in the recovered snapshot (keys that Foyer did not recover due
+// to LRU eviction before the last persist) are cleaned up by sweep_once().
+// The cache is usable throughout — stale keys don't cause panics or incorrect
+// behavior; they just occupy key_index until swept.
 // ─── 10k-scale key_index tests ────────────────────────────────────────────────
 // These tests build a 10k-entry key_index in-process (no OS cluster, no fd pressure).
 
@@ -3773,7 +3751,7 @@ fn key_index_clear_with_10k_entries() {
     }
 
     // Persist first so there's a file to delete.
-    key_index_store::save(&dir.path(), &cache.key_index).unwrap();
+    key_index_store::save(dir.path(), &cache.key_index).unwrap();
     assert!(
         dir.path()
             .join(key_index_store::KEY_INDEX_FILENAME)

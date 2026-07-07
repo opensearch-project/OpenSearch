@@ -594,7 +594,6 @@ fn test_get_filtered_writer_memory_usage_with_writers() {
     let (_schema2, schema_ptr2) = create_writer_and_assert_success(&filename2);
     let result = NativeParquetWriter::get_filtered_writer_memory_usage(prefix);
     assert!(result.is_ok());
-    assert!(result.unwrap() >= 0);
     close_writer_and_cleanup_schema(&filename1, schema_ptr1);
     close_writer_and_cleanup_schema(&filename2, schema_ptr2);
 }
@@ -786,8 +785,8 @@ fn test_concurrent_writes_different_files() {
         schema_ptrs.push(schema_ptr);
     }
 
-    for i in 0..file_count {
-        let filename = filenames[i].clone();
+    for filename in &filenames {
+        let filename = filename.clone();
         let success_count = Arc::clone(&success_count);
 
         let handle = thread::spawn(move || {
@@ -827,7 +826,7 @@ fn test_bloom_filter_false_propagates_through_settings_store() {
 
     let stored = SETTINGS_STORE.get(index_name).unwrap();
     assert_eq!(stored.bloom_filter_enabled, Some(false));
-    assert_eq!(stored.get_bloom_filter_enabled(), false);
+    assert!(!stored.get_bloom_filter_enabled());
     drop(stored);
 
     let (_temp_dir, filename) = get_temp_file_path("bloom_test.parquet");
@@ -850,7 +849,7 @@ fn test_bloom_filter_false_propagates_through_settings_store() {
         "bloom_filter_enabled should remain false after create_writer, but got: {:?}",
         stored_after.bloom_filter_enabled
     );
-    assert_eq!(stored_after.get_bloom_filter_enabled(), false);
+    assert!(!stored_after.get_bloom_filter_enabled());
     drop(stored_after);
 
     close_writer_and_cleanup_schema(&filename, schema_ptr);
@@ -875,9 +874,8 @@ fn test_bloom_filter_default_when_no_settings() {
     assert!(result.is_ok());
 
     let stored = SETTINGS_STORE.get(index_name).unwrap();
-    assert_eq!(
-        stored.get_bloom_filter_enabled(),
-        false,
+    assert!(
+        !stored.get_bloom_filter_enabled(),
         "Default bloom_filter_enabled should be false when no settings exist"
     );
     drop(stored);
@@ -1045,11 +1043,13 @@ fn test_chunked_writer_single_chunk_row_ids_sequential() {
     let index_name = "test-chunked-single";
 
     // Configure with large threshold so everything fits in one chunk
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024); // 10MB — won't chunk
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024), // 10MB — won't chunk
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     // Create writer with sort on "age" ascending
@@ -1118,11 +1118,13 @@ fn test_chunked_writer_multi_chunk_row_ids_sequential() {
     let index_name = "test-chunked-multi";
 
     // Configure with tiny threshold to force multiple chunks
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Very small — forces chunking
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Very small — forces chunking
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -1205,11 +1207,13 @@ fn test_chunked_writer_multi_chunk_descending_sort() {
     let (_temp_dir, filename) = get_temp_file_path("chunked_desc.parquet");
     let index_name = "test-chunked-desc";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![true]; // descending
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![true], // descending
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -1270,11 +1274,13 @@ fn test_chunked_writer_multiple_write_calls() {
     let (_temp_dir, filename) = get_temp_file_path("chunked_multi_write.parquet");
     let index_name = "test-chunked-multi-write";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(128); // Small enough to force chunking
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(128), // Small enough to force chunking
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     // First batch: row_ids 0..4
@@ -1351,11 +1357,13 @@ fn test_chunked_writer_empty_finalize() {
     let (_temp_dir, filename) = get_temp_file_path("chunked_empty.parquet");
     let index_name = "test-chunked-empty";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     // Just create the writer with the schema, don't write data
@@ -1395,11 +1403,13 @@ fn test_chunked_writer_permutation_is_invertible() {
     let (_temp_dir, filename) = get_temp_file_path("chunked_invertible.parquet");
     let index_name = "test-chunked-invertible";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let original_ages = vec![55, 22, 88, 11, 44, 77, 33, 66, 99, 0];
@@ -1461,11 +1471,13 @@ fn test_chunked_writer_large_dataset_multi_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("chunked_large.parquet");
     let index_name = "test-chunked-large";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(256); // Force many chunks
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(256), // Force many chunks
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let num_rows = 50i32;
@@ -1559,11 +1571,13 @@ fn test_chunked_writer_generation_in_metadata_single_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("gen_single.parquet");
     let index_name = "test-gen-single";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 42i64;
@@ -1606,11 +1620,13 @@ fn test_chunked_writer_generation_in_metadata_multi_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("gen_multi.parquet");
     let index_name = "test-gen-multi";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Force multiple chunks
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Force multiple chunks
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 7i64;
@@ -1671,11 +1687,13 @@ fn test_chunked_writer_generation_zero() {
     let (_temp_dir, filename) = get_temp_file_path("gen_zero.parquet");
     let index_name = "test-gen-zero";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -1711,11 +1729,13 @@ fn test_chunked_writer_generation_large_value() {
     let (_temp_dir, filename) = get_temp_file_path("gen_large.parquet");
     let index_name = "test-gen-large";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024); // Large threshold — single chunk
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024), // Large threshold — single chunk
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 999_999i64;
@@ -1835,11 +1855,13 @@ fn test_chunked_writer_crc32_single_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("crc_single.parquet");
     let index_name = "test-crc-single";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024); // Single chunk
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024), // Single chunk
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -1887,11 +1909,13 @@ fn test_chunked_writer_crc32_multi_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("crc_multi.parquet");
     let index_name = "test-crc-multi";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Force multiple chunks
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Force multiple chunks
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -1947,11 +1971,13 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
     let index_name1 = "test-crc-diff1";
     let index_name2 = "test-crc-diff2";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name1.to_string(), settings.clone());
     SETTINGS_STORE.insert(index_name2.to_string(), settings);
 
@@ -2023,11 +2049,13 @@ fn test_chunked_writer_batch_slicing_large_batch() {
     // Set threshold to 1 byte — every batch will exceed it and trigger slicing.
     // With 1 byte threshold, rows_per_slice = max(1, 1/bytes_per_row) = 1,
     // so each row becomes its own chunk.
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(1); // Extremely small — forces per-row slicing
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(1), // Extremely small — forces per-row slicing
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -2108,11 +2136,13 @@ fn test_chunked_writer_batch_slicing_two_rows_per_slice() {
 
     // We need a threshold that allows ~2 rows. A single Int32 + Utf8 + Int64 row
     // is roughly 40-80 bytes in Arrow memory. Set threshold to allow ~2 rows.
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(100); // ~2 rows fit
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(100), // ~2 rows fit
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -2193,11 +2223,13 @@ fn test_chunked_writer_batch_slicing_descending() {
     let (_temp_dir, filename) = get_temp_file_path("slice_desc.parquet");
     let index_name = "test-slice-desc";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![true]; // descending
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(1); // Force per-row slicing
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![true], // descending
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(1), // Force per-row slicing
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -2252,11 +2284,13 @@ fn test_chunked_writer_batch_slicing_multiple_writes() {
     let (_temp_dir, filename) = get_temp_file_path("slice_multi_write.parquet");
     let index_name = "test-slice-multi-write";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(1); // Force slicing on every batch
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(1), // Force slicing on every batch
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -2361,11 +2395,13 @@ fn test_chunked_writer_no_row_id_single_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("no_rowid_single.parquet");
     let index_name = "test-no-rowid-single";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
@@ -2414,11 +2450,13 @@ fn test_chunked_writer_no_row_id_multi_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("no_rowid_multi.parquet");
     let index_name = "test-no-rowid-multi";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Force multiple chunks
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Force multiple chunks
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
@@ -2476,11 +2514,13 @@ fn test_chunked_writer_no_row_id_batch_slicing() {
     let (_temp_dir, filename) = get_temp_file_path("no_rowid_slice.parquet");
     let index_name = "test-no-rowid-slice";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![true]; // descending
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(1); // Force per-row slicing
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![true], // descending
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(1), // Force per-row slicing
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
@@ -2612,11 +2652,13 @@ fn test_multi_column_sort_age_asc_score_desc() {
     let (_temp_dir, filename) = get_temp_file_path("multi_sort_asc_desc.parquet");
     let index_name = "test-multi-sort-asc-desc";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
-    settings.reverse_sorts = vec![false, true]; // age ASC, score DESC
-    settings.nulls_first = vec![false, false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string(), "score".to_string()],
+        reverse_sorts: vec![false, true], // age ASC, score DESC
+        nulls_first: vec![false, false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
@@ -2682,11 +2724,13 @@ fn test_multi_column_sort_age_desc_score_asc() {
     let (_temp_dir, filename) = get_temp_file_path("multi_sort_desc_asc.parquet");
     let index_name = "test-multi-sort-desc-asc";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
-    settings.reverse_sorts = vec![true, false]; // age DESC, score ASC
-    settings.nulls_first = vec![false, false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string(), "score".to_string()],
+        reverse_sorts: vec![true, false], // age DESC, score ASC
+        nulls_first: vec![false, false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
@@ -2731,11 +2775,13 @@ fn test_multi_column_sort_multi_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("multi_sort_chunked.parquet");
     let index_name = "test-multi-sort-chunked";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
-    settings.reverse_sorts = vec![false, false]; // both ASC
-    settings.nulls_first = vec![false, false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Force multiple chunks
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string(), "score".to_string()],
+        reverse_sorts: vec![false, false], // both ASC
+        nulls_first: vec![false, false],
+        sort_in_memory_threshold_bytes: Some(64), // Force multiple chunks
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
@@ -2808,11 +2854,13 @@ fn test_multi_column_sort_batch_slicing() {
     let (_temp_dir, filename) = get_temp_file_path("multi_sort_slice.parquet");
     let index_name = "test-multi-sort-slice";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
-    settings.reverse_sorts = vec![false, true]; // age ASC, score DESC
-    settings.nulls_first = vec![false, false];
-    settings.sort_in_memory_threshold_bytes = Some(1); // Per-row slicing
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string(), "score".to_string()],
+        reverse_sorts: vec![false, true], // age ASC, score DESC
+        nulls_first: vec![false, false],
+        sort_in_memory_threshold_bytes: Some(1), // Per-row slicing
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
@@ -2914,11 +2962,13 @@ fn test_nulls_first_true_ascending() {
     let (_temp_dir, filename) = get_temp_file_path("nulls_first_true.parquet");
     let index_name = "test-nulls-first-true";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false]; // ASC
-    settings.nulls_first = vec![true]; // NULLs first
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false], // ASC
+        nulls_first: vec![true],    // NULLs first
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_schema_ptr();
@@ -2953,11 +3003,13 @@ fn test_nulls_first_false_ascending() {
     let (_temp_dir, filename) = get_temp_file_path("nulls_first_false.parquet");
     let index_name = "test-nulls-first-false";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false]; // ASC
-    settings.nulls_first = vec![false]; // NULLs last
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false], // ASC
+        nulls_first: vec![false],   // NULLs last
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_schema_ptr();
@@ -3036,11 +3088,13 @@ fn test_nulls_first_with_row_id_and_permutation() {
     let (_temp_dir, filename) = get_temp_file_path("nulls_first_rowid.parquet");
     let index_name = "test-nulls-first-rowid";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false]; // ASC
-    settings.nulls_first = vec![true]; // NULLs first
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false], // ASC
+        nulls_first: vec![true],    // NULLs first
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_with_row_id_schema_ptr();
@@ -3104,11 +3158,13 @@ fn test_nulls_last_with_row_id_and_permutation() {
     let (_temp_dir, filename) = get_temp_file_path("nulls_last_rowid.parquet");
     let index_name = "test-nulls-last-rowid";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false]; // ASC
-    settings.nulls_first = vec![false]; // NULLs last
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false], // ASC
+        nulls_first: vec![false],   // NULLs last
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_with_row_id_schema_ptr();
@@ -3170,11 +3226,13 @@ fn test_empty_batch_write_does_not_corrupt_sorted_writer() {
     let (_temp_dir, filename) = get_temp_file_path("empty_batch.parquet");
     let index_name = "test-empty-batch";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -3224,11 +3282,13 @@ fn test_only_empty_batches_produces_empty_output() {
     let (_temp_dir, filename) = get_temp_file_path("only_empty.parquet");
     let index_name = "test-only-empty";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -3267,11 +3327,13 @@ fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
     let (_temp_dir, filename) = get_temp_file_path("mem_ipc.parquet");
     let index_name = "test-mem-ipc";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Force chunking
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Force chunking
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -3349,11 +3411,13 @@ fn test_memory_usage_path_prefix_filtering() {
     let (_temp_dir2, filename2) = get_temp_file_path("mem_prefix_b.parquet");
     let index_name = "test-mem-prefix";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     // Create writer 1
@@ -3406,7 +3470,7 @@ fn test_memory_usage_path_prefix_filtering() {
     let mem2 = NativeParquetWriter::get_filtered_writer_memory_usage(prefix2).unwrap();
 
     // Writer 1 had data written (and chunks flushed), writer 2 did not
-    assert!(mem1 >= 0, "Writer 1 memory should be reported");
+    assert!(mem1 > 0, "Writer 1 memory should be reported");
     assert_eq!(mem2, 0, "Writer 2 should have 0 memory (no data written)");
 
     // Cleanup
@@ -3446,17 +3510,20 @@ fn test_write_data_no_ipc_writer() {
 /// - Row IDs are sequential 0..N
 /// - The permutation mapping is a valid permutation (bijection of 0..N)
 /// - The mapping correctly maps each original row to its output position
+///
 /// It does NOT assert a specific tie-breaking order.
 #[test]
 fn test_sort_all_identical_keys_produces_valid_permutation() {
     let (_temp_dir, filename) = get_temp_file_path("identical_keys.parquet");
     let index_name = "test-identical-keys";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -3568,13 +3635,15 @@ fn test_writer_properties_honored_empty_path() {
     let (_temp_dir, filename) = get_temp_file_path("props_empty.parquet");
     let index_name = "test-props-empty";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
-    settings.compression_type = Some("SNAPPY".to_string());
-    settings.bloom_filter_enabled = Some(false);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        compression_type: Some("SNAPPY".to_string()),
+        bloom_filter_enabled: Some(false),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 99i64;
@@ -3622,13 +3691,15 @@ fn test_writer_properties_honored_single_chunk_snappy_no_bloom() {
     let (_temp_dir, filename) = get_temp_file_path("props_single_snappy.parquet");
     let index_name = "test-props-single-snappy";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024); // Large — single chunk
-    settings.compression_type = Some("SNAPPY".to_string());
-    settings.bloom_filter_enabled = Some(false);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024), // Large — single chunk
+        compression_type: Some("SNAPPY".to_string()),
+        bloom_filter_enabled: Some(false),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 55i64;
@@ -3696,16 +3767,18 @@ fn test_writer_properties_honored_single_chunk_zstd_with_bloom() {
     let (_temp_dir, filename) = get_temp_file_path("props_single_zstd.parquet");
     let index_name = "test-props-single-zstd";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
-    settings.compression_type = Some("ZSTD".to_string());
-    settings.compression_level = Some(3);
-    settings.bloom_filter_enabled = Some(true);
-    settings.bloom_filter_fpp = Some(0.05);
-    settings.bloom_filter_ndv = Some(50_000);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        compression_type: Some("ZSTD".to_string()),
+        compression_level: Some(3),
+        bloom_filter_enabled: Some(true),
+        bloom_filter_fpp: Some(0.05),
+        bloom_filter_ndv: Some(50_000),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 12i64;
@@ -3761,13 +3834,15 @@ fn test_writer_properties_honored_multi_chunk_snappy_no_bloom() {
     let (_temp_dir, filename) = get_temp_file_path("props_multi_snappy.parquet");
     let index_name = "test-props-multi-snappy";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
-    settings.compression_type = Some("SNAPPY".to_string());
-    settings.bloom_filter_enabled = Some(false);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Tiny — forces multiple chunks
+        compression_type: Some("SNAPPY".to_string()),
+        bloom_filter_enabled: Some(false),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 77i64;
@@ -3838,16 +3913,18 @@ fn test_writer_properties_honored_multi_chunk_zstd_with_bloom() {
     let (_temp_dir, filename) = get_temp_file_path("props_multi_zstd.parquet");
     let index_name = "test-props-multi-zstd";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
-    settings.compression_type = Some("ZSTD".to_string());
-    settings.compression_level = Some(5);
-    settings.bloom_filter_enabled = Some(true);
-    settings.bloom_filter_fpp = Some(0.01);
-    settings.bloom_filter_ndv = Some(200_000);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Tiny — forces multiple chunks
+        compression_type: Some("ZSTD".to_string()),
+        compression_level: Some(5),
+        bloom_filter_enabled: Some(true),
+        bloom_filter_fpp: Some(0.01),
+        bloom_filter_ndv: Some(200_000),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let writer_generation = 33i64;
@@ -3914,13 +3991,15 @@ fn test_writer_properties_honored_single_chunk_uncompressed() {
     let (_temp_dir, filename) = get_temp_file_path("props_single_uncompressed.parquet");
     let index_name = "test-props-single-uncompressed";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
-    settings.compression_type = Some("UNCOMPRESSED".to_string());
-    settings.bloom_filter_enabled = Some(true);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        compression_type: Some("UNCOMPRESSED".to_string()),
+        bloom_filter_enabled: Some(true),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -3966,13 +4045,15 @@ fn test_writer_properties_honored_multi_chunk_uncompressed() {
     let (_temp_dir, filename) = get_temp_file_path("props_multi_uncompressed.parquet");
     let index_name = "test-props-multi-uncompressed";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
-    settings.compression_type = Some("UNCOMPRESSED".to_string());
-    settings.bloom_filter_enabled = Some(true);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Tiny — forces multiple chunks
+        compression_type: Some("UNCOMPRESSED".to_string()),
+        bloom_filter_enabled: Some(true),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -4035,11 +4116,13 @@ fn test_writer_properties_defaults_single_chunk() {
     let index_name = "test-props-defaults-single";
 
     // Use defaults — only configure sort
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(10 * 1024 * 1024),
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
@@ -4089,11 +4172,13 @@ fn test_writer_properties_defaults_multi_chunk() {
     let (_temp_dir, filename) = get_temp_file_path("props_defaults_multi.parquet");
     let index_name = "test-props-defaults-multi";
 
-    let mut settings = NativeSettings::default();
-    settings.sort_columns = vec!["age".to_string()];
-    settings.reverse_sorts = vec![false];
-    settings.nulls_first = vec![false];
-    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
+    let settings = NativeSettings {
+        sort_columns: vec!["age".to_string()],
+        reverse_sorts: vec![false],
+        nulls_first: vec![false],
+        sort_in_memory_threshold_bytes: Some(64), // Tiny — forces multiple chunks
+        ..Default::default()
+    };
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();

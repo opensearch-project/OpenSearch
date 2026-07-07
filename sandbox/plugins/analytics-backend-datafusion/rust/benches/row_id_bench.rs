@@ -18,6 +18,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
 use object_store::{ObjectStore, ObjectStoreExt};
@@ -46,7 +47,7 @@ fn bench_file() -> String {
 }
 
 fn setup() -> (RuntimeManager, DataFusionRuntime) {
-    let mgr = RuntimeManager::new(4);
+    let mgr = RuntimeManager::new(4, 1.5, 1.5);
     let runtime_env = RuntimeEnvBuilder::new()
         .with_memory_pool(Arc::new(GreedyMemoryPool::new(2 * 1024 * 1024 * 1024)))
         .build()
@@ -123,8 +124,11 @@ fn bench_clickbench(c: &mut Criterion) {
     let path = std::path::Path::new(&file);
     let size = std::fs::metadata(path).unwrap().len();
     let fh = std::fs::File::open(path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&fh, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &fh,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let parquet_schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -147,7 +151,10 @@ fn bench_clickbench(c: &mut Criterion) {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: parquet_schema.clone(),
         global_base: 0,
+        sort_min: None,
+        sort_max: None,
     };
 
     // Schema with ___row_id appended (virtual column)
@@ -208,6 +215,10 @@ fn bench_clickbench(c: &mut Criterion) {
                         &config,
                         0,
                         Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                        None,
+                        &[],
+                        &[],
+                        opensearch_datafusion::datafusion_query_config::InternalSearch::Off,
                     )
                     .await
                     .unwrap();
@@ -264,9 +275,10 @@ fn bench_clickbench(c: &mut Criterion) {
                         let factory: opensearch_datafusion::indexed_table::table_provider::EvaluatorFactory = {
                             let tree = Arc::clone(&tree);
                             let schema = schema.clone();
-                            Arc::new(move |seg, _chunk, _sm| {
+                            Arc::new(move |seg, _chunk, _sm, _stats_prune_tree| {
                                 let resolved = tree.resolve(&[])?;
-                                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&seg.metadata)));
+                                let pruner =
+                                    Arc::new(PagePruner::new(&schema, Arc::clone(&seg.metadata), seg.arrow_schema.clone()));
                                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                                     tree: Arc::new(resolved),
                                     evaluator: Arc::new(BitmapTreeEvaluator),
@@ -282,6 +294,8 @@ fn bench_clickbench(c: &mut Criterion) {
                                         opensearch_datafusion::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(_sm),
                                     ),
                                     collector_strategy: opensearch_datafusion::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                                    stats_prune_tree: None,
+                                    rg_index_to_pos: std::collections::HashMap::new(),
                                 });
                                 Ok(eval)
                             })
@@ -303,6 +317,10 @@ fn bench_clickbench(c: &mut Criterion) {
                             }),
                             predicate_columns: vec![search_phrase_idx],
                             emit_row_ids: true,
+                            prune_tree_config: None,
+                            sort_fields: vec![],
+                            sort_orders: vec![],
+                            cancellation_token: None,
                         }));
 
                         let ctx = datafusion::prelude::SessionContext::new();
@@ -354,9 +372,10 @@ fn bench_clickbench(c: &mut Criterion) {
                         let factory: opensearch_datafusion::indexed_table::table_provider::EvaluatorFactory = {
                             let tree = Arc::clone(&tree);
                             let schema = schema.clone();
-                            Arc::new(move |seg, _chunk, _sm| {
+                            Arc::new(move |seg, _chunk, _sm, _stats_prune_tree| {
                                 let resolved = tree.resolve(&[])?;
-                                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&seg.metadata)));
+                                let pruner =
+                                    Arc::new(PagePruner::new(&schema, Arc::clone(&seg.metadata), seg.arrow_schema.clone()));
                                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                                     tree: Arc::new(resolved),
                                     evaluator: Arc::new(BitmapTreeEvaluator),
@@ -372,6 +391,8 @@ fn bench_clickbench(c: &mut Criterion) {
                                         opensearch_datafusion::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(_sm),
                                     ),
                                     collector_strategy: opensearch_datafusion::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                                    stats_prune_tree: None,
+                                    rg_index_to_pos: std::collections::HashMap::new(),
                                 });
                                 Ok(eval)
                             })
@@ -393,6 +414,10 @@ fn bench_clickbench(c: &mut Criterion) {
                             }),
                             predicate_columns: vec![search_phrase_idx],
                             emit_row_ids: false,
+                            prune_tree_config: None,
+                            sort_fields: vec![],
+                            sort_orders: vec![],
+                            cancellation_token: None,
                         }));
 
                         let ctx = datafusion::prelude::SessionContext::new();

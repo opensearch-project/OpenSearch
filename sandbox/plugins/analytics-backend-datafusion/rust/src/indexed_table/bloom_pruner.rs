@@ -119,10 +119,11 @@ pub async fn bloom_prune_rg(
     rg_idx: usize,
     predicate: &PruningPredicate,
 ) -> bool {
-    match bloom_prune_rg_inner(store, path, metadata, arrow_schema, rg_idx, predicate).await {
-        Ok(should_prune) => should_prune,
-        Err(_) => false, // conservative: don't prune on error
-    }
+    // On any error (missing bloom filter, I/O, parse) default to `false`:
+    // conservative, meaning do not prune the row group.
+    bloom_prune_rg_inner(store, path, metadata, arrow_schema, rg_idx, predicate)
+        .await
+        .unwrap_or_default()
 }
 
 async fn bloom_prune_rg_inner(

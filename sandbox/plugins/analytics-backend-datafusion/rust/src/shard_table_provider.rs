@@ -106,7 +106,14 @@ impl TableProvider for ShardTableProvider {
                 });
                 pf = pf.with_statistics(file_stats);
                 if let Some(ref plan) = file_info.access_plan {
-                    pf = pf.with_extensions(Arc::new(plan.clone()));
+                    // Must stay on deprecated `with_extensions`: DataFusion's Parquet opener
+                    // retrieves the ParquetAccessPlan via the legacy `insert_dyn` keying;
+                    // `with_extension` keys by concrete type and the opener would not find it,
+                    // silently dropping row selection. See parquet_bridge.rs for details.
+                    #[allow(deprecated)]
+                    {
+                        pf = pf.with_extensions(Arc::new(plan.clone()));
+                    }
                 }
                 pf
             })

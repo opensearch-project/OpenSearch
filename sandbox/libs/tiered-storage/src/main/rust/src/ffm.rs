@@ -172,7 +172,7 @@ pub extern "C" fn ts_destroy_tiered_object_store(ptr: i64) -> i64 {
 // File registry operations via TieredObjectStore pointer
 // ---------------------------------------------------------------------------
 
-/// Register a file in the TieredObjectStore's registry.
+// Register a file in the TieredObjectStore's registry.
 // TODO (writable warm): add ts_register_file for single-file registration (afterSyncToRemote).
 
 /// Batch register files in the TieredObjectStore's registry.
@@ -182,6 +182,9 @@ pub extern "C" fn ts_destroy_tiered_object_store(ptr: i64) -> i64 {
 /// Each triplet is (path, remotePath, size). For Local files, remotePath can be empty.
 /// `count`: number of file triplets (entries_len contains 3*count lines).
 /// `location`: 0=Local, 1=Remote — applied to all files in the batch.
+// clippy::not_unsafe_ptr_arg_deref — `#[no_mangle] extern "C"` FFM entry point called from
+// the JVM; pointer contract documented above. `unsafe fn` is meaningless for C-ABI callers.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn ts_register_files(
@@ -235,6 +238,9 @@ pub extern "C" fn ts_register_files(
 }
 
 /// Remove a file from the registry.
+// clippy::not_unsafe_ptr_arg_deref — `#[no_mangle] extern "C"` FFM entry point called from
+// the JVM; pointer contract documented above. `unsafe fn` is meaningless for C-ABI callers.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn ts_remove_file(store_ptr: i64, path_ptr: *const u8, path_len: i64) -> i64 {

@@ -31,6 +31,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::SessionContext;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
 use datafusion::parquet::arrow::ArrowWriter;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use futures::StreamExt;
 use tempfile::NamedTempFile;
 
@@ -86,7 +87,7 @@ fn write_segment(spec: &SegSpec) -> NamedTempFile {
     .unwrap();
     let tmp = NamedTempFile::new().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(4)
+        .set_max_row_group_row_count(Some(4))
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
     let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
@@ -126,9 +127,11 @@ fn build_segments(tmps: &[NamedTempFile], specs: &[SegSpec]) -> (Vec<SegmentFile
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }

@@ -603,16 +603,16 @@ mod tests {
 
     // ─── Property-based tests ────────────────────────────────────────────
 
-    /// **Validates: Requirements 3.1, 3.2, 3.4**
-    ///
-    /// Property 1: Resize reaches target capacity
-    ///
-    /// For any valid ConcurrencyGate with initial max permits `initial_max`
-    /// and any valid target `target` (both in [1, 256]), after `resize(target)`
-    /// completes, the effective max permits SHALL equal `target`.
-    /// Since no queries are active in this test, available permits SHALL be
-    /// at least `target` (may exceed target due to the bulk-release behavior
-    /// of acquire_many_owned poison permits on scale-up-after-scale-down).
+    // **Validates: Requirements 3.1, 3.2, 3.4**
+    //
+    // Property 1: Resize reaches target capacity
+    //
+    // For any valid ConcurrencyGate with initial max permits `initial_max`
+    // and any valid target `target` (both in [1, 256]), after `resize(target)`
+    // completes, the effective max permits SHALL equal `target`.
+    // Since no queries are active in this test, available permits SHALL be
+    // at least `target` (may exceed target due to the bulk-release behavior
+    // of acquire_many_owned poison permits on scale-up-after-scale-down).
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
         #[test]
@@ -654,13 +654,13 @@ mod tests {
         }
     }
 
-    /// **Validates: Requirements 5.2, 5.6**
-    ///
-    /// Property 3: Last-writer-wins convergence
-    ///
-    /// For any random sequence of resize targets [T1, T2, ..., Tn] (length 2..20,
-    /// values in [1, 128]) applied sequentially to a gate, after all resizes
-    /// complete, the gate's effective max_permits SHALL equal Tn (the last value).
+    // **Validates: Requirements 5.2, 5.6**
+    //
+    // Property 3: Last-writer-wins convergence
+    //
+    // For any random sequence of resize targets [T1, T2, ..., Tn] (length 2..20,
+    // values in [1, 128]) applied sequentially to a gate, after all resizes
+    // complete, the gate's effective max_permits SHALL equal Tn (the last value).
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
         #[test]
@@ -691,19 +691,19 @@ mod tests {
         }
     }
 
-    /// **Validates: Requirements 5.4**
-    ///
-    /// Property 5: Concurrent acquire/resize safety
-    ///
-    /// For any interleaving of acquire() calls from query tasks and concurrent
-    /// resize() calls, no thread SHALL panic, deadlock, or receive an invalid
-    /// permit. All acquired permits SHALL be backed by the single shared
-    /// semaphore.
-    ///
-    /// This test generates random gate sizes, numbers of concurrent acquires,
-    /// and a sequence of resize targets (1..5), then spawns multiple tokio tasks
-    /// that acquire permits concurrently with multiple resize operations.
-    /// A timeout detects deadlocks.
+    // **Validates: Requirements 5.4**
+    //
+    // Property 5: Concurrent acquire/resize safety
+    //
+    // For any interleaving of acquire() calls from query tasks and concurrent
+    // resize() calls, no thread SHALL panic, deadlock, or receive an invalid
+    // permit. All acquired permits SHALL be backed by the single shared
+    // semaphore.
+    //
+    // This test generates random gate sizes, numbers of concurrent acquires,
+    // and a sequence of resize targets (1..5), then spawns multiple tokio tasks
+    // that acquire permits concurrently with multiple resize operations.
+    // A timeout detects deadlocks.
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
         #[test]
@@ -816,19 +816,19 @@ mod tests {
         assert_eq!(gate.pending_acquire_batches(), 0);
     }
 
-    /// **Validates: Requirements 2.5**
-    ///
-    /// Property 7: Permit computation correctness
-    ///
-    /// For any valid cpu_threads (in [1, 128]) and multiplier (in [0.1, 10.0]),
-    /// the computed newMaxPermits SHALL equal max(1, floor(cpu_threads × multiplier)),
-    /// ensuring the result is always at least 1.
-    ///
-    /// This mirrors the Java-side computation:
-    ///   Math.max(1, (int)(cpuThreads * multiplier))
-    ///
-    /// We generate multiplier as an integer in [1, 100] divided by 10.0 to get
-    /// values in [0.1, 10.0] without floating-point strategy complexity.
+    // **Validates: Requirements 2.5**
+    //
+    // Property 7: Permit computation correctness
+    //
+    // For any valid cpu_threads (in [1, 128]) and multiplier (in [0.1, 10.0]),
+    // the computed newMaxPermits SHALL equal max(1, floor(cpu_threads × multiplier)),
+    // ensuring the result is always at least 1.
+    //
+    // This mirrors the Java-side computation:
+    //   Math.max(1, (int)(cpuThreads * multiplier))
+    //
+    // We generate multiplier as an integer in [1, 100] divided by 10.0 to get
+    // values in [0.1, 10.0] without floating-point strategy complexity.
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
 

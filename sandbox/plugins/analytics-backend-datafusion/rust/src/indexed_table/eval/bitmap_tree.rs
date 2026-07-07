@@ -157,6 +157,9 @@ impl TreeEvaluator for BitmapTreeEvaluator {
 //     because Predicate supersets shrink at refinement (OR still needs
 //     the real Collector bitmaps for correct results).
 
+// Real recursive evaluation API: each parameter carries distinct evaluation
+// context that cannot be reasonably bundled without obscuring the traversal.
+#[allow(clippy::too_many_arguments)]
 fn prefetch_node(
     node: &ResolvedNode,
     ctx: &RgEvalContext,
@@ -568,7 +571,7 @@ fn intersect_range_lists(a: &[(i32, i32)], b: &[(i32, i32)]) -> Vec<(i32, i32)> 
 ///   workload-dependent (Lucene posting iteration is fast for narrow
 ///   queries, slower for wide ones) so "10" is a conservative default.
 ///   Tune (or make config-driven) if profiling shows it matters.
-
+///
 /// Internal scale factor for cost computation. All costs are multiplied
 /// by this so integer division preserves meaningful selectivity differences.
 /// A predicate keeping 1/8 pages costs `1000 * 1/8 = 125` vs one keeping
@@ -635,7 +638,7 @@ pub(crate) fn subtree_cost(
                                 }
                                 row_offset = seg_end;
                             }
-                            return (base * kept_pages + total - 1) / total;
+                            return (base * kept_pages).div_ceil(total);
                         }
                     }
                 }
@@ -1057,6 +1060,7 @@ mod tests {
         ArrowReaderMetadata, ArrowReaderOptions, RowSelection, RowSelector,
     };
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
     use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
     use std::collections::{HashMap, HashSet};
 
@@ -1105,7 +1109,7 @@ mod tests {
         writer.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         PagePruner::new(
@@ -1343,23 +1347,23 @@ mod tests {
 
     // ── Phase 2 short-circuit ─────────────────────────────────────────
 
-    /// Evaluator that counts how many times its `leaf_bitmap` was called —
-    /// used to observe Phase 2 short-circuit by wrapping predicate leaves as
-    /// collectors whose bitmaps are the "predicate mask".
-    ///
-    /// We can't directly inspect Phase 2 calls since they go through
-    /// `on_batch_node`, but we can observe them by making Phase 2 evaluation
-    /// visible via side effect on a counting LeafBitmapSource.
-    ///
-    /// For Phase 2 specifically, `ResolvedNode::Collector` uses
-    /// `state.per_leaf` lookup (cached Phase 1 bitmaps), not the
-    /// LeafBitmapSource. So short-circuit observation has to be at the
-    /// `on_batch_node` level — we use a custom node tree and assert on the
-    /// resulting mask shape with deliberately-wrong siblings.
-    ///
-    /// The strategy: construct AND(all_false_child, poison_child) where
-    /// `poison_child` would `panic!` if evaluated. If the test passes,
-    /// short-circuit prevented evaluation of the poison child.
+    // Evaluator that counts how many times its `leaf_bitmap` was called —
+    // used to observe Phase 2 short-circuit by wrapping predicate leaves as
+    // collectors whose bitmaps are the "predicate mask".
+    //
+    // We can't directly inspect Phase 2 calls since they go through
+    // `on_batch_node`, but we can observe them by making Phase 2 evaluation
+    // visible via side effect on a counting LeafBitmapSource.
+    //
+    // For Phase 2 specifically, `ResolvedNode::Collector` uses
+    // `state.per_leaf` lookup (cached Phase 1 bitmaps), not the
+    // LeafBitmapSource. So short-circuit observation has to be at the
+    // `on_batch_node` level — we use a custom node tree and assert on the
+    // resulting mask shape with deliberately-wrong siblings.
+    //
+    // The strategy: construct AND(all_false_child, poison_child) where
+    // `poison_child` would `panic!` if evaluated. If the test passes,
+    // short-circuit prevented evaluation of the poison child.
 
     /// Build a ResolvedNode::Collector whose cached Phase 1 bitmap is `bm`.
     fn cached_collector(bm: RoaringBitmap) -> (ResolvedNode, (usize, RoaringBitmap)) {

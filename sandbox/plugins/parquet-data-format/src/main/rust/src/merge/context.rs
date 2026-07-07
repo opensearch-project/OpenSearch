@@ -55,6 +55,9 @@ pub struct MergeContext {
 impl MergeContext {
     /// Creates a new merge context: builds union schemas, opens the output
     /// writer, and spawns the background IO task.
+    // Each argument is a distinct, required merge configuration input; grouping
+    // them into a struct would only shift the argument list elsewhere.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         arrow_schemas: Vec<ArrowSchema>,
         parquet_descriptors: &[SchemaDescriptor],

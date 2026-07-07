@@ -28,6 +28,15 @@ use crate::writer_properties_builder::WriterPropertiesBuilder;
 use crate::{log_debug, log_error, log_info};
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
+/// Boxed error alias used throughout the writer's fallible internal helpers.
+type WriterError = Box<dyn std::error::Error>;
+
+/// Output of finalizing sorted chunks: (chunk paths, per-chunk row IDs, per-chunk CRCs).
+type FinishChunksResult = (Vec<String>, Vec<Vec<i64>>, Vec<u32>);
+
+/// Output of `finalize_sorted_chunks`: (whole-file CRC32, optional row ID mapping).
+type FinalizeChunksResult = (u32, Option<Vec<i64>>);
+
 /// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
 #[derive(Debug)]
 pub struct FinalizeResult {
@@ -100,6 +109,9 @@ struct SortingChunkedWriter {
 }
 
 impl SortingChunkedWriter {
+    // Each argument is a distinct, required writer-configuration input; grouping
+    // them into a struct would only shift the argument list to the caller.
+    #[allow(clippy::too_many_arguments)]
     fn new(
         base_path: String,
         schema: Arc<arrow::datatypes::Schema>,
@@ -288,8 +300,7 @@ impl SortingChunkedWriter {
             self.chunk_row_ids.push(ids);
 
             // Rewrite ___row_id to sequential 0..N so the chunk file is self-consistent
-            let sequential_ids =
-                Int64Array::from_iter_values((0..sorted_batch.num_rows() as i64).map(|x| x));
+            let sequential_ids = Int64Array::from_iter_values(0..sorted_batch.num_rows() as i64);
             let mut columns = sorted_batch.columns().to_vec();
             columns[idx] = Arc::new(sequential_ids);
             RecordBatch::try_new(self.schema.clone(), columns)?
@@ -328,7 +339,7 @@ impl SortingChunkedWriter {
     fn finish(
         mut self,
         reservation: &mut MemoryReservation,
-    ) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
+    ) -> Result<FinishChunksResult, WriterError> {
         if self.current_rows > 0 {
             self.flush_and_sort_chunk(reservation)?;
         }
@@ -336,7 +347,7 @@ impl SortingChunkedWriter {
         if let Some(mut writer) = self.current_ipc_writer.take() {
             writer.finish()?;
         }
-        let _ = std::fs::remove_file(&self.ipc_staging_path());
+        let _ = std::fs::remove_file(self.ipc_staging_path());
         Ok((self.completed_chunks, self.chunk_row_ids, self.chunk_crcs))
     }
 
@@ -709,6 +720,9 @@ impl NativeParquetWriter {
     /// Finalize pre-sorted Parquet chunks: k-way merge them into the final file.
     /// Chunks are already sorted (done eagerly during write), so no sort needed here.
     /// For single chunk, just rename. For empty, write empty Parquet.
+    // Each argument is a distinct, required finalization input; grouping them
+    // into a struct would only shift the argument list to the caller.
+    #[allow(clippy::too_many_arguments)]
     fn finalize_sorted_chunks(
         chunk_paths: &[String],
         chunk_row_ids: &[Vec<i64>],
@@ -721,7 +735,7 @@ impl NativeParquetWriter {
         writer_generation: i64,
         schema: Arc<arrow::datatypes::Schema>,
         reservation: &mut MemoryReservation,
-    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
+    ) -> Result<FinalizeChunksResult, WriterError> {
         if chunk_paths.is_empty() {
             log_info!("finalize_sorted_chunks: no chunks, writing empty Parquet file");
             let config = SETTINGS_STORE
@@ -811,8 +825,8 @@ impl NativeParquetWriter {
             // Reserve 2× mapping: merge_output.mapping (alive) + flat_mapping (about to allocate)
             reservation.request(mapping_bytes * 2)?;
             let mut flat_mapping = vec![0i64; total];
-            for i in 0..total {
-                flat_mapping[i] = i as i64;
+            for (i, slot) in flat_mapping.iter_mut().enumerate() {
+                *slot = i as i64;
             }
             let mut pos = 0usize;
             for chunk_ids in chunk_row_ids {

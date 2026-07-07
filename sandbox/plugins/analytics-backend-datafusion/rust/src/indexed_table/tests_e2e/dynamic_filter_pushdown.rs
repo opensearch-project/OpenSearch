@@ -24,13 +24,14 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::SessionContext;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
 use datafusion::parquet::arrow::ArrowWriter;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use futures::StreamExt;
 use tempfile::NamedTempFile;
 
 use super::super::eval::RowGroupBitsetSource;
 use super::super::index::RowGroupDocsCollector;
 use super::super::page_pruner::PagePruner;
-use super::super::stream::{FilterStrategy, RowGroupInfo};
+use super::super::stream::RowGroupInfo;
 use super::super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
 
 /// 16 rows, `price` = 15..0 **descending** in file order, 4 rows per row group →
@@ -63,7 +64,7 @@ fn write_fixture() -> (NamedTempFile, SchemaRef) {
     .unwrap();
     let tmp = NamedTempFile::new().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(RG_ROWS)
+        .set_max_row_group_row_count(Some(RG_ROWS))
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
     let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
@@ -96,8 +97,11 @@ async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan:
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let parquet_meta = meta.metadata().clone();
 
     let mut rgs = Vec::new();

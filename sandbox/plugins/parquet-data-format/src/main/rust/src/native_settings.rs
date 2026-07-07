@@ -84,7 +84,7 @@ impl NativeSettings {
     pub fn has_field_configs(&self) -> bool {
         self.field_configs
             .as_ref()
-            .map_or(false, |configs| !configs.is_empty())
+            .is_some_and(|configs| !configs.is_empty())
     }
 
     pub fn get_sort_in_memory_threshold_bytes(&self) -> u64 {

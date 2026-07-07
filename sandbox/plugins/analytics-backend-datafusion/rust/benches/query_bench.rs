@@ -51,7 +51,7 @@ fn setup() -> (RuntimeManager, DataFusionRuntime, tempfile::TempDir) {
     (mgr, df_runtime, tmp)
 }
 
-fn get_substrait(mgr: &RuntimeManager, df: &DataFusionRuntime, dir: &str, sql: &str) -> Vec<u8> {
+fn get_substrait(mgr: &RuntimeManager, _df: &DataFusionRuntime, dir: &str, sql: &str) -> Vec<u8> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
@@ -114,6 +114,10 @@ fn bench_execute_query(c: &mut Criterion) {
                             &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(),
                             0,
                             Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                            None,
+                            &[],
+                            &[],
+                            opensearch_datafusion::datafusion_query_config::InternalSearch::Off,
                         ).await.unwrap();
                         // Consume and free the stream
                         let mut stream = unsafe {
@@ -162,6 +166,10 @@ fn bench_stream_next(c: &mut Criterion) {
                     ),
                     0,
                     Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                    None,
+                    &[],
+                    &[],
+                    opensearch_datafusion::datafusion_query_config::InternalSearch::Off,
                 )
                 .await
                 .unwrap();
@@ -173,7 +181,7 @@ fn bench_stream_next(c: &mut Criterion) {
                     )
                 };
                 let mut batches = 0u64;
-                while let Some(_) = stream.try_next().await.unwrap() {
+                while stream.try_next().await.unwrap().is_some() {
                     batches += 1;
                 }
                 batches
@@ -212,6 +220,10 @@ fn bench_aggregation(c: &mut Criterion) {
                     ),
                     0,
                     Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
+                    None,
+                    &[],
+                    &[],
+                    opensearch_datafusion::datafusion_query_config::InternalSearch::Off,
                 )
                 .await
                 .unwrap();
@@ -222,7 +234,7 @@ fn bench_aggregation(c: &mut Criterion) {
                         >,
                     )
                 };
-                while let Some(_) = stream.try_next().await.unwrap() {}
+                while stream.try_next().await.unwrap().is_some() {}
             }
         });
     });

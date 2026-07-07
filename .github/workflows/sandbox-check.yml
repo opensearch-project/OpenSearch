@@ -35,7 +35,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
       - name: Check Rust formatting
         run: cargo fmt --all --manifest-path sandbox/libs/dataformat-native/rust/Cargo.toml -- --check
       - name: Install protobuf compiler
@@ -51,6 +51,12 @@ jobs:
             ${{ runner.os }}-cargo-
       - name: Set Cargo build jobs
         run: echo "CARGO_BUILD_JOBS=$(nproc)" >> $GITHUB_ENV
+      - name: Run Rust clippy
+        # Run from the workspace dir so the crate's .cargo/config.toml (which sets
+        # `--cfg tokio_unstable`, required by the tokio RuntimeMetrics calls) is picked up.
+        # cargo only reads .cargo/config.toml relative to the working directory, not --manifest-path.
+        working-directory: sandbox/libs/dataformat-native/rust
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Run sandbox check
         run: ./gradlew check -p sandbox -Dsandbox.enabled=true -PrustDebug
       - name: Upload test results

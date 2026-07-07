@@ -27,6 +27,7 @@ use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::Operator;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
 use datafusion::parquet::arrow::ArrowWriter;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use futures::StreamExt;
 use tempfile::NamedTempFile;
 
@@ -132,7 +133,7 @@ fn write_fixture_parquet() -> NamedTempFile {
     // Use smallish row groups so there's > 1 and the streaming loop cycles.
     // Enable page index so PagePruner can prune predicates.
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(8)
+        .set_max_row_group_row_count(Some(8))
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
     let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
@@ -207,8 +208,11 @@ async fn run_tree_and_plan(
 
     // Load parquet metadata for the SegmentFileInfo.
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();

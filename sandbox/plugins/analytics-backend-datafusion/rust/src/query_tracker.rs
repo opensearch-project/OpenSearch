@@ -656,7 +656,7 @@ mod tests {
         let global = make_global_pool(1_000_000);
         let qp = Arc::new(QueryMemoryPool::new(global));
         let pool: Arc<dyn MemoryPool> = qp.clone();
-        let mut reservation = make_reservation(&pool, "test");
+        let reservation = make_reservation(&pool, "test");
 
         reservation.try_grow(1000).unwrap();
         assert_eq!(qp.current_bytes(), 1000);
@@ -682,7 +682,7 @@ mod tests {
         let pool: Arc<dyn MemoryPool> = qp.clone();
 
         {
-            let mut reservation = make_reservation(&pool, "test");
+            let reservation = make_reservation(&pool, "test");
             reservation.try_grow(5000).unwrap();
             assert_eq!(qp.current_bytes(), 5000);
             assert_eq!(qp.peak_bytes(), 5000);
@@ -697,7 +697,7 @@ mod tests {
         let global = make_global_pool(1_000_000);
         let qp = Arc::new(QueryMemoryPool::new(global));
         let pool: Arc<dyn MemoryPool> = qp.clone();
-        let mut reservation = make_reservation(&pool, "test");
+        let reservation = make_reservation(&pool, "test");
 
         reservation.try_grow(2000).unwrap();
         assert!(pool.reserved() >= 2000);
@@ -763,7 +763,7 @@ mod tests {
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
-        let mut reservation = make_reservation(&pool, "lifecycle_test");
+        let reservation = make_reservation(&pool, "lifecycle_test");
 
         reservation.try_grow(5000).unwrap();
         assert_eq!(qp.current_bytes(), 5000);
@@ -800,10 +800,10 @@ mod tests {
         let pool_a = ctx_a.memory_pool().unwrap();
         let pool_b = ctx_b.memory_pool().unwrap();
 
-        let mut res_a = make_reservation(&(pool_a.clone() as Arc<dyn MemoryPool>), "query_a");
+        let res_a = make_reservation(&(pool_a.clone() as Arc<dyn MemoryPool>), "query_a");
         res_a.try_grow(3000).unwrap();
 
-        let mut res_b = make_reservation(&(pool_b.clone() as Arc<dyn MemoryPool>), "query_b");
+        let res_b = make_reservation(&(pool_b.clone() as Arc<dyn MemoryPool>), "query_b");
         res_b.try_grow(7000).unwrap();
 
         assert_eq!(pool_a.current_bytes(), 3000);
@@ -834,7 +834,7 @@ mod tests {
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
-        let mut reservation = make_reservation(&pool, "stream_data");
+        let reservation = make_reservation(&pool, "stream_data");
 
         // Simulate allocations during stream consumption
         reservation.try_grow(4000).unwrap();
@@ -1095,9 +1095,9 @@ mod tests {
         let pool_md: Arc<dyn MemoryPool> = ctx_md.memory_pool().unwrap();
         let pool_hi: Arc<dyn MemoryPool> = ctx_hi.memory_pool().unwrap();
 
-        let mut r_lo = make_reservation(&pool_lo, "lo");
-        let mut r_md = make_reservation(&pool_md, "md");
-        let mut r_hi = make_reservation(&pool_hi, "hi");
+        let r_lo = make_reservation(&pool_lo, "lo");
+        let r_md = make_reservation(&pool_md, "md");
+        let r_hi = make_reservation(&pool_hi, "hi");
         r_lo.try_grow(1_000).unwrap();
         r_md.try_grow(5_000).unwrap();
         r_hi.try_grow(9_000).unwrap();
@@ -1106,7 +1106,7 @@ mod tests {
         // may push entries into the registry, so we filter to our id range.
         let mut buf = fresh_buf(2);
         let written = snapshot_top_n_by_current(&mut buf);
-        assert!(written >= 1 && written <= 2);
+        assert!((1..=2).contains(&written));
 
         let our: Vec<&WireQueryMetric> = buf[..written]
             .iter()
@@ -1139,7 +1139,7 @@ mod tests {
 
         let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global), QueryType::Shard);
         let live_pool: Arc<dyn MemoryPool> = live_ctx.memory_pool().unwrap();
-        let mut r_live = make_reservation(&live_pool, "live");
+        let r_live = make_reservation(&live_pool, "live");
         r_live.try_grow(4_096).unwrap();
 
         // Registered but never reserved — current_bytes stays 0.
@@ -1149,7 +1149,7 @@ mod tests {
         // is settled, then drop the context to flip the completed flag.
         let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global), QueryType::Shard);
         let done_pool: Arc<dyn MemoryPool> = done_ctx.memory_pool().unwrap();
-        let mut r_done = make_reservation(&done_pool, "done");
+        let r_done = make_reservation(&done_pool, "done");
         r_done.try_grow(8_192).unwrap();
         drop(r_done);
         drop(done_ctx);
@@ -1178,7 +1178,7 @@ mod tests {
         let id = 70_200;
         let ctx = QueryTrackingContext::new(id, global, QueryType::Shard);
         let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
-        let mut r = make_reservation(&pool, "only");
+        let r = make_reservation(&pool, "only");
         r.try_grow(2_048).unwrap();
 
         let sentinel = WireQueryMetric {
@@ -1209,8 +1209,8 @@ mod tests {
         for (i, id) in ids.iter().enumerate() {
             let ctx = QueryTrackingContext::new(*id, Arc::clone(&global), QueryType::Shard);
             let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
-            let mut r = make_reservation(&pool, "cap");
-            r.try_grow((i as usize + 1) * 1_000).unwrap();
+            let r = make_reservation(&pool, "cap");
+            r.try_grow((i + 1) * 1_000).unwrap();
             reservations.push(r);
             contexts.push(ctx);
         }

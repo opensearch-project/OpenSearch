@@ -49,6 +49,9 @@ pub fn merge_sorted(
 }
 
 /// Performs a streaming k-way merge using the provided memory reservation.
+// Each argument is a distinct, required merge parameter; bundling them into a
+// struct would only move the argument list to the call site.
+#[allow(clippy::too_many_arguments)]
 pub fn merge_sorted_with_pool(
     input_files: &[String],
     output_path: &str,

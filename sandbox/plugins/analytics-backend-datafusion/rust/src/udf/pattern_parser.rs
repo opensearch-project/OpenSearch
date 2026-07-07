@@ -28,12 +28,11 @@
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
-    Array, ArrayRef, GenericListArray, ListArray, ListBuilder, MapBuilder, MapFieldNames,
-    StringArray, StringBuilder, StructArray,
+    Array, ArrayRef, ListArray, ListBuilder, MapBuilder, MapFieldNames, StringArray, StringBuilder,
+    StructArray,
 };
-use datafusion::arrow::buffer::{NullBuffer, OffsetBuffer};
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
-use datafusion::common::{plan_err, ScalarValue};
+use datafusion::common::plan_err;
 use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
@@ -41,7 +40,6 @@ use datafusion::logical_expr::{
 };
 
 use crate::patterns::{eval_field, eval_samples, PatternResult};
-use crate::udf::udf_identity;
 
 pub const NAME: &str = "pattern_parser";
 
@@ -229,7 +227,7 @@ pub struct PatternParserGetFieldUdf {
 }
 
 impl PatternParserGetFieldUdf {
-    pub fn new(field: PatternField) -> Self {
+    fn new(field: PatternField) -> Self {
         Self {
             field,
             signature: Signature::user_defined(Volatility::Immutable),
@@ -449,7 +447,7 @@ fn build_struct_array(results: &[PatternResult]) -> Result<ArrayRef> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::{Array, AsArray, BooleanArray};
+    use datafusion::arrow::array::Array;
 
     #[test]
     fn struct_data_type_has_pattern_and_tokens_fields() {

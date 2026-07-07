@@ -251,12 +251,12 @@ impl BrainLogParser {
             return;
         }
         let tokens_len = tokens.len() - 1;
-        for i in 0..tokens_len {
+        for (i, token) in tokens.iter().enumerate().take(tokens_len) {
             let key = group_token_set_key(tokens_len, group_candidate_str, i);
             self.group_token_set_map
                 .entry(key)
                 .or_default()
-                .insert(tokens[i].clone());
+                .insert(token.clone());
         }
     }
 
@@ -282,8 +282,7 @@ impl BrainLogParser {
 
         let token_capacity = tokens.len() - 1;
         let mut out = Vec::with_capacity(token_capacity);
-        for i in 0..token_capacity {
-            let token = &tokens[i];
+        for (i, token) in tokens.iter().enumerate().take(token_capacity) {
             let tok_key = positioned_token_key(i, token);
             let token_freq = *self
                 .token_freq_map
@@ -303,11 +302,9 @@ impl BrainLogParser {
                     out.push(super::VARIABLE_DENOTER.to_string());
                     continue;
                 }
-            } else if is_lower {
-                if group_set.len() >= self.variable_count_threshold {
-                    out.push(super::VARIABLE_DENOTER.to_string());
-                    continue;
-                }
+            } else if is_lower && group_set.len() >= self.variable_count_threshold {
+                out.push(super::VARIABLE_DENOTER.to_string());
+                continue;
             }
             out.push(token.clone());
         }
@@ -434,7 +431,7 @@ mod tests {
 
     #[test]
     fn word_combination_orders_by_same_freq_count_desc() {
-        let mut v = vec![
+        let mut v = [
             WordCombination::new(5, 1),
             WordCombination::new(2, 3),
             WordCombination::new(3, 3),

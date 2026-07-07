@@ -19,8 +19,6 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-use super::udf_identity;
-
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(StrftimeUdf::new()));
 }

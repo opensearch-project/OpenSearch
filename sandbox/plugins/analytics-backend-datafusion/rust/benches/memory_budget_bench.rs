@@ -7,7 +7,7 @@
 //!
 //! Run: cargo bench --bench memory_budget_bench
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::execution::memory_pool::{
     GreedyMemoryPool, MemoryConsumer, MemoryPool, TrackConsumersPool,
@@ -63,7 +63,7 @@ fn bench_acquire_budget_moderate_pressure(c: &mut Criterion) {
 
     // Pre-fill pool to 80% with a long-lived reservation
     let consumer = MemoryConsumer::new("background_load");
-    let mut bg_reservation = consumer.register(&pool);
+    let bg_reservation = consumer.register(&pool);
     bg_reservation.try_grow(80_000_000).unwrap();
 
     c.bench_function("acquire_budget/80pct_pressure/narrow_schema", |b| {
@@ -170,7 +170,7 @@ fn bench_phantom_reservation_cycle(c: &mut Criterion) {
     c.bench_function("phantom_reservation/grow_shrink_cycle", |b| {
         b.iter(|| {
             let consumer = MemoryConsumer::new("phantom").with_can_spill(true);
-            let mut reservation = consumer.register(&pool);
+            let reservation = consumer.register(&pool);
             reservation.try_grow(phantom_size).unwrap();
             drop(reservation); // shrinks
         });

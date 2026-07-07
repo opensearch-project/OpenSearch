@@ -465,7 +465,7 @@ impl TieredObjectStore {
         fetched: &[Bytes],
         miss_indices: &[usize],
         miss_ranges: &[Range<u64>],
-        slots: &mut Vec<Option<Bytes>>,
+        slots: &mut [Option<Bytes>],
     ) {
         if let Some(ref cache) = self.cache {
             for (fetched_bytes, (&slot_i, miss_range)) in fetched

@@ -14,6 +14,7 @@
 //! short-circuit opportunities.
 
 use super::*;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 
 // ══════════════════════════════════════════════════════════════════════
 // Large-scale fixture (10_000 rows, multi-RG, multi-page, nullable qty,
@@ -103,7 +104,7 @@ fn build_large_fixture() -> LargeFixture {
     let tmp = NamedTempFile::new().unwrap();
     let (file, path) = tmp.keep().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(2048)
+        .set_max_row_group_row_count(Some(2048))
         .set_data_page_row_count_limit(512)
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
@@ -125,6 +126,9 @@ fn build_large_fixture() -> LargeFixture {
 
 /// Leaves specific to the large fixture. We reuse the engine machinery but
 /// add qty-nullable and negative-price cases.
+// The `L` prefix denotes the large-fixture leaf set and is applied
+// consistently across all variants by design.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy)]
 enum LLeaf {
     // Collectors (provider_id = u16, mapped in wire_large).
@@ -289,7 +293,7 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| wire_large_rec(c, out)),
         BoolNode::Not(inner) => wire_large_rec(inner, out),
         BoolNode::Collector { annotation_id } => {
-            let tag = Some(*annotation_id as u8).expect("empty tag bytes");
+            let tag = *annotation_id as u8;
             out.push(large_collector_for(tag));
         }
         BoolNode::Predicate(_) => {}
@@ -313,8 +317,8 @@ fn large_collector_for(tag: u8) -> Arc<dyn RowGroupDocsCollector> {
     };
     let matching: Vec<i32> = (0..LARGE_N)
         .filter(|&i| {
-            want_brand.map_or(true, |b| f.brands[i] == b)
-                && want_status.map_or(true, |s| f.statuses[i] == s)
+            want_brand.is_none_or(|b| f.brands[i] == b)
+                && want_status.is_none_or(|s| f.statuses[i] == s)
         })
         .map(|i| i as i32)
         .collect();
@@ -382,8 +386,11 @@ async fn run_large(
     let f = large_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 
@@ -849,8 +856,11 @@ async fn run_large_partitioned(
     let f = large_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 

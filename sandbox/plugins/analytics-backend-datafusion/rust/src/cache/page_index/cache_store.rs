@@ -68,7 +68,7 @@ pub(crate) const DEFAULT_SCOPED_CACHE_LIMIT: usize = 150 * 1024 * 1024;
 /// 2. Wire it in `mod.rs` by passing it to `BoundedCache::new`.
 /// 3. Expose a `PolicyType` variant in the Java API and route it from
 ///    `df_create_cache` in `ffm.rs`.
-pub(super) trait ScopedEvictionPolicy<K>: Send + Sync {
+pub(crate) trait ScopedEvictionPolicy<K>: Send + Sync {
     /// Called when a new entry is inserted (or an existing key is overwritten).
     /// The policy should record `key` as the most-recently inserted entry.
     fn on_insert(&self, key: K);
@@ -119,7 +119,7 @@ pub(super) trait ScopedEvictionPolicy<K>: Send + Sync {
 /// S3-FIFO (planned successor) wraps two FIFO queues with a ghost set. If its
 /// `on_access` needs to update state from the read path, it would need its own
 /// interior mutability (e.g. atomics for frequency counters).
-pub(super) struct FifoPolicy<K> {
+pub(crate) struct FifoPolicy<K> {
     /// Guarded by the outer `BoundedCache` write lock — no inner lock needed.
     queue: UnsafeCell<VecDeque<K>>,
 }
@@ -136,6 +136,11 @@ impl<K> FifoPolicy<K> {
     }
 
     /// Borrow the queue mutably. Caller must hold the outer write lock.
+    // clippy::mut_from_ref — intentional interior mutability: the `UnsafeCell` is only ever
+    // accessed while the caller holds `BoundedCache`'s write lock (see SAFETY notes above and
+    // on the `unsafe impl Send/Sync`). Restructuring to `&mut self` would defeat the lock-free
+    // read design this type exists for.
+    #[allow(clippy::mut_from_ref)]
     #[inline]
     fn queue_mut(&self) -> &mut VecDeque<K> {
         // SAFETY: caller holds the `BoundedCache` write lock.
@@ -202,7 +207,7 @@ pub struct ScopedCacheStats {
 ///
 /// `K` must implement `Display` so `evict_by_prefix` can match keys by their
 /// string representation (e.g. `"path:col:rg"` → prefix `"path"`).
-pub(super) struct BoundedCache<K, V, P = FifoPolicy<K>>
+pub(crate) struct BoundedCache<K, V, P = FifoPolicy<K>>
 where
     K: Eq + Hash + Clone + Display + Send + Sync + 'static,
     V: Clone + Send + Sync + 'static,
@@ -242,6 +247,8 @@ where
     }
 
     /// Create a new cache with FIFO eviction — shorthand for tests.
+    // Retained as a convenience constructor / future API; not currently called.
+    #[allow(dead_code)]
     pub(super) fn new(limit: usize) -> Self {
         Self::with_named_policy(limit, CacheEvictionPolicy::Fifo)
     }
@@ -287,6 +294,8 @@ where
     ///
     /// If `size > limit` the entry is silently dropped. Takes the write lock
     /// for accounting; IO must be done by the caller before calling this.
+    // Retained as part of the cache API; not currently called outside tests.
+    #[allow(dead_code)]
     pub(super) fn insert(&self, key: K, value: V, size: usize) {
         let limit = self.limit_snapshot.load(Relaxed);
         if size > limit {
@@ -563,7 +572,7 @@ mod tests {
         for (k, v, s) in entries.clone() {
             c1.insert(k, v, s);
         }
-        c2.insert_batch(entries.into_iter());
+        c2.insert_batch(entries);
         assert_eq!(c1.get(&Key::new("a")), c2.get(&Key::new("a")));
         assert_eq!(c1.get(&Key::new("b")), c2.get(&Key::new("b")));
         assert_eq!(c1.get(&Key::new("c")), c2.get(&Key::new("c")));

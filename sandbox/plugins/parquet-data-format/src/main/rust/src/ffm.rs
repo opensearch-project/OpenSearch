@@ -14,7 +14,7 @@
 use std::slice;
 use std::str;
 
-use native_bridge_common::{ffm_safe, log_debug};
+use native_bridge_common::ffm_safe;
 
 use crate::field_config::FieldConfig;
 use crate::merge;
@@ -302,6 +302,14 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
     Ok(0)
 }
 
+/// Returns the total native bytes used by writers whose path starts with the
+/// given prefix.
+///
+/// # Safety
+///
+/// If `prefix_len > 0`, `prefix_ptr` must point to at least `prefix_len`
+/// initialized bytes of valid UTF-8 that remain live for the duration of the
+/// call. A null pointer or non-positive length is treated as an empty prefix.
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,
@@ -761,6 +769,15 @@ pub unsafe extern "C" fn parquet_merge_files(
 }
 
 /// Frees the heap-allocated arrays returned by `parquet_merge_files`.
+///
+/// # Safety
+///
+/// Each pointer argument must be either `0` or a value previously returned by
+/// `parquet_merge_files` and not yet freed. The corresponding length argument
+/// (`mapping_len` for `mapping_ptr`, `gen_count` for the three `gen_*` arrays)
+/// must exactly match the length the array was originally allocated with.
+/// Passing mismatched lengths, freed pointers, or pointers not produced by
+/// `parquet_merge_files` is undefined behavior.
 #[no_mangle]
 pub unsafe extern "C" fn parquet_free_merge_result(
     mapping_ptr: i64,
@@ -774,20 +791,29 @@ pub unsafe extern "C" fn parquet_free_merge_result(
         let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
         // Java released merge mapping — free from pool
         crate::memory::merge_pool().shrink(mapping_bytes);
-        let _ = Box::from_raw(slice::from_raw_parts_mut(
+        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
             mapping_ptr as *mut i64,
             mapping_len as usize,
         ));
     }
     let n = gen_count as usize;
     if gen_keys_ptr != 0 && n > 0 {
-        let _ = Box::from_raw(slice::from_raw_parts_mut(gen_keys_ptr as *mut i64, n));
+        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            gen_keys_ptr as *mut i64,
+            n,
+        ));
     }
     if gen_offsets_ptr != 0 && n > 0 {
-        let _ = Box::from_raw(slice::from_raw_parts_mut(gen_offsets_ptr as *mut i32, n));
+        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            gen_offsets_ptr as *mut i32,
+            n,
+        ));
     }
     if gen_sizes_ptr != 0 && n > 0 {
-        let _ = Box::from_raw(slice::from_raw_parts_mut(gen_sizes_ptr as *mut i32, n));
+        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            gen_sizes_ptr as *mut i32,
+            n,
+        ));
     }
 }
 
@@ -901,13 +927,20 @@ pub unsafe extern "C" fn parquet_read_as_json(
 // ---------------------------------------------------------------------------
 
 /// Frees the heap-allocated row ID mapping array returned as part of `parquet_finalize_writer`.
+///
+/// # Safety
+///
+/// `mapping_ptr` must be either `0` or a pointer previously returned by
+/// `parquet_finalize_writer` and not yet freed, and `mapping_len` must exactly
+/// match the length the array was originally allocated with. Any other
+/// combination is undefined behavior.
 #[no_mangle]
 pub unsafe extern "C" fn parquet_free_row_id_mapping(mapping_ptr: i64, mapping_len: i64) {
     if mapping_ptr != 0 && mapping_len > 0 {
         let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
         // Java released write mapping — free from pool
         crate::memory::write_pool().shrink(mapping_bytes);
-        let _ = Box::from_raw(slice::from_raw_parts_mut(
+        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
             mapping_ptr as *mut i64,
             mapping_len as usize,
         ));
@@ -998,6 +1031,12 @@ pub extern "C" fn parquet_register_overcommit_callbacks(
 
 /// Get pool stats: writes 6 i64s to out_buf.
 /// Layout: [write_limit, write_used, write_peak, merge_limit, merge_used, merge_peak]
+///
+/// # Safety
+///
+/// `out_buf` must be non-null and point to a writable buffer with capacity for
+/// at least as many `i64` values as `crate::memory::get_stats()` returns (6).
+/// The buffer must remain valid for the duration of the call.
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_pool_stats(out_buf: *mut i64) {
     let stats = crate::memory::get_stats();

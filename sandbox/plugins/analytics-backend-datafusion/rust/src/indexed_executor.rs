@@ -89,6 +89,8 @@ use crate::parquet_page_cache::{
 // TODO: remove once api.rs migrates to instruction-based path directly.
 // Kept as thin wrapper to make existing tests exercise execute_indexed_with_context
 // with minimal changes.
+// Real API surface; argument count mirrors the query pipeline inputs.
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_indexed_query(
     substrait_bytes: Vec<u8>,
     table_name: String,
@@ -285,6 +287,8 @@ fn collect_leaf_exprs(extraction: Option<&ExtractionResult>) -> Vec<Arc<dyn Phys
     exprs
 }
 
+// Retained for predicate column-index analysis; not currently wired into the executor path.
+#[allow(dead_code)]
 fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Vec<usize> {
     let Some(e) = extraction else { return vec![] };
     let mut exprs = Vec::new();
@@ -356,6 +360,8 @@ fn collect_plan_column_names(plan: &datafusion::logical_expr::LogicalPlan) -> Ve
 
 /// Build the `prune_tree_config` tuple from a BoolNode tree and schema.
 /// Builds per-leaf PruningPredicates from pre-collected leaf exprs.
+// Return tuple mirrors the prune_tree_config shape consumed downstream; not worth a type alias.
+#[allow(clippy::type_complexity)]
 fn build_prune_tree_config(
     tree: &Arc<BoolNode>,
     schema: &SchemaRef,
@@ -459,6 +465,8 @@ impl TableProvider for PlaceholderProvider {
     }
 }
 
+// Execution entry points below intentionally follow this test module.
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -812,6 +820,12 @@ mod tests {
 /// TODO: extract shared logic with `execute_indexed_query` to avoid duplication.
 /// For now this delegates to the existing function by reconstructing the needed args
 /// from the handle.
+///
+/// # Safety
+/// `session_ctx_ptr` must be a valid, non-null pointer to a `SessionContextHandle`
+/// produced by the session-context creation path and not yet freed. Ownership is
+/// taken here (the box is reconstructed and dropped), so the pointer must not be
+/// used again after this call.
 pub async unsafe fn execute_indexed_with_context(
     session_ctx_ptr: i64,
     substrait_bytes: Vec<u8>,
@@ -900,7 +914,7 @@ async unsafe fn execute_indexed_with_context_inner(
     });
 
     let query_config = Arc::new(handle.query_config);
-    let num_partitions = query_config.target_partitions.max(1);
+    let _num_partitions = query_config.target_partitions.max(1);
     let aggregate_mode = handle.aggregate_mode;
     let ctx = handle.ctx;
     let table_name = handle.table_name;

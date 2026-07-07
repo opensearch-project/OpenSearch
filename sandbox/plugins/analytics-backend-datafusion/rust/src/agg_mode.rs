@@ -235,6 +235,8 @@ mod tests {
         displayable(plan.as_ref()).indent(true).to_string()
     }
 
+    // Test helper retained for plan-shape assertions; not used by every test.
+    #[allow(dead_code)]
     fn contains_node(plan: &Arc<dyn ExecutionPlan>, name: &str) -> bool {
         if plan.name().contains(name) {
             return true;

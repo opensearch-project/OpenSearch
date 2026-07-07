@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-use crate::executor::{ConcurrencyGate, DedicatedExecutor};
+use crate::executor::DedicatedExecutor;
 use log::info;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
@@ -40,7 +40,7 @@ impl RuntimeManager {
         // The handle is always available before any store is constructed.
         native_bridge_common::io_runtime::set_io_handle(io_runtime.handle().clone());
 
-        let io_monitor = RuntimeMonitor::new(&io_runtime.handle());
+        let io_monitor = RuntimeMonitor::new(io_runtime.handle());
 
         let mut cpu_runtime_builder = Builder::new_multi_thread();
         cpu_runtime_builder
