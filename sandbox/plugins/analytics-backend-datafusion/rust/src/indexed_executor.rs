@@ -21,14 +21,11 @@
 
 use std::sync::Arc;
 
-use native_bridge_common::log_debug;
 use datafusion::{
-    physical_plan::displayable,
-    physical_plan::execute_stream,
-    common::DataFusionError,
     arrow::datatypes::SchemaRef,
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
+    common::DataFusionError,
     datasource::{TableProvider, TableType},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
@@ -36,17 +33,22 @@ use datafusion::{
     physical_expr::expressions::Column,
     physical_expr::PhysicalExpr,
     physical_optimizer::pruning::PruningPredicate,
+    physical_plan::displayable,
+    physical_plan::execute_stream,
     physical_plan::stream::RecordBatchStreamAdapter,
-    physical_plan::ExecutionPlan
+    physical_plan::ExecutionPlan,
 };
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
+use native_bridge_common::log_debug;
 use prost::Message;
 use substrait::proto::Plan;
 
 use crate::api::DataFusionRuntime;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::helper::{build_query_runtime_env_with_store, build_query_session_context, register_listing_table};
+use crate::helper::{
+    build_query_runtime_env_with_store, build_query_session_context, register_listing_table,
+};
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
@@ -70,8 +72,12 @@ use crate::cache::page_index;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
-use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
-use crate::parquet_page_cache::{load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair};
+use crate::indexed_table::page_pruner::{
+    build_pruning_predicate, PagePruneMetrics, StatsPruneTree,
+};
+use crate::parquet_page_cache::{
+    load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair,
+};
 
 /// Execute an indexed query.
 ///
@@ -126,7 +132,11 @@ pub async fn execute_indexed_query(
         writer_generations: shard_view.writer_generations.clone(),
         sort_fields: shard_view.sort_fields.clone(),
         sort_orders: shard_view.sort_orders.clone(),
-        query_context: crate::query_tracker::QueryTrackingContext::new(context_id, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
+        query_context: crate::query_tracker::QueryTrackingContext::new(
+            context_id,
+            runtime.runtime_env.memory_pool.clone(),
+            crate::query_tracker::QueryType::Shard,
+        ),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
@@ -214,8 +224,12 @@ pub(crate) fn should_reverse_segments(
     sort_orders: &[String],
 ) -> bool {
     let Some(top) = top_sort else { return false };
-    let Some(catalog_field) = sort_fields.first() else { return false };
-    let Some(catalog_order) = sort_orders.first() else { return false };
+    let Some(catalog_field) = sort_fields.first() else {
+        return false;
+    };
+    let Some(catalog_order) = sort_orders.first() else {
+        return false;
+    };
     if top.column != *catalog_field {
         return false;
     }
@@ -346,7 +360,11 @@ fn build_prune_tree_config(
     tree: &Arc<BoolNode>,
     schema: &SchemaRef,
     leaf_exprs: &[Arc<dyn PhysicalExpr>],
-) -> Option<(Arc<BoolNode>, Arc<HashMap<usize, Arc<PruningPredicate>>>, SchemaRef)> {
+) -> Option<(
+    Arc<BoolNode>,
+    Arc<HashMap<usize, Arc<PruningPredicate>>>,
+    SchemaRef,
+)> {
     let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
         .iter()
         .filter_map(|expr| {
@@ -357,7 +375,11 @@ fn build_prune_tree_config(
     if leaf_predicates.is_empty() {
         return None;
     }
-    Some((Arc::clone(tree), Arc::new(leaf_predicates), Arc::clone(schema)))
+    Some((
+        Arc::clone(tree),
+        Arc::new(leaf_predicates),
+        Arc::clone(schema),
+    ))
 }
 
 /// For a tree classified as `SingleCollector`, walk it to find the single
@@ -449,9 +471,7 @@ mod tests {
     use std::sync::Arc;
 
     fn collector(id: i32) -> BoolNode {
-        BoolNode::Collector {
-            annotation_id: id,
-        }
+        BoolNode::Collector { annotation_id: id }
     }
 
     fn pred() -> BoolNode {
@@ -502,10 +522,7 @@ mod tests {
         let p2 = pred();
         let tree = BoolNode::And(vec![
             p1,
-            BoolNode::And(vec![
-                collector(0),
-                BoolNode::And(vec![collector(1), p2]),
-            ]),
+            BoolNode::And(vec![collector(0), BoolNode::And(vec![collector(1), p2])]),
         ]);
         let r = extract_single_collector_residual(&tree).unwrap();
         match r {
@@ -522,10 +539,7 @@ mod tests {
         // AND(C, AND(P, OR(P, P))) → AND(P, OR(P, P))
         let tree = BoolNode::And(vec![
             collector(10),
-            BoolNode::And(vec![
-                pred(),
-                BoolNode::Or(vec![pred(), pred()]),
-            ]),
+            BoolNode::And(vec![pred(), BoolNode::Or(vec![pred(), pred()])]),
         ]);
         let r = extract_single_collector_residual(&tree).unwrap();
         match r {
@@ -551,8 +565,8 @@ mod tests {
     // ── analyze_top_sort / should_reverse_segments ────────────────────
 
     fn build_logical_plan(sql: &str) -> datafusion::logical_expr::LogicalPlan {
-        use datafusion::execution::SessionStateBuilder;
         use datafusion::execution::context::SessionContext;
+        use datafusion::execution::SessionStateBuilder;
         let state = SessionStateBuilder::new().with_default_features().build();
         let ctx = SessionContext::new_with_state(state);
         let schema = Arc::new(Schema::new(vec![
@@ -650,7 +664,10 @@ mod tests {
 
     #[test]
     fn should_reverse_segments_matches_leading_field_opposite_direction() {
-        let top = TopSort { column: "id".to_string(), descending: true };
+        let top = TopSort {
+            column: "id".to_string(),
+            descending: true,
+        };
         let fields = vec!["id".to_string()];
         let orders = vec!["asc".to_string()];
         assert!(should_reverse_segments(Some(&top), &fields, &orders));
@@ -658,7 +675,10 @@ mod tests {
 
     #[test]
     fn should_reverse_segments_matches_leading_field_same_direction() {
-        let top = TopSort { column: "id".to_string(), descending: false };
+        let top = TopSort {
+            column: "id".to_string(),
+            descending: false,
+        };
         let fields = vec!["id".to_string()];
         let orders = vec!["asc".to_string()];
         assert!(!should_reverse_segments(Some(&top), &fields, &orders));
@@ -666,7 +686,10 @@ mod tests {
 
     #[test]
     fn should_reverse_segments_catalog_desc_query_asc() {
-        let top = TopSort { column: "id".to_string(), descending: false };
+        let top = TopSort {
+            column: "id".to_string(),
+            descending: false,
+        };
         let fields = vec!["id".to_string()];
         let orders = vec!["desc".to_string()];
         assert!(should_reverse_segments(Some(&top), &fields, &orders));
@@ -681,7 +704,10 @@ mod tests {
 
     #[test]
     fn should_reverse_segments_no_catalog_sort() {
-        let top = TopSort { column: "id".to_string(), descending: true };
+        let top = TopSort {
+            column: "id".to_string(),
+            descending: true,
+        };
         assert!(!should_reverse_segments(Some(&top), &[], &[]));
     }
 
@@ -689,7 +715,10 @@ mod tests {
     fn should_reverse_segments_query_sort_on_non_leading_catalog_field() {
         // Catalog: [a ASC, b ASC]; query: ORDER BY b DESC. Segments are monotonic on `a`
         // (the leading key), not `b`. Reversing won't help — decline.
-        let top = TopSort { column: "b".to_string(), descending: true };
+        let top = TopSort {
+            column: "b".to_string(),
+            descending: true,
+        };
         let fields = vec!["a".to_string(), "b".to_string()];
         let orders = vec!["asc".to_string(), "asc".to_string()];
         assert!(!should_reverse_segments(Some(&top), &fields, &orders));
@@ -699,7 +728,10 @@ mod tests {
     fn should_reverse_segments_field_name_case_sensitive() {
         // Match PR #22041 — `Column::from_name` is case-sensitive. If casing differs,
         // we don't claim the catalog ordering applies. Safe default: no reversal.
-        let top = TopSort { column: "ID".to_string(), descending: true };
+        let top = TopSort {
+            column: "ID".to_string(),
+            descending: true,
+        };
         let fields = vec!["id".to_string()];
         let orders = vec!["asc".to_string()];
         assert!(!should_reverse_segments(Some(&top), &fields, &orders));
@@ -711,13 +743,11 @@ mod tests {
         use datafusion::parquet::file::metadata::{FileMetaData, ParquetMetaData};
         // Build a minimal ParquetMetaData. We never read it back in these tests.
         let schema = std::sync::Arc::new(
-            datafusion::parquet::schema::types::SchemaDescriptor::new(
-                std::sync::Arc::new(
-                    datafusion::parquet::schema::types::Type::group_type_builder("schema")
-                        .build()
-                        .unwrap(),
-                ),
-            ),
+            datafusion::parquet::schema::types::SchemaDescriptor::new(std::sync::Arc::new(
+                datafusion::parquet::schema::types::Type::group_type_builder("schema")
+                    .build()
+                    .unwrap(),
+            )),
         );
         let file_meta = FileMetaData::new(0, 0, None, None, schema, None);
         let pq_meta = ParquetMetaData::new(file_meta, vec![]);
@@ -753,7 +783,7 @@ mod tests {
         assert_eq!(segs[1].max_doc, 20);
         assert_eq!(segs[1].global_base, 10); // B's catalog base, unchanged.
         assert_eq!(segs[2].max_doc, 10);
-        assert_eq!(segs[2].global_base, 0);  // A's catalog base, unchanged.
+        assert_eq!(segs[2].global_base, 0); // A's catalog base, unchanged.
     }
 
     #[test]
@@ -786,11 +816,13 @@ pub async unsafe fn execute_indexed_with_context(
     cpu_executor: DedicatedExecutor,
     permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
-    let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+    let handle =
+        *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
     let context_id = handle.query_context.context_id();
     let token = crate::query_tracker::get_cancellation_token(context_id);
 
-    let query_future = execute_indexed_with_context_inner(handle, substrait_bytes, cpu_executor, permit);
+    let query_future =
+        execute_indexed_with_context_inner(handle, substrait_bytes, cpu_executor, permit);
     crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
         .await
         .map_err(DataFusionError::Execution)
@@ -802,7 +834,6 @@ async unsafe fn execute_indexed_with_context_inner(
     cpu_executor: DedicatedExecutor,
     permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
-
     // Permit was acquired by the caller (ffm.rs) on the IO runtime before
     // spawning on the CPU runtime, so the Java search thread blocks at the
     // gate when it is full — creating backpressure at the Java threadpool level.
@@ -815,19 +846,24 @@ async unsafe fn execute_indexed_with_context_inner(
         let context_id_early = handle.query_context.context_id();
         // engine-native-merge: borrow the partial-state schema from the prepared plan so the
         // empty stream matches the populated shards' wire shape (e.g. Binary HLL for dc()).
-        let plan_schema: arrow::datatypes::SchemaRef = if let Some(prepared) = handle.prepared_plan.as_ref() {
-            Arc::new(prepared.schema().as_ref().clone())
-        } else {
-            let plan = Plan::decode(substrait_bytes.as_slice())
-                .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
-            let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
-            Arc::new(logical_plan.schema().as_arrow().clone())
-        };
+        let plan_schema: arrow::datatypes::SchemaRef =
+            if let Some(prepared) = handle.prepared_plan.as_ref() {
+                Arc::new(prepared.schema().as_ref().clone())
+            } else {
+                let plan = Plan::decode(substrait_bytes.as_slice())
+                    .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+                let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+                Arc::new(logical_plan.schema().as_arrow().clone())
+            };
         let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
         let (cross_rt_stream, abort_handle, _task_done) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
+            CrossRtStream::new_with_df_error_stream_cancellable(
+                df_stream,
+                cpu_executor.clone(),
+                None,
+            );
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id_early, h);
         }
@@ -848,7 +884,10 @@ async unsafe fn execute_indexed_with_context_inner(
     }
 
     // Java-side QTF signal: scan must emit __row_id__. Captured before consuming indexed_config below.
-    let requests_row_ids = handle.indexed_config.as_ref().is_some_and(|c| c.requests_row_ids);
+    let requests_row_ids = handle
+        .indexed_config
+        .as_ref()
+        .is_some_and(|c| c.requests_row_ids);
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
@@ -889,10 +928,7 @@ async unsafe fn execute_indexed_with_context_inner(
     // with IndexedTableProvider after plan decoding.
     ctx.deregister_table(&register_name)?;
 
-    let store = ctx
-        .state()
-        .runtime_env()
-        .object_store(&table_path)?;
+    let store = ctx.state().runtime_env().object_store(&table_path)?;
 
     let state = ctx.state();
     let metadata_cache = state.runtime_env().cache_manager.get_file_metadata_cache();
@@ -909,7 +945,12 @@ async unsafe fn execute_indexed_with_context_inner(
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
     // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
-    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &register_name, &schema);
+    let schema = crate::session_context::widen_schema_from_plan(
+        &ctx,
+        &substrait_bytes,
+        &register_name,
+        &schema,
+    );
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),
@@ -930,7 +971,11 @@ async unsafe fn execute_indexed_with_context_inner(
     // interpretable by `api::fetch_by_row_ids` (which builds its own segments from
     // `ShardView.object_metas` in catalog order).
     let mut segments = segments;
-    if should_reverse_segments(analyze_top_sort(&logical_plan).as_ref(), &sort_fields, &sort_orders) {
+    if should_reverse_segments(
+        analyze_top_sort(&logical_plan).as_ref(),
+        &sort_fields,
+        &sort_orders,
+    ) {
         log_debug!(
             "indexed_executor: reversing segment iteration (catalog leading sort={:?} {:?}, query opposite)",
             sort_fields.first(),
@@ -981,9 +1026,9 @@ async unsafe fn execute_indexed_with_context_inner(
         FilterClass::None => {
             // Predicate-only: push the whole tree (may be an unfoldable constant);
             // None = no filter = full scan.
-            extraction.as_ref().and_then(|e| {
-                residual_bool_to_physical_expr(&e.tree)
-            })
+            extraction
+                .as_ref()
+                .and_then(|e| residual_bool_to_physical_expr(&e.tree))
         }
         FilterClass::Tree => None,
     };
@@ -1001,13 +1046,12 @@ async unsafe fn execute_indexed_with_context_inner(
         let projection_column_names = collect_plan_column_names(&logical_plan);
         if !predicate_column_names.is_empty() || !projection_column_names.is_empty() {
             for segment in segments.iter_mut() {
-                let (parquet_cols, offset_cols) =
-                    resolve_predicate_parquet_columns_pair(
-                        &schema,
-                        &segment.metadata,
-                        &predicate_column_names,
-                        &projection_column_names,
-                    );
+                let (parquet_cols, offset_cols) = resolve_predicate_parquet_columns_pair(
+                    &schema,
+                    &segment.metadata,
+                    &predicate_column_names,
+                    &projection_column_names,
+                );
                 if parquet_cols.is_empty() && offset_cols.is_empty() {
                     continue;
                 }
@@ -1037,22 +1081,30 @@ async unsafe fn execute_indexed_with_context_inner(
             let prune_tree_config = extraction
                 .as_ref()
                 .and_then(|e| build_prune_tree_config(&e.tree, &schema_for_pruner, &leaf_exprs));
-            let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction.as_ref().and_then(|e| {
-                residual_bool_to_physical_expr(&e.tree)
-            });
+            let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction
+                .as_ref()
+                .and_then(|e| residual_bool_to_physical_expr(&e.tree));
             let residual_pruning_predicate: Option<Arc<PruningPredicate>> = residual_expr
                 .as_ref()
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
-            (Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
-                    let pruner = Arc::new(PagePruner::new(
-                        &schema_for_pruner,
-                        Arc::clone(&segment.metadata),
-                    ));
-                    let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
-                        .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
-                    let eval: Arc<dyn RowGroupBitsetSource> =
+            (
+                Arc::new(
+                    move |segment: &SegmentFileInfo,
+                          chunk,
+                          stream_metrics: &StreamMetrics,
+                          stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
+                        let pruner = Arc::new(PagePruner::new(
+                            &schema_for_pruner,
+                            Arc::clone(&segment.metadata),
+                        ));
+                        let rg_index_to_pos: HashMap<usize, usize> = chunk
+                            .row_group_indices
+                            .iter()
+                            .enumerate()
+                            .map(|(pos, &idx)| (idx, pos))
+                            .collect();
+                        let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
                             pruner,
                             residual_pruning_predicate.clone(),
@@ -1061,9 +1113,11 @@ async unsafe fn execute_indexed_with_context_inner(
                             stats_prune_tree.cloned(),
                             rg_index_to_pos,
                         ));
-                    Ok(eval)
-                },
-            ), prune_tree_config)
+                        Ok(eval)
+                    },
+                ),
+                prune_tree_config,
+            )
         }
         FilterClass::SingleCollector => {
             let extraction = extraction.as_ref().ok_or_else(|| {
@@ -1072,7 +1126,8 @@ async unsafe fn execute_indexed_with_context_inner(
                 )
             })?;
             let schema_for_pruner = schema.clone();
-            let prune_tree_config = build_prune_tree_config(&extraction.tree, &schema_for_pruner, &leaf_exprs);
+            let prune_tree_config =
+                build_prune_tree_config(&extraction.tree, &schema_for_pruner, &leaf_exprs);
 
             // Correctness-delegated provider (eager). `None` when the query has only
             // performance-delegated leaves and no Collector at all.
@@ -1124,11 +1179,16 @@ async unsafe fn execute_indexed_with_context_inner(
             let call_strategy = CollectorCallStrategy::PageRangeSplit;
             let bloom_store = Arc::clone(&store);
             let bloom_schema = schema.clone();
-            (Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
-                    let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
-                        Some(provider) => {
-                            let collector = FfmSegmentCollector::create(
+            (
+                Arc::new(
+                    move |segment: &SegmentFileInfo,
+                          chunk,
+                          stream_metrics: &StreamMetrics,
+                          stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
+                        let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> =
+                            match &correctness_provider {
+                                Some(provider) => {
+                                    let collector = FfmSegmentCollector::create(
                                 context_id,
                                 provider.key(),
                                 segment.writer_generation,
@@ -1146,25 +1206,28 @@ async unsafe fn execute_indexed_with_context_inner(
                                     e
                                 )
                             })?;
-                            Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
-                        }
-                        None => None,
-                    };
-                    let pruner = Arc::new(PagePruner::new(
-                        &schema_for_pruner,
-                        Arc::clone(&segment.metadata),
-                    ));
-                    // Bloom-filter row-group pruning is always enabled on the indexed read path.
-                    let bloom_config = Some(crate::indexed_table::eval::single_collector::BloomConfig {
-                        store: Arc::clone(&bloom_store),
-                        object_path: segment.object_path.clone(),
-                        metadata: Arc::clone(&segment.metadata),
-                        arrow_schema: Arc::clone(&bloom_schema),
-                        io_handle: io_handle.clone(),
-                        rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
-                        bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
-                    });
-                    let eval: Arc<dyn RowGroupBitsetSource> =
+                                    Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
+                                }
+                                None => None,
+                            };
+                        let pruner = Arc::new(PagePruner::new(
+                            &schema_for_pruner,
+                            Arc::clone(&segment.metadata),
+                        ));
+                        // Bloom-filter row-group pruning is always enabled on the indexed read path.
+                        let bloom_config =
+                            Some(crate::indexed_table::eval::single_collector::BloomConfig {
+                                store: Arc::clone(&bloom_store),
+                                object_path: segment.object_path.clone(),
+                                metadata: Arc::clone(&segment.metadata),
+                                arrow_schema: Arc::clone(&bloom_schema),
+                                io_handle: io_handle.clone(),
+                                rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
+                                bloom_filter_eval_time: stream_metrics
+                                    .bloom_filter_eval_time
+                                    .clone(),
+                            });
+                        let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
                             pruner,
@@ -1181,9 +1244,11 @@ async unsafe fn execute_indexed_with_context_inner(
                             stats_prune_tree.cloned(),
                             chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
                         ));
-                    Ok(eval)
-                },
-            ), prune_tree_config)
+                        Ok(eval)
+                    },
+                ),
+                prune_tree_config,
+            )
         }
         FilterClass::Tree => {
             let extraction = extraction.ok_or_else(|| {
@@ -1195,7 +1260,10 @@ async unsafe fn execute_indexed_with_context_inner(
             // same-kind connectives. Flatten after push_not_down so the
             // connective changes from De Morgan (e.g. NOT(AND(...)) -> OR(NOT...))
             // get absorbed into the surrounding Or if applicable.
-            let tree = Arc::try_unwrap(extraction.tree).unwrap().push_not_down().flatten();
+            let tree = Arc::try_unwrap(extraction.tree)
+                .unwrap()
+                .push_not_down()
+                .flatten();
             // One provider per Collector leaf (DFS order).
             let leaf_ids = tree.collector_leaves();
             let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
@@ -1237,60 +1305,78 @@ async unsafe fn execute_indexed_with_context_inner(
             let prune_tree_config = if pruning_predicates.is_empty() {
                 None
             } else {
-                Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema_for_pruner.clone()))
+                Some((
+                    Arc::clone(&tree),
+                    Arc::clone(&pruning_predicates),
+                    schema_for_pruner.clone(),
+                ))
             };
 
-            (Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
-                    // Build one collector per Collector leaf for this chunk.
-                    let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
-                        Vec::with_capacity(providers.len());
-                    for (idx, provider) in providers.iter().enumerate() {
-                        let collector = FfmSegmentCollector::create(
-                            context_id,
-                            provider.key(),
-                            segment.writer_generation,
-                            chunk.doc_min,
-                            chunk.doc_max,
-                        )
+            (
+                Arc::new(
+                    move |segment: &SegmentFileInfo,
+                          chunk,
+                          stream_metrics: &StreamMetrics,
+                          stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
+                        // Build one collector per Collector leaf for this chunk.
+                        let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
+                            Vec::with_capacity(providers.len());
+                        for (idx, provider) in providers.iter().enumerate() {
+                            let collector = FfmSegmentCollector::create(
+                                context_id,
+                                provider.key(),
+                                segment.writer_generation,
+                                chunk.doc_min,
+                                chunk.doc_max,
+                            )
                             .map_err(|e| format!("leaf {} collector: {}", idx, e))?;
-                        per_leaf.push((
-                            provider.key(),
-                            Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
+                            per_leaf.push((
+                                provider.key(),
+                                Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
+                            ));
+                        }
+
+                        let resolved = tree.resolve(&per_leaf).map_err(|e| {
+                            format!(
+                                "tree.resolve for segment gen={}: {}",
+                                segment.writer_generation, e
+                            )
+                        })?;
+                        let resolved = Arc::new(resolved);
+
+                        let pruner = Arc::new(PagePruner::new(
+                            &schema_for_pruner,
+                            Arc::clone(&segment.metadata),
                         ));
-                    }
 
-                    let resolved = tree.resolve(&per_leaf).map_err(|e| {
-                        format!("tree.resolve for segment gen={}: {}", segment.writer_generation, e)
-                    })?;
-                    let resolved = Arc::new(resolved);
-
-                    let pruner = Arc::new(PagePruner::new(
-                        &schema_for_pruner,
-                        Arc::clone(&segment.metadata),
-                    ));
-
-                    let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
-                        tree: resolved,
-                        evaluator: Arc::new(BitmapTreeEvaluator),
-                        leaves: Arc::new(CollectorLeafBitmaps {
-                            ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
-                        }),
-                        page_pruner: pruner,
-                        cost_predicate,
-                        cost_collector,
-                        max_collector_parallelism,
-                        pruning_predicates: Arc::clone(&pruning_predicates),
-                        page_prune_metrics: Some(PagePruneMetrics::from_stream_metrics(
-                            stream_metrics,
-                        )),
-                        collector_strategy,
-                        stats_prune_tree: stats_prune_tree.cloned(),
-                        rg_index_to_pos: chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
-                    });
-                    Ok(eval)
-                },
-            ), prune_tree_config)
+                        let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
+                            tree: resolved,
+                            evaluator: Arc::new(BitmapTreeEvaluator),
+                            leaves: Arc::new(CollectorLeafBitmaps {
+                                ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
+                            }),
+                            page_pruner: pruner,
+                            cost_predicate,
+                            cost_collector,
+                            max_collector_parallelism,
+                            pruning_predicates: Arc::clone(&pruning_predicates),
+                            page_prune_metrics: Some(PagePruneMetrics::from_stream_metrics(
+                                stream_metrics,
+                            )),
+                            collector_strategy,
+                            stats_prune_tree: stats_prune_tree.cloned(),
+                            rg_index_to_pos: chunk
+                                .row_group_indices
+                                .iter()
+                                .enumerate()
+                                .map(|(pos, &idx)| (idx, pos))
+                                .collect(),
+                        });
+                        Ok(eval)
+                    },
+                ),
+                prune_tree_config,
+            )
         }
     };
 
@@ -1322,7 +1408,10 @@ async unsafe fn execute_indexed_with_context_inner(
     ctx.register_table(&register_name, provider)?;
 
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
-    log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
+    log_debug!(
+        "DataFusion logical plan:\n{}",
+        logical_plan.display_indent()
+    );
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
     // Retag bit-compatible Int↔UInt output mismatches to match the substrait-declared
@@ -1338,7 +1427,10 @@ async unsafe fn execute_indexed_with_context_inner(
     };
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-    log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
+    log_debug!(
+        "DataFusion physical plan:\n{}",
+        displayable(physical_plan.as_ref()).indent(true)
+    );
     let df_stream = execute_stream(physical_plan.clone(), ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
@@ -1354,6 +1446,12 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_physical_plan(wrapped, query_context, ctx, Some(permit), physical_plan);
+    let stream_handle = crate::api::QueryStreamHandle::with_physical_plan(
+        wrapped,
+        query_context,
+        ctx,
+        Some(permit),
+        physical_plan,
+    );
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

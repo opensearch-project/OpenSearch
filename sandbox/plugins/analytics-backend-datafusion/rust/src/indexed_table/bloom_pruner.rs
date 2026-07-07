@@ -42,9 +42,7 @@ impl BloomFilterStatistics {
     /// definitely absent.
     fn check_scalar(sbbf: &Sbbf, value: &ScalarValue) -> bool {
         match value {
-            ScalarValue::Utf8(Some(s)) | ScalarValue::LargeUtf8(Some(s)) => {
-                sbbf.check(s.as_str())
-            }
+            ScalarValue::Utf8(Some(s)) | ScalarValue::LargeUtf8(Some(s)) => sbbf.check(s.as_str()),
             ScalarValue::Binary(Some(b)) | ScalarValue::LargeBinary(Some(b)) => {
                 sbbf.check(b.as_slice())
             }
@@ -94,11 +92,7 @@ impl PruningStatistics for BloomFilterStatistics {
     fn row_counts(&self) -> Option<ArrayRef> {
         None
     }
-    fn contained(
-        &self,
-        column: &Column,
-        values: &HashSet<ScalarValue>,
-    ) -> Option<BooleanArray> {
+    fn contained(&self, column: &Column, values: &HashSet<ScalarValue>) -> Option<BooleanArray> {
         let sbbf = self.blooms.get(column.name())?;
         // For the single-container case (1 row group), we return a
         // single-element BooleanArray. `true` means the bloom filter says
@@ -185,12 +179,10 @@ async fn bloom_prune_rg_inner(
 
         // Read the bloom filter bytes from the object store.
         let opts = GetOptions {
-            range: Some(GetRange::Bounded(
-                std::ops::Range {
-                    start: bf_offset,
-                    end: bf_offset + bf_length,
-                },
-            )),
+            range: Some(GetRange::Bounded(std::ops::Range {
+                start: bf_offset,
+                end: bf_offset + bf_length,
+            })),
             ..Default::default()
         };
 
@@ -206,9 +198,7 @@ async fn bloom_prune_rg_inner(
         return Ok(false); // no bloom filters available → cannot prune
     }
 
-    let stats = BloomFilterStatistics {
-        blooms,
-    };
+    let stats = BloomFilterStatistics { blooms };
 
     // Call the pruning predicate with our bloom-filter-backed statistics.
     // Result is a Vec<bool> with one entry per container (we have 1 container).

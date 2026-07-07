@@ -27,6 +27,7 @@ use datafusion::common::tree_node::{TreeNode, TreeNodeRecursion};
 use datafusion::common::Result;
 use datafusion::execution::{SendableRecordBatchStream, TaskContext};
 use datafusion::physical_expr::expressions::{col, DynamicFilterPhysicalExpr};
+use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_expr::{EquivalenceProperties, LexOrdering, PhysicalSortExpr};
 use datafusion::physical_optimizer::filter_pushdown::FilterPushdown;
 use datafusion::physical_optimizer::PhysicalOptimizerRule;
@@ -36,9 +37,8 @@ use datafusion::physical_plan::filter_pushdown::{
 };
 use datafusion::physical_plan::sorts::sort::SortExec;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties, Partitioning,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, PlanProperties,
 };
-use datafusion::physical_expr::PhysicalExpr;
 
 /// What a leaf observed in `handle_child_pushdown_result`. Shared out-of-band
 /// (the optimizer clones/rebuilds nodes, so we can't read it back off the plan).
@@ -68,7 +68,11 @@ impl RecordingLeaf {
             EmissionType::Incremental,
             Boundedness::Bounded,
         ));
-        Self { schema, props, observed }
+        Self {
+            schema,
+            props,
+            observed,
+        }
     }
 }
 
@@ -137,7 +141,9 @@ impl ExecutionPlan for RecordingLeaf {
             obs.saw_dynamic |= is_dynamic;
             statuses.push(PushedDown::Yes);
         }
-        Ok(FilterPushdownPropagation::with_parent_pushdown_result(statuses))
+        Ok(FilterPushdownPropagation::with_parent_pushdown_result(
+            statuses,
+        ))
     }
 }
 
@@ -189,7 +195,11 @@ fn dynamic_filter_reaches_leaf_under_topk() {
     // `ts > <threshold>` value materializes only at runtime via snapshot()).
     // This is *why* acceptance keys on the referenced columns, not the printed
     // value: we must downcast + walk the children to find the sort column.
-    assert_eq!(obs.arrived.len(), 1, "expected exactly the TopK self-filter");
+    assert_eq!(
+        obs.arrived.len(),
+        1,
+        "expected exactly the TopK self-filter"
+    );
     assert!(
         obs.arrived[0].contains("DynamicFilter"),
         "arrived filter should be the dynamic placeholder; got {:?}",

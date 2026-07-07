@@ -28,6 +28,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use datafusion::arrow::compute::SortOptions;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{Session, TableProvider};
 use datafusion::common::{Result, Statistics};
@@ -35,14 +36,17 @@ use datafusion::datasource::TableType;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_expr::{EquivalenceProperties, LexOrdering, Partitioning, PhysicalSortExpr};
 use datafusion::physical_expr::expressions::col as physical_col;
-use datafusion::arrow::compute::SortOptions;
+use datafusion::physical_expr::{
+    EquivalenceProperties, LexOrdering, Partitioning, PhysicalSortExpr,
+};
+use datafusion::physical_optimizer::pruning::PruningPredicate;
 use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
-use datafusion::physical_plan::metrics::{Count, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet};
+use datafusion::physical_plan::metrics::{
+    Count, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet,
+};
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
-use datafusion::physical_optimizer::pruning::PruningPredicate;
 
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::StreamExt;
@@ -270,7 +274,9 @@ impl TableProvider for IndexedTableProvider {
         let row_id_col_in_full_schema = full_schema.index_of(crate::ROW_ID_COLUMN_NAME).ok();
         let row_id_output_index: Option<usize> = if self.config.emit_row_ids {
             match projection {
-                Some(proj) => proj.iter().position(|&idx| Some(idx) == row_id_col_in_full_schema),
+                Some(proj) => proj
+                    .iter()
+                    .position(|&idx| Some(idx) == row_id_col_in_full_schema),
                 None => row_id_col_in_full_schema,
             }
         } else {
@@ -285,7 +291,8 @@ impl TableProvider for IndexedTableProvider {
                 None => full_schema.clone(),
             };
             if let Some(idx) = row_id_output_index {
-                let mut fields: Vec<Field> = base.fields().iter().map(|f| f.as_ref().clone()).collect();
+                let mut fields: Vec<Field> =
+                    base.fields().iter().map(|f| f.as_ref().clone()).collect();
                 fields[idx] = Field::new(crate::ROW_ID_COLUMN_NAME, DataType::Int64, false);
                 Arc::new(Schema::new(fields))
             } else {
@@ -296,7 +303,8 @@ impl TableProvider for IndexedTableProvider {
         // Read projection = output columns (minus ___row_id) + predicate columns for evaluator.
         let read_projection: Option<Vec<usize>> = if self.config.emit_row_ids {
             let output_cols: Vec<usize> = match projection {
-                Some(proj) => proj.iter()
+                Some(proj) => proj
+                    .iter()
                     .filter(|&&idx| Some(idx) != row_id_col_in_full_schema)
                     .copied()
                     .collect(),
@@ -376,9 +384,10 @@ impl TableProvider for IndexedTableProvider {
             None
         };
 
-        let (assignments, eq_properties, advertised_ordering) = if chain_ok && lex_ordering.is_some() {
-            let assignments =
-                compute_assignments_one_per_segment(&self.config.segments, &layouts);
+        let (assignments, eq_properties, advertised_ordering) = if chain_ok
+            && lex_ordering.is_some()
+        {
+            let assignments = compute_assignments_one_per_segment(&self.config.segments, &layouts);
             let lex = lex_ordering.unwrap();
             let eq = EquivalenceProperties::new_with_orderings(
                 projected_schema.clone(),
@@ -594,7 +603,9 @@ impl ExecutionPlan for QueryShardExec {
         }
 
         if accepted.is_empty() {
-            return Ok(FilterPushdownPropagation::with_parent_pushdown_result(statuses));
+            return Ok(FilterPushdownPropagation::with_parent_pushdown_result(
+                statuses,
+            ));
         }
 
         let new_self = self.clone_with_dynamic_filters(accepted);
@@ -618,9 +629,10 @@ impl ExecutionPlan for QueryShardExec {
             pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
         stream_metrics.io_stats = Some(Arc::clone(&self.io_stats));
 
-        let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
-            (!self.dynamic_filters.is_empty())
-                .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
+        let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = (!self
+            .dynamic_filters
+            .is_empty())
+        .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
 
         let mut streams: Vec<SendableRecordBatchStream> =
             Vec::with_capacity(assignment.chunks.len());
@@ -642,23 +654,38 @@ impl ExecutionPlan for QueryShardExec {
             }
 
             // Build stats prune tree for segment/RG/subtree-level pruning.
-            let stats_prune_tree = self.config.prune_tree_config.as_ref().map(|(tree, preds, schema)| {
-                let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
-                Arc::new(StatsPruneTree::build_from_bool_node(
-                    tree, preds, &segment.metadata, schema, &rg_indices,
-                ))
-            });
+            let stats_prune_tree =
+                self.config
+                    .prune_tree_config
+                    .as_ref()
+                    .map(|(tree, preds, schema)| {
+                        let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
+                        Arc::new(StatsPruneTree::build_from_bool_node(
+                            tree,
+                            preds,
+                            &segment.metadata,
+                            schema,
+                            &rg_indices,
+                        ))
+                    });
 
             // Segment-level skip: if no RG in the chunk can match, skip entirely.
             if let Some(ref spt) = stats_prune_tree {
                 if !spt.rg_can_match.iter().any(|&k| k) {
-                    native_bridge_common::log_debug!("[segment-skip] skipping chunk — pruned by segment-level stats");
+                    native_bridge_common::log_debug!(
+                        "[segment-skip] skipping chunk — pruned by segment-level stats"
+                    );
                     continue;
                 }
             }
 
-            let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics, stats_prune_tree.as_ref())
-                .map_err(|e| DataFusionError::External(e.into()))?;
+            let evaluator = (self.config.evaluator_factory)(
+                segment,
+                chunk,
+                &stream_metrics,
+                stats_prune_tree.as_ref(),
+            )
+            .map_err(|e| DataFusionError::External(e.into()))?;
 
             // When the sort-aware path fired (`advertised_ordering: Some`), the
             // chain-aware partitioning guarantees this chunk is one whole
@@ -710,9 +737,8 @@ impl ExecutionPlan for QueryShardExec {
 
         let stream: SendableRecordBatchStream = match streams.len() {
             0 => {
-                let empty = datafusion::physical_plan::empty::EmptyExec::new(
-                    self.projected_schema.clone(),
-                );
+                let empty =
+                    datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
                 empty.execute(0, context)?
             }
             1 => streams.into_iter().next().unwrap(),
@@ -728,11 +754,7 @@ impl ExecutionPlan for QueryShardExec {
 
 impl Drop for QueryShardExec {
     fn drop(&mut self) {
-        accumulate_from_exec(
-            &self.metrics,
-            &self.inner_parquet_metrics,
-            &self.io_stats,
-        );
+        accumulate_from_exec(&self.metrics, &self.inner_parquet_metrics, &self.io_stats);
     }
 }
 

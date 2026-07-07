@@ -54,7 +54,9 @@ pub(crate) fn apply_aggregate_mode(
 
 /// Returns the output schema of the Partial aggregate without rebuilding the plan tree.
 /// Used by `derive_schema_from_partial_plan` where we only need types, not an executable plan.
-pub(crate) fn partial_aggregate_schema(plan: &Arc<dyn ExecutionPlan>) -> Option<arrow::datatypes::SchemaRef> {
+pub(crate) fn partial_aggregate_schema(
+    plan: &Arc<dyn ExecutionPlan>,
+) -> Option<arrow::datatypes::SchemaRef> {
     find_partial_input(Arc::clone(plan)).map(|p| p.schema())
 }
 
@@ -122,7 +124,9 @@ fn force_aggregate_mode(
         if let Some(proj) = plan.downcast_ref::<ProjectionExec>() {
             if old_child.schema() != new_child.schema() {
                 let new_schema = &new_child.schema();
-                let remapped: Vec<(Arc<dyn PhysicalExpr>, String)> = proj.expr().iter()
+                let remapped: Vec<(Arc<dyn PhysicalExpr>, String)> = proj
+                    .expr()
+                    .iter()
                     .map(|pe| (remap_column(pe.expr.clone(), new_schema), pe.alias.clone()))
                     .collect();
                 return Ok(Arc::new(ProjectionExec::try_new(remapped, new_child)?));
@@ -155,25 +159,31 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
     None
 }
 
-
 /// Updates Column expression names to match the given schema (by index). Recurses into children.
-fn remap_column(expr: Arc<dyn PhysicalExpr>, schema: &arrow::datatypes::SchemaRef) -> Arc<dyn PhysicalExpr> {
+fn remap_column(
+    expr: Arc<dyn PhysicalExpr>,
+    schema: &arrow::datatypes::SchemaRef,
+) -> Arc<dyn PhysicalExpr> {
     if let Some(col) = expr.downcast_ref::<Column>() {
         return Arc::new(Column::new(schema.field(col.index()).name(), col.index()));
     }
     let children = expr.children();
-    if children.is_empty() { return expr; }
-    let new_children: Vec<_> = children.into_iter().map(|c| remap_column(c.clone(), schema)).collect();
+    if children.is_empty() {
+        return expr;
+    }
+    let new_children: Vec<_> = children
+        .into_iter()
+        .map(|c| remap_column(c.clone(), schema))
+        .collect();
     let fallback = expr.clone();
     expr.with_new_children(new_children).unwrap_or(fallback)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::prelude::*;
     use datafusion::physical_plan::displayable;
+    use datafusion::prelude::*;
 
     /// Helper: create a SessionContext with CombinePartialFinalAggregate disabled,
     /// register a memtable, and produce a physical plan for `SELECT SUM(x) FROM t`.
@@ -348,13 +358,25 @@ mod tests {
     async fn test_apply_partial_strips_final() {
         let plan = make_agg_plan().await;
         let display_before = plan_string(&plan);
-        assert!(display_before.contains("AggregateExec: mode=Final"), "expected Final in plan");
-        assert!(display_before.contains("AggregateExec: mode=Partial"), "expected Partial in plan");
+        assert!(
+            display_before.contains("AggregateExec: mode=Final"),
+            "expected Final in plan"
+        );
+        assert!(
+            display_before.contains("AggregateExec: mode=Partial"),
+            "expected Partial in plan"
+        );
 
         let stripped = apply_aggregate_mode(plan, Mode::Partial, false).unwrap();
         let display_after = plan_string(&stripped);
-        assert!(!display_after.contains("mode=Final"), "Final should be stripped");
-        assert!(display_after.contains("mode=Partial"), "Partial should remain");
+        assert!(
+            !display_after.contains("mode=Final"),
+            "Final should be stripped"
+        );
+        assert!(
+            display_after.contains("mode=Partial"),
+            "Partial should remain"
+        );
     }
 
     /// When has_topk=true and the input has multiple partitions (CSS), Final/FinalPartitioned
@@ -366,7 +388,8 @@ mod tests {
         let display_before = plan_string(&plan);
         // With target_partitions=4 and GROUP BY, DF produces FinalPartitioned.
         assert!(
-            display_before.contains("mode=FinalPartitioned") || display_before.contains("mode=Final"),
+            display_before.contains("mode=FinalPartitioned")
+                || display_before.contains("mode=Final"),
             "expected Final/FinalPartitioned in multi-partition plan, got:\n{display_before}"
         );
 
@@ -377,9 +400,9 @@ mod tests {
             "has_topk=true with multi-partition input must produce PartialReduce, got modes: {modes:?}"
         );
         assert!(
-            !modes.contains(&AggregateMode::Final) && !modes.contains(&AggregateMode::FinalPartitioned),
+            !modes.contains(&AggregateMode::Final)
+                && !modes.contains(&AggregateMode::FinalPartitioned),
             "Final/FinalPartitioned must not remain after stripping"
         );
     }
-
 }

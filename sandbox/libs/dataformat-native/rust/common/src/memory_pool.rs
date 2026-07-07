@@ -15,10 +15,10 @@
 //! `MemoryReservation` is an RAII handle that automatically returns memory to the
 //! pool on drop, preventing leaks even on error paths.
 
+use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
-use std::fmt;
 
 /// Default timeout for blocking wait (300 seconds).
 pub const DEFAULT_WAIT_TIMEOUT: Duration = Duration::from_secs(300);
@@ -166,14 +166,16 @@ impl MemoryPool {
             return Ok(());
         }
         let limit = self.limit.load(Ordering::Relaxed);
-        let result = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
-            let new_used = used.checked_add(bytes)?;
-            if limit > 0 && new_used > limit {
-                None
-            } else {
-                Some(new_used)
-            }
-        });
+        let result = self
+            .used
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                let new_used = used.checked_add(bytes)?;
+                if limit > 0 && new_used > limit {
+                    None
+                } else {
+                    Some(new_used)
+                }
+            });
 
         match result {
             Ok(old) => {
@@ -215,7 +217,10 @@ impl MemoryPool {
 
             let remaining = timeout - elapsed;
             let guard = self.notify_lock.lock().unwrap();
-            let _ = self.notify.wait_timeout(guard, remaining.min(Duration::from_secs(1))).unwrap();
+            let _ = self
+                .notify
+                .wait_timeout(guard, remaining.min(Duration::from_secs(1)))
+                .unwrap();
 
             if self.try_grow(bytes).is_ok() {
                 return Ok(());
@@ -365,7 +370,10 @@ impl MemoryReservation {
     }
 
     /// Reserve an estimated amount. Returns the estimated amount for later use with `reconcile()`.
-    pub fn reserve_estimated(&mut self, estimated: usize) -> Result<usize, Box<dyn std::error::Error>> {
+    pub fn reserve_estimated(
+        &mut self,
+        estimated: usize,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
         self.request(estimated)?;
         Ok(estimated)
     }
