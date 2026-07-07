@@ -84,7 +84,7 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
         this.ctx = ctx;
         this.runtimeHandle = runtimeHandle;
         this.preparedState = preparedState;
-        this.session = preparedState != null ? preparedState.session() : new DatafusionLocalSession(runtimeHandle.get());
+        this.session = preparedState != null ? preparedState.session() : new DatafusionLocalSession(runtimeHandle.get(), ctx.taskId());
         Map<Integer, byte[]> inputs = new LinkedHashMap<>(ctx.childInputs().size());
         for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
             inputs.put(child.childStageId(), child.producerPlanBytes());

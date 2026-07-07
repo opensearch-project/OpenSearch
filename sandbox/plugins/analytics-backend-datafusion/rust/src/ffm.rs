@@ -606,8 +606,8 @@ unsafe fn write_out_buffer(
 
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_create_local_session(runtime_ptr: i64) -> i64 {
-    api::create_local_session(runtime_ptr).map_err(|e| e.to_string())
+pub unsafe extern "C" fn df_create_local_session(runtime_ptr: i64, context_id: i64) -> i64 {
+    api::create_local_session(runtime_ptr, context_id).map_err(|e| e.to_string())
 }
 
 #[no_mangle]

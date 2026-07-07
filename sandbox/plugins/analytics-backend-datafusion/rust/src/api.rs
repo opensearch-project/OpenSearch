@@ -1720,7 +1720,11 @@ pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &
 // ---------------------------------------------------------------------------
 
 /// Creates a `LocalSession` bound to the given runtime's [`RuntimeEnv`]
-/// (memory pool, disk manager, and caches are shared).
+/// (disk manager and caches are shared). When `context_id != 0`, the session
+/// installs a per-query [`crate::query_tracker::QueryMemoryPool`] (wrapping the
+/// runtime's pool) into its `RuntimeEnv`, so every reduce allocation is
+/// attributed to `context_id` (the parent `AnalyticsQueryTask`) and surfaces to
+/// search backpressure. `context_id == 0` shares the runtime pool directly.
 ///
 /// Returns a heap-allocated pointer (as i64) to `LocalSession`. Caller must
 /// call `close_local_session` exactly once to free it.
@@ -1728,9 +1732,9 @@ pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &
 /// # Safety
 /// `runtime_ptr` must be a valid, non-zero pointer returned by
 /// `create_global_runtime`.
-pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionError> {
+pub unsafe fn create_local_session(runtime_ptr: i64, context_id: i64) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let session = LocalSession::new(&runtime.runtime_env);
+    let session = LocalSession::new_tracked(&runtime.runtime_env, context_id);
     Ok(Box::into_raw(Box::new(session)) as i64)
 }
 
@@ -1814,10 +1818,15 @@ pub async unsafe fn execute_local_plan(
 ) -> Result<i64, DataFusionError> {
     let session = &*(session_ptr as *const LocalSession);
 
-    // Per-query memory tracking — wraps the session's global pool. A
-    // `context_id` of 0 disables tracking (pool is not consulted) and no
-    // cancellation token is registered in the global QUERY_REGISTRY.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    // Per-query memory tracking. Reuse the per-query pool the session installed
+    // into its `RuntimeEnv` at creation time (via `create_local_session` with
+    // this same `context_id`), so the tracker counts the exact pool the reduce
+    // reserves against. Falls back to wrapping the global pool only when the
+    // session wasn't created with tracking (context_id 0 -> disabled).
+    let query_context = match session.query_pool() {
+        Some(pool) => QueryTrackingContext::from_query_pool(context_id, pool, query_tracker::QueryType::Coordinator),
+        None => QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator),
+    };
     let token = query_tracker::get_cancellation_token(context_id);
 
     // Race substrait planning + execution against the cancellation token so
@@ -1874,8 +1883,13 @@ pub unsafe fn execute_local_prepared_plan(
     // shared QUERY_REGISTRY — parity with execute_query + execute_local_plan,
     // so a `cancel_query(context_id)` call fires the token here too.
     // The token is held via the QueryStreamHandle's context and consulted by
-    // stream_next on each batch pull.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    // stream_next on each batch pull. Reuse the session's per-query pool (built
+    // in create_local_session with this context_id) so reduce reservations are
+    // counted by this tracker rather than an unused wrapper.
+    let query_context = match session.query_pool() {
+        Some(pool) => QueryTrackingContext::from_query_pool(context_id, pool, query_tracker::QueryType::Coordinator),
+        None => QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator),
+    };
     let token = query_tracker::get_cancellation_token(context_id);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
