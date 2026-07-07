@@ -17,6 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.WriteableBase64;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -221,7 +222,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
 
     public void testGetTaskResourceUsageFromThreadContext() throws Exception {
         TaskResourceInfo expected = new TaskResourceInfo("testAction", 1L, 2L, "nodeId", new TaskResourceUsage(1000L, 2000L));
-        String binary = TaskResourceTrackingService.serializeToBase64(expected);
+        String binary = WriteableBase64.encode(expected);
         threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binary);
 
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
@@ -235,20 +236,6 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertEquals(threadPool.getThreadContext().getResponseHeaders().get(key).get(0), value);
     }
 
-    public void testSerializeToBase64RoundTrip() throws Exception {
-        TaskResourceInfo original = new TaskResourceInfo(
-            "indices:data/read/search[phase/query]",
-            12345L,
-            67890L,
-            "U0rMsZg9RGOxdnVfMtMNVA",
-            new TaskResourceUsage(15000000L, 2048000L)
-        );
-
-        String encoded = TaskResourceTrackingService.serializeToBase64(original);
-        TaskResourceInfo deserialized = TaskResourceTrackingService.deserializeFromBase64(encoded);
-        assertEquals(original, deserialized);
-    }
-
     public void testBinaryHeaderReadFromThreadContext() throws Exception {
         TaskResourceInfo original = new TaskResourceInfo(
             "indices:data/read/search[phase/query]",
@@ -258,7 +245,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
             new TaskResourceUsage(1000L, 2000L)
         );
 
-        String binaryHeader = TaskResourceTrackingService.serializeToBase64(original);
+        String binaryHeader = WriteableBase64.encode(original);
         threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binaryHeader);
 
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
@@ -426,7 +413,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
             "data_node",
             new TaskResourceUsage(11L, 22L)
         );
-        String binary = TaskResourceTrackingService.serializeToBase64(expected);
+        String binary = WriteableBase64.encode(expected);
         threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binary);
 
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
@@ -442,7 +429,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
             "node_x",
             new TaskResourceUsage(7777L, 8888L)
         );
-        String binary = TaskResourceTrackingService.serializeToBase64(expected);
+        String binary = WriteableBase64.encode(expected);
         threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binary);
 
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
