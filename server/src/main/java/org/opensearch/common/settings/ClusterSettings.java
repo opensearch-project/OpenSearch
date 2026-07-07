@@ -39,6 +39,7 @@ import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.StreamSearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
+import org.opensearch.action.search.pruning.SearchIndexPruningSettings;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -933,7 +934,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
                 StreamSearchTransportService.STREAM_SEARCH_ENABLED,
                 TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
-                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
+                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING,
+                SearchIndexPruningSettings.ENABLED,
+                SearchIndexPruningSettings.MIN_SHARDS,
+                SearchIndexPruningSettings.FIELDS
             )
         )
     );
