@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -450,7 +451,19 @@ public class RustBridge {
             var typeEncodings = toNativeArrays(call, nativeSettings.getTypeEncodings());
             var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
 
-            var bfEnabled = toBoolMapArrays(call, nativeSettings.getFieldBloomFilterEnabled());
+            // Explicit fieldBloomFilterEnabled entries take precedence; low_cardinality fields get implicit bloom=true.
+            Map<String, Boolean> effectiveFieldBfEnabled;
+            Set<String> lcFields = nativeSettings.getLowCardinalityEnabledFields();
+            if (lcFields.isEmpty()) {
+                effectiveFieldBfEnabled = nativeSettings.getFieldBloomFilterEnabled();
+            } else {
+                effectiveFieldBfEnabled = new HashMap<>(nativeSettings.getFieldBloomFilterEnabled());
+                for (String field : lcFields) {
+                    effectiveFieldBfEnabled.putIfAbsent(field, Boolean.TRUE);
+                }
+            }
+
+            var bfEnabled = toBoolMapArrays(call, effectiveFieldBfEnabled);
 
             var typeBfEnabled = toBoolMapArrays(call, nativeSettings.getTypeBloomFilterEnabled());
             var typeBfFpp = toDoubleMapArrays(call, nativeSettings.getTypeBloomFilterFpp());

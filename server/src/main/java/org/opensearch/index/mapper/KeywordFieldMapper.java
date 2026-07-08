@@ -208,6 +208,24 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             return this;
         }
 
+        // Raw key lookup avoids a compile-time dependency on the parquet-data-format plugin.
+        // Key must match ParquetSettings.LOW_CARDINALITY_ENABLE_FIELD_SETTING.
+        private boolean isLowCardinalityEnabled(BuilderContext context) {
+            if (!context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)) {
+                return false;
+            }
+            List<String> fields = context.indexSettings().getAsList("index.parquet.low_cardinality_enable.field", Collections.emptyList());
+            if (fields.isEmpty()) return false;
+            List<String> values = context.indexSettings().getAsList("index.parquet.low_cardinality_enable.value", Collections.emptyList());
+            String fullName = buildFullName(context);
+            for (int i = 0; i < fields.size(); i++) {
+                if (fullName.equals(fields.get(i)) && i < values.size() && "true".equalsIgnoreCase(values.get(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
             return Arrays.asList(
@@ -251,6 +269,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public KeywordFieldMapper build(BuilderContext context) {
+            if (isLowCardinalityEnabled(context)) {
+                this.indexed.setValue(false);
+            }
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));

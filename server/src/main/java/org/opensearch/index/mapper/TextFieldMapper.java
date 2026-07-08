@@ -469,8 +469,29 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent));
         }
 
+        // Raw key lookup avoids a compile-time dependency on the parquet-data-format plugin.
+        // Key must match ParquetSettings.LOW_CARDINALITY_ENABLE_FIELD_SETTING.
+        private boolean isLowCardinalityEnabled(BuilderContext context) {
+            if (!context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)) {
+                return false;
+            }
+            List<String> fields = context.indexSettings().getAsList("index.parquet.low_cardinality_enable.field", Collections.emptyList());
+            if (fields.isEmpty()) return false;
+            List<String> values = context.indexSettings().getAsList("index.parquet.low_cardinality_enable.value", Collections.emptyList());
+            String fullName = buildFullName(context);
+            for (int i = 0; i < fields.size(); i++) {
+                if (fullName.equals(fields.get(i)) && i < values.size() && "true".equalsIgnoreCase(values.get(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         public TextFieldMapper build(BuilderContext context) {
+            if (isLowCardinalityEnabled(context)) {
+                this.index.setValue(false);
+            }
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
             if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
