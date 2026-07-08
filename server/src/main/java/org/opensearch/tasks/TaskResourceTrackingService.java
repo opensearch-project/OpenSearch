@@ -79,7 +79,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     // First OpenSearch version that emits and parses the Base64 binary form of the
     // TASK_RESOURCE_USAGE response header. Coordinators older than this only understand JSON.
-    static final Version BINARY_RESOURCE_USAGE_HEADER_VERSION = Version.V_3_7_0;
+    static final Version BINARY_RESOURCE_USAGE_HEADER_VERSION = Version.V_3_8_0;
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
@@ -376,7 +376,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     // cluster state — falls back to JSON, since the cost of an unwarranted JSON emission is small and
     // bounded, while the cost of an unwarranted binary emission to an old coordinator is a hung search.
     private boolean canCoordinatorReadBinaryHeader(SearchShardTask task) {
-        if (binaryResourceUsageHeaderEnabled == false) {
+        if (isBinaryResourceUsageHeaderEnabled() == false) {
             return false;
         }
         if (clusterService == null) {
@@ -429,7 +429,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         }
     }
 
-    // Legacy JSON parser for headers emitted by pre-V_3_7_0 data nodes during rolling upgrade.
+    // Legacy JSON parser for headers emitted by pre-V_3_8_0 data nodes during rolling upgrade.
     static TaskResourceInfo deserializeFromJson(String headerValue) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParser(
