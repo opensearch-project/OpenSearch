@@ -188,6 +188,69 @@ public final class DatafusionSettings {
 
     // ── All settings registered by the plugin ──
 
+    /**
+     * Dynamically enables or disables Liquid Cache for new queries.
+     * When false, optimizers are not injected and queries bypass the cache.
+     * The cache remains initialized (for fast re-enable) but idle.
+     */
+    public static final Setting<Boolean> LIQUID_CACHE_ENABLED = Setting.boolSetting(
+        "datafusion.liquid_cache.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls the Liquid Cache max memory size in bytes for byte-level Parquet caching.
+     * Only used when liquid cache is enabled via the experimental feature flag.
+     */
+    public static final Setting<Long> LIQUID_CACHE_SIZE = Setting.longSetting(
+        "datafusion.liquid_cache.size_bytes",
+        1L * 1024 * 1024 * 1024, // 1GB default
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Liquid Cache eviction policy.
+     * <ul>
+     *   <li>{@code liquid} (default) — Independent FIFO queues per batch type (LiquidPolicy)</li>
+     *   <li>{@code lru} — Standard LRU eviction across all entry types</li>
+     * </ul>
+     */
+    public static final Setting<String> LIQUID_CACHE_EVICTION_POLICY = Setting.simpleString(
+        "datafusion.liquid_cache.eviction_policy",
+        "lru",
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * Selectivity threshold for LC STREAM vs DELEGATE (0.0 to 1.0).
+     * Files with selectivity below this threshold are delegated to plain parquet.
+     */
+    public static final Setting<Float> LIQUID_CACHE_SELECTIVITY_THRESHOLD = Setting.floatSetting(
+        "datafusion.liquid_cache.selectivity_threshold",
+        0.8f,
+        0.0f,
+        1.0f,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of output columns for LC engagement.
+     * Queries projecting more columns than this are skipped by the optimizer.
+     */
+    public static final Setting<Integer> LIQUID_CACHE_MAX_COLUMNS = Setting.intSetting(
+        "datafusion.liquid_cache.max_columns",
+        10,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
 
         // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
@@ -229,7 +292,13 @@ public final class DatafusionSettings {
         INDEXED_PUSHDOWN_FILTERS,
         INDEXED_MIN_SKIP_RUN_DEFAULT,
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
-        INDEXED_FORCE_STRATEGY
+        INDEXED_FORCE_STRATEGY,
+
+        LIQUID_CACHE_ENABLED,
+        LIQUID_CACHE_SIZE,
+        LIQUID_CACHE_EVICTION_POLICY,
+        LIQUID_CACHE_SELECTIVITY_THRESHOLD,
+        LIQUID_CACHE_MAX_COLUMNS
     );
 
     // ── Snapshot management ──

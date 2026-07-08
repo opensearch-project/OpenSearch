@@ -16,6 +16,7 @@ import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
+import org.opensearch.be.datafusion.action.LiquidCacheClearAction;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
@@ -33,6 +34,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -560,6 +562,9 @@ public class DataFusionPlugin extends Plugin
             .spillDirectory(spillDir)
             .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
+            .liquidCacheEnabled(FeatureFlags.isEnabled(FeatureFlags.LIQUID_CACHE_EXPERIMENTAL_SETTING))
+            .liquidCacheSize(DatafusionSettings.LIQUID_CACHE_SIZE.get(settings))
+            .liquidCacheEvictionPolicy(DatafusionSettings.LIQUID_CACHE_EVICTION_POLICY.get(settings))
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
@@ -650,6 +655,31 @@ public class DataFusionPlugin extends Plugin
             DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD.get(settings)
         );
+
+        // Wire Liquid Cache dynamic settings only when the experimental flag is enabled.
+        if (FeatureFlags.isEnabled(FeatureFlags.LIQUID_CACHE_EXPERIMENTAL_SETTING)) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(DatafusionSettings.LIQUID_CACHE_ENABLED, enabled -> NativeBridge.setLiquidCacheEnabled(enabled));
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(DatafusionSettings.LIQUID_CACHE_SIZE, bytes -> NativeBridge.setLiquidCacheMemoryLimit(bytes));
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    DatafusionSettings.LIQUID_CACHE_SELECTIVITY_THRESHOLD,
+                    threshold -> NativeBridge.setLiquidCacheSelectivityThreshold((long) (threshold * 1000))
+                );
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    DatafusionSettings.LIQUID_CACHE_MAX_COLUMNS,
+                    count -> NativeBridge.setLiquidCacheMaxColumns((long) count)
+                );
+
+            NativeBridge.setLiquidCacheEnabled(DatafusionSettings.LIQUID_CACHE_ENABLED.get(settings));
+            NativeBridge.setLiquidCacheMemoryLimit(DatafusionSettings.LIQUID_CACHE_SIZE.get(settings));
+            NativeBridge.setLiquidCacheSelectivityThreshold(
+                (long) (DatafusionSettings.LIQUID_CACHE_SELECTIVITY_THRESHOLD.get(settings) * 1000)
+            );
+            NativeBridge.setLiquidCacheMaxColumns((long) DatafusionSettings.LIQUID_CACHE_MAX_COLUMNS.get(settings));
+        }
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -992,6 +1022,13 @@ public class DataFusionPlugin extends Plugin
     ) {
         if (dataFusionService == null) {
             return Collections.emptyList();
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.LIQUID_CACHE_EXPERIMENTAL_SETTING)) {
+            return List.of(
+                new RestDataFusionStatsAction(),
+                new org.opensearch.be.datafusion.action.stats.RestClearCacheAction(),
+                new LiquidCacheClearAction(dataFusionService)
+            );
         }
         return List.of(new RestDataFusionStatsAction(), new org.opensearch.be.datafusion.action.stats.RestClearCacheAction());
     }

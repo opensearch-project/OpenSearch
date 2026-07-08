@@ -313,6 +313,8 @@ pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
     pub custom_cache_manager: Option<CustomCacheManager>,
     pub dynamic_limit_handle: DynamicLimitHandle,
+    pub liquid_cache_optimizer:
+        Option<Arc<dyn datafusion::physical_optimizer::PhysicalOptimizerRule + Send + Sync>>,
 }
 
 /// Per-file metadata passed from Java at shard view creation time.
@@ -417,7 +419,22 @@ impl DataFusionRuntime {
             runtime_env,
             custom_cache_manager: None,
             dynamic_limit_handle: handle,
+            liquid_cache_optimizer: None,
         }
+    }
+
+    pub fn apply_liquid_cache_optimizers(
+        &self,
+        mut builder: SessionStateBuilder,
+    ) -> SessionStateBuilder {
+        if let Some(ref optimizer) = self.liquid_cache_optimizer {
+            builder = builder.with_physical_optimizer_rule(optimizer.clone());
+        }
+        builder
+    }
+
+    pub fn has_liquid_cache(&self) -> bool {
+        self.liquid_cache_optimizer.is_some()
     }
 }
 
@@ -511,6 +528,9 @@ pub fn create_global_runtime(
     cache_manager_ptr: i64,
     spill_dir: &str,
     spill_limit: i64,
+    liquid_cache_enabled: bool,
+    liquid_cache_size: i64,
+    liquid_cache_eviction_policy: &str,
 ) -> Result<i64, DataFusionError> {
     if memory_pool_limit < 0 {
         return Err(DataFusionError::Configuration(format!(
@@ -712,10 +732,21 @@ pub fn create_global_runtime(
         .with_cache_manager(cache_manager_config)
         .build()?;
 
+    let liquid_cache_optimizer = if liquid_cache_enabled {
+        let liquid_runtime = crate::liquid_cache::LiquidOnlyRuntime::init(
+            liquid_cache_size as u64,
+            liquid_cache_eviction_policy,
+        )?;
+        Some(liquid_runtime.optimizer())
+    } else {
+        None
+    };
+
     let runtime = DataFusionRuntime {
         runtime_env,
         custom_cache_manager,
         dynamic_limit_handle,
+        liquid_cache_optimizer,
     };
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
@@ -1511,6 +1542,23 @@ pub fn cancel_query(context_id: i64) {
     query_tracker::cancel_query(context_id);
 }
 
+/// Clears all caching layers: Liquid Cache (in-memory) and DataFusion
+/// metadata caches (parquet footers + column statistics).
+///
+/// # Safety
+/// `runtime_ptr` must be 0 or a valid pointer from `create_global_runtime`.
+pub unsafe fn clear_liquid_cache(runtime_ptr: i64) {
+    crate::liquid_cache::LiquidOnlyRuntime::reset_cache_if_initialized();
+
+    if runtime_ptr == 0 {
+        return;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    if let Some(ref cache_manager) = runtime.custom_cache_manager {
+        cache_manager.clear_all();
+    }
+}
+
 /// Converts SQL to Substrait plan bytes (test only).
 ///
 /// # Safety
@@ -2174,7 +2222,8 @@ mod tests {
         // memory_guard SPILL_ENABLED flag off so per_query_spill_budget returns
         // Disabled (not Critical) — preventing the 1-partition clamp.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0, false, 0, "lru")
+            .expect("runtime build");
         assert!(ptr > 0);
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
         assert!(
@@ -2211,8 +2260,16 @@ mod tests {
             "sentinel must exist before runtime build"
         );
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024)
-            .expect("runtime build");
+        let ptr = create_global_runtime(
+            64 * 1024 * 1024,
+            0,
+            spill_path,
+            1024 * 1024 * 1024,
+            false,
+            0,
+            "lru",
+        )
+        .expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
@@ -2275,8 +2332,16 @@ mod tests {
         assert!(top_file.exists());
         assert!(nested_file.exists());
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024)
-            .expect("runtime build");
+        let ptr = create_global_runtime(
+            64 * 1024 * 1024,
+            0,
+            spill_path,
+            1024 * 1024 * 1024,
+            false,
+            0,
+            "lru",
+        )
+        .expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1: original names gone (renamed to *.stale).
@@ -2320,7 +2385,8 @@ mod tests {
         // accidental fs::remove_dir_all("") would error and break boot. This test
         // guards against future refactors that hoist the cleanup out of the else-branch.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0, false, 0, "lru")
+            .expect("runtime build");
         assert!(ptr > 0);
         unsafe { close_global_runtime(ptr) };
     }
@@ -2338,7 +2404,7 @@ mod tests {
         fs::write(&bad_path, b"not a directory").expect("seed regular file");
         let bad_path_str = bad_path.to_str().expect("utf-8 path");
 
-        let err = create_global_runtime(64 * 1024 * 1024, 0, bad_path_str, 0)
+        let err = create_global_runtime(64 * 1024 * 1024, 0, bad_path_str, 0, false, 0, "lru")
             .expect_err("create_global_runtime must fail when cleanup fails");
 
         // Operator-facing message must include the offending path + io kind so the
@@ -2412,7 +2478,7 @@ mod tests {
         fs::set_permissions(parent.path(), locked).expect("chmod parent 555");
 
         let spill_str = spill_path.to_str().expect("utf-8 path");
-        let result = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0);
+        let result = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0, false, 0, "lru");
 
         // Restore parent perms via RAII so tempdir cleanup runs even on assertion failure.
         struct RestorePerms<'a> {
@@ -2491,7 +2557,8 @@ mod tests {
         assert!(link.is_symlink(), "precondition: link is a symlink");
 
         let spill_str = spill_path.to_str().expect("utf-8 path");
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0, false, 0, "lru")
+            .expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1: symlink is renamed inline (fs::rename does not follow symlinks).
@@ -2541,7 +2608,8 @@ mod tests {
         fs::create_dir(&leaked_b).expect("create leaked b");
         fs::write(leaked_b.join("tmp_002.arrow"), b"data b").expect("write b");
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0, false, 0, "lru")
+            .expect("runtime build");
         assert!(ptr > 0);
 
         // Originals were renamed inline — gone immediately by the original name.
@@ -2573,7 +2641,8 @@ mod tests {
         fs::create_dir(&leftover).expect("create leftover");
         fs::write(leftover.join("residue.arrow"), b"prior boot data").expect("write residue");
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0, false, 0, "lru")
+            .expect("runtime build");
         assert!(ptr > 0);
 
         let cleaned = wait_until(2000, || !leftover.exists());

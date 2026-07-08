@@ -95,6 +95,11 @@ crc32fast = { workspace = true }
 # rewrite. STANDARD alphabet matches the OpenSearch `binary` field wire contract.
 base64 = "0.22"
 
+# Liquid Cache for decoded-batch Parquet caching (vendored in-memory subset,
+# see sandbox/libs/dataformat-native/rust/liquid-cache/README.md).
+opensearch-liquid-cache-core = { workspace = true }
+opensearch-liquid-cache-datafusion = { workspace = true }
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }

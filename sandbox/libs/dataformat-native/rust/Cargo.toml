@@ -4,6 +4,8 @@ members = [
     "common",
     "macros",
     "lib",
+    "liquid-cache/core",
+    "liquid-cache/datafusion",
     "../../../plugins/analytics-backend-datafusion/rust",
     "../../../plugins/parquet-data-format/src/main/rust",
     "../../../plugins/native-repository-s3/src/main/rust",
@@ -30,6 +32,8 @@ datafusion-datasource = "=54.0.0"
 datafusion-common = "=54.0.0"
 datafusion-execution = "=54.0.0"
 datafusion-physical-expr = "=54.0.0"
+datafusion-physical-expr-common = "=54.0.0"
+datafusion-expr-common = "=54.0.0"
 datafusion-substrait = "=54.0.0"
 
 # Async
@@ -56,6 +60,12 @@ tikv-jemallocator = { version = "=0.6.1", features = ["disable_initial_exec_tls"
 tikv-jemalloc-ctl = { version = "=0.6.1", features = ["stats"] }
 tikv-jemalloc-sys = { version = "=0.6.1", features = ["stats"] }
 
+# Liquid cache (vendored subset — see liquid-cache/README.md)
+ahash = "=0.8.12"
+congee = "=0.4.1"
+fastlanes = "=0.5.2"
+num-traits = "=0.2.19"
+
 # Misc
 dashmap = { version = "=5.5.3", features = ["raw-api", "serde"] }
 num_cpus = "=1.17.0"
@@ -77,6 +87,8 @@ proptest = "=1.4.0"
 
 # Internal
 native-bridge-common = { path = "common" }
+opensearch-liquid-cache-core = { path = "liquid-cache/core" }
+opensearch-liquid-cache-datafusion = { path = "liquid-cache/datafusion" }
 opensearch-tiered-storage = { path = "../../tiered-storage/src/main/rust" }
 opensearch-repository-s3 = { path = "../../../plugins/native-repository-s3/src/main/rust" }
 opensearch-repository-gcs = { path = "../../../plugins/native-repository-gcs/src/main/rust" }

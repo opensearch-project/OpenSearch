@@ -49,10 +49,42 @@ pub extern "C" fn native_logger_set_level(level: i32) {
     MAX_LEVEL.store(clamped, Ordering::Relaxed);
 }
 
+/// A `log` crate backend that forwards to our native bridge callback.
+/// This makes `log::info!()` from any crate (including liquid-cache)
+/// appear in OpenSearch's log file via the Java RustLoggerBridge.
+struct NativeBridgeLogger;
+
+impl ::log::Log for NativeBridgeLogger {
+    fn enabled(&self, metadata: &::log::Metadata) -> bool {
+        metadata.level() <= ::log::Level::Info
+    }
+
+    fn log(&self, record: &::log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        let level = match record.level() {
+            ::log::Level::Error => LogLevel::Error,
+            ::log::Level::Warn | ::log::Level::Info => LogLevel::Info,
+            _ => LogLevel::Debug,
+        };
+        let msg = format!("{}", record.args());
+        log(level, &msg);
+    }
+
+    fn flush(&self) {}
+}
+
+static NATIVE_BRIDGE_LOGGER: NativeBridgeLogger = NativeBridgeLogger;
+
 /// Called by Java at startup to register the log callback.
 #[no_mangle]
 pub unsafe extern "C" fn native_logger_init(callback: LogCallback) {
     LOG_CALLBACK.store(callback as *mut (), Ordering::Release);
+    // Initialize the `log` crate facade so that log::info!() from any
+    // dependency (e.g. liquid-cache) routes through our native bridge.
+    let _ = ::log::set_logger(&NATIVE_BRIDGE_LOGGER);
+    ::log::set_max_level(::log::LevelFilter::Info);
     log(LogLevel::Info, "Native logger initialized successfully");
 }
 
