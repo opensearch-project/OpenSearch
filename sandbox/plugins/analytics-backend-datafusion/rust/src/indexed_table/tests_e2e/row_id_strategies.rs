@@ -56,7 +56,9 @@ mod tests {
         while written < num_rows {
             let batch_size = (num_rows - written).min(rows_per_rg);
             let row_ids: Vec<i64> = (written..written + batch_size).map(|i| i as i64).collect();
-            let values: Vec<i32> = (written..written + batch_size).map(|i| (i * 10) as i32).collect();
+            let values: Vec<i32> = (written..written + batch_size)
+                .map(|i| (i * 10) as i32)
+                .collect();
             let names: Vec<String> = (written..written + batch_size)
                 .map(|i| format!("row_{}", i))
                 .collect();
@@ -93,9 +95,15 @@ mod tests {
         let (path3, rg_counts3) = create_test_parquet(dir.path(), "file3.parquet", 50, 100);
 
         let file_metadata = vec![
-            FileRowMetadata { row_group_row_counts: rg_counts1 },
-            FileRowMetadata { row_group_row_counts: rg_counts2 },
-            FileRowMetadata { row_group_row_counts: rg_counts3 },
+            FileRowMetadata {
+                row_group_row_counts: rg_counts1,
+            },
+            FileRowMetadata {
+                row_group_row_counts: rg_counts2,
+            },
+            FileRowMetadata {
+                row_group_row_counts: rg_counts3,
+            },
         ];
 
         let total_rows = 100 + 150 + 50;
@@ -148,7 +156,7 @@ mod tests {
         let shard_files = build_shard_files(&object_metas, &metadata);
 
         // Verify row_base values
-        assert_eq!(shard_files[0].row_base, 0);   // First file starts at 0
+        assert_eq!(shard_files[0].row_base, 0); // First file starts at 0
         assert_eq!(shard_files[1].row_base, 100); // Second file starts at 100
         assert_eq!(shard_files[2].row_base, 250); // Third file starts at 250
 
@@ -213,9 +221,15 @@ mod tests {
         let (_path3, rg3) = create_test_parquet(dir.path(), "tiny.parquet", 7, 100);
 
         let metadata = vec![
-            FileRowMetadata { row_group_row_counts: rg1 },
-            FileRowMetadata { row_group_row_counts: rg2 },
-            FileRowMetadata { row_group_row_counts: rg3 },
+            FileRowMetadata {
+                row_group_row_counts: rg1,
+            },
+            FileRowMetadata {
+                row_group_row_counts: rg2,
+            },
+            FileRowMetadata {
+                row_group_row_counts: rg3,
+            },
         ];
 
         let object_metas: Vec<object_store::ObjectMeta> = vec![

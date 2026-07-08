@@ -295,7 +295,9 @@ mod tests {
     use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
-    use object_store::{local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt};
+    use object_store::{
+        local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt,
+    };
     use tempfile::tempdir;
 
     /// Mirror of what `CacheManager::try_new` auto-installs when no custom

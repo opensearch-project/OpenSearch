@@ -8,36 +8,22 @@
 
 package org.opensearch.index.mapper.extrasource;
 
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Primitive floats
  * This can be used by clients that already have float[].
  */
-final class PrimitiveFloatArray implements FloatArrayValue {
+final class PrimitiveFloatArray extends AbstractPrimitiveArray implements FloatArrayValue {
     private final float[] v;
 
     public PrimitiveFloatArray(float[] v) {
+        super(Objects.requireNonNull(v, "values must not be null").length);
         this.v = v;
-    }
-
-    @Override
-    public int dimension() {
-        return v.length;
-    }
-
-    @Override
-    public boolean isPackedLE() {
-        return false;
-    }
-
-    @Override
-    public BytesReference packedBytes() {
-        throw new IllegalStateException("Not packed");
     }
 
     @Override

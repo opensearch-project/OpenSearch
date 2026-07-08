@@ -68,7 +68,11 @@ impl ScalarUDFImpl for MaketimeUdf {
         coerce_args(
             "maketime",
             arg_types,
-            &[CoerceMode::Float64, CoerceMode::Float64, CoerceMode::Float64],
+            &[
+                CoerceMode::Float64,
+                CoerceMode::Float64,
+                CoerceMode::Float64,
+            ],
         )
     }
 
@@ -90,9 +94,7 @@ impl ScalarUDFImpl for MaketimeUdf {
                 (Some(h), Some(m), Some(s)) => micros_of_day(*h, *m, *s).map(|us| us * 1_000),
                 _ => None,
             };
-            return Ok(ColumnarValue::Scalar(ScalarValue::Time64Nanosecond(
-                nanos,
-            )));
+            return Ok(ColumnarValue::Scalar(ScalarValue::Time64Nanosecond(nanos)));
         }
 
         let h = args.args[0].clone().into_array(n)?;

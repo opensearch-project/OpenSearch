@@ -11,22 +11,25 @@ use std::path::Path;
 use std::sync::Arc;
 use tempfile::tempdir;
 
-use arrow::array::*;
 use arrow::array::types::TimestampMillisecondType;
+use arrow::array::*;
 use arrow::datatypes::{DataType, Field, Schema};
 use opensearch_parquet_format::merge::{merge_sorted, merge_unsorted};
 use opensearch_parquet_format::native_settings::NativeSettings;
 use opensearch_parquet_format::writer::SETTINGS_STORE;
-use parquet::arrow::ArrowWriter;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 
 /// Register a small merge_batch_size for the given index so the cursor splits into multiple batches.
 fn register_small_batch_size(index_name: &str, batch_size: usize) {
-    SETTINGS_STORE.insert(index_name.to_string(), NativeSettings {
-        merge_batch_size: Some(batch_size),
-        ..Default::default()
-    });
+    SETTINGS_STORE.insert(
+        index_name.to_string(),
+        NativeSettings {
+            merge_batch_size: Some(batch_size),
+            ..Default::default()
+        },
+    );
 }
 
 /// Write a single RecordBatch to a Parquet file.
@@ -40,12 +43,17 @@ fn write_parquet(path: &str, batch: &RecordBatch) {
 /// Read all Int64 values from a column.
 fn read_all_int64(path: &str, col: &str) -> Vec<i64> {
     let file = File::open(path).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut vals = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of(col).unwrap();
-        let arr = batch.column(idx).as_primitive::<arrow::datatypes::Int64Type>();
+        let arr = batch
+            .column(idx)
+            .as_primitive::<arrow::datatypes::Int64Type>();
         for i in 0..arr.len() {
             vals.push(arr.value(i));
         }
@@ -129,13 +137,17 @@ fn verify_row_id_order(path: &str) {
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
     let schema = builder.schema().clone();
-    let col_idx = schema.index_of("__row_id__").expect("__row_id__ not in output");
+    let col_idx = schema
+        .index_of("__row_id__")
+        .expect("__row_id__ not in output");
     let reader = builder.build().unwrap();
 
     let mut expected: i64 = 0;
     for batch in reader {
         let batch = batch.unwrap();
-        let col = batch.column(col_idx).as_any()
+        let col = batch
+            .column(col_idx)
+            .as_any()
             .downcast_ref::<arrow::array::Int64Array>()
             .expect("__row_id__ should be Int64");
         for i in 0..col.len() {
@@ -146,7 +158,6 @@ fn verify_row_id_order(path: &str) {
     }
     println!("Verified __row_id__ is sequential 0..{}", expected);
 }
-
 
 #[test]
 fn test_sorted_merge_real_files() {
@@ -174,8 +185,16 @@ fn test_sorted_merge_real_files() {
     let reverse = vec![false];
     let nulls_first = vec![false];
 
-    merge_sorted(&files, &output_str, "test-index", &sort_cols, &reverse, &nulls_first, 0)
-        .unwrap();
+    merge_sorted(
+        &files,
+        &output_str,
+        "test-index",
+        &sort_cols,
+        &reverse,
+        &nulls_first,
+        0,
+    )
+    .unwrap();
 
     assert!(output.exists(), "Output file was not created");
     let actual_rows = count_rows(&output_str);
@@ -198,17 +217,24 @@ fn test_sorted_merge_real_files() {
 
     for batch in reader {
         let batch = batch.unwrap();
-        let col = batch.column(col_idx).as_any()
+        let col = batch
+            .column(col_idx)
+            .as_any()
             .downcast_ref::<PrimitiveArray<TimestampMillisecondType>>()
             .unwrap();
         for i in 0..col.len() {
-            if col.is_null(i) { continue; }
+            if col.is_null(i) {
+                continue;
+            }
             let val = col.value(i);
             if let Some(p) = prev {
                 if val < p {
                     out_of_order += 1;
                     if out_of_order <= 5 {
-                        eprintln!("Out of order at row {}: prev={}, cur={}", rows_checked, p, val);
+                        eprintln!(
+                            "Out of order at row {}: prev={}, cur={}",
+                            rows_checked, p, val
+                        );
                     }
                 }
             }
@@ -217,8 +243,15 @@ fn test_sorted_merge_real_files() {
         }
     }
 
-    println!("Verified EventDate sort order across {} non-null rows", rows_checked);
-    assert_eq!(out_of_order, 0, "Found {} out-of-order rows in EventDate", out_of_order);
+    println!(
+        "Verified EventDate sort order across {} non-null rows",
+        rows_checked
+    );
+    assert_eq!(
+        out_of_order, 0,
+        "Found {} out-of-order rows in EventDate",
+        out_of_order
+    );
 }
 
 // ─── TIER 2 yield-to-heap tests ─────────────────────────────────────────────
@@ -231,9 +264,7 @@ fn test_sorted_merge_real_files() {
 /// current position, so A must yield to the heap.
 #[test]
 fn test_tier2_yield_after_batch_boundary() {
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("v", DataType::Int64, false),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
     // File A: [1, 2, 3, 10, 11, 12] with batch_size=3 → cursor batches [1,2,3] then [10,11,12]
     // File B: [5, 6, 7]
@@ -247,11 +278,13 @@ fn test_tier2_yield_after_batch_boundary() {
     let batch_a = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![1, 2, 3, 10, 11, 12]))],
-    ).unwrap();
+    )
+    .unwrap();
     let batch_b = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![5, 6, 7]))],
-    ).unwrap();
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -259,11 +292,21 @@ fn test_tier2_yield_after_batch_boundary() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["v".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let vals = read_all_int64(&output, "v");
     assert_eq!(vals, vec![1, 2, 3, 5, 6, 7, 10, 11, 12]);
@@ -272,9 +315,7 @@ fn test_tier2_yield_after_batch_boundary() {
 /// Three files with interleaved batch boundaries to force multiple yield events.
 #[test]
 fn test_tier2_yield_multiple_cursors() {
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("v", DataType::Int64, false),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
     // File A: [1, 2, 20, 21] with batch_size=2 → cursor batches [1,2] and [20,21]
     // File B: [3, 4, 30, 31] with batch_size=2 → cursor batches [3,4] and [30,31]
@@ -287,15 +328,18 @@ fn test_tier2_yield_multiple_cursors() {
     let batch_a = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![1, 2, 20, 21]))],
-    ).unwrap();
+    )
+    .unwrap();
     let batch_b = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![3, 4, 30, 31]))],
-    ).unwrap();
+    )
+    .unwrap();
     let batch_c = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![10, 11, 12]))],
-    ).unwrap();
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -305,11 +349,21 @@ fn test_tier2_yield_multiple_cursors() {
     write_parquet(&file_b, &batch_b);
     write_parquet(&file_c, &batch_c);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b, file_c], &output, index,
-        &["v".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b, file_c],
+        &output,
+        index,
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let vals = read_all_int64(&output, "v");
     assert_eq!(vals, vec![1, 2, 3, 4, 10, 11, 12, 20, 21, 30, 31]);
@@ -318,9 +372,7 @@ fn test_tier2_yield_multiple_cursors() {
 /// Descending sort with yield-to-heap after batch boundary.
 #[test]
 fn test_tier2_yield_descending() {
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("v", DataType::Int64, false),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
     // File A: [12, 11, 10, 3, 2, 1] with batch_size=3 → cursor batches [12,11,10] and [3,2,1]
     // File B: [7, 6, 5]
@@ -334,11 +386,13 @@ fn test_tier2_yield_descending() {
     let batch_a = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![12, 11, 10, 3, 2, 1]))],
-    ).unwrap();
+    )
+    .unwrap();
     let batch_b = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![7, 6, 5]))],
-    ).unwrap();
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -346,11 +400,21 @@ fn test_tier2_yield_descending() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["v".into()], &[true], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["v".into()],
+        &[true],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let vals = read_all_int64(&output, "v");
     assert_eq!(vals, vec![12, 11, 10, 7, 6, 5, 3, 2, 1]);
@@ -359,9 +423,7 @@ fn test_tier2_yield_descending() {
 /// Edge case: new batch starts exactly equal to heap top (should NOT yield).
 #[test]
 fn test_tier2_no_yield_when_equal_to_heap_top() {
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("v", DataType::Int64, false),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
     // File A: [1, 2, 5, 6] with batch_size=2 → cursor batches [1,2] and [5,6]
     // File B: [5, 7, 8]
@@ -375,11 +437,13 @@ fn test_tier2_no_yield_when_equal_to_heap_top() {
     let batch_a = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![1, 2, 5, 6]))],
-    ).unwrap();
+    )
+    .unwrap();
     let batch_b = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(vec![5, 7, 8]))],
-    ).unwrap();
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -387,11 +451,21 @@ fn test_tier2_no_yield_when_equal_to_heap_top() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["v".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let vals = read_all_int64(&output, "v");
     assert_eq!(vals, vec![1, 2, 5, 5, 6, 7, 8]);
@@ -400,9 +474,7 @@ fn test_tier2_no_yield_when_equal_to_heap_top() {
 /// Stress test: many small batches forcing repeated yield-to-heap transitions.
 #[test]
 fn test_tier2_yield_many_small_batches() {
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("v", DataType::Int64, false),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
     // File A: [1,2, 11,12, 21,22, 31,32, 41,42] with batch_size=2
     // File B: [5,6, 15,16, 25,26, 35,36, 45,46] with batch_size=2
@@ -418,11 +490,13 @@ fn test_tier2_yield_many_small_batches() {
     let batch_a = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(a_vals.clone()))],
-    ).unwrap();
+    )
+    .unwrap();
     let batch_b = RecordBatch::try_new(
         schema.clone(),
         vec![Arc::new(Int64Array::from(b_vals.clone()))],
-    ).unwrap();
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -430,11 +504,21 @@ fn test_tier2_yield_many_small_batches() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["v".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let vals = read_all_int64(&output, "v");
     let mut expected: Vec<i64> = a_vals.iter().chain(b_vals.iter()).copied().collect();
@@ -451,32 +535,38 @@ fn test_tier2_yield_many_small_batches() {
 //   - RG boundary: last value of RG0 < first value of RG1 (ascending)
 //   - Exact null count and null positions for nulls_first/nulls_last
 
-const RG_MAX: i64     = 1_000_000;
+const RG_MAX: i64 = 1_000_000;
 const ROWS_PER_FILE: i64 = 700_000; // 2 files → 1_400_000 total → RG0=1_000_000, RG1=400_000
 
 /// Returns (row_group_sizes, per_rg_first_value, per_rg_last_value) for a nullable Int64 column.
 fn inspect_row_groups(path: &str, col: &str) -> (Vec<i64>, Vec<Option<i64>>, Vec<Option<i64>>) {
     let reader = SerializedFileReader::new(File::open(path).unwrap()).unwrap();
-    let meta   = reader.metadata();
-    let n_rg   = meta.num_row_groups();
+    let meta = reader.metadata();
+    let n_rg = meta.num_row_groups();
     let sizes: Vec<i64> = (0..n_rg).map(|i| meta.row_group(i).num_rows()).collect();
 
     // Read all values in order, then slice per RG
-    let file    = File::open(path).unwrap();
+    let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    let rdr     = builder.build().unwrap();
+    let rdr = builder.build().unwrap();
     let mut all: Vec<Option<i64>> = Vec::new();
     for batch in rdr {
         let batch = batch.unwrap();
-        let idx   = batch.schema().index_of(col).unwrap();
-        let arr   = batch.column(idx).as_primitive::<arrow::datatypes::Int64Type>();
+        let idx = batch.schema().index_of(col).unwrap();
+        let arr = batch
+            .column(idx)
+            .as_primitive::<arrow::datatypes::Int64Type>();
         for i in 0..arr.len() {
-            all.push(if arr.is_null(i) { None } else { Some(arr.value(i)) });
+            all.push(if arr.is_null(i) {
+                None
+            } else {
+                Some(arr.value(i))
+            });
         }
     }
 
     let mut firsts = Vec::new();
-    let mut lasts  = Vec::new();
+    let mut lasts = Vec::new();
     let mut offset = 0usize;
     for &sz in &sizes {
         let end = offset + sz as usize;
@@ -490,14 +580,23 @@ fn inspect_row_groups(path: &str, col: &str) -> (Vec<i64>, Vec<Option<i64>>, Vec
 /// Read every value of a nullable Int64 column.
 fn read_col_i64(path: &str, col: &str) -> Vec<Option<i64>> {
     let file = File::open(path).unwrap();
-    let rdr  = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let rdr = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut vals = Vec::new();
     for batch in rdr {
         let batch = batch.unwrap();
-        let idx   = batch.schema().index_of(col).unwrap();
-        let arr   = batch.column(idx).as_primitive::<arrow::datatypes::Int64Type>();
+        let idx = batch.schema().index_of(col).unwrap();
+        let arr = batch
+            .column(idx)
+            .as_primitive::<arrow::datatypes::Int64Type>();
         for i in 0..arr.len() {
-            vals.push(if arr.is_null(i) { None } else { Some(arr.value(i)) });
+            vals.push(if arr.is_null(i) {
+                None
+            } else {
+                Some(arr.value(i))
+            });
         }
     }
     vals
@@ -514,15 +613,29 @@ fn test_default_settings_ascending_nulls_last() {
     let a_vals: Vec<i64> = (0..ROWS_PER_FILE).map(|i| i * 2).collect();
     let b_vals: Vec<i64> = (0..ROWS_PER_FILE).map(|i| i * 2 + 1).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
     let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap());
-    write_parquet(&file_b, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap(),
+    );
+    write_parquet(
+        &file_b,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a, file_b], &output, "test_default_asc_nulls_last",
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a, file_b],
+        &output,
+        "test_default_asc_nulls_last",
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
     // With default batch_size=100_000 which divides evenly into RG_MAX=1_000_000,
@@ -530,11 +643,14 @@ fn test_default_settings_ascending_nulls_last() {
     // overshoot (see test_rg_size_overshoots_when_batch_straddles_threshold).
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
     assert_eq!(rg_sizes.len(), 2, "expected exactly 2 row groups");
-    assert_eq!(rg_sizes[0], RG_MAX,                    "RG0 size: exact because batch_size=100_000 divides RG_MAX");
+    assert_eq!(
+        rg_sizes[0], RG_MAX,
+        "RG0 size: exact because batch_size=100_000 divides RG_MAX"
+    );
     assert_eq!(rg_sizes[1], ROWS_PER_FILE * 2 - RG_MAX, "RG1 size");
     // RG boundary: last of RG0 must be strictly less than first of RG1
-    assert_eq!(rg_lasts[0],  Some(RG_MAX - 1),         "RG0 last value");
-    assert_eq!(rg_firsts[1], Some(RG_MAX),              "RG1 first value");
+    assert_eq!(rg_lasts[0], Some(RG_MAX - 1), "RG0 last value");
+    assert_eq!(rg_firsts[1], Some(RG_MAX), "RG1 first value");
 
     // ── Exact value check ────────────────────────────────────────────────
     let vals = read_col_i64(&output, "v");
@@ -552,19 +668,33 @@ fn test_default_settings_descending_nulls_last() {
     // RG0 last  value = 1_399_999 - (RG_MAX-1) = 400_000
     // RG0 first value = 1_399_999
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
-    let total  = ROWS_PER_FILE * 2;
+    let total = ROWS_PER_FILE * 2;
     let a_vals: Vec<i64> = (0..ROWS_PER_FILE).rev().map(|i| i * 2).collect();
     let b_vals: Vec<i64> = (0..ROWS_PER_FILE).rev().map(|i| i * 2 + 1).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
     let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap());
-    write_parquet(&file_b, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap(),
+    );
+    write_parquet(
+        &file_b,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a, file_b], &output, "test_default_desc_nulls_last",
-        &["v".into()], &[true], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a, file_b],
+        &output,
+        "test_default_desc_nulls_last",
+        &["v".into()],
+        &[true],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -572,10 +702,10 @@ fn test_default_settings_descending_nulls_last() {
     assert_eq!(rg_sizes[0], RG_MAX);
     assert_eq!(rg_sizes[1], total - RG_MAX);
     // Descending: RG0 starts at max, ends at total-RG_MAX; RG1 starts one below that
-    assert_eq!(rg_firsts[0], Some(total - 1),        "RG0 first value");
-    assert_eq!(rg_lasts[0],  Some(total - RG_MAX),   "RG0 last value");
+    assert_eq!(rg_firsts[0], Some(total - 1), "RG0 first value");
+    assert_eq!(rg_lasts[0], Some(total - RG_MAX), "RG0 last value");
     assert_eq!(rg_firsts[1], Some(total - RG_MAX - 1), "RG1 first value");
-    assert_eq!(rg_lasts[1],  Some(0),                "RG1 last value");
+    assert_eq!(rg_lasts[1], Some(0), "RG1 last value");
 
     // ── Exact value check ────────────────────────────────────────────────
     let vals = read_col_i64(&output, "v");
@@ -599,27 +729,43 @@ fn test_default_settings_ascending_nulls_first() {
     // RG0 = 1_000_000 rows: all 700_000 nulls + first 300_000 non-nulls (0..299_999)
     // RG1 =   400_000 rows: remaining non-nulls (300_000..699_999)
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, true)]));
-    let half   = ROWS_PER_FILE / 2; // 350_000
-    let total  = ROWS_PER_FILE * 2; // 1_400_000
-    let total_nulls    = half * 2;  // 700_000
-    let total_nonnulls = half * 2;  // 700_000  (values 0..699_999)
+    let half = ROWS_PER_FILE / 2; // 350_000
+    let total = ROWS_PER_FILE * 2; // 1_400_000
+    let total_nulls = half * 2; // 700_000
+    let total_nonnulls = half * 2; // 700_000  (values 0..699_999)
 
-    let a_vals: Vec<Option<i64>> = (0..half).map(|_| None)
+    let a_vals: Vec<Option<i64>> = (0..half)
+        .map(|_| None)
         .chain((0..half).map(|i| Some(i * 2)))
         .collect();
-    let b_vals: Vec<Option<i64>> = (0..half).map(|_| None)
+    let b_vals: Vec<Option<i64>> = (0..half)
+        .map(|_| None)
         .chain((0..half).map(|i| Some(i * 2 + 1)))
         .collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
     let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap());
-    write_parquet(&file_b, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap(),
+    );
+    write_parquet(
+        &file_b,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a, file_b], &output, "test_default_asc_nulls_first",
-        &["v".into()], &[false], &[true], 0).unwrap();
+    merge_sorted(
+        &[file_a, file_b],
+        &output,
+        "test_default_asc_nulls_first",
+        &["v".into()],
+        &[false],
+        &[true],
+        0,
+    )
+    .unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -632,7 +778,7 @@ fn test_default_settings_ascending_nulls_first() {
     assert_eq!(rg_lasts[0], Some(rg0_last_nonnull), "RG0 last value");
     // RG1: non-nulls (rg0_last_nonnull+1)..total_nonnulls-1
     assert_eq!(rg_firsts[1], Some(rg0_last_nonnull + 1), "RG1 first value");
-    assert_eq!(rg_lasts[1],  Some(total_nonnulls - 1),   "RG1 last value");
+    assert_eq!(rg_lasts[1], Some(total_nonnulls - 1), "RG1 last value");
 
     // ── Exact value check ────────────────────────────────────────────────
     let vals = read_col_i64(&output, "v");
@@ -643,8 +789,12 @@ fn test_default_settings_ascending_nulls_first() {
     }
     // Remaining rows must be exactly 0, 1, 2, ..., total_nonnulls-1
     for i in 0..total_nonnulls as usize {
-        assert_eq!(vals[total_nulls as usize + i], Some(i as i64),
-            "wrong non-null value at row {}", total_nulls as usize + i);
+        assert_eq!(
+            vals[total_nulls as usize + i],
+            Some(i as i64),
+            "wrong non-null value at row {}",
+            total_nulls as usize + i
+        );
     }
 }
 
@@ -660,22 +810,33 @@ fn test_single_large_file_passthrough() {
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
     let vals: Vec<i64> = (0..n).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(vals))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(vals))]).unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a], &output, "test_single_large_file",
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a],
+        &output,
+        "test_single_large_file",
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
     assert_eq!(rg_sizes.len(), 2);
     assert_eq!(rg_sizes[0], RG_MAX);
     assert_eq!(rg_sizes[1], n - RG_MAX);
     assert_eq!(rg_firsts[0], Some(0));
-    assert_eq!(rg_lasts[0],  Some(RG_MAX - 1));
+    assert_eq!(rg_lasts[0], Some(RG_MAX - 1));
     assert_eq!(rg_firsts[1], Some(RG_MAX));
-    assert_eq!(rg_lasts[1],  Some(n - 1));
+    assert_eq!(rg_lasts[1], Some(n - 1));
 
     let out_vals = read_col_i64(&output, "v");
     assert_eq!(out_vals.len() as i64, n);
@@ -693,29 +854,43 @@ fn test_skewed_file_sizes_large_small() {
     // File B: odds  1, 3, 5, ...,   399_999  (200_000 values, exhausts early)
     // Merged: 0,1,2,3,...,399_999, 400_000,400_002,...,2_399_998
     let large: i64 = 1_200_000;
-    let small: i64 =   200_000;
+    let small: i64 = 200_000;
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
     let a_vals: Vec<i64> = (0..large).map(|i| i * 2).collect();
     let b_vals: Vec<i64> = (0..small).map(|i| i * 2 + 1).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
     let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap());
-    write_parquet(&file_b, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals))]).unwrap(),
+    );
+    write_parquet(
+        &file_b,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals))]).unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a, file_b], &output, "test_skewed_large_small",
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a, file_b],
+        &output,
+        "test_skewed_large_small",
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let total = large + small;
     let out_vals = read_col_i64(&output, "v");
     assert_eq!(out_vals.len() as i64, total);
 
     // Build expected: interleaved evens/odds up to 399_999, then remaining evens
-    let mut expected: Vec<i64> = (0..small).map(|i| i * 2).collect();     // evens 0..399_998
-    let odds: Vec<i64>         = (0..small).map(|i| i * 2 + 1).collect(); // odds  1..399_999
+    let mut expected: Vec<i64> = (0..small).map(|i| i * 2).collect(); // evens 0..399_998
+    let odds: Vec<i64> = (0..small).map(|i| i * 2 + 1).collect(); // odds  1..399_999
     expected.extend(odds);
     expected.sort();
     // After interleaved section: remaining evens from 400_000 to 2_399_998
@@ -736,7 +911,7 @@ fn test_three_files_middle_exhausts_first() {
     // Merged: 0,1,2,3,4,5,...,29_998,29_999(missing from B),30_000,...
     // After B exhausts, A and C continue interleaving.
     let a_count: i64 = 100_000;
-    let b_count: i64 =  10_000;
+    let b_count: i64 = 10_000;
     let c_count: i64 = 100_000;
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
 
@@ -744,23 +919,57 @@ fn test_three_files_middle_exhausts_first() {
     let b_vals: Vec<i64> = (0..b_count).map(|i| i * 3 + 1).collect();
     let c_vals: Vec<i64> = (0..c_count).map(|i| i * 3 + 2).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
     let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
     let file_c = tmp.path().join("c.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals.clone()))]).unwrap());
-    write_parquet(&file_b, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals.clone()))]).unwrap());
-    write_parquet(&file_c, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(c_vals.clone()))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int64Array::from(a_vals.clone()))],
+        )
+        .unwrap(),
+    );
+    write_parquet(
+        &file_b,
+        &RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int64Array::from(b_vals.clone()))],
+        )
+        .unwrap(),
+    );
+    write_parquet(
+        &file_c,
+        &RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int64Array::from(c_vals.clone()))],
+        )
+        .unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a, file_b, file_c], &output, "test_three_files_middle_exhausts",
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a, file_b, file_c],
+        &output,
+        "test_three_files_middle_exhausts",
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let total = a_count + b_count + c_count;
     let out_vals = read_col_i64(&output, "v");
     assert_eq!(out_vals.len() as i64, total);
 
-    let mut expected: Vec<i64> = a_vals.iter().chain(b_vals.iter()).chain(c_vals.iter()).copied().collect();
+    let mut expected: Vec<i64> = a_vals
+        .iter()
+        .chain(b_vals.iter())
+        .chain(c_vals.iter())
+        .copied()
+        .collect();
     expected.sort();
     for (i, (got, exp)) in out_vals.iter().zip(expected.iter()).enumerate() {
         assert_eq!(*got, Some(*exp), "wrong value at row {}", i);
@@ -777,16 +986,37 @@ fn test_all_duplicate_sort_keys_large() {
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
     let vals: Vec<i64> = vec![42i64; n as usize];
 
-    let tmp    = tempdir().unwrap();
-    let files: Vec<String> = (0..3).map(|i| {
-        let p = tmp.path().join(format!("{}.parquet", i)).to_string_lossy().to_string();
-        write_parquet(&p, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(vals.clone()))]).unwrap());
-        p
-    }).collect();
+    let tmp = tempdir().unwrap();
+    let files: Vec<String> = (0..3)
+        .map(|i| {
+            let p = tmp
+                .path()
+                .join(format!("{}.parquet", i))
+                .to_string_lossy()
+                .to_string();
+            write_parquet(
+                &p,
+                &RecordBatch::try_new(
+                    schema.clone(),
+                    vec![Arc::new(Int64Array::from(vals.clone()))],
+                )
+                .unwrap(),
+            );
+            p
+        })
+        .collect();
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&files, &output, "test_all_dupes_large",
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &files,
+        &output,
+        "test_all_dupes_large",
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let total = n * 3;
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -814,15 +1044,37 @@ fn test_non_multiple_of_batch_size() {
     let a_vals: Vec<i64> = (0..a_count).map(|i| i * 2).collect();
     let b_vals: Vec<i64> = (0..b_count).map(|i| i * 2 + 1).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
     let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(a_vals.clone()))]).unwrap());
-    write_parquet(&file_b, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(b_vals.clone()))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int64Array::from(a_vals.clone()))],
+        )
+        .unwrap(),
+    );
+    write_parquet(
+        &file_b,
+        &RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int64Array::from(b_vals.clone()))],
+        )
+        .unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a, file_b], &output, "test_non_multiple_batch",
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a, file_b],
+        &output,
+        "test_non_multiple_batch",
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let total = a_count + b_count;
     let out_vals = read_col_i64(&output, "v");
@@ -849,10 +1101,13 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
     // Use a batch_size that doesn't divide evenly into RG_MAX
     let batch_size: usize = 100_001;
     let index = "test_rg_overshoot";
-    SETTINGS_STORE.insert(index.to_string(), NativeSettings {
-        merge_batch_size: Some(batch_size),
-        ..Default::default()
-    });
+    SETTINGS_STORE.insert(
+        index.to_string(),
+        NativeSettings {
+            merge_batch_size: Some(batch_size),
+            ..Default::default()
+        },
+    );
 
     // One file with 2_000_002 rows (20 full batches of 100_001)
     // RG0 flushes after 10 batches = 1_000_010 rows (overshoots by 10)
@@ -862,30 +1117,47 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
     let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
     let vals: Vec<i64> = (0..n).collect();
 
-    let tmp    = tempdir().unwrap();
+    let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
-    write_parquet(&file_a, &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(vals))]).unwrap());
+    write_parquet(
+        &file_a,
+        &RecordBatch::try_new(schema.clone(), vec![Arc::new(Int64Array::from(vals))]).unwrap(),
+    );
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
-    merge_sorted(&[file_a], &output, index,
-        &["v".into()], &[false], &[false], 0).unwrap();
+    merge_sorted(
+        &[file_a],
+        &output,
+        index,
+        &["v".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
     assert_eq!(rg_sizes.len(), 2);
 
     // Each RG should be exactly 10 * batch_size = 1_000_010 (overshoots RG_MAX by 10)
     let expected_rg_size = (batch_size * 10) as i64; // 1_000_010
-    assert_eq!(rg_sizes[0], expected_rg_size,
+    assert_eq!(
+        rg_sizes[0],
+        expected_rg_size,
         "RG0 size should be {} (overshoots RG_MAX={} by {}), got {}.",
-        expected_rg_size, RG_MAX, expected_rg_size - RG_MAX, rg_sizes[0]);
+        expected_rg_size,
+        RG_MAX,
+        expected_rg_size - RG_MAX,
+        rg_sizes[0]
+    );
     assert_eq!(rg_sizes[1], expected_rg_size, "RG1 size");
     assert_eq!(rg_sizes.iter().sum::<i64>(), n);
 
     // Exact boundary values
     assert_eq!(rg_firsts[0], Some(0));
-    assert_eq!(rg_lasts[0],  Some(expected_rg_size - 1));
+    assert_eq!(rg_lasts[0], Some(expected_rg_size - 1));
     assert_eq!(rg_firsts[1], Some(expected_rg_size));
-    assert_eq!(rg_lasts[1],  Some(n - 1));
+    assert_eq!(rg_lasts[1], Some(n - 1));
 
     // Exact value check
     let out_vals = read_col_i64(&output, "v");
@@ -895,29 +1167,38 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
     }
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Deferred data loading tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Helper: register settings with a specific deferred threshold.
 fn register_deferred_settings(index_name: &str, batch_size: usize, deferred_threshold: usize) {
-    SETTINGS_STORE.insert(index_name.to_string(), NativeSettings {
-        merge_batch_size: Some(batch_size),
-        merge_deferred_column_threshold: Some(deferred_threshold),
-        ..Default::default()
-    });
+    SETTINGS_STORE.insert(
+        index_name.to_string(),
+        NativeSettings {
+            merge_batch_size: Some(batch_size),
+            merge_deferred_column_threshold: Some(deferred_threshold),
+            ..Default::default()
+        },
+    );
 }
 
 /// Helper: read all String values from a column.
 fn read_all_strings(path: &str, col: &str) -> Vec<String> {
     let file = File::open(path).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut vals = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of(col).unwrap();
-        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        let arr = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         for i in 0..arr.len() {
             vals.push(arr.value(i).to_string());
         }
@@ -939,18 +1220,26 @@ fn test_deferred_wide_schema_correctness() {
     let index = "test_deferred_wide_schema_correctness";
     register_deferred_settings(index, 3, 0); // threshold=0 → always deferred
 
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 3, 5])),
-        Arc::new(StringArray::from(vec!["a1", "a3", "a5"])),
-        Arc::new(StringArray::from(vec!["b1", "b3", "b5"])),
-        Arc::new(StringArray::from(vec!["c1", "c3", "c5"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![2, 4, 6])),
-        Arc::new(StringArray::from(vec!["a2", "a4", "a6"])),
-        Arc::new(StringArray::from(vec!["b2", "b4", "b6"])),
-        Arc::new(StringArray::from(vec!["c2", "c4", "c6"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 3, 5])),
+            Arc::new(StringArray::from(vec!["a1", "a3", "a5"])),
+            Arc::new(StringArray::from(vec!["b1", "b3", "b5"])),
+            Arc::new(StringArray::from(vec!["c1", "c3", "c5"])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![2, 4, 6])),
+            Arc::new(StringArray::from(vec!["a2", "a4", "a6"])),
+            Arc::new(StringArray::from(vec!["b2", "b4", "b6"])),
+            Arc::new(StringArray::from(vec!["c2", "c4", "c6"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -958,11 +1247,21 @@ fn test_deferred_wide_schema_correctness() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
@@ -991,18 +1290,26 @@ fn test_eager_forced_by_high_threshold() {
     let index = "test_eager_forced_by_high_threshold";
     register_deferred_settings(index, 3, 9999); // threshold=9999 → always eager
 
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 3, 5])),
-        Arc::new(StringArray::from(vec!["a1", "a3", "a5"])),
-        Arc::new(StringArray::from(vec!["b1", "b3", "b5"])),
-        Arc::new(StringArray::from(vec!["c1", "c3", "c5"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![2, 4, 6])),
-        Arc::new(StringArray::from(vec!["a2", "a4", "a6"])),
-        Arc::new(StringArray::from(vec!["b2", "b4", "b6"])),
-        Arc::new(StringArray::from(vec!["c2", "c4", "c6"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 3, 5])),
+            Arc::new(StringArray::from(vec!["a1", "a3", "a5"])),
+            Arc::new(StringArray::from(vec!["b1", "b3", "b5"])),
+            Arc::new(StringArray::from(vec!["c1", "c3", "c5"])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![2, 4, 6])),
+            Arc::new(StringArray::from(vec!["a2", "a4", "a6"])),
+            Arc::new(StringArray::from(vec!["b2", "b4", "b6"])),
+            Arc::new(StringArray::from(vec!["c2", "c4", "c6"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1010,11 +1317,21 @@ fn test_eager_forced_by_high_threshold() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
@@ -1038,14 +1355,22 @@ fn test_deferred_multi_batch_sync() {
     // File A: [1,2,5,6] → batches [1,2] and [5,6]
     // File B: [3,4,7,8] → batches [3,4] and [7,8]
     // Expected: 1,2,3,4,5,6,7,8
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 2, 5, 6])),
-        Arc::new(StringArray::from(vec!["p1", "p2", "p5", "p6"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![3, 4, 7, 8])),
-        Arc::new(StringArray::from(vec!["p3", "p4", "p7", "p8"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 2, 5, 6])),
+            Arc::new(StringArray::from(vec!["p1", "p2", "p5", "p6"])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![3, 4, 7, 8])),
+            Arc::new(StringArray::from(vec!["p3", "p4", "p7", "p8"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1053,11 +1378,21 @@ fn test_deferred_multi_batch_sync() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8]);
@@ -1081,14 +1416,22 @@ fn test_deferred_tier3_interleaved() {
     // File A: [1, 3, 5, 7] — single batch
     // File B: [2, 4, 6, 8] — single batch
     // Fully interleaved → TIER 3 binary search on every pop
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 3, 5, 7])),
-        Arc::new(StringArray::from(vec!["A1", "A3", "A5", "A7"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![2, 4, 6, 8])),
-        Arc::new(StringArray::from(vec!["B2", "B4", "B6", "B8"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 3, 5, 7])),
+            Arc::new(StringArray::from(vec!["A1", "A3", "A5", "A7"])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![2, 4, 6, 8])),
+            Arc::new(StringArray::from(vec!["B2", "B4", "B6", "B8"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1096,11 +1439,21 @@ fn test_deferred_tier3_interleaved() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8]);
@@ -1120,20 +1473,28 @@ fn test_deferred_vs_eager_identical_output() {
         Field::new("n1", DataType::Int64, false),
     ]));
 
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![10, 30, 50, 70, 90])),
-        Arc::new(StringArray::from(vec!["x", "x", "x", "x", "x"])),
-        Arc::new(StringArray::from(vec!["y", "y", "y", "y", "y"])),
-        Arc::new(StringArray::from(vec!["z", "z", "z", "z", "z"])),
-        Arc::new(Int64Array::from(vec![100, 300, 500, 700, 900])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![20, 40, 60, 80, 100])),
-        Arc::new(StringArray::from(vec!["a", "a", "a", "a", "a"])),
-        Arc::new(StringArray::from(vec!["b", "b", "b", "b", "b"])),
-        Arc::new(StringArray::from(vec!["c", "c", "c", "c", "c"])),
-        Arc::new(Int64Array::from(vec![200, 400, 600, 800, 1000])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![10, 30, 50, 70, 90])),
+            Arc::new(StringArray::from(vec!["x", "x", "x", "x", "x"])),
+            Arc::new(StringArray::from(vec!["y", "y", "y", "y", "y"])),
+            Arc::new(StringArray::from(vec!["z", "z", "z", "z", "z"])),
+            Arc::new(Int64Array::from(vec![100, 300, 500, 700, 900])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![20, 40, 60, 80, 100])),
+            Arc::new(StringArray::from(vec!["a", "a", "a", "a", "a"])),
+            Arc::new(StringArray::from(vec!["b", "b", "b", "b", "b"])),
+            Arc::new(StringArray::from(vec!["c", "c", "c", "c", "c"])),
+            Arc::new(Int64Array::from(vec![200, 400, 600, 800, 1000])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1144,20 +1505,40 @@ fn test_deferred_vs_eager_identical_output() {
     // Run with deferred (threshold=0)
     let index_deferred = "test_deferred_vs_eager_deferred";
     register_deferred_settings(index_deferred, 3, 0);
-    let output_deferred = tmp.path().join("merged_deferred.parquet").to_string_lossy().to_string();
+    let output_deferred = tmp
+        .path()
+        .join("merged_deferred.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a.clone(), file_b.clone()], &output_deferred, index_deferred,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a.clone(), file_b.clone()],
+        &output_deferred,
+        index_deferred,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     // Run with eager (threshold=9999)
     let index_eager = "test_deferred_vs_eager_eager";
     register_deferred_settings(index_eager, 3, 9999);
-    let output_eager = tmp.path().join("merged_eager.parquet").to_string_lossy().to_string();
+    let output_eager = tmp
+        .path()
+        .join("merged_eager.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output_eager, index_eager,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output_eager,
+        index_eager,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     // Compare outputs — must be identical
     let ts_d = read_all_int64(&output_deferred, "ts");
@@ -1192,14 +1573,22 @@ fn test_deferred_tier1_single_cursor_drain() {
     // File A: [1, 2] — exhausts quickly
     // File B: [3, 4, 5, 6, 7, 8] — becomes the sole cursor after A exhausts
     // TIER 1 should drain B entirely without heap operations
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 2])),
-        Arc::new(StringArray::from(vec!["first", "second"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![3, 4, 5, 6, 7, 8])),
-        Arc::new(StringArray::from(vec!["t3", "t4", "t5", "t6", "t7", "t8"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 2])),
+            Arc::new(StringArray::from(vec!["first", "second"])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![3, 4, 5, 6, 7, 8])),
+            Arc::new(StringArray::from(vec!["t3", "t4", "t5", "t6", "t7", "t8"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1207,17 +1596,30 @@ fn test_deferred_tier1_single_cursor_drain() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8]);
 
     let msg_vals = read_all_strings(&output, "msg");
-    assert_eq!(msg_vals, vec!["first", "second", "t3", "t4", "t5", "t6", "t7", "t8"]);
+    assert_eq!(
+        msg_vals,
+        vec!["first", "second", "t3", "t4", "t5", "t6", "t7", "t8"]
+    );
 }
 
 /// TIER 1 deferred with multiple batches: the sole remaining cursor spans
@@ -1235,14 +1637,22 @@ fn test_deferred_tier1_multi_batch_drain() {
 
     // File A: [1] — exhausts immediately
     // File B: [2, 3, 4, 5, 6, 7] — 3 batches of 2 rows each, all drained by TIER 1
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1])),
-        Arc::new(StringArray::from(vec!["a"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![2, 3, 4, 5, 6, 7])),
-        Arc::new(StringArray::from(vec!["b2", "b3", "b4", "b5", "b6", "b7"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1])),
+            Arc::new(StringArray::from(vec!["a"])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![2, 3, 4, 5, 6, 7])),
+            Arc::new(StringArray::from(vec!["b2", "b3", "b4", "b5", "b6", "b7"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1250,11 +1660,21 @@ fn test_deferred_tier1_multi_batch_drain() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7]);
@@ -1278,14 +1698,24 @@ fn test_deferred_tier2_full_batch_emit() {
     // File A: [1, 2, 3, 10, 11, 12] → batches [1,2,3] and [10,11,12]
     // File B: [5, 6, 7]
     // Batch [1,2,3] from A fits entirely before heap top (B=5) → TIER 2 emits all 3
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 2, 3, 10, 11, 12])),
-        Arc::new(StringArray::from(vec!["A1", "A2", "A3", "A10", "A11", "A12"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![5, 6, 7])),
-        Arc::new(StringArray::from(vec!["B5", "B6", "B7"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 2, 3, 10, 11, 12])),
+            Arc::new(StringArray::from(vec![
+                "A1", "A2", "A3", "A10", "A11", "A12",
+            ])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![5, 6, 7])),
+            Arc::new(StringArray::from(vec!["B5", "B6", "B7"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1293,17 +1723,30 @@ fn test_deferred_tier2_full_batch_emit() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 5, 6, 7, 10, 11, 12]);
 
     let tag_vals = read_all_strings(&output, "tag");
-    assert_eq!(tag_vals, vec!["A1", "A2", "A3", "B5", "B6", "B7", "A10", "A11", "A12"]);
+    assert_eq!(
+        tag_vals,
+        vec!["A1", "A2", "A3", "B5", "B6", "B7", "A10", "A11", "A12"]
+    );
 }
 
 /// TIER 2 deferred with descending sort — verifies deferred works with reverse order.
@@ -1319,14 +1762,24 @@ fn test_deferred_tier2_descending() {
 
     // File A: [12, 11, 10, 3, 2, 1] descending → batches [12,11,10] and [3,2,1]
     // File B: [7, 6, 5] descending
-    let batch_a = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![12, 11, 10, 3, 2, 1])),
-        Arc::new(StringArray::from(vec!["a12", "a11", "a10", "a3", "a2", "a1"])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema.clone(), vec![
-        Arc::new(Int64Array::from(vec![7, 6, 5])),
-        Arc::new(StringArray::from(vec!["b7", "b6", "b5"])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![12, 11, 10, 3, 2, 1])),
+            Arc::new(StringArray::from(vec![
+                "a12", "a11", "a10", "a3", "a2", "a1",
+            ])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![7, 6, 5])),
+            Arc::new(StringArray::from(vec!["b7", "b6", "b5"])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1334,17 +1787,30 @@ fn test_deferred_tier2_descending() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[true], &[false], 0, // reverse=true (descending)
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[true],
+        &[false],
+        0, // reverse=true (descending)
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![12, 11, 10, 7, 6, 5, 3, 2, 1]);
 
     let info_vals = read_all_strings(&output, "info");
-    assert_eq!(info_vals, vec!["a12", "a11", "a10", "b7", "b6", "b5", "a3", "a2", "a1"]);
+    assert_eq!(
+        info_vals,
+        vec!["a12", "a11", "a10", "b7", "b6", "b5", "a3", "a2", "a1"]
+    );
 }
 
 /// TIER 3 deferred with many cursors — stress test for data reader sync
@@ -1363,10 +1829,14 @@ fn test_deferred_tier3_many_cursors() {
     // A: [1, 5, 9]  B: [2, 6, 10]  C: [3, 7, 11]  D: [4, 8, 12]
     let make_batch = |vals: Vec<i64>, label: &str| {
         let labels: Vec<&str> = vals.iter().map(|_| label).collect();
-        RecordBatch::try_new(schema.clone(), vec![
-            Arc::new(Int64Array::from(vals)),
-            Arc::new(StringArray::from(labels)),
-        ]).unwrap()
+        RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(Int64Array::from(vals)),
+                Arc::new(StringArray::from(labels)),
+            ],
+        )
+        .unwrap()
     };
 
     let tmp = tempdir().unwrap();
@@ -1375,23 +1845,43 @@ fn test_deferred_tier3_many_cursors() {
         ("b", vec![2, 6, 10]),
         ("c", vec![3, 7, 11]),
         ("d", vec![4, 8, 12]),
-    ].into_iter().map(|(name, vals)| {
-        let path = tmp.path().join(format!("{}.parquet", name)).to_string_lossy().to_string();
+    ]
+    .into_iter()
+    .map(|(name, vals)| {
+        let path = tmp
+            .path()
+            .join(format!("{}.parquet", name))
+            .to_string_lossy()
+            .to_string();
         write_parquet(&path, &make_batch(vals, name));
         path
-    }).collect();
+    })
+    .collect();
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &files, &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &files,
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 
     let src_vals = read_all_strings(&output, "src");
-    assert_eq!(src_vals, vec!["a", "b", "c", "d", "a", "b", "c", "d", "a", "b", "c", "d"]);
+    assert_eq!(
+        src_vals,
+        vec!["a", "b", "c", "d", "a", "b", "c", "d", "a", "b", "c", "d"]
+    );
 }
 
 /// Merge files with different schemas in deferred mode — verifies that columns
@@ -1415,18 +1905,26 @@ fn test_deferred_different_schemas() {
     let index = "test_deferred_different_schemas";
     register_deferred_settings(index, 3, 0);
 
-    let batch_a = RecordBatch::try_new(schema_a.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 3, 5])),
-        Arc::new(StringArray::from(vec![Some("a1"), Some("a3"), Some("a5")])),
-        Arc::new(StringArray::from(vec![Some("b1"), Some("b3"), Some("b5")])),
-        Arc::new(StringArray::from(vec![Some("c1"), Some("c3"), Some("c5")])),
-    ]).unwrap();
-    let batch_b = RecordBatch::try_new(schema_b.clone(), vec![
-        Arc::new(Int64Array::from(vec![2, 4, 6])),
-        Arc::new(StringArray::from(vec![Some("b2"), Some("b4"), Some("b6")])),
-        Arc::new(StringArray::from(vec![Some("d2"), Some("d4"), Some("d6")])),
-        Arc::new(StringArray::from(vec![Some("e2"), Some("e4"), Some("e6")])),
-    ]).unwrap();
+    let batch_a = RecordBatch::try_new(
+        schema_a.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 3, 5])),
+            Arc::new(StringArray::from(vec![Some("a1"), Some("a3"), Some("a5")])),
+            Arc::new(StringArray::from(vec![Some("b1"), Some("b3"), Some("b5")])),
+            Arc::new(StringArray::from(vec![Some("c1"), Some("c3"), Some("c5")])),
+        ],
+    )
+    .unwrap();
+    let batch_b = RecordBatch::try_new(
+        schema_b.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![2, 4, 6])),
+            Arc::new(StringArray::from(vec![Some("b2"), Some("b4"), Some("b6")])),
+            Arc::new(StringArray::from(vec![Some("d2"), Some("d4"), Some("d6")])),
+            Arc::new(StringArray::from(vec![Some("e2"), Some("e4"), Some("e6")])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -1434,11 +1932,21 @@ fn test_deferred_different_schemas() {
     write_parquet(&file_a, &batch_a);
     write_parquet(&file_b, &batch_b);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_a, file_b], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_a, file_b],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
@@ -1449,12 +1957,19 @@ fn test_deferred_different_schemas() {
 
     // col_a only in file A — file B rows should be null
     let file = File::open(&output).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut col_a_nulls = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of("col_a").unwrap();
-        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        let arr = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         for i in 0..arr.len() {
             col_a_nulls.push(arr.is_null(i));
         }
@@ -1464,12 +1979,19 @@ fn test_deferred_different_schemas() {
 
     // col_d only in file B — file A rows should be null
     let file = File::open(&output).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut col_d_vals = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of("col_d").unwrap();
-        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        let arr = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         for i in 0..arr.len() {
             if arr.is_null(i) {
                 col_d_vals.push("NULL".to_string());
@@ -1504,21 +2026,33 @@ fn test_deferred_three_files_different_schemas() {
     let index = "test_deferred_three_files_different_schemas";
     register_deferred_settings(index, 4, 0);
 
-    let batch_1 = RecordBatch::try_new(schema_1.clone(), vec![
-        Arc::new(Int64Array::from(vec![1, 4])),
-        Arc::new(StringArray::from(vec![Some("alice"), Some("dave")])),
-    ]).unwrap();
-    let batch_2 = RecordBatch::try_new(schema_2.clone(), vec![
-        Arc::new(Int64Array::from(vec![2, 5])),
-        Arc::new(StringArray::from(vec![Some("bob"), Some("eve")])),
-        Arc::new(StringArray::from(vec![Some("NYC"), Some("LA")])),
-        Arc::new(StringArray::from(vec![Some("x2"), Some("x5")])),
-    ]).unwrap();
-    let batch_3 = RecordBatch::try_new(schema_3.clone(), vec![
-        Arc::new(Int64Array::from(vec![3, 6])),
-        Arc::new(StringArray::from(vec![Some("US"), Some("UK")])),
-        Arc::new(StringArray::from(vec![Some("x3"), Some("x6")])),
-    ]).unwrap();
+    let batch_1 = RecordBatch::try_new(
+        schema_1.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1, 4])),
+            Arc::new(StringArray::from(vec![Some("alice"), Some("dave")])),
+        ],
+    )
+    .unwrap();
+    let batch_2 = RecordBatch::try_new(
+        schema_2.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![2, 5])),
+            Arc::new(StringArray::from(vec![Some("bob"), Some("eve")])),
+            Arc::new(StringArray::from(vec![Some("NYC"), Some("LA")])),
+            Arc::new(StringArray::from(vec![Some("x2"), Some("x5")])),
+        ],
+    )
+    .unwrap();
+    let batch_3 = RecordBatch::try_new(
+        schema_3.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![3, 6])),
+            Arc::new(StringArray::from(vec![Some("US"), Some("UK")])),
+            Arc::new(StringArray::from(vec![Some("x3"), Some("x6")])),
+        ],
+    )
+    .unwrap();
 
     let tmp = tempdir().unwrap();
     let file_1 = tmp.path().join("f1.parquet").to_string_lossy().to_string();
@@ -1528,56 +2062,102 @@ fn test_deferred_three_files_different_schemas() {
     write_parquet(&file_2, &batch_2);
     write_parquet(&file_3, &batch_3);
 
-    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    let output = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
     merge_sorted(
-        &[file_1, file_2, file_3], &output, index,
-        &["ts".into()], &[false], &[false], 0,
-    ).unwrap();
+        &[file_1, file_2, file_3],
+        &output,
+        index,
+        &["ts".into()],
+        &[false],
+        &[false],
+        0,
+    )
+    .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
     assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
 
     // "name" in files 1 and 2 only
     let file = File::open(&output).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut name_vals = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of("name").unwrap();
-        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        let arr = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         for i in 0..arr.len() {
-            if arr.is_null(i) { name_vals.push("NULL".to_string()); }
-            else { name_vals.push(arr.value(i).to_string()); }
+            if arr.is_null(i) {
+                name_vals.push("NULL".to_string());
+            } else {
+                name_vals.push(arr.value(i).to_string());
+            }
         }
     }
-    assert_eq!(name_vals, vec!["alice", "bob", "NULL", "dave", "eve", "NULL"]);
+    assert_eq!(
+        name_vals,
+        vec!["alice", "bob", "NULL", "dave", "eve", "NULL"]
+    );
 
     // "country" only in file 3
     let file = File::open(&output).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut country_vals = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of("country").unwrap();
-        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        let arr = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         for i in 0..arr.len() {
-            if arr.is_null(i) { country_vals.push("NULL".to_string()); }
-            else { country_vals.push(arr.value(i).to_string()); }
+            if arr.is_null(i) {
+                country_vals.push("NULL".to_string());
+            } else {
+                country_vals.push(arr.value(i).to_string());
+            }
         }
     }
-    assert_eq!(country_vals, vec!["NULL", "NULL", "US", "NULL", "NULL", "UK"]);
+    assert_eq!(
+        country_vals,
+        vec!["NULL", "NULL", "US", "NULL", "NULL", "UK"]
+    );
 
     // "extra" in files 2 and 3
     let file = File::open(&output).unwrap();
-    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap();
     let mut extra_vals = Vec::new();
     for batch in reader {
         let batch = batch.unwrap();
         let idx = batch.schema().index_of("extra").unwrap();
-        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        let arr = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         for i in 0..arr.len() {
-            if arr.is_null(i) { extra_vals.push("NULL".to_string()); }
-            else { extra_vals.push(arr.value(i).to_string()); }
+            if arr.is_null(i) {
+                extra_vals.push("NULL".to_string());
+            } else {
+                extra_vals.push(arr.value(i).to_string());
+            }
         }
     }
     assert_eq!(extra_vals, vec!["NULL", "x2", "x3", "NULL", "x5", "x6"]);

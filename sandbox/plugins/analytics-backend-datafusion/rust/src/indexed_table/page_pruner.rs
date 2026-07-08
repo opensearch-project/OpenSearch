@@ -49,8 +49,8 @@ use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 use datafusion::parquet::file::metadata::ParquetMetaData;
 #[cfg(test)]
 use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
-use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_expr::utils::collect_columns;
+use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
 
 /// Per-row-group page pruner. Owns schema + metadata references; the
@@ -84,8 +84,7 @@ impl PagePruner {
         rg_idx: usize,
         metrics: Option<&PagePruneMetrics>,
     ) -> Option<RowSelection> {
-        let columns =
-            collect_columns(pruning_predicate.orig_expr());
+        let columns = collect_columns(pruning_predicate.orig_expr());
         if columns.is_empty() {
             return None;
         }
@@ -282,12 +281,19 @@ pub fn build_pruning_predicate(
     let pruning_predicate = match PruningPredicate::try_new(Arc::clone(expr), schema) {
         Ok(pp) => pp,
         Err(e) => {
-            native_bridge_common::log_debug!("PruningPredicate::try_new failed for {:?}: {}", expr, e);
+            native_bridge_common::log_debug!(
+                "PruningPredicate::try_new failed for {:?}: {}",
+                expr,
+                e
+            );
             return None;
         }
     };
     if pruning_predicate.always_true() {
-        native_bridge_common::log_debug!("PruningPredicate collapsed to always_true for {:?}", expr);
+        native_bridge_common::log_debug!(
+            "PruningPredicate collapsed to always_true for {:?}",
+            expr
+        );
         return None;
     }
     Some(Arc::new(pruning_predicate))
@@ -600,16 +606,22 @@ struct RgLevelStats {
 
 impl PruningStatistics for RgLevelStats {
     fn min_values(&self, column: &Column) -> Option<ArrayRef> {
-        self.col_stats.get(column.name()).map(|(m, _, _)| Arc::clone(m))
+        self.col_stats
+            .get(column.name())
+            .map(|(m, _, _)| Arc::clone(m))
     }
     fn max_values(&self, column: &Column) -> Option<ArrayRef> {
-        self.col_stats.get(column.name()).map(|(_, m, _)| Arc::clone(m))
+        self.col_stats
+            .get(column.name())
+            .map(|(_, m, _)| Arc::clone(m))
     }
     fn num_containers(&self) -> usize {
         self.num_rgs
     }
     fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
-        self.col_stats.get(column.name()).and_then(|(_, _, n)| n.clone())
+        self.col_stats
+            .get(column.name())
+            .and_then(|(_, _, n)| n.clone())
     }
     fn row_counts(&self) -> Option<ArrayRef> {
         let arr = Int64Array::from_iter_values(self.row_counts.iter().copied());
@@ -680,7 +692,9 @@ impl StatsPruneTree {
             BoolNode::And(children) => {
                 let annotated_children: Vec<_> = children
                     .iter()
-                    .map(|c| Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices))
+                    .map(|c| {
+                        Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices)
+                    })
                     .collect();
                 let mut rg_can_match = vec![true; num];
                 for child in &annotated_children {
@@ -688,12 +702,17 @@ impl StatsPruneTree {
                         *r &= c;
                     }
                 }
-                Self { rg_can_match, children: annotated_children }
+                Self {
+                    rg_can_match,
+                    children: annotated_children,
+                }
             }
             BoolNode::Or(children) => {
                 let annotated_children: Vec<_> = children
                     .iter()
-                    .map(|c| Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices))
+                    .map(|c| {
+                        Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices)
+                    })
                     .collect();
                 let mut rg_can_match = vec![false; num];
                 for child in &annotated_children {
@@ -701,14 +720,26 @@ impl StatsPruneTree {
                         *r |= c;
                     }
                 }
-                Self { rg_can_match, children: annotated_children }
+                Self {
+                    rg_can_match,
+                    children: annotated_children,
+                }
             }
             BoolNode::Not(child) => {
-                let annotated_child = Self::build_from_bool_node(child, leaf_predicates, metadata, schema, rg_indices);
+                let annotated_child = Self::build_from_bool_node(
+                    child,
+                    leaf_predicates,
+                    metadata,
+                    schema,
+                    rg_indices,
+                );
                 // NOT is conservatively all-true: negating stats-based pruning is unsound
                 // because stats give a superset, and inverting a superset is a subset.
                 native_bridge_common::log_debug!("StatsPruneTree: NOT node → all-true (conservative, cannot prune through negation)");
-                Self { rg_can_match: vec![true; num], children: vec![annotated_child] }
+                Self {
+                    rg_can_match: vec![true; num],
+                    children: vec![annotated_child],
+                }
             }
             BoolNode::Predicate(expr) => {
                 let key = Arc::as_ptr(expr) as *const () as usize;
@@ -716,7 +747,10 @@ impl StatsPruneTree {
                     Some(pp) => eval_leaf(pp, metadata, schema, rg_indices),
                     None => vec![true; num],
                 };
-                Self { rg_can_match, children: vec![] }
+                Self {
+                    rg_can_match,
+                    children: vec![],
+                }
             }
             BoolNode::DelegationPossible { original_expr, .. } => {
                 let key = Arc::as_ptr(original_expr) as *const () as usize;
@@ -724,12 +758,20 @@ impl StatsPruneTree {
                     Some(pp) => eval_leaf(pp, metadata, schema, rg_indices),
                     None => vec![true; num],
                 };
-                Self { rg_can_match, children: vec![] }
+                Self {
+                    rg_can_match,
+                    children: vec![],
+                }
             }
             BoolNode::Collector { .. } => {
                 // Collectors have no column stats — always all-true.
-                native_bridge_common::log_debug!("StatsPruneTree: Collector node → all-true (no column stats available)");
-                Self { rg_can_match: vec![true; num], children: vec![] }
+                native_bridge_common::log_debug!(
+                    "StatsPruneTree: Collector node → all-true (no column stats available)"
+                );
+                Self {
+                    rg_can_match: vec![true; num],
+                    children: vec![],
+                }
             }
         }
     }
@@ -1459,33 +1501,41 @@ mod tests {
         use crate::indexed_table::bool_tree::BoolNode;
 
         // 5 RGs: price [0..9], [10..19], [20..29], [30..39], [40..49]
-        let schema = Arc::new(Schema::new(vec![Field::new("price", DataType::Int32, false)]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "price",
+            DataType::Int32,
+            false,
+        )]));
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
             .set_max_row_group_size(10)
             .set_statistics_enabled(EnabledStatistics::Chunk)
             .build();
-        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        let mut w =
+            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
         for i in 0..5i32 {
             let vals: Vec<i32> = (i * 10..(i + 1) * 10).collect();
-            let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))]).unwrap();
+            let batch =
+                RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))])
+                    .unwrap();
             w.write(&batch).unwrap();
         }
         w.close().unwrap();
-        let meta = ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
+        let meta =
+            ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
         let arc_meta = meta.metadata().clone();
         assert_eq!(arc_meta.num_row_groups(), 5);
         let rg_indices: Vec<usize> = (0..5).collect();
 
         // Leaf predicates and their expected rg_can_match bitsets:
-        let p1 = pred_leaf("price", Operator::Lt, 30, &schema);   // [11100]
+        let p1 = pred_leaf("price", Operator::Lt, 30, &schema); // [11100]
         let p2 = pred_leaf("price", Operator::GtEq, 10, &schema); // [01111]
-        let p3 = pred_leaf("price", Operator::Gt, 45, &schema);   // [00001]
-        let p4 = pred_leaf("price", Operator::Lt, 25, &schema);   // [11100]
+        let p3 = pred_leaf("price", Operator::Gt, 45, &schema); // [00001]
+        let p4 = pred_leaf("price", Operator::Lt, 25, &schema); // [11100]
         let p5 = pred_leaf("price", Operator::GtEq, 20, &schema); // [00111]
-        let p6 = pred_leaf("price", Operator::Lt, 40, &schema);   // [11110]
-        let p7 = pred_leaf("price", Operator::Gt, 30, &schema);   // [00011]
-        let p8 = pred_leaf("price", Operator::Lt, 15, &schema);   // [11000]
+        let p6 = pred_leaf("price", Operator::Lt, 40, &schema); // [11110]
+        let p7 = pred_leaf("price", Operator::Gt, 30, &schema); // [00011]
+        let p8 = pred_leaf("price", Operator::Lt, 15, &schema); // [11000]
 
         // Tree: AND(OR(AND(p1,p2), p3), OR(AND(p4,p5), Collector, p6), AND(p7, NOT(p8)))
         let collector = BoolNode::Collector { annotation_id: 0 };
@@ -1499,10 +1549,7 @@ mod tests {
                 collector,
                 p6.clone(),
             ]),
-            BoolNode::And(vec![
-                p7.clone(),
-                BoolNode::Not(Box::new(p8.clone())),
-            ]),
+            BoolNode::And(vec![p7.clone(), BoolNode::Not(Box::new(p8.clone()))]),
         ]);
 
         // Build PruningPredicates for all df leaves.
@@ -1516,7 +1563,11 @@ mod tests {
         }
 
         let spt = StatsPruneTree::build_from_bool_node(
-            &tree, &leaf_predicates, &arc_meta, &schema, &rg_indices,
+            &tree,
+            &leaf_predicates,
+            &arc_meta,
+            &schema,
+            &rg_indices,
         );
 
         // Verify bottom-up:
@@ -1533,29 +1584,59 @@ mod tests {
         assert_eq!(spt.children.len(), 3);
 
         // Child 0: OR₁
-        assert_eq!(spt.children[0].rg_can_match, vec![false, true, true, false, true]);
+        assert_eq!(
+            spt.children[0].rg_can_match,
+            vec![false, true, true, false, true]
+        );
         assert_eq!(spt.children[0].children.len(), 2);
         // OR₁/AND
-        assert_eq!(spt.children[0].children[0].rg_can_match, vec![false, true, true, false, false]);
+        assert_eq!(
+            spt.children[0].children[0].rg_can_match,
+            vec![false, true, true, false, false]
+        );
         // OR₁/AND/p1
-        assert_eq!(spt.children[0].children[0].children[0].rg_can_match, vec![true, true, true, false, false]);
+        assert_eq!(
+            spt.children[0].children[0].children[0].rg_can_match,
+            vec![true, true, true, false, false]
+        );
         // OR₁/AND/p2
-        assert_eq!(spt.children[0].children[0].children[1].rg_can_match, vec![false, true, true, true, true]);
+        assert_eq!(
+            spt.children[0].children[0].children[1].rg_can_match,
+            vec![false, true, true, true, true]
+        );
         // OR₁/p3
-        assert_eq!(spt.children[0].children[1].rg_can_match, vec![false, false, false, false, true]);
+        assert_eq!(
+            spt.children[0].children[1].rg_can_match,
+            vec![false, false, false, false, true]
+        );
 
         // Child 1: OR₂ — luc makes it all-true
-        assert_eq!(spt.children[1].rg_can_match, vec![true, true, true, true, true]);
+        assert_eq!(
+            spt.children[1].rg_can_match,
+            vec![true, true, true, true, true]
+        );
 
         // Child 2: AND₃
-        assert_eq!(spt.children[2].rg_can_match, vec![false, false, false, true, true]);
+        assert_eq!(
+            spt.children[2].rg_can_match,
+            vec![false, false, false, true, true]
+        );
         assert_eq!(spt.children[2].children.len(), 2);
         // AND₃/p7
-        assert_eq!(spt.children[2].children[0].rg_can_match, vec![false, false, false, true, true]);
+        assert_eq!(
+            spt.children[2].children[0].rg_can_match,
+            vec![false, false, false, true, true]
+        );
         // AND₃/NOT → always true
-        assert_eq!(spt.children[2].children[1].rg_can_match, vec![true, true, true, true, true]);
+        assert_eq!(
+            spt.children[2].children[1].rg_can_match,
+            vec![true, true, true, true, true]
+        );
         // AND₃/NOT/p8
-        assert_eq!(spt.children[2].children[1].children[0].rg_can_match, vec![true, true, false, false, false]);
+        assert_eq!(
+            spt.children[2].children[1].children[0].rg_can_match,
+            vec![true, true, false, false, false]
+        );
     }
 
     // Schema drift: the table schema orders columns differently from the segment's own
@@ -1583,7 +1664,7 @@ mod tests {
                 Arc::new(Int32Array::from(vec![0, 5, 10, 17])),
             ],
         )
-            .unwrap();
+        .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), file_schema, None).unwrap();
         w.write(&batch).unwrap();
@@ -1612,20 +1693,28 @@ mod tests {
         use crate::indexed_table::bool_tree::BoolNode;
 
         // 5 RGs: price [0..9], [10..19], [20..29], [30..39], [40..49]
-        let schema = Arc::new(Schema::new(vec![Field::new("price", DataType::Int32, false)]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "price",
+            DataType::Int32,
+            false,
+        )]));
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
             .set_max_row_group_size(10)
             .set_statistics_enabled(EnabledStatistics::Chunk)
             .build();
-        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        let mut w =
+            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
         for i in 0..5i32 {
             let vals: Vec<i32> = (i * 10..(i + 1) * 10).collect();
-            let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))]).unwrap();
+            let batch =
+                RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))])
+                    .unwrap();
             w.write(&batch).unwrap();
         }
         w.close().unwrap();
-        let meta = ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
+        let meta =
+            ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
         let arc_meta = meta.metadata().clone();
         assert_eq!(arc_meta.num_row_groups(), 5);
 
@@ -1650,7 +1739,11 @@ mod tests {
         }
 
         let spt = StatsPruneTree::build_from_bool_node(
-            &tree, &leaf_predicates, &arc_meta, &schema, &rg_indices,
+            &tree,
+            &leaf_predicates,
+            &arc_meta,
+            &schema,
+            &rg_indices,
         );
 
         // rg_can_match is 3 elements (one per chunk RG), relative indexing.
@@ -1661,8 +1754,11 @@ mod tests {
         assert_eq!(spt.rg_can_match, vec![false, true, false]);
 
         // Verify consumer-side reverse map lookup works correctly:
-        let rg_index_to_pos: HashMap<usize, usize> = rg_indices.iter()
-            .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
+        let rg_index_to_pos: HashMap<usize, usize> = rg_indices
+            .iter()
+            .enumerate()
+            .map(|(pos, &idx)| (idx, pos))
+            .collect();
 
         // Absolute RG 3 should map to position 1 → can_match = true
         let pos = rg_index_to_pos.get(&3).unwrap();

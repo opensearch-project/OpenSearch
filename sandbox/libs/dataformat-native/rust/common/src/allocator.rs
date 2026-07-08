@@ -36,9 +36,17 @@ fn mib() -> &'static StatsMib {
 /// Advances the jemalloc epoch and reads both stats atomically.
 fn refresh_stats() -> Result<(i64, i64), String> {
     let m = mib();
-    m.epoch.advance().map_err(|e| format!("jemalloc epoch advance failed: {}", e))?;
-    let alloc = m.allocated.read().map_err(|e| format!("jemalloc allocated read failed: {}", e))? as i64;
-    let res = m.resident.read().map_err(|e| format!("jemalloc resident read failed: {}", e))? as i64;
+    m.epoch
+        .advance()
+        .map_err(|e| format!("jemalloc epoch advance failed: {}", e))?;
+    let alloc = m
+        .allocated
+        .read()
+        .map_err(|e| format!("jemalloc allocated read failed: {}", e))? as i64;
+    let res = m
+        .resident
+        .read()
+        .map_err(|e| format!("jemalloc resident read failed: {}", e))? as i64;
     Ok((alloc, res))
 }
 
@@ -69,27 +77,35 @@ pub fn resident_bytes() -> i64 {
 /// FFI: Returns current jemalloc allocated bytes, or negative error pointer.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_allocated_bytes() -> i64 {
-    ffm_wrap("native_jemalloc_allocated_bytes", || refresh_stats().map(|(alloc, _)| alloc))
+    ffm_wrap("native_jemalloc_allocated_bytes", || {
+        refresh_stats().map(|(alloc, _)| alloc)
+    })
 }
 
 /// FFI: Returns current jemalloc resident bytes, or negative error pointer.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_resident_bytes() -> i64 {
-    ffm_wrap("native_jemalloc_resident_bytes", || refresh_stats().map(|(_, res)| res))
+    ffm_wrap("native_jemalloc_resident_bytes", || {
+        refresh_stats().map(|(_, res)| res)
+    })
 }
 
 /// FFI: Sets dirty_decay_ms for all arenas at runtime. Returns 0 on success, negative error pointer on failure.
 /// Called from Java when the cluster setting `native.jemalloc.dirty_decay_ms` changes.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_set_dirty_decay_ms(ms: i64) -> i64 {
-    ffm_wrap("native_jemalloc_set_dirty_decay_ms", || set_all_arenas(b"dirty_decay_ms\0", ms))
+    ffm_wrap("native_jemalloc_set_dirty_decay_ms", || {
+        set_all_arenas(b"dirty_decay_ms\0", ms)
+    })
 }
 
 /// FFI: Sets muzzy_decay_ms for all arenas at runtime. Returns 0 on success, negative error pointer on failure.
 /// Called from Java when the cluster setting `native.jemalloc.muzzy_decay_ms` changes.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_set_muzzy_decay_ms(ms: i64) -> i64 {
-    ffm_wrap("native_jemalloc_set_muzzy_decay_ms", || set_all_arenas(b"muzzy_decay_ms\0", ms))
+    ffm_wrap("native_jemalloc_set_muzzy_decay_ms", || {
+        set_all_arenas(b"muzzy_decay_ms\0", ms)
+    })
 }
 
 /// Applies a setting to all existing jemalloc arenas.
@@ -196,7 +212,10 @@ fn purge_thread_loop() {
 /// Called once from Java at node startup (NativeBridgeModule.createComponents).
 /// Safe to call multiple times — only the first call spawns the thread.
 #[no_mangle]
-pub extern "C" fn native_jemalloc_start_purge_thread(threshold_bytes: i64, interval_ms: i64) -> i64 {
+pub extern "C" fn native_jemalloc_start_purge_thread(
+    threshold_bytes: i64,
+    interval_ms: i64,
+) -> i64 {
     PURGE_THRESHOLD_BYTES.store(threshold_bytes, Ordering::Relaxed);
     PURGE_INTERVAL_MS.store(interval_ms as u64, Ordering::Relaxed);
     start_purge_thread().unpark();
@@ -237,7 +256,6 @@ pub extern "C" fn native_jemalloc_stop_purge_thread() -> i64 {
 pub extern "C" fn native_jemalloc_get_purge_count() -> i64 {
     PURGE_COUNT.load(Ordering::Relaxed) as i64
 }
-
 
 // ── Heap profiling ──────────────────────────────────────────────────────────
 //
@@ -280,9 +298,12 @@ pub unsafe extern "C" fn native_jemalloc_heap_prof_dump(path: *const std::ffi::c
         let c_str = std::ffi::CStr::from_ptr(path);
         let path_bytes = c_str.to_bytes_with_nul();
         // prof.dump expects a *const c_char pointing to the file path
-        tikv_jemalloc_ctl::raw::write(b"prof.dump\0", path_bytes.as_ptr() as *const std::ffi::c_char)
-            .map(|_| 0i64)
-            .map_err(|e| format!("failed to dump heap profile: {}", e))
+        tikv_jemalloc_ctl::raw::write(
+            b"prof.dump\0",
+            path_bytes.as_ptr() as *const std::ffi::c_char,
+        )
+        .map(|_| 0i64)
+        .map_err(|e| format!("failed to dump heap profile: {}", e))
     })
 }
 
@@ -296,7 +317,12 @@ pub extern "C" fn native_jemalloc_heap_prof_reset(lg_sample: usize) -> i64 {
     ffm_wrap("native_jemalloc_heap_prof_reset", || {
         unsafe { tikv_jemalloc_ctl::raw::write(b"prof.reset\0", lg_sample) }
             .map(|_| 0i64)
-            .map_err(|e| format!("failed to reset profiling with lg_sample={}: {}", lg_sample, e))
+            .map_err(|e| {
+                format!(
+                    "failed to reset profiling with lg_sample={}: {}",
+                    lg_sample, e
+                )
+            })
     })
 }
 
@@ -370,7 +396,11 @@ mod tests {
     #[test]
     fn heap_prof_dump_null_path_returns_error() {
         let rc = unsafe { native_jemalloc_heap_prof_dump(std::ptr::null()) };
-        assert!(rc < 0, "expected negative error pointer for null path, got {}", rc);
+        assert!(
+            rc < 0,
+            "expected negative error pointer for null path, got {}",
+            rc
+        );
     }
 
     #[test]
@@ -379,7 +409,10 @@ mod tests {
         native_jemalloc_start_purge_thread(0, 50);
         let before = native_jemalloc_get_purge_count();
         std::thread::sleep(Duration::from_millis(200));
-        assert!(native_jemalloc_get_purge_count() > before, "purge thread should have fired");
+        assert!(
+            native_jemalloc_get_purge_count() > before,
+            "purge thread should have fired"
+        );
     }
 
     #[test]
@@ -391,7 +424,11 @@ mod tests {
         std::thread::sleep(Duration::from_millis(100));
         let before = native_jemalloc_get_purge_count();
         std::thread::sleep(Duration::from_millis(200));
-        assert_eq!(native_jemalloc_get_purge_count(), before, "no purges when paused");
+        assert_eq!(
+            native_jemalloc_get_purge_count(),
+            before,
+            "no purges when paused"
+        );
         // Resume
         native_jemalloc_set_purge_interval(50);
     }
@@ -402,7 +439,11 @@ mod tests {
         native_jemalloc_start_purge_thread(i64::MAX, 50);
         let before = native_jemalloc_get_purge_count();
         std::thread::sleep(Duration::from_millis(200));
-        assert_eq!(native_jemalloc_get_purge_count(), before, "no purge when below threshold");
+        assert_eq!(
+            native_jemalloc_get_purge_count(),
+            before,
+            "no purge when below threshold"
+        );
         // Restore for other tests
         native_jemalloc_set_purge_threshold(0);
     }

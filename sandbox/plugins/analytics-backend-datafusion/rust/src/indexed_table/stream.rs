@@ -33,7 +33,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use native_bridge_common::log_debug;
 use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -48,6 +47,7 @@ use datafusion::physical_plan::{
 };
 use datafusion_common::DataFusionError;
 use futures::{Future, Stream};
+use native_bridge_common::log_debug;
 use tokio::task::JoinHandle;
 
 use super::eval::{PrefetchedRg, RowGroupBitsetSource};
@@ -65,7 +65,6 @@ pub struct RowGroupInfo {
     pub first_row: i64,
     pub num_rows: i64,
 }
-
 
 /// Override for the per-RG `min_skip_run` selectivity heuristic. `IndexedStream`
 /// normally picks `min_skip_run` from candidate selectivity; setting
@@ -190,7 +189,10 @@ impl IndexReader {
         row_groups: &[RowGroupInfo],
         rg_idx: usize,
         doc_range: Option<(i32, i32)>,
-        prune: Option<(super::dynamic_filter::RgPruningContext, Arc<ParquetMetaData>)>,
+        prune: Option<(
+            super::dynamic_filter::RgPruningContext,
+            Arc<ParquetMetaData>,
+        )>,
         cancellation_token: Option<&tokio_util::sync::CancellationToken>,
     ) -> std::result::Result<PrefetchOutcome, String> {
         if rg_idx >= row_groups.len() {
@@ -224,7 +226,10 @@ impl IndexReader {
         }
         match evaluator.prefetch_rg(&rg, min_doc, max_doc)? {
             None => Ok(PrefetchOutcome::Empty),
-            Some(prefetched) => Ok(PrefetchOutcome::Fetched(PrefetchedRowGroup { rg, prefetched })),
+            Some(prefetched) => Ok(PrefetchOutcome::Fetched(PrefetchedRowGroup {
+                rg,
+                prefetched,
+            })),
         }
     }
 
@@ -243,7 +248,14 @@ impl IndexReader {
         };
         let token = self.cancellation_token.clone();
         let handle = tokio::task::spawn_blocking(move || {
-            Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range, prune, token.as_ref())
+            Self::fetch_row_group(
+                &evaluator,
+                &row_groups,
+                rg_idx,
+                doc_range,
+                prune,
+                token.as_ref(),
+            )
         });
         self.pending_prefetch = Some(handle);
     }
@@ -315,12 +327,10 @@ impl IndexReader {
                                 .cloned()
                                 .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
                                 .unwrap_or_else(|| "unknown panic".into());
-                            return Poll::Ready(Err(DataFusionError::Execution(
-                                format!(
-                                    "prefetch for row group {} panicked: {}",
-                                    self.current_rg_idx, panic_msg
-                                ),
-                            )));
+                            return Poll::Ready(Err(DataFusionError::Execution(format!(
+                                "prefetch for row group {} panicked: {}",
+                                self.current_rg_idx, panic_msg
+                            ))));
                         }
                         // Task was cancelled (runtime shutting down) — retry once
                         self.start_prefetch(self.current_rg_idx);
@@ -461,7 +471,9 @@ impl ExecutionPlan for IndexedExec {
             self.stream_metrics.prefetch_wait_time.clone(),
             self.stream_metrics.prefetch_wait_count.clone(),
             Some(Arc::clone(&self.metadata)),
-            self.stream_metrics.dynamic_filter_rg_pruned_at_prefetch.clone(),
+            self.stream_metrics
+                .dynamic_filter_rg_pruned_at_prefetch
+                .clone(),
             self.cancellation_token.clone(),
         );
         Ok(Box::pin(IndexedStream::new(
@@ -589,12 +601,9 @@ impl IndexedStream {
         dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
-        let batch_coalescer =
-            LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
-        let dynamic_rg_pruner = super::dynamic_filter::DynamicRgPruner::new(
-            dynamic_filter,
-            full_schema.clone(),
-        );
+        let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
+        let dynamic_rg_pruner =
+            super::dynamic_filter::DynamicRgPruner::new(dynamic_filter, full_schema.clone());
         Self {
             schema,
             full_schema,
@@ -901,7 +910,12 @@ impl IndexedStream {
 
             // 2. If upstream is done and coalescer has drained, we're done.
             if self.coalescer_finished && self.batch_coalescer.is_empty() {
-                log_debug!("[scf-segment-done] file={} row_groups={} elapsed={:?}", self.object_path.filename().unwrap_or("?"), self.index_reader.row_groups.len(), self.stream_start.unwrap().elapsed());
+                log_debug!(
+                    "[scf-segment-done] file={} row_groups={} elapsed={:?}",
+                    self.object_path.filename().unwrap_or("?"),
+                    self.index_reader.row_groups.len(),
+                    self.stream_start.unwrap().elapsed()
+                );
                 return Poll::Ready(None);
             }
 
@@ -921,7 +935,12 @@ impl IndexedStream {
             if self.coalescer_finished {
                 // Unreachable in practice — step 1 already drained or
                 // step 2 already returned. Defensive.
-                log_debug!("[scf-segment-done] file={} row_groups={} elapsed={:?}", self.object_path.filename().unwrap_or("?"), self.index_reader.row_groups.len(), self.stream_start.unwrap().elapsed());
+                log_debug!(
+                    "[scf-segment-done] file={} row_groups={} elapsed={:?}",
+                    self.object_path.filename().unwrap_or("?"),
+                    self.index_reader.row_groups.len(),
+                    self.stream_start.unwrap().elapsed()
+                );
                 return Poll::Ready(None);
             }
 
@@ -1057,7 +1076,8 @@ impl IndexedStream {
                     self.batch_offset = 0;
 
                     // Decide min_skip_run for this RG (see `pick_min_skip_run`).
-                    let min_skip_run = self.pick_min_skip_run(candidates.len() as usize, rg.num_rows as usize);
+                    let min_skip_run =
+                        self.pick_min_skip_run(candidates.len() as usize, rg.num_rows as usize);
 
                     // Metrics: track which regime we landed in, using the
                     // same counters as before so `EXPLAIN ANALYZE` output
@@ -1287,10 +1307,11 @@ mod tests {
                     match &r {
                         std::task::Poll::Pending => std::task::Poll::Ready(None),
                         std::task::Poll::Ready(v) => std::task::Poll::Ready(Some(
-                            v.as_ref().map(|_| ()).map_err(|e| e.to_string())
+                            v.as_ref().map(|_| ()).map_err(|e| e.to_string()),
                         )),
                     }
-                }).await;
+                })
+                .await;
                 if let Some(result) = poll_result {
                     return result;
                 }
@@ -1380,7 +1401,11 @@ mod tests {
 
         // 8 row groups × 200ms spin each = ~1.6s of work if cancellation is ignored.
         let row_groups: Vec<RowGroupInfo> = (0..8)
-            .map(|i| RowGroupInfo { index: i, first_row: (i as i64) * 100, num_rows: 100 })
+            .map(|i| RowGroupInfo {
+                index: i,
+                first_row: (i as i64) * 100,
+                num_rows: 100,
+            })
             .collect();
 
         let mut reader = IndexReader::new(

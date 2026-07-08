@@ -118,10 +118,7 @@ impl RowGroupDocsCollector for LocalOffsetCollector {
 /// Build a `Vec<SegmentFileInfo>` for the given specs, including catalog-order
 /// `global_base` so `__row_id__ = global_base + local_pos` resolves to a unique
 /// shard-global value per matching row.
-fn build_segments(
-    tmps: &[NamedTempFile],
-    specs: &[SegSpec],
-) -> (Vec<SegmentFileInfo>, SchemaRef) {
+fn build_segments(tmps: &[NamedTempFile], specs: &[SegSpec]) -> (Vec<SegmentFileInfo>, SchemaRef) {
     let mut segs = Vec::new();
     let mut schema_opt: Option<SchemaRef> = None;
     let mut cumulative: u64 = 0;
@@ -129,8 +126,9 @@ fn build_segments(
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-            .unwrap();
+        let meta =
+            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
+                .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }
@@ -174,7 +172,10 @@ async fn collect_row_ids(
     // EvaluatorFactory selects the matching set for the segment it's asked about — so
     // this works whether segments are in natural order or reversed (it identifies the
     // segment by its writer_generation, which moves with the segment).
-    let per_gen: Vec<Vec<i32>> = specs.iter().map(|s| s.match_local_offsets.clone()).collect();
+    let per_gen: Vec<Vec<i32>> = specs
+        .iter()
+        .map(|s| s.match_local_offsets.clone())
+        .collect();
     let per_gen = Arc::new(per_gen);
 
     let factory: super::super::table_provider::EvaluatorFactory = {
@@ -185,7 +186,8 @@ async fn collect_row_ids(
                 .get(segment.writer_generation as usize)
                 .cloned()
                 .unwrap_or_default();
-            let collector: Arc<dyn RowGroupDocsCollector> = Arc::new(LocalOffsetCollector { matching });
+            let collector: Arc<dyn RowGroupDocsCollector> =
+                Arc::new(LocalOffsetCollector { matching });
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             // Single-collector tree.
             let tree = BoolNode::Collector { annotation_id: 0 };
@@ -194,9 +196,11 @@ async fn collect_row_ids(
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
-                leaves: Arc::new(crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                    ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                }),
+                leaves: Arc::new(
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
+                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
+                    },
+                ),
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
@@ -207,8 +211,10 @@ async fn collect_row_ids(
                         _stream_metrics,
                     ),
                 ),
-                collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -261,9 +267,21 @@ async fn collect_row_ids(
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn three_segments_row_ids_invariant_under_reversal() {
     let specs = vec![
-        SegSpec { tag: "A", rows: 8, match_local_offsets: vec![0, 3, 7] },   // global ids 0, 3, 7
-        SegSpec { tag: "B", rows: 6, match_local_offsets: vec![1, 4] },      // global ids 9, 12
-        SegSpec { tag: "C", rows: 10, match_local_offsets: vec![0, 5, 9] },  // global ids 14, 19, 23
+        SegSpec {
+            tag: "A",
+            rows: 8,
+            match_local_offsets: vec![0, 3, 7],
+        }, // global ids 0, 3, 7
+        SegSpec {
+            tag: "B",
+            rows: 6,
+            match_local_offsets: vec![1, 4],
+        }, // global ids 9, 12
+        SegSpec {
+            tag: "C",
+            rows: 10,
+            match_local_offsets: vec![0, 5, 9],
+        }, // global ids 14, 19, 23
     ];
     let tmps: Vec<NamedTempFile> = specs.iter().map(write_segment).collect();
     let (segs_natural, schema) = build_segments(&tmps, &specs);
@@ -281,7 +299,10 @@ async fn three_segments_row_ids_invariant_under_reversal() {
 
     let expected = vec![0i64, 3, 7, 9, 12, 14, 19, 23];
     assert_eq!(ids_natural, expected, "natural-order ids");
-    assert_eq!(ids_reversed, expected, "reversed-order ids — same shard-global IDs as natural");
+    assert_eq!(
+        ids_reversed, expected,
+        "reversed-order ids — same shard-global IDs as natural"
+    );
 }
 
 /// 4 segments. Confirms the property holds at the larger end of the test contract
@@ -290,10 +311,26 @@ async fn three_segments_row_ids_invariant_under_reversal() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn four_segments_row_ids_invariant_under_reversal() {
     let specs = vec![
-        SegSpec { tag: "A", rows: 5, match_local_offsets: vec![0, 4] },     // 0, 4
-        SegSpec { tag: "B", rows: 5, match_local_offsets: vec![2] },        // 7
-        SegSpec { tag: "C", rows: 5, match_local_offsets: vec![1, 3] },     // 11, 13
-        SegSpec { tag: "D", rows: 5, match_local_offsets: vec![0, 2, 4] },  // 15, 17, 19
+        SegSpec {
+            tag: "A",
+            rows: 5,
+            match_local_offsets: vec![0, 4],
+        }, // 0, 4
+        SegSpec {
+            tag: "B",
+            rows: 5,
+            match_local_offsets: vec![2],
+        }, // 7
+        SegSpec {
+            tag: "C",
+            rows: 5,
+            match_local_offsets: vec![1, 3],
+        }, // 11, 13
+        SegSpec {
+            tag: "D",
+            rows: 5,
+            match_local_offsets: vec![0, 2, 4],
+        }, // 15, 17, 19
     ];
     let tmps: Vec<NamedTempFile> = specs.iter().map(write_segment).collect();
     let (segs_natural, schema) = build_segments(&tmps, &specs);

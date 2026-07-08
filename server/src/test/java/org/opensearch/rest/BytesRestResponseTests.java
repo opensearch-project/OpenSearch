@@ -35,6 +35,7 @@ package org.opensearch.rest;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.OriginalIndices;
@@ -264,6 +265,17 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         assertThat(content, containsString("\"type\":\"exception\""));
         assertThat(content, containsString("\"reason\":\"simulated\""));
         assertThat(content, containsString("\"status\":" + 500));
+    }
+
+    public void testResponseWhenTimeoutException() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        final BytesRestResponse response = new BytesRestResponse(channel, new OpenSearchTimeoutException("simulated timeout"));
+        assertEquals(RestStatus.GATEWAY_TIMEOUT, response.status());
+        assertNotNull(response.content());
+        final String content = response.content().utf8ToString();
+        assertThat(content, containsString("\"reason\":\"simulated timeout\""));
+        assertThat(content, containsString("\"status\":" + 504));
     }
 
     public void testErrorToAndFromXContent() throws IOException {

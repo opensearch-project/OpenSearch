@@ -1359,11 +1359,13 @@ public class Node implements Closeable {
             // in this file. Server has no compile-time dependency on arrow-base.
             // Discovered here (ahead of AdmissionControlService) so it can be forwarded to the
             // native-memory admission controller for indexing-pool based rejection.
-            final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier = pluginComponents.stream()
+            final Optional<NativeAllocatorStatsRegistry> nativeAllocatorStatsRegistry = pluginComponents.stream()
                 .filter(c -> c instanceof NativeAllocatorStatsRegistry)
-                .map(c -> ((NativeAllocatorStatsRegistry) c).supplier())
-                .findFirst()
-                .orElse(null);
+                .map(c -> (NativeAllocatorStatsRegistry) c)
+                .findFirst();
+            final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier = nativeAllocatorStatsRegistry.map(
+                NativeAllocatorStatsRegistry::supplier
+            ).orElse(null);
 
             final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
                 monitorService.fsService(),
@@ -1375,6 +1377,13 @@ public class Node implements Closeable {
                 nodeResourceUsageTracker,
                 clusterService,
                 threadPool
+            );
+
+            // Inject the node-level native memory pressure signal (same signal admission control uses)
+            // into the allocator so it can make over-commit admission decisions when a native pool is
+            // full. Reuses the registry discovered above. No-op when no such plugin is loaded.
+            nativeAllocatorStatsRegistry.ifPresent(
+                reg -> reg.setNativeMemoryPressureSupplier(nodeResourceUsageTracker::getNativeMemoryUtilizationPercent)
             );
 
             final AdmissionControlService admissionControlService = new AdmissionControlService(
