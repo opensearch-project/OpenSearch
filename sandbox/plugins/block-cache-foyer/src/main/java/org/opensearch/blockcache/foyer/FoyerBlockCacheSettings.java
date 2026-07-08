@@ -124,21 +124,22 @@ public final class FoyerBlockCacheSettings {
      * I/O engine for the Foyer disk tier.
      *
      * <ul>
-     *   <li>{@code auto} (default) — selects io_uring on Linux &ge;&nbsp;5.1,
-     *       falls back to psync otherwise.</li>
+     *   <li>{@code psync} (default) — synchronous pread/pwrite. Portable across
+     *       all kernels and container sandboxes, and gives predictable
+     *       syscall-level behaviour.</li>
+     *   <li>{@code auto} — selects io_uring on Linux &ge;&nbsp;5.1, falls back to
+     *       psync otherwise.</li>
      *   <li>{@code io_uring} — force io_uring regardless of kernel detection.
      *       Fails at startup if io_uring is unavailable (e.g. blocked by seccomp
      *       or AppArmor in locked-down container environments).</li>
-     *   <li>{@code psync} — force synchronous pread/pwrite. Use when io_uring is
-     *       restricted or when predictable syscall-level profiling is needed.</li>
      * </ul>
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.io_engine: auto
+     * block_cache.foyer.io_engine: psync
      * }</pre>
      */
-    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("block_cache.foyer.io_engine", "auto", value -> {
+    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("block_cache.foyer.io_engine", "psync", value -> {
         if (!Set.of("auto", "io_uring", "psync").contains(value)) {
             throw new IllegalArgumentException("[block_cache.foyer.io_engine] must be one of: auto, io_uring, psync; got: " + value);
         }

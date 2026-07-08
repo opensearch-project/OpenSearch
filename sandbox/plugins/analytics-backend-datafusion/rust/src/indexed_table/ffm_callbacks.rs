@@ -161,9 +161,7 @@ pub fn create_provider(context_id: i64, annotation_id: i32) -> Result<ProviderHa
     if key < 0 {
         return Err(format!(
             "createProvider failed: context_id={} annotation_id={} -> {}",
-            context_id,
-            annotation_id,
-            key
+            context_id, annotation_id, key
         ));
     }
     Ok(ProviderHandle { context_id, key })
@@ -191,7 +189,15 @@ impl FfmSegmentCollector {
         doc_max: i32,
     ) -> Result<Self, String> {
         let create = load_create_collector()?;
-        let key = unsafe { create(context_id, provider_key, writer_generation, doc_min, doc_max) };
+        let key = unsafe {
+            create(
+                context_id,
+                provider_key,
+                writer_generation,
+                doc_min,
+                doc_max,
+            )
+        };
         if key < 0 {
             return Err(format!(
                 "createCollector(context_id={}, provider={}, writer_generation={}) failed: {}",

@@ -27,11 +27,11 @@ use datafusion::parquet::arrow::ArrowWriter;
 use futures::StreamExt;
 use tempfile::NamedTempFile;
 
+use super::super::eval::RowGroupBitsetSource;
 use super::super::index::RowGroupDocsCollector;
 use super::super::page_pruner::PagePruner;
 use super::super::stream::{FilterStrategy, RowGroupInfo};
 use super::super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
-use super::super::eval::RowGroupBitsetSource;
 
 /// 16 rows, `price` = 15..0 **descending** in file order, 4 rows per row group →
 /// RG ranges (by row position) [15..12], [11..8], [7..4], [3..0]. The scan reads
@@ -91,12 +91,7 @@ impl RowGroupDocsCollector for MatchAllCollector {
 /// Build the indexed provider over the fixture and run `sql`. Returns the
 /// `(price)` rows in emission order plus the executed physical plan (for
 /// reading metrics).
-async fn run_indexed(
-    sql: &str,
-) -> (
-    Vec<i32>,
-    Arc<dyn datafusion::physical_plan::ExecutionPlan>,
-) {
+async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan::ExecutionPlan>) {
     let (tmp, schema) = write_fixture();
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
@@ -131,9 +126,9 @@ async fn run_indexed(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let factory: super::super::table_provider::EvaluatorFactory = {
         let schema = schema.clone();
@@ -239,7 +234,8 @@ async fn topk_dynamic_filter_prunes_row_groups() {
     // ORDER BY price DESC LIMIT 2 → top-2 prices are 15, 14 (both in the last RG
     // [12..15]). As the TopK heap fills, the threshold rises and the earlier RGs
     // ([0..3], [4..7], [8..11]) become prunable.
-    let (prices, plan) = run_indexed("SELECT brand, price FROM t ORDER BY price DESC LIMIT 2").await;
+    let (prices, plan) =
+        run_indexed("SELECT brand, price FROM t ORDER BY price DESC LIMIT 2").await;
 
     // (1) Correctness: exactly the global top-2 by price, in DESC order.
     assert_eq!(prices, vec![15, 14], "top-2 DESC prices");
@@ -272,6 +268,10 @@ async fn no_limit_means_no_dynamic_filter_pruning() {
     let (prices, plan) = run_indexed("SELECT brand, price FROM t ORDER BY price DESC").await;
     assert_eq!(prices.len(), ROWS, "full result set without LIMIT");
     assert_eq!(prices.first().copied(), Some(15));
-    assert_eq!(rg_pruned_at_prefetch(&plan), 0, "no filter → no prefetch prune");
+    assert_eq!(
+        rg_pruned_at_prefetch(&plan),
+        0,
+        "no filter → no prefetch prune"
+    );
     assert_eq!(rg_pruned_at_poll(&plan), 0, "no filter → no poll prune");
 }

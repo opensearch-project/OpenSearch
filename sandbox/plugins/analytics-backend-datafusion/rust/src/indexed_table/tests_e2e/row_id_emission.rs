@@ -19,7 +19,6 @@ use super::*;
 
 // Lot of query shapes --> for the query sent, how will that translate into at the data node side?
 
-
 /// Helper: run a tree with `emit_row_ids: true` and return the collected row IDs.
 async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
     let tmp = write_fixture_parquet();
@@ -52,9 +51,9 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -91,7 +90,8 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -223,9 +223,9 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -262,7 +262,8 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -372,17 +373,25 @@ async fn test_all_query_types_match_fixture_positions() {
     let ids = run_tree_row_ids(BoolNode::And(vec![
         index_leaf(0),
         pred_int("price", Operator::Gt, 100),
-    ])).await;
+    ]))
+    .await;
     let expected = expected_rows(|i| BRANDS[i] == "amazon" && PRICES[i] > 100);
-    assert_eq!(ids, expected, "Collector+Predicate(amazon,price>100) mismatch");
+    assert_eq!(
+        ids, expected,
+        "Collector+Predicate(amazon,price>100) mismatch"
+    );
 
     // Collector + Predicate: apple AND price < 90 → rows 7,13
     let ids = run_tree_row_ids(BoolNode::And(vec![
         index_leaf(1),
         pred_int("price", Operator::Lt, 90),
-    ])).await;
+    ]))
+    .await;
     let expected = expected_rows(|i| BRANDS[i] == "apple" && PRICES[i] < 90);
-    assert_eq!(ids, expected, "Collector+Predicate(apple,price<90) mismatch");
+    assert_eq!(
+        ids, expected,
+        "Collector+Predicate(apple,price<90) mismatch"
+    );
 
     // Tree OR: amazon OR apple → rows 0-7,12,13
     let ids = run_tree_row_ids(BoolNode::Or(vec![index_leaf(0), index_leaf(1)])).await;
@@ -399,21 +408,19 @@ async fn test_all_query_types_match_fixture_positions() {
     let ids = run_tree_row_ids(BoolNode::And(vec![
         BoolNode::Or(vec![index_leaf(0), index_leaf(1)]),
         pred_int("price", Operator::Gt, 100),
-    ])).await;
-    let expected = expected_rows(|i| (BRANDS[i] == "amazon" || BRANDS[i] == "apple") && PRICES[i] > 100);
+    ]))
+    .await;
+    let expected =
+        expected_rows(|i| (BRANDS[i] == "amazon" || BRANDS[i] == "apple") && PRICES[i] > 100);
     assert_eq!(ids, expected, "Tree OR+Predicate mismatch");
 
     // Predicate only: price >= 150 → rows 1,6,9,11
-    let ids = run_tree_row_ids(BoolNode::And(vec![
-        pred_int("price", Operator::GtEq, 150),
-    ])).await;
+    let ids = run_tree_row_ids(BoolNode::And(vec![pred_int("price", Operator::GtEq, 150)])).await;
     let expected = expected_rows(|i| PRICES[i] >= 150);
     assert_eq!(ids, expected, "Predicate-only(price>=150) mismatch");
 
     // Predicate only: price < 50 → rows 8,12,13
-    let ids = run_tree_row_ids(BoolNode::And(vec![
-        pred_int("price", Operator::Lt, 50),
-    ])).await;
+    let ids = run_tree_row_ids(BoolNode::And(vec![pred_int("price", Operator::Lt, 50)])).await;
     let expected = expected_rows(|i| PRICES[i] < 50);
     assert_eq!(ids, expected, "Predicate-only(price<50) mismatch");
 
@@ -421,14 +428,18 @@ async fn test_all_query_types_match_fixture_positions() {
     let ids = run_tree_row_ids(BoolNode::And(vec![
         pred_int("price", Operator::Gt, 50),
         pred_int("price", Operator::Lt, 100),
-    ])).await;
+    ]))
+    .await;
     let expected = expected_rows(|i| PRICES[i] > 50 && PRICES[i] < 100);
     assert_eq!(ids, expected, "Multi-predicate(50<price<100) mismatch");
 
     // String predicate: status = "active" → rows 0,2,3,4,6,7,8,10,11,14,15
-    let ids = run_tree_row_ids(BoolNode::And(vec![
-        pred_str("status", Operator::Eq, "active"),
-    ])).await;
+    let ids = run_tree_row_ids(BoolNode::And(vec![pred_str(
+        "status",
+        Operator::Eq,
+        "active",
+    )]))
+    .await;
     let expected = expected_rows(|i| STATUSES[i] == "active");
     assert_eq!(ids, expected, "Predicate(status=active) mismatch");
 
@@ -436,7 +447,8 @@ async fn test_all_query_types_match_fixture_positions() {
     let ids = run_tree_row_ids(BoolNode::And(vec![
         index_leaf(0),
         pred_str("category", Operator::Eq, "books"),
-    ])).await;
+    ]))
+    .await;
     let expected = expected_rows(|i| BRANDS[i] == "amazon" && CATEGORIES[i] == "books");
     assert_eq!(ids, expected, "Collector+String(amazon,books) mismatch");
 
@@ -449,7 +461,8 @@ async fn test_all_query_types_match_fixture_positions() {
     let ids = run_tree_row_ids(BoolNode::Or(vec![
         BoolNode::And(vec![index_leaf(0), pred_int("price", Operator::Gt, 80)]),
         BoolNode::And(vec![index_leaf(1), index_leaf(2)]),
-    ])).await;
+    ]))
+    .await;
     let expected = expected_rows(|i| {
         (BRANDS[i] == "amazon" && PRICES[i] > 80)
             || (BRANDS[i] == "apple" && STATUSES[i] == "archived")
@@ -491,9 +504,9 @@ async fn test_row_id_with_data_columns() {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     // Filter: brand = "amazon" (rows 0,1,2,3,12)
     let tree = BoolNode::And(vec![index_leaf(0)]).push_not_down();
@@ -531,7 +544,8 @@ async fn test_row_id_with_data_columns() {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -576,7 +590,11 @@ async fn test_row_id_with_data_columns() {
     let mut rows: Vec<(i64, String, i32)> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
-        assert_eq!(b.num_columns(), 3, "should have 3 columns: __row_id__, brand, price");
+        assert_eq!(
+            b.num_columns(),
+            3,
+            "should have 3 columns: __row_id__, brand, price"
+        );
         assert_eq!(b.schema().field(0).name(), "__row_id__");
         assert_eq!(b.schema().field(1).name(), "brand");
         assert_eq!(b.schema().field(2).name(), "price");
@@ -611,15 +629,20 @@ async fn test_row_id_column_detection() {
         vec![
             Arc::new(datafusion::arrow::array::StringArray::from(BRANDS.to_vec())),
             Arc::new(datafusion::arrow::array::Int32Array::from(PRICES.to_vec())),
-            Arc::new(datafusion::arrow::array::StringArray::from(STATUSES.to_vec())),
-            Arc::new(datafusion::arrow::array::StringArray::from(CATEGORIES.to_vec())),
+            Arc::new(datafusion::arrow::array::StringArray::from(
+                STATUSES.to_vec(),
+            )),
+            Arc::new(datafusion::arrow::array::StringArray::from(
+                CATEGORIES.to_vec(),
+            )),
             Arc::new(datafusion::arrow::array::Int64Array::from(row_ids)),
         ],
     )
     .unwrap();
 
     let ctx = SessionContext::new();
-    let mem_table = datafusion::datasource::MemTable::try_new(schema.clone(), vec![vec![batch]]).unwrap();
+    let mem_table =
+        datafusion::datasource::MemTable::try_new(schema.clone(), vec![vec![batch]]).unwrap();
     ctx.register_table("t", Arc::new(mem_table)).unwrap();
 
     // Plan with __row_id__ in projection — should be detected
@@ -737,9 +760,9 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs1,
         metadata: Arc::clone(&parquet_meta1),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
     let segment2 = SegmentFileInfo {
         writer_generation: 1,
         max_doc: 16,
@@ -748,9 +771,9 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs2,
         metadata: Arc::clone(&parquet_meta2),
         global_base: 16,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -787,7 +810,8 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -876,5 +900,8 @@ async fn test_emit_row_ids_two_segments_with_filter() {
         10,
         "should have 10 row IDs (5 amazon rows per segment)"
     );
-    assert_eq!(ids, expected, "filtered row IDs should be offset by global_base");
+    assert_eq!(
+        ids, expected,
+        "filtered row IDs should be offset by global_base"
+    );
 }
