@@ -399,8 +399,14 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         // and skipped the close. Re-check here and release output now that the field is published.
         // state is an AtomicReference, so this read pairs with the CAS in transitionTo: either that
         // CAS-then-read-stitcher saw our published field (and closed output), or our set-then-read-state
-        // sees the terminal here — output is freed exactly once on this racing-cancel path. Settle the
-        // task listener too (NotifyOnceListener makes a duplicate fire from the cancel path a no-op).
+        // sees the terminal here — output is freed exactly once on this racing-cancel path.
+        //
+        // We must also settle outerListener: the task body owns firing the per-task listener (see
+        // LocalStageTask), and a stage cancel does NOT fire it independently — so returning without
+        // firing would strand the task. This mirrors the K==0 branch below, which likewise settles
+        // the listener directly. onComplete (which also fires outerListener) can no longer run here
+        // because no shards are dispatched, and LocalTaskRunner wraps outerListener in a
+        // NotifyOnceListener regardless, so this can never double-fire.
         if (getState().isTerminal()) {
             stitcher.close();
             outerListener.onFailure(new TaskCancelledException("late materialization stage terminated before fetch dispatch"));

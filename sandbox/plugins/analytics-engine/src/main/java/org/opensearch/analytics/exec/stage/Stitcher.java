@@ -195,7 +195,14 @@ public final class Stitcher {
                     outputDisposed = true;
                 }
                 ownershipTransferred = true;
-                parentSink.close();
+                // Guard the sink close like the failure branch below: feed() already transferred
+                // ownership of output, so a close-time failure must not propagate out of finish()
+                // (it runs on a shard's GatherListener callback thread) — log and swallow it.
+                try {
+                    parentSink.close();
+                } catch (Exception e) {
+                    logger.warn("[Stitcher] parentSink.close() failed after emit for {} rows", totalRows, e);
+                }
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
             } else {
                 try {
