@@ -76,7 +76,7 @@ dependencies {
   // Jackson (iceberg-core and SDK both use it at runtime).
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 
   // slf4j (iceberg uses slf4j for logging at runtime).
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"

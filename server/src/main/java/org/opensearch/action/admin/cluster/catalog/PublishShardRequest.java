@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.catalog;
 
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -21,6 +22,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class PublishShardRequest extends BroadcastRequest<PublishShardRequest> {
 
     public PublishShardRequest(String indexName) {

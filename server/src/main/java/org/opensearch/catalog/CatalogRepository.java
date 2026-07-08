@@ -187,7 +187,8 @@ public abstract class CatalogRepository extends AbstractLifecycleComponent imple
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        @Nullable IndexMetadata indexMetadata
     ) {
         throw snapshotsUnsupported();
     }

@@ -9,12 +9,14 @@
 package org.opensearch.action.admin.cluster.catalog;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * Action for publishing shard data to an external catalog.
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class PublishShardAction extends ActionType<PublishShardResponse> {
 
     public static final PublishShardAction INSTANCE = new PublishShardAction();

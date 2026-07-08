@@ -1077,7 +1077,7 @@ public class Node implements Closeable {
 
             final DataFormatRegistry dataFormatRegistry = new DataFormatRegistry(pluginsService);
 
-            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            final RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
                 threadPool,
                 remoteStoreSettings.getSegmentsPathFixedPrefix(),
@@ -1882,6 +1882,15 @@ public class Node implements Closeable {
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                 b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
                 b.bind(RepositoriesService.class).toInstance(repositoryService);
+                // TransportPublishShardAction is registered unconditionally in ActionModule and
+                // eagerly instantiated by Guice; provide null bindings when no catalog is
+                // configured so a node that doesn't use the catalog feature still boots.
+                if (catalogMetadataClient != null) {
+                    b.bind(MetadataClient.class).toInstance(catalogMetadataClient);
+                } else {
+                    b.bind(MetadataClient.class).toProvider(Providers.of(null));
+                }
+                b.bind(RemoteSegmentStoreDirectoryFactory.class).toInstance(remoteDirectoryFactory);
                 b.bind(SnapshotsService.class).toInstance(snapshotsService);
                 b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                 b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);

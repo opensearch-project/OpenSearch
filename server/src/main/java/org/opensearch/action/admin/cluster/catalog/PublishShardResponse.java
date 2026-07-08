@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.catalog;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 
@@ -20,6 +21,7 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class PublishShardResponse extends BroadcastResponse {
 
     public PublishShardResponse(StreamInput in) throws IOException {
