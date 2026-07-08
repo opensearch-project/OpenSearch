@@ -99,14 +99,6 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
     public void finalizePreviousRange() {
         super.finalizePreviousRange();
 
-        // Traversal can terminate early once values exceed the last range, leaving
-        // activeIndex past the end of the ranges array. No documents are collected
-        // beyond the last range, so there is nothing to flush for the sub-agg.
-        if (activeIndex >= ranges.getSize()) {
-            bitSet.clear();
-            return;
-        }
-
         long bucketOrd = getBucketOrd.apply(activeIndex);
         logger.trace("finalize range {} with bucket ordinal {}", activeIndex, bucketOrd);
 
