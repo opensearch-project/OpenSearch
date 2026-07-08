@@ -53,6 +53,11 @@ public class NativeArenaPurgerTests extends OpenSearchTestCase {
     public void testPurgeOnlyFiresAboveThreshold() throws Exception {
         // Set threshold very high — purge should never fire
         NativeArenaPurger.setThresholdBytes(Long.MAX_VALUE);
+        // Wait past one full check interval so the purge thread finishes any in-flight cycle
+        // (started while the threshold was still 0) and observes the new threshold before we
+        // sample the baseline count. Mirrors the guard in testPurgeDisabledWhenIntervalIsZero.
+        Thread.sleep(500);
+
         long before = NativeArenaPurger.getPurgeCount();
         Thread.sleep(500);
         assertEquals("Purge should not fire when below threshold", before, NativeArenaPurger.getPurgeCount());
