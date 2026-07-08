@@ -287,6 +287,25 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), this::drainAndClose));
     }
 
+    /**
+     * Releases the stitcher's pre-allocated output VSR on any terminal transition. The stitcher
+     * allocates {@code output} on the coordinator allocator up front and only frees it when
+     * {@link Stitcher#finish} runs (all shards reported). If the stage terminates — via cancel,
+     * timeout, or an upstream failure — while a shard's fetch stream is still outstanding, that
+     * countdown never reaches zero and {@code finish} never runs, pinning {@code output}'s buffers
+     * on the long-lived coordinator allocator. Closing here guarantees release; it is a no-op when
+     * {@code finish} already emitted (ownership transferred to {@code parentSink}, and
+     * {@link Stitcher#close} / {@code VectorSchemaRoot#close} are idempotent), and when no stitcher
+     * was ever created (K=0 or a pre-stitch failure).
+     */
+    @Override
+    protected void onTerminalTransition(State terminal) {
+        Stitcher s = this.stitcher;
+        if (s != null) {
+            s.close();
+        }
+    }
+
     /** Drained {@code ___row_id} per row, indexed by sort-order position. Populated by Phase A. */
     private long[] drainedRowIds;
 
@@ -398,7 +417,9 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
     }
 
     /** Stashed for the {@code onComplete} closure to read {@link Stitcher#surfaceableFailure()}. */
-    private Stitcher stitcher;
+    // volatile: set on the drain thread in scatterFetchAndStitch, read by onTerminalTransition
+    // which may fire on a different thread (cancel / timeout / upstream failure).
+    private volatile Stitcher stitcher;
 
     /**
      * Per-shard streaming response listener: forwards each Arrow batch to the
