@@ -122,6 +122,11 @@ public class PlannerImpl {
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
+        // Compute the base-table columns this query references from the raw tree (before pushdown
+        // reshapes it), so OpenSearchTableScanRule can scope cross-index type-conflict validation to
+        // referenced fields. Null result → validate all fields (unanalyzable shape); always safe.
+        context.setReferencedFields(ReferencedFieldCollector.collect(rawRelNode));
+
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);

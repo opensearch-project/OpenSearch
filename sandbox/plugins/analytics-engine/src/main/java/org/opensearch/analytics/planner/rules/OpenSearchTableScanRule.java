@@ -58,10 +58,14 @@ public class OpenSearchTableScanRule extends RelOptRule {
         // validates that all backing indices have compatible mappings (so a query plan over an
         // alias is sound) and rejects filter aliases. Concrete-index names pass through as a
         // singleton list.
+        // Scope cross-index type-conflict validation to the fields the query references (null =
+        // validate all, for unanalyzable plan shapes). A conflicting field the query never reads
+        // must not fail the whole query.
         IndexResolution resolution = IndexResolution.resolve(
             tableName,
             context.getClusterState(),
-            context.getIndexNameExpressionResolver()
+            context.getIndexNameExpressionResolver(),
+            context.getReferencedFields()
         );
         // Field storage is the union across all backing concrete indices. An index pattern or
         // alias can resolve to indices with differing field sets (e.g. test* where one index has

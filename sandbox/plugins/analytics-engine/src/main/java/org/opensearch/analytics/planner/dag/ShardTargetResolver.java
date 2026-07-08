@@ -71,7 +71,18 @@ public class ShardTargetResolver extends TargetResolver {
         // Expand the table name (alias or concrete) to its concrete indices against the freshest
         // cluster state. operationRouting().searchShards requires concrete names — aliases are
         // not accepted there — so the expansion has to happen here, not at construction time.
-        IndexResolution resolution = IndexResolution.resolve(indexName, clusterState, indexNameExpressionResolver);
+        //
+        // Pass an empty referenced-field set so this expansion does NOT re-run cross-index type
+        // validation: OpenSearchTableScanRule already validated the query's referenced fields at
+        // plan time (scoped to what the query reads). Re-validating here with the default (all
+        // fields) would reject a query over a conflicted alias even when it never reads the
+        // conflicting field, defeating the plan-time scoping.
+        IndexResolution resolution = IndexResolution.resolve(
+            indexName,
+            clusterState,
+            indexNameExpressionResolver,
+            java.util.Set.of()
+        );
         String[] concreteNames = resolution.concreteIndexNames().toArray(new String[0]);
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
             .searchShards(clusterState, concreteNames, null, null);
