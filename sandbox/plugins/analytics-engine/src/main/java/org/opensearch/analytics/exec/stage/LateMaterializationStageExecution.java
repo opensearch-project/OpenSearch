@@ -36,6 +36,7 @@ import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -388,7 +389,23 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 outerListener.onFailure(failure);
             }
         });
+        // Publish the stitcher BEFORE any shard dispatch so onTerminalTransition (which may fire on a
+        // concurrent cancel thread) can always find it and close its pre-allocated output VSR. The
+        // Stitcher constructor already allocated that VSR on the coordinator allocator, so any window
+        // where the field is still null but output exists would leak it on a racing terminal.
         this.stitcher = stitcher;
+        // Close the publication race: if a terminal transition already fired while we were between
+        // Stitcher construction and the assignment above, its onTerminalTransition saw a null field
+        // and skipped the close. Re-check here and release output now that the field is published.
+        // state is an AtomicReference, so this read pairs with the CAS in transitionTo: either that
+        // CAS-then-read-stitcher saw our published field (and closed output), or our set-then-read-state
+        // sees the terminal here — output is freed exactly once on this racing-cancel path. Settle the
+        // task listener too (NotifyOnceListener makes a duplicate fire from the cancel path a no-op).
+        if (getState().isTerminal()) {
+            stitcher.close();
+            outerListener.onFailure(new TaskCancelledException("late materialization stage terminated before fetch dispatch"));
+            return;
+        }
 
         for (Map.Entry<Integer, ShardFetchPlan> entry : plansByUgsi.entrySet()) {
             int ugsi = entry.getKey();
