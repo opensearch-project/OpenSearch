@@ -15,33 +15,33 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Primitive floats
- * This can be used by clients that already have float[].
+ * Primitive longs.
+ * This can be used by clients that already have long[].
  */
-final class PrimitiveFloatArray extends AbstractPrimitiveArray implements FloatArrayValue {
-    private final float[] v;
+final class PrimitiveLongArray extends AbstractPrimitiveArray implements LongArrayValue {
+    private final long[] v;
 
-    public PrimitiveFloatArray(float[] v) {
+    PrimitiveLongArray(long[] v) {
         super(Objects.requireNonNull(v, "values must not be null").length);
         this.v = v;
     }
 
     @Override
-    public float get(int i) {
+    public long get(int i) {
         return v[i];
     }
 
     @Override
-    public float[] asFloatArray() {
+    public long[] asLongArray() {
         return v;
     }
 
     @Override
     public void writePayloadTo(StreamOutput out) throws IOException {
-        out.writeFloatArray(v);
+        out.writeLongArray(v);
     }
 
-    static PrimitiveFloatArray readBodyFrom(StreamInput in) throws IOException {
-        return new PrimitiveFloatArray(in.readFloatArray());
+    static PrimitiveLongArray readBodyFrom(StreamInput in) throws IOException {
+        return new PrimitiveLongArray(in.readLongArray());
     }
 }
