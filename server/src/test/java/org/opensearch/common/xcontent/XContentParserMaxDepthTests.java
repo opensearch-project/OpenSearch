@@ -20,8 +20,10 @@ public class XContentParserMaxDepthTests extends OpenSearchTestCase {
 
     public void testDeeplyNestedArrayThrows() throws IOException {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 200; i++) sb.append('[');
-        for (int i = 0; i < 200; i++) sb.append(']');
+        for (int i = 0; i < 200; i++)
+            sb.append('[');
+        for (int i = 0; i < 200; i++)
+            sb.append(']');
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -37,9 +39,11 @@ public class XContentParserMaxDepthTests extends OpenSearchTestCase {
 
     public void testDeeplyNestedObjectThrows() throws IOException {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 200; i++) sb.append("{\"a\":");
+        for (int i = 0; i < 200; i++)
+            sb.append("{\"a\":");
         sb.append("1");
-        for (int i = 0; i < 200; i++) sb.append('}');
+        for (int i = 0; i < 200; i++)
+            sb.append('}');
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -55,9 +59,11 @@ public class XContentParserMaxDepthTests extends OpenSearchTestCase {
 
     public void testModerateNestingSucceeds() throws IOException {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 50; i++) sb.append('[');
+        for (int i = 0; i < 50; i++)
+            sb.append('[');
         sb.append("1");
-        for (int i = 0; i < 50; i++) sb.append(']');
+        for (int i = 0; i < 50; i++)
+            sb.append(']');
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
