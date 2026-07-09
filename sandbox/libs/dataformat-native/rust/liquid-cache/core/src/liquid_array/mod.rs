@@ -3,6 +3,8 @@
 //! Instead, use `liquid_cache_datafusion_server` or `liquid_cache_datafusion_client` to interact with LiquidCache.
 mod decimal_array;
 mod float_array;
+#[cfg(test)]
+mod fuzz_tests;
 mod linear_integer_array;
 mod primitive_array;
 pub mod raw;
