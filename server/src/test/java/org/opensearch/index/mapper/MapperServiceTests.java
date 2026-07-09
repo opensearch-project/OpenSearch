@@ -67,6 +67,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -165,10 +166,26 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
     }
 
-    public void testMappingDepthXContentLimit() throws Throwable {
-        createIndex(
-            "test1",
-            Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH).build()
+    public void testMappingDepthExceedsXContentLimit() throws Throwable {
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                "test1",
+                Settings.builder()
+                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    .build()
+            )
+        );
+
+        assertThat(
+            ex.getMessage(),
+            is(
+                "The provided value "
+                    + (XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                    + XContentContraints.DEFAULT_MAX_DEPTH
+                    + ". Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+            )
         );
     }
 
