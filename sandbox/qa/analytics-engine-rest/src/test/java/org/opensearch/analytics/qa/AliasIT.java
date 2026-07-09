@@ -62,13 +62,16 @@ public class AliasIT extends AnalyticsRestTestCase {
 
     /**
      * Two indices with disagreeing field types behind the same alias must be rejected at
-     * planning. The error must surface the conflicting field and the divergent indices so
-     * the user can fix the mapping rather than guess.
+     * planning WHEN THE QUERY REFERENCES THE CONFLICTING FIELD. The error must surface the
+     * conflicting field and the divergent indices so the user can fix the mapping rather than
+     * guess. (Cross-index type validation is scoped to the fields the query reads — see
+     * {@link #testSchemaMismatchAliasNotRejectedWhenConflictFieldUnreferenced} for the case where
+     * the conflicting field is never touched and the query is allowed.)
      */
     public void testSchemaMismatchAliasIsRejected() throws IOException {
         // Provision a third index whose `key` field is a long (calcs has it as keyword) and
         // alias it together with calcs_a. The planner should reject when the query references
-        // either index.
+        // the conflicting `key` field.
         String divergentIndex = "calcs_divergent";
         String mismatchAlias = "calcs_mismatched";
         createIndexIfAbsent(
@@ -77,11 +80,32 @@ public class AliasIT extends AnalyticsRestTestCase {
         );
         putAlias(mismatchAlias, List.of(CALCS_A.indexName, divergentIndex));
 
-        String error = executePplExpectingFailure("source=" + mismatchAlias + " | stats count() as c");
+        String error = executePplExpectingFailure("source=" + mismatchAlias + " | fields key");
         assertContains(error, "incompatible field types");
         assertContains(error, "key");
         assertContains(error, CALCS_A.indexName);
         assertContains(error, divergentIndex);
+    }
+
+    /**
+     * A query over a conflicted alias that never references the conflicting field must NOT be
+     * rejected — cross-index type validation is scoped to the fields the query actually reads.
+     * {@code stats count()} touches no field, so the {@code key} type clash is irrelevant and the
+     * query fans out across both backing indices. Regression guard for the field-scoping change
+     * (previously any query over the alias was rejected outright).
+     */
+    public void testSchemaMismatchAliasNotRejectedWhenConflictFieldUnreferenced() throws IOException {
+        String divergentIndex = "calcs_divergent";
+        String mismatchAlias = "calcs_mismatched";
+        createIndexIfAbsent(
+            divergentIndex,
+            "{\"properties\":{\"key\":{\"type\":\"long\"},\"str0\":{\"type\":\"keyword\"}}}"
+        );
+        putAlias(mismatchAlias, List.of(CALCS_A.indexName, divergentIndex));
+
+        // count() references no field, so the `key` conflict does not fail the query.
+        long count = singleCount("source=" + mismatchAlias + " | stats count() as c");
+        assertTrue("query over conflicted alias should run when the conflict field is untouched", count > 0);
     }
 
     /**

@@ -75,8 +75,8 @@ final class ReferencedFieldCollector {
     }
 
     /** Signals an unanalyzable shape; caught by {@link #collect} and turned into a validate-all fallback. */
-    private static final class BailOut extends RuntimeException {
-        BailOut() {
+    private static final class ValidateAllFieldsException extends RuntimeException {
+        ValidateAllFieldsException() {
             super(null, null, false, false);
         }
     }
@@ -90,7 +90,7 @@ final class ReferencedFieldCollector {
             if (node instanceof TableScan scan) {
                 scanCount++;
                 if (scanCount > 1) {
-                    throw new BailOut(); // multiple scans → validate all
+                    throw new ValidateAllFieldsException(); // multiple scans → validate all
                 }
                 List<RelDataTypeField> fields = scan.getRowType().getFieldList();
                 for (int col : usedOut) {
@@ -151,7 +151,7 @@ final class ReferencedFieldCollector {
             }
             // Join, Correlate, SetOp (Union/Intersect/Minus), Values, or any node type we do not
             // model precisely → cannot safely scope; validate all.
-            throw new BailOut();
+            throw new ValidateAllFieldsException();
         }
 
         private static void collectRefs(RexNode expr, ImmutableBitSet.Builder into) {
