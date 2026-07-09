@@ -1059,7 +1059,8 @@ public class Node implements Closeable {
             final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
                 settings,
                 clusterService.getClusterSettings(),
-                threadPool
+                threadPool,
+                clusterService
             );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
