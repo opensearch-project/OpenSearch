@@ -137,6 +137,15 @@ public class ScriptScoreQuery extends Query {
                     public BulkScorer bulkScorer() throws IOException {
                         if (minScore == null) {
                             final BulkScorer subQueryBulkScorer = subQueryScorerSupplier.bulkScorer();
+                            if (subQueryBulkScorer == null) {
+                                return null;
+                            }
+                            if (scriptBuilder instanceof ScoreScript.BulkScoringLeafFactory bulkFactory) {
+                                final BulkScorer custom = bulkFactory.bulkScorer(context, subQueryBulkScorer, subQueryScoreMode, boost);
+                                if (custom != null) {
+                                    return custom;
+                                }
+                            }
                             return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
                         } else {
                             return super.bulkScorer();
