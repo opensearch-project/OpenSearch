@@ -476,4 +476,9 @@ public class VSRManager implements AutoCloseable {
     Future<?> getPendingWrite() {
         return pendingWrite;
     }
+
+    /** Visible for testing — injects a pending background write future to exercise close() paths. */
+    void setPendingWrite(Future<?> future) {
+        this.pendingWrite = future;
+    }
 }

@@ -179,9 +179,7 @@ public class VSRManagerTests extends ParquetBaseTests {
         // condition (Background VSR write failed) that used to skip vsrPool.close().
         java.util.concurrent.CompletableFuture<Object> failed = new java.util.concurrent.CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("simulated native write failure"));
-        java.lang.reflect.Field pw = VSRManager.class.getDeclaredField("pendingWrite");
-        pw.setAccessible(true);
-        pw.set(manager, failed);
+        manager.setPendingWrite(failed);
 
         RuntimeException thrown = expectThrows(RuntimeException.class, manager::close);
         assertTrue(
