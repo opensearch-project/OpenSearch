@@ -94,8 +94,22 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
-  mavenCentral()
-  gradlePluginPortal()
+  maven {
+    url = uri("https://ci.opensearch.org/maven2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  gradlePluginPortal {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
 }
 
 dependencies {
@@ -113,7 +127,7 @@ dependencies {
   api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.10'
   constraints {
     api('org.codehaus.plexus:plexus-utils') {
-      version { strictly '3.5.1' }
+      version { strictly '3.6.1' }
       because 'plexus-utils 4.x is incompatible with Java 11'
     }
   }
@@ -122,7 +136,8 @@ dependencies {
   api 'de.thetaphi:forbiddenapis:3.8'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.6'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
-  api 'org.apache.maven:maven-model:3.9.6'
+  api 'org.apache.maven:maven-model:3.9.16'
+  api 'org.codehaus.plexus:plexus-xml:3.0.1'
   api 'com.networknt:json-schema-validator:1.2.0'
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.1'
@@ -151,6 +166,7 @@ dependencies {
 configurations.all {
   resolutionStrategy {
     force "com.google.guava:guava:${props.getProperty('guava')}"
+    force "org.apache.logging.log4j:log4j-core:${props.getProperty('log4j')}"
   }
 }
 

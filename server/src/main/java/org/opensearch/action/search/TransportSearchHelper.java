@@ -105,7 +105,11 @@ final class TransportSearchHelper {
                 includeContextUUID = false;
                 type = firstChunk;
             }
-            SearchContextIdForNode[] context = new SearchContextIdForNode[in.readVInt()];
+            int count = in.readVInt();
+            if (count < 0 || count > bytes.length) {
+                throw new IllegalArgumentException("Invalid scroll id");
+            }
+            SearchContextIdForNode[] context = new SearchContextIdForNode[count];
             for (int i = 0; i < context.length; ++i) {
                 final String contextUUID = includeContextUUID ? in.readString() : "";
                 long id = in.readLong();

@@ -9,6 +9,27 @@
  * GitHub history for details.
  */
 
+pluginManagement {
+  repositories {
+    maven {
+      url = uri("https://ci.opensearch.org/maven2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    gradlePluginPortal {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    mavenCentral {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+  }
+}
+
 plugins {
   id "com.gradle.develocity" version "3.19"
 }

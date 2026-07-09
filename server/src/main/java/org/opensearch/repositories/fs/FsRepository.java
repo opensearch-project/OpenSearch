@@ -100,7 +100,19 @@ public class FsRepository extends BlobStoreRepository {
         Property.Deprecated
     );
 
-    public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+    public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", value -> {
+        // CWE-22 hardening (string-only fail-fast; avoids constructing a Path from a raw user-supplied string):
+        // reject absolute base_path values (POSIX "/", Windows "\\"/UNC, drive-letter "C:..") and any parent-directory
+        // ("..") segment. An absolute base_path makes Path.resolve discard the path.repo-validated location, escaping
+        // containment; a ".." segment lets the resolved path climb above it. The authoritative, location-aware
+        // containment check is performed in validateBasePathWithinRepo().
+        if (Strings.hasLength(value)
+            && (value.startsWith("/") || value.startsWith("\\") || value.matches("^[A-Za-z]:.*") || value.contains(".."))) {
+            throw new IllegalArgumentException(
+                "[base_path] must be a relative path that does not contain '..' segments; got [" + value + "]"
+            );
+        }
+    });
 
     protected final Environment environment;
 
@@ -132,10 +144,41 @@ public class FsRepository extends BlobStoreRepository {
         }
         final String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
+            if (isUnderRepo(basePath) == false) {
+                throw new RepositoryException(
+                    metadata.name(),
+                    "base_path [" + basePath + "] resolves to a location outside of the repository paths specified by path.repo"
+                );
+            }
             this.basePath = new BlobPath().add(basePath);
         } else {
             this.basePath = BlobPath.cleanPath();
         }
+    }
+
+    /**
+     * Defense-in-depth containment check (CWE-22) that complements the {@link #BASE_PATH_SETTING} setting-level
+     * validator: ensures the user-supplied {@code base_path}, once resolved against the already-validated repository
+     * {@code location}, still falls within one of the operator-configured {@code path.repo} directories. The setting
+     * validator already rejects absolute and upward-escaping values; this location-aware check is the authoritative
+     * backstop. Without containment, an absolute {@code base_path} would cause {@link java.nio.file.Path#resolve} to
+     * discard the validated location entirely and redirect all blob-store operations to an arbitrary filesystem path
+     * (the {@code /_snapshot/<repo>/_cleanup} arbitrary-deletion vector).
+     */
+    private boolean isUnderRepo(String basePath) {
+        final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
+        final Path locationFile = environment.resolveRepoFile(location);
+        if (locationFile == null) {
+            // location is already validated by validateLocation(); a null here is treated as a containment failure.
+            return false;
+        }
+        final Path resolved = locationFile.resolve(basePath).normalize();
+        for (Path repoPath : environment.repoFiles()) {
+            if (resolved.startsWith(repoPath)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected void validateLocation() {

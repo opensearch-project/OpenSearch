@@ -171,7 +171,7 @@ def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
 if (japicmpCompareTarget == null) { /* use latest released version */
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances, pick the latest one
-    japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+    japicmpCompareTarget = new URL('https://ci.opensearch.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
         new XmlParser().parse(s)
            .versioning.versions.version
            .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
