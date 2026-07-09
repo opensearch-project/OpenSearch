@@ -211,13 +211,6 @@ pub extern "C" fn df_set_liquid_cache_memory_limit(bytes: i64) {
 }
 
 #[no_mangle]
-pub extern "C" fn df_set_liquid_cache_selectivity_threshold(permille: i64) {
-    if (0..=1000).contains(&permille) {
-        crate::liquid_cache::set_lc_selectivity_threshold(permille as f64 / 1000.0);
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn df_set_liquid_cache_max_columns(count: i64) {
     if count > 0 {
         crate::liquid_cache::set_lc_max_columns(count as usize);

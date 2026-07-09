@@ -664,20 +664,12 @@ public class DataFusionPlugin extends Plugin
                 .addSettingsUpdateConsumer(DatafusionSettings.LIQUID_CACHE_SIZE, bytes -> NativeBridge.setLiquidCacheMemoryLimit(bytes));
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(
-                    DatafusionSettings.LIQUID_CACHE_SELECTIVITY_THRESHOLD,
-                    threshold -> NativeBridge.setLiquidCacheSelectivityThreshold((long) (threshold * 1000))
-                );
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
                     DatafusionSettings.LIQUID_CACHE_MAX_COLUMNS,
                     count -> NativeBridge.setLiquidCacheMaxColumns((long) count)
                 );
 
             NativeBridge.setLiquidCacheEnabled(DatafusionSettings.LIQUID_CACHE_ENABLED.get(settings));
             NativeBridge.setLiquidCacheMemoryLimit(DatafusionSettings.LIQUID_CACHE_SIZE.get(settings));
-            NativeBridge.setLiquidCacheSelectivityThreshold(
-                (long) (DatafusionSettings.LIQUID_CACHE_SELECTIVITY_THRESHOLD.get(settings) * 1000)
-            );
             NativeBridge.setLiquidCacheMaxColumns((long) DatafusionSettings.LIQUID_CACHE_MAX_COLUMNS.get(settings));
         }
 

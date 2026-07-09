@@ -146,7 +146,6 @@ public final class NativeBridge {
     private static final MethodHandle CLEAR_LIQUID_CACHE;
     private static final MethodHandle SET_LIQUID_CACHE_ENABLED;
     private static final MethodHandle SET_LIQUID_CACHE_MEMORY_LIMIT;
-    private static final MethodHandle SET_LIQUID_CACHE_SELECTIVITY_THRESHOLD;
     private static final MethodHandle SET_LIQUID_CACHE_MAX_COLUMNS;
     private static final MethodHandle STATS;
     private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
@@ -204,11 +203,6 @@ public final class NativeBridge {
 
         SET_LIQUID_CACHE_MEMORY_LIMIT = linker.downcallHandle(
             lib.find("df_set_liquid_cache_memory_limit").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
-        );
-
-        SET_LIQUID_CACHE_SELECTIVITY_THRESHOLD = linker.downcallHandle(
-            lib.find("df_set_liquid_cache_selectivity_threshold").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
@@ -847,11 +841,6 @@ public final class NativeBridge {
     /** Dynamically update the Liquid Cache memory limit in bytes. */
     public static void setLiquidCacheMemoryLimit(long bytes) {
         NativeCall.invokeVoid(SET_LIQUID_CACHE_MEMORY_LIMIT, bytes);
-    }
-
-    /** Dynamically update the LC selectivity threshold (permille: 800 = 0.8). */
-    public static void setLiquidCacheSelectivityThreshold(long permille) {
-        NativeCall.invokeVoid(SET_LIQUID_CACHE_SELECTIVITY_THRESHOLD, permille);
     }
 
     /** Dynamically update the max columns for LC engagement. */

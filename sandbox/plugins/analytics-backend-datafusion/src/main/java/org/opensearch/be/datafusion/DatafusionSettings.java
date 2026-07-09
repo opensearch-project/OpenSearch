@@ -227,19 +227,6 @@ public final class DatafusionSettings {
     );
 
     /**
-     * Selectivity threshold for LC STREAM vs DELEGATE (0.0 to 1.0).
-     * Files with selectivity below this threshold are delegated to plain parquet.
-     */
-    public static final Setting<Float> LIQUID_CACHE_SELECTIVITY_THRESHOLD = Setting.floatSetting(
-        "datafusion.liquid_cache.selectivity_threshold",
-        0.8f,
-        0.0f,
-        1.0f,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Maximum number of output columns for LC engagement.
      * Queries projecting more columns than this are skipped by the optimizer.
      */
@@ -297,7 +284,6 @@ public final class DatafusionSettings {
         LIQUID_CACHE_ENABLED,
         LIQUID_CACHE_SIZE,
         LIQUID_CACHE_EVICTION_POLICY,
-        LIQUID_CACHE_SELECTIVITY_THRESHOLD,
         LIQUID_CACHE_MAX_COLUMNS
     );
 
