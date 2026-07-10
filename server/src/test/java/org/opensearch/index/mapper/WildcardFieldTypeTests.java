@@ -272,10 +272,10 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         );
 
         try (Directory dir = newDirectory()) {
-            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));
-            iw.addDocument(appleTrigramDocument());
-            try (IndexReader reader = DirectoryReader.open(iw)) {
-                iw.close();
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER))) {
+                iw.addDocument(appleTrigramDocument());
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 searcher.setQueryCache(null);
 
@@ -304,10 +304,10 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         );
 
         try (Directory dir = newDirectory()) {
-            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));
-            iw.addDocument(appleTrigramDocument());
-            try (IndexReader reader = DirectoryReader.open(iw)) {
-                iw.close();
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER))) {
+                iw.addDocument(appleTrigramDocument());
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 List<Query> cachedQueries = new ArrayList<>();
                 LRUQueryCache cache = new LRUQueryCache(1000, 1 << 20, leaf -> true, 1f) {
@@ -365,10 +365,10 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         context = null;
 
         try (Directory dir = newDirectory()) {
-            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));
-            iw.addDocument(appleTrigramDocument());
-            try (IndexReader reader = DirectoryReader.open(iw)) {
-                iw.close();
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER))) {
+                iw.addDocument(appleTrigramDocument());
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 LRUQueryCache cache = new LRUQueryCache(1000, 1 << 20, leaf -> true, 1f);
                 searcher.setQueryCache(cache);
