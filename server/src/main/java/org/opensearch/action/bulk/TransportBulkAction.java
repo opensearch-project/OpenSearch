@@ -47,13 +47,20 @@ import org.opensearch.action.admin.indices.create.AutoCreateAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.stats.DocStatusStats;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.get.GetAction;
+import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.IngestActionForwarder;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.TransportUpdateAction;
+import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.cluster.ClusterState;
@@ -79,16 +86,22 @@ import org.opensearch.common.ValidationException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.get.GetResult;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
@@ -108,6 +121,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -157,6 +171,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndicesService indicesService;
     private final SystemIndices systemIndices;
     private final Tracer tracer;
+    private final UpdateHelper updateHelper;
     private final ResponseCollectorService nodeMetricsCollector;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
@@ -174,6 +189,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressureService indexingPressureService,
         IndicesService indicesService,
         SystemIndices systemIndices,
+        UpdateHelper updateHelper,
         Tracer tracer
     ) {
         this(
@@ -189,6 +205,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexingPressureService,
             indicesService,
             systemIndices,
+            updateHelper,
             System::nanoTime,
             tracer
         );
@@ -207,6 +224,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressureService indexingPressureService,
         IndicesService indicesService,
         SystemIndices systemIndices,
+        UpdateHelper updateHelper,
         LongSupplier relativeTimeProvider,
         Tracer tracer
     ) {
@@ -224,6 +242,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexingPressureService = indexingPressureService;
         this.indicesService = indicesService;
         this.systemIndices = systemIndices;
+        this.updateHelper = updateHelper;
         clusterService.addStateApplier(this.ingestForwarder);
         this.tracer = tracer;
         this.nodeMetricsCollector = new ResponseCollectorService(clusterService);
@@ -261,7 +280,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
@@ -290,6 +308,53 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
             return;
         }
+
+        // Pipelines on the original requests have already executed (or there were none).
+        // Expand dual-write requests now — but only once. The flag on BulkRequest prevents
+        // re-expansion when doInternalExecute is called again after mirror pipeline execution.
+        if (!bulkRequest.isDualWriteExpanded()) {
+            bulkRequest.setDualWriteExpanded(true);
+            expandDualWriteRequests(bulkRequest, metadata, ActionListener.wrap(ignored -> {
+                // Re-resolve pipelines for mirrored requests — target index may have its own pipeline.
+                // processBulkIndexIngestRequest will call doInternalExecute again, but
+                // isDualWriteExpanded()==true so expansion is skipped on that re-entry.
+                boolean hasMirrorPipelines = resolvePipelinesForActionRequests(bulkRequest.requests, metadata, minNodeVersion);
+                if (hasMirrorPipelines) {
+                    try {
+                        if (clusterService.localNode().isIngestNode()) {
+                            processBulkIndexIngestRequest(task, bulkRequest, executorName, listener);
+                        } else {
+                            ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                        }
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                    return;
+                }
+                dispatchBulk(task, bulkRequest, startTime, executorName, listener, metadata, minNodeVersion);
+            }, listener::onFailure));
+            return;
+        }
+
+        // Dual-write expansion already done — all pipelines (source + mirror) have run.
+        // Dispatch to shards.
+        dispatchBulk(task, bulkRequest, startTime, executorName, listener, metadata, minNodeVersion);
+    }
+
+    /**
+     * Final stage of bulk execution: auto-create missing indices if needed, then dispatch to shards.
+     * Called after all ingest pipelines and dual-write expansion are complete.
+     */
+    private void dispatchBulk(
+        Task task,
+        BulkRequest bulkRequest,
+        long startTime,
+        String executorName,
+        ActionListener<BulkResponse> listener,
+        Metadata metadata,
+        Version minNodeVersion
+    ) {
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         final boolean includesSystem = includesSystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
 
@@ -394,6 +459,350 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
             return Stream.of(getIndexWriteRequest(request));
         }).filter(Objects::nonNull).toList();
+    }
+
+    private void expandDualWriteRequests(BulkRequest bulkRequest, Metadata metadata, ActionListener<Void> listener) {
+        final int originalSize = bulkRequest.requests.size();
+
+        final List<DocWriteRequest<?>> pendingRequests = new ArrayList<>();
+        final List<String> pendingTargetIndices = new ArrayList<>();
+        final List<Integer> pendingSlots = new ArrayList<>();
+
+        for (int i = 0; i < originalSize; i++) {
+            final DocWriteRequest<?> request = bulkRequest.requests.get(i);
+            if (request == null) {
+                continue;
+            }
+
+            final IndexMetadata indexMetadata = metadata.index(request.index());
+            if (indexMetadata == null) {
+                continue;
+            }
+
+            final String dualWriteTarget = IndexSettings.INDEX_DUAL_WRITE_INDEX_NAME_SETTING.get(indexMetadata.getSettings());
+            if (dualWriteTarget == null || dualWriteTarget.isEmpty()) {
+                continue;
+            }
+
+            if (request instanceof UpdateRequest) {
+                // All UpdateRequests require a GET to determine the correct mirrored source.
+                pendingRequests.add(request);
+                pendingTargetIndices.add(dualWriteTarget);
+                pendingSlots.add(i);
+            } else if (request instanceof IndexRequest src && needsGetForIndexRequest(src)) {
+                // IndexRequests with custom ID + opType=CREATE or CAS conditions need a GET
+                // to verify the source index state before mirroring.
+                pendingRequests.add(request);
+                pendingTargetIndices.add(dualWriteTarget);
+                pendingSlots.add(i);
+            } else if (request instanceof DeleteRequest src) {
+                // DeleteRequests with version/CAS conditions need a GET to verify the source
+                // state matches before mirroring — if the condition isn't met the delete fails.
+                pendingRequests.add(request);
+                pendingTargetIndices.add(dualWriteTarget);
+                pendingSlots.add(i);
+            } else {
+                // IndexRequest (safe to copy) and DeleteRequest — handled synchronously.
+                final DocWriteRequest<?> mirrored = buildDualWriteRequestSync(request, dualWriteTarget);
+                if (mirrored != null) {
+                    bulkRequest.requests.add(mirrored);
+                }
+            }
+        }
+
+        if (pendingRequests.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+
+        // Fire all GETs concurrently; append resolved mirrors; invoke listener when all complete.
+        final int pendingCount = pendingRequests.size();
+        final AtomicInteger remaining = new AtomicInteger(pendingCount);
+        final java.util.concurrent.atomic.AtomicReference<Exception> firstFailure = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.ConcurrentLinkedQueue<DocWriteRequest<?>> resolvedMirrors =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+        for (int j = 0; j < pendingCount; j++) {
+            final DocWriteRequest<?> pending = pendingRequests.get(j);
+            final String dualWriteTarget = pendingTargetIndices.get(j);
+            final int slot = pendingSlots.get(j);
+
+            final GetRequest getRequest = new GetRequest(pending.index(), pending.id());
+            getRequest.routing(pending.routing());
+            getRequest.realtime(true);
+
+            client.execute(GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+                @Override
+                public void onResponse(GetResponse getResponse) {
+                    try {
+                        if (pending instanceof UpdateRequest src) {
+                            handleUpdateRequestWithGet(src, dualWriteTarget, slot, getResponse, bulkRequest, resolvedMirrors);
+                        } else if (pending instanceof IndexRequest src) {
+                            handleIndexRequestWithGet(src, dualWriteTarget, getResponse, resolvedMirrors);
+                        } else if (pending instanceof DeleteRequest src) {
+                            handleDeleteRequestWithGet(src, dualWriteTarget, getResponse, resolvedMirrors);
+                        }
+                    } catch (Exception e) {
+                        firstFailure.compareAndSet(null, e);
+                    } finally {
+                        maybeFinish();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    firstFailure.compareAndSet(null, e);
+                    maybeFinish();
+                }
+
+                private void maybeFinish() {
+                    if (remaining.decrementAndGet() == 0) {
+                        final Exception failure = firstFailure.get();
+                        if (failure != null) {
+                            listener.onFailure(failure);
+                        } else {
+                            bulkRequest.requests.addAll(resolvedMirrors);
+                            listener.onResponse(null);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    private static boolean needsGetForDeleteRequest(DeleteRequest src) {
+        return src.ifSeqNo() != UNASSIGNED_SEQ_NO || src.version() != Versions.MATCH_ANY;
+    }
+
+    private void handleDeleteRequestWithGet(
+        DeleteRequest src,
+        String dualWriteTarget,
+        GetResponse getResponse,
+        java.util.concurrent.ConcurrentLinkedQueue<DocWriteRequest<?>> resolvedMirrors
+    ) {
+        if (!getResponse.isExists()) {
+            return;
+        }
+
+        if (src.ifSeqNo() != UNASSIGNED_SEQ_NO) {
+            if (getResponse.getSeqNo() != src.ifSeqNo() || getResponse.getPrimaryTerm() != src.ifPrimaryTerm()) {
+                return;
+            }
+        }
+
+        // Version check
+        if (src.version() != Versions.MATCH_ANY) {
+            if (src.versionType().isVersionConflictForWrites(getResponse.getVersion(), src.version(), false)) {
+                return;
+            }
+        }
+
+        resolvedMirrors.add(
+            buildDualWriteDeleteRequest(
+                dualWriteTarget,
+                src.id(),
+                src.routing(),
+                src.index(),
+                src.timeout(),
+                src.getRefreshPolicy(),
+                src.waitForActiveShards()
+            )
+        );
+    }
+
+    private static boolean needsGetForIndexRequest(IndexRequest src) {
+        if (src.id() == null || src.getAutoGeneratedTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
+            return false;
+        }
+        return src.opType() == DocWriteRequest.OpType.CREATE || src.ifSeqNo() != UNASSIGNED_SEQ_NO;
+    }
+
+    private void handleIndexRequestWithGet(
+        IndexRequest src,
+        String dualWriteTarget,
+        GetResponse getResponse,
+        java.util.concurrent.ConcurrentLinkedQueue<DocWriteRequest<?>> resolvedMirrors
+    ) {
+        if (getResponse.isExists()) {
+            if (src.opType() == DocWriteRequest.OpType.CREATE) {
+                return;
+            }
+            if (src.ifSeqNo() != UNASSIGNED_SEQ_NO) {
+                if (getResponse.getSeqNo() != src.ifSeqNo() || getResponse.getPrimaryTerm() != src.ifPrimaryTerm()) {
+                    return;
+                }
+            }
+        }
+        IndexRequest mirror = buildDualWriteIndexRequest(
+            dualWriteTarget,
+            src.id(),
+            src.routing(),
+            src.source(),
+            src.getContentType(),
+            src.timeout(),
+            src.getRefreshPolicy(),
+            src.waitForActiveShards()
+        );
+        mirror.opType(src.opType());
+        resolvedMirrors.add(mirror);
+    }
+
+    private void handleUpdateRequestWithGet(
+        UpdateRequest src,
+        String dualWriteTarget,
+        int slot,
+        GetResponse getResponse,
+        BulkRequest bulkRequest,
+        java.util.concurrent.ConcurrentLinkedQueue<DocWriteRequest<?>> resolvedMirrors
+    ) {
+        if (src.ifSeqNo() != UNASSIGNED_SEQ_NO && getResponse.isExists()) {
+            if (getResponse.getSeqNo() != src.ifSeqNo() || getResponse.getPrimaryTerm() != src.ifPrimaryTerm()) {
+                return;
+            }
+        }
+
+        final GetResult getResult = new GetResult(
+            getResponse.getIndex(),
+            getResponse.getId(),
+            getResponse.getSeqNo(),
+            getResponse.getPrimaryTerm(),
+            getResponse.getVersion(),
+            getResponse.isExists(),
+            getResponse.isExists() ? getResponse.getSourceInternal() : null,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final org.opensearch.core.index.shard.ShardId dummyShardId = new org.opensearch.core.index.shard.ShardId(src.index(), "_na_", 0);
+        final UpdateHelper.Result result = updateHelper.prepare(dummyShardId, src, getResult, threadPool::absoluteTimeInMillis);
+
+        switch (result.getResponseResult()) {
+            case CREATED:
+            case UPDATED: {
+                final IndexRequest sourceResolved = result.<IndexRequest>action();
+                // Replace the UpdateRequest in the source slot — shard skips the GET.
+                bulkRequest.requests.set(slot, sourceResolved);
+                // Mirror to target (CAS fields stripped).
+                resolvedMirrors.add(
+                    buildDualWriteIndexRequest(
+                        dualWriteTarget,
+                        sourceResolved.id() != null ? sourceResolved.id() : src.id(),
+                        sourceResolved.routing(),
+                        sourceResolved.source(),
+                        sourceResolved.getContentType(),
+                        src.timeout(),
+                        src.getRefreshPolicy(),
+                        src.waitForActiveShards()
+                    )
+                );
+                break;
+            }
+            case DELETED: {
+                final DeleteRequest sourceResolved = result.<DeleteRequest>action();
+                bulkRequest.requests.set(slot, sourceResolved);
+                final DocWriteRequest<?> mirror = buildDualWriteDeleteRequest(
+                    dualWriteTarget,
+                    sourceResolved.id() != null ? sourceResolved.id() : src.id(),
+                    sourceResolved.routing(),
+                    src.index(),
+                    src.timeout(),
+                    src.getRefreshPolicy(),
+                    src.waitForActiveShards()
+                );
+                if (mirror != null) {
+                    resolvedMirrors.add(mirror);
+                }
+                break;
+            }
+            case NOOP:
+            default:
+                // Noop — leave the original UpdateRequest in place.
+                break;
+        }
+    }
+
+    private DocWriteRequest<?> buildDualWriteRequestSync(DocWriteRequest<?> original, String dualWriteTarget) {
+        if (original instanceof IndexRequest src) {
+            IndexRequest mirror = buildDualWriteIndexRequest(
+                dualWriteTarget,
+                src.id(),
+                src.routing(),
+                src.source(),
+                src.getContentType(),
+                src.timeout(),
+                src.getRefreshPolicy(),
+                src.waitForActiveShards()
+            );
+            // Preserve write semantics specific to direct IndexRequests.
+            mirror.opType(src.opType());
+            mirror.version(src.version());
+            mirror.versionType(src.versionType());
+            return mirror;
+
+        } else if (original instanceof DeleteRequest src) {
+            return buildDualWriteDeleteRequest(
+                dualWriteTarget,
+                src.id(),
+                src.routing(),
+                src.index(),
+                src.timeout(),
+                src.getRefreshPolicy(),
+                src.waitForActiveShards()
+            );
+        }
+
+        return null;
+    }
+
+    private IndexRequest buildDualWriteIndexRequest(
+        String dualWriteTarget,
+        String docId,
+        String routing,
+        BytesReference source,
+        MediaType contentType,
+        TimeValue timeout,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActiveShardCount waitForActiveShards
+    ) {
+        IndexRequest mirror = new IndexRequest(dualWriteTarget);
+        mirror.id(docId);
+        mirror.routing(routing);
+        mirror.source(source, contentType);
+        mirror.timeout(timeout);
+        mirror.setRefreshPolicy(refreshPolicy);
+        mirror.waitForActiveShards(waitForActiveShards);
+        return mirror;
+    }
+
+    private DocWriteRequest<?> buildDualWriteDeleteRequest(
+        String dualWriteTarget,
+        String docId,
+        String routing,
+        String sourceIndexName,
+        TimeValue timeout,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActiveShardCount waitForActiveShards
+    ) {
+        final boolean softDeletesEnabled = IndexSettings.INDEX_DUAL_WRITE_SOFT_DELETES_ENABLED_SETTING.get(
+            clusterService.state().metadata().index(sourceIndexName).getSettings()
+        );
+        if (softDeletesEnabled) {
+            IndexRequest tombstone = new IndexRequest(dualWriteTarget);
+            tombstone.id(docId);
+            tombstone.routing(routing);
+            tombstone.source(Collections.singletonMap("_tombstone", true), MediaTypeRegistry.JSON);
+            tombstone.timeout(timeout);
+            tombstone.setRefreshPolicy(refreshPolicy);
+            tombstone.waitForActiveShards(waitForActiveShards);
+            return tombstone;
+        } else {
+            DeleteRequest mirror = new DeleteRequest(dualWriteTarget, docId);
+            mirror.routing(routing);
+            mirror.timeout(timeout);
+            mirror.setRefreshPolicy(refreshPolicy);
+            mirror.waitForActiveShards(waitForActiveShards);
+            return mirror;
+        }
     }
 
     /**
