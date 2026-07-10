@@ -12,6 +12,8 @@ import org.opensearch.javaagent.bootstrap.internal.SubjectInterceptor;
 
 import javax.security.auth.Subject;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.lang.instrument.Instrumentation;
 import java.net.Socket;
 import java.nio.channels.FileChannel;
@@ -79,6 +81,7 @@ public class Agent {
         final Junction<TypeDescription> pathType = ElementMatchers.isSubTypeOf(Files.class);
         final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
         final Junction<TypeDescription> fileSystemProviderType = ElementMatchers.isSubTypeOf(FileSystemProvider.class);
+        final Junction<TypeDescription> fileInputStreamType = ElementMatchers.named("java.io.FileInputStream");
 
         final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
@@ -89,19 +92,27 @@ public class Agent {
             Advice.to(FileInterceptor.class).on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
         );
 
+        final AgentBuilder.Transformer fileInputStreamTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
+            Advice.to(FileInputStreamInterceptor.class)
+                .on(ElementMatchers.isConstructor().and(ElementMatchers.takesArgument(0, String.class).or(ElementMatchers.takesArgument(0, File.class))))
+        );
+
         final AgentBuilder.Transformer subjectTransformer = (b, typeDescription, classLoader, module, pd) -> b.method(
             ElementMatchers.named("getSubject")
         ).intercept(MethodDelegation.to(SubjectInterceptor.class));
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
         var builder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
-            .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
+            .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
+            .disableClassFormatChanges()
             .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
             .type(socketType)
             .transform(socketTransformer)
             .type(pathType.or(fileChannelType).or(fileSystemProviderType))
             .transform(fileTransformer)
+            .type(fileInputStreamType)
+            .transform(fileInputStreamTransformer)
             .type(ElementMatchers.is(java.lang.System.class))
             .transform(
                 (b, typeDescription, classLoader, module, pd) -> b.visit(
