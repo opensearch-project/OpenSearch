@@ -51,8 +51,8 @@ import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFiel
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -356,6 +356,35 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
                     try {
                         return normalizeValue(normalizer, name(), keywordValue);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+        }
+
+        Supplier<ValueFetcher> valueFetcherSupplier(QueryShardContext context) {
+            if (hasDocValues()) {
+                IndexFieldData<?> ifd = context.getForField(this);
+                return () -> new DocValueFetcher(DocValueFormat.RAW, ifd);
+            }
+            Set<String> sourcePaths = context.sourcePath(name());
+            Object nv = nullValue;
+            int above = ignoreAbove;
+            NamedAnalyzer norm = normalizer();
+            String fieldName = name();
+            return () -> new SourceValueFetcher(sourcePaths, nv) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    String keywordValue = value.toString();
+                    if (keywordValue.length() > above) {
+                        return null;
+                    }
+                    if (norm == null) {
+                        return keywordValue;
+                    }
+                    try {
+                        return normalizeValue(norm, fieldName, keywordValue);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -753,7 +782,6 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private final Predicate<String> secondPhaseMatcher;
         private final String patternString; // For toString
         private final Supplier<ValueFetcher> valueFetcherSupplier;
-        private final SearchLookup searchLookup;
 
         WildcardMatchingQuery(String fieldName, Query firstPhaseQuery, String patternString) {
             this(fieldName, firstPhaseQuery, s -> true, patternString, (QueryShardContext) null, null);
@@ -772,10 +800,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             this.secondPhaseMatcher = Objects.requireNonNull(secondPhaseMatcher);
             this.patternString = Objects.requireNonNull(patternString);
             if (context != null) {
-                this.searchLookup = context.lookup();
-                this.valueFetcherSupplier = () -> fieldType.valueFetcher(context, context.lookup(), null);
+                this.valueFetcherSupplier = fieldType.valueFetcherSupplier(context);
             } else {
-                this.searchLookup = null;
                 this.valueFetcherSupplier = null;
             }
         }
@@ -785,15 +811,13 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Query firstPhaseQuery,
             Predicate<String> secondPhaseMatcher,
             String patternString,
-            Supplier<ValueFetcher> valueFetcherSupplier,
-            SearchLookup searchLookup
+            Supplier<ValueFetcher> valueFetcherSupplier
         ) {
             this.fieldName = fieldName;
             this.firstPhaseQuery = firstPhaseQuery;
             this.secondPhaseMatcher = secondPhaseMatcher;
             this.patternString = patternString;
             this.valueFetcherSupplier = valueFetcherSupplier;
-            this.searchLookup = searchLookup;
         }
 
         @Override
@@ -825,14 +849,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
             Query rewriteFirstPhase = firstPhaseQuery.rewrite(indexSearcher);
             if (rewriteFirstPhase != firstPhaseQuery) {
-                return new WildcardMatchingQuery(
-                    fieldName,
-                    rewriteFirstPhase,
-                    secondPhaseMatcher,
-                    patternString,
-                    valueFetcherSupplier,
-                    searchLookup
-                );
+                return new WildcardMatchingQuery(fieldName, rewriteFirstPhase, secondPhaseMatcher, patternString, valueFetcherSupplier);
             }
             return this;
         }
@@ -852,17 +869,15 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         public Scorer get(long leadCost) throws IOException {
                             Scorer approximateScorer = firstPhaseSupplier.get(leadCost);
                             DocIdSetIterator approximation = approximateScorer.iterator();
-                            LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(context);
-                            // Create a new ValueFetcher per thread.
-                            // ValueFetcher.setNextReader is not thread safe.
+                            SourceLookup sourceLookup = new SourceLookup();
                             final ValueFetcher valueFetcher = valueFetcherSupplier.get();
                             valueFetcher.setNextReader(context);
 
                             TwoPhaseIterator twoPhaseIterator = new TwoPhaseIterator(approximation) {
                                 @Override
                                 public boolean matches() throws IOException {
-                                    leafSearchLookup.setDocument(approximation.docID());
-                                    List<?> values = valueFetcher.fetchValues(leafSearchLookup.source());
+                                    sourceLookup.setSegmentAndDocument(context, approximation.docID());
+                                    List<?> values = valueFetcher.fetchValues(sourceLookup);
                                     for (Object value : values) {
                                         if (secondPhaseMatcher.test(value.toString())) {
                                             return true;

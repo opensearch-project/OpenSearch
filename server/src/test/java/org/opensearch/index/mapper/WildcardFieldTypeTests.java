@@ -225,6 +225,17 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertEquals(ft.existsQuery(null), actual);
     }
 
+    public void testWildcardMatchingQueryEquality() {
+        BooleanQuery bq = new BooleanQuery.Builder().build();
+        WildcardFieldMapper.WildcardMatchingQuery q1 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "test*");
+        WildcardFieldMapper.WildcardMatchingQuery q2 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "test*");
+        assertEquals(q1, q2);
+        assertEquals(q1.hashCode(), q2.hashCode());
+
+        WildcardFieldMapper.WildcardMatchingQuery q3 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "other*");
+        assertNotEquals(q1, q3);
+    }
+
     public void testRegexpMatchAll() {
         // The following matches any string of length exactly 3. We do need to evaluate the predicate.
         String pattern = "...";
