@@ -8,22 +8,23 @@
 
 //! [`FoyerCache`] — a [`BlockCache`] implementation backed by Foyer.
 
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
 use bytes::Bytes;
 use dashmap::DashMap;
-use foyer::{AdmitAll, BlockEngineConfig, DeviceBuilder, FsDeviceBuilder,
-            HybridCache, HybridCacheBuilder, IoEngineConfig, PsyncIoEngineConfig, RecoverMode,
-            StorageFilter};
-use tokio_util::sync::CancellationToken;
 #[cfg(target_os = "linux")]
 use foyer::UringIoEngineConfig;
+use foyer::{
+    AdmitAll, BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder,
+    IoEngineConfig, PsyncIoEngineConfig, RecoverMode, StorageFilter,
+};
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 use crate::key_index_store;
-use crate::range_cache::{CacheKey, SEPARATOR, key_byte_size};
+use crate::range_cache::{key_byte_size, CacheKey, SEPARATOR};
 use crate::stats::FoyerStatsCounter;
 use crate::traits::BlockCache;
 
@@ -70,7 +71,10 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
         }
         other => {
             if other != "auto" {
-                native_bridge_common::log_info!("[block-cache] unknown io_engine='{}'; falling back to auto-detect", other);
+                native_bridge_common::log_info!(
+                    "[block-cache] unknown io_engine='{}'; falling back to auto-detect",
+                    other
+                );
             }
             // "auto" — detect by kernel version (existing logic)
             #[cfg(target_os = "linux")]
@@ -231,16 +235,14 @@ impl Drop for FoyerCache {
         // Without close(), entries smaller than block_size are lost on restart.
         // Timeout prevents indefinite blocking if the flusher is stuck.
         let close_result = self._runtime.block_on(async {
-            tokio::time::timeout(
-                std::time::Duration::from_secs(30),
-                self.inner.close()
-            ).await
+            tokio::time::timeout(std::time::Duration::from_secs(30), self.inner.close()).await
         });
         match close_result {
             Ok(Ok(())) => {}
             Ok(Err(e)) => {
                 native_bridge_common::log_info!(
-                    "[block-cache] HybridCache close FAILED on shutdown: {}", e
+                    "[block-cache] HybridCache close FAILED on shutdown: {}",
+                    e
                 );
             }
             Err(_) => {
@@ -311,37 +313,36 @@ impl FoyerCache {
         let key_index: Arc<DashMap<String, HashSet<String>>> = Arc::new(DashMap::new());
         let stats = FoyerStatsCounter::new();
 
-        let rt = tokio::runtime::Runtime::new()
-            .expect("[block-cache] failed to create Tokio runtime");
+        let rt =
+            tokio::runtime::Runtime::new().expect("[block-cache] failed to create Tokio runtime");
         // Clone disk_dir only for the async closure; the original is moved into cache_dir
         // after block_on returns.
         let dir_clone = disk_dir.clone();
         let io_engine = io_engine.to_string();
-        let io_engine_for_log = io_engine.clone();  // clone for use in log after the closure
+        let io_engine_for_log = io_engine.clone(); // clone for use in log after the closure
         let inner = rt.block_on(async move {
             let mut engine_config = BlockEngineConfig::new(
                 FsDeviceBuilder::new(dir_clone)
                     .with_capacity(disk_bytes)
                     .build()
-                    .expect("[block-cache] FsDevice build failed")
+                    .expect("[block-cache] FsDevice build failed"),
             )
             .with_block_size(block_size_bytes)
             .with_buffer_pool_size(buffer_pool_size_bytes)
             .with_submit_queue_size_threshold(submit_queue_size_threshold_bytes);
 
             if reinsertion_admit_all {
-                engine_config = engine_config.with_reinsertion_filter(
-                    StorageFilter::new().with_condition(AdmitAll)
-                );
+                engine_config = engine_config
+                    .with_reinsertion_filter(StorageFilter::new().with_condition(AdmitAll));
             }
 
             HybridCacheBuilder::<String, Vec<u8>>::new()
                 .with_name("block-cache")
                 .memory(1)
-                    // Disable the in-memory tier — this cache is disk-only.
-                    // Foyer is a hybrid (DRAM + disk) cache; setting the memory capacity
-                    // to 1 byte opts out of DRAM caching. All entries go directly to the
-                    // disk tier (FsDevice) below.
+                // Disable the in-memory tier — this cache is disk-only.
+                // Foyer is a hybrid (DRAM + disk) cache; setting the memory capacity
+                // to 1 byte opts out of DRAM caching. All entries go directly to the
+                // disk tier (FsDevice) below.
                 .storage()
                 // RecoverMode::Quiet recovers existing disk entries into Foyer's in-RAM
                 // index without raising an error on corrupted pages. Together with
@@ -358,10 +359,20 @@ impl FoyerCache {
         native_bridge_common::log_info!(
             "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, sweep_threshold={:.0}%, \
              persist_interval={}s, reinsertion={}, dir={}",
-            disk_bytes, block_size_bytes, io_engine_for_log,
+            disk_bytes,
+            block_size_bytes,
+            io_engine_for_log,
             sweep_threshold_ratio * 100.0,
-            if persist_interval_secs == 0 { "disabled".to_string() } else { persist_interval_secs.to_string() },
-            if reinsertion_admit_all { "AdmitAll" } else { "RejectAll" },
+            if persist_interval_secs == 0 {
+                "disabled".to_string()
+            } else {
+                persist_interval_secs.to_string()
+            },
+            if reinsertion_admit_all {
+                "AdmitAll"
+            } else {
+                "RejectAll"
+            },
             disk_dir.display()
         );
         // CancellationToken is Clone and Send — cheap to share with background tasks.
@@ -373,7 +384,7 @@ impl FoyerCache {
 
         // ── Construct instance ────────────────────────────────────────────────
         let sweep_threshold_atomic = Arc::new(AtomicU64::new(sweep_threshold_ratio.to_bits()));
-        let sweep_interval_atomic   = Arc::new(AtomicU64::new(sweep_interval_secs));
+        let sweep_interval_atomic = Arc::new(AtomicU64::new(sweep_interval_secs));
         let persist_interval_atomic = Arc::new(AtomicU64::new(persist_interval_secs));
 
         let mut instance = Self {
@@ -385,9 +396,9 @@ impl FoyerCache {
             sweep_cursor,
             disk_bytes,
             sweep_threshold_ratio: sweep_threshold_atomic,
-            sweep_interval_secs:   sweep_interval_atomic,
+            sweep_interval_secs: sweep_interval_atomic,
             persist_interval_secs: persist_interval_atomic,
-            cache_dir: disk_dir,  // move: dir_clone was consumed by block_on, disk_dir is still owned
+            cache_dir: disk_dir, // move: dir_clone was consumed by block_on, disk_dir is still owned
         };
 
         // Bulk-load key_index from disk.
@@ -472,11 +483,11 @@ impl FoyerCache {
         // scan) vs persisting (cheap file write).
         // persist_interval_secs > 0 required to spawn; 0 means disabled (Drop-only persist).
         if persist_interval_secs > 0 {
-            let persist_token     = instance.shutdown.clone();
+            let persist_token = instance.shutdown.clone();
             let persist_key_index = Arc::clone(&instance.key_index);
-            let persist_stats     = Arc::clone(&instance.stats);
-            let persist_dir       = instance.cache_dir.clone();
-            let persist_interval  = Duration::from_secs(persist_interval_secs);
+            let persist_stats = Arc::clone(&instance.stats);
+            let persist_dir = instance.cache_dir.clone();
+            let persist_interval = Duration::from_secs(persist_interval_secs);
 
             instance._runtime.spawn(async move {
                 native_bridge_common::log_info!(
@@ -575,7 +586,9 @@ impl FoyerCache {
 
         // Compute stats before moving snapshot.index into the DashMap.
         let total_loaded: usize = snapshot.index.values().map(|s| s.len()).sum();
-        let recovered_bytes: i64 = snapshot.index.values()
+        let recovered_bytes: i64 = snapshot
+            .index
+            .values()
             .flat_map(|keys| keys.iter())
             .map(|k| key_byte_size(k))
             .sum();
@@ -587,13 +600,18 @@ impl FoyerCache {
         }
 
         // Initialise used_bytes. No put() calls have happened yet so it is 0.
-        self.stats.used_bytes.fetch_add(recovered_bytes, Ordering::Relaxed);
+        self.stats
+            .used_bytes
+            .fetch_add(recovered_bytes, Ordering::Relaxed);
 
         let elapsed_ms = t0.elapsed().as_millis() as u64;
         native_bridge_common::log_info!(
             "[block-cache] key_index recovered: total_keys={} recovered_bytes={} \
              elapsed_ms={} prefix_buckets={}",
-            total_loaded, recovered_bytes, elapsed_ms, self.key_index.len()
+            total_loaded,
+            recovered_bytes,
+            elapsed_ms,
+            self.key_index.len()
         );
     }
 
@@ -616,7 +634,7 @@ impl FoyerCache {
         let shard_count = shards.len();
         let shard_idx = cursor.fetch_add(1, Ordering::Relaxed) % shard_count;
 
-        let mut shard = shards[shard_idx].write();         // write lock on ONE shard
+        let mut shard = shards[shard_idx].write(); // write lock on ONE shard
         let mut stale_removed = 0usize;
         let mut freed_bytes = 0i64;
 
@@ -644,8 +662,12 @@ impl FoyerCache {
         drop(shard);
 
         if stale_removed > 0 {
-            stats.eviction_count.fetch_add(stale_removed as i64, Ordering::Relaxed);
-            stats.eviction_bytes.fetch_add(freed_bytes, Ordering::Relaxed);
+            stats
+                .eviction_count
+                .fetch_add(stale_removed as i64, Ordering::Relaxed);
+            stats
+                .eviction_bytes
+                .fetch_add(freed_bytes, Ordering::Relaxed);
             stats.used_bytes.fetch_add(-freed_bytes, Ordering::Relaxed);
             native_bridge_common::log_info!(
                 "[block-cache] key_index_sweep: shard={} stale_removed={} freed_bytes={} key_index_size={}",
@@ -654,7 +676,8 @@ impl FoyerCache {
         } else {
             native_bridge_common::log_debug!(
                 "[block-cache] key_index_sweep: shard={} no stale entries, key_index_size={}",
-                shard_idx, key_index.len()
+                shard_idx,
+                key_index.len()
             );
         }
         stale_removed
@@ -667,7 +690,12 @@ impl FoyerCache {
     /// the `sweep_threshold_ratio` guard (that lives in the async task loop).
     #[cfg(test)]
     pub(crate) fn sweep_once(&self) -> usize {
-        Self::reconcile_key_index(&self.key_index, &self.inner, &self.stats, &self.sweep_cursor)
+        Self::reconcile_key_index(
+            &self.key_index,
+            &self.inner,
+            &self.stats,
+            &self.sweep_cursor,
+        )
     }
 
     /// Returns `true` if the current usage ratio is below the configured threshold,
@@ -692,9 +720,11 @@ impl FoyerCache {
 
     /// Update the sweep threshold ratio atomically. Takes effect on next tick.
     pub(crate) fn update_sweep_threshold(&self, new_ratio: f64) {
-        self.sweep_threshold_ratio.store(new_ratio.to_bits(), Ordering::Relaxed);
+        self.sweep_threshold_ratio
+            .store(new_ratio.to_bits(), Ordering::Relaxed);
         native_bridge_common::log_info!(
-            "[block-cache] sweep threshold updated live: {:.0}%", new_ratio * 100.0
+            "[block-cache] sweep threshold updated live: {:.0}%",
+            new_ratio * 100.0
         );
     }
 
@@ -706,8 +736,12 @@ impl FoyerCache {
 
     /// Update the persist interval live. `0` = disable periodic persist. Takes effect on next sleep.
     pub(crate) fn update_persist_interval(&self, new_secs: u64) {
-        self.persist_interval_secs.store(new_secs, Ordering::Relaxed);
-        native_bridge_common::log_info!("[block-cache] persist interval updated live: {}s", new_secs);
+        self.persist_interval_secs
+            .store(new_secs, Ordering::Relaxed);
+        native_bridge_common::log_info!(
+            "[block-cache] persist interval updated live: {}s",
+            new_secs
+        );
     }
 
     /// Clear all entries synchronously. Called from the FFM layer.
@@ -728,38 +762,47 @@ impl FoyerCache {
     /// `object_store::Path` (no leading slash) and keys from tests or
     /// direct path strings (with leading slash) both map to the same bucket.
     fn index_key(key: &str) -> &str {
-        let raw = if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key };
+        let raw = if let Some(pos) = key.find(SEPARATOR) {
+            &key[..pos]
+        } else {
+            key
+        };
         raw.trim_start_matches('/')
     }
 }
 
 impl BlockCache for FoyerCache {
-    fn as_any(&self) -> &dyn std::any::Any { self }
-    fn get<'a>(&'a self, key: &'a CacheKey)
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
-    {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn get<'a>(
+        &'a self,
+        key: &'a CacheKey,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>> {
         Box::pin(async {
-        let range_len = key.range_len() as i64;
-        // ActiveBytesGuard increments active_in_bytes on construction and decrements it in Drop.
-        // This ensures the counter is restored even if this future is dropped mid-execution
-        // (e.g. the caller uses tokio::select! with a timeout that fires before the disk read
-        // completes). Without the guard, a cancelled future would leave active_in_bytes elevated.
-        let _active_guard = ActiveBytesGuard::new(&self.stats.active_in_bytes, range_len);
+            let range_len = key.range_len() as i64;
+            // ActiveBytesGuard increments active_in_bytes on construction and decrements it in Drop.
+            // This ensures the counter is restored even if this future is dropped mid-execution
+            // (e.g. the caller uses tokio::select! with a timeout that fires before the disk read
+            // completes). Without the guard, a cancelled future would leave active_in_bytes elevated.
+            let _active_guard = ActiveBytesGuard::new(&self.stats.active_in_bytes, range_len);
 
-        match self.inner.get(&key.as_str().to_string()).await {
-            Ok(Some(e)) => {
-                let size = e.value().len() as i64;
-                self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
-                self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
-                Some(Bytes::copy_from_slice(e.value()))
+            match self.inner.get(&key.as_str().to_string()).await {
+                Ok(Some(e)) => {
+                    let size = e.value().len() as i64;
+                    self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
+                    self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
+                    Some(Bytes::copy_from_slice(e.value()))
+                }
+                _ => {
+                    self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
+                    self.stats
+                        .miss_bytes
+                        .fetch_add(range_len, Ordering::Relaxed);
+                    None
+                }
             }
-            _ => {
-                self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
-                self.stats.miss_bytes.fetch_add(range_len, Ordering::Relaxed);
-                None
-            }
-        }
-        // _active_guard dropped here — fetch_sub runs regardless of hit/miss/cancellation
+            // _active_guard dropped here — fetch_sub runs regardless of hit/miss/cancellation
         })
     }
 
@@ -785,7 +828,8 @@ impl BlockCache for FoyerCache {
     fn evict_prefix(&self, prefix: &str) {
         // Normalize prefix: object_store::Path strips leading '/' when building keys,
         let normalized = prefix.trim_start_matches('/');
-        let matching: Vec<String> = self.key_index
+        let matching: Vec<String> = self
+            .key_index
             .iter()
             .filter(|e| e.key().starts_with(normalized))
             .map(|e| e.key().clone())
@@ -808,9 +852,15 @@ impl BlockCache for FoyerCache {
         // on disk when evict_prefix() is called, so memory.remove() returns None and Event::Remove
         // never fires.
         if total_evicted > 0 {
-            self.stats.removed_count.fetch_add(total_evicted as i64, Ordering::Relaxed);
-            self.stats.removed_bytes.fetch_add(removed_bytes, Ordering::Relaxed);
-            self.stats.used_bytes.fetch_add(-removed_bytes, Ordering::Relaxed);
+            self.stats
+                .removed_count
+                .fetch_add(total_evicted as i64, Ordering::Relaxed);
+            self.stats
+                .removed_bytes
+                .fetch_add(removed_bytes, Ordering::Relaxed);
+            self.stats
+                .used_bytes
+                .fetch_add(-removed_bytes, Ordering::Relaxed);
         }
 
         native_bridge_common::log_info!(
@@ -821,33 +871,38 @@ impl BlockCache for FoyerCache {
 
     fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
-        // Accumulate removed stats from key_index before wiping.
-        // Slightly inaccurate: stale entries (disk-reclaimer-evicted but not yet swept)
-        // are counted as removed here rather than as evictions. Acceptable — mirrors how
-        // FileCache.clear() uses recordRemoval() per entry.
-        let mut total_removed = 0i64;
-        let mut total_removed_bytes = 0i64;
-        for entry in self.key_index.iter() {
-            for k in entry.value() {
-                total_removed += 1;
-                total_removed_bytes += key_byte_size(k);
+            // Accumulate removed stats from key_index before wiping.
+            // Slightly inaccurate: stale entries (disk-reclaimer-evicted but not yet swept)
+            // are counted as removed here rather than as evictions. Acceptable — mirrors how
+            // FileCache.clear() uses recordRemoval() per entry.
+            let mut total_removed = 0i64;
+            let mut total_removed_bytes = 0i64;
+            for entry in self.key_index.iter() {
+                for k in entry.value() {
+                    total_removed += 1;
+                    total_removed_bytes += key_byte_size(k);
+                }
             }
-        }
-        self.key_index.clear();
-        self.stats.used_bytes.store(0, Ordering::Relaxed);
-        if total_removed > 0 {
-            self.stats.removed_count.fetch_add(total_removed, Ordering::Relaxed);
-            self.stats.removed_bytes.fetch_add(total_removed_bytes, Ordering::Relaxed);
-        }
-        let _ = self.inner.clear().await;
+            self.key_index.clear();
+            self.stats.used_bytes.store(0, Ordering::Relaxed);
+            if total_removed > 0 {
+                self.stats
+                    .removed_count
+                    .fetch_add(total_removed, Ordering::Relaxed);
+                self.stats
+                    .removed_bytes
+                    .fetch_add(total_removed_bytes, Ordering::Relaxed);
+            }
+            let _ = self.inner.clear().await;
 
-        // Delete the persisted key_index files so the next startup does not bulk-load
-        // stale keys into a freshly-cleared cache.
-        if let Err(e) = key_index_store::delete(&self.cache_dir) {
-            native_bridge_common::log_info!(
-                "[block-cache] key_index clear: failed to delete snapshot files: {}", e
-            );
-        }
+            // Delete the persisted key_index files so the next startup does not bulk-load
+            // stale keys into a freshly-cleared cache.
+            if let Err(e) = key_index_store::delete(&self.cache_dir) {
+                native_bridge_common::log_info!(
+                    "[block-cache] key_index clear: failed to delete snapshot files: {}",
+                    e
+                );
+            }
         })
     }
 }

@@ -28,12 +28,22 @@ plans:
             OpenSearchAggregate(group=[{0, 1}], count()=[SUM($2)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
               OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
-    shard_physical: |
+    shard_physical_1seg: |
       ProjectionExec: expr=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase, count(Int64(1))[count]@2 as count()]
         SortPreservingMergeExec: [UserID@0 ASC, SearchPhrase@1 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[UserID@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
-              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ <scrubbed> ], pruning_predicate=<scrubbed>, required_guarantees=[]
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0, SearchPhrase@1], 4), input_partitions=1
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ <scrubbed> ]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase, count(Int64(1))[count]@2 as count()]
+        SortPreservingMergeExec: [UserID@0 ASC, SearchPhrase@1 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[UserID@0 ASC, SearchPhrase@1 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0, SearchPhrase@1], 4), input_partitions=2
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, SearchPhrase], file_type=parquet, predicate=DynamicFilter [ <scrubbed> ]
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.count())@0 as count(), UserID@1 as UserID, SearchPhrase@2 as SearchPhrase]
         SortPreservingMergeExec: [UserID@1 ASC, SearchPhrase@2 ASC], fetch=10

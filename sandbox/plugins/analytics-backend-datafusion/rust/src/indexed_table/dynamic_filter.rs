@@ -49,7 +49,10 @@ struct SingleRowGroupStatistics<'a> {
 }
 
 impl<'a> SingleRowGroupStatistics<'a> {
-    fn converter<'b>(&'a self, column: &'b Column) -> datafusion::common::Result<StatisticsConverter<'a>> {
+    fn converter<'b>(
+        &'a self,
+        column: &'b Column,
+    ) -> datafusion::common::Result<StatisticsConverter<'a>> {
         Ok(StatisticsConverter::try_new(
             &column.name,
             self.arrow_schema,
@@ -121,10 +124,7 @@ pub struct DynamicRgPruner {
 impl DynamicRgPruner {
     /// Build a pruner over `filter`. Returns `None` if `filter` is `None`
     /// (no dynamic filter was accepted), so the hot path can skip all work.
-    pub fn new(
-        filter: Option<Arc<dyn PhysicalExpr>>,
-        full_schema: SchemaRef,
-    ) -> Option<Self> {
+    pub fn new(filter: Option<Arc<dyn PhysicalExpr>>, full_schema: SchemaRef) -> Option<Self> {
         filter.map(|filter| Self {
             filter,
             full_schema,
@@ -232,10 +232,10 @@ mod tests {
     use super::*;
     use datafusion::arrow::array::{Int32Array, RecordBatch};
     use datafusion::arrow::datatypes::{DataType, Field};
+    use datafusion::logical_expr::Operator;
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
     use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
-    use datafusion::logical_expr::Operator;
     use tempfile::NamedTempFile;
 
     // Schema drift: the table schema orders columns differently from the segment's own
@@ -280,7 +280,10 @@ mod tests {
         let zero: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
         let expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(sev, Operator::GtEq, zero));
         let predicate = Arc::new(PruningPredicate::try_new(expr, table_schema.clone()).unwrap());
-        let ctx = RgPruningContext { predicate, schema: table_schema };
+        let ctx = RgPruningContext {
+            predicate,
+            schema: table_schema,
+        };
 
         assert!(
             !ctx.rg_provably_excluded(&md, 0),

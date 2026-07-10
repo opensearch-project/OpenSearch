@@ -7,12 +7,15 @@
  */
 package org.opensearch.arrow.flight.bootstrap;
 
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
+
+import java.util.Set;
 
 import static org.opensearch.arrow.flight.bootstrap.ServerConfig.SETTING_FLIGHT_PUBLISH_PORT;
 
@@ -95,6 +98,35 @@ public class ServerConfigTests extends OpenSearchTestCase {
             .build();
         assertEquals(TimeValue.timeValueSeconds(5), ServerConfig.FLIGHT_READY_TIMEOUT.get(overridden));
         assertEquals(16L * 1024 * 1024, ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(overridden).getBytes());
+    }
+
+    public void testKeepAliveDefaultsMatchGrpc() {
+        assertEquals(TimeValue.timeValueHours(2), ServerConfig.FLIGHT_KEEPALIVE_TIME.get(Settings.EMPTY));
+        assertEquals(TimeValue.timeValueSeconds(20), ServerConfig.FLIGHT_KEEPALIVE_TIMEOUT.get(Settings.EMPTY));
+    }
+
+    public void testKeepAliveTimeoutMustBeLessThanTime() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(ServerConfig.FLIGHT_KEEPALIVE_TIME, ServerConfig.FLIGHT_KEEPALIVE_TIMEOUT)
+        );
+        Settings equal = Settings.builder()
+            .put(ServerConfig.FLIGHT_KEEPALIVE_TIME.getKey(), TimeValue.timeValueSeconds(30))
+            .put(ServerConfig.FLIGHT_KEEPALIVE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(30))
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(equal, false));
+
+        Settings greater = Settings.builder()
+            .put(ServerConfig.FLIGHT_KEEPALIVE_TIME.getKey(), TimeValue.timeValueSeconds(30))
+            .put(ServerConfig.FLIGHT_KEEPALIVE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(40))
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(greater, false));
+
+        Settings ok = Settings.builder()
+            .put(ServerConfig.FLIGHT_KEEPALIVE_TIME.getKey(), TimeValue.timeValueSeconds(60))
+            .put(ServerConfig.FLIGHT_KEEPALIVE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(20))
+            .build();
+        clusterSettings.validate(ok, false);
     }
 
     public void testReadyTimeoutMinimum() {

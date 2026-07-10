@@ -11,9 +11,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Timelike, Utc, Weekday};
-use datafusion::arrow::array::{
-    Array, ArrayRef, AsArray, StringArray, TimestampMicrosecondArray,
-};
+use datafusion::arrow::array::{Array, ArrayRef, AsArray, StringArray, TimestampMicrosecondArray};
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{exec_err, plan_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
@@ -74,7 +72,11 @@ impl ScalarUDFImpl for StrftimeUdf {
             DataType::Timestamp(_, _) | DataType::Date32 | DataType::Date64 => {
                 DataType::Timestamp(TimeUnit::Microsecond, None)
             }
-            other => return plan_err!("strftime: arg 0 expected numeric/timestamp/date/string, got {other:?}"),
+            other => {
+                return plan_err!(
+                    "strftime: arg 0 expected numeric/timestamp/date/string, got {other:?}"
+                )
+            }
         };
         let format = match &arg_types[1] {
             t @ (DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View) => t.clone(),
@@ -113,12 +115,17 @@ impl ScalarUDFImpl for StrftimeUdf {
         let format_array = args.args[1].clone().into_array(n)?;
         let out: StringArray = match value_array.data_type() {
             DataType::Float64 => {
-                let values = value_array.as_primitive::<datafusion::arrow::datatypes::Float64Type>();
+                let values =
+                    value_array.as_primitive::<datafusion::arrow::datatypes::Float64Type>();
                 (0..n)
-                    .map(|i| if values.is_null(i) { None } else {
-                        match format_at(&format_array, i) {
-                            Ok(Some(f)) => render_from_seconds(values.value(i), Some(&f)),
-                            _ => None,
+                    .map(|i| {
+                        if values.is_null(i) {
+                            None
+                        } else {
+                            match format_at(&format_array, i) {
+                                Ok(Some(f)) => render_from_seconds(values.value(i), Some(&f)),
+                                _ => None,
+                            }
                         }
                     })
                     .collect()
@@ -129,15 +136,23 @@ impl ScalarUDFImpl for StrftimeUdf {
                     .downcast_ref::<TimestampMicrosecondArray>()
                     .expect("coerce_types canonicalizes to TimestampMicrosecond");
                 (0..n)
-                    .map(|i| if values.is_null(i) { None } else {
-                        match format_at(&format_array, i) {
-                            Ok(Some(f)) => render_from_micros(values.value(i), Some(&f)),
-                            _ => None,
+                    .map(|i| {
+                        if values.is_null(i) {
+                            None
+                        } else {
+                            match format_at(&format_array, i) {
+                                Ok(Some(f)) => render_from_micros(values.value(i), Some(&f)),
+                                _ => None,
+                            }
                         }
                     })
                     .collect()
             }
-            other => return exec_err!("strftime: unsupported value array type after coercion: {other:?}"),
+            other => {
+                return exec_err!(
+                    "strftime: unsupported value array type after coercion: {other:?}"
+                )
+            }
         };
         Ok(ColumnarValue::Array(Arc::new(out) as ArrayRef))
     }
@@ -275,16 +290,34 @@ fn format_with_directives(dt: DateTime<Utc>, format: &str) -> String {
 fn append_simple_directive(out: &mut String, dt: DateTime<Utc>, directive: u8) -> bool {
     let h12 = {
         let h = dt.hour() % 12;
-        if h == 0 { 12 } else { h }
+        if h == 0 {
+            12
+        } else {
+            h
+        }
     };
     match directive {
         b'%' => out.push('%'),
-        b'c' => out.push_str(&format!("{} {} {:02} {:02}:{:02}:{:02} {:04}",
-            weekday_short(dt.weekday()), month_short(dt.month()),
-            dt.day(), dt.hour(), dt.minute(), dt.second(), dt.year())),
-        b'+' => out.push_str(&format!("{} {} {:02} {:02}:{:02}:{:02} UTC {:04}",
-            weekday_short(dt.weekday()), month_short(dt.month()),
-            dt.day(), dt.hour(), dt.minute(), dt.second(), dt.year())),
+        b'c' => out.push_str(&format!(
+            "{} {} {:02} {:02}:{:02}:{:02} {:04}",
+            weekday_short(dt.weekday()),
+            month_short(dt.month()),
+            dt.day(),
+            dt.hour(),
+            dt.minute(),
+            dt.second(),
+            dt.year()
+        )),
+        b'+' => out.push_str(&format!(
+            "{} {} {:02} {:02}:{:02}:{:02} UTC {:04}",
+            weekday_short(dt.weekday()),
+            month_short(dt.month()),
+            dt.day(),
+            dt.hour(),
+            dt.minute(),
+            dt.second(),
+            dt.year()
+        )),
         b'f' => out.push_str(&format!("{:06}", dt.nanosecond() / 1000)),
         b'H' => out.push_str(&format!("{:02}", dt.hour())),
         b'I' => out.push_str(&format!("{:02}", h12)),
@@ -293,11 +326,26 @@ fn append_simple_directive(out: &mut String, dt: DateTime<Utc>, directive: u8) -
         b'p' => out.push_str(if dt.hour() < 12 { "AM" } else { "PM" }),
         b'S' => out.push_str(&format!("{:02}", dt.second())),
         b's' => out.push_str(&dt.timestamp().to_string()),
-        b'T' | b'X' => out.push_str(&format!("{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second())),
+        b'T' | b'X' => out.push_str(&format!(
+            "{:02}:{:02}:{:02}",
+            dt.hour(),
+            dt.minute(),
+            dt.second()
+        )),
         b'Z' => out.push_str("UTC"),
         b'z' => out.push_str("+0000"),
-        b'F' => out.push_str(&format!("{:04}-{:02}-{:02}", dt.year(), dt.month(), dt.day())),
-        b'x' => out.push_str(&format!("{:02}/{:02}/{:04}", dt.month(), dt.day(), dt.year())),
+        b'F' => out.push_str(&format!(
+            "{:04}-{:02}-{:02}",
+            dt.year(),
+            dt.month(),
+            dt.day()
+        )),
+        b'x' => out.push_str(&format!(
+            "{:02}/{:02}/{:04}",
+            dt.month(),
+            dt.day(),
+            dt.year()
+        )),
         b'A' => out.push_str(weekday_full(dt.weekday())),
         b'a' => out.push_str(weekday_short(dt.weekday())),
         b'w' => out.push_str(&weekday_numeric_sunday_zero(dt.weekday()).to_string()),
@@ -351,47 +399,91 @@ fn append_subsecond(out: &mut String, dt: DateTime<Utc>, kind: u8, precision: us
 
 fn weekday_short(w: Weekday) -> &'static str {
     match w {
-        Weekday::Mon => "Mon", Weekday::Tue => "Tue", Weekday::Wed => "Wed",
-        Weekday::Thu => "Thu", Weekday::Fri => "Fri", Weekday::Sat => "Sat", Weekday::Sun => "Sun",
+        Weekday::Mon => "Mon",
+        Weekday::Tue => "Tue",
+        Weekday::Wed => "Wed",
+        Weekday::Thu => "Thu",
+        Weekday::Fri => "Fri",
+        Weekday::Sat => "Sat",
+        Weekday::Sun => "Sun",
     }
 }
 
 fn weekday_full(w: Weekday) -> &'static str {
     match w {
-        Weekday::Mon => "Monday", Weekday::Tue => "Tuesday", Weekday::Wed => "Wednesday",
-        Weekday::Thu => "Thursday", Weekday::Fri => "Friday",
-        Weekday::Sat => "Saturday", Weekday::Sun => "Sunday",
+        Weekday::Mon => "Monday",
+        Weekday::Tue => "Tuesday",
+        Weekday::Wed => "Wednesday",
+        Weekday::Thu => "Thursday",
+        Weekday::Fri => "Friday",
+        Weekday::Sat => "Saturday",
+        Weekday::Sun => "Sunday",
     }
 }
 
 fn weekday_numeric_sunday_zero(w: Weekday) -> u32 {
     match w {
-        Weekday::Sun => 0, Weekday::Mon => 1, Weekday::Tue => 2, Weekday::Wed => 3,
-        Weekday::Thu => 4, Weekday::Fri => 5, Weekday::Sat => 6,
+        Weekday::Sun => 0,
+        Weekday::Mon => 1,
+        Weekday::Tue => 2,
+        Weekday::Wed => 3,
+        Weekday::Thu => 4,
+        Weekday::Fri => 5,
+        Weekday::Sat => 6,
     }
 }
 
 fn month_short(m: u32) -> &'static str {
-    ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        .get(m as usize).copied().unwrap_or("")
+    [
+        "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+    .get(m as usize)
+    .copied()
+    .unwrap_or("")
 }
 
 fn month_full(m: u32) -> &'static str {
-    ["", "January", "February", "March", "April", "May", "June",
-     "July", "August", "September", "October", "November", "December"]
-        .get(m as usize).copied().unwrap_or("")
+    [
+        "",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ]
+    .get(m as usize)
+    .copied()
+    .unwrap_or("")
 }
 
 /// `%U` — week of year, Sunday-start; week 0 is the partial week before the
 /// first Sunday of the year (matches `WeekFields.SUNDAY_START.weekOfYear() - 1`).
 fn week_of_year_sunday_start(dt: DateTime<Utc>) -> u32 {
     let doy = dt.ordinal();
-    let jan1 = NaiveDate::from_ymd_opt(dt.year(), 1, 1).expect("valid jan 1").weekday();
+    let jan1 = NaiveDate::from_ymd_opt(dt.year(), 1, 1)
+        .expect("valid jan 1")
+        .weekday();
     let days_to_first_sunday = match jan1 {
-        Weekday::Sun => 1, Weekday::Mon => 7, Weekday::Tue => 6, Weekday::Wed => 5,
-        Weekday::Thu => 4, Weekday::Fri => 3, Weekday::Sat => 2,
+        Weekday::Sun => 1,
+        Weekday::Mon => 7,
+        Weekday::Tue => 6,
+        Weekday::Wed => 5,
+        Weekday::Thu => 4,
+        Weekday::Fri => 3,
+        Weekday::Sat => 2,
     };
-    if doy < days_to_first_sunday { 0 } else { (doy - days_to_first_sunday) / 7 + 1 }
+    if doy < days_to_first_sunday {
+        0
+    } else {
+        (doy - days_to_first_sunday) / 7 + 1
+    }
 }
 
 #[cfg(test)]
@@ -436,7 +528,10 @@ mod tests {
         utf8_scalar(
             invoke(
                 args,
-                &[DataType::Timestamp(TimeUnit::Microsecond, None), DataType::Utf8],
+                &[
+                    DataType::Timestamp(TimeUnit::Microsecond, None),
+                    DataType::Utf8,
+                ],
                 1,
             )
             .unwrap(),
@@ -460,7 +555,10 @@ mod tests {
 
     #[test]
     fn integer_seconds_ymd_hms() {
-        assert_eq!(call_f64(1521467703.0, "%Y-%m-%d %H:%M:%S").unwrap(), "2018-03-19 13:55:03");
+        assert_eq!(
+            call_f64(1521467703.0, "%Y-%m-%d %H:%M:%S").unwrap(),
+            "2018-03-19 13:55:03"
+        );
     }
 
     #[test]
@@ -473,7 +571,10 @@ mod tests {
 
     #[test]
     fn negative_epoch_rendering() {
-        assert_eq!(call_f64(-1.0, "%Y-%m-%d %H:%M:%S").unwrap(), "1969-12-31 23:59:59");
+        assert_eq!(
+            call_f64(-1.0, "%Y-%m-%d %H:%M:%S").unwrap(),
+            "1969-12-31 23:59:59"
+        );
         assert_eq!(call_f64(-86400.0, "%Y-%m-%d").unwrap(), "1969-12-31");
         assert_eq!(call_f64(-31_536_000.0, "%Y-%m-%d").unwrap(), "1969-01-01");
         assert_eq!(call_f64(-946_771_200.0, "%Y-%m-%d").unwrap(), "1940-01-01");
@@ -481,8 +582,14 @@ mod tests {
 
     #[test]
     fn timestamp_micros_renders_date_and_time() {
-        assert_eq!(call_ts_us(1_521_467_703_000_000, "%F").unwrap(), "2018-03-19");
-        assert_eq!(call_ts_us(1_521_467_703_000_000, "%H:%M:%S").unwrap(), "13:55:03");
+        assert_eq!(
+            call_ts_us(1_521_467_703_000_000, "%F").unwrap(),
+            "2018-03-19"
+        );
+        assert_eq!(
+            call_ts_us(1_521_467_703_000_000, "%H:%M:%S").unwrap(),
+            "13:55:03"
+        );
     }
 
     #[test]
@@ -559,7 +666,11 @@ mod tests {
 
     #[test]
     fn array_f64_with_scalar_format() {
-        let arr: ArrayRef = Arc::new(Float64Array::from(vec![Some(1521467703.0), None, Some(-86400.0)]));
+        let arr: ArrayRef = Arc::new(Float64Array::from(vec![
+            Some(1521467703.0),
+            None,
+            Some(-86400.0),
+        ]));
         let u = udf();
         let args = ScalarFunctionArgs {
             args: vec![
@@ -575,7 +686,9 @@ mod tests {
             config_options: Arc::new(Default::default()),
         };
         let out = u.invoke_with_args(args).unwrap();
-        let ColumnarValue::Array(a) = out else { panic!("expected array"); };
+        let ColumnarValue::Array(a) = out else {
+            panic!("expected array");
+        };
         let s = a.as_string::<i32>();
         assert_eq!(s.value(0), "2018-03-19");
         assert!(s.is_null(1));
@@ -586,20 +699,37 @@ mod tests {
     fn coerce_types_folds_inputs() {
         let u = udf();
         // Numeric + string fold onto Float64.
-        for t in [DataType::Int64, DataType::Int32, DataType::UInt8, DataType::Float32, DataType::Utf8] {
-            assert_eq!(u.coerce_types(&[t.clone(), DataType::Utf8]).unwrap()[0], DataType::Float64, "{t:?}");
+        for t in [
+            DataType::Int64,
+            DataType::Int32,
+            DataType::UInt8,
+            DataType::Float32,
+            DataType::Utf8,
+        ] {
+            assert_eq!(
+                u.coerce_types(&[t.clone(), DataType::Utf8]).unwrap()[0],
+                DataType::Float64,
+                "{t:?}"
+            );
         }
         // Temporal types fold onto Timestamp(us).
         let canonical = DataType::Timestamp(TimeUnit::Microsecond, None);
         for t in [
-            DataType::Date32, DataType::Date64,
+            DataType::Date32,
+            DataType::Date64,
             DataType::Timestamp(TimeUnit::Millisecond, None),
             DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
         ] {
-            assert_eq!(u.coerce_types(&[t.clone(), DataType::Utf8]).unwrap()[0], canonical, "{t:?}");
+            assert_eq!(
+                u.coerce_types(&[t.clone(), DataType::Utf8]).unwrap()[0],
+                canonical,
+                "{t:?}"
+            );
         }
         // Non-numeric / non-temporal rejected.
-        let err = u.coerce_types(&[DataType::Boolean, DataType::Utf8]).unwrap_err();
+        let err = u
+            .coerce_types(&[DataType::Boolean, DataType::Utf8])
+            .unwrap_err();
         assert!(err.to_string().contains("expected numeric/timestamp"));
         // Int64 shape sanity — exercised by the array test above.
         let _arr: ArrayRef = Arc::new(Int64Array::from(vec![Some(1521467703i64)]));

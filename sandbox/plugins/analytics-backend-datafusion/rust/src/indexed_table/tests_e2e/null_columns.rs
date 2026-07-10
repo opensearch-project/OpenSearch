@@ -333,10 +333,10 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
-            sort_min: None,
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = Arc::new(bt);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
@@ -363,7 +363,8 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 page_prune_metrics: None,
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

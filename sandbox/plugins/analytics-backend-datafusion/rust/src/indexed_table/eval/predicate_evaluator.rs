@@ -22,7 +22,9 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_optimizer::pruning::PruningPredicate;
 use roaring::RoaringBitmap;
 
-use super::eval_helpers::{compute_page_ranges, evaluate_residual, universe_bitmap_from_page_ranges};
+use super::eval_helpers::{
+    compute_page_ranges, evaluate_residual, universe_bitmap_from_page_ranges,
+};
 use super::{PrefetchedRg, RowGroupBitsetSource};
 use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner, StatsPruneTree};
 use crate::indexed_table::row_selection::{bitmap_to_packed_bits, PositionMap};
@@ -159,8 +161,19 @@ mod tests {
             rg_can_match: vec![false],
             children: vec![],
         };
-        let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
-        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let eval = PredicateOnlyEvaluator::new(
+            pruner,
+            None,
+            None,
+            None,
+            Some(Arc::new(spt)),
+            HashMap::from([(0, 0)]),
+        );
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
         assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
     }
 
@@ -171,9 +184,23 @@ mod tests {
             rg_can_match: vec![true],
             children: vec![],
         };
-        let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
-        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
-        let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("should have candidates");
+        let eval = PredicateOnlyEvaluator::new(
+            pruner,
+            None,
+            None,
+            None,
+            Some(Arc::new(spt)),
+            HashMap::from([(0, 0)]),
+        );
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("should have candidates");
         assert_eq!(prefetched.candidates.len(), 8);
     }
 
@@ -181,8 +208,15 @@ mod tests {
     fn stats_prune_tree_none_does_not_prune() {
         let pruner = minimal_page_pruner();
         let eval = PredicateOnlyEvaluator::new(pruner, None, None, None, None, HashMap::new());
-        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
-        let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("should have candidates");
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("should have candidates");
         assert_eq!(prefetched.candidates.len(), 8);
     }
 }
