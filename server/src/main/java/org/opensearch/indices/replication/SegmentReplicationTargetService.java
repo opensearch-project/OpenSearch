@@ -295,23 +295,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      * @param receivedCheckpoint received checkpoint that is checked for processing
      * @param replicaShard       replica shard on which checkpoint is received
      */
-    public void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        onNewCheckpoint(receivedCheckpoint, replicaShard, false);
-    }
-
-    /**
-     * Invoked when a new checkpoint is received from a primary shard.
-     * It checks if a new checkpoint should be processed or not and starts replication if needed.
-     *
-     * @param receivedCheckpoint received checkpoint that is checked for processing
-     * @param replicaShard       replica shard on which checkpoint is received
-     * @param isRetry            is it a retry after failure
-     */
-    public synchronized void onNewCheckpoint(
-        final ReplicationCheckpoint receivedCheckpoint,
-        final IndexShard replicaShard,
-        boolean isRetry
-    ) {
+    public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
         logger.debug(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
         // if the shard is in any state
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
@@ -348,7 +332,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
             final Thread thread = Thread.currentThread();
             if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
-                startReplication(replicaShard, receivedCheckpoint, isRetry, new SegmentReplicationListener() {
+                startReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
                         logger.debug(
@@ -382,7 +366,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         if (sendShardFailure == true) {
                             failShard(e, replicaShard);
                         } else {
-                            processLatestReceivedCheckpoint(replicaShard, thread, true);
+                            processLatestReceivedCheckpoint(replicaShard, thread);
                         }
                     }
                 });
@@ -497,11 +481,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        return processLatestReceivedCheckpoint(replicaShard, thread, false);
-    }
-
-    // visible to tests
-    protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread, boolean isRetry) {
         final ReplicationCheckpoint latestPublishedCheckpoint = replicator.getPrimaryCheckpoint(replicaShard.shardId());
         if (latestPublishedCheckpoint != null) {
             logger.trace(
@@ -515,7 +494,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                 // if we retry ensure the shard is not in the process of being closed.
                 // it will be removed from indexService's collection before the shard is actually marked as closed.
                 if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
-                    onNewCheckpoint(replicator.getPrimaryCheckpoint(replicaShard.shardId()), replicaShard, isRetry);
+                    onNewCheckpoint(replicator.getPrimaryCheckpoint(replicaShard.shardId()), replicaShard);
                 }
             };
             // Checks if we are using same thread and forks if necessary.
@@ -546,24 +525,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
         final ReplicationCheckpoint checkpoint,
         final SegmentReplicationListener listener
     ) {
-        return startReplication(indexShard, checkpoint, false, listener);
-    }
-
-    /**
-     * Start a round of replication and sync to at least the given checkpoint.
-     * @param indexShard - {@link IndexShard} replica shard
-     * @param checkpoint - {@link ReplicationCheckpoint} checkpoint to sync to
-     * @param isRetry - is it a retry after failure
-     * @param listener - {@link ReplicationListener}
-     * @return {@link SegmentReplicationTarget} target event orchestrating the event.
-     */
-    public SegmentReplicationTarget startReplication(
-        final IndexShard indexShard,
-        final ReplicationCheckpoint checkpoint,
-        final boolean isRetry,
-        final SegmentReplicationListener listener
-    ) {
-        return replicator.startReplication(indexShard, checkpoint, sourceFactory.get(indexShard), isRetry, listener);
+        return replicator.startReplication(indexShard, checkpoint, sourceFactory.get(indexShard), listener);
     }
 
     // pkg-private for integration tests

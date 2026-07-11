@@ -36,6 +36,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
@@ -254,6 +255,22 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 fail("unexpected exception: " + e);
+            }
+        });
+    }
+
+    public void testCheckpointInfoDuringPrimaryHandOff() {
+        when(mockIndexShard.isHandoffInProgress()).thenReturn(true);
+        executeGetCheckpointInfo(new ActionListener<>() {
+            @Override
+            public void onResponse(CheckpointInfoResponse response) {
+                Assert.fail("Expected replication to fail due to primary shard hand off");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof RemoteTransportException);
+                assertTrue(e.getCause().getMessage().contains("must be a started primary shard that is not in the hand-off process"));
             }
         });
     }

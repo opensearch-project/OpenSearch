@@ -4830,6 +4830,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (getReplicationTracker().isPrimaryMode() && state() == IndexShardState.STARTED);
     }
 
+    public boolean isHandoffInProgress() {
+        return (getReplicationTracker().isHandoffInProgress());
+    }
+
     public boolean enableUploadToRemoteTranslog() {
         return isStartedPrimary() || (shouldSeedRemoteStore() && hasOneRemoteSegmentSyncHappened());
     }
