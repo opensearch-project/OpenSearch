@@ -12,11 +12,14 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.FileOutputStream;
+import java.io.FilePermission;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
@@ -34,6 +37,10 @@ public class FileInterceptorNegativeIntegTests {
         return integTestFiles;
     }
 
+    private static String getJacocoDirPermissionPath() {
+        return Path.of(System.getProperty("user.dir")).resolve("../../jacoco").normalize() + "/-";
+    }
+
     private String randomAlphaOfLength(int length) {
         // Using UUID to generate random string and taking first 'length' characters
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, length);
@@ -45,7 +52,19 @@ public class FileInterceptorNegativeIntegTests {
             @Override
             public PermissionCollection getPermissions(ProtectionDomain domain) {
                 Permissions permissions = new Permissions();
+                permissions.add(new FilePermission(getJacocoDirPermissionPath(), "write"));
                 return permissions;
+            }
+
+            @Override
+            public boolean implies(ProtectionDomain domain, Permission permission) {
+                final PermissionCollection pc = getPermissions(domain);
+
+                if (pc == null) {
+                    return false;
+                }
+
+                return pc.implies(permission);
             }
         };
         AgentPolicy.setPolicy(policy);
@@ -153,5 +172,15 @@ public class FileInterceptorNegativeIntegTests {
         // Verify error when calling newOutputStream
         SecurityException exception = assertThrows(SecurityException.class, () -> Files.newOutputStream(tempPath));
         assertTrue(exception.getMessage().contains("Denied OPEN (read/write) access to file"));
+    }
+
+    @Test
+    public void testFileOutputStream() throws Exception {
+        Path tmpDir = getTestDir();
+        Path tempPath = tmpDir.resolve("test-output-stream-" + randomAlphaOfLength(8) + ".txt");
+
+        // Verify error when opening legacy output stream
+        SecurityException exception = assertThrows(SecurityException.class, () -> new FileOutputStream(tempPath.toFile()));
+        assertTrue(exception.getMessage().contains("Denied WRITE access to file"));
     }
 }

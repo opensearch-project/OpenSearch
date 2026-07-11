@@ -13,7 +13,6 @@ import org.opensearch.javaagent.bootstrap.internal.SubjectInterceptor;
 import javax.security.auth.Subject;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.lang.instrument.Instrumentation;
 import java.net.Socket;
 import java.nio.channels.FileChannel;
@@ -82,6 +81,7 @@ public class Agent {
         final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
         final Junction<TypeDescription> fileSystemProviderType = ElementMatchers.isSubTypeOf(FileSystemProvider.class);
         final Junction<TypeDescription> fileInputStreamType = ElementMatchers.named("java.io.FileInputStream");
+        final Junction<TypeDescription> fileOutputStreamType = ElementMatchers.named("java.io.FileOutputStream");
 
         final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
@@ -94,7 +94,18 @@ public class Agent {
 
         final AgentBuilder.Transformer fileInputStreamTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(FileInputStreamInterceptor.class)
-                .on(ElementMatchers.isConstructor().and(ElementMatchers.takesArgument(0, String.class).or(ElementMatchers.takesArgument(0, File.class))))
+                .on(
+                    ElementMatchers.isConstructor()
+                        .and(ElementMatchers.takesArgument(0, String.class).or(ElementMatchers.takesArgument(0, File.class)))
+                )
+        );
+
+        final AgentBuilder.Transformer fileOutputStreamTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
+            Advice.to(FileOutputStreamInterceptor.class)
+                .on(
+                    ElementMatchers.isConstructor()
+                        .and(ElementMatchers.takesArgument(0, String.class).or(ElementMatchers.takesArgument(0, File.class)))
+                )
         );
 
         final AgentBuilder.Transformer subjectTransformer = (b, typeDescription, classLoader, module, pd) -> b.method(
@@ -113,6 +124,8 @@ public class Agent {
             .transform(fileTransformer)
             .type(fileInputStreamType)
             .transform(fileInputStreamTransformer)
+            .type(fileOutputStreamType)
+            .transform(fileOutputStreamTransformer)
             .type(ElementMatchers.is(java.lang.System.class))
             .transform(
                 (b, typeDescription, classLoader, module, pd) -> b.visit(

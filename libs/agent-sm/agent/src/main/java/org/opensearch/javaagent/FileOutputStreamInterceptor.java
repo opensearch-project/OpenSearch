@@ -21,19 +21,19 @@ import java.util.Collection;
 import net.bytebuddy.asm.Advice;
 
 /**
- * Interceptor for java.io.FileInputStream to enforce file read permissions.
+ * Interceptor for java.io.FileOutputStream to enforce file write permissions.
  * This closes the gap where legacy IO file access bypasses the NIO-based FileInterceptor.
  */
-public class FileInputStreamInterceptor {
+public class FileOutputStreamInterceptor {
     /**
-     * FileInputStreamInterceptor
+     * FileOutputStreamInterceptor
      */
-    public FileInputStreamInterceptor() {}
+    public FileOutputStreamInterceptor() {}
 
     /**
-     * Intercepts FileInputStream constructor that takes a File argument
+     * Intercepts FileOutputStream constructors that take a String or File argument.
      *
-     * @param file the File being opened for reading
+     * @param file the file being opened for writing
      * @throws SecurityException if access is denied
      */
     @Advice.OnMethodEnter
@@ -58,10 +58,10 @@ public class FileInputStreamInterceptor {
         final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
         final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
-        final FilePermission permission = new FilePermission(filePath, "read");
+        final FilePermission permission = new FilePermission(filePath, "write");
         for (ProtectionDomain domain : callers) {
             if (!policy.implies(domain, permission)) {
-                throw new SecurityException("Denied READ access to file: " + filePath + ", domain: " + domain);
+                throw new SecurityException("Denied WRITE access to file: " + filePath + ", domain: " + domain);
             }
         }
     }
