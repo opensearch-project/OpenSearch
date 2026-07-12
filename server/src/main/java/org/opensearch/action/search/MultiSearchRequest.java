@@ -268,6 +268,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.routing(nodeStringValue(value, null));
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
+                        } else if ("node_level_query_fanout".equals(entry.getKey()) || "nodeLevelQueryFanout".equals(entry.getKey())) {
+                            searchRequest.nodeLevelQueryFanout(nodeBooleanValue(value, null));
                         } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
                             expandWildcards = value;
                         } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
@@ -378,6 +380,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.allowPartialSearchResults() != null) {
             xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
+        }
+        if (request.nodeLevelQueryFanout() != null) {
+            xContentBuilder.field("node_level_query_fanout", request.nodeLevelQueryFanout());
         }
         if (request.getCancelAfterTimeInterval() != null) {
             xContentBuilder.field("cancel_after_time_interval", request.getCancelAfterTimeInterval().getStringRep());

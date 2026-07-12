@@ -38,6 +38,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
@@ -67,7 +68,9 @@ import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -263,11 +266,143 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
+            if (tryDispatchByNode()) {
+                return;
+            }
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
                 performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
             }
+        }
+    }
+
+    protected boolean tryDispatchByNode() {
+        if (supportsNodeLevelFanout() == false) {
+            return false;
+        }
+        if (request.scroll() != null || request.pointInTimeBuilder() != null || request.searchType() != SearchType.QUERY_THEN_FETCH) {
+            return false;
+        }
+        final Map<Transport.Connection, List<NodeGroupEntry>> groups = new ConcurrentHashMap<>();
+        for (int index = 0; index < shardsIts.size(); index++) {
+            final SearchShardIterator shardIt = shardsIts.get(index);
+            final SearchShardTarget target = shardIt.nextOrNull();
+            // We only support node level fanout for indices on the local cluster
+            if (target == null || target.getClusterAlias() != null) {
+                return resetAndFallbackNodeLevelFanout();
+            }
+            Transport.Connection connection;
+            try {
+                connection = getConnection(null, target.getNodeId());
+            } catch (Exception ignored) {
+                connection = null;
+            }
+            if (connection == null || connection.getVersion().before(Version.V_3_8_0)) {
+                return resetAndFallbackNodeLevelFanout();
+            }
+            groups.computeIfAbsent(connection, k -> new ArrayList<>()).add(new NodeGroupEntry(index, shardIt, target));
+        }
+        for (Map.Entry<Transport.Connection, List<NodeGroupEntry>> entry : groups.entrySet()) {
+            sendNodeBatch(entry.getKey(), entry.getValue(), 0, nodeLevelBatchSize());
+        }
+        return true;
+    }
+
+    protected boolean supportsNodeLevelFanout() {
+        return false;
+    }
+
+    protected ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest shardSearchRequest) {
+        return shardSearchRequest;
+    }
+
+    protected int nodeLevelBatchSize() {
+        return Math.max(1, request.getMaxConcurrentShardRequests());
+    }
+
+    protected void sendNodeSearchRequest(
+        Transport.Connection connection,
+        NodeSearchRequest request,
+        List<NodeGroupEntry> batch,
+        Runnable nextBatch
+    ) {
+        throw new UnsupportedOperationException("node-level fanout is not implemented for phase [" + getName() + "]");
+    }
+
+    private boolean resetAndFallbackNodeLevelFanout() {
+        for (SearchShardIterator it : shardsIts) {
+            it.reset();
+        }
+        return false;
+    }
+
+    private void sendNodeBatch(
+        final Transport.Connection connection,
+        final List<NodeGroupEntry> group,
+        final int from,
+        final int batchSize
+    ) {
+        final int to = Math.min(from + batchSize, group.size());
+        final List<NodeGroupEntry> batch = group.subList(from, to);
+        final List<ShardId> shardIds = new ArrayList<>(batch.size());
+        final Set<String> indexUuids = new HashSet<>();
+        final List<AliasFilter> batchAliasFilters = new ArrayList<>();
+        final float[] batchIndexBoosts = new float[batch.size()];
+        final List<String[]> batchIndexRoutings = new ArrayList<>();
+        int indexMaterialCount = 0;
+        OriginalIndices originalIndices = null;
+        for (NodeGroupEntry entry : batch) {
+            final SearchShardIterator shardIt = entry.shardIt;
+            if (originalIndices == null) {
+                originalIndices = shardIt.getOriginalIndices();
+            }
+            final String indexUuid = shardIt.shardId().getIndex().getUUID();
+            shardIds.add(shardIt.shardId());
+            if (indexUuids.add(indexUuid)) {
+                final AliasFilter filter = aliasFilter.get(indexUuid);
+                assert filter != null;
+                final String indexName = shardIt.shardId().getIndex().getName();
+                batchAliasFilters.add(filter);
+                batchIndexBoosts[indexMaterialCount++] = concreteIndexBoosts.getOrDefault(indexUuid, DEFAULT_INDEX_BOOST);
+                batchIndexRoutings.add(indexRoutings.getOrDefault(indexName, Collections.emptySet()).toArray(new String[0]));
+            }
+        }
+        final ShardSearchRequest shardSearchRequest = rewriteShardSearchRequest(buildShardSearchRequest(batch.get(0).shardIt));
+        final SearchRequest searchRequest = new SearchRequest().searchType(shardSearchRequest.searchType())
+            .requestCache(shardSearchRequest.requestCache())
+            .allowPartialSearchResults(shardSearchRequest.allowPartialSearchResults())
+            .preference(shardSearchRequest.preference());
+        if (shardSearchRequest.source() != null) {
+            searchRequest.source(shardSearchRequest.source());
+        }
+        final NodeSearchRequest nodeRequest = new NodeSearchRequest(
+            originalIndices,
+            searchRequest,
+            getNumShards(),
+            timeProvider.getAbsoluteStartMillis(),
+            shardSearchRequest.getBottomSortValues(),
+            shardIds,
+            batchAliasFilters,
+            Arrays.copyOf(batchIndexBoosts, indexMaterialCount),
+            batchIndexRoutings
+        );
+        sendNodeSearchRequest(connection, nodeRequest, batch, () -> {
+            if (to < group.size()) {
+                sendNodeBatch(connection, group, to, batchSize);
+            }
+        });
+    }
+
+    protected static final class NodeGroupEntry {
+        final int shardIndex;
+        final SearchShardIterator shardIt;
+        final SearchShardTarget target;
+
+        NodeGroupEntry(int shardIndex, SearchShardIterator shardIt, SearchShardTarget target) {
+            this.shardIndex = shardIndex;
+            this.shardIt = shardIt;
+            this.target = target;
         }
     }
 

@@ -65,6 +65,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.Aggregations;
@@ -98,6 +99,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchIT extends OpenSearchIntegTestCase {
+    private static final String FAILING_INDEX_NAME = "failing-index";
+
     public static class TestPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<AggregationSpec> getAggregations() {
@@ -232,6 +235,181 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value());
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
+        }
+    }
+
+    public void testNodeLevelQueryFanoutSearches() {
+        String index = "test1";
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey(), true).build())
+        );
+        try {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index)
+                    .setSettings(
+                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+            );
+            ensureGreen(index);
+            for (int i = 0; i < 6; i++) {
+                client().prepareIndex(index)
+                    .setId(Integer.toString(i))
+                    .setSource("field", "value-" + i)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+            }
+
+            final SearchRequest searchRequest = new SearchRequest(index);
+            searchRequest.setMaxConcurrentShardRequests(2);
+            final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(6, searchResponse.getTotalShards());
+            assertEquals(6L, searchResponse.getHits().getTotalHits().value());
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey()).build())
+            );
+        }
+    }
+
+    public void testNodeLevelQueryRunsCanMatchThenQuery() {
+        String index = "index-1";
+        try {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index)
+                    .setSettings(
+                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+            );
+            ensureGreen(index);
+            client().prepareIndex(index).setId("doc-1").setSource("value", 1).get();
+            client().prepareIndex(index).setId("doc-2").setSource("value", 2).get();
+            client().admin().indices().prepareRefresh(index).get();
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey(), false).build())
+            );
+            final SearchRequest baselineRequest = new SearchRequest(index);
+            baselineRequest.setPreFilterShardSize(1);
+            baselineRequest.setMaxConcurrentShardRequests(2);
+            baselineRequest.source(new SearchSourceBuilder().size(0).query(new RangeQueryBuilder("value").gte(0).lte(10)));
+            final SearchResponse baselineResponse = client().search(baselineRequest).actionGet();
+
+            final SearchRequest nodeLevelRequest = new SearchRequest(index);
+            nodeLevelRequest.nodeLevelQueryFanout(true);
+            nodeLevelRequest.setPreFilterShardSize(1);
+            nodeLevelRequest.setMaxConcurrentShardRequests(2);
+            nodeLevelRequest.source(new SearchSourceBuilder().size(0).query(new RangeQueryBuilder("value").gte(0).lte(10)));
+            final SearchResponse nodeLevelResponse = client().search(nodeLevelRequest).actionGet();
+            assertEquals(baselineResponse.getTotalShards(), nodeLevelResponse.getTotalShards());
+            assertEquals(baselineResponse.getSuccessfulShards(), nodeLevelResponse.getSuccessfulShards());
+            assertEquals(baselineResponse.getSkippedShards(), nodeLevelResponse.getSkippedShards());
+            assertEquals(baselineResponse.getFailedShards(), nodeLevelResponse.getFailedShards());
+            assertEquals(baselineResponse.getHits().getTotalHits().value(), nodeLevelResponse.getHits().getTotalHits().value());
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey()).build())
+            );
+        }
+    }
+
+    public void testNodeLevelQueryWithMultiIndexAlias() {
+        String index1 = "index-1";
+        String index2 = "index-2";
+        String alias1 = "alias-1";
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey(), true).build())
+        );
+        try {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index1)
+                    .setSettings(
+                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+            );
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index2)
+                    .setSettings(
+                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+            );
+            assertAcked(client().admin().indices().prepareAliases().addAlias(index1, alias1).addAlias(index2, alias1));
+            ensureGreen(index1, index2);
+
+            client().prepareIndex(index1).setId("doc-1").setSource("value", 1).get();
+            client().prepareIndex(index2).setId("doc-2").setSource("value", 2).get();
+            client().admin().indices().prepareRefresh(index1, index2).get();
+
+            final SearchRequest searchRequest = new SearchRequest(alias1);
+            searchRequest.setMaxConcurrentShardRequests(2);
+            searchRequest.source(new SearchSourceBuilder().size(0));
+            final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(2, searchResponse.getTotalShards());
+            assertEquals(2L, searchResponse.getHits().getTotalHits().value());
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey()).build())
+            );
+        }
+    }
+
+    public void testNodeLevelQueryWithAllowPartialSearchResults() {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey(), true).build())
+        );
+        try {
+            indexSomeDocs("node-fanout-ok", 3, 3);
+            indexSomeDocs(FAILING_INDEX_NAME, 3, 3);
+
+            final SearchRequest searchRequest = client().prepareSearch("node-fanout-ok", FAILING_INDEX_NAME)
+                .setSource(new SearchSourceBuilder().size(0).aggregation(new TestAggregationBuilder("test")))
+                .setMaxConcurrentShardRequests(2)
+                .setAllowPartialSearchResults(true)
+                .request();
+            final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(6, searchResponse.getTotalShards());
+            assertEquals(3, searchResponse.getSuccessfulShards());
+            assertEquals(3, searchResponse.getFailedShards());
+            assertEquals(3L, searchResponse.getHits().getTotalHits().value());
+            assertEquals(3, searchResponse.getShardFailures().length);
+            for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
+                assertThat(failure.reason(), containsString("boom query shard failure"));
+            }
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey()).build())
+            );
         }
     }
 
@@ -592,6 +770,9 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                     CardinalityUpperBound cardinality,
                     Map<String, Object> metadata
                 ) throws IOException {
+                    if (searchContext.indexShard().shardId().getIndexName().equals(FAILING_INDEX_NAME)) {
+                        throw new RuntimeException("boom query shard failure");
+                    }
                     return new TestAggregator(name, parent, searchContext);
                 }
 

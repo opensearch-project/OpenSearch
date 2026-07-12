@@ -46,6 +46,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -65,6 +66,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int topDocsSize;
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
+    private final boolean nodeLevelFanoutEnabled;
 
     SearchQueryThenFetchAsyncAction(
         final Logger logger,
@@ -84,7 +86,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        final Tracer tracer
+        final Tracer tracer,
+        final boolean nodeLevelFanoutEnabled
     ) {
         super(
             SearchPhaseName.QUERY.getName(),
@@ -111,6 +114,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
+        this.nodeLevelFanoutEnabled = nodeLevelFanoutEnabled;
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -169,7 +173,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         return new FetchSearchPhase(results, searchPhaseController, null, this);
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    @Override
+    protected ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         if (bottomSortCollector == null) {
             return request;
         }
@@ -184,5 +189,49 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             request.setBottomSortValues(bottomSortCollector.getBottomSortValues());
         }
         return request;
+    }
+
+    @Override
+    protected boolean supportsNodeLevelFanout() {
+        return nodeLevelFanoutEnabled;
+    }
+
+    @Override
+    protected void sendNodeSearchRequest(
+        Transport.Connection connection,
+        NodeSearchRequest nodeRequest,
+        List<NodeGroupEntry> batch,
+        Runnable nextBatch
+    ) {
+        getSearchTransport().sendQueryThenFetchByNode(connection, nodeRequest, getTask(), new ActionListener<>() {
+            @Override
+            public void onResponse(NodeSearchResponse<SearchPhaseResult> response) {
+                assert response.results().size() == batch.size() : "node-level query response must contain one result per requested shard";
+                for (int i = 0; i < batch.size(); i++) {
+                    final NodeGroupEntry entry = batch.get(i);
+                    final SearchPhaseResult result = response.results().get(i);
+                    if (result != null) {
+                        result.setShardIndex(entry.shardIndex);
+                        result.setSearchShardTarget(entry.target);
+                        try {
+                            onShardResult(result, entry.shardIt);
+                        } catch (Exception ex) {
+                            onShardFailure(entry.shardIndex, entry.target, entry.shardIt, ex);
+                        }
+                    } else {
+                        onShardFailure(entry.shardIndex, entry.target, entry.shardIt, response.failures().get(i));
+                    }
+                }
+                nextBatch.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                for (NodeGroupEntry entry : batch) {
+                    onShardFailure(entry.shardIndex, entry.target, entry.shardIt, e);
+                }
+                nextBatch.run();
+            }
+        });
     }
 }

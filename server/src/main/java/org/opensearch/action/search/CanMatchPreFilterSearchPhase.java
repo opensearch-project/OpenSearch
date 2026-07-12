@@ -76,6 +76,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
 
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final boolean nodeLevelFanoutEnabled;
 
     CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -114,11 +115,12 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             phaseFactory,
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            false
         );
     }
 
-    private CanMatchPreFilterSearchPhase(
+    CanMatchPreFilterSearchPhase(
         Logger logger,
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -136,7 +138,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        boolean nodeLevelFanoutEnabled
     ) {
         // Use the active shard count so can_match is effectively unthrottled without over-sizing the concurrency budget.
         super(
@@ -162,6 +165,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         );
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
+        this.nodeLevelFanoutEnabled = nodeLevelFanoutEnabled;
     }
 
     @Override
@@ -184,12 +188,62 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
+    protected boolean supportsNodeLevelFanout() {
+        return nodeLevelFanoutEnabled;
+    }
+
+    @Override
+    protected int nodeLevelBatchSize() {
+        return Math.max(1, shardsIts.size());
+    }
+
+    @Override
+    protected void sendNodeSearchRequest(
+        Transport.Connection connection,
+        NodeSearchRequest nodeRequest,
+        List<NodeGroupEntry> batch,
+        Runnable nextBatch
+    ) {
+        getSearchTransport().sendCanMatchByNode(connection, nodeRequest, getTask(), new ActionListener<>() {
+            @Override
+            public void onResponse(NodeSearchResponse<CanMatchResponse> response) {
+                assert response.results().size() == batch.size()
+                    : "node-level can_match response must contain one result per requested shard";
+                for (int i = 0; i < batch.size(); i++) {
+                    final NodeGroupEntry entry = batch.get(i);
+                    final CanMatchResponse result = response.results().get(i);
+                    if (result != null) {
+                        result.setShardIndex(entry.shardIndex);
+                        result.setSearchShardTarget(entry.target);
+                        try {
+                            onShardResult(result, entry.shardIt);
+                        } catch (Exception ex) {
+                            onShardFailure(entry.shardIndex, entry.target, entry.shardIt, ex);
+                        }
+                    } else {
+                        onShardFailure(entry.shardIndex, entry.target, entry.shardIt, response.failures().get(i));
+                    }
+                }
+                nextBatch.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                for (NodeGroupEntry entry : batch) {
+                    onShardFailure(entry.shardIndex, entry.target, entry.shardIt, e);
+                }
+                nextBatch.run();
+            }
+        });
+    }
+
+    @Override
     protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results, SearchPhaseContext context) {
 
         return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results, shardsIts));
     }
 
-    private static int[] buildActiveShardIndexLookup(GroupShardsIterator<SearchShardIterator> shardsIts) {
+    static int[] buildActiveShardIndexLookup(GroupShardsIterator<SearchShardIterator> shardsIts) {
         int[] shardIndexes = new int[shardsIts.size()];
         int activeShardCount = 0;
         for (int i = 0; i < shardsIts.size(); i++) {
