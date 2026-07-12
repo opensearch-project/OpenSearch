@@ -59,7 +59,7 @@ public class OpenSearchSortRule extends RelOptRule {
         List<String> viableBackends = childViableBackends.stream().filter(sortCapable::contains).toList();
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend supports SORT capability among " + childViableBackends);
+            throw new IllegalArgumentException("No backend supports SORT capability among " + childViableBackends);
         }
 
         // plus(): Calcite's Sort constructor asserts the trait set contains the collation.

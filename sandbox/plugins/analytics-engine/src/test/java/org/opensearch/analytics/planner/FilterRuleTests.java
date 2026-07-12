@@ -294,7 +294,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         // natively, forcing the "without delegation" code path under test.
         PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword", "index", false)));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("No backend can evaluate filter predicate"));
     }
 
@@ -313,7 +313,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             Map.of("location", Map.of("type", "geo_point", "doc_values", false, "index", false, "store", false))
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("has no storage"));
     }
 
@@ -746,7 +746,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), predicate);
         PlannerContext context = buildContext("parquet", Map.of("n", Map.of("type", "integer", "index", true)));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(
             "Message must indicate no backend can evaluate the predicate, got: " + exception.getMessage(),
             exception.getMessage().contains("No backend can evaluate filter predicate")
@@ -798,7 +798,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             )
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(
             "Message must indicate no backend can evaluate the predicate, got: " + exception.getMessage(),
             exception.getMessage().contains("No backend can evaluate filter predicate")
@@ -854,7 +854,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             )
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(
             "Message must indicate the operator-level mismatch, got: " + exception.getMessage(),
             exception.getMessage().contains("No backend can execute filter")
@@ -978,7 +978,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), predicate);
         PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword", "index", true)));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(
             "Message must name the unrecognized scalar function",
             exception.getMessage().contains("Unrecognized scalar function [FAKE_UDF]")

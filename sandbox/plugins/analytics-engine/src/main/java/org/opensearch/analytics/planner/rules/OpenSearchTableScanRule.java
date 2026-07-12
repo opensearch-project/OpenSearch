@@ -159,7 +159,7 @@ public class OpenSearchTableScanRule extends RelOptRule {
         LOGGER.debug("[table-scan] viableBackends={}", viableBackends);
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend can scan all requested fields on table [" + tableName + "]");
+            throw new IllegalArgumentException("No backend can scan all requested fields on table [" + tableName + "]");
         }
 
         RelOptTable indexNameTable = new IndexNameTable(scan.getTable(), tableName);
