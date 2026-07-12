@@ -209,7 +209,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final SearchIndexPruningService searchIndexPruningService;
 
-    private volatile int forceExecutionQueueThreshold;
+    volatile int forceExecutionQueueThreshold;
 
     @Inject
     public TransportSearchAction(

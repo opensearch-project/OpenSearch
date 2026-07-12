@@ -263,7 +263,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
 
         canMatchPhase.start();
@@ -343,7 +344,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
 
         canMatchPhase.start();

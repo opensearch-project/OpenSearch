@@ -123,7 +123,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean throttleConcurrentRequests;
     private final SearchRequestContext searchRequestContext;
     private final Tracer tracer;
-    private final int forceExecutionQueueThreshold;
+    final int forceExecutionQueueThreshold;
 
     private SearchPhase currentPhase;
     private boolean currentPhaseHasLifecycle;
