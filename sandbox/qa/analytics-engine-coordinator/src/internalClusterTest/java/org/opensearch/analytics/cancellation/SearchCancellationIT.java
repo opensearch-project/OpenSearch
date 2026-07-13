@@ -23,6 +23,7 @@ import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -86,7 +87,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockCommitterEnginePlugin.class
+            MockCommitterEnginePlugin.class, MockDataFormatPlugin.class
         );
     }
 

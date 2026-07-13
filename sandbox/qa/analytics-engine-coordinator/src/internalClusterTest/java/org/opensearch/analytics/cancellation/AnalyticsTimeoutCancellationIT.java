@@ -25,6 +25,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -75,7 +76,8 @@ public class AnalyticsTimeoutCancellationIT extends OpenSearchIntegTestCase {
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockCommitterEnginePlugin.class
+            MockCommitterEnginePlugin.class,
+            MockDataFormatPlugin.class
         );
     }
 

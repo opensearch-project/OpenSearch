@@ -20,10 +20,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.AbstractDataFormatAwareEngineTestCase;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.BinaryFieldMapper.BinaryFieldType;
 import org.opensearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -178,6 +181,11 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
                     new PrecomputedChecksumStrategy(),
                     nativeAllocator
                 );
+            }
+
+            @Override
+            public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+                return new MockDeleteExecutionEngine(dataFormat);
             }
         };
     }

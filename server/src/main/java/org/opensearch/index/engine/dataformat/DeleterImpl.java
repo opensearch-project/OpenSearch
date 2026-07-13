@@ -73,6 +73,11 @@ public class DeleterImpl<T extends Writer<?>> implements Deleter {
     }
 
     @Override
+    public void recordPositionalDelete(long rowId) {
+        writer.recordPositionalDelete(rowId);
+    }
+
+    @Override
     public void close() throws IOException {
         deactivate();
     }

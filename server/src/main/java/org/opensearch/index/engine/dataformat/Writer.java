@@ -149,4 +149,15 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable {
     default DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
         throw new UnsupportedOperationException("deleteDocument is not supported by this writer");
     }
+
+    /**
+     * Buffers a positional (row-id) delete to be applied as a liveDocs-only delete during this
+     * writer's flush (retained through any reorder, 1:1 with the primary format). Implementations
+     * that support positional deletes (e.g. Lucene) override this; others leave it unsupported.
+     *
+     * @param rowId insertion row id (0-based position within this writer's generation) to mark deleted
+     */
+    default void recordPositionalDelete(long rowId) {
+        throw new UnsupportedOperationException("recordPositionalDelete is not supported by this writer");
+    }
 }
