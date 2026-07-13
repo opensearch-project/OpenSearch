@@ -195,7 +195,16 @@ pub unsafe extern "C" fn df_close_global_runtime(ptr: i64) {
 
 #[no_mangle]
 pub unsafe extern "C" fn df_clear_liquid_cache(runtime_ptr: i64) {
-    api::clear_liquid_cache(runtime_ptr);
+    // Guard the FFI boundary: a panic here (e.g. a poisoned Mutex in the cache
+    // reset path) must not unwind across `extern "C"` — on this toolchain that
+    // aborts the whole node process. Clearing is best-effort and idempotent, so
+    // a panic is caught and logged rather than propagated.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        api::clear_liquid_cache(runtime_ptr);
+    }));
+    if result.is_err() {
+        log::error!("df_clear_liquid_cache: panic while clearing liquid cache (ignored)");
+    }
 }
 
 #[no_mangle]
