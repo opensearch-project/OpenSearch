@@ -22,10 +22,40 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 640 (85 × 8). */
+    /** 7.1: Layout byte size must be 744 (93 × 8) — includes the appended liquid_cache group (8 fields). */
     public void testLayoutByteSize() {
-        assertEquals(680L, StatsLayout.LAYOUT.byteSize());
-        assertEquals(85 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+        assertEquals(744L, StatsLayout.LAYOUT.byteSize());
+        assertEquals(93 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+    }
+
+    /** liquid_cache group (8 fields) decodes from the tail of the buffer (starts at index 85). */
+    public void testReadLiquidCacheStatsFromSegment() {
+        try (var arena = Arena.ofConfined()) {
+            var seg = arena.allocate(StatsLayout.LAYOUT);
+            // liquid_cache start index:
+            // 2 runtimes × 9 = 18, + 4 task monitors × 5 = 20, + 1 gate × 8 = 8,
+            // + adaptive_budget × 2 = 2, + cache_stats × 20 = 20, + search_stats × 17 = 17
+            // → 18 + 20 + 8 + 2 + 20 + 17 = 85
+            int lcStart = 85;
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart, 111L);      // cache_hit
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 1, 22L);   // cache_miss
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 2, 33L);   // predicate_evals
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 3, 4L);    // memory_evictions
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 4, 5L);    // transcodes
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 5, 6L);    // total_entries
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 6, 7_000L);// memory_usage_bytes
+            seg.setAtIndex(ValueLayout.JAVA_LONG, lcStart + 7, 8_000L);// max_memory_bytes
+
+            var lc = StatsLayout.readLiquidCacheStats(seg);
+            assertEquals(111L, lc.getCacheHit());
+            assertEquals(22L, lc.getCacheMiss());
+            assertEquals(33L, lc.getPredicateEvals());
+            assertEquals(4L, lc.getMemoryEvictions());
+            assertEquals(5L, lc.getTranscodes());
+            assertEquals(6L, lc.getTotalEntries());
+            assertEquals(7_000L, lc.getMemoryUsageBytes());
+            assertEquals(8_000L, lc.getMaxMemoryBytes());
+        }
     }
 
     /** 7.2: readRuntimeMetrics decodes 9 known values from io_runtime group. */

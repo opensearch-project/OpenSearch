@@ -246,7 +246,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
             nativeStats.getAdaptiveBudgetStats(),
             spill,
             nativeStats.getCacheStats(),
-            nativeStats.getSearchStats()
+            nativeStats.getSearchStats(),
+            nativeStats.getLiquidCacheStats()
         );
     }
 

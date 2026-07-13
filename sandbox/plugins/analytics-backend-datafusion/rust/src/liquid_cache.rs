@@ -82,7 +82,10 @@ impl LiquidOnlyRuntime {
             policy,
             Box::new(TranscodeEvict),
         ));
-        let optimizer = Arc::new(LocalModeOptimizer::new(cache_ref.clone()));
+        let optimizer = Arc::new(LocalModeOptimizer::new(
+            cache_ref.clone(),
+            Arc::new(lc_listing_max_columns),
+        ));
 
         Ok(Self {
             optimizer,
@@ -159,6 +162,28 @@ impl LiquidOnlyRuntime {
             s.runtime.transcodes,
             mem_pct,
         );
+    }
+
+    /// Non-destructive snapshot of the liquid-cache counters for the stats FFI,
+    /// or `None` when the runtime isn't initialized. Returned as a fixed array
+    /// so the `CacheStats` type stays internal to this module. Order matches
+    /// `stats::LiquidCacheStatsRepr`:
+    /// [cache_hit, cache_miss, predicate_evals, memory_evictions, transcodes,
+    ///  total_entries, memory_usage_bytes, max_memory_bytes].
+    pub fn liquid_cache_stats_for_ffi() -> Option<[i64; 8]> {
+        Self::get().map(|rt| {
+            let s = rt.storage.stats();
+            [
+                s.runtime.cache_hit as i64,
+                s.runtime.cache_miss as i64,
+                s.runtime.eval_predicate as i64,
+                s.runtime.memory_evictions as i64,
+                s.runtime.transcodes as i64,
+                s.total_entries as i64,
+                s.memory_usage_bytes as i64,
+                s.max_memory_bytes as i64,
+            ]
+        })
     }
 
     fn get() -> Option<&'static Self> {

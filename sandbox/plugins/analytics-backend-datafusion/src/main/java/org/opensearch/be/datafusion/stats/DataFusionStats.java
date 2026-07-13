@@ -36,6 +36,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
     private final SpillStats spillStats; // nullable
     private final CacheStats cacheStats; // nullable
     private final SearchStats searchStats; // nullable
+    private final LiquidCacheStats liquidCacheStats; // nullable
 
     /**
      * Construct from all components.
@@ -46,7 +47,26 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
      * @param spillStats                 the spill directory stats (nullable)
      * @param cacheStats                 the parquet metadata + statistics cache metrics (nullable)
      * @param searchStats                the search execution metrics (nullable)
+     * @param liquidCacheStats           the liquid cache metrics (nullable)
      */
+    public DataFusionStats(
+        NativeExecutorsStats nativeExecutorsStats,
+        PartitionGateStats fragmentExecutorGateStats,
+        AdaptiveBudgetStats adaptiveBudget,
+        SpillStats spillStats,
+        CacheStats cacheStats,
+        SearchStats searchStats,
+        LiquidCacheStats liquidCacheStats
+    ) {
+        this.nativeExecutorsStats = nativeExecutorsStats;
+        this.fragmentExecutorGateStats = fragmentExecutorGateStats;
+        this.adaptiveBudget = adaptiveBudget;
+        this.spillStats = spillStats;
+        this.cacheStats = cacheStats;
+        this.searchStats = searchStats;
+        this.liquidCacheStats = liquidCacheStats;
+    }
+
     public DataFusionStats(
         NativeExecutorsStats nativeExecutorsStats,
         PartitionGateStats fragmentExecutorGateStats,
@@ -55,12 +75,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         CacheStats cacheStats,
         SearchStats searchStats
     ) {
-        this.nativeExecutorsStats = nativeExecutorsStats;
-        this.fragmentExecutorGateStats = fragmentExecutorGateStats;
-        this.adaptiveBudget = adaptiveBudget;
-        this.spillStats = spillStats;
-        this.cacheStats = cacheStats;
-        this.searchStats = searchStats;
+        this(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, cacheStats, searchStats, null);
     }
 
     public DataFusionStats(
@@ -69,7 +84,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         AdaptiveBudgetStats adaptiveBudget,
         SpillStats spillStats
     ) {
-        this(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, null, null);
+        this(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, null, null, null);
     }
 
     /**
@@ -85,6 +100,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         this.spillStats = in.readOptionalWriteable(SpillStats::new);
         this.cacheStats = in.readOptionalWriteable(CacheStats::new);
         this.searchStats = in.readOptionalWriteable(SearchStats::new);
+        this.liquidCacheStats = in.readOptionalWriteable(LiquidCacheStats::new);
     }
 
     @Override
@@ -95,6 +111,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(spillStats);
         out.writeOptionalWriteable(cacheStats);
         out.writeOptionalWriteable(searchStats);
+        out.writeOptionalWriteable(liquidCacheStats);
     }
 
     @Override
@@ -116,6 +133,9 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         }
         if (searchStats != null) {
             searchStats.toXContent(builder, params);
+        }
+        if (liquidCacheStats != null) {
+            liquidCacheStats.toXContent(builder, params);
         }
         return builder;
     }
@@ -162,6 +182,13 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         return searchStats;
     }
 
+    /**
+     * Returns the liquid cache metrics, or {@code null} if absent.
+     */
+    public LiquidCacheStats getLiquidCacheStats() {
+        return liquidCacheStats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -172,11 +199,20 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
             && Objects.equals(adaptiveBudget, that.adaptiveBudget)
             && Objects.equals(spillStats, that.spillStats)
             && Objects.equals(cacheStats, that.cacheStats)
-            && Objects.equals(searchStats, that.searchStats);
+            && Objects.equals(searchStats, that.searchStats)
+            && Objects.equals(liquidCacheStats, that.liquidCacheStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, cacheStats, searchStats);
+        return Objects.hash(
+            nativeExecutorsStats,
+            fragmentExecutorGateStats,
+            adaptiveBudget,
+            spillStats,
+            cacheStats,
+            searchStats,
+            liquidCacheStats
+        );
     }
 }

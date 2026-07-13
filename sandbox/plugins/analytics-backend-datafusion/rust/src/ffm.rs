@@ -1463,8 +1463,9 @@ pub unsafe extern "C" fn df_execute_with_context(
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i64) -> i64 {
     use crate::stats::{
-        layout, pack_adaptive_budget, pack_cache_stats, pack_partition_gate, pack_runtime_metrics,
-        pack_task_monitor, CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
+        layout, pack_adaptive_budget, pack_cache_stats, pack_liquid_cache_stats,
+        pack_partition_gate, pack_runtime_metrics, pack_task_monitor, CacheStatsRepr,
+        DfStatsBuffer, RuntimeMetricsRepr,
     };
     use crate::task_monitors::{
         coordinator_reduce_monitor, plan_setup_monitor, query_execution_monitor,
@@ -1518,6 +1519,7 @@ pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i
         adaptive_budget: pack_adaptive_budget(),
         cache_stats,
         search_stats: crate::search_stats::snapshot(),
+        liquid_cache: pack_liquid_cache_stats(),
     };
 
     // Copy struct bytes to caller buffer

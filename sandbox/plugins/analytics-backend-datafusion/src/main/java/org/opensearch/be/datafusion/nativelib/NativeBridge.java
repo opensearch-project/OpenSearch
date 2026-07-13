@@ -1216,13 +1216,17 @@ public final class NativeBridge {
             // Search stats
             var searchStats = StatsLayout.readSearchStats(seg);
 
+            // Liquid cache stats (zeroed in native when LC is not engaged)
+            var liquidCacheStats = StatsLayout.readLiquidCacheStats(seg);
+
             return new DataFusionStats(
                 new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
                 fragmentExecutorGate,
                 StatsLayout.readAdaptiveBudgetStats(seg),
                 null,
                 cacheStats,
-                searchStats
+                searchStats,
+                liquidCacheStats
             );
         }
     }
