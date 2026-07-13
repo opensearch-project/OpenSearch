@@ -24,8 +24,21 @@ impl Observer {
         }
     }
 
-    /// Snapshot runtime counters and reset them to zero.
+    /// Snapshot runtime counters *without* resetting them (non-destructive).
+    ///
+    /// Used by [`crate::cache::LiquidCache::stats`] so that reading stats for
+    /// observability does not perturb the counters. Safe to call repeatedly
+    /// and from multiple consumers.
     pub fn runtime_snapshot(&self) -> RuntimeStatsSnapshotInner {
+        self.runtime.snapshot()
+    }
+
+    /// Snapshot runtime counters and reset them to zero (destructive).
+    ///
+    /// Reserved for an explicit read-and-reset (e.g. periodic delta
+    /// reporting). Callers that just want to observe current values must use
+    /// [`runtime_snapshot`](Self::runtime_snapshot) instead.
+    pub fn runtime_consume_snapshot(&self) -> RuntimeStatsSnapshotInner {
         self.runtime.consume_snapshot()
     }
 

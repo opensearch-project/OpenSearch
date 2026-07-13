@@ -42,13 +42,26 @@ macro_rules! define_runtime_stats {
         }
 
         impl RuntimeStats {
-            /// Return an immutable snapshot of the current runtime counters and reset the stats to 0.
-            pub fn consume_snapshot(&self) -> RuntimeStatsSnapshot {
-                let v = RuntimeStatsSnapshot {
+            /// Return an immutable snapshot of the current runtime counters
+            /// *without* resetting them.
+            ///
+            /// This is the read used for observability (metrics scraping,
+            /// logging, a stats REST endpoint): it is non-destructive, so it
+            /// is safe to call repeatedly and from multiple independent
+            /// consumers without perturbing the counters. Prefer this over
+            /// [`consume_snapshot`](Self::consume_snapshot) unless you
+            /// explicitly want a read-and-reset.
+            pub fn snapshot(&self) -> RuntimeStatsSnapshot {
+                RuntimeStatsSnapshot {
                     $(
                         $field: self.$field.load(Ordering::Relaxed),
                     )*
-                };
+                }
+            }
+
+            /// Return an immutable snapshot of the current runtime counters and reset the stats to 0.
+            pub fn consume_snapshot(&self) -> RuntimeStatsSnapshot {
+                let v = self.snapshot();
                 self.reset();
                 v
             }
@@ -124,4 +137,45 @@ pub struct CacheStats {
     pub max_memory_bytes: usize,
     /// Runtime counters snapshot.
     pub runtime: RuntimeStatsSnapshot,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `snapshot()` must be non-destructive — repeated reads return the same
+    /// values and never reset the counters. Only `consume_snapshot()` resets.
+    #[test]
+    fn snapshot_is_non_destructive_and_consume_resets() {
+        let stats = RuntimeStats::default();
+        for _ in 0..3 {
+            stats.incr_cache_hit();
+        }
+        stats.incr_cache_miss();
+
+        // Two non-destructive reads must be identical and reflect the counts.
+        let first = stats.snapshot();
+        let second = stats.snapshot();
+        assert_eq!(first.cache_hit, 3);
+        assert_eq!(first.cache_miss, 1);
+        assert_eq!(
+            (second.cache_hit, second.cache_miss),
+            (3, 1),
+            "snapshot() must not reset counters"
+        );
+
+        // A further increment is visible cumulatively (not lost by prior reads).
+        stats.incr_cache_hit();
+        assert_eq!(stats.snapshot().cache_hit, 4, "counters must accumulate");
+
+        // consume_snapshot() returns the current values then resets to zero.
+        let consumed = stats.consume_snapshot();
+        assert_eq!((consumed.cache_hit, consumed.cache_miss), (4, 1));
+        let after = stats.snapshot();
+        assert_eq!(
+            (after.cache_hit, after.cache_miss),
+            (0, 0),
+            "consume_snapshot() must reset counters to zero"
+        );
+    }
 }

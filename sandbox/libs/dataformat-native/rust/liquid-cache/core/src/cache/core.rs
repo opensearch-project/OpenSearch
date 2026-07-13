@@ -541,6 +541,32 @@ mod tests {
         assert_eq!(s.max_memory_bytes, 10 * 1024 * 1024);
     }
 
+    /// `LiquidCache::stats()` must be non-destructive — reading stats for
+    /// observability must not reset the runtime counters, so repeated reads
+    /// return the same cumulative values.
+    #[test]
+    fn stats_runtime_counters_are_non_destructive() {
+        let cache = LiquidCacheBuilder::new()
+            .with_max_memory_bytes(10 * 1024 * 1024)
+            .build();
+        let entry = EntryID::from(1usize);
+        let array: ArrayRef = Arc::new(Int32Array::from_iter_values(0..16));
+        cache.insert(entry, array).execute().unwrap();
+
+        // Bump a runtime counter deterministically via the public API.
+        for _ in 0..5 {
+            let _ = cache.try_read_liquid(&entry);
+        }
+
+        let first = cache.stats().runtime.try_read_liquid_calls;
+        let second = cache.stats().runtime.try_read_liquid_calls;
+        assert_eq!(first, 5, "counter must reflect the 5 try_read_liquid calls");
+        assert_eq!(
+            first, second,
+            "stats() must be non-destructive: repeated reads must be stable"
+        );
+    }
+
     #[test]
     fn insert_returns_cache_full_when_memory_is_saturated() {
         let cache = LiquidCacheBuilder::new().with_max_memory_bytes(0).build();
