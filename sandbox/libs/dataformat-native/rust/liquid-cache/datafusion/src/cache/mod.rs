@@ -342,6 +342,85 @@ mod tests {
         file.create_row_group(0, all_columns)
     }
 
+    /// Concurrency safety for the REST `liquid_cache/clear` path: reader threads
+    /// continuously insert a known column and read it back while another thread
+    /// hammers `reset()`.
+    ///
+    /// Contract for a read-through cache: a read either HITS with exactly the
+    /// data that was inserted, or MISSES (`None`) because a concurrent reset
+    /// cleared the entry — both are correct. What must never happen is a
+    /// panic, a torn/partial array, or corrupt values. `join().expect(...)`
+    /// propagates any worker panic as a test failure.
+    #[test]
+    fn concurrent_reads_during_reset_are_safe() {
+        use arrow::array::Array;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::thread;
+
+        let batch_size = 4;
+        let expected: Vec<i32> = vec![1, 2, 3, 4];
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
+        let cache = Arc::new(LiquidCacheParquet::new(
+            batch_size,
+            usize::MAX,
+            Box::new(LiquidPolicy::new()),
+            Box::new(TranscodeEvict),
+        ));
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut handles = Vec::new();
+
+        // Reader/writer threads.
+        for _ in 0..4 {
+            let cache = Arc::clone(&cache);
+            let schema = Arc::clone(&schema);
+            let stop = Arc::clone(&stop);
+            let expected = expected.clone();
+            handles.push(thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    let file = cache.register_or_get_file("f".to_string(), Arc::clone(&schema));
+                    let row_group = file.create_row_group(0, vec![0]);
+                    let col = row_group.get_column(0).unwrap();
+                    let batch_id = BatchID::from_row_id(0, batch_size);
+                    let arr = Arc::new(Int32Array::from(expected.clone()));
+                    let _ = col.insert(batch_id, arr);
+
+                    let selection = BooleanBuffer::new_set(batch_size);
+                    if let Some(got) = col.get_arrow_array_with_filter(batch_id, &selection) {
+                        let got = got
+                            .as_any()
+                            .downcast_ref::<Int32Array>()
+                            .expect("cached column is Int32");
+                        assert_eq!(
+                            got.values().as_ref(),
+                            expected.as_slice(),
+                            "concurrent reset produced a torn/corrupt cached read"
+                        );
+                    }
+                }
+            }));
+        }
+
+        // Clearer thread: hammer the reset path, then signal shutdown.
+        {
+            let cache = Arc::clone(&cache);
+            let stop = Arc::clone(&stop);
+            handles.push(thread::spawn(move || {
+                for _ in 0..2000 {
+                    // Safety: this mirrors the REST clear action — a reset
+                    // concurrent with reads is expected and must be sound.
+                    unsafe { cache.reset() };
+                }
+                stop.store(true, Ordering::Relaxed);
+            }));
+        }
+
+        for h in handles {
+            h.join()
+                .expect("a worker thread panicked during concurrent reset");
+        }
+    }
+
     #[test]
     fn evaluate_or_on_cached_columns() {
         let batch_size = 4;
