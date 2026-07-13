@@ -22,6 +22,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -63,13 +64,20 @@ public class IngestionEngine extends InternalEngine {
 
     private volatile StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
+    private final IngestionPayloadDecoderFactory payloadDecoderFactory;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestPipelineExecutor pipelineExecutor;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
-    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory, IngestService ingestService) {
+    public IngestionEngine(
+        EngineConfig engineConfig,
+        IngestionConsumerFactory ingestionConsumerFactory,
+        IngestService ingestService,
+        IngestionPayloadDecoderFactory payloadDecoderFactory
+    ) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
+        this.payloadDecoderFactory = Objects.requireNonNull(payloadDecoderFactory);
         this.pipelineExecutor = new IngestPipelineExecutor(
             Objects.requireNonNull(ingestService),
             engineConfig.getIndexSettings().getIndex().getName(),
@@ -159,6 +167,11 @@ public class IngestionEngine extends InternalEngine {
             .pipelineExecutor(pipelineExecutor)
             .warmupConfig(ingestionSource.getWarmupConfig())
             .indexMetadata(indexMetadata)
+            .payloadDecoder(payloadDecoderFactory.create(
+                indexMetadata,
+                engineConfig.getShardId().getId(),
+                ingestionSource.getDecoderSettings()
+            ))
             .build();
         registerStreamPollerListener();
 

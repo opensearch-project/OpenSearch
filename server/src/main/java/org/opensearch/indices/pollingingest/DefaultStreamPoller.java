@@ -20,11 +20,13 @@ import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoder;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
+import org.opensearch.core.common.bytes.BytesArray;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -90,6 +92,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private int pollTimeout;
     private long pointerBasedLagUpdateIntervalMs;
     private final IngestionMessageMapper messageMapper;
+    private final IngestionPayloadDecoder payloadDecoder;
 
     private final String indexName;
 
@@ -123,7 +126,8 @@ public class DefaultStreamPoller implements StreamPoller {
         Map<String, Object> mapperSettings,
         IngestPipelineExecutor pipelineExecutor,
         IngestionSource.WarmupConfig warmupConfig,
-        IndexMetadata indexMetadata
+        IndexMetadata indexMetadata,
+        IngestionPayloadDecoder payloadDecoder
     ) {
         this(
             startPointer,
@@ -148,7 +152,8 @@ public class DefaultStreamPoller implements StreamPoller {
             ingestionEngine.config().getIndexSettings(),
             IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings),
             warmupConfig,
-            indexMetadata
+            indexMetadata,
+            payloadDecoder
         );
     }
 
@@ -171,7 +176,8 @@ public class DefaultStreamPoller implements StreamPoller {
         IndexSettings indexSettings,
         IngestionMessageMapper messageMapper,
         IngestionSource.WarmupConfig warmupConfig,
-        IndexMetadata indexMetadata
+        IndexMetadata indexMetadata,
+        IngestionPayloadDecoder payloadDecoder
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -190,6 +196,7 @@ public class DefaultStreamPoller implements StreamPoller {
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
         this.messageMapper = Objects.requireNonNull(messageMapper);
+        this.payloadDecoder = Objects.requireNonNull(payloadDecoder);
         this.warmupConfig = Objects.requireNonNull(warmupConfig);
         this.currentIndexMetadata = Objects.requireNonNull(indexMetadata);
 
@@ -315,8 +322,16 @@ public class DefaultStreamPoller implements StreamPoller {
             try {
                 totalPolledCount.inc();
 
+                // Decode payload bytes to a field map before the mapper sees the message.
+                // Errors here are caught below and handled by the configured DROP/BLOCK strategy.
+                @SuppressWarnings("unchecked")
+                BytesArray payload = new BytesArray((byte[]) result.getMessage().getPayload());
+                Map<String, Object> decodedPayload = payloadDecoder.decode(payload);
+
                 // Use mapper to create ShardUpdateMessage
-                ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(result.getPointer(), result.getMessage());
+                ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(
+                    result.getPointer(), result.getMessage(), decodedPayload
+                );
 
                 blockingQueueContainer.add(shardUpdateMessage);
                 setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
@@ -389,6 +404,11 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         consumerThread.shutdown();
         blockingQueueContainer.close();
+        try {
+            payloadDecoder.close();
+        } catch (Exception e) {
+            logger.warn("Error closing payload decoder for shard {}: {}", shardId, e.getMessage());
+        }
         logger.info("closed the poller of shard {}", shardId);
     }
 
@@ -781,6 +801,7 @@ public class DefaultStreamPoller implements StreamPoller {
         // Warmup configuration - default matches IndexMetadata settings
         private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
         private IndexMetadata indexMetadata;
+        private IngestionPayloadDecoder payloadDecoder = XContentIngestionPayloadDecoder.INSTANCE;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -897,6 +918,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set the payload decoder to use for deserializing raw message bytes.
+         */
+        public Builder payloadDecoder(IngestionPayloadDecoder payloadDecoder) {
+            this.payloadDecoder = payloadDecoder;
+            return this;
+        }
+
+        /**
          * Set warmup configuration
          */
         public Builder warmupConfig(IngestionSource.WarmupConfig warmupConfig) {
@@ -935,7 +964,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 mapperSettings,
                 pipelineExecutor,
                 warmupConfig,
-                indexMetadata
+                indexMetadata,
+                payloadDecoder
             );
         }
     }

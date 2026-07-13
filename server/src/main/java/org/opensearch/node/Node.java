@@ -158,6 +158,8 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.autoforcemerge.AutoForceMergeManager;
@@ -955,6 +957,13 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> ingestionConsumerFactories.putAll(plugin.getIngestionConsumerFactories()));
 
+            // build ingestion payload decoder registry
+            final IngestionPayloadDecoderRegistry.Builder registryBuilder = IngestionPayloadDecoderRegistry.builder()
+                .register("xcontent", XContentIngestionPayloadDecoder.Factory.INSTANCE);
+            pluginsService.filterPlugins(IngestionConsumerPlugin.class)
+                .forEach(plugin -> plugin.getIngestionPayloadDecoderFactories().forEach(registryBuilder::register));
+            final IngestionPayloadDecoderRegistry payloadDecoderRegistry = registryBuilder.build();
+
             // Initialize tiered storage prefetch settings
             final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
             final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
@@ -1102,6 +1111,7 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 ingestionConsumerFactories,
+                payloadDecoderRegistry,
                 ingestServiceReference::get,
                 recoverySettings,
                 cacheService,

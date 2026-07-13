@@ -110,6 +110,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -455,6 +457,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
+    private final IngestionPayloadDecoderRegistry payloadDecoderRegistry;
     private final Supplier<IngestService> ingestServiceSupplier;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
@@ -523,6 +526,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry payloadDecoderRegistry,
         Supplier<IngestService> ingestServiceSupplier,
         RecoverySettings recoverySettings,
         CacheService cacheService,
@@ -594,6 +598,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
+        this.payloadDecoderRegistry = payloadDecoderRegistry;
         this.ingestServiceSupplier = ingestServiceSupplier;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -744,6 +749,9 @@ public class IndicesService extends AbstractLifecycleComponent
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
             ingestionConsumerFactories,
+            IngestionPayloadDecoderRegistry.builder()
+                .register("xcontent", org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder.Factory.INSTANCE)
+                .build(),
             () -> null,
             recoverySettings,
             cacheService,
@@ -1275,7 +1283,10 @@ public class IndicesService extends AbstractLifecycleComponent
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier);
+            IngestionPayloadDecoderFactory decoderFactory = payloadDecoderRegistry.get(
+                indexMetadata.getIngestionSource().getDecoderType()
+            );
+            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()

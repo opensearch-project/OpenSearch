@@ -13,7 +13,6 @@ import org.opensearch.common.util.RequestUtils;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.mapper.VersionFieldMapper;
-import org.opensearch.indices.pollingingest.IngestionUtils;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 
 import java.util.HashMap;
@@ -121,8 +120,9 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
     }
 
     @Override
-    public ShardUpdateMessage mapAndProcess(IngestionShardPointer pointer, Message message) throws IllegalArgumentException {
-        Map<String, Object> rawPayload = IngestionUtils.getParsedPayloadMap((byte[]) message.getPayload());
+    public ShardUpdateMessage mapAndProcess(IngestionShardPointer pointer, Message message, Map<String, Object> decodedPayload)
+        throws IllegalArgumentException {
+        Map<String, Object> rawPayload = decodedPayload;
         Map<String, Object> payloadMap = new HashMap<>();
 
         // Extract _id

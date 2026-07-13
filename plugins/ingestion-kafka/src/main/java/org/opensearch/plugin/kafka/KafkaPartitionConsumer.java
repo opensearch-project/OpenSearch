@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
-import org.opensearch.indices.pollingingest.PayloadDecoder;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -51,7 +50,6 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private final int partitionId;
     private final KafkaSourceConfig config;
     private TopicPartition topicPartition;
-    private PayloadDecoder payloadDecoder;
 
     /**
      * Constructor
@@ -75,8 +73,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.consumer = consumer;
         this.config = config;
         this.partitionId = partitionId;
-        this.payloadDecoder = PayloadDecoder.PASSTHROUGH;
-        logger.info("KafkaPartitionConsumer: topic={} partition={} payloadDecoder=PASSTHROUGH", config.getTopic(), partitionId);
+        logger.info("KafkaPartitionConsumer: topic={} partition={}", config.getTopic(), partitionId);
     }
 
     protected void initialize() throws Exception {
@@ -101,16 +98,6 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             partitionId,
             config.getTopicMetadataFetchTimeoutMs()
         );
-    }
-
-    /**
-     * Override the payload decoder after {@link #initialize()}. Plugins that provide their own
-     * decoding implementation (e.g. Avro support) call this to inject a custom decoder.
-     *
-     * @param decoder the decoder to use; must not be null
-     */
-    public synchronized void setPayloadDecoder(PayloadDecoder decoder) {
-        this.payloadDecoder = java.util.Objects.requireNonNull(decoder, "decoder");
     }
 
     /**
@@ -271,8 +258,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             KafkaMessage message = new KafkaMessage(
                 messageAndOffset.key(),
                 messageAndOffset.value(),
-                messageAndOffset.timestamp(),
-                payloadDecoder
+                messageAndOffset.timestamp()
             );
             results.add(new ReadResult<>(kafkaOffset, message));
         }

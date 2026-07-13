@@ -25,6 +25,7 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -102,7 +103,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -178,7 +180,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -214,7 +217,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Set up latch to wait for 2 messages to be processed
@@ -258,7 +262,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -346,7 +351,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -411,7 +417,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -450,7 +457,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -525,7 +533,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -559,7 +568,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         blockingQueueContainer.add(createShardUpdateMessage(5, "1"));
@@ -632,7 +642,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         poller.start();
@@ -707,7 +718,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         poller.start();
@@ -752,7 +764,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Start and wait for 2 messages to be processed
@@ -808,7 +821,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Start poller
@@ -860,7 +874,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
@@ -891,7 +906,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Warmup should be considered complete when disabled
@@ -918,7 +934,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Initially warmup is not complete
@@ -959,7 +976,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         warmupPoller.start();
@@ -989,7 +1007,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Initial state should be NONE
@@ -1032,7 +1051,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         warmupPoller.start();
@@ -1069,7 +1089,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(30000), 100),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         warmupPoller.start();
@@ -1100,7 +1121,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Should return immediately without blocking since warmup is disabled
@@ -1138,7 +1160,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Start the poller - it will be paused, so warmup should be skipped
@@ -1173,7 +1196,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             enabledConfig,
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Warmup should not be complete yet
@@ -1213,7 +1237,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L),
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Start the poller
@@ -1249,7 +1274,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             initialConfig,
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Warmup should not be complete yet
@@ -1284,7 +1310,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             disabledConfig,
-            indexMetadata
+            indexMetadata,
+            XContentIngestionPayloadDecoder.INSTANCE
         );
 
         // Warmup should be complete since it was disabled

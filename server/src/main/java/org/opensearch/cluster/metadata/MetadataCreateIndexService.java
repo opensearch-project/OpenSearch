@@ -1313,6 +1313,27 @@ public class MetadataCreateIndexService {
             // (multi-partition consumer factory). The check will be wired here once available.
         }
 
+        // Decoder type validation. Any non-default decoder_type (i.e. anything other than "xcontent")
+        // requires all nodes to support the payload-decoder registry introduced in V_3_8_0. Older nodes
+        // do not recognise the setting and cannot load the index or create the decoder.
+        if (IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.exists(settings)) {
+            String decoderType = IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.get(settings);
+            if ("xcontent".equals(decoderType) == false) {
+                Version minNodeVersion = state.nodes().getMinNodeVersion();
+                if (minNodeVersion.before(Version.V_3_8_0)) {
+                    throw new IllegalArgumentException(
+                        "index.ingestion_source.decoder_type ["
+                            + decoderType
+                            + "] requires all nodes in the cluster to be on version ["
+                            + Version.V_3_8_0
+                            + "] or later, but the minimum node version is ["
+                            + minNodeVersion
+                            + "]"
+                    );
+                }
+            }
+        }
+
         if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
             return;
         }

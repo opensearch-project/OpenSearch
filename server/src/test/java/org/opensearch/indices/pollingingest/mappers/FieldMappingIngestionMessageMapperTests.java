@@ -12,6 +12,8 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -23,11 +25,15 @@ import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIME
 
 public class FieldMappingIngestionMessageMapperTests extends OpenSearchTestCase {
 
+    private static Map<String, Object> decode(byte[] payload) {
+        return XContentIngestionPayloadDecoder.INSTANCE.decode(new BytesArray(payload));
+    }
+
     private ShardUpdateMessage mapMessage(FieldMappingIngestionMessageMapper mapper, String payload) {
         byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(1);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
-        return mapper.mapAndProcess(pointer, message);
+        return mapper.mapAndProcess(pointer, message, decode(payloadBytes));
     }
 
     // --- ID field tests ---
@@ -390,6 +396,6 @@ public class FieldMappingIngestionMessageMapperTests extends OpenSearchTestCase 
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(1);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        expectThrows(Exception.class, () -> mapper.mapAndProcess(pointer, message));
+        expectThrows(Exception.class, () -> mapper.mapAndProcess(pointer, message, decode(payloadBytes)));
     }
 }
