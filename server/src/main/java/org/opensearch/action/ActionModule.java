@@ -161,6 +161,8 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.opensearch.action.admin.indices.exists.indices.TransportIndicesExistsAction;
+import org.opensearch.action.admin.indices.fielddomain.PutIndexFieldDomainsAction;
+import org.opensearch.action.admin.indices.fielddomain.TransportPutIndexFieldDomainsAction;
 import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -731,6 +733,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
+        actions.register(PutIndexFieldDomainsAction.INSTANCE, TransportPutIndexFieldDomainsAction.class);
         actions.register(ScaleIndexAction.INSTANCE, TransportScaleIndexAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
