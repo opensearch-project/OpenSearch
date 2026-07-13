@@ -64,8 +64,24 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
 
         assertTrue(subjectUnderTest.getMatches("foxtail").isEmpty());
 
-        subjectUnderTest.put("fox", "lucy");
+        // A wildcard value "fox*" prefix-matches the request "foxtail".
+        subjectUnderTest.put("fox*", "lucy");
         assertFalse(subjectUnderTest.getMatches("foxtail").isEmpty());
+    }
+
+    public void testExactValueDoesNotPrefixMatch() {
+        // A value stored without a trailing wildcard is matched exactly, not as a prefix.
+        subjectUnderTest.put("fox", "lucy");
+        assertTrue(subjectUnderTest.getMatches("foxtail").isEmpty());
+        assertTrue(extractFeatureValues(subjectUnderTest.getMatches("fox")).contains("lucy"));
+    }
+
+    public void testWildcardValuePrefixMatches() {
+        // A value stored with a trailing wildcard matches both the exact stem and longer values.
+        subjectUnderTest.put("fox*", "lucy");
+        assertTrue(extractFeatureValues(subjectUnderTest.getMatches("fox")).contains("lucy"));
+        assertTrue(extractFeatureValues(subjectUnderTest.getMatches("foxtail")).contains("lucy"));
+        assertTrue(subjectUnderTest.getMatches("fo").isEmpty());
     }
 
     public void testClear() {

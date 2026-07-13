@@ -25,6 +25,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * ref: https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/trie/PatriciaTrie.html
  */
 public class DefaultAttributeValueStore<K extends String, V> implements AttributeValueStore<K, V> {
+    /**
+     * Trailing character in a stored value that marks it as a prefix (wildcard) pattern. A stored value
+     * without this character is matched exactly.
+     */
+    private static final String WILDCARD = "*";
     private final PatriciaTrie<Set<V>> trie;
     private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private static final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
@@ -96,18 +101,30 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
         readLock.lock();
         try {
             List<MatchLabel<V>> results = new ArrayList<>();
-            StringBuilder prefixBuilder = new StringBuilder(key);
 
+            // Exact match: a value stored without a trailing wildcard matches the request key exactly.
+            // The empty key is reserved for "no constraint" rules and is handled separately below.
+            if (!key.isEmpty()) {
+                addMatches(results, trie.get(key), 1f);
+            }
+
+            // Prefix (wildcard) matches: a stored value of the form "<prefix>*" matches the request key
+            // when the key starts with <prefix>. Walk each prefix of the key from longest to shortest.
+            StringBuilder prefixBuilder = new StringBuilder(key);
             for (int i = key.length(); i >= 0; i--) {
-                Set<V> values = trie.get(prefixBuilder.toString());
+                Set<V> values = trie.get(prefixBuilder.toString() + WILDCARD);
                 if (values != null && !values.isEmpty()) {
-                    float score = (float) prefixBuilder.length() / key.length();
+                    float score = key.isEmpty() ? 0f : (float) prefixBuilder.length() / key.length();
                     addMatches(results, values, score);
                 }
                 if (!prefixBuilder.isEmpty()) {
                     prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
                 }
             }
+
+            // Rules that do not constrain this attribute are stored under the empty key and match anything.
+            addMatches(results, trie.get(""), 0f);
+
             return results;
         } finally {
             readLock.unlock();

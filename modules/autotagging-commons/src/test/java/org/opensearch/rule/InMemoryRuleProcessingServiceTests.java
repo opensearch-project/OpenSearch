@@ -95,13 +95,22 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForExactMatchWithLongestMatchingPrefixCase() {
-        sut.add(getRule(Set.of("test1", "change"), "test_id"));
-        sut.add(getRule(Set.of("test", "double"), "test_id1"));
+        sut.add(getRule(Set.of("test1*", "change"), "test_id"));
+        sut.add(getRule(Set.of("test*", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
         Optional<String> label = sut.evaluateLabel(extractors);
         assertTrue(label.isPresent());
         assertEquals("test_id1", label.get());
+    }
+
+    public void testEvaluateLabelForExactValueDoesNotPrefixMatch() {
+        // A value stored without a trailing wildcard is matched exactly, so a longer request does not match.
+        sut.add(getRule(Set.of("test", "change"), "test_id"));
+
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
+        Optional<String> label = sut.evaluateLabel(extractors);
+        assertFalse(label.isPresent());
     }
 
     public void testEvaluateLabelForNoMatchWithLongestMatchingPrefixCase() {
