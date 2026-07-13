@@ -103,22 +103,25 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
             List<MatchLabel<V>> results = new ArrayList<>();
 
             // Exact match: a value stored without a trailing wildcard matches the request key exactly.
-            // The empty key is reserved for "no constraint" rules and is handled separately below.
-            if (!key.isEmpty()) {
+            // A key that itself ends in the wildcard character is only a prefix (wildcard) value and is
+            // handled by the loop below; the empty key is reserved for "no constraint" rules.
+            if (!key.isEmpty() && !key.endsWith(WILDCARD)) {
                 addMatches(results, trie.get(key), 1f);
             }
 
             // Prefix (wildcard) matches: a stored value of the form "<prefix>*" matches the request key
             // when the key starts with <prefix>. Walk each prefix of the key from longest to shortest.
-            StringBuilder prefixBuilder = new StringBuilder(key);
-            for (int i = key.length(); i >= 0; i--) {
-                Set<V> values = trie.get(prefixBuilder.toString() + WILDCARD);
-                if (values != null && !values.isEmpty()) {
-                    float score = key.isEmpty() ? 0f : (float) prefixBuilder.length() / key.length();
-                    addMatches(results, values, score);
-                }
-                if (!prefixBuilder.isEmpty()) {
-                    prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
+            if (!key.isEmpty()) {
+                StringBuilder prefixBuilder = new StringBuilder(key);
+                for (int i = key.length(); i >= 0; i--) {
+                    Set<V> values = trie.get(prefixBuilder.toString() + WILDCARD);
+                    if (values != null && !values.isEmpty()) {
+                        float score = (float) prefixBuilder.length() / key.length();
+                        addMatches(results, values, score);
+                    }
+                    if (!prefixBuilder.isEmpty()) {
+                        prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
+                    }
                 }
             }
 

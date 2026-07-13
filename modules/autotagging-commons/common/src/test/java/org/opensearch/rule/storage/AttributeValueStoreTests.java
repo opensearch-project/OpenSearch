@@ -84,6 +84,13 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
         assertTrue(subjectUnderTest.getMatches("fo").isEmpty());
     }
 
+    public void testWildcardRequestKeyMatchesWildcardValueOnce() {
+        // A request key that is itself a wildcard expression ("fox*") must match a stored "fox*" value
+        // only once (via the prefix branch), not additionally via an exact match, to avoid inflating score.
+        subjectUnderTest.put("fox*", "lucy");
+        assertEquals(1, subjectUnderTest.getMatches("fox*").size());
+    }
+
     public void testClear() {
         subjectUnderTest.put("foo", "bar");
         subjectUnderTest.clear();
