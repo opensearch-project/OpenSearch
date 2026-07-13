@@ -1,0 +1,1 @@
+source=test_data | eval value_str = tostring(value), total_str = tostring(total) | fields value, value_str, total, total_str | head 3

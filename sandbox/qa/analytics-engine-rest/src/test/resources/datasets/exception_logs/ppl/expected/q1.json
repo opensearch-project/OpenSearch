@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "level",
+      "type": "string"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      12,
+      "ERROR",
+      "api-service"
+    ],
+    [
+      15,
+      "ERROR",
+      "db-service"
+    ],
+    [
+      7,
+      "ERROR",
+      "web-service"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

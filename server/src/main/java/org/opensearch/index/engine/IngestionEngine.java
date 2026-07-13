@@ -158,7 +158,7 @@ public class IngestionEngine extends InternalEngine {
             .mapperSettings(ingestionSource.getMapperSettings())
             .pipelineExecutor(pipelineExecutor)
             .warmupConfig(ingestionSource.getWarmupConfig())
-            .ingestionSource(ingestionSource)
+            .indexMetadata(indexMetadata)
             .build();
         registerStreamPollerListener();
 
@@ -570,13 +570,13 @@ public class IngestionEngine extends InternalEngine {
 
         logger.info("Ingestion source params updated, reinitializing consumer");
 
-        // Get current ingestion source with updated params from index metadata
+        // Get current index metadata with updated ingestion source params
         IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
         assert indexMetadata != null;
-        IngestionSource updatedIngestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+        assert indexMetadata.getIngestionSource() != null;
 
         // Request consumer reinitialization in the poller
-        streamPoller.requestConsumerReinitialization(updatedIngestionSource);
+        streamPoller.requestConsumerReinitialization(indexMetadata);
         logger.info("Successfully processed ingestion source params update");
     }
 

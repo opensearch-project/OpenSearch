@@ -15,23 +15,24 @@ import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.function.LongSupplier;
 
 /**
  * AverageNativeMemoryUsageTracker reports this OpenSearch process's off-heap native memory
- * utilization as a percentage of a configured node-level budget, averaged over a rolling window.
+ * utilization as a percentage of a node-level budget, averaged over a rolling window.
  *
  * <p>On Linux, each polling cycle computes
- * {@code usage = max(0, RssAnon - HeapCommitted)} where {@code RssAnon} comes from
- * {@link OsProbe#getProcessRssAnon()} and {@code HeapCommitted} comes from the JVM memory MX
- * bean. The denominator is the effective native memory budget:
- * {@code effective = limit - (limit * bufferPercent / 100)}, resolved per poll from the
- * {@code volatile} fields in {@link ResourceTrackerSettings} that are updated by the owning
- * {@link NodeResourceUsageTracker} via cluster-settings update consumers registered against
- * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING} and
- * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING}. When the limit is
- * absent or non-positive, or the buffer fully consumes the limit, {@code getUsage()} returns
- * {@code 0} without dividing.
+ * {@code usage = max(0, RssAnon - HeapCommitted - NonHeapCommitted)} where {@code RssAnon}
+ * comes from {@link OsProbe#getProcessRssAnon()}, {@code HeapCommitted} and
+ * {@code NonHeapCommitted} (metaspace + code cache) come from the JVM memory MX bean.
+ * Subtracting non-heap removes fixed JVM overhead so the metric reflects actual native
+ * allocations (Arrow buffers, jemalloc/DataFusion, direct byte buffers).
+ *
+ * <p>The denominator is the effective native memory budget:
+ * {@code effective = limit - (limit * bufferPercent / 100)}. The limit is resolved from
+ * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}. When not explicitly
+ * configured, the limit is auto-derived as {@code totalPhysicalMemory - jvmMaxHeap}.
  *
  * <p>Activation is already gated to Linux in {@link NodeResourceUsageTracker}; on non-Linux
  * platforms the polling loop is not started and {@link OsProbe#getProcessRssAnon()} returns
@@ -43,6 +44,7 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
 
     private final LongSupplier rssAnonSupplier;
     private final LongSupplier heapCommittedSupplier;
+    private final LongSupplier nonHeapCommittedSupplier;
     private final LongSupplier effectiveNativeMemorySupplier;
 
     /**
@@ -51,7 +53,8 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
      * to {@link #computeEffectiveNativeMemory(ResourceTrackerSettings)} so dynamic updates to
      * {@link ResourceTrackerSettings#getNativeMemoryLimitBytes()} and
      * {@link ResourceTrackerSettings#getNativeMemoryBufferPercent()} are observed on the next
-     * polling cycle.
+     * polling cycle. When the limit is not explicitly configured, the effective budget is
+     * auto-derived as {@code totalPhysicalMemory - jvmMaxHeap}.
      */
     public AverageNativeMemoryUsageTracker(
         ThreadPool threadPool,
@@ -60,16 +63,17 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
         ResourceTrackerSettings resourceTrackerSettings
     ) {
         super(threadPool, pollingInterval, windowDuration);
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
         this.rssAnonSupplier = () -> OsProbe.getInstance().getProcessRssAnon();
-        this.heapCommittedSupplier = () -> ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getCommitted();
+        this.heapCommittedSupplier = () -> memoryMXBean.getHeapMemoryUsage().getCommitted();
+        this.nonHeapCommittedSupplier = () -> memoryMXBean.getNonHeapMemoryUsage().getCommitted();
         this.effectiveNativeMemorySupplier = () -> computeEffectiveNativeMemory(resourceTrackerSettings);
     }
 
     /**
-     * Package-private test constructor. Accepts three {@link LongSupplier}s in place of the
-     * production defaults so tests can drive {@link #getUsage()} deterministically without
-     * reading {@code /proc/self/status}, the JVM memory MX bean, or node settings. The third
-     * supplier provides the effective native memory (limit minus buffer) directly.
+     * Package-private test constructor. Accepts suppliers in place of the production defaults
+     * so tests can drive {@link #getUsage()} deterministically without reading
+     * {@code /proc/self/status}, the JVM memory MX bean, or node settings.
      */
     AverageNativeMemoryUsageTracker(
         ThreadPool threadPool,
@@ -77,11 +81,13 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
         TimeValue windowDuration,
         LongSupplier rssAnonSupplier,
         LongSupplier heapCommittedSupplier,
+        LongSupplier nonHeapCommittedSupplier,
         LongSupplier effectiveNativeMemorySupplier
     ) {
         super(threadPool, pollingInterval, windowDuration);
         this.rssAnonSupplier = rssAnonSupplier;
         this.heapCommittedSupplier = heapCommittedSupplier;
+        this.nonHeapCommittedSupplier = nonHeapCommittedSupplier;
         this.effectiveNativeMemorySupplier = effectiveNativeMemorySupplier;
     }
 
@@ -95,33 +101,24 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
         }
 
         long heapCommitted = heapCommittedSupplier.getAsLong();
-        long nativeUsed = Math.max(0L, rssAnon - heapCommitted);
+        long nonHeapCommitted = nonHeapCommittedSupplier.getAsLong();
+        long nativeUsed = Math.max(0L, rssAnon - heapCommitted - nonHeapCommitted);
 
         long effectiveNativeMemory = effectiveNativeMemorySupplier.getAsLong();
         if (effectiveNativeMemory <= 0L) {
-            LOGGER.warn(
-                "Native memory poll: rssAnon={} heapCommitted={} nativeUsed={} effectiveNativeMemory=0 -> 0%",
-                rssAnon,
-                heapCommitted,
-                nativeUsed
-            );
+            LOGGER.debug("Native memory tracking inactive: node.native_memory.limit not configured and auto-detection unavailable");
             return 0L;
         }
 
         double utilization = (double) nativeUsed / effectiveNativeMemory * 100.0;
-        long percent = (long) utilization;
-        if (percent > 100L) {
-            percent = 100L;
-        }
-        if (percent < 0L) {
-            percent = 0L;
-        }
+        long percent = Math.min(100L, Math.max(0L, (long) utilization));
 
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
-                "Native memory poll: rssAnon={} heapCommitted={} nativeUsed={} effectiveNativeMemory={} pct={}",
+                "Native memory poll: rssAnon={} heapCommitted={} nonHeapCommitted={} nativeUsed={} effectiveNativeMemory={} pct={}",
                 rssAnon,
                 heapCommitted,
+                nonHeapCommitted,
                 nativeUsed,
                 effectiveNativeMemory,
                 percent
@@ -134,17 +131,24 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
     /**
      * Resolves the current native-memory limit and buffer percentage from {@link ResourceTrackerSettings}
      * and returns the effective native-memory budget in bytes: {@code limit - (limit * buffer / 100)}.
-     * Returns {@code 0L} when the limit is absent or non-positive, or when the buffer fully
-     * consumes the limit, so {@link #getUsage()} can short-circuit without dividing.
+     * <p>
+     * When the limit is not explicitly configured (zero), auto-derives the budget as
+     * {@code totalPhysicalMemory - jvmMaxHeap}. Returns {@code 0L} only when neither explicit
+     * configuration nor auto-detection yields a usable budget.
      */
     long computeEffectiveNativeMemory(ResourceTrackerSettings resourceTrackerSettings) {
         long limit = resourceTrackerSettings.getNativeMemoryLimitBytes();
         if (limit <= 0L) {
-            return 0L;
+            long totalPhysicalMemory = OsProbe.getInstance().getTotalPhysicalMemorySize();
+            long jvmMaxHeap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax();
+            if (totalPhysicalMemory > 0L && jvmMaxHeap > 0L && totalPhysicalMemory > jvmMaxHeap) {
+                limit = totalPhysicalMemory - jvmMaxHeap;
+            } else {
+                return 0L;
+            }
         }
         int bufferPercent = resourceTrackerSettings.getNativeMemoryBufferPercent();
         long buffer = limit * bufferPercent / 100L;
-        long effective = Math.max(0L, limit - buffer);
-        return effective;
+        return Math.max(0L, limit - buffer);
     }
 }

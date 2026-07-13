@@ -13,7 +13,6 @@
 //! wraps the `sha1` crate directly. Mirrors DataFusion's `Md5Func` return-type
 //! — lowercase hex `Utf8`
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -22,7 +21,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 use sha1::{Digest, Sha1};
 
@@ -72,10 +72,6 @@ impl Hash for Sha1Udf {
 }
 
 impl ScalarUDFImpl for Sha1Udf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "sha1"
     }
@@ -182,11 +178,7 @@ mod tests {
     fn array_input_preserves_null_mask() {
         let u = udf();
         let return_field = Arc::new(Field::new(u.name(), DataType::Utf8, true));
-        let values: ArrayRef = Arc::new(StringArray::from(vec![
-            Some("abc"),
-            None,
-            Some(""),
-        ]));
+        let values: ArrayRef = Arc::new(StringArray::from(vec![Some("abc"), None, Some("")]));
         let args = ScalarFunctionArgs {
             args: vec![ColumnarValue::Array(values)],
             arg_fields: vec![Arc::new(Field::new("v", DataType::Utf8, true))],

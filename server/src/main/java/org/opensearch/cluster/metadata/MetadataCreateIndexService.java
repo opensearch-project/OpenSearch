@@ -83,6 +83,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -188,6 +189,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final List<IndexCreationValidator> indexCreationValidators = new ArrayList<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
@@ -249,6 +251,13 @@ public class MetadataCreateIndexService {
             throw new IllegalArgumentException("provider already added");
         }
         this.indexSettingProviders.add(provider);
+    }
+
+    public void addIndexCreationValidator(IndexCreationValidator validator) {
+        if (validator == null) {
+            throw new IllegalArgumentException("validator must not be null");
+        }
+        indexCreationValidators.add(validator);
     }
 
     /**
@@ -532,7 +541,7 @@ public class MetadataCreateIndexService {
             Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
 
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata, indexCreationValidators);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
@@ -1204,7 +1213,7 @@ public class MetadataCreateIndexService {
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false
             || indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, DEFAULT_REPLICA_COUNT_SETTING.get(currentState.metadata().settings()));
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, clusterSettings.get(DEFAULT_REPLICA_COUNT_SETTING));
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -1682,7 +1691,8 @@ public class MetadataCreateIndexService {
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
-        @Nullable IndexMetadata sourceMetadata
+        @Nullable IndexMetadata sourceMetadata,
+        List<IndexCreationValidator> indexCreationValidators
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Object> mapping : mappings) {
@@ -1693,6 +1703,10 @@ public class MetadataCreateIndexService {
 
         if (mapperService.isCompositeIndexPresent()) {
             CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings(), indexService.getIndexSettings());
+        }
+
+        for (IndexCreationValidator validator : indexCreationValidators) {
+            validator.validate(mapperService, indexService.getIndexSettings());
         }
 
         if (sourceMetadata == null) {
@@ -1763,7 +1777,7 @@ public class MetadataCreateIndexService {
             // Apply aware replica balance validation only to non system indices
             int replicaCount = settings.getAsInt(
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
+                clusterService.getClusterSettings().get(DEFAULT_REPLICA_COUNT_SETTING)
             );
             int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);

@@ -59,7 +59,7 @@ import java.util.function.IntUnaryOperator;
  * <ul>
  *   <li>Lock-free {@code feed(int inputIndex, batch)} contention from many
  *       concurrent shard responses fanning into the two input channels.</li>
- *   <li>{@link DatafusionReduceSink#closeUnderLock}'s in-flight-feeds barrier
+ *   <li>{@code DatafusionReduceSink#closeUnderLock}'s in-flight-feeds barrier
  *       under realistic shutdown timing.</li>
  *   <li>Asymmetric per-side cardinality + many-to-many fan-out on duplicates.</li>
  *   <li>Empty-side and no-overlap edge cases (build or probe side empty must
@@ -325,7 +325,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
         CreateIndexResponse response = client().admin()
             .indices()
@@ -340,10 +340,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
     /** One document per key in {@code [keyLo, keyHi]}. Sequential — fine for small N. */
     private void indexUnique(String indexName, String payloadField, int keyLo, int keyHi, IntUnaryOperator keyToPayload) {
         for (int key = keyLo; key <= keyHi; key++) {
-            client().prepareIndex(indexName)
-                .setId(indexName + "_" + key)
-                .setSource("k", key, payloadField, keyToPayload.applyAsInt(key))
-                .get();
+            client().prepareIndex(indexName).setSource("k", key, payloadField, keyToPayload.applyAsInt(key)).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
@@ -356,11 +353,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
             int batchEnd = Math.min(batchStart + batchSize - 1, keyHi);
             org.opensearch.action.bulk.BulkRequestBuilder bulk = client().prepareBulk();
             for (int key = batchStart; key <= batchEnd; key++) {
-                bulk.add(
-                    client().prepareIndex(indexName)
-                        .setId(indexName + "_" + key)
-                        .setSource("k", key, payloadField, keyToPayload.applyAsInt(key))
-                );
+                bulk.add(client().prepareIndex(indexName).setSource("k", key, payloadField, keyToPayload.applyAsInt(key)));
             }
             org.opensearch.action.bulk.BulkResponse response = bulk.get();
             assertFalse(
@@ -377,7 +370,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
         for (int key = keyLo; key <= keyHi; key++) {
             for (int d = 0; d < dupes; d++) {
                 int payload = key * 1000 + d;
-                client().prepareIndex(indexName).setId(indexName + "_" + key + "_" + d).setSource("k", key, payloadField, payload).get();
+                client().prepareIndex(indexName).setSource("k", key, payloadField, payload).get();
             }
         }
         client().admin().indices().prepareRefresh(indexName).get();

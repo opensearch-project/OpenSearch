@@ -116,6 +116,18 @@ final class Bootstrap {
         });
     }
 
+    /**
+     * Installs a process-wide serial filter that rejects all Java deserialization by default.
+     * Plugins that legitimately require Java serialization (e.g., security plugin's user attribute caching)
+     * can opt in by calling {@code ObjectInputStream.setObjectInputFilter()} on their specific stream,
+     * which overrides the JVM-wide filter for that stream.
+     * <p>
+     * Gated behind the {@code bootstrap.serial_filter} setting (disabled by default).
+     */
+    static void initializeSerialFilter() {
+        BootstrapSettings.initializeSerialFilter();
+    }
+
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);

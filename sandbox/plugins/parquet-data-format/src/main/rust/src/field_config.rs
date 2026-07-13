@@ -10,6 +10,10 @@
 pub struct FieldConfig {
     pub compression_type: Option<String>,
     pub compression_level: Option<i32>,
+    pub encoding_type: Option<String>,
+    pub bloom_filter_enabled: Option<bool>,
+    pub bloom_filter_fpp: Option<f64>,
+    pub bloom_filter_ndv: Option<u64>,
 }
 
 impl FieldConfig {
@@ -18,7 +22,12 @@ impl FieldConfig {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.compression_type.is_none() && self.compression_level.is_none()
+        self.compression_type.is_none()
+            && self.compression_level.is_none()
+            && self.encoding_type.is_none()
+            && self.bloom_filter_enabled.is_none()
+            && self.bloom_filter_fpp.is_none()
+            && self.bloom_filter_ndv.is_none()
     }
 }
 
@@ -37,9 +46,24 @@ mod tests {
         let config = FieldConfig {
             compression_type: Some("SNAPPY".to_string()),
             compression_level: Some(1),
+            encoding_type: None,
+            ..Default::default()
         };
         assert_eq!(config.compression_type, Some("SNAPPY".to_string()));
         assert_eq!(config.compression_level, Some(1));
+        assert!(!config.is_empty());
+    }
+
+    #[test]
+    fn test_field_config_encoding() {
+        let config = FieldConfig {
+            encoding_type: Some("DELTA_BINARY_PACKED".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            config.encoding_type,
+            Some("DELTA_BINARY_PACKED".to_string())
+        );
         assert!(!config.is_empty());
     }
 }

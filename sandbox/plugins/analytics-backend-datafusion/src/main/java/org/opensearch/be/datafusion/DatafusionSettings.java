@@ -14,6 +14,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.search.SearchService;
 
 import java.util.List;
@@ -32,11 +34,13 @@ import java.util.List;
 @ExperimentalApi
 public final class DatafusionSettings {
 
+    public static final String POOL_DATAFUSION = "datafusion";
+
     // ── New indexed query settings ──
 
     /** Number of rows per batch in the indexed query execution path. */
-    public static final Setting<Integer> INDEXED_BATCH_SIZE = Setting.intSetting(
-        "datafusion.indexed.batch_size",
+    public static final Setting<Integer> BATCH_SIZE = Setting.intSetting(
+        "datafusion.batch_size",
         8192,
         1,
         Setting.Property.NodeScope,
@@ -44,18 +48,30 @@ public final class DatafusionSettings {
     );
 
     /**
-     * Whether DataFusion applies residual predicate pushdown during parquet decode
-     * on the indexed path. When true, narrow row-granular selections benefit from
-     * decode-time filtering via {@code RowFilter}. When false (default), the indexed
-     * stream handles filtering externally via bitmap-based row selection.
+     * Whether DataFusion applies its own decode-time predicate pushdown on the
+     * ListingTable (non-indexed) query path. Maps to DataFusion's
+     * {@code execution.parquet.pushdown_filters} session option.
+     */
+    public static final Setting<Boolean> LISTING_TABLE_PUSHDOWN_FILTERS = Setting.boolSetting(
+        "datafusion.listing_table.pushdown_filters",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Whether the indexed stream asks parquet to apply the residual predicate during
+     * decode (via {@code RowFilter} pushdown). When true (default), narrow row-granular
+     * selections benefit from decode-time filtering; when false, the indexed stream
+     * handles filtering externally via bitmap-based row selection.
      * <p>
      * Note: ideally this decision should be taken by the planner on a per-query basis
      * (e.g., based on filter shape and estimated selectivity). This setting acts as
      * the node-wide default until per-query planner support is added.
      */
-    public static final Setting<Boolean> INDEXED_PARQUET_PUSHDOWN_FILTERS = Setting.boolSetting(
-        "datafusion.indexed.parquet_pushdown_filters",
-        false,
+    public static final Setting<Boolean> INDEXED_PUSHDOWN_FILTERS = Setting.boolSetting(
+        "datafusion.indexed.pushdown_filters",
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -91,102 +107,129 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
-    // Strategy constants for CollectorCallStrategy
-    public static final String STRATEGY_FULL_RANGE = "full_range";
-    public static final String STRATEGY_TIGHTEN_OUTER_BOUNDS = "tighten_outer_bounds";
-    public static final String STRATEGY_PAGE_RANGE_SPLIT = "page_range_split";
-
     /**
-     * How the SingleCollectorEvaluator narrows collector doc ranges relative to
-     * page-pruning results. Valid values: full_range, tighten_outer_bounds, page_range_split.
-     * Default is page_range_split — only one collector, so multiple FFM calls per RG is acceptable.
+     * Pins the indexed stream's per-row-group {@code min_skip_run} strategy instead of
+     * letting candidate selectivity decide. Accepts:
+     * <ul>
+     *   <li>{@code "none"} (default) — selectivity heuristic decides (wire {@code -1});</li>
+     *   <li>{@code "row_selection"} — force row-granular selection, {@code min_skip_run = 1} (wire {@code 0});</li>
+     *   <li>{@code "boolean_mask"} — force a single whole-RG select (wire {@code 1}).</li>
+     * </ul>
+     * Node-wide override intended for benchmarking/diagnostics; production normally
+     * leaves this at {@code "none"}.
      */
-    public static final Setting<String> INDEXED_SINGLE_COLLECTOR_STRATEGY = Setting.simpleString(
-        "datafusion.indexed.single_collector_strategy",
-        STRATEGY_PAGE_RANGE_SPLIT,
-        value -> {
-            switch (value) {
-                case STRATEGY_FULL_RANGE:
-                case STRATEGY_TIGHTEN_OUTER_BOUNDS:
-                case STRATEGY_PAGE_RANGE_SPLIT:
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                        "datafusion.indexed.single_collector_strategy must be one of "
-                            + "[full_range, tighten_outer_bounds, page_range_split], got: "
-                            + value
-                    );
+    public static final Setting<String> INDEXED_FORCE_STRATEGY = Setting.simpleString(
+        "datafusion.indexed.force_strategy",
+        "none",
+        DatafusionSettings::validateForceStrategy,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static void validateForceStrategy(String value) {
+        forceStrategyToWire(value);
+    }
+
+    /** Maps the {@link #INDEXED_FORCE_STRATEGY} string to the Rust wire code (-1/0/1). */
+    static int forceStrategyToWire(String value) {
+        switch (value) {
+            case "none":
+                return -1;
+            case "row_selection":
+                return 0;
+            case "boolean_mask":
+                return 1;
+            default:
+                throw new IllegalArgumentException(
+                    "Setting [datafusion.indexed.force_strategy] must be one of [none, row_selection, boolean_mask], got [" + value + "]"
+                );
+        }
+    }
+
+    // ── Concurrency gate settings ──
+
+    /** Minimum guaranteed bytes for the DataFusion memory pool. Default is half of datafusion max (37% of budget). */
+    public static final Setting<Long> DATAFUSION_MEMORY_POOL_MIN = new Setting<>(
+        "datafusion.memory_pool_min_bytes",
+        s -> derivePoolMinDefault(s, 37),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [datafusion.memory_pool_min_bytes] must be >= 0, got " + v);
             }
+            return v;
         },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    /**
-     * How the bitmap tree evaluator narrows collector doc ranges when multiple collectors
-     * are present. Valid values: full_range, tighten_outer_bounds, page_range_split.
-     * Default is tighten_outer_bounds — multiple collectors make page_range_split expensive.
-     */
-    public static final Setting<String> INDEXED_TREE_COLLECTOR_STRATEGY = Setting.simpleString(
-        "datafusion.indexed.tree_collector_strategy",
-        STRATEGY_TIGHTEN_OUTER_BOUNDS,
-        value -> {
-            switch (value) {
-                case STRATEGY_FULL_RANGE:
-                case STRATEGY_TIGHTEN_OUTER_BOUNDS:
-                case STRATEGY_PAGE_RANGE_SPLIT:
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                        "datafusion.indexed.tree_collector_strategy must be one of "
-                            + "[full_range, tighten_outer_bounds, page_range_split], got: "
-                            + value
-                    );
-            }
-        },
+    /** Fragment executor concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
+        "datafusion.concurrency.fragment_executor_multiplier",
+        1.5,
+        0.1,
+        10.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     /**
-     * Maximum number of Collector-leaf FFM calls issued in parallel per row-group
-     * prefetch. 1 = fully sequential (lowest CPU, fastest short-circuit). Higher
-     * values sacrifice short-circuit savings in AND/OR groups but reduce latency
-     * for independent collector leaves.
+     * Computes the default for a pool min as a percentage of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}.
+     * Returns 0 when AC is unconfigured.
      */
-    public static final Setting<Integer> INDEXED_MAX_COLLECTOR_PARALLELISM = Setting.intSetting(
-        "datafusion.indexed.max_collector_parallelism",
-        1,
-        1,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    static String derivePoolMinDefault(Settings settings, int percent) {
+        ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        if (nativeLimit.getBytes() <= 0) {
+            return "0";
+        }
+        return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
+    }
 
     // ── All settings registered by the plugin ──
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
 
-        // Runtime settings — memory pool, spill, and reduce input mode
+        // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
+        DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
+        DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS,
+        DataFusionPlugin.DATAFUSION_MIN_TARGET_PARTITIONS,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP,
+        DATAFUSION_MEMORY_POOL_MIN,
 
-        // Cache settings — metadata and statistics cache configuration
-        CacheSettings.METADATA_CACHE_SIZE_LIMIT,
-        CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
+        // Cache settings — metadata, statistics, column index, offset index configuration
         CacheSettings.METADATA_CACHE_EVICTION_TYPE,
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
+        CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE,
+        CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE,
         CacheSettings.METADATA_CACHE_ENABLED,
         CacheSettings.STATISTICS_CACHE_ENABLED,
+        CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
+        CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
+        CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
+        CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
+        CacheSettings.STATISTICS_CACHE_PERCENT,
+
+        // Scoped page-index feature flag
+        DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED,
+
+        // Concurrency gate settings
+        CONCURRENCY_DATANODE_MULTIPLIER,
 
         // Indexed query settings — per-query tuning knobs for the indexed execution path
-        INDEXED_BATCH_SIZE,
-        INDEXED_PARQUET_PUSHDOWN_FILTERS,
+        BATCH_SIZE,
+        LISTING_TABLE_PUSHDOWN_FILTERS,
+        INDEXED_PUSHDOWN_FILTERS,
         INDEXED_MIN_SKIP_RUN_DEFAULT,
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
-        INDEXED_SINGLE_COLLECTOR_STRATEGY,
-        INDEXED_TREE_COLLECTOR_STRATEGY,
-        INDEXED_MAX_COLLECTOR_PARALLELISM
+        INDEXED_FORCE_STRATEGY
     );
 
     // ── Snapshot management ──
@@ -219,14 +262,13 @@ public final class DatafusionSettings {
         this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
 
         this.snapshot = WireConfigSnapshot.builder()
-            .batchSize(INDEXED_BATCH_SIZE.get(settings))
+            .batchSize(BATCH_SIZE.get(settings))
             .targetPartitions(deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount))
-            .parquetPushdownFilters(INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings))
+            .listingTablePushdownFilters(LISTING_TABLE_PUSHDOWN_FILTERS.get(settings))
+            .indexedPushdownFilters(INDEXED_PUSHDOWN_FILTERS.get(settings))
             .minSkipRunDefault(INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings))
             .minSkipRunSelectivityThreshold(INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings))
-            .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
-            .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
-            .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
+            .forceStrategy(forceStrategyToWire(INDEXED_FORCE_STRATEGY.get(settings)))
             .build();
 
         registerListeners(clusterSettings);
@@ -241,24 +283,27 @@ public final class DatafusionSettings {
         this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
 
         this.snapshot = WireConfigSnapshot.builder()
-            .batchSize(INDEXED_BATCH_SIZE.get(settings))
+            .batchSize(BATCH_SIZE.get(settings))
             .targetPartitions(deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount))
-            .parquetPushdownFilters(INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings))
+            .listingTablePushdownFilters(LISTING_TABLE_PUSHDOWN_FILTERS.get(settings))
+            .indexedPushdownFilters(INDEXED_PUSHDOWN_FILTERS.get(settings))
             .minSkipRunDefault(INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings))
             .minSkipRunSelectivityThreshold(INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings))
-            .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
-            .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
-            .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
+            .forceStrategy(forceStrategyToWire(INDEXED_FORCE_STRATEGY.get(settings)))
             .build();
     }
 
     void registerListeners(ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_BATCH_SIZE, newValue -> {
+        clusterSettings.addSettingsUpdateConsumer(BATCH_SIZE, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).batchSize(newValue).build();
         });
 
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_PARQUET_PUSHDOWN_FILTERS, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).parquetPushdownFilters(newValue).build();
+        clusterSettings.addSettingsUpdateConsumer(LISTING_TABLE_PUSHDOWN_FILTERS, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).listingTablePushdownFilters(newValue).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_PUSHDOWN_FILTERS, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).indexedPushdownFilters(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_MIN_SKIP_RUN_DEFAULT, newValue -> {
@@ -269,16 +314,8 @@ public final class DatafusionSettings {
             snapshot = WireConfigSnapshot.builder(snapshot).minSkipRunSelectivityThreshold(newValue).build();
         });
 
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_SINGLE_COLLECTOR_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).singleCollectorStrategy(strategyToWireValue(newValue)).build();
-        });
-
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_TREE_COLLECTOR_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).treeCollectorStrategy(strategyToWireValue(newValue)).build();
-        });
-
-        clusterSettings.addSettingsUpdateConsumer(INDEXED_MAX_COLLECTOR_PARALLELISM, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).maxCollectorParallelism(newValue).build();
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_FORCE_STRATEGY, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).forceStrategy(forceStrategyToWire(newValue)).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {
@@ -302,24 +339,6 @@ public final class DatafusionSettings {
      */
     public WireConfigSnapshot getSnapshot() {
         return snapshot;
-    }
-
-    /**
-     * Converts a strategy string to its wire format integer value.
-     * <p>
-     * Mapping: full_range = 0, tighten_outer_bounds = 1, page_range_split = 2.
-     */
-    static int strategyToWireValue(String strategy) {
-        switch (strategy) {
-            case STRATEGY_FULL_RANGE:
-                return 0;
-            case STRATEGY_TIGHTEN_OUTER_BOUNDS:
-                return 1;
-            case STRATEGY_PAGE_RANGE_SPLIT:
-                return 2;
-            default:
-                throw new IllegalArgumentException("Unknown strategy: " + strategy);
-        }
     }
 
     /**

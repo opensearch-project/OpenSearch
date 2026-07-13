@@ -17,6 +17,7 @@ import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecution;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
@@ -185,6 +186,43 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         assertEquals("backend close fires exactly once across both calls", 1, backend.closeCount);
     }
 
+    // ── CancellableExchangeSink interaction ────────────────────────────────
+
+    public void testCancelCallsCancellableExchangeSinkCancelBeforeClose() {
+        CancellableCapturingSink backend = new CancellableCapturingSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        exec.cancel("user requested");
+
+        assertEquals(StageExecution.State.CANCELLED, exec.getState());
+        assertTrue("cancel() must be called on CancellableExchangeSink", backend.cancelCalled);
+        assertTrue("close() must still be called after cancel()", backend.closed);
+        assertTrue("cancel() must fire before close()", backend.cancelCalledBeforeClose);
+    }
+
+    public void testFailFromChildCallsCancellableExchangeSinkCancelBeforeClose() {
+        CancellableCapturingSink backend = new CancellableCapturingSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        exec.failWithCause(new RuntimeException("child failed"));
+
+        assertEquals(StageExecution.State.FAILED, exec.getState());
+        assertTrue("cancel() must be called on FAILED transition", backend.cancelCalled);
+        assertTrue("close() must still be called", backend.closed);
+        assertTrue("cancel() before close()", backend.cancelCalledBeforeClose);
+    }
+
+    public void testSuccessDoesNotCallCancellableExchangeSinkCancel() {
+        CancellableCapturingSink backend = new CancellableCapturingSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        scheduleAndDispatch(exec);
+
+        assertEquals(StageExecution.State.SUCCEEDED, exec.getState());
+        assertFalse("cancel() must NOT be called on SUCCEEDED", backend.cancelCalled);
+        assertTrue("close() is still called on terminal", backend.closed);
+    }
+
     // ── Streaming mode (supportsEagerScheduling = true) ───────────────────
 
     public void testStreamingSchedulesEagerlyIsTrue() {
@@ -236,6 +274,34 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         assertFalse("closeChildInput on non-MultiInput sink must not close backend", backend.closed);
     }
 
+    /**
+     * Regression: when a child stage transitions to FAILED, the cascade must call
+     * {@code closeChildInput(childId)} BEFORE propagating the failure. Without this,
+     * the reduce drain hangs forever waiting for input from the dead child's partition
+     * stream (the sender never gets closed, so the native receiver never sees EOF).
+     */
+    public void testChildFailureClosesChildInputBeforeFailingParent() {
+        StreamingFakeSink backend = new StreamingFakeSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        // Create a fake child stage that we can fail manually.
+        int childStageId = 5;
+        Stage childStageDef = mock(Stage.class);
+        when(childStageDef.getStageId()).thenReturn(childStageId);
+        when(childStageDef.getChildStages()).thenReturn(List.of());
+        FakeChildExecution child = new FakeChildExecution(childStageDef);
+
+        // Wire the cascade: parent observes child state transitions.
+        exec.attachChildren(List.of(child), r -> {});
+
+        // Fail the child — the cascade should call closeChildInput(5) then failWithCause.
+        child.failWith(new RuntimeException("shard exploded"));
+
+        assertTrue("closeChildInput must be called for the failed child", backend.closedChildIds.contains(childStageId));
+        assertEquals(StageExecution.State.FAILED, exec.getState());
+        assertNotNull(exec.getFailure());
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private Stage stageWithId(int id) {
@@ -257,7 +323,8 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
 
     private static QueryContext mockContext() {
         QueryContext ctx = mock(QueryContext.class);
-        when(ctx.localTaskExecutor()).thenReturn(inlineExecutor());
+        when(ctx.reduceExecutor()).thenReturn(inlineExecutor());
+        when(ctx.schedulerExecutor()).thenReturn(inlineExecutor());
         when(ctx.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
         return ctx;
     }
@@ -354,6 +421,18 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         }
     }
 
+    /** CancellableExchangeSink variant that records cancel/close ordering. */
+    private static class CancellableCapturingSink extends CapturingReducingSink implements CancellableExchangeSink {
+        boolean cancelCalled = false;
+        boolean cancelCalledBeforeClose = false;
+
+        @Override
+        public void cancel() {
+            cancelCalled = true;
+            cancelCalledBeforeClose = !closed;
+        }
+    }
+
     /** Bare ExchangeSink for the downstream slot. */
     private static final class CapturingSink implements ExchangeSink {
         boolean closed = false;
@@ -366,6 +445,62 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         @Override
         public void close() {
             closed = true;
+        }
+    }
+
+    /** Minimal child stage that can be manually failed to trigger the parent cascade. */
+    private static final class FakeChildExecution implements StageExecution {
+        private final Stage stage;
+        private final List<StageStateListener> listeners = new ArrayList<>();
+        private State state = State.CREATED;
+        private Exception failure;
+
+        FakeChildExecution(Stage stage) {
+            this.stage = stage;
+        }
+
+        void failWith(Exception cause) {
+            this.failure = cause;
+            State prev = this.state;
+            this.state = State.FAILED;
+            for (StageStateListener l : listeners) {
+                l.onStateChange(prev, State.FAILED);
+            }
+        }
+
+        @Override
+        public int getStageId() {
+            return stage.getStageId();
+        }
+
+        @Override
+        public State getState() {
+            return state;
+        }
+
+        @Override
+        public StageMetrics getMetrics() {
+            return new StageMetrics();
+        }
+
+        @Override
+        public Exception getFailure() {
+            return failure;
+        }
+
+        @Override
+        public void start() {
+            state = State.RUNNING;
+        }
+
+        @Override
+        public void addStateListener(StageStateListener listener) {
+            listeners.add(listener);
+        }
+
+        @Override
+        public void cancel(String reason) {
+            state = State.CANCELLED;
         }
     }
 }

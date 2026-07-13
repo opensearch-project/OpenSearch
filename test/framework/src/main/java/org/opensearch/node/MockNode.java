@@ -73,6 +73,7 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -176,7 +177,8 @@ public class MockNode extends Node {
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        WorkloadGroupService workloadGroupService
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -192,7 +194,8 @@ public class MockNode extends Node {
                 indexSearcherExecutor,
                 taskResourceTrackingService,
                 concurrentSearchDeciderFactories,
-                pluginProfilers
+                pluginProfilers,
+                workloadGroupService
             );
         }
         return new MockSearchService(
@@ -205,7 +208,8 @@ public class MockNode extends Node {
             fetchPhase,
             circuitBreakerService,
             indexSearcherExecutor,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            workloadGroupService
         );
     }
 

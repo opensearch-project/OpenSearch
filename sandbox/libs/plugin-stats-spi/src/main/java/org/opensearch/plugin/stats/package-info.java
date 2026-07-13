@@ -7,16 +7,18 @@
  */
 
 /**
- * SPI stats types for the Mustang Stats Framework.
+ * SPI for plugin-level data-format statistics.
  *
- * <p>This package contains the stats interfaces shared between
- * the OpenSearch server and native backend plugins. Types here are visible to
- * both sides without requiring a plugin dependency.
+ * <p>Defines the {@link org.opensearch.plugin.stats.DataFormatStatsProvider} contract,
+ * the {@link org.opensearch.plugin.stats.DataFormatShardStats} typed shard-stats marker,
+ * and the JVM-wide {@link org.opensearch.plugin.stats.DataFormatStatsProviderRegistry}
+ * registry. Per-format plugins (Lucene, Parquet, etc.) implement these interfaces to
+ * surface their counters via the per-format REST endpoints in the
+ * {@code transport} sub-package.
  *
- * <p>Key types:
- * <ul>
- *   <li>{@link org.opensearch.plugin.stats.PluginStats} — marker interface for all backend stats</li>
- *   <li>{@link org.opensearch.plugin.stats.BackendStatsProvider} — interface for backends to provide stats</li>
- * </ul>
+ * @opensearch.experimental
  */
+@ExperimentalApi
 package org.opensearch.plugin.stats;
+
+import org.opensearch.common.annotation.ExperimentalApi;

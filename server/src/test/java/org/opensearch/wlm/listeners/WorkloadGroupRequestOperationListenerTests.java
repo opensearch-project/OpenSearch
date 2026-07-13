@@ -298,7 +298,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
     public void testApplySearchSettings_WorkloadGroupNotFound() {
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "non-existent-id");
-        when(workloadGroupService.getWorkloadGroupById("non-existent-id")).thenReturn(null);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(null);
 
         sut.onRequestStart(mockSearchRequestContext);
 
@@ -310,7 +310,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.EMPTY);
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -324,7 +324,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.default_search_timeout", "1m").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -337,7 +337,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.default_search_timeout", "10s").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -350,7 +350,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.default_search_timeout", "30s").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -363,7 +363,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "30s").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -376,7 +376,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "30s").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -390,7 +390,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.max_concurrent_shard_requests", "10").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -403,7 +403,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.max_concurrent_shard_requests", "5").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -417,7 +417,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.batched_reduce_size", "100").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -430,7 +430,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         String wgId = "test-wg";
         WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.batched_reduce_size", "100").build());
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -456,7 +456,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 .put("override_request_values", "true")
                 .build()
         );
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -486,7 +486,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 .put("override_request_values", "false")
                 .build()
         );
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -511,7 +511,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 .put("search.batched_reduce_size", "100")
                 .build()
         );
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -533,7 +533,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
             wgId,
             Settings.builder().put("search.default_search_timeout", "1m").put("search.cancel_after_time_interval", "2m").build()
         );
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);
@@ -562,7 +562,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 .put("override_request_values", "true")
                 .build()
         );
-        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
         sut.onRequestStart(mockSearchRequestContext);

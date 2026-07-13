@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "avgval",
+      "type": "double"
+    },
+    {
+      "name": "minval",
+      "type": "double"
+    },
+    {
+      "name": "maxval",
+      "type": "double"
+    },
+    {
+      "name": "category",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      151.5625,
+      100.5,
+      180.5,
+      "A"
+    ],
+    [
+      225.66666666666666,
+      200.75,
+      250.5,
+      "B"
+    ],
+    [
+      350.0833333333333,
+      300.0,
+      400.25,
+      "C"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

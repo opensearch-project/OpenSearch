@@ -96,13 +96,16 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        global_base: 0,
+        sort_min: None,
+        sort_max: None,
     };
 
     let tree = Arc::new(tree_bool);
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -115,7 +118,10 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
-                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -123,7 +129,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -135,6 +141,11 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -281,18 +292,15 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
     // so ~10% of rows match, concentrated at the start of every 1000-row
     // cycle → some pages will be prunable).
     let score_idx = drift_schema.index_of("score").unwrap();
-    let score_col: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
-        datafusion::physical_expr::expressions::Column::new("score", score_idx),
-    );
+    let score_col: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        std::sync::Arc::new(datafusion::physical_expr::expressions::Column::new(
+            "score", score_idx,
+        ));
     let lit_100: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
         datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(100))),
     );
     let score_lt: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
-        datafusion::physical_expr::expressions::BinaryExpr::new(
-            score_col,
-            Operator::Lt,
-            lit_100,
-        ),
+        datafusion::physical_expr::expressions::BinaryExpr::new(score_col, Operator::Lt, lit_100),
     );
     let pp_solo = build_pruning_predicate(&score_lt, drift_schema.clone())
         .expect("score<100 is not always_true on this fixture");
@@ -337,8 +345,7 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
         match (solo.as_ref(), combined.as_ref()) {
             (Some(s), Some(c)) => {
                 let solo_kept: usize = s.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
-                let combined_kept: usize =
-                    c.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
+                let combined_kept: usize = c.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
                 assert!(
                     combined_kept <= solo_kept,
                     "rg {}: combined selection kept {} rows, solo kept {} — \
@@ -358,4 +365,178 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
             _ => {}
         }
     }
+}
+// ══════════════════════════════════════════════════════════════════════
+
+/// Generic helper: write a parquet file, register with a (possibly different)
+/// table schema, run `SELECT * FROM t`, return row count.
+async fn query_with_mismatched_schema(
+    file_schema: SchemaRef,
+    table_schema: SchemaRef,
+    batch: &RecordBatch,
+    tree_bool: BoolNode,
+) -> usize {
+    let tmp = NamedTempFile::new().unwrap();
+    let (file, path) = tmp.keep().unwrap();
+    let props = datafusion::parquet::file::properties::WriterProperties::builder()
+        .set_max_row_group_size(256)
+        .build();
+    let mut w = ArrowWriter::try_new(file, file_schema, Some(props)).unwrap();
+    w.write(batch).unwrap();
+    w.close().unwrap();
+
+    let size = std::fs::metadata(&path).unwrap().len();
+    let rfile = std::fs::File::open(&path).unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&rfile, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let parquet_meta = meta.metadata().clone();
+    let mut rgs = Vec::new();
+    let mut offset = 0i64;
+    for i in 0..parquet_meta.num_row_groups() {
+        let n = parquet_meta.row_group(i).num_rows();
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
+        offset += n;
+    }
+    let segment = SegmentFileInfo {
+        writer_generation: 0,
+        max_doc: batch.num_rows() as i64,
+        object_path: object_store::path::Path::from(path.to_string_lossy().as_ref()),
+        parquet_size: size,
+        row_groups: rgs,
+        metadata: Arc::clone(&parquet_meta),
+        global_base: 0,
+        sort_min: None,
+        sort_max: None,
+    };
+    let tree = Arc::new(tree_bool);
+    let factory: super::super::table_provider::EvaluatorFactory = {
+        let tree = Arc::clone(&tree);
+        let schema = table_schema.clone();
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
+            let resolved = tree.resolve(&[])?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
+                tree: Arc::new(resolved),
+                evaluator: Arc::new(BitmapTreeEvaluator),
+                leaves: Arc::new(CollectorLeafBitmaps::without_metrics()),
+                page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
+                max_collector_parallelism: 1,
+                pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: None,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
+            });
+            Ok(eval)
+        })
+    };
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .indexed_pushdown_filters(false)
+        .build();
+    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema: table_schema,
+        segments: vec![segment],
+        store: Arc::new(object_store::local::LocalFileSystem::new())
+            as Arc<dyn object_store::ObjectStore>,
+        store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
+        evaluator_factory: factory,
+        pushdown_predicate: None,
+        query_config: std::sync::Arc::new(qc),
+        predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
+    }));
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+    let df = ctx.sql("SELECT * FROM t").await.unwrap();
+    let mut stream = df.execute_stream().await.unwrap();
+    let mut count = 0;
+    while let Some(b) = stream.next().await {
+        let b = b.unwrap();
+        count += b.num_rows();
+    }
+    count
+}
+
+/// Build a tautology predicate: `col >= 0` (always true for non-negative int columns).
+/// `col_idx` is the column's position in the table schema.
+fn tautology_int(col: &str, col_idx: usize) -> BoolNode {
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(0))),
+    );
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, Operator::GtEq, right),
+    ))
+}
+
+// File has (name, score, brand); table schema is (brand, name, score).
+// Without the stream.rs reprojection fix, columns would be swapped.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reorder_columns_aligned_and_filtered() {
+    let file_schema = Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, false),
+        Field::new("score", DataType::Int32, false),
+        Field::new("brand", DataType::Utf8, false),
+    ]));
+    let table_schema = Arc::new(Schema::new(vec![
+        Field::new("brand", DataType::Utf8, false),
+        Field::new("name", DataType::Utf8, false),
+        Field::new("score", DataType::Int32, false),
+    ]));
+    let batch = RecordBatch::try_new(
+        file_schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec!["alice", "bob", "alice", "bob"])),
+            Arc::new(Int32Array::from(vec![10, 20, 30, 40])),
+            Arc::new(StringArray::from(vec!["acme", "globex", "acme", "globex"])),
+        ],
+    )
+    .unwrap();
+    let count =
+        query_with_mismatched_schema(file_schema, table_schema, &batch, tautology_int("score", 2))
+            .await;
+    assert_eq!(count, 4);
+}
+
+// File has Utf8 columns; table schema declares Utf8View.
+// Without force_view_types(false), panics with "byte view array".
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn utf8view_schema_with_utf8_file_does_not_panic() {
+    let file_schema = Arc::new(Schema::new(vec![
+        Field::new("city", DataType::Utf8, false),
+        Field::new("pop", DataType::Int32, false),
+    ]));
+    let table_schema = Arc::new(Schema::new(vec![
+        Field::new("city", DataType::Utf8View, false),
+        Field::new("pop", DataType::Int32, false),
+    ]));
+    let batch = RecordBatch::try_new(
+        file_schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec![
+                "seattle", "portland", "denver", "austin",
+            ])),
+            Arc::new(Int32Array::from(vec![750_000, 650_000, 700_000, 980_000])),
+        ],
+    )
+    .unwrap();
+    let count =
+        query_with_mismatched_schema(file_schema, table_schema, &batch, tautology_int("pop", 1))
+            .await;
+    assert_eq!(count, 4);
 }

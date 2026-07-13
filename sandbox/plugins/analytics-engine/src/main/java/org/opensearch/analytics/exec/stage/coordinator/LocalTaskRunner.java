@@ -9,16 +9,16 @@
 package org.opensearch.analytics.exec.stage.coordinator;
 
 import org.opensearch.analytics.exec.task.TaskRunner;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
 
 import java.util.concurrent.Executor;
 
 /**
- * LOCAL-kind task runner: submits the {@link LocalStageTask#body()} to a per-query
- * virtual-thread executor. The body owns the listener — wrapped in a
+ * LOCAL-kind task runner: submits the {@link LocalStageTask} to the search
+ * executor. The body owns the listener — wrapped in a
  * {@link NotifyOnceListener} so a body that both fires and throws can't double-notify.
- * Virtual threads keep blocking reduce drains off SEARCH workers.
  *
  * @opensearch.internal
  */
@@ -43,10 +43,21 @@ public final class LocalTaskRunner implements TaskRunner<LocalStageTask> {
                 listener.onFailure(cause);
             }
         };
-        executor.execute(() -> {
-            try {
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
                 task.body().accept(once);
-            } catch (Exception e) {
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                once.onFailure(e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // Bounded pool queue full — fail the query gracefully instead of letting the
+                // rejection escape run() and hang the query with no terminal callback.
                 once.onFailure(e);
             }
         });

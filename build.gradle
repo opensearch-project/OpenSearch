@@ -46,7 +46,6 @@ import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
 import org.gradle.process.ExecResult;
-import org.opensearch.gradle.CheckCompatibilityTask
 import groovy.xml.XmlParser;
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
@@ -55,7 +54,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "8.4.0" apply false
+  id "com.diffplug.spotless" version "8.6.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -219,7 +218,7 @@ tasks.register("verifyVersions") {
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
-    new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+    new URL('https://ci.opensearch.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
       BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
@@ -736,14 +735,3 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
   dependsOn tasks.named('testAggregateTestReport', TestReport)
 }
 
-tasks.register('checkCompatibility', CheckCompatibilityTask) {
-  description = 'Checks the compatibility with child components'
-}
-
-allprojects { project ->
-  project.afterEvaluate {
-    if (project.tasks.findByName('publishToMavenLocal')) {
-      checkCompatibility.dependsOn(project.tasks.publishToMavenLocal)
-    }
-  }
-}

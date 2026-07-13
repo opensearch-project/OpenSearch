@@ -102,11 +102,7 @@ pub fn coerce_inferred_schema(schema: SchemaRef) -> SchemaRef {
     if !schema_needs_coerce(&schema) {
         return schema;
     }
-    let rewritten_fields: Vec<Field> = schema
-        .fields()
-        .iter()
-        .map(|f| rewrite_field(f))
-        .collect();
+    let rewritten_fields: Vec<Field> = schema.fields().iter().map(|f| rewrite_field(f)).collect();
     Arc::new(Schema::new_with_metadata(
         rewritten_fields,
         schema.metadata().clone(),
@@ -114,7 +110,10 @@ pub fn coerce_inferred_schema(schema: SchemaRef) -> SchemaRef {
 }
 
 fn schema_needs_coerce(schema: &Schema) -> bool {
-    schema.fields().iter().any(|f| contains_incompatible(f.data_type()))
+    schema
+        .fields()
+        .iter()
+        .any(|f| contains_incompatible(f.data_type()))
 }
 
 fn contains_incompatible(dt: &DataType) -> bool {
@@ -125,7 +124,9 @@ fn contains_incompatible(dt: &DataType) -> bool {
         }
         DataType::Map(f, _) => contains_incompatible(f.data_type()),
         DataType::Struct(fields) => fields.iter().any(|f| contains_incompatible(f.data_type())),
-        DataType::Union(fields, _) => fields.iter().any(|(_, f)| contains_incompatible(f.data_type())),
+        DataType::Union(fields, _) => fields
+            .iter()
+            .any(|(_, f)| contains_incompatible(f.data_type())),
         DataType::Dictionary(_, value_type) => contains_incompatible(value_type),
         _ => false,
     }
@@ -133,8 +134,7 @@ fn contains_incompatible(dt: &DataType) -> bool {
 
 fn rewrite_field(field: &Field) -> Field {
     let new_type = rewrite_data_type(field.data_type());
-    Field::new(field.name(), new_type, field.is_nullable())
-        .with_metadata(field.metadata().clone())
+    Field::new(field.name(), new_type, field.is_nullable()).with_metadata(field.metadata().clone())
 }
 
 fn rewrite_data_type(dt: &DataType) -> DataType {
@@ -157,9 +157,76 @@ fn rewrite_data_type(dt: &DataType) -> DataType {
     }
 }
 
+/// Appends to `registered` any `expected` field whose name is absent, as a nullable column.
+/// `Some(augmented)` if anything was added, `None` if `registered` already covers `expected`.
+///
+/// The Substrait consumer binds `base_schema` to the provider BY NAME, so the registered schema
+/// only needs to *contain* every expected column — order is irrelevant and present columns keep
+/// their inferred (coerced) types. Appended columns are forced nullable; DataFusion's parquet
+/// `SchemaAdapter` null-fills them at read time.
+pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option<SchemaRef> {
+    let mut added: Vec<Field> = Vec::new();
+    for ef in expected.fields() {
+        if registered.field_with_name(ef.name()).is_err() {
+            added.push(
+                Field::new(ef.name(), ef.data_type().clone(), true)
+                    .with_metadata(ef.metadata().clone()),
+            );
+        }
+    }
+    if added.is_empty() {
+        return None;
+    }
+    let mut fields: Vec<Field> = registered
+        .fields()
+        .iter()
+        .map(|f| f.as_ref().clone())
+        .collect();
+    fields.extend(added);
+    Some(Arc::new(Schema::new_with_metadata(
+        fields,
+        registered.metadata().clone(),
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn append_missing_adds_absent_columns_as_nullable() {
+        let registered = Schema::new(vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("age", DataType::Int64, true),
+        ]);
+        // `alias` is declared non-nullable in the plan; it must still be appended as nullable
+        // since the shard has no data for it.
+        let expected = Schema::new(vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("age", DataType::Int64, true),
+            Field::new("alias", DataType::Utf8, false),
+        ]);
+
+        let merged =
+            append_missing_nullable(&registered, &expected).expect("alias missing → augmented");
+        assert_eq!(merged.fields().len(), 3);
+        let alias = merged.field_with_name("alias").unwrap();
+        assert_eq!(alias.data_type(), &DataType::Utf8);
+        assert!(alias.is_nullable(), "appended column must be nullable");
+        assert!(merged.field_with_name("name").is_ok());
+        assert!(merged.field_with_name("age").is_ok());
+    }
+
+    #[test]
+    fn append_missing_returns_none_when_registered_covers_expected() {
+        let registered = Schema::new(vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("age", DataType::Int64, true),
+        ]);
+        // Registered may carry extra columns the plan doesn't reference — still nothing to add.
+        let expected = Schema::new(vec![Field::new("name", DataType::Utf8, true)]);
+        assert!(append_missing_nullable(&registered, &expected).is_none());
+    }
 
     #[test]
     fn top_level_binary_view_gets_rewritten() {
@@ -191,15 +258,21 @@ mod tests {
         ]));
         let before = Arc::as_ptr(&schema);
         let out = coerce_inferred_schema(schema);
-        assert_eq!(Arc::as_ptr(&out), before, "unchanged schema must not reallocate");
+        assert_eq!(
+            Arc::as_ptr(&out),
+            before,
+            "unchanged schema must not reallocate"
+        );
     }
 
     #[test]
     fn nested_list_of_binary_view_gets_rewritten() {
         let inner = Field::new("item", DataType::BinaryView, true);
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("xs", DataType::List(Arc::new(inner)), true),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "xs",
+            DataType::List(Arc::new(inner)),
+            true,
+        )]));
         let out = coerce_inferred_schema(schema);
         match out.field(0).data_type() {
             DataType::List(f) => assert_eq!(f.data_type(), &DataType::Binary),
@@ -210,9 +283,11 @@ mod tests {
     #[test]
     fn nested_list_of_uint64_gets_rewritten() {
         let inner = Field::new("item", DataType::UInt64, true);
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("xs", DataType::List(Arc::new(inner)), true),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "xs",
+            DataType::List(Arc::new(inner)),
+            true,
+        )]));
         let out = coerce_inferred_schema(schema);
         match out.field(0).data_type() {
             DataType::List(f) => assert_eq!(f.data_type(), &DataType::Int64),

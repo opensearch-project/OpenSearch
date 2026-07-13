@@ -36,6 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheAction;
+import org.opensearch.action.admin.cluster.blockcache.TransportPruneBlockCacheAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -381,6 +383,7 @@ import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
+import org.opensearch.rest.action.admin.cluster.RestPruneBlockCacheAction;
 import org.opensearch.rest.action.admin.cluster.RestPruneCacheAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
@@ -502,11 +505,13 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.storage.action.tiering.CancelTieringAction;
 import org.opensearch.storage.action.tiering.HotToWarmTierAction;
+import org.opensearch.storage.action.tiering.PrepareTieringAction;
 import org.opensearch.storage.action.tiering.RestCancelTierAction;
 import org.opensearch.storage.action.tiering.RestHotToWarmTierAction;
 import org.opensearch.storage.action.tiering.RestWarmToHotTierAction;
 import org.opensearch.storage.action.tiering.TransportCancelTierAction;
 import org.opensearch.storage.action.tiering.TransportHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.TransportPrepareTieringAction;
 import org.opensearch.storage.action.tiering.TransportWarmToHotTierAction;
 import org.opensearch.storage.action.tiering.WarmToHotTierAction;
 import org.opensearch.storage.action.tiering.status.GetTieringStatusAction;
@@ -689,6 +694,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
         actions.register(PruneFileCacheAction.INSTANCE, TransportPruneFileCacheAction.class);
+        actions.register(PruneBlockCacheAction.INSTANCE, TransportPruneBlockCacheAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         actions.register(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
@@ -865,6 +871,7 @@ public class ActionModule extends AbstractModule {
             actions.register(CancelTieringAction.INSTANCE, TransportCancelTierAction.class);
             actions.register(HotToWarmTierAction.INSTANCE, TransportHotToWarmTierAction.class);
             actions.register(WarmToHotTierAction.INSTANCE, TransportWarmToHotTierAction.class);
+            actions.register(PrepareTieringAction.INSTANCE, TransportPrepareTieringAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -909,6 +916,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPendingClusterTasksAction());
         // FileCache API
         registerHandler.accept(new RestPruneCacheAction());
+        registerHandler.accept(new RestPruneBlockCacheAction());
         registerHandler.accept(new RestPutRepositoryAction());
         registerHandler.accept(new RestGetRepositoriesAction(settingsFilter));
         registerHandler.accept(new RestDeleteRepositoryAction());

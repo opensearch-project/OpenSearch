@@ -63,14 +63,29 @@ public final class NativeLibraryLoader {
                 LOOKUP.find("native_error_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
             );
-            // Register the Rust→Java log callback
+            // Register the Rust→Java log callback, then push the active log level
+            // so the logging macros short-circuit `format!` for suppressed levels.
             LOOKUP.find("native_logger_init").ifPresent(sym -> RustLoggerBridge.register(linker, sym));
+            LOOKUP.find("native_logger_set_level").ifPresent(sym -> RustLoggerBridge.registerSetLevel(linker, sym));
         }
     }
 
     /** Returns the shared {@link SymbolLookup}. Loads the library on first call. */
     public static SymbolLookup symbolLookup() {
         return Holder.LOOKUP;
+    }
+
+    /**
+     * Returns {@code true} if the native library has been (or can be) successfully loaded.
+     * This method does not throw — it returns {@code false} if loading fails.
+     */
+    public static boolean isLoaded() {
+        try {
+            symbolLookup();
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     // ---- Error handling ----

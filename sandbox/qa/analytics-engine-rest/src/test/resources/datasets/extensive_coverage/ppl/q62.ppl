@@ -1,0 +1,1 @@
+source=test_data | eval extracted = json_extract(json_data, "$.name") | fields json_data, extracted | head 3

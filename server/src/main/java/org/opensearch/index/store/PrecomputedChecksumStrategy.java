@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.CRC32;
@@ -22,18 +23,16 @@ import java.util.zip.CRC32;
  * Checksum strategy that uses pre-computed checksums when available,
  * falling back to full-file CRC32 scan.
  *
- * <p>The write path registers checksums via {@link #registerChecksum(String, long, long)}.
- * The upload path retrieves them via {@link #computeChecksum(Directory, String)} — O(1)
- * if pre-computed, O(n) fallback otherwise.
- *
- * <p>Each cache entry stores the checksum alongside the writer generation that produced it.
- * This ensures that if a filename is reused (e.g., after merge), the cache always serves
- * the checksum from the latest write, not a stale value from an earlier generation.
+ * <p>Entries carry the writer generation that produced them; a newer gen overwrites an older
+ * one, preventing stale registrations from clobbering fresh data after filename reuse.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class PrecomputedChecksumStrategy implements FormatChecksumStrategy {
+
+    /** Sentinel generation for fallback-computed entries; any write-path register (gen &gt;= 1) overwrites. */
+    private static final long FALLBACK_GENERATION = 0L;
 
     /** Cache entry: checksum + the generation that produced it. */
     private record CacheEntry(long checksum, long generation) {
@@ -47,23 +46,22 @@ public class PrecomputedChecksumStrategy implements FormatChecksumStrategy {
         if (entry != null) {
             return entry.checksum();
         }
-        // Fallback: full-file CRC32 scan
-        return computeFullFileCrc32(dir, fileName);
+        long computed = computeFullFileCrc32(dir, fileName);
+        checksumCache.putIfAbsent(fileName, new CacheEntry(computed, FALLBACK_GENERATION));
+        return computed;
     }
 
     @Override
     public void registerChecksum(String fileName, long checksum, long writerGeneration) {
-        if (fileName != null && checksum != 0) {
-            checksumCache.compute(fileName, (key, existing) -> {
-                // Only overwrite if the new generation is >= the existing one.
-                // This prevents a race where an older generation's late registration
-                // overwrites a newer generation's checksum.
-                if (existing == null || writerGeneration >= existing.generation()) {
-                    return new CacheEntry(checksum, writerGeneration);
-                }
-                return existing;
-            });
+        if (fileName == null || checksum == 0) {
+            return;
         }
+        checksumCache.compute(fileName, (key, existing) -> {
+            if (existing == null || writerGeneration >= existing.generation()) {
+                return new CacheEntry(checksum, writerGeneration);
+            }
+            return existing;
+        });
     }
 
     @Override
@@ -81,6 +79,16 @@ public class PrecomputedChecksumStrategy implements FormatChecksumStrategy {
         if (fileName != null) {
             checksumCache.remove(fileName);
         }
+    }
+
+    /**
+     * Retains only checksums for files in the given set, evicting all others.
+     * Called after successful upload with the current catalog snapshot's file set.
+     *
+     * @param activeFiles the set of files currently in the catalog snapshot
+     */
+    public void retainOnly(Collection<String> activeFiles) {
+        checksumCache.keySet().retainAll(activeFiles);
     }
 
     private static long computeFullFileCrc32(Directory dir, String fileName) throws IOException {

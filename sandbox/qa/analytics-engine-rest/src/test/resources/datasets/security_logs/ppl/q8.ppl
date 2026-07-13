@@ -1,0 +1,1 @@
+source=security_logs | where event_type="privilege_escalation" | stats count() as escalation_count, earliest(@timestamp) as first_seen, latest(@timestamp) as last_seen by user, resource | sort - escalation_count

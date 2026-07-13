@@ -1,0 +1,1 @@
+source=app_logs | where status=500 and message like '%Unexpected_error%' | stats count() as error_count by host | where error_count > 0

@@ -1,0 +1,34 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "uri": {
+        "type": "keyword"
+      },
+      "realm": {
+        "type": "keyword"
+      },
+      "log_level": {
+        "type": "keyword"
+      },
+      "mock_update": {
+        "type": "boolean"
+      },
+      "part_mid": {
+        "type": "keyword"
+      },
+      "user_id": {
+        "type": "keyword"
+      },
+      "form_type": {
+        "type": "keyword"
+      }
+    }
+  }
+}

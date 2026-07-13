@@ -18,11 +18,18 @@ import java.util.Map;
 /**
  * End-to-end coverage for PPL math functions on the analytics-engine route. Substrait's
  * standard yaml declares math fns for {@code i64/fp32/fp64} only; Calcite emits them with
- * {@code i32} args from PPL int literals and OS {@code integer} columns. Two fixes bridge
- * the gap: {@link org.opensearch.analytics.spi.NumericToDoubleAdapter} widens transcendental
- * operands ({@code EXP/LN/LOG/POWER}) before substrait, and i32 overloads in
- * {@code opensearch_rounding_overloads.yaml} cover type-preserving fns ({@code CEIL/FLOOR/
- * SIGN/TRUNCATE}) at native width.
+ * {@code i32} args from PPL int literals and OS {@code integer} columns. Two adapters bridge
+ * the gap before substrait conversion:
+ * <ul>
+ *   <li>{@link org.opensearch.analytics.spi.NumericToDoubleAdapter} — widens operands of
+ *       transcendental fns ({@code EXP/LN/LOG/POWER/...}) whose Calcite return type is
+ *       already {@code fp64}.</li>
+ *   <li>{@link org.opensearch.analytics.spi.IntegerRoundingCastAdapter} — wraps
+ *       {@code CEIL(int)} / {@code FLOOR(int)} / {@code SIGN(int)} / {@code TRUNCATE(int [, scale])}
+ *       as {@code CAST(<udf>(CAST(int_first_arg AS DOUBLE) [, trailing_args...]) AS <orig_int_type>)}
+ *       so isthmus binds the standard {@code <udf>(fp64) → fp64} impl while preserving the
+ *       user-visible "same type as input" return contract.</li>
+ * </ul>
  */
 public class MathFunctionIT extends AnalyticsRestTestCase {
 
@@ -30,7 +37,8 @@ public class MathFunctionIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -211,17 +219,10 @@ public class MathFunctionIT extends AnalyticsRestTestCase {
     private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
         return rows.get(0).get(0);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

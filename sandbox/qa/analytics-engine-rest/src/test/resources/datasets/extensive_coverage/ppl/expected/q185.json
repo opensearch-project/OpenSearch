@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "value",
+      "type": "double"
+    },
+    {
+      "name": "sign_val",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      100.5,
+      -1.0
+    ],
+    [
+      200.75,
+      1.0
+    ],
+    [
+      150.25,
+      -1.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

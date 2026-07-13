@@ -109,9 +109,10 @@ impl BoolNode {
     /// yet (Phase 7 fast-follow).
     pub fn delegation_possible_leaf_count(&self) -> usize {
         match self {
-            BoolNode::And(children) | BoolNode::Or(children) => {
-                children.iter().map(|c| c.delegation_possible_leaf_count()).sum()
-            }
+            BoolNode::And(children) | BoolNode::Or(children) => children
+                .iter()
+                .map(|c| c.delegation_possible_leaf_count())
+                .sum(),
             BoolNode::Not(child) => child.delegation_possible_leaf_count(),
             BoolNode::DelegationPossible { .. } => 1,
             BoolNode::Collector { .. } => 0,
@@ -183,28 +184,34 @@ impl BoolNode {
         }
     }
 
-    /// Demote every `DelegationPossible` leaf to a plain `Predicate` carrying its
-    /// `original_expr`. Called when the filter classifies as `FilterClass::Tree`
-    /// (i.e. has any OR or NOT in its shape) — the bitmap-tree evaluator currently
-    /// has `unimplemented!()` arms for `DelegationPossible`, so any disjunctive query
-    /// containing a performance-delegated leaf would otherwise crash the data node.
+    /// Demote every `DelegationPossible` leaf to a plain native `Predicate`. Called for
+    /// `FilterClass::Tree` plans (any OR/NOT), whose evaluator can't run `DelegationPossible`.
+    /// The coordinator never puts perf directly under OR/NOT, but an AND-side perf leaf can ride
+    /// in a tree that still has a surviving OR/NOT (e.g. `tag=a AND (dual OR native)`); demoting
+    /// it to native keeps results correct, just skipping the opportunistic peer consult.
     ///
-    /// Demotion is a uniform, position-blind transform: every DelegationPossible in
-    /// the tree becomes a Predicate, even ones under all-AND ancestry within the
-    /// tree. That sacrifices the AND-side perf-delegation opportunity for those
-    /// queries — acceptable v1 trade-off — in exchange for "doesn't crash."
-    /// Position-aware demotion (only OR/NOT-positioned leaves) would need
-    /// DelegationPossible support in the bitmap-tree evaluator.
+    /// FIXME: move this Tree-classification awareness into the coordinator so it never emits a
+    /// `delegation_possible` that reaches a Tree plan; then this method goes away and the
+    /// evaluator arms can throw. Pairs with implementing performance delegation under OR/NOT in
+    /// the Tree-path evaluator.
     pub fn demote_delegation_possible(self) -> BoolNode {
         match self {
-            BoolNode::And(children) => {
-                BoolNode::And(children.into_iter().map(|c| c.demote_delegation_possible()).collect())
-            }
-            BoolNode::Or(children) => {
-                BoolNode::Or(children.into_iter().map(|c| c.demote_delegation_possible()).collect())
-            }
+            BoolNode::And(children) => BoolNode::And(
+                children
+                    .into_iter()
+                    .map(|c| c.demote_delegation_possible())
+                    .collect(),
+            ),
+            BoolNode::Or(children) => BoolNode::Or(
+                children
+                    .into_iter()
+                    .map(|c| c.demote_delegation_possible())
+                    .collect(),
+            ),
             BoolNode::Not(child) => BoolNode::Not(Box::new(child.demote_delegation_possible())),
-            BoolNode::DelegationPossible { original_expr, .. } => BoolNode::Predicate(original_expr),
+            BoolNode::DelegationPossible { original_expr, .. } => {
+                BoolNode::Predicate(original_expr)
+            }
             leaf @ (BoolNode::Collector { .. } | BoolNode::Predicate(_)) => leaf,
         }
     }
@@ -355,7 +362,7 @@ fn try_negate_cmp_expr(
     use datafusion::logical_expr::Operator;
     use datafusion::physical_expr::expressions::BinaryExpr;
 
-    let bin = expr.as_any().downcast_ref::<BinaryExpr>()?;
+    let bin = expr.downcast_ref::<BinaryExpr>()?;
     let flipped = match *bin.op() {
         Operator::Eq => Operator::NotEq,
         Operator::NotEq => Operator::Eq,
@@ -472,9 +479,7 @@ mod tests {
     }
 
     fn collector(id: i32) -> BoolNode {
-        BoolNode::Collector {
-            annotation_id: id,
-        }
+        BoolNode::Collector { annotation_id: id }
     }
 
     fn predicate(col: &str, op: Operator, v: i32) -> BoolNode {
@@ -521,10 +526,7 @@ mod tests {
 
     #[test]
     fn de_morgan_not_and_to_or() {
-        let tree = BoolNode::Not(Box::new(BoolNode::And(vec![
-            collector(0),
-            collector(1),
-        ])));
+        let tree = BoolNode::Not(Box::new(BoolNode::And(vec![collector(0), collector(1)])));
         match tree.push_not_down() {
             BoolNode::Or(children) => {
                 assert_eq!(children.len(), 2);
@@ -707,7 +709,6 @@ mod tests {
         match node {
             ResolvedNode::Predicate(expr) => {
                 let bin = expr
-                    .as_any()
                     .downcast_ref::<BinaryExpr>()
                     .expect("expected BinaryExpr leaf");
                 *bin.op()
@@ -775,7 +776,11 @@ mod tests {
             BoolNode::Or(children) => {
                 assert_eq!(children.len(), 2);
                 for c in &children {
-                    assert!(matches!(c, BoolNode::Predicate(_)), "expected Predicate, got {:?}", c);
+                    assert!(
+                        matches!(c, BoolNode::Predicate(_)),
+                        "expected Predicate, got {:?}",
+                        c
+                    );
                 }
             }
             other => panic!("expected Or with two Predicates, got {:?}", other),
@@ -810,7 +815,10 @@ mod tests {
         match demoted {
             BoolNode::Or(children) => {
                 assert_eq!(children.len(), 3);
-                assert!(matches!(&children[0], BoolNode::Collector { annotation_id: 7 }));
+                assert!(matches!(
+                    &children[0],
+                    BoolNode::Collector { annotation_id: 7 }
+                ));
                 assert!(matches!(&children[1], BoolNode::Predicate(_)));
                 assert!(matches!(&children[2], BoolNode::Predicate(_)));
             }

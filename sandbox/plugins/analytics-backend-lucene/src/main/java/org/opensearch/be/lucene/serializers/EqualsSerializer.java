@@ -36,7 +36,7 @@ import java.util.List;
 public class EqualsSerializer extends AbstractQuerySerializer {
 
     @Override
-    protected QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
+    public QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
         if (call.getOperands().size() != 2) {
             throw new IllegalArgumentException("EQUALS expects 2 operands, got " + call.getOperands().size());
         }
@@ -58,7 +58,10 @@ public class EqualsSerializer extends AbstractQuerySerializer {
             );
         }
 
-        String fieldName = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex()).getFieldName();
+        FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
+        // Route exact equality to the field's exact-match subfield when it has one (e.g. text →
+        // .keyword); else query the field directly. Mirrors the SQL engine's text→keyword rewrite.
+        String fieldName = resolveFieldName(field);
         // Calcite stores literals in canonical types (BigDecimal for ints, NlsString for
         // strings, etc.) that the OpenSearch Mapper can't parse directly. Convert at the
         // Calcite ↔ OpenSearch boundary so the mapper sees plain Java types.

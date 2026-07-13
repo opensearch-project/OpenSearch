@@ -23,6 +23,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeUtil;
 import org.apache.calcite.sql.validate.SqlUserDefinedFunction;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -84,6 +85,30 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
         RexNode lit = rexBuilder.makeLiteral(dsl);
         RelDataType boolType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
         return (RexCall) rexBuilder.makeCall(boolType, latestUdf, List.of(lit, tsRef));
+    }
+
+    /**
+     * Regression: with NOT NULL timestamp + NOT NULL folded RHS, the comparison's natural type is
+     * {@code BOOLEAN NOT NULL} but the call was declared {@code BOOLEAN NULLABLE}. Pinning back via
+     * {@code makeCast} would emit a pure-nullability cast, which Calcite's {@code Filter.isValid}
+     * rejects. The adapter must return the bare comparison; result type equals call type modulo
+     * nullability.
+     */
+    public void testNotNullComparisonAgainstNullableCallReturnsBareComparison() {
+        RelDataType notNullTs = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3), false);
+        RexNode notNullTsRef = rexBuilder.makeInputRef(notNullTs, 0);
+        RelDataType nullableBool = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
+        RexCall call = (RexCall) rexBuilder.makeCall(nullableBool, earliestUdf, List.of(rexBuilder.makeLiteral("now"), notNullTsRef));
+        assertTrue("precondition: call's declared type must be BOOLEAN NULLABLE", call.getType().isNullable());
+
+        RexNode result = earliestAdapter.adapt(call, List.of(), cluster);
+
+        assertEquals("result must be the bare >= comparison, not a CAST", SqlKind.GREATER_THAN_OR_EQUAL, result.getKind());
+        assertFalse("comparison must be NOT NULL when both operands are NOT NULL", result.getType().isNullable());
+        assertTrue(
+            "result type must equal call type modulo nullability",
+            SqlTypeUtil.equalSansNullability(typeFactory, result.getType(), call.getType())
+        );
     }
 
     // ── Absolute literal: emits TIMESTAMP_LITERAL, no symbolic now() ───────────

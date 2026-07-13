@@ -25,8 +25,9 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -376,10 +377,11 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         public TransportTestArrowAction(
             StreamTransportService streamTransportService,
             ActionFilters actionFilters,
-            ArrowAllocatorService allocatorService
+            ArrowNativeAllocator nativeAllocator
         ) {
             super(TestArrowAction.NAME, actionFilters, streamTransportService.getTaskManager());
-            this.allocator = allocatorService.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
+            this.allocator = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_FLIGHT)
+                .newChildAllocator("native-arrow-test", 0, Long.MAX_VALUE);
             streamTransportService.registerRequestHandler(
                 TestArrowAction.NAME,
                 ThreadPool.Names.GENERIC,

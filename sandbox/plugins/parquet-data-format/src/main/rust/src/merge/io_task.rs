@@ -14,13 +14,13 @@ use parquet::file::writer::SerializedFileWriter;
 
 use rayon::ThreadPool;
 
+use crate::crc_writer::CrcWriter;
+use crate::log_error;
+use crate::rate_limited_writer::RateLimitedWriter;
+use native_bridge_common::log_info;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use tokio::task::JoinHandle;
-use native_bridge_common::log_info;
-use crate::crc_writer::CrcWriter;
-use crate::rate_limited_writer::RateLimitedWriter;
-use crate::log_error;
 
 use super::error::{MergeError, MergeResult};
 // =============================================================================
@@ -45,7 +45,7 @@ const IO_CHANNEL_BUFFER: usize = 2;
 // Process-wide shared Rayon thread pool
 // =============================================================================
 
-static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
+pub(crate) static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
 
 pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
     MERGE_POOL.get_or_init(|| {
@@ -62,7 +62,7 @@ pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
 // Process-wide shared Tokio runtime for async IO
 // =============================================================================
 
-static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
+pub(crate) static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
 fn get_io_runtime(num_threads: Option<usize>) -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
@@ -92,9 +92,9 @@ pub enum IoCommand {
 async fn drain_on_error(rx: &mut tokio_mpsc::Receiver<IoCommand>, msg: &str) {
     while let Some(cmd) = rx.recv().await {
         if let IoCommand::Close(reply) = cmd {
-            let _ = reply.send(Err(MergeError::Logic(
-                format!("Prior IO write failed: {msg}"),
-            )));
+            let _ = reply.send(Err(MergeError::Logic(format!(
+                "Prior IO write failed: {msg}"
+            ))));
         }
     }
 }

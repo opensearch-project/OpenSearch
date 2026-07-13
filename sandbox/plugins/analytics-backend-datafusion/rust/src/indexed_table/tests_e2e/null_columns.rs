@@ -333,6 +333,9 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        global_base: 0,
+        sort_min: None,
+        sort_max: None,
     };
 
     let tree = Arc::new(bt);
@@ -345,7 +348,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -360,6 +363,8 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 page_prune_metrics: None,
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -368,7 +373,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -380,6 +385,11 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

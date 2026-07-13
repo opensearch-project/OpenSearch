@@ -242,4 +242,64 @@ public class TieringUtilsTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> TieringUtils.Tier.fromString("invalid"));
         expectThrows(IllegalArgumentException.class, () -> TieringUtils.Tier.fromString(null));
     }
+
+    // ── isDfaIndex tests ──────────────────────────────────────────────────────
+
+    public void testIsDfaIndex_NullMetadata_ReturnsFalse() {
+        assertFalse("isDfaIndex(null) must return false", TieringUtils.isDfaIndex((IndexMetadata) null));
+    }
+
+    public void testIsDfaIndex_SettingAbsent_ReturnsFalse() {
+        IndexMetadata meta = IndexMetadata.builder("idx")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        assertFalse("isDfaIndex must return false when PLUGGABLE_DATAFORMAT_ENABLED is absent", TieringUtils.isDfaIndex(meta));
+    }
+
+    public void testIsDfaIndex_SettingFalse_ReturnsFalse() {
+        IndexMetadata meta = IndexMetadata.builder("idx")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(org.opensearch.index.IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        assertFalse("isDfaIndex must return false when setting is explicitly false", TieringUtils.isDfaIndex(meta));
+    }
+
+    public void testIsDfaIndex_SettingTrue_ReturnsTrue() {
+        IndexMetadata meta = IndexMetadata.builder("idx")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(org.opensearch.index.IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        assertTrue("isDfaIndex must return true when PLUGGABLE_DATAFORMAT_ENABLED is true", TieringUtils.isDfaIndex(meta));
+    }
+
+    public void testIsDfaIndex_ViaClusterState_DfaIndex_ReturnsTrue() {
+        IndexMetadata meta = IndexMetadata.builder("dfa-idx")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(org.opensearch.index.IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        org.opensearch.cluster.ClusterState state = org.opensearch.cluster.ClusterState.builder(org.opensearch.cluster.ClusterName.DEFAULT)
+            .metadata(org.opensearch.cluster.metadata.Metadata.builder().put(meta, false).build())
+            .build();
+        assertTrue(
+            "isDfaIndex via ClusterState must return true for DFA index",
+            TieringUtils.isDfaIndex(state.getMetadata().index("dfa-idx"))
+        );
+    }
 }

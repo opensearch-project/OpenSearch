@@ -14,6 +14,7 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,6 +29,7 @@ import org.opensearch.transport.stream.StreamTransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRELATION_ID_KEY;
 
@@ -52,6 +54,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private volatile long currentBatchSize;
     private volatile boolean firstBatchConsumed;
     private volatile boolean closed;
+    private final AtomicBoolean streamClosed = new AtomicBoolean(false);
     private volatile boolean prefetchStarted;
     private volatile Header initialHeader;
 
@@ -92,6 +95,22 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 try {
                     long start = System.nanoTime();
                     flightStream = flightClient.getStream(ticket, new HeaderCallOption(callHeaders));
+                    // close() may have run while we were inside getStream() and missed the stream because
+                    // flightStream was still null. Now that it is published, re-check the flag: if a close()
+                    // already happened, self-close the stream we just opened so the prefetched first-batch
+                    // root is not stranded, then abort. This check is performed *before* future.complete(),
+                    // so once the future completes, any subsequent close() always observes flightStream != null
+                    // and owns the close itself. There is no post-completion window in which both this thread
+                    // and a racing close() could close the same stream.
+                    if (closed) {
+                        try {
+                            closeStreamQuietly();
+                        } catch (StreamException e) {
+                            logger.warn("Error closing flight stream after close() raced the prefetch", e);
+                        }
+                        future.completeExceptionally(new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed"));
+                        return;
+                    }
                     long elapsedMs = (System.nanoTime() - start) / 1_000_000;
                     logger.debug("FlightClient.getStream() for correlationId: {} took {}ms", correlationId, elapsedMs);
                     start = System.nanoTime();
@@ -125,7 +144,10 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
             VectorSchemaRoot streamRoot = flightStream.getRoot();
             currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(streamRoot);
-            try (VectorStreamInput input = newStreamInput(streamRoot)) {
+            // Flight owns getLatestMetadata()'s buffer until the next next() call;
+            // we copy off so the response can outlive the stream cursor.
+            byte[] metadata = readMetadata();
+            try (VectorStreamInput input = newStreamInput(streamRoot, metadata)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
             }
@@ -146,10 +168,26 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         return currentBatchSize;
     }
 
-    private VectorStreamInput newStreamInput(VectorSchemaRoot streamRoot) {
+    private VectorStreamInput newStreamInput(VectorSchemaRoot streamRoot, byte[] metadata) {
         return isNativeHandler
-            ? VectorStreamInput.forNativeArrow(streamRoot, namedWriteableRegistry)
+            ? VectorStreamInput.forNativeArrow(streamRoot, namedWriteableRegistry, metadata)
             : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
+    }
+
+    private byte[] readMetadata() {
+        return copyMetadata(flightStream.getLatestMetadata());
+    }
+
+    /**
+     * Copies an Arrow Flight metadata buffer into a {@code byte[]} the consumer owns, or
+     * returns {@code null} if the buffer is absent/empty. Package-private for testing.
+     */
+    static byte[] copyMetadata(ArrowBuf buf) {
+        if (buf == null || buf.readableBytes() == 0) return null;
+        int len = (int) buf.readableBytes();
+        byte[] copy = new byte[len];
+        buf.getBytes(0, copy);
+        return copy;
     }
 
     @Override
@@ -168,10 +206,14 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     public void close() {
         if (closed) return;
         closed = true;
+        closeStreamQuietly();
+    }
 
-        if (flightStream != null) {
+    private void closeStreamQuietly() {
+        FlightStream stream = flightStream;
+        if (stream != null && streamClosed.compareAndSet(false, true)) {
             try {
-                flightStream.close();
+                stream.close();
             } catch (IllegalStateException ignore) {} catch (Exception e) {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error closing flight stream", e);
             }

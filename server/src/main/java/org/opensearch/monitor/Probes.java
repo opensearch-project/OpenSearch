@@ -32,6 +32,9 @@
 
 package org.opensearch.monitor;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
 
@@ -41,6 +44,9 @@ import java.lang.reflect.Method;
  * @opensearch.internal
  */
 public class Probes {
+    private static final Logger logger = LogManager.getLogger(Probes.class);
+    private static volatile boolean shouldLogException = true;
+
     public static short getLoadAndScaleToPercent(Method method, OperatingSystemMXBean osMxBean) {
         if (method != null) {
             try {
@@ -49,6 +55,12 @@ public class Probes {
                     return (short) (load * 100);
                 }
             } catch (Exception e) {
+                // Only log an exception once, ideally it should happen during the bootstrap check only
+                // (see please BootstrapChecks.ProbesCheck)
+                if (shouldLogException == true) {
+                    logger.error("Unable to call method '" + method + "'", e);
+                    shouldLogException = false;
+                }
                 return -1;
             }
         }

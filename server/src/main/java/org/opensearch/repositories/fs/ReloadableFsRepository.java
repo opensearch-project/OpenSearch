@@ -21,6 +21,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,7 +65,22 @@ public class ReloadableFsRepository extends FsRepository {
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
+        this(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, null);
+    }
+
+    /**
+     * Constructs a shared file system repository that is reloadable in-place,
+     * with an optional native object store provider for warm-node reads.
+     */
+    public ReloadableFsRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings,
+        NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
+        super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, nativeStoreProvider);
         fail = new FailSwitch();
         fail.failRate(REPOSITORIES_FAILRATE_SETTING.get(metadata.settings()));
         slowDown = new SlowDownWriteSwitch();

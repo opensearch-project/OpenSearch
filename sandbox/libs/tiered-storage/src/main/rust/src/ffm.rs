@@ -20,9 +20,9 @@ use object_store::ObjectStore;
 
 use opensearch_block_cache::traits::BlockCache;
 
-use crate::registry::TieredStorageRegistry;
 use crate::registry::FileRegistry;
-use crate::tiered_object_store::TieredObjectStore;
+use crate::registry::TieredStorageRegistry;
+use crate::tiered_object_store::{MetadataCachingStore, TieredObjectStore};
 use crate::types::FileLocation;
 
 const NULL_PTR: i64 = 0;
@@ -116,8 +116,12 @@ pub extern "C" fn ts_create_tiered_object_store(
     Ok(ptr)
 }
 
-/// Returns a `Box<Arc<dyn ObjectStore>>` pointer from an existing TieredObjectStore Arc pointer.
-/// This is the format that `df_create_reader` expects — a boxed fat pointer to the trait object.
+/// Returns a `Box<Arc<dyn MetadataCachingStore>>` pointer from an existing TieredObjectStore
+/// Arc pointer. This is the format that `df_create_reader` and warmup paths expect — a boxed
+/// fat pointer to the trait object. `MetadataCachingStore: ObjectStore`, so all `ObjectStore`
+/// methods remain available; in addition, callers can invoke `put_metadata` to promote bytes
+/// into the never-evict metadata tier.
+///
 /// Each call creates a new Box with its own Arc clone — caller must free with
 /// `ts_destroy_object_store_box_ptr`.
 #[ffm_safe]
@@ -128,23 +132,24 @@ pub extern "C" fn ts_get_object_store_box_ptr(tiered_store_ptr: i64) -> i64 {
     }
     // Increment strong count so we don't consume the original Arc
     unsafe { Arc::increment_strong_count(tiered_store_ptr as *const TieredObjectStore) };
-    let arc: Arc<TieredObjectStore> = unsafe { Arc::from_raw(tiered_store_ptr as *const TieredObjectStore) };
-    // Coerce to trait object and box it
-    let boxed: Box<Arc<dyn ObjectStore>> = Box::new(arc as Arc<dyn ObjectStore>);
+    let arc: Arc<TieredObjectStore> =
+        unsafe { Arc::from_raw(tiered_store_ptr as *const TieredObjectStore) };
+    // Coerce to MetadataCachingStore trait object and box it
+    let boxed: Box<Arc<dyn MetadataCachingStore>> = Box::new(arc as Arc<dyn MetadataCachingStore>);
     let ptr = Box::into_raw(boxed) as i64;
     native_bridge_common::log_info!("ffm: ts_get_object_store_box_ptr: ok");
     Ok(ptr)
 }
 
-/// Destroy a `Box<Arc<dyn ObjectStore>>` pointer returned by `ts_get_object_store_box_ptr`.
-/// Drops the Box and decrements the Arc strong count.
+/// Destroy a `Box<Arc<dyn MetadataCachingStore>>` pointer returned by
+/// `ts_get_object_store_box_ptr`. Drops the Box and decrements the Arc strong count.
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn ts_destroy_object_store_box_ptr(ptr: i64) -> i64 {
     if ptr == NULL_PTR {
         return Err("ts_destroy_object_store_box_ptr: null pointer (0)".to_string());
     }
-    let _boxed = unsafe { Box::from_raw(ptr as *mut Arc<dyn ObjectStore>) };
+    let _boxed = unsafe { Box::from_raw(ptr as *mut Arc<dyn MetadataCachingStore>) };
     native_bridge_common::log_info!("ffm: ts_destroy_object_store_box_ptr: ok");
     Ok(0)
 }
@@ -198,7 +203,9 @@ pub extern "C" fn ts_register_files(
     if lines.len() < expected {
         return Err(format!(
             "ts_register_files: expected {} lines ({}*3) but got {}",
-            expected, count, lines.len()
+            expected,
+            count,
+            lines.len()
         ));
     }
 
@@ -219,18 +226,18 @@ pub extern "C" fn ts_register_files(
         registry.register(path, entry);
     }
 
-    native_bridge_common::log_debug!("ffm: ts_register_files count={}, location={}", count, file_location);
+    native_bridge_common::log_debug!(
+        "ffm: ts_register_files count={}, location={}",
+        count,
+        file_location
+    );
     Ok(0)
 }
 
 /// Remove a file from the registry.
 #[ffm_safe]
 #[no_mangle]
-pub extern "C" fn ts_remove_file(
-    store_ptr: i64,
-    path_ptr: *const u8,
-    path_len: i64,
-) -> i64 {
+pub extern "C" fn ts_remove_file(store_ptr: i64, path_ptr: *const u8, path_len: i64) -> i64 {
     let store = unsafe { arc_from_ptr(store_ptr) }?;
     let path = unsafe { str_from_raw(path_ptr, path_len) }
         .map_err(|e| format!("ts_remove_file path: {}", e))?;

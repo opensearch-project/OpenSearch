@@ -19,7 +19,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -477,7 +477,7 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
         when(fileCache.usage()).thenReturn(0L);
         when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
 
-        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        NodeCacheService orc = mock(NodeCacheService.class);
         when(orc.fileCache()).thenReturn(fileCache);
         when(orc.blockCacheCapacityBytes()).thenReturn(blockCacheSSD);
         when(orc.virtualBlockCacheBytes()).thenReturn(0L);
@@ -503,7 +503,7 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
         when(fileCache.usage()).thenReturn(0L);
         when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
 
-        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        NodeCacheService orc = mock(NodeCacheService.class);
         when(orc.fileCache()).thenReturn(fileCache);
         when(orc.blockCacheCapacityBytes()).thenReturn(0L);
         when(orc.virtualBlockCacheBytes()).thenReturn(virtualBlockBytes);
@@ -528,7 +528,7 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
         when(fileCache.usage()).thenReturn(20L * 1024 * 1024);
         when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
 
-        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        NodeCacheService orc = mock(NodeCacheService.class);
         when(orc.fileCache()).thenReturn(fileCache);
         when(orc.blockCacheCapacityBytes()).thenReturn(0L);
         when(orc.virtualBlockCacheBytes()).thenReturn(0L);
@@ -545,14 +545,14 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
-     * Creates a {@link NodeCacheOrchestrator} mock that wraps the given {@link FileCache}.
+     * Creates a {@link NodeCacheService} mock that wraps the given {@link FileCache}.
      * Stubs only the methods called by {@link WarmFsService#stats()}:
      * {@code fileCache()}, {@code blockCacheCapacityBytes()},
      * {@code virtualBlockCacheBytes()}, and {@code cacheUtilizedBytes()}.
      * No block caches are registered, so all block-cache metrics are 0.
      */
-    private NodeCacheOrchestrator mockOrchestrator(FileCache fc) {
-        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+    private NodeCacheService mockOrchestrator(FileCache fc) {
+        NodeCacheService orc = mock(NodeCacheService.class);
         when(orc.fileCache()).thenReturn(fc);
         when(orc.blockCacheCapacityBytes()).thenReturn(0L);
         when(orc.virtualBlockCacheBytes()).thenReturn(0L);

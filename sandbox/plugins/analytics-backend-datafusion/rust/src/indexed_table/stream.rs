@@ -33,9 +33,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use datafusion::arrow::array::{Array, BooleanArray};
+use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
 use datafusion::arrow::compute::filter_record_batch;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result;
 use datafusion::execution::SendableRecordBatchStream;
@@ -47,7 +47,8 @@ use datafusion::physical_plan::{
 };
 use datafusion_common::DataFusionError;
 use futures::{Future, Stream};
-use tokio::sync::oneshot;
+use native_bridge_common::log_debug;
+use tokio::task::JoinHandle;
 
 use super::eval::{PrefetchedRg, RowGroupBitsetSource};
 use super::metrics::StreamMetrics;
@@ -65,10 +66,12 @@ pub struct RowGroupInfo {
     pub num_rows: i64,
 }
 
-/// Test-only override for the per-RG `min_skip_run` selectivity heuristic.
-/// `IndexedStream` normally picks `min_skip_run` from candidate
-/// selectivity; setting `force_strategy` to one of these variants pins the
-/// choice so tests can exercise either extreme.
+/// Override for the per-RG `min_skip_run` selectivity heuristic. `IndexedStream`
+/// normally picks `min_skip_run` from candidate selectivity; setting
+/// `force_strategy` to one of these variants pins the choice node-wide.
+///
+/// Backed by the `datafusion.indexed.force_strategy` cluster setting (wire
+/// `-1` = `None` = let selectivity decide).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FilterStrategy {
     /// Force row-granular selection (`min_skip_run = 1`).
@@ -84,8 +87,20 @@ struct PrefetchedRowGroup {
     prefetched: PrefetchedRg,
 }
 
-type PrefetchResult = std::result::Result<Option<PrefetchedRowGroup>, String>;
-type PrefetchHandle = oneshot::Receiver<PrefetchResult>;
+/// Outcome of one prefetch task.
+enum PrefetchOutcome {
+    /// RG fetched with a non-empty candidate set.
+    Fetched(PrefetchedRowGroup),
+    /// RG had no candidates (empty bitmap) or fell outside the doc range —
+    /// skipped without a parquet read. Attributed to `rg_skipped`.
+    Empty,
+    /// RG excluded by the dynamic filter at prefetch time, before the Lucene
+    /// eval ran. Attributed to `dynamic_filter_rg_pruned_at_prefetch`.
+    Pruned,
+}
+
+type PrefetchResult = std::result::Result<PrefetchOutcome, String>;
+type PrefetchHandle = JoinHandle<PrefetchResult>;
 
 // ── IndexReader (drives the evaluator RG-by-RG with prefetch overlap) ──
 
@@ -109,9 +124,24 @@ struct IndexReader {
     /// polled (and returned Pending). Used to attribute wait time when
     /// the receiver eventually resolves.
     pending_since: Option<Instant>,
+    /// Parquet metadata for this segment — needed to evaluate a dynamic-filter
+    /// snapshot against an RG's statistics before kicking off its Lucene eval.
+    /// `None` only in unit tests that don't exercise dynamic-filter pruning.
+    metadata: Option<Arc<ParquetMetaData>>,
+    /// Snapshot of the runtime dynamic filter (refreshed by the stream before
+    /// each `poll_next_row_group`). When present, `start_prefetch` checks it
+    /// against the target RG's stats and skips the Lucene eval if the RG is
+    /// provably excluded. `None` when no dynamic filter was pushed.
+    dynamic_prune_ctx: Option<super::dynamic_filter::RgPruningContext>,
+    /// Count of RGs skipped at prefetch time (before the Lucene eval).
+    dynamic_filter_rg_pruned_at_prefetch: Option<datafusion::physical_plan::metrics::Count>,
+    /// Per-query cancellation token. Checked before each row group is dispatched
+    /// and before the evaluator runs in a queued blocking job. `None` disables cancellation.
+    cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 impl IndexReader {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         evaluator: Arc<dyn RowGroupBitsetSource>,
         row_groups: Vec<RowGroupInfo>,
@@ -119,6 +149,9 @@ impl IndexReader {
         rg_skipped: Option<datafusion::physical_plan::metrics::Count>,
         prefetch_wait_time: Option<datafusion::physical_plan::metrics::Time>,
         prefetch_wait_count: Option<datafusion::physical_plan::metrics::Count>,
+        metadata: Option<Arc<ParquetMetaData>>,
+        dynamic_filter_rg_pruned_at_prefetch: Option<datafusion::physical_plan::metrics::Count>,
+        cancellation_token: Option<tokio_util::sync::CancellationToken>,
     ) -> Self {
         Self {
             evaluator,
@@ -131,31 +164,72 @@ impl IndexReader {
             prefetch_wait_time,
             prefetch_wait_count,
             pending_since: None,
+            metadata,
+            dynamic_prune_ctx: None,
+            dynamic_filter_rg_pruned_at_prefetch,
+            cancellation_token,
         }
     }
 
+    /// True when this query's task has been cancelled. Cheap (one relaxed
+    /// atomic load); `None` token (untracked/test) is never cancelled.
+    #[inline]
+    fn is_cancelled(&self) -> bool {
+        self.cancellation_token
+            .as_ref()
+            .is_some_and(|t| t.is_cancelled())
+    }
+
+    /// Result of a prefetch task. `Pruned` is distinct from `Ok(None)`
+    /// (empty candidate set): it means the dynamic filter excluded the RG
+    /// before the Lucene eval ran, so it must be attributed to the
+    /// prefetch-phase prune counter rather than `rg_skipped`.
     fn fetch_row_group(
         evaluator: &Arc<dyn RowGroupBitsetSource>,
         row_groups: &[RowGroupInfo],
         rg_idx: usize,
         doc_range: Option<(i32, i32)>,
-    ) -> std::result::Result<Option<PrefetchedRowGroup>, String> {
+        prune: Option<(
+            super::dynamic_filter::RgPruningContext,
+            Arc<ParquetMetaData>,
+        )>,
+        cancellation_token: Option<&tokio_util::sync::CancellationToken>,
+    ) -> std::result::Result<PrefetchOutcome, String> {
         if rg_idx >= row_groups.len() {
-            return Ok(None);
+            return Ok(PrefetchOutcome::Empty);
+        }
+        // Bail before the expensive evaluator.prefetch_rg if the query was
+        // cancelled after this blocking job was queued but before it started.
+        if cancellation_token.is_some_and(|t| t.is_cancelled()) {
+            return Err("query cancelled".to_string());
         }
         let rg = row_groups[rg_idx].clone();
+
+        // Prefetch-phase dynamic-filter prune: if the snapshot-so-far proves
+        // this RG's parquet stats cannot match, skip BEFORE the (expensive)
+        // Lucene/FFM eval. Conservative — only skips on proof; the threshold
+        // only tightens, so an RG excluded here stays excluded.
+        if let Some((ctx, metadata)) = prune.as_ref() {
+            if ctx.rg_provably_excluded(metadata, rg.index) {
+                return Ok(PrefetchOutcome::Pruned);
+            }
+        }
+
         let mut min_doc = rg.first_row as i32;
         let mut max_doc = (rg.first_row + rg.num_rows) as i32;
         if let Some((range_min, range_max)) = doc_range {
             min_doc = min_doc.max(range_min);
             max_doc = max_doc.min(range_max);
             if min_doc >= max_doc {
-                return Ok(None);
+                return Ok(PrefetchOutcome::Empty);
             }
         }
         match evaluator.prefetch_rg(&rg, min_doc, max_doc)? {
-            None => Ok(None),
-            Some(prefetched) => Ok(Some(PrefetchedRowGroup { rg, prefetched })),
+            None => Ok(PrefetchOutcome::Empty),
+            Some(prefetched) => Ok(PrefetchOutcome::Fetched(PrefetchedRowGroup {
+                rg,
+                prefetched,
+            })),
         }
     }
 
@@ -166,16 +240,24 @@ impl IndexReader {
         let evaluator = Arc::clone(&self.evaluator);
         let row_groups = self.row_groups.clone();
         let doc_range = self.doc_range;
-        let (tx, rx) = oneshot::channel();
-        tokio::task::spawn_blocking(move || {
-            let _ = tx.send(Self::fetch_row_group(
+        // Snapshot-so-far + metadata, moved into the blocking task so the
+        // prefetch-phase prune runs off the poll thread.
+        let prune = match (self.dynamic_prune_ctx.clone(), self.metadata.as_ref()) {
+            (Some(ctx), Some(md)) => Some((ctx, Arc::clone(md))),
+            _ => None,
+        };
+        let token = self.cancellation_token.clone();
+        let handle = tokio::task::spawn_blocking(move || {
+            Self::fetch_row_group(
                 &evaluator,
                 &row_groups,
                 rg_idx,
                 doc_range,
-            ));
+                prune,
+                token.as_ref(),
+            )
         });
-        self.pending_prefetch = Some(rx);
+        self.pending_prefetch = Some(handle);
     }
 
     fn poll_next_row_group(
@@ -183,6 +265,12 @@ impl IndexReader {
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<Option<PrefetchedRowGroup>, DataFusionError>> {
         loop {
+            // Bail before dispatching the next row group if the query is cancelled.
+            if self.is_cancelled() {
+                return Poll::Ready(Err(DataFusionError::Execution(
+                    "query cancelled".to_string(),
+                )));
+            }
             if self.current_rg_idx >= self.row_groups.len() {
                 return Poll::Ready(Ok(None));
             }
@@ -190,11 +278,19 @@ impl IndexReader {
                 self.current_rg_idx += 1;
                 self.start_prefetch(self.current_rg_idx);
                 match result {
-                    Ok(Some(p)) => return Poll::Ready(Ok(Some(p))),
-                    Ok(None) => {
+                    Ok(PrefetchOutcome::Fetched(p)) => return Poll::Ready(Ok(Some(p))),
+                    Ok(PrefetchOutcome::Empty) => {
                         // RG had no candidates — skipped without a
                         // parquet read. Count for EXPLAIN ANALYZE.
                         if let Some(ref c) = self.rg_skipped {
+                            c.add(1);
+                        }
+                        continue;
+                    }
+                    Ok(PrefetchOutcome::Pruned) => {
+                        // RG excluded by the dynamic filter before the Lucene
+                        // eval ran — the prefetch-phase win.
+                        if let Some(ref c) = self.dynamic_filter_rg_pruned_at_prefetch {
                             c.add(1);
                         }
                         continue;
@@ -216,9 +312,27 @@ impl IndexReader {
                         self.cached_result = Some(result);
                         continue;
                     }
-                    Poll::Ready(Err(_)) => {
+                    Poll::Ready(Err(join_error)) => {
+                        // The spawn_blocking task failed to complete.
+                        // JoinError distinguishes panic from cancellation.
                         self.pending_prefetch = None;
                         self.pending_since = None;
+                        if join_error.is_panic() {
+                            // Deterministic failure (e.g. subtree_cost invariant
+                            // violation). Propagate immediately — retrying would
+                            // loop forever and hang the calling Java thread.
+                            let payload = join_error.into_panic();
+                            let panic_msg = payload
+                                .downcast_ref::<String>()
+                                .cloned()
+                                .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+                                .unwrap_or_else(|| "unknown panic".into());
+                            return Poll::Ready(Err(DataFusionError::Execution(format!(
+                                "prefetch for row group {} panicked: {}",
+                                self.current_rg_idx, panic_msg
+                            ))));
+                        }
+                        // Task was cancelled (runtime shutting down) — retry once
                         self.start_prefetch(self.current_rg_idx);
                         return Poll::Pending;
                     }
@@ -270,6 +384,22 @@ pub struct IndexedExec {
     /// from the same query; read once per RG into local fields inside
     /// `IndexedStream` so the hot path never touches the Arc.
     pub(crate) query_config: Arc<DatafusionQueryConfig>,
+    /// Cumulative row offset for this segment within the shard.
+    pub(crate) global_base: u64,
+    /// When true, the `___row_id` column is computed from position instead of read.
+    pub(crate) emit_row_ids: bool,
+    /// Index in the OUTPUT schema where computed `___row_id` should be inserted.
+    /// `None` when `emit_row_ids=false` or `___row_id` is not in projection.
+    pub(crate) row_id_output_index: Option<usize>,
+    /// Optional runtime dynamic filter (TopK / join) accepted via physical
+    /// pushdown, referencing the sort columns. Used to prune row groups whose
+    /// parquet statistics cannot satisfy the (tightening) predicate. `None`
+    /// when no dynamic filter was pushed to this query.
+    pub(crate) dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+    /// Per-query cancellation token. When cancelled, `IndexReader` stops
+    /// dispatching further row groups and `IndexedStream` stops draining.
+    /// `None` disables cancellation checks.
+    pub(crate) cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -302,9 +432,6 @@ impl DisplayAs for IndexedExec {
 impl ExecutionPlan for IndexedExec {
     fn name(&self) -> &str {
         "IndexedExec"
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
@@ -343,6 +470,11 @@ impl ExecutionPlan for IndexedExec {
             self.stream_metrics.rg_skipped.clone(),
             self.stream_metrics.prefetch_wait_time.clone(),
             self.stream_metrics.prefetch_wait_count.clone(),
+            Some(Arc::clone(&self.metadata)),
+            self.stream_metrics
+                .dynamic_filter_rg_pruned_at_prefetch
+                .clone(),
+            self.cancellation_token.clone(),
         );
         Ok(Box::pin(IndexedStream::new(
             self.schema.clone(),
@@ -356,12 +488,15 @@ impl ExecutionPlan for IndexedExec {
             Arc::clone(&self.metadata),
             self.predicate.clone(),
             self.stream_metrics.clone(),
-            self.query_config.force_pushdown,
             self.query_config.force_strategy,
             self.query_config.min_skip_run_default,
             self.query_config.min_skip_run_selectivity_threshold,
             self.query_config.indexed_pushdown_filters,
             self.query_config.batch_size,
+            self.global_base,
+            self.emit_row_ids,
+            self.row_id_output_index,
+            self.dynamic_filter.clone(),
         )))
     }
 }
@@ -393,21 +528,26 @@ struct IndexedStream {
     mask_offset: usize,
     batch_offset: usize,
     finished: bool,
+    stream_start: Option<std::time::Instant>,
+    last_poll_end: Option<Instant>,
     metadata: Arc<ParquetMetaData>,
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     initialized: bool,
     metrics: StreamMetrics,
-    force_pushdown: Option<bool>,
+    /// Optional override for the per-RG `min_skip_run` choice, backed by the
+    /// `datafusion.indexed.force_strategy` cluster setting — see `pick_min_skip_run`.
     force_strategy: Option<FilterStrategy>,
-    /// Baseline `min_skip_run` used when neither selectivity nor
-    /// `force_strategy` drives the choice. Extracted once from
-    /// `DatafusionQueryConfig` so the hot path reads a local `usize`.
+    /// Baseline `min_skip_run` used when selectivity drives the choice (the
+    /// only path in production; tests may pin it via `force_strategy`).
+    /// Extracted once from `DatafusionQueryConfig` so the hot path reads a
+    /// local `usize`.
     min_skip_run_default: usize,
     /// Below this candidate selectivity, pin `min_skip_run = 1`
     /// (row-granular selection). Same hot-path discipline as above.
     min_skip_run_selectivity_threshold: f64,
     /// Whether to ask parquet to apply residual predicates during decode.
-    /// `force_pushdown` still takes priority when set.
+    /// Node-wide default from the `datafusion.indexed.pushdown_filters`
+    /// cluster setting.
     indexed_pushdown_filters: bool,
     evaluator: Arc<dyn RowGroupBitsetSource>,
     /// Output coalescer — combines small post-filter batches up to
@@ -424,6 +564,16 @@ struct IndexedStream {
     /// calling it twice (assert panic) and to signal "no more input
     /// will arrive; drain remaining completed batches."
     coalescer_finished: bool,
+    /// Cumulative row offset for this segment within the shard.
+    global_base: u64,
+    /// When true, the `___row_id` column is computed from position.
+    emit_row_ids: bool,
+    /// Index in the output schema where computed `___row_id` is inserted.
+    row_id_output_index: Option<usize>,
+    /// Per-stream runtime dynamic-filter pruner. `None` when no dynamic filter
+    /// was pushed. Owns its own snapshot generation tracking, so it must NOT be
+    /// shared across sibling segment streams.
+    dynamic_rg_pruner: Option<super::dynamic_filter::DynamicRgPruner>,
 }
 
 impl IndexedStream {
@@ -440,15 +590,20 @@ impl IndexedStream {
         metadata: Arc<ParquetMetaData>,
         predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
         metrics: StreamMetrics,
-        force_pushdown: Option<bool>,
         force_strategy: Option<FilterStrategy>,
         min_skip_run_default: usize,
         min_skip_run_selectivity_threshold: f64,
         indexed_pushdown_filters: bool,
         target_batch_size: usize,
+        global_base: u64,
+        emit_row_ids: bool,
+        row_id_output_index: Option<usize>,
+        dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
         let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
+        let dynamic_rg_pruner =
+            super::dynamic_filter::DynamicRgPruner::new(dynamic_filter, full_schema.clone());
         Self {
             schema,
             full_schema,
@@ -467,11 +622,12 @@ impl IndexedStream {
             mask_offset: 0,
             batch_offset: 0,
             finished: false,
+            stream_start: None,
+            last_poll_end: None,
             metadata,
             predicate,
             initialized: false,
             metrics,
-            force_pushdown,
             force_strategy,
             min_skip_run_default,
             min_skip_run_selectivity_threshold,
@@ -480,6 +636,34 @@ impl IndexedStream {
             batch_coalescer,
             upstream_done: false,
             coalescer_finished: false,
+            global_base,
+            emit_row_ids,
+            row_id_output_index,
+            dynamic_rg_pruner,
+        }
+    }
+
+    /// Per-RG `min_skip_run` decision.
+    ///
+    /// When `force_strategy` is set (via the `datafusion.indexed.force_strategy`
+    /// cluster setting) it pins the choice to either extreme (`RowSelection` → 1,
+    /// `BooleanMask` → whole-RG select), bypassing the heuristic.
+    ///
+    /// Otherwise the choice is selectivity-driven: at low selectivity every gap
+    /// is worth skipping (`min_skip_run = 1`, row-granular); at higher selectivity
+    /// noisy short gaps would explode the selector Vec, so absorb anything shorter
+    /// than `min_skip_run_default` (block-granular).
+    fn pick_min_skip_run(&self, num_candidates: usize, rg_num_rows: usize) -> usize {
+        match self.force_strategy {
+            Some(FilterStrategy::RowSelection) => return 1,
+            Some(FilterStrategy::BooleanMask) => return rg_num_rows + 1,
+            None => {}
+        }
+        let selectivity = num_candidates as f64 / rg_num_rows as f64;
+        if selectivity < self.min_skip_run_selectivity_threshold {
+            1
+        } else {
+            self.min_skip_run_default
         }
     }
 
@@ -493,6 +677,11 @@ impl IndexedStream {
             metadata: Arc::clone(&self.metadata),
             projection: self.projection.clone(),
             predicate: self.predicate.clone(),
+            io_stats: self
+                .metrics
+                .io_stats
+                .clone()
+                .unwrap_or_else(|| Arc::new(super::parquet_bridge::ReadIoStats::default())),
         }
     }
 
@@ -558,6 +747,18 @@ impl IndexedStream {
             t.add_duration(t_on_batch.elapsed());
         }
 
+        // Capture position info BEFORE mask is consumed (needed for row ID computation).
+        let row_id_ctx = if self.row_id_output_index.is_some() {
+            Some(super::row_id_injection::RowIdContext {
+                batch_offset: self.batch_offset,
+                position_map: self.current_position_map.as_ref().cloned(),
+                base: self.global_base + self.current_rg_first_row as u64,
+                eval_mask: eval_mask.clone(),
+            })
+        } else {
+            None
+        };
+
         let output = match eval_mask {
             Some(mask) => {
                 self.mask_offset += batch_len;
@@ -597,9 +798,25 @@ impl IndexedStream {
             }
         };
 
-        // Strip extra predicate columns to match output schema
+        // Inject computed __row_id__, or reorder/strip columns to match output schema.
+        // The parquet reader delivers columns in the file's physical order which may
+        // differ from the table schema order (e.g. when infer_schema sorted alphabetically).
         let t_proj = Instant::now();
-        let output = if output.num_columns() > self.schema.fields().len() {
+        let output = if let Some(row_id_idx) = self.row_id_output_index {
+            let ctx = row_id_ctx.unwrap();
+            let mask_offset_before = self.mask_offset.saturating_sub(batch_len);
+            super::row_id_injection::inject_row_ids(
+                &output,
+                &ctx,
+                batch_len,
+                self.current_mask.as_ref(),
+                mask_offset_before,
+                row_id_idx,
+                &self.schema,
+            )?
+        } else if output.schema().as_ref() == self.schema.as_ref() {
+            output
+        } else {
             let n = self.schema.fields().len();
             if n == 0 {
                 RecordBatch::try_new_with_options(
@@ -617,8 +834,6 @@ impl IndexedStream {
                     .collect();
                 output.project(&indices)?
             }
-        } else {
-            output
         };
         if let Some(ref t) = self.metrics.projection_fixup_time {
             t.add_duration(t_proj.elapsed());
@@ -638,16 +853,33 @@ impl Stream for IndexedStream {
         // time downstream work.
         let poll_start = Instant::now();
 
+        if let Some(prev_end) = self.last_poll_end {
+            let gap = poll_start.saturating_duration_since(prev_end);
+            if let Some(ref t) = self.metrics.inter_poll_gap {
+                t.add_duration(gap);
+            }
+        }
+        if let Some(ref c) = self.metrics.poll_count {
+            c.add(1);
+        }
+
         if !self.initialized {
+            self.stream_start = Some(Instant::now());
+            let t0 = Instant::now();
             self.index_reader.init_prefetch();
+            if let Some(ref t) = self.metrics.init_prefetch_time {
+                t.add_duration(t0.elapsed());
+            }
             self.initialized = true;
         }
 
         let result = self.as_mut().poll_inner(cx);
 
+        let t0 = Instant::now();
         if let Some(ref t) = self.metrics.elapsed_compute {
-            t.add_duration(poll_start.elapsed());
+            t.add_duration(t0.saturating_duration_since(poll_start));
         }
+        self.last_poll_end = Some(t0);
         result
     }
 }
@@ -658,6 +890,13 @@ impl IndexedStream {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<RecordBatch>>> {
         loop {
+            // Stop draining on cancellation; surfaces as a query-level error (no partial results).
+            if self.index_reader.is_cancelled() {
+                return Poll::Ready(Some(Err(DataFusionError::Execution(
+                    "query cancelled".to_string(),
+                ))));
+            }
+
             // 1. Drain any completed batch from the coalescer first.
             if let Some(batch) = self.batch_coalescer.next_completed_batch() {
                 if let Some(ref counter) = self.metrics.output_rows {
@@ -671,6 +910,12 @@ impl IndexedStream {
 
             // 2. If upstream is done and coalescer has drained, we're done.
             if self.coalescer_finished && self.batch_coalescer.is_empty() {
+                log_debug!(
+                    "[scf-segment-done] file={} row_groups={} elapsed={:?}",
+                    self.object_path.filename().unwrap_or("?"),
+                    self.index_reader.row_groups.len(),
+                    self.stream_start.unwrap().elapsed()
+                );
                 return Poll::Ready(None);
             }
 
@@ -690,6 +935,12 @@ impl IndexedStream {
             if self.coalescer_finished {
                 // Unreachable in practice — step 1 already drained or
                 // step 2 already returned. Defensive.
+                log_debug!(
+                    "[scf-segment-done] file={} row_groups={} elapsed={:?}",
+                    self.object_path.filename().unwrap_or("?"),
+                    self.index_reader.row_groups.len(),
+                    self.stream_start.unwrap().elapsed()
+                );
                 return Poll::Ready(None);
             }
 
@@ -768,10 +1019,34 @@ impl IndexedStream {
                 continue;
             }
 
+            // Refresh the dynamic-filter snapshot the IndexReader hands to its
+            // prefetch tasks, so the next prefetch can prune (skipping the
+            // Lucene eval) using the filter's tightening so far.
+            if let Some(ref mut pruner) = self.dynamic_rg_pruner {
+                self.index_reader.dynamic_prune_ctx = pruner.current_pruning_predicate();
+            }
+
             // Poll for next row group
             match self.index_reader.poll_next_row_group(cx) {
                 Poll::Ready(Ok(Some(prefetched))) => {
                     let rg = prefetched.rg;
+
+                    // Poll-phase dynamic-filter prune (backstop): the filter may
+                    // have tightened further since this RG was prefetched (~1 RG
+                    // ahead). Re-check against the latest snapshot; skip the
+                    // parquet decode if now provably excluded. Conservative:
+                    // only skips on proof (see dynamic_filter::DynamicRgPruner).
+                    if self.dynamic_rg_pruner.is_some() {
+                        let metadata = Arc::clone(&self.metadata);
+                        let pruner = self.dynamic_rg_pruner.as_mut().unwrap();
+                        if pruner.should_prune_rg(&metadata, rg.index) {
+                            if let Some(ref c) = self.metrics.dynamic_filter_rg_pruned_at_poll {
+                                c.add(1);
+                            }
+                            continue;
+                        }
+                    }
+
                     let candidates = prefetched.prefetched.candidates;
                     let prefetch_mask_buffer = prefetched.prefetched.mask_buffer;
 
@@ -800,29 +1075,9 @@ impl IndexedStream {
                     self.current_rg_context = Some(prefetched.prefetched.context);
                     self.batch_offset = 0;
 
-                    // Decide min_skip_run for this RG.
-                    //
-                    // - `force_strategy = RowSelection`: row-granular
-                    //   (min_skip_run = 1) — "sparse" path.
-                    // - `force_strategy = BooleanMask`: disable skipping
-                    //   (min_skip_run > rg.num_rows) — full scan.
-                    // - otherwise: pick based on selectivity. At low
-                    //   selectivity every gap is worth skipping (1); at
-                    //   higher selectivity noisy short gaps would explode
-                    //   the selector Vec, so absorb anything smaller than
-                    //   the default block size.
-                    let selectivity = candidates.len() as f64 / rg.num_rows as f64;
-                    let min_skip_run = match self.force_strategy {
-                        Some(FilterStrategy::RowSelection) => 1,
-                        Some(FilterStrategy::BooleanMask) => rg.num_rows as usize + 1,
-                        None => {
-                            if selectivity < self.min_skip_run_selectivity_threshold {
-                                1
-                            } else {
-                                self.min_skip_run_default
-                            }
-                        }
-                    };
+                    // Decide min_skip_run for this RG (see `pick_min_skip_run`).
+                    let min_skip_run =
+                        self.pick_min_skip_run(candidates.len() as usize, rg.num_rows as usize);
 
                     // Metrics: track which regime we landed in, using the
                     // same counters as before so `EXPLAIN ANALYZE` output
@@ -896,10 +1151,12 @@ impl IndexedStream {
                     // dropped (supports_filters_pushdown = Exact) so
                     // there's no safety net if pushdown misbehaves on a
                     // UDF-containing predicate.
-                    let base_push = self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
+                    // Node-wide `indexed_pushdown_filters` setting, gated by
+                    // alignment/forbid checks below.
                     let alignment_risk = min_skip_run != 1 && self.evaluator.needs_row_mask();
-                    let push =
-                        base_push && !alignment_risk && !self.evaluator.forbid_parquet_pushdown();
+                    let push = self.indexed_pushdown_filters
+                        && !alignment_risk
+                        && !self.evaluator.forbid_parquet_pushdown();
 
                     match self.create_row_selection_stream(&rg, selection, push) {
                         Ok((stream, plan)) => {
@@ -967,5 +1224,254 @@ impl IndexedStream {
 impl RecordBatchStream for IndexedStream {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    /// A mock evaluator that panics on prefetch_rg, simulating the
+    /// `subtree_cost` panic when DelegationPossible reaches the Tree evaluator.
+    struct PanickingEvaluator {
+        call_count: AtomicUsize,
+    }
+
+    impl RowGroupBitsetSource for PanickingEvaluator {
+        fn prefetch_rg(
+            &self,
+            _rg: &RowGroupInfo,
+            _min_doc: i32,
+            _max_doc: i32,
+        ) -> Result<Option<PrefetchedRg>, String> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            panic!(
+                "invariant violation: DelegationPossible reached subtree_cost. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            );
+        }
+
+        fn on_batch_mask(
+            &self,
+            _rg_state: &dyn std::any::Any,
+            _rg_first_row: i64,
+            _position_map: &PositionMap,
+            _batch_offset: usize,
+            _batch_len: usize,
+            _batch: &RecordBatch,
+        ) -> Result<Option<BooleanArray>, String> {
+            unreachable!()
+        }
+    }
+
+    /// Verifies that when `prefetch_rg` panics (simulating the subtree_cost
+    /// panic), the IndexReader propagates an error instead of hanging forever.
+    ///
+    /// Before the fix, `Poll::Ready(Err(_))` on the oneshot receiver would
+    /// retry the same row group, causing an infinite loop. Now it returns
+    /// a DataFusionError so the Java search thread unblocks.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_panic_in_prefetch_returns_error_not_hang() {
+        let evaluator = Arc::new(PanickingEvaluator {
+            call_count: AtomicUsize::new(0),
+        });
+
+        let rg_info = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 100,
+        };
+
+        let mut reader = IndexReader::new(
+            evaluator.clone(),
+            vec![rg_info],
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        // Poll the reader — should complete with an error within the timeout.
+        // We need to yield between polls because start_prefetch returns Pending
+        // without waking (the oneshot receiver isn't polled until next call).
+        let handle = tokio::spawn(async move {
+            loop {
+                let poll_result = futures::future::poll_fn(|cx| {
+                    let r = reader.poll_next_row_group(cx);
+                    match &r {
+                        std::task::Poll::Pending => std::task::Poll::Ready(None),
+                        std::task::Poll::Ready(v) => std::task::Poll::Ready(Some(
+                            v.as_ref().map(|_| ()).map_err(|e| e.to_string()),
+                        )),
+                    }
+                })
+                .await;
+                if let Some(result) = poll_result {
+                    return result;
+                }
+                // Yield to let spawn_blocking complete
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        });
+
+        let result = tokio::time::timeout(Duration::from_millis(500), handle).await;
+
+        // With the fix: should complete (not timeout) with an error
+        assert!(
+            result.is_ok(),
+            "Stream should complete with error, not hang (timeout)"
+        );
+        match result.unwrap() {
+            Ok(Err(msg)) => {
+                assert!(
+                    msg.contains("panicked"),
+                    "Error should mention panic, got: {}",
+                    msg
+                );
+            }
+            Ok(Ok(_)) => panic!("Stream should return Err when prefetch panics, got Ok"),
+            Err(e) => panic!("Tokio JoinError: {}", e),
+        };
+    }
+
+    // `spawn_blocking` jobs cannot be aborted — tokio's task abort only cancels
+    // async tasks at `.await` points. The tests below verify that the cancellation
+    // token checkpoint stops new row groups from being dispatched.
+
+    /// Evaluator whose `prefetch_rg` busy-spins (no `.await`/sleep — genuine
+    /// non-yielding CPU work like a real Lucene/Arrow scan) for a fixed duration,
+    /// counting how many row groups it actually evaluated.
+    use roaring::RoaringBitmap;
+
+    struct SpinningEvaluator {
+        spin: Duration,
+        rgs_evaluated: Arc<AtomicUsize>,
+    }
+
+    impl RowGroupBitsetSource for SpinningEvaluator {
+        fn prefetch_rg(
+            &self,
+            rg: &RowGroupInfo,
+            _min_doc: i32,
+            _max_doc: i32,
+        ) -> Result<Option<PrefetchedRg>, String> {
+            // Non-yielding busy work — mirrors a synchronous scan/decode poll.
+            let deadline = Instant::now() + self.spin;
+            while Instant::now() < deadline {
+                std::hint::spin_loop();
+            }
+            self.rgs_evaluated.fetch_add(1, Ordering::SeqCst);
+            // Produce a non-empty candidate set so the RG is "Fetched".
+            let mut candidates = RoaringBitmap::new();
+            candidates.insert_range(0..rg.num_rows as u32);
+            Ok(Some(PrefetchedRg::without_context(candidates, 0)))
+        }
+
+        fn on_batch_mask(
+            &self,
+            _rg_state: &dyn std::any::Any,
+            _rg_first_row: i64,
+            _position_map: &PositionMap,
+            _batch_offset: usize,
+            _batch_len: usize,
+            _batch: &RecordBatch,
+        ) -> Result<Option<BooleanArray>, String> {
+            Ok(None)
+        }
+    }
+
+    /// Cancelling mid-scan stops `poll_next_row_group` from dispatching further
+    /// row groups. At most one already-in-flight `spawn_blocking` job (non-abortable)
+    /// may still complete; total evaluated is bounded to `evaluated_at_cancel + 1`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn cancel_stops_row_group_dispatch() {
+        let token = tokio_util::sync::CancellationToken::new();
+        let rgs_evaluated = Arc::new(AtomicUsize::new(0));
+
+        let evaluator = Arc::new(SpinningEvaluator {
+            spin: Duration::from_millis(200),
+            rgs_evaluated: rgs_evaluated.clone(),
+        });
+
+        // 8 row groups × 200ms spin each = ~1.6s of work if cancellation is ignored.
+        let row_groups: Vec<RowGroupInfo> = (0..8)
+            .map(|i| RowGroupInfo {
+                index: i,
+                first_row: (i as i64) * 100,
+                num_rows: 100,
+            })
+            .collect();
+
+        let mut reader = IndexReader::new(
+            evaluator,
+            row_groups,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(token.clone()),
+        );
+
+        // Drive the reader exactly like IndexedStream does. Records whether the
+        // reader terminated via the cancellation Err path.
+        let cancelled_err = Arc::new(AtomicBool::new(false));
+        let cancelled_err_drv = cancelled_err.clone();
+        let driver = tokio::spawn(async move {
+            loop {
+                let done = futures::future::poll_fn(|cx| match reader.poll_next_row_group(cx) {
+                    Poll::Pending => Poll::Ready(false),
+                    Poll::Ready(Ok(None)) => Poll::Ready(true),
+                    Poll::Ready(Ok(Some(_))) => Poll::Ready(false),
+                    Poll::Ready(Err(_)) => {
+                        cancelled_err_drv.store(true, Ordering::SeqCst);
+                        Poll::Ready(true)
+                    }
+                })
+                .await;
+                if done {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
+
+        // Let a couple of row groups start evaluating, then cancel.
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        let evaluated_at_cancel = rgs_evaluated.load(Ordering::SeqCst);
+        token.cancel();
+
+        tokio::time::timeout(Duration::from_secs(10), driver)
+            .await
+            .expect("reader should terminate promptly after cancel")
+            .expect("driver task panicked");
+
+        let total_evaluated = rgs_evaluated.load(Ordering::SeqCst);
+
+        // At most one already-in-flight spawn_blocking job (non-abortable) can
+        // complete after cancel; all others must be skipped by the checkpoint.
+        assert!(
+            total_evaluated <= evaluated_at_cancel + 1,
+            "cancelled reader kept evaluating row groups: evaluated_at_cancel={}, total_evaluated={}",
+            evaluated_at_cancel,
+            total_evaluated
+        );
+        assert!(
+            cancelled_err.load(Ordering::SeqCst),
+            "reader should terminate via the cancellation Err path"
+        );
+        // Sanity: it did NOT run all 8 row groups.
+        assert!(
+            total_evaluated < 8,
+            "expected early termination, but all row groups were evaluated ({})",
+            total_evaluated
+        );
     }
 }
