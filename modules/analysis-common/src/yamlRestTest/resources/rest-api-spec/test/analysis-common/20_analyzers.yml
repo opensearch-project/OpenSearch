@@ -989,6 +989,35 @@
     - match:  { tokens.0.token: вмест }
 
 ---
+"serbian":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              analyzer:
+                my_analyzer:
+                  type: serbian
+
+  - do:
+      indices.analyze:
+        body:
+          text: можемо заједно
+          analyzer: serbian
+  - length: { tokens: 1 }
+  - match: { tokens.0.token: zajedn }
+
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          text: можемо заједно
+          analyzer: my_analyzer
+  - length: { tokens: 1 }
+  - match: { tokens.0.token: zajedn }
+
+---
 "sorani":
     - do:
         indices.create:
