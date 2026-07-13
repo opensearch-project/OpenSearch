@@ -91,6 +91,11 @@ public class TransportNodeSearchAction {
                 @Override
                 public void onResponse(Result result) {
                     complete(shardIndex, result, null);
+                    // if we already received a search result we can inform the shard that it
+                    // can return a null response if the request rewrites to match none rather
+                    // than creating an empty response in the search thread pool.
+                    // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
+                    request.canReturnNullResponseIfMatchNoDocs(shardRequest.scroll() == null);
                 }
 
                 @Override
@@ -140,7 +145,7 @@ public class TransportNodeSearchAction {
 
         @Override
         void executeShard(ShardSearchRequest shardRequest, ActionListener<SearchPhaseResult> listener) {
-            searchService.executeQueryPhase(shardRequest, false, task, listener);
+            searchService.executeQueryPhase(shardRequest, false, task, listener, null, false);
         }
 
         @Override

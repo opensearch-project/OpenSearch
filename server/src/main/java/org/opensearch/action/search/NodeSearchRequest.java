@@ -47,12 +47,14 @@ public class NodeSearchRequest extends TransportRequest {
     private final float[] indexBoosts;
     private final List<String[]> indexRoutings;
     private final int[] indexMaterialByShard;
+    private volatile boolean canReturnNullResponseIfMatchNoDocs;
 
     public NodeSearchRequest(
         OriginalIndices originalIndices,
         SearchRequest searchRequest,
         int totalShardsAcrossAllNodes,
         long nowInMillis,
+        boolean canReturnNullResponseIfMatchNoDocs,
         @Nullable SearchSortValuesAndFormats bottomSortValues,
         List<ShardId> shardIds,
         List<AliasFilter> aliasFilters,
@@ -65,6 +67,7 @@ public class NodeSearchRequest extends TransportRequest {
         this.searchRequest = searchRequest;
         this.totalShardsAcrossAllNodes = totalShardsAcrossAllNodes;
         this.nowInMillis = nowInMillis;
+        this.canReturnNullResponseIfMatchNoDocs = canReturnNullResponseIfMatchNoDocs;
         this.bottomSortValues = bottomSortValues;
         this.shardIds = shardIds;
         this.aliasFilters = aliasFilters;
@@ -79,6 +82,7 @@ public class NodeSearchRequest extends TransportRequest {
         this.searchRequest = new SearchRequest(in);
         this.totalShardsAcrossAllNodes = in.readVInt();
         this.nowInMillis = in.readVLong();
+        this.canReturnNullResponseIfMatchNoDocs = in.readBoolean();
         this.bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         final int shardCount = in.readVInt();
         this.shardIds = new ArrayList<>(shardCount);
@@ -147,6 +151,7 @@ public class NodeSearchRequest extends TransportRequest {
         );
         shardRequest.setBottomSortValues(bottomSortValues);
         shardRequest.setInboundNetworkTime(nowInMillis);
+        shardRequest.canReturnNullResponseIfMatchNoDocs(canReturnNullResponseIfMatchNoDocs);
         return shardRequest;
     }
 
@@ -160,5 +165,9 @@ public class NodeSearchRequest extends TransportRequest {
         }
         assert indexMaterialByUuid.size() == indexMaterialCount : "node search index materials must match unique shard indices";
         return indexMaterialByShard;
+    }
+
+    public void canReturnNullResponseIfMatchNoDocs(boolean canReturnNullResponseIfMatchNoDocs) {
+        this.canReturnNullResponseIfMatchNoDocs = canReturnNullResponseIfMatchNoDocs;
     }
 }

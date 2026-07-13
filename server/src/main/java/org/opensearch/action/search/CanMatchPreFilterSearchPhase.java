@@ -201,40 +201,9 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     protected void sendNodeSearchRequest(
         Transport.Connection connection,
         NodeSearchRequest nodeRequest,
-        List<NodeGroupEntry> batch,
-        Runnable nextBatch
+        ActionListener<NodeSearchResponse<CanMatchResponse>> listener
     ) {
-        getSearchTransport().sendCanMatchByNode(connection, nodeRequest, getTask(), new ActionListener<>() {
-            @Override
-            public void onResponse(NodeSearchResponse<CanMatchResponse> response) {
-                assert response.results().size() == batch.size()
-                    : "node-level can_match response must contain one result per requested shard";
-                for (int i = 0; i < batch.size(); i++) {
-                    final NodeGroupEntry entry = batch.get(i);
-                    final CanMatchResponse result = response.results().get(i);
-                    if (result != null) {
-                        result.setShardIndex(entry.shardIndex);
-                        result.setSearchShardTarget(entry.target);
-                        try {
-                            onShardResult(result, entry.shardIt);
-                        } catch (Exception ex) {
-                            onShardFailure(entry.shardIndex, entry.target, entry.shardIt, ex);
-                        }
-                    } else {
-                        onShardFailure(entry.shardIndex, entry.target, entry.shardIt, response.failures().get(i));
-                    }
-                }
-                nextBatch.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                for (NodeGroupEntry entry : batch) {
-                    onShardFailure(entry.shardIndex, entry.target, entry.shardIt, e);
-                }
-                nextBatch.run();
-            }
-        });
+        getSearchTransport().sendCanMatchByNode(connection, nodeRequest, getTask(), listener);
     }
 
     @Override

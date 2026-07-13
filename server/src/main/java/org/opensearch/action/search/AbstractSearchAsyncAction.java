@@ -324,8 +324,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void sendNodeSearchRequest(
         Transport.Connection connection,
         NodeSearchRequest request,
-        List<NodeGroupEntry> batch,
-        Runnable nextBatch
+        ActionListener<NodeSearchResponse<Result>> listener
     ) {
         throw new UnsupportedOperationException("node-level fanout is not implemented for phase [" + getName() + "]");
     }
@@ -381,15 +380,47 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchRequest,
             getNumShards(),
             timeProvider.getAbsoluteStartMillis(),
+            shardSearchRequest.canReturnNullResponseIfMatchNoDocs(),
             shardSearchRequest.getBottomSortValues(),
             shardIds,
             batchAliasFilters,
             Arrays.copyOf(batchIndexBoosts, indexMaterialCount),
             batchIndexRoutings
         );
-        sendNodeSearchRequest(connection, nodeRequest, batch, () -> {
+        final Runnable nextBatch = () -> {
             if (to < group.size()) {
                 sendNodeBatch(connection, group, to, batchSize);
+            }
+        };
+        sendNodeSearchRequest(connection, nodeRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(NodeSearchResponse<Result> response) {
+                assert response.results().size() == batch.size()
+                    : "node-level response must contain one result per requested shard in phase [" + getName() + "]";
+                for (int i = 0; i < batch.size(); i++) {
+                    final NodeGroupEntry entry = batch.get(i);
+                    final Result result = response.results().get(i);
+                    if (result != null) {
+                        result.setShardIndex(entry.shardIndex);
+                        result.setSearchShardTarget(entry.target);
+                        try {
+                            onShardResult(result, entry.shardIt);
+                        } catch (Exception ex) {
+                            onShardFailure(entry.shardIndex, entry.target, entry.shardIt, ex);
+                        }
+                    } else {
+                        onShardFailure(entry.shardIndex, entry.target, entry.shardIt, response.failures().get(i));
+                    }
+                }
+                nextBatch.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                for (NodeGroupEntry entry : batch) {
+                    onShardFailure(entry.shardIndex, entry.target, entry.shardIt, e);
+                }
+                nextBatch.run();
             }
         });
     }

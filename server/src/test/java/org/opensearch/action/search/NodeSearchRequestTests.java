@@ -38,6 +38,7 @@ public class NodeSearchRequestTests extends OpenSearchTestCase {
             searchRequest,
             1,
             123L,
+            true,
             null,
             List.of(shardId),
             List.of(new AliasFilter(null, "alias")),

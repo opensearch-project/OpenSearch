@@ -46,7 +46,6 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -200,38 +199,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     protected void sendNodeSearchRequest(
         Transport.Connection connection,
         NodeSearchRequest nodeRequest,
-        List<NodeGroupEntry> batch,
-        Runnable nextBatch
+        ActionListener<NodeSearchResponse<SearchPhaseResult>> listener
     ) {
-        getSearchTransport().sendQueryThenFetchByNode(connection, nodeRequest, getTask(), new ActionListener<>() {
-            @Override
-            public void onResponse(NodeSearchResponse<SearchPhaseResult> response) {
-                assert response.results().size() == batch.size() : "node-level query response must contain one result per requested shard";
-                for (int i = 0; i < batch.size(); i++) {
-                    final NodeGroupEntry entry = batch.get(i);
-                    final SearchPhaseResult result = response.results().get(i);
-                    if (result != null) {
-                        result.setShardIndex(entry.shardIndex);
-                        result.setSearchShardTarget(entry.target);
-                        try {
-                            onShardResult(result, entry.shardIt);
-                        } catch (Exception ex) {
-                            onShardFailure(entry.shardIndex, entry.target, entry.shardIt, ex);
-                        }
-                    } else {
-                        onShardFailure(entry.shardIndex, entry.target, entry.shardIt, response.failures().get(i));
-                    }
-                }
-                nextBatch.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                for (NodeGroupEntry entry : batch) {
-                    onShardFailure(entry.shardIndex, entry.target, entry.shardIt, e);
-                }
-                nextBatch.run();
-            }
-        });
+        getSearchTransport().sendQueryThenFetchByNode(connection, nodeRequest, getTask(), listener);
     }
 }
