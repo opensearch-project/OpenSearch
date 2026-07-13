@@ -19,6 +19,7 @@ import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.search.SearchService;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Consolidates all DataFusion plugin settings (existing memory/spill/reduce/cache settings
@@ -215,24 +216,57 @@ public final class DatafusionSettings {
     /**
      * Liquid Cache eviction policy.
      * <ul>
-     *   <li>{@code liquid} (default) — Independent FIFO queues per batch type (LiquidPolicy)</li>
-     *   <li>{@code lru} — Standard LRU eviction across all entry types</li>
+     *   <li>{@code lru} (default) — Standard LRU eviction across all entry types (LruPolicy)</li>
+     *   <li>{@code liquid} — Independent FIFO queues per batch type (LiquidPolicy)</li>
      * </ul>
+     * Validated to one of the two accepted values (case-insensitive, normalized to
+     * lower-case for the native runtime). {@code NodeScope + Final} — the policy is
+     * built once at runtime startup.
      */
-    public static final Setting<String> LIQUID_CACHE_EVICTION_POLICY = Setting.simpleString(
+    public static final Setting<String> LIQUID_CACHE_EVICTION_POLICY = new Setting<>(
         "datafusion.liquid_cache.eviction_policy",
         "lru",
+        DatafusionSettings::validateLiquidCacheEvictionPolicy,
         Setting.Property.NodeScope,
         Setting.Property.Final
     );
 
     /**
-     * Maximum number of output columns for LC engagement.
-     * Queries projecting more columns than this are skipped by the optimizer.
+     * Validates and normalizes the liquid cache eviction policy. Accepts
+     * {@code liquid} or {@code lru} (case-insensitive) and returns the lower-case
+     * form the native runtime matches on; any other value is rejected so an
+     * operator typo fails fast instead of silently selecting a default policy.
      */
-    public static final Setting<Integer> LIQUID_CACHE_MAX_COLUMNS = Setting.intSetting(
-        "datafusion.liquid_cache.max_columns",
+    static String validateLiquidCacheEvictionPolicy(String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        if (!normalized.equals("liquid") && !normalized.equals("lru")) {
+            throw new IllegalArgumentException(
+                "Invalid value [" + value + "] for [datafusion.liquid_cache.eviction_policy]. Must be 'liquid' or 'lru'."
+            );
+        }
+        return normalized;
+    }
+
+    /**
+     * Maximum number of output columns for LC engagement on the <b>indexed-query</b> path
+     * (indexed_table::parquet_bridge). Queries projecting more columns than this are skipped.
+     */
+    public static final Setting<Integer> LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS = Setting.intSetting(
+        "datafusion.liquid_cache.indexed_query.max_columns",
         10,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of output columns for LC engagement on the <b>listing-table</b> path
+     * (LocalModeOptimizer). Defaults lower than the indexed path because the listing path
+     * decodes full columns, so per-column cache overhead outweighs decode savings sooner.
+     */
+    public static final Setting<Integer> LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS = Setting.intSetting(
+        "datafusion.liquid_cache.listing_table.max_columns",
+        4,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -284,7 +318,8 @@ public final class DatafusionSettings {
         LIQUID_CACHE_ENABLED,
         LIQUID_CACHE_SIZE,
         LIQUID_CACHE_EVICTION_POLICY,
-        LIQUID_CACHE_MAX_COLUMNS
+        LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS,
+        LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS
     );
 
     // ── Snapshot management ──

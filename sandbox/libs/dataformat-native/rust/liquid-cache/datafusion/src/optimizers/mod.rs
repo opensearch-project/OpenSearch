@@ -16,24 +16,35 @@ use datafusion::{
 
 use crate::{LiquidCacheParquetRef, LiquidParquetSource};
 
+/// Provider for the max-columns engagement limit. Supplied as a closure so the
+/// caller can back it with a dynamic cluster setting
+/// (`datafusion.liquid_cache.listing_table.max_columns`) instead of a
+/// compile-time constant.
+pub type MaxColumnsFn = Arc<dyn Fn() -> usize + Send + Sync>;
+
 /// Physical optimizer rule for local mode liquid cache
 ///
 /// This optimizer rewrites DataSourceExec nodes that read Parquet files
 /// to use LiquidParquetSource instead of the default ParquetSource
-#[derive(Debug)]
 pub struct LocalModeOptimizer {
     cache: LiquidCacheParquetRef,
+    max_columns: MaxColumnsFn,
+}
+
+impl std::fmt::Debug for LocalModeOptimizer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LocalModeOptimizer")
+            .field("cache", &self.cache)
+            .field("max_columns", &(self.max_columns)())
+            .finish()
+    }
 }
 
 impl LocalModeOptimizer {
-    /// Create an optimizer with an existing cache instance
-    pub fn new(cache: LiquidCacheParquetRef) -> Self {
-        Self { cache }
-    }
-
-    /// Create an optimizer with an existing cache instance
-    pub fn with_cache(cache: LiquidCacheParquetRef) -> Self {
-        Self { cache }
+    /// Create an optimizer with an existing cache instance and a dynamic
+    /// max-columns provider (typically backed by a cluster setting).
+    pub fn new(cache: LiquidCacheParquetRef, max_columns: MaxColumnsFn) -> Self {
+        Self { cache, max_columns }
     }
 }
 
@@ -43,7 +54,11 @@ impl PhysicalOptimizerRule for LocalModeOptimizer {
         plan: Arc<dyn ExecutionPlan>,
         _config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>, datafusion::error::DataFusionError> {
-        Ok(rewrite_data_source_plan(plan, &self.cache))
+        Ok(rewrite_data_source_plan(
+            plan,
+            &self.cache,
+            (self.max_columns)(),
+        ))
     }
 
     fn name(&self) -> &str {
@@ -59,9 +74,10 @@ impl PhysicalOptimizerRule for LocalModeOptimizer {
 pub fn rewrite_data_source_plan(
     plan: Arc<dyn ExecutionPlan>,
     cache: &LiquidCacheParquetRef,
+    max_columns: usize,
 ) -> Arc<dyn ExecutionPlan> {
     let rewritten = plan
-        .transform_up(|node| try_optimize_parquet_source(node, cache))
+        .transform_up(|node| try_optimize_parquet_source(node, cache, max_columns))
         .unwrap();
     rewritten.data
 }
@@ -80,13 +96,10 @@ fn is_uncacheable_type(dt: &arrow_schema::DataType) -> bool {
     ) || matches!(dt, DataType::Dictionary(_, v) if is_uncacheable_type(v))
 }
 
-/// Max number of output columns for which LC wrapping is worthwhile.
-/// Per-column cache overhead exceeds decode savings for wide projections.
-const MAX_LC_COLUMNS: usize = 4;
-
 fn try_optimize_parquet_source(
     plan: Arc<dyn ExecutionPlan>,
     cache: &LiquidCacheParquetRef,
+    max_columns: usize,
 ) -> Result<Transformed<Arc<dyn ExecutionPlan>>, datafusion::error::DataFusionError> {
     if let Some(data_source_exec) = plan.downcast_ref::<DataSourceExec>()
         && let Some((file_scan_config, parquet_source)) =
@@ -103,11 +116,11 @@ fn try_optimize_parquet_source(
             return Ok(Transformed::no(plan));
         }
 
-        if output_schema.fields().len() > MAX_LC_COLUMNS {
+        if output_schema.fields().len() > max_columns {
             log::debug!(
                 "[LC-Optimizer] SKIP: too many columns ({} > {})",
                 output_schema.fields().len(),
-                MAX_LC_COLUMNS
+                max_columns
             );
             return Ok(Transformed::no(plan));
         }
@@ -252,7 +265,7 @@ mod tests {
         let plan = plan_for_sql("SELECT a, b FROM t WHERE a > 1", &path).await;
         let expected_schema = plan.schema();
 
-        let rewritten = rewrite_data_source_plan(plan, &test_cache());
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
 
         let (liquid, parquet) = count_sources(&rewritten);
         assert_eq!(liquid, 1);
@@ -266,7 +279,7 @@ mod tests {
         let path = write_test_parquet(tmp_dir.path());
         let plan = plan_for_sql("SELECT a, s FROM t WHERE a > 1", &path).await;
 
-        let rewritten = rewrite_data_source_plan(plan, &test_cache());
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
 
         let (liquid, parquet) = count_sources(&rewritten);
         assert_eq!(liquid, 0);
@@ -279,7 +292,7 @@ mod tests {
         let path = write_test_parquet(tmp_dir.path());
         let plan = plan_for_sql("SELECT a, b FROM t WHERE s = 'x'", &path).await;
 
-        let rewritten = rewrite_data_source_plan(plan, &test_cache());
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
 
         let (liquid, parquet) = count_sources(&rewritten);
         assert_eq!(liquid, 0);
@@ -293,7 +306,7 @@ mod tests {
         // 5 numeric columns > MAX_LC_COLUMNS (4)
         let plan = plan_for_sql("SELECT a, b, c, d, e FROM t", &path).await;
 
-        let rewritten = rewrite_data_source_plan(plan, &test_cache());
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
 
         let (liquid, parquet) = count_sources(&rewritten);
         assert_eq!(liquid, 0);
@@ -306,9 +319,101 @@ mod tests {
         let path = write_test_parquet(tmp_dir.path());
         let plan = plan_for_sql("SELECT COUNT(*) FROM t", &path).await;
 
-        let rewritten = rewrite_data_source_plan(plan, &test_cache());
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
 
         let (liquid, _parquet) = count_sources(&rewritten);
         assert_eq!(liquid, 0);
+    }
+
+    /// Write a parquet file whose columns are all LC-cacheable non-numeric
+    /// "numeric-family" types (Date32, Timestamp, Boolean) plus nothing else.
+    fn write_typed_parquet(dir: &std::path::Path) -> String {
+        use arrow::array::{BooleanArray, Date32Array, TimestampMicrosecondArray};
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("d", DataType::Date32, false),
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow_schema::TimeUnit::Microsecond, None),
+                false,
+            ),
+            Field::new("flag", DataType::Boolean, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(Date32Array::from(vec![1, 2, 3, 4])),
+                Arc::new(TimestampMicrosecondArray::from(vec![10, 20, 30, 40])),
+                Arc::new(BooleanArray::from(vec![true, false, true, false])),
+            ],
+        )
+        .unwrap();
+        let path = dir.join("typed.parquet");
+        let file = std::fs::File::create(&path).unwrap();
+        let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    /// Boundary: exactly `MAX_LC_COLUMNS` numeric output columns must still
+    /// engage LC (the skip is `> MAX_LC_COLUMNS`, not `>=`).
+    #[tokio::test]
+    async fn test_plan_rewrite_wraps_exactly_max_columns() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let path = write_test_parquet(tmp_dir.path());
+        let plan = plan_for_sql("SELECT a, b, c, d FROM t", &path).await;
+
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
+
+        let (liquid, parquet) = count_sources(&rewritten);
+        assert_eq!(
+            (liquid, parquet),
+            (1, 0),
+            "exactly 4 (== limit) numeric cols must engage LC"
+        );
+    }
+
+    /// Date/Timestamp/Boolean are treated as cacheable (only string/binary are
+    /// uncacheable), so an all-temporal/boolean projection must engage LC.
+    #[tokio::test]
+    async fn test_plan_rewrite_wraps_temporal_and_boolean() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let path = write_typed_parquet(tmp_dir.path());
+        let plan = plan_for_sql("SELECT d, ts, flag FROM t", &path).await;
+
+        let rewritten = rewrite_data_source_plan(plan, &test_cache(), 4);
+
+        let (liquid, parquet) = count_sources(&rewritten);
+        assert_eq!(
+            (liquid, parquet),
+            (1, 0),
+            "temporal + boolean projection is cacheable and must engage LC"
+        );
+    }
+
+    /// The listing-path column limit is dynamic (backed by
+    /// `datafusion.liquid_cache.listing_table.max_columns`), not a compile-time
+    /// constant. The same 5-column numeric projection engages LC at limit 5 but
+    /// is skipped at limit 4 — proving the limit is honoured at rewrite time.
+    #[tokio::test]
+    async fn test_plan_rewrite_honours_dynamic_column_limit() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let path = write_test_parquet(tmp_dir.path());
+
+        let plan = plan_for_sql("SELECT a, b, c, d, e FROM t", &path).await;
+        let (liquid, parquet) = count_sources(&rewrite_data_source_plan(plan, &test_cache(), 5));
+        assert_eq!(
+            (liquid, parquet),
+            (1, 0),
+            "5 numeric columns must engage LC at limit 5"
+        );
+
+        let plan = plan_for_sql("SELECT a, b, c, d, e FROM t", &path).await;
+        let (liquid, parquet) = count_sources(&rewrite_data_source_plan(plan, &test_cache(), 4));
+        assert_eq!(
+            (liquid, parquet),
+            (0, 1),
+            "same projection must skip LC at limit 4"
+        );
     }
 }

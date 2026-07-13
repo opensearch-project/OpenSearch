@@ -211,9 +211,16 @@ pub extern "C" fn df_set_liquid_cache_memory_limit(bytes: i64) {
 }
 
 #[no_mangle]
-pub extern "C" fn df_set_liquid_cache_max_columns(count: i64) {
+pub extern "C" fn df_set_liquid_cache_indexed_max_columns(count: i64) {
     if count > 0 {
-        crate::liquid_cache::set_lc_max_columns(count as usize);
+        crate::liquid_cache::set_lc_indexed_max_columns(count as usize);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn df_set_liquid_cache_listing_max_columns(count: i64) {
+    if count > 0 {
+        crate::liquid_cache::set_lc_listing_max_columns(count as usize);
     }
 }
 

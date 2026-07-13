@@ -27,14 +27,29 @@ const LIQUID_CACHE_BATCH_SIZE: usize = 8192;
 static INSTANCE: OnceLock<Result<LiquidOnlyRuntime, String>> = OnceLock::new();
 
 // Dynamic tuning knobs — updated via cluster settings without restart.
-static LC_MAX_COLUMNS: AtomicU32 = AtomicU32::new(10);
+// The two engagement paths (listing-table optimizer vs indexed-query bridge)
+// have different cost profiles, so each has its own max-columns limit:
+//   - listing_table.max_columns  → LocalModeOptimizer (default 4)
+//   - indexed_query.max_columns  → indexed_table::parquet_bridge (default 10)
+static LC_INDEXED_MAX_COLUMNS: AtomicU32 = AtomicU32::new(10);
+static LC_LISTING_MAX_COLUMNS: AtomicU32 = AtomicU32::new(4);
 
-pub fn lc_max_columns() -> usize {
-    LC_MAX_COLUMNS.load(Ordering::Relaxed) as usize
+/// Max output columns for LC engagement on the indexed-query path.
+pub fn lc_indexed_max_columns() -> usize {
+    LC_INDEXED_MAX_COLUMNS.load(Ordering::Relaxed) as usize
 }
 
-pub fn set_lc_max_columns(value: usize) {
-    LC_MAX_COLUMNS.store(value as u32, Ordering::Relaxed);
+pub fn set_lc_indexed_max_columns(value: usize) {
+    LC_INDEXED_MAX_COLUMNS.store(value as u32, Ordering::Relaxed);
+}
+
+/// Max output columns for LC engagement on the listing-table path.
+pub fn lc_listing_max_columns() -> usize {
+    LC_LISTING_MAX_COLUMNS.load(Ordering::Relaxed) as usize
+}
+
+pub fn set_lc_listing_max_columns(value: usize) {
+    LC_LISTING_MAX_COLUMNS.store(value as u32, Ordering::Relaxed);
 }
 
 pub struct LiquidOnlyRuntime {

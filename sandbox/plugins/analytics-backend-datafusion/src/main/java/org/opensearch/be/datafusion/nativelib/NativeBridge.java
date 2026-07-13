@@ -146,7 +146,8 @@ public final class NativeBridge {
     private static final MethodHandle CLEAR_LIQUID_CACHE;
     private static final MethodHandle SET_LIQUID_CACHE_ENABLED;
     private static final MethodHandle SET_LIQUID_CACHE_MEMORY_LIMIT;
-    private static final MethodHandle SET_LIQUID_CACHE_MAX_COLUMNS;
+    private static final MethodHandle SET_LIQUID_CACHE_INDEXED_MAX_COLUMNS;
+    private static final MethodHandle SET_LIQUID_CACHE_LISTING_MAX_COLUMNS;
     private static final MethodHandle STATS;
     private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
     private static final MethodHandle DF_NATIVE_NODE_STATS;
@@ -206,8 +207,13 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
-        SET_LIQUID_CACHE_MAX_COLUMNS = linker.downcallHandle(
-            lib.find("df_set_liquid_cache_max_columns").orElseThrow(),
+        SET_LIQUID_CACHE_INDEXED_MAX_COLUMNS = linker.downcallHandle(
+            lib.find("df_set_liquid_cache_indexed_max_columns").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_LIQUID_CACHE_LISTING_MAX_COLUMNS = linker.downcallHandle(
+            lib.find("df_set_liquid_cache_listing_max_columns").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
@@ -843,9 +849,14 @@ public final class NativeBridge {
         NativeCall.invokeVoid(SET_LIQUID_CACHE_MEMORY_LIMIT, bytes);
     }
 
-    /** Dynamically update the max columns for LC engagement. */
-    public static void setLiquidCacheMaxColumns(long count) {
-        NativeCall.invokeVoid(SET_LIQUID_CACHE_MAX_COLUMNS, count);
+    /** Dynamically update the max columns for LC engagement on the indexed-query path. */
+    public static void setLiquidCacheIndexedMaxColumns(long count) {
+        NativeCall.invokeVoid(SET_LIQUID_CACHE_INDEXED_MAX_COLUMNS, count);
+    }
+
+    /** Dynamically update the max columns for LC engagement on the listing-table path. */
+    public static void setLiquidCacheListingMaxColumns(long count) {
+        NativeCall.invokeVoid(SET_LIQUID_CACHE_LISTING_MAX_COLUMNS, count);
     }
 
     // ---- Memory pool observability and dynamic limit ----
