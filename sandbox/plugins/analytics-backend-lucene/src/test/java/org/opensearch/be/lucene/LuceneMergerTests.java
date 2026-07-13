@@ -383,6 +383,35 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         merger.abortPreparedMerge(input);
     }
 
+    /** prepareMerge surfaces per-generation live-docs bitmaps reflecting applied deletes. */
+    public void testPrepareMergeReturnsLiveDocsForDeletedRows() throws IOException {
+        writeSegment(writer, 1L, 0, 3); // docs doc_0..doc_2
+        writeSegment(writer, 2L, 3, 2); // docs doc_3..doc_4, no deletes
+        writer.deleteDocuments(new org.apache.lucene.index.Term("id", "doc_1"));
+        writer.commit(); // applies the delete: doc 1 of gen=1 is dead
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
+        List<Segment> segments = buildSegments(getSegmentInfos(writer));
+
+        long gen = 99L;
+        MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
+        LiveDocs liveDocs = merger.prepareMerge(input);
+        try {
+            assertFalse("segment gen=1 has a delete", liveDocs.allAlive());
+            assertEquals(1, liveDocs.segmentsWithDeletes());
+
+            assertFalse(liveDocs.allAlive(1L));
+            assertTrue(liveDocs.isAlive(1L, 0));
+            assertFalse("deleted doc must be flagged dead", liveDocs.isAlive(1L, 1));
+            assertTrue(liveDocs.isAlive(1L, 2));
+
+            assertTrue("gen=2 has no deletes", liveDocs.allAlive(2L));
+            assertNull(liveDocs.packedBits(2L));
+        } finally {
+            writer.abortPreparedMerge(gen);
+        }
+    }
+
     /** merge() consumes the OneMerge prepared by prepareMerge — no fresh OneMerge is created. */
     public void testMergeConsumesPreparedOneMerge() throws IOException {
         writeSegment(writer, 1L, 0, 3);
