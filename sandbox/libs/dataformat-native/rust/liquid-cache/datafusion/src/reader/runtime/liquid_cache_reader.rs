@@ -347,8 +347,7 @@ impl LiquidCacheReaderInner {
         if self.projection_columns.is_empty() {
             let options = RecordBatchOptions::new().with_row_count(Some(selected_rows));
             let batch =
-                RecordBatch::try_new_with_options(self.schema.clone(), Vec::new(), &options)
-                    .unwrap();
+                RecordBatch::try_new_with_options(self.schema.clone(), Vec::new(), &options)?;
             return Ok(Some(batch));
         }
 
@@ -405,10 +404,24 @@ impl LiquidCacheReaderInner {
             }
         }
 
-        let final_arrays: Vec<ArrayRef> = arrays.into_iter().map(|a| a.unwrap()).collect();
-        Ok(Some(
-            RecordBatch::try_new(self.schema.clone(), final_arrays).unwrap(),
-        ))
+        // Every slot is expected to be filled by the miss-fill loop above; if
+        // one is still `None` (schema drift / fill failure) propagate an error
+        // rather than panicking the query worker.
+        let final_arrays: Vec<ArrayRef> = arrays
+            .into_iter()
+            .enumerate()
+            .map(|(i, a)| {
+                a.ok_or_else(|| {
+                    ArrowError::ComputeError(format!(
+                        "liquid cache: projected column slot {i} was not materialized"
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, ArrowError>>()?;
+        Ok(Some(RecordBatch::try_new(
+            self.schema.clone(),
+            final_arrays,
+        )?))
     }
 
     async fn read_parquet_batch_and_fill_cache(

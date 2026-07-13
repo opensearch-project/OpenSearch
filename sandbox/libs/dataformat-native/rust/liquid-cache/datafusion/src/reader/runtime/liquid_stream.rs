@@ -373,7 +373,11 @@ impl Stream for LiquidStream {
                             return Poll::Ready(Some(Ok(batch)));
                         }
                         Poll::Ready(Some(Err(e))) => {
-                            panic!("Decoding next batch error: {e:?}");
+                            // Propagate decode failures as a stream error rather than
+                            // panicking the executor worker.
+                            return Poll::Ready(Some(Err(parquet::errors::ParquetError::General(
+                                format!("liquid cache decode error: {e:?}"),
+                            ))));
                         }
                         Poll::Ready(None) => {
                             let batch_reader = *batch_reader;
@@ -524,6 +528,49 @@ mod tests {
         }
         let stream = builder.build(cached_file.clone()).unwrap();
         (stream, cache, cached_file, tmp_dir)
+    }
+
+    /// A decode failure in the underlying parquet reader must surface as a
+    /// stream `Err`, not a panic that aborts the executor worker.
+    ///
+    /// We build the stream over a valid file (so metadata loads cleanly), then
+    /// overwrite the on-disk data-page region — leaving the footer/metadata
+    /// intact — so the lazy row-group read fails when the stream is polled.
+    /// Before the fix this hit `panic!("Decoding next batch error...")`; now it
+    /// must yield `Some(Err(_))`. If it regressed to a panic, this `#[tokio::test]`
+    /// fails on the unwind.
+    #[tokio::test]
+    async fn decode_error_is_propagated_not_panicked() {
+        use std::io::{Seek, SeekFrom, Write};
+
+        let (stream, _cache, _cached_file, tmp_dir) = make_liquid_stream(1 << 20, None, vec![0, 1]);
+
+        // Corrupt the data pages right after the 4-byte "PAR1" header. Metadata
+        // was already loaded above, so offsets stay consistent but page decode
+        // fails.
+        let parquet_path = tmp_dir.path().join("data.parquet");
+        {
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&parquet_path)
+                .unwrap();
+            f.seek(SeekFrom::Start(4)).unwrap();
+            f.write_all(&[0xFFu8; 64]).unwrap();
+            f.flush().unwrap();
+        }
+
+        let mut stream = std::pin::pin!(stream);
+        let mut saw_error = false;
+        while let Some(item) = stream.next().await {
+            if item.is_err() {
+                saw_error = true;
+                break;
+            }
+        }
+        assert!(
+            saw_error,
+            "corrupt parquet data pages must produce a stream Err, not a panic"
+        );
     }
 
     async fn collect_liquid_values(stream: LiquidStream) -> (Vec<i32>, Vec<i32>) {
