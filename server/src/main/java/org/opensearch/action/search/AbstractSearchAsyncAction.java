@@ -70,7 +70,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -287,6 +287,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final Map<Transport.Connection, List<NodeGroupEntry>> groups = new ConcurrentHashMap<>();
         for (int index = 0; index < shardsIts.size(); index++) {
             final SearchShardIterator shardIt = shardsIts.get(index);
+            if (shardIt.skip()) {
+                continue;
+            }
             final SearchShardTarget target = shardIt.nextOrNull();
             // We only support node level fanout for indices on the local cluster
             if (target == null || target.getClusterAlias() != null) {
@@ -345,7 +348,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final int to = Math.min(from + batchSize, group.size());
         final List<NodeGroupEntry> batch = group.subList(from, to);
         final List<ShardId> shardIds = new ArrayList<>(batch.size());
-        final Set<String> indexUuids = new HashSet<>();
+        final Map<String, Integer> indexMaterialByUuid = new HashMap<>();
+        final int[] indexMaterialByShard = new int[batch.size()];
         final List<AliasFilter> batchAliasFilters = new ArrayList<>();
         final float[] batchIndexBoosts = new float[batch.size()];
         final List<String[]> batchIndexRoutings = new ArrayList<>();
@@ -358,20 +362,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             final String indexUuid = shardIt.shardId().getIndex().getUUID();
             shardIds.add(shardIt.shardId());
-            if (indexUuids.add(indexUuid)) {
+            Integer indexMaterial = indexMaterialByUuid.get(indexUuid);
+            if (indexMaterial == null) {
+                indexMaterial = indexMaterialCount++;
+                indexMaterialByUuid.put(indexUuid, indexMaterial);
                 final AliasFilter filter = aliasFilter.get(indexUuid);
                 assert filter != null;
                 final String indexName = shardIt.shardId().getIndex().getName();
                 batchAliasFilters.add(filter);
-                batchIndexBoosts[indexMaterialCount++] = concreteIndexBoosts.getOrDefault(indexUuid, DEFAULT_INDEX_BOOST);
+                batchIndexBoosts[indexMaterial] = concreteIndexBoosts.getOrDefault(indexUuid, DEFAULT_INDEX_BOOST);
                 batchIndexRoutings.add(indexRoutings.getOrDefault(indexName, Collections.emptySet()).toArray(new String[0]));
             }
+            indexMaterialByShard[shardIds.size() - 1] = indexMaterial;
         }
-        final ShardSearchRequest shardSearchRequest = rewriteShardSearchRequest(buildShardSearchRequest(batch.get(0).shardIt));
-        final SearchRequest searchRequest = new SearchRequest().searchType(shardSearchRequest.searchType())
-            .requestCache(shardSearchRequest.requestCache())
-            .allowPartialSearchResults(shardSearchRequest.allowPartialSearchResults())
-            .preference(shardSearchRequest.preference());
+        final ShardSearchRequest shardSearchRequest = rewriteShardSearchRequest(buildShardSearchRequest(batch.getFirst().shardIt));
+        final SearchRequest searchRequest = new SearchRequest(request);
         if (shardSearchRequest.source() != null) {
             searchRequest.source(shardSearchRequest.source());
         }
@@ -383,6 +388,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardSearchRequest.canReturnNullResponseIfMatchNoDocs(),
             shardSearchRequest.getBottomSortValues(),
             shardIds,
+            indexMaterialByShard,
             batchAliasFilters,
             Arrays.copyOf(batchIndexBoosts, indexMaterialCount),
             batchIndexRoutings

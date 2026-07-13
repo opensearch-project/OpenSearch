@@ -23,7 +23,6 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,12 +56,14 @@ public class NodeSearchRequest extends TransportRequest {
         boolean canReturnNullResponseIfMatchNoDocs,
         @Nullable SearchSortValuesAndFormats bottomSortValues,
         List<ShardId> shardIds,
+        int[] indexMaterialByShard,
         List<AliasFilter> aliasFilters,
         float[] indexBoosts,
         List<String[]> indexRoutings
     ) {
         assert aliasFilters.size() == indexBoosts.length && aliasFilters.size() == indexRoutings.size()
             : "node search index materials must have the same size";
+        assert indexMaterialByShard.length == shardIds.size() : "node search shard material mapping must match shard count";
         this.originalIndices = originalIndices;
         this.searchRequest = searchRequest;
         this.totalShardsAcrossAllNodes = totalShardsAcrossAllNodes;
@@ -73,7 +74,7 @@ public class NodeSearchRequest extends TransportRequest {
         this.aliasFilters = aliasFilters;
         this.indexBoosts = indexBoosts;
         this.indexRoutings = indexRoutings;
-        this.indexMaterialByShard = buildIndexMaterialByShard(shardIds, aliasFilters.size());
+        this.indexMaterialByShard = indexMaterialByShard;
     }
 
     public NodeSearchRequest(StreamInput in) throws IOException {
@@ -86,8 +87,10 @@ public class NodeSearchRequest extends TransportRequest {
         this.bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         final int shardCount = in.readVInt();
         this.shardIds = new ArrayList<>(shardCount);
+        this.indexMaterialByShard = new int[shardCount];
         for (int i = 0; i < shardCount; i++) {
             shardIds.add(new ShardId(in));
+            indexMaterialByShard[i] = in.readVInt();
         }
         final int indexCount = in.readVInt();
         this.aliasFilters = new ArrayList<>(indexCount);
@@ -98,7 +101,6 @@ public class NodeSearchRequest extends TransportRequest {
             indexBoosts[i] = in.readFloat();
             indexRoutings.add(in.readStringArray());
         }
-        this.indexMaterialByShard = buildIndexMaterialByShard(shardIds, aliasFilters.size());
     }
 
     @Override
@@ -108,10 +110,12 @@ public class NodeSearchRequest extends TransportRequest {
         searchRequest.writeTo(out);
         out.writeVInt(totalShardsAcrossAllNodes);
         out.writeVLong(nowInMillis);
+        out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
         out.writeOptionalWriteable(bottomSortValues);
         out.writeVInt(shardIds.size());
-        for (ShardId shardId : shardIds) {
-            shardId.writeTo(out);
+        for (int i = 0; i < shardIds.size(); i++) {
+            shardIds.get(i).writeTo(out);
+            out.writeVInt(indexMaterialByShard[i]);
         }
         out.writeVInt(aliasFilters.size());
         for (int i = 0; i < aliasFilters.size(); i++) {
@@ -133,7 +137,7 @@ public class NodeSearchRequest extends TransportRequest {
     public ShardSearchRequest shardRequest(int index) {
         final ShardId shardId = shardIds.get(index);
         final int indexMaterial = indexMaterialByShard[index];
-        if (indexMaterial >= aliasFilters.size()) {
+        if (indexMaterial < 0 || indexMaterial >= aliasFilters.size()) {
             throw new IllegalStateException("missing index material for shard [" + shardId + "]");
         }
         final ShardSearchRequest shardRequest = new ShardSearchRequest(
@@ -153,18 +157,6 @@ public class NodeSearchRequest extends TransportRequest {
         shardRequest.setInboundNetworkTime(nowInMillis);
         shardRequest.canReturnNullResponseIfMatchNoDocs(canReturnNullResponseIfMatchNoDocs);
         return shardRequest;
-    }
-
-    private static int[] buildIndexMaterialByShard(List<ShardId> shardIds, int indexMaterialCount) {
-        final int[] indexMaterialByShard = new int[shardIds.size()];
-        final Map<String, Integer> indexMaterialByUuid = new HashMap<>();
-        for (int i = 0; i < shardIds.size(); i++) {
-            final String indexUuid = shardIds.get(i).getIndex().getUUID();
-            Integer indexMaterial = indexMaterialByUuid.computeIfAbsent(indexUuid, k -> indexMaterialByUuid.size());
-            indexMaterialByShard[i] = indexMaterial;
-        }
-        assert indexMaterialByUuid.size() == indexMaterialCount : "node search index materials must match unique shard indices";
-        return indexMaterialByShard;
     }
 
     public void canReturnNullResponseIfMatchNoDocs(boolean canReturnNullResponseIfMatchNoDocs) {

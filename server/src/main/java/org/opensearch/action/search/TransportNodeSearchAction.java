@@ -95,7 +95,8 @@ public class TransportNodeSearchAction {
                     // can return a null response if the request rewrites to match none rather
                     // than creating an empty response in the search thread pool.
                     // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
-                    request.canReturnNullResponseIfMatchNoDocs(shardRequest.scroll() == null);
+                    // scroll() is null for node-level query.
+                    request.canReturnNullResponseIfMatchNoDocs(true);
                 }
 
                 @Override

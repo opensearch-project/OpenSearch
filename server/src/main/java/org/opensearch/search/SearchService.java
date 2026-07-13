@@ -702,8 +702,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.lowLevelCancellation = lowLevelCancellation;
     }
 
-    public boolean setNodeLevelQueryFanoutEnabled(boolean nodeLevelQueryFanoutEnabled) {
-        return this.nodeLevelQueryFanoutEnabled = nodeLevelQueryFanoutEnabled;
+    public void setNodeLevelQueryFanoutEnabled(boolean nodeLevelQueryFanoutEnabled) {
+        this.nodeLevelQueryFanoutEnabled = nodeLevelQueryFanoutEnabled;
     }
 
     public boolean nodeLevelQueryFanoutEnabled() {

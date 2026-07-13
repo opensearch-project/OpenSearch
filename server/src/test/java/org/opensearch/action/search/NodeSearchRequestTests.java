@@ -18,7 +18,6 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -28,6 +27,7 @@ public class NodeSearchRequestTests extends OpenSearchTestCase {
 
     public void testNodeSearchRequestSerialization() throws Exception {
         final ShardId shardId = new ShardId("index", "uuid", 0);
+        final ShardId otherShardId = new ShardId("other-index", "other-uuid", 0);
         final SearchRequest searchRequest = new SearchRequest().searchType(SearchType.QUERY_THEN_FETCH)
             .requestCache(false)
             .allowPartialSearchResults(true)
@@ -36,28 +36,36 @@ public class NodeSearchRequestTests extends OpenSearchTestCase {
         final NodeSearchRequest request = new NodeSearchRequest(
             new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             searchRequest,
-            1,
+            2,
             123L,
             true,
             null,
-            List.of(shardId),
-            List.of(new AliasFilter(null, "alias")),
-            new float[] { 2.0f },
-            Collections.singletonList(new String[] { "route" })
+            List.of(shardId, otherShardId),
+            new int[] { 1, 0 },
+            List.of(new AliasFilter(null, "other-alias"), new AliasFilter(null, "alias")),
+            new float[] { 3.0f, 2.0f },
+            Arrays.asList(new String[] { "other-route" }, new String[] { "route" })
         );
 
         final NodeSearchRequest copy = copyWriteable(request, writableRegistry(), NodeSearchRequest::new);
-        assertThat(copy.shardCount(), equalTo(1));
+        assertThat(copy.shardCount(), equalTo(2));
         final ShardSearchRequest shardRequest = copy.shardRequest(0);
         assertThat(shardRequest.shardId(), equalTo(shardId));
         assertThat(shardRequest.source().size(), equalTo(2));
         assertThat(shardRequest.getAliasFilter(), equalTo(new AliasFilter(null, "alias")));
         assertThat(shardRequest.indexBoost(), equalTo(2.0f));
         assertArrayEquals(new String[] { "route" }, shardRequest.indexRoutings());
-        assertThat(shardRequest.numberOfShards(), equalTo(1));
+        assertThat(shardRequest.numberOfShards(), equalTo(2));
         assertThat(shardRequest.nowInMillis(), equalTo(123L));
         assertTrue(shardRequest.allowPartialSearchResults());
+        assertTrue(shardRequest.canReturnNullResponseIfMatchNoDocs());
         assertThat(shardRequest.preference(), equalTo("_local"));
+
+        final ShardSearchRequest otherShardRequest = copy.shardRequest(1);
+        assertThat(otherShardRequest.shardId(), equalTo(otherShardId));
+        assertThat(otherShardRequest.getAliasFilter(), equalTo(new AliasFilter(null, "other-alias")));
+        assertThat(otherShardRequest.indexBoost(), equalTo(3.0f));
+        assertArrayEquals(new String[] { "other-route" }, otherShardRequest.indexRoutings());
     }
 
     public void testNodeSearchResponseSerialization() throws Exception {
