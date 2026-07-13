@@ -147,7 +147,6 @@ public class RestIndicesAction extends AbstractListAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
-        final boolean system = request.paramAsBoolean("system", false);
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         // Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
@@ -402,7 +401,7 @@ public class RestIndicesAction extends AbstractListAction {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(asList("local", "health"));
+        final Set<String> responseParams = new HashSet<>(asList("local", "health", "system"));
         responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -435,10 +434,12 @@ public class RestIndicesAction extends AbstractListAction {
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
 
-        final boolean systemParam = request.paramAsBoolean("system", false);
-        if (systemParam) {
-            table.addCell("desc", "alias:dsc;desc:description of system index");
-        }
+        final String systemColumnDefault = request.hasParam("system") ? "" : "default:false;";
+        table.addCell("system", "alias:sys;" + systemColumnDefault + "desc:whether the index is a system index");
+        table.addCell(
+            "system.description",
+            "alias:sysdesc;" + systemColumnDefault + "desc:description from the matching system index descriptor"
+        );
 
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
@@ -909,7 +910,7 @@ public class RestIndicesAction extends AbstractListAction {
         final PageToken pageToken
     ) {
         final String healthParam = request.param("health");
-        final boolean systemParam = request.paramAsBoolean("system", false);
+        final Boolean systemParam = request.hasParam("system") ? request.paramAsBoolean("system", false) : null;
         final Table table = getTableWithHeader(request, pageToken);
 
         while (tableIterator.hasNext()) {
@@ -953,11 +954,8 @@ public class RestIndicesAction extends AbstractListAction {
                 }
             }
 
-            if (systemParam) {
-                if (!systemIndices.isSystemIndex(indexName)) {
-                    // System filter is enabled but index is not a system index
-                    continue;
-                }
+            if (systemParam != null && systemParam != indexMetadata.isSystem()) {
+                continue;
             }
 
             final CommonStats primaryStats;
@@ -989,10 +987,9 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
 
-            if (systemParam) {
-                SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-                table.addCell(descriptor == null ? null : descriptor.getDescription());
-            }
+            table.addCell(indexMetadata.isSystem());
+            SystemIndexDescriptor descriptor = indexMetadata.isSystem() ? systemIndices.findMatchingDescriptor(indexName) : null;
+            table.addCell(descriptor == null ? null : descriptor.getDescription());
 
             table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
             table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());
