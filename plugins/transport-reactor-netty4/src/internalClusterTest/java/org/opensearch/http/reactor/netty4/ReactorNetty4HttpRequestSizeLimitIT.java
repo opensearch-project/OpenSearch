@@ -125,7 +125,9 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         ensureGreen();
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
-        for (int i = 0; i < 1500; i++) {
+        // See please https://github.com/netty/netty/pull/17068 why 128 is the cap, we should be able to
+        // make it configurable in the Netty next release.
+        for (int i = 0; i < 128; i++) {
             requestUris.add(Tuple.tuple("/_cluster/settings", "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
         }
 
