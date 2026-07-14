@@ -946,7 +946,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // Even though the primary waits on all nodes to ack the mapping changes to the cluster-manager
             // (see MappingUpdatedAction.updateMappingOnClusterManager) we still need to protect against missing mappings
             // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
-            // mapping update. Assume that that update is first applied on the primary, and only later on the replica
+            // mapping update. Assume that the update is first applied on the primary, and only later on the replica
             // (it’s happening concurrently). Request r2, which now arrives on the primary and which also has the new
             // field f might see the updated mapping (on the primary), and will therefore proceed to be replicated
             // to the replica. When it arrives on the replica, there’s no guarantee that the replica has already
