@@ -256,6 +256,8 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(CollectorLeafBitmaps {
                     ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
+                    probe_rg_can_match: std::collections::HashMap::new(),
+                    rg_index_to_pos: std::collections::HashMap::new(),
                 }),
                 page_pruner: pruner,
                 cost_predicate: 1,
@@ -433,6 +435,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 None,
                     None,
                     std::collections::HashMap::new(),
+            None,
             ));
             let _ = segment;
             Ok(eval)

@@ -1059,6 +1059,14 @@ pub struct CollectorLeafBitmaps {
     /// round-trip to Java per Collector leaf per RG. `None` for tests
     /// that don't care about metrics.
     pub ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
+    /// Per-leaf, per-RG match flags from the probe scorer. Keyed by
+    /// collector pointer identity (`Arc::as_ptr` as usize). Each value
+    /// is a Vec<bool> indexed by RG position in the chunk.
+    /// If a leaf's entry says `false` for a given RG position, we skip
+    /// the `collectDocs` FFM call and return an empty bitmap.
+    pub probe_rg_can_match: HashMap<usize, Vec<bool>>,
+    /// Reverse map: absolute RG index → position in `probe_rg_can_match` vectors.
+    pub rg_index_to_pos: HashMap<usize, usize>,
 }
 
 impl CollectorLeafBitmaps {
@@ -1066,6 +1074,8 @@ impl CollectorLeafBitmaps {
     pub fn without_metrics() -> Self {
         Self {
             ffm_collector_calls: None,
+            probe_rg_can_match: HashMap::new(),
+            rg_index_to_pos: HashMap::new(),
         }
     }
 }
@@ -1074,7 +1084,7 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
     fn leaf_bitmap(
         &self,
         collector_node: &ResolvedNode,
-        _leaf_dfs_index: usize, // This is not used in this implementation
+        _leaf_dfs_index: usize,
         ctx: &RgEvalContext,
     ) -> Result<RoaringBitmap, String> {
         let collector = match collector_node {
@@ -1083,10 +1093,26 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
                 return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into())
             }
         };
-        // Use the narrowed call ranges if available (set by AND evaluator
-        // after earlier children shrink the candidate set). Each range
-        // produces one FFM call; results are merged into one bitmap in
-        // min_doc-relative coordinates.
+
+        // Probe-scorer RG skip: if the probe determined this leaf has no
+        // docs in this RG, return an empty bitmap without an FFM call.
+        if !self.probe_rg_can_match.is_empty() {
+            let leaf_key = Arc::as_ptr(collector) as *const () as usize;
+            if let Some(rg_flags) = self.probe_rg_can_match.get(&leaf_key) {
+                if let Some(&pos) = self.rg_index_to_pos.get(&ctx.rg_idx) {
+                    if let Some(&false) = rg_flags.get(pos) {
+                        native_bridge_common::log_debug!(
+                            "[probe-skip] BT_LEAF_SKIPPED: rg_index={} range=[{},{})",
+                            ctx.rg_idx,
+                            ctx.min_doc,
+                            ctx.max_doc
+                        );
+                        return Ok(RoaringBitmap::new());
+                    }
+                }
+            }
+        }
+
         // Use narrowed call ranges if available (set by AND evaluator).
         let call_ranges = ctx
             .collector_call_ranges
@@ -1134,6 +1160,30 @@ mod tests {
     use datafusion::parquet::arrow::ArrowWriter;
     use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
     use std::collections::{HashMap, HashSet};
+
+    /// Simple stub collector for probe tests — returns pre-defined doc IDs.
+    #[derive(Debug)]
+    struct StubCollector {
+        docs: Vec<i32>,
+    }
+    impl RowGroupDocsCollector for StubCollector {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<Vec<u64>, String> {
+            let span = (max_doc - min_doc) as usize;
+            let word_count = (span + 63) / 64;
+            let mut buf = vec![0u64; word_count];
+            for &doc in &self.docs {
+                if doc >= min_doc && doc < max_doc {
+                    let offset = (doc - min_doc) as usize;
+                    buf[offset / 64] |= 1u64 << (offset % 64);
+                }
+            }
+            Ok(buf)
+        }
+    }
 
     /// Deterministic bitmap source for tests.
     struct FixedLeafBitmaps {
@@ -2314,6 +2364,139 @@ mod tests {
         assert!(
             result.per_leaf[3].1.is_empty(),
             "pruned coll1 should have empty bitmap"
+        );
+    }
+
+    // ── Probe-scorer leaf-skip tests ──
+
+    #[test]
+    fn probe_rg_can_match_skips_collector_leaf_bitmap() {
+        use super::CollectorLeafBitmaps;
+        use crate::indexed_table::bool_tree::ResolvedNode;
+
+        // Create a collector that would return docs if called
+        let collector: Arc<dyn crate::indexed_table::index::RowGroupDocsCollector> =
+            Arc::new(StubCollector {
+                docs: vec![0, 1, 2, 3],
+            });
+        let collector_key = Arc::as_ptr(&collector) as *const () as usize;
+
+        // Probe says: RG position 0 has no docs for this leaf
+        let mut probe_map = HashMap::new();
+        probe_map.insert(collector_key, vec![false]);
+
+        let leaves = CollectorLeafBitmaps {
+            ffm_collector_calls: None,
+            probe_rg_can_match: probe_map,
+            rg_index_to_pos: HashMap::from([(0, 0)]),
+        };
+
+        let node = ResolvedNode::Collector {
+            provider_key: 1,
+            collector: Arc::clone(&collector),
+        };
+
+        let ctx = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 1000,
+            min_doc: 0,
+            max_doc: 1000,
+            cost_predicate: 1,
+            cost_collector: 1,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+
+        let bitmap = leaves.leaf_bitmap(&node, 0, &ctx).unwrap();
+        assert!(
+            bitmap.is_empty(),
+            "probe=false should return empty bitmap without FFM call"
+        );
+    }
+
+    #[test]
+    fn probe_rg_can_match_true_allows_collector_call() {
+        use super::CollectorLeafBitmaps;
+        use crate::indexed_table::bool_tree::ResolvedNode;
+
+        let collector: Arc<dyn crate::indexed_table::index::RowGroupDocsCollector> =
+            Arc::new(StubCollector {
+                docs: vec![0, 1, 2, 3],
+            });
+        let collector_key = Arc::as_ptr(&collector) as *const () as usize;
+
+        // Probe says: RG position 0 HAS docs
+        let mut probe_map = HashMap::new();
+        probe_map.insert(collector_key, vec![true]);
+
+        let leaves = CollectorLeafBitmaps {
+            ffm_collector_calls: None,
+            probe_rg_can_match: probe_map,
+            rg_index_to_pos: HashMap::from([(0, 0)]),
+        };
+
+        let node = ResolvedNode::Collector {
+            provider_key: 1,
+            collector: Arc::clone(&collector),
+        };
+
+        let ctx = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 1000,
+            min_doc: 0,
+            max_doc: 1000,
+            cost_predicate: 1,
+            cost_collector: 1,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+
+        let bitmap = leaves.leaf_bitmap(&node, 0, &ctx).unwrap();
+        assert!(
+            !bitmap.is_empty(),
+            "probe=true should allow collector to produce bitmap"
+        );
+        assert_eq!(bitmap.len(), 4);
+    }
+
+    #[test]
+    fn probe_empty_map_does_not_skip() {
+        use super::CollectorLeafBitmaps;
+        use crate::indexed_table::bool_tree::ResolvedNode;
+
+        let collector: Arc<dyn crate::indexed_table::index::RowGroupDocsCollector> =
+            Arc::new(StubCollector { docs: vec![5, 10] });
+
+        // Empty probe map = legacy path, no skipping
+        let leaves = CollectorLeafBitmaps {
+            ffm_collector_calls: None,
+            probe_rg_can_match: HashMap::new(),
+            rg_index_to_pos: HashMap::new(),
+        };
+
+        let node = ResolvedNode::Collector {
+            provider_key: 1,
+            collector: Arc::clone(&collector),
+        };
+
+        let ctx = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 1000,
+            min_doc: 0,
+            max_doc: 1000,
+            cost_predicate: 1,
+            cost_collector: 1,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+
+        let bitmap = leaves.leaf_bitmap(&node, 0, &ctx).unwrap();
+        assert!(
+            !bitmap.is_empty(),
+            "empty probe map should not skip — legacy behavior"
         );
     }
 }

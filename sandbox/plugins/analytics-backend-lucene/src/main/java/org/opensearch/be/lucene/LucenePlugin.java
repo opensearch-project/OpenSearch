@@ -25,6 +25,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.index.IndexSettings;
@@ -202,6 +203,10 @@ public class LucenePlugin extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        clusterSettings.addSettingsUpdateConsumer(
+            LuceneFilterDelegationHandle.PROBE_THRESHOLD_PERCENT_SETTING,
+            LuceneFilterDelegationHandle::setProbeThresholdPercent
+        );
         return List.of(new LuceneStatsRestAction(), new LuceneNodeStatsRestAction());
     }
 
@@ -211,5 +216,12 @@ public class LucenePlugin extends Plugin
     @Override
     public DocumentMetadata resolveMetadata(IndexReaderProvider.Reader reader, String id) throws IOException {
         return documentResolver.resolveMetadata(reader, id);
+    }
+
+    // --- Settings ---
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(LuceneFilterDelegationHandle.PROBE_THRESHOLD_PERCENT_SETTING);
     }
 }

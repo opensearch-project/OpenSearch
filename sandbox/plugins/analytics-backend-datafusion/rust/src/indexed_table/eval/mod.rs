@@ -167,6 +167,35 @@ pub trait RowGroupBitsetSource: Send + Sync {
     }
 }
 
+/// Evaluator for segments where the query has zero matches (null scorer).
+/// Always returns `Ok(None)` from `prefetch_rg` — skips every RG with no
+/// FFM calls, no allocation, no bitmap construction.
+#[derive(Debug)]
+pub struct EmptySegmentEvaluator;
+
+impl RowGroupBitsetSource for EmptySegmentEvaluator {
+    fn prefetch_rg(
+        &self,
+        _rg: &RowGroupInfo,
+        _min_doc: i32,
+        _max_doc: i32,
+    ) -> Result<Option<PrefetchedRg>, String> {
+        Ok(None)
+    }
+
+    fn on_batch_mask(
+        &self,
+        _rg_state: &dyn Any,
+        _rg_first_row: i64,
+        _position_map: &PositionMap,
+        _batch_offset: usize,
+        _batch_len: usize,
+        _batch: &RecordBatch,
+    ) -> Result<Option<BooleanArray>, String> {
+        Ok(None)
+    }
+}
+
 /// Output of `prefetch_rg`.
 pub struct PrefetchedRg {
     /// Candidate doc-id bitmap, RG-relative (bit 0 = first row of the RG

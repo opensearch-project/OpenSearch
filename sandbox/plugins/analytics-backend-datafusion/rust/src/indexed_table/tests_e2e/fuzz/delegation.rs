@@ -428,6 +428,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
                 None,
                 None,
                 HashMap::new(),
+                None,
             ));
             Ok(eval)
         })
