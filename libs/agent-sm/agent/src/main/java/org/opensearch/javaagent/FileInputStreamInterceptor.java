@@ -9,6 +9,7 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.javaagent.bootstrap.internal.BuiltinClassLoaderResourceBoundary;
 import org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainChainExtractor;
 
 import java.io.File;
@@ -17,6 +18,7 @@ import java.nio.file.Path;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
+import java.util.List;
 
 import net.bytebuddy.asm.Advice;
 
@@ -56,7 +58,17 @@ public class FileInputStreamInterceptor {
         }
 
         final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
-        final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
+        final List<StackWalker.StackFrame> frames = walker.walk(BuiltinClassLoaderResourceBoundary.INSTANCE);
+
+        // Loading a class from a class-path directory is infrastructure performed by the built-in class loader.
+        // The protection domain that triggered lazy class loading must not be treated as directly reading the
+        // underlying .class file. Keep this boundary deliberately narrow so direct FileInputStream, URL, and XML
+        // reads from an untrusted domain continue through the policy check below.
+        if (BuiltinClassLoaderResourceBoundary.matches(frames)) {
+            return;
+        }
+
+        final Collection<ProtectionDomain> callers = StackCallerProtectionDomainChainExtractor.INSTANCE.apply(frames.stream());
 
         final FilePermission permission = new FilePermission(filePath, "read");
         for (ProtectionDomain domain : callers) {

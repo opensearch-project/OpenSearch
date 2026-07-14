@@ -12,8 +12,13 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import java.io.FileOutputStream;
 import java.io.FilePermission;
+import java.io.InputStream;
+import java.io.StringReader;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -26,11 +31,15 @@ import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.UUID;
 
+import org.xml.sax.InputSource;
+
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("removal")
 public class FileInterceptorNegativeIntegTests {
+    private static DocumentBuilderFactory documentBuilderFactory;
+
     private static Path getTestDir() {
         Path baseDir = Path.of(System.getProperty("user.dir"));
         Path integTestFiles = baseDir.resolve("integ-test-files").normalize();
@@ -48,6 +57,9 @@ public class FileInterceptorNegativeIntegTests {
 
     @BeforeClass
     public static void setUp() throws Exception {
+        documentBuilderFactory = DocumentBuilderFactory.newInstance();
+        documentBuilderFactory.setExpandEntityReferences(true);
+
         Policy policy = new Policy() {
             @Override
             public PermissionCollection getPermissions(ProtectionDomain domain) {
@@ -182,5 +194,24 @@ public class FileInterceptorNegativeIntegTests {
         // Verify error when opening legacy output stream
         SecurityException exception = assertThrows(SecurityException.class, () -> new FileOutputStream(tempPath.toFile()));
         assertTrue(exception.getMessage().contains("Denied WRITE access to file"));
+    }
+
+    @Test
+    public void testFileUrlOpenStream() {
+        SecurityException exception = assertThrows(SecurityException.class, () -> {
+            try (InputStream ignored = Path.of("/etc/hosts").toUri().toURL().openStream()) {
+                // Opening the stream is sufficient to exercise FileInputStream.
+            }
+        });
+        assertTrue(exception.getMessage().contains("Denied READ access to file"));
+    }
+
+    @Test
+    public void testXmlExternalEntityFileRead() throws Exception {
+        DocumentBuilder builder = documentBuilderFactory.newDocumentBuilder();
+        String xml = "<!DOCTYPE root [<!ENTITY xxe SYSTEM \"file:///etc/hosts\">]><root>&xxe;</root>";
+
+        SecurityException exception = assertThrows(SecurityException.class, () -> builder.parse(new InputSource(new StringReader(xml))));
+        assertTrue(exception.getMessage().contains("Denied READ access to file"));
     }
 }
