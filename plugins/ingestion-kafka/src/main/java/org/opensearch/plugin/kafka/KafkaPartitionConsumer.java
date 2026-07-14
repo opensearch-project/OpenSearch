@@ -73,10 +73,9 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.consumer = consumer;
         this.config = config;
         this.partitionId = partitionId;
-        logger.info("KafkaPartitionConsumer: topic={} partition={}", config.getTopic(), partitionId);
     }
 
-    protected void initialize() throws Exception {
+    void initialize() throws Exception {
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
             (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(
@@ -255,11 +254,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             long currentOffset = messageAndOffset.offset();
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
-            KafkaMessage message = new KafkaMessage(
-                messageAndOffset.key(),
-                messageAndOffset.value(),
-                messageAndOffset.timestamp()
-            );
+            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value(), messageAndOffset.timestamp());
             results.add(new ReadResult<>(kafkaOffset, message));
         }
         return results;
