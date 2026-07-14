@@ -117,7 +117,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
                 aggregationRegistry
             );
             SearchRequestActionListener listener = new SearchRequestActionListener(wrappedObserver, aggregateRegistry);
-            searchClientFor(responseObserver).search(searchRequest, listener);
+            getClientForSearch(responseObserver).search(searchRequest, listener);
         } catch (CircuitBreakingException e) {
             logger.debug("Circuit breaker tripped for gRPC search request: {}", e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
@@ -142,7 +142,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
      * @param responseObserver the gRPC response observer for this call
      * @return the client to execute the search request against
      */
-    private Client searchClientFor(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
+    private Client getClientForSearch(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
         if (client instanceof NodeClient && responseObserver instanceof ServerCallStreamObserver) {
             return new GrpcCancellableNodeClient(
                 (NodeClient) client,

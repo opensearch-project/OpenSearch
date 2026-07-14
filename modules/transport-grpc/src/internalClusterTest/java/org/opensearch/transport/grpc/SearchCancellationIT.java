@@ -81,7 +81,7 @@ public class SearchCancellationIT extends GrpcTransportBaseIT {
                 // deadline) would -- the gRPC analogue of the HTTP client's Cancellable.cancel().
                 cancellableContext.run(() -> asyncStub.search(searchRequest, new NoopObserver()));
 
-                // Wait until the search is actually executing in the query phase (event, not a sleep).
+                // Wait until the search is actually executing in the query phase
                 assertTrue(
                     "search did not reach the query phase",
                     SearchBlockPlugin.blockEntered.await(SAFETY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
