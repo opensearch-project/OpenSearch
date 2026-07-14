@@ -112,6 +112,8 @@ pub struct DynamicRgPruner {
     filter: Arc<dyn PhysicalExpr>,
     /// Full (parquet) schema — used to build the `PruningPredicate`.
     full_schema: SchemaRef,
+    /// Per-segment arrow schema derived from parquet footer.
+    seg_arrow_schema: SchemaRef,
     /// Generation of the snapshot currently cached in `pruning_predicate`.
     /// `u64::MAX` means "nothing cached yet" (forces a build on first use).
     cached_generation: u64,
@@ -124,10 +126,15 @@ pub struct DynamicRgPruner {
 impl DynamicRgPruner {
     /// Build a pruner over `filter`. Returns `None` if `filter` is `None`
     /// (no dynamic filter was accepted), so the hot path can skip all work.
-    pub fn new(filter: Option<Arc<dyn PhysicalExpr>>, full_schema: SchemaRef) -> Option<Self> {
+    pub fn new(
+        filter: Option<Arc<dyn PhysicalExpr>>,
+        full_schema: SchemaRef,
+        seg_arrow_schema: SchemaRef,
+    ) -> Option<Self> {
         filter.map(|filter| Self {
             filter,
             full_schema,
+            seg_arrow_schema,
             cached_generation: u64::MAX,
             pruning_predicate: None,
         })
@@ -171,7 +178,7 @@ impl DynamicRgPruner {
             .clone()
             .map(|predicate| RgPruningContext {
                 predicate,
-                schema: Arc::clone(&self.full_schema),
+                seg_arrow_schema: self.seg_arrow_schema.clone(),
             })
     }
 
@@ -194,7 +201,8 @@ impl DynamicRgPruner {
 #[derive(Clone)]
 pub struct RgPruningContext {
     predicate: Arc<PruningPredicate>,
-    schema: SchemaRef,
+    /// Per-segment arrow schema derived from parquet footer.
+    seg_arrow_schema: SchemaRef,
 }
 
 impl RgPruningContext {
@@ -204,19 +212,11 @@ impl RgPruningContext {
         let Some(rg_meta) = metadata.row_groups().get(rg_idx) else {
             return false;
         };
-        // Resolve stats against the segment's OWN parquet schema, not the full table
-        // schema: StatisticsConverter maps name→parquet-column positionally, so the full
-        // schema reads the wrong/no column under dynamic-mapping schema drift.
         let descr = metadata.file_metadata().schema_descr();
-        let seg_schema = datafusion::parquet::arrow::parquet_to_arrow_schema(
-            descr,
-            metadata.file_metadata().key_value_metadata(),
-        )
-        .unwrap_or_else(|_| self.schema.as_ref().clone());
         let stats = SingleRowGroupStatistics {
             parquet_schema: descr,
             rg_meta,
-            arrow_schema: &seg_schema,
+            arrow_schema: &self.seg_arrow_schema,
         };
         // `prune` returns one bool per container (we have exactly one). `false`
         // means "provably cannot match" → safe to skip. Any error => keep.
@@ -280,9 +280,16 @@ mod tests {
         let zero: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
         let expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(sev, Operator::GtEq, zero));
         let predicate = Arc::new(PruningPredicate::try_new(expr, table_schema.clone()).unwrap());
+        let file_arrow_schema = Arc::new(
+            datafusion::parquet::arrow::parquet_to_arrow_schema(
+                md.file_metadata().schema_descr(),
+                md.file_metadata().key_value_metadata(),
+            )
+            .unwrap(),
+        );
         let ctx = RgPruningContext {
             predicate,
-            schema: table_schema,
+            seg_arrow_schema: file_arrow_schema,
         };
 
         assert!(
