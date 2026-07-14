@@ -17,7 +17,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -186,6 +189,40 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
 
         reader.close();
         dir.close();
+    }
+
+    public void testScorerSupplierCostReflectsFullSegmentScan() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        IndexReader reader = null;
+        try {
+            addDoc(writer, 1L);
+            addDoc(writer, 2L);
+            addDoc(writer, 3L);
+            addDoc(writer, 4L);
+
+            writer.commit();
+
+            reader = DirectoryReader.open(dir);
+            IndexSearcher searcher = newSearcher(reader);
+
+            Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+            bitmap.add(1L);
+            bitmap.add(4L);
+
+            Bitmap64DocValuesQuery query = new Bitmap64DocValuesQuery("product_id", bitmap);
+            Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            ScorerSupplier supplier = weight.scorerSupplier(reader.leaves().get(0));
+
+            assertNotNull(supplier);
+            assertEquals(reader.maxDoc(), supplier.cost());
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+            writer.close();
+            dir.close();
+        }
     }
 
     public void testNullFieldThrowsException() {
