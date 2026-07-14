@@ -198,8 +198,11 @@ public class FileInterceptorNegativeIntegTests {
 
     @Test
     public void testFileUrlOpenStream() {
+        Path unauthorizedFile = Path.of(System.getProperty("java.home"), "release");
+        assertTrue("JDK release metadata should exist", unauthorizedFile.toFile().isFile());
+
         SecurityException exception = assertThrows(SecurityException.class, () -> {
-            try (InputStream ignored = Path.of("/etc/hosts").toUri().toURL().openStream()) {
+            try (InputStream ignored = unauthorizedFile.toUri().toURL().openStream()) {
                 // Opening the stream is sufficient to exercise FileInputStream.
             }
         });
@@ -209,7 +212,9 @@ public class FileInterceptorNegativeIntegTests {
     @Test
     public void testXmlExternalEntityFileRead() throws Exception {
         DocumentBuilder builder = documentBuilderFactory.newDocumentBuilder();
-        String xml = "<!DOCTYPE root [<!ENTITY xxe SYSTEM \"file:///etc/hosts\">]><root>&xxe;</root>";
+        Path unauthorizedFile = Path.of(System.getProperty("java.home"), "release");
+        assertTrue("JDK release metadata should exist", unauthorizedFile.toFile().isFile());
+        String xml = "<!DOCTYPE root [<!ENTITY xxe SYSTEM \"" + unauthorizedFile.toUri() + "\">]><root>&xxe;</root>";
 
         SecurityException exception = assertThrows(SecurityException.class, () -> builder.parse(new InputSource(new StringReader(xml))));
         assertTrue(exception.getMessage().contains("Denied READ access to file"));

@@ -322,11 +322,10 @@ public class FileInterceptorIntegTests {
 
     @Test
     public void testFileInputStreamBlockedForUnauthorizedPath() throws Exception {
-        // Create a file within allowed directory but test FileInputStream read from outside
-        // We use /etc/hosts which exists on all Unix systems and is outside user.dir
-        File unauthorizedFile = new File("/etc/hosts");
+        File unauthorizedFile = Path.of(System.getProperty("java.home"), "release").toFile();
+        assertTrue("JDK release metadata should exist", unauthorizedFile.isFile());
 
-        // FileInputStream should be blocked for this path since /etc is outside user.dir
+        // FileInputStream should be blocked because java.home is outside user.dir.
         assertThrows(SecurityException.class, () -> { new FileInputStream(unauthorizedFile); });
     }
 
