@@ -1,0 +1,40 @@
+##
+## Copyright OpenSearch Contributors. See
+## GitHub history for details.
+##
+
+## This workflow validates that Version.java, buildSrc/version.properties,
+## and .ci/bwcVersions are mutually consistent on every PR and push.
+## It runs offline (no Maven Central access required) and is intentionally
+## lightweight — a single Gradle task on a single runner.
+
+name: Version Consistency Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - '[0-9]+.[0-9]+'
+      - '[0-9]+.x'
+  push:
+    branches:
+      - main
+      - '[0-9]+.[0-9]+'
+      - '[0-9]+.x'
+
+jobs:
+  version-consistency:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: gradle
+      - name: Validate version consistency
+        shell: bash
+        run: |
+          ./gradlew validateVersionConsistency
