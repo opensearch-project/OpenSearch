@@ -20,6 +20,7 @@ import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.search.SearchHits;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
@@ -175,6 +176,34 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         );
         verify(client, never()).search(any(org.opensearch.action.search.SearchRequest.class), any());
         verify(serverCallObserver).setOnCancelHandler(any(Runnable.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetClientForSearchDoesNotWrapWhenClientIsNotNodeClient() {
+        // The cancellable path relies on NodeClient-specific behavior (executeLocally/getLocalNodeId), so it must
+        // not be used when the underlying client isn't a NodeClient -- even if the gRPC call exposes a
+        // cancellation signal. Exercised directly against getClientForSearch (rather than through search()) since
+        // SearchRequestProtoUtils.prepareRequest independently requires a NodeClient before this branch is ever
+        // reached in production, which would otherwise mask this branch behind an unrelated ClassCastException.
+        Client plainClient = mock(Client.class);
+        SearchServiceImpl plainClientService = new SearchServiceImpl(
+            plainClient,
+            queryUtils,
+            aggregationRegistry,
+            aggregateRegistry,
+            circuitBreakerService
+        );
+        ServerCallStreamObserver<org.opensearch.protobufs.SearchResponse> serverCallObserver = mock(ServerCallStreamObserver.class);
+
+        assertSame(plainClient, plainClientService.getClientForSearch(serverCallObserver));
+        verify(serverCallObserver, never()).setOnCancelHandler(any(Runnable.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetClientForSearchDoesNotWrapWhenObserverIsNotCancellable() {
+        // The other half of the branch: a NodeClient with a plain (non-cancellable) observer must also fall back
+        // to the plain client.
+        assertSame(client, service.getClientForSearch(responseObserver));
     }
 
     public void testCircuitBreakerCheckedBeforeProcessing() throws IOException {

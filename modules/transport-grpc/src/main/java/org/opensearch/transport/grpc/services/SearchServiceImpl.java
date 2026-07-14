@@ -142,7 +142,9 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
      * @param responseObserver the gRPC response observer for this call
      * @return the client to execute the search request against
      */
-    private Client getClientForSearch(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
+    // Visible for testing: package-private so the branch on client's type can be exercised directly, independent
+    // of SearchRequestProtoUtils#prepareRequest, which requires a NodeClient of its own.
+    Client getClientForSearch(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
         if (client instanceof NodeClient && responseObserver instanceof ServerCallStreamObserver) {
             return new GrpcCancellableNodeClient(
                 (NodeClient) client,
