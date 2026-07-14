@@ -212,10 +212,11 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
 
             Bitmap64DocValuesQuery query = new Bitmap64DocValuesQuery("product_id", bitmap);
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            ScorerSupplier supplier = weight.scorerSupplier(reader.leaves().get(0));
+org.apache.lucene.index.LeafReaderContext leaf = reader.leaves().get(0);
+ScorerSupplier supplier = weight.scorerSupplier(leaf);
 
-            assertNotNull(supplier);
-            assertEquals(reader.maxDoc(), supplier.cost());
+assertNotNull(supplier);
+assertEquals(leaf.reader().maxDoc(), supplier.cost());
         } finally {
             if (reader != null) {
                 reader.close();
