@@ -1843,7 +1843,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * Returns the maximum number of translog files that no longer required for persistence should be kept for peer recovery
      * when soft-deletes is disabled.
      */
     public int getTranslogRetentionTotalFiles() {
