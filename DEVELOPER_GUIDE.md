@@ -216,7 +216,7 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 ```bash
 curl localhost:9200
 ```
-The expected reponse should be
+The expected response should be
 ```
 {
   "name" : "runTask-0",
