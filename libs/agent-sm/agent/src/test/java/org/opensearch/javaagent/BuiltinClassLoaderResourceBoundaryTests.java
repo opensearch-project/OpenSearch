@@ -17,7 +17,7 @@ import java.util.List;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class FileInputStreamInterceptorTests {
+public class BuiltinClassLoaderResourceBoundaryTests {
 
     @Test
     public void testRecognizesBuiltinClassResourceLoad() {
@@ -81,7 +81,7 @@ public class FileInputStreamInterceptorTests {
 
         @Override
         public Class<?> getDeclaringClass() {
-            return FileInputStreamInterceptorTests.class;
+            return BuiltinClassLoaderResourceBoundaryTests.class;
         }
 
         @Override
