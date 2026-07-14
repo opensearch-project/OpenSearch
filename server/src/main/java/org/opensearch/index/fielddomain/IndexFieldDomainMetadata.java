@@ -8,10 +8,10 @@
 
 package org.opensearch.index.fielddomain;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -38,7 +38,7 @@ public final class IndexFieldDomainMetadata {
      */
     public static final String CUSTOM_KEY = "index_field_domains";
 
-    static final int MAX_CUSTOM_DATA_BYTES = 1 << 20; // 1 MiB
+    static final int MAX_CUSTOM_DATA_BYTES = 16 * 1024; // 16 KiB
 
     private static final IndexFieldDomainMetadata INSTANCE = new IndexFieldDomainMetadata();
 
@@ -253,7 +253,7 @@ public final class IndexFieldDomainMetadata {
     }
 
     private static int utf8Length(String value) {
-        return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
+        return value == null ? 0 : UnicodeUtil.calcUTF16toUTF8Length(value, 0, value.length());
     }
 
     private static String fieldPrefix(String field) {
