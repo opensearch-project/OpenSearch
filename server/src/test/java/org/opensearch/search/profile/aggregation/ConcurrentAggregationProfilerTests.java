@@ -193,6 +193,22 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         assertEquals(mergedForward, mergedReverse);
     }
 
+    public void testMergeDebugInfoNormalizesNumericTypeEvenForSingleSlice() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("segments_with_single_valued_ords", 2),
+                100L,
+                List.of()
+            )
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(2L, mergedDebug.get("segments_with_single_valued_ords"));
+        assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Long);
+    }
+
     public void testMergeDebugInfoKeepsStaticNonNumericValues() {
         List<ProfileResult> profileResultsAcrossSlices = List.of(
             new ProfileResult(

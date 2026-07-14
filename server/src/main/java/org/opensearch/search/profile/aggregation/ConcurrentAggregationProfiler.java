@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Main class to profile aggregations with concurrent execution
@@ -174,7 +175,14 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         Map<String, Object> mergedDebug = new HashMap<>();
         for (ProfileResult profileResult : profileResultsAcrossSlices) {
             for (Map.Entry<String, Object> entry : profileResult.getDebugInfo().entrySet()) {
-                mergedDebug.merge(entry.getKey(), entry.getValue(), ConcurrentAggregationProfiler::mergeDebugValue);
+                Object value = entry.getValue();
+                // Normalize every numeric value to Long up front so a key's reported type doesn't
+                // depend on how many slices happened to report it (e.g. Integer when only one slice
+                // has the key, Long once two or more are summed).
+                if (value instanceof Number) {
+                    value = ((Number) value).longValue();
+                }
+                mergedDebug.merge(entry.getKey(), value, ConcurrentAggregationProfiler::mergeDebugValue);
             }
         }
         return mergedDebug;
@@ -184,6 +192,10 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         if (fromOtherSlices instanceof Number && fromThisSlice instanceof Number) {
             return ((Number) fromOtherSlices).longValue() + ((Number) fromThisSlice).longValue();
         }
+        assert Objects.equals(fromOtherSlices, fromThisSlice) : "Non-numeric debug values differ across slices: "
+            + fromOtherSlices
+            + " vs "
+            + fromThisSlice;
         return fromOtherSlices;
     }
 
