@@ -15,13 +15,13 @@ import java.io.Closeable;
 import java.util.Map;
 
 /**
- * Node-scoped factory that creates per-shard {@link IngestionPayloadDecoder} instances.
+ * Node-scoped factory that creates per-poller {@link IngestionPayloadDecoder} instances.
  *
  * <p>A factory is registered once at node startup (via
  * {@link org.opensearch.plugins.IngestionConsumerPlugin#getIngestionPayloadDecoderFactories()})
  * and may own long-lived, shared resources such as a bounded schema cache or an HTTP client.
  * It must be thread-safe because {@link #create} may be called from multiple threads when
- * multiple shards initialize concurrently.
+ * multiple shards (or multiple pollers per shard) initialize concurrently.
  *
  * <p>The factory itself is {@link Closeable}; node shutdown will call {@link #close()} once
  * so implementations can release shared resources (connections, caches, etc.).
@@ -30,21 +30,22 @@ import java.util.Map;
 public interface IngestionPayloadDecoderFactory extends Closeable {
 
     /**
-     * Validates {@code settings} at index-creation time.
+     * Validates {@code settings} when the engine factory is resolved (on index open or recovery).
      *
-     * <p>Called before the index is committed so users receive immediate feedback on
-     * invalid or missing configuration. Throw {@link IllegalArgumentException} for any
-     * setting that is unrecognized, malformed, or required-but-absent.
+     * <p>Called by {@code IndicesService.getEngineFactory} before the engine factory is returned.
+     * Throw {@link IllegalArgumentException} for any setting that is unrecognized, malformed,
+     * or required-but-absent.
      *
      * @param settings the {@code index.ingestion_source.decoder_settings.*} map
      */
     default void validate(Map<String, Object> settings) {}
 
     /**
-     * Creates a new decoder for the given shard.
+     * Creates a new decoder for the given poller.
      *
-     * <p>Called once per shard when the stream poller initializes. The returned decoder is used
-     * exclusively from the poller's consumer thread and is closed when the poller shuts down.
+     * <p>Called once per poller initialization. Multiple pollers may exist per shard
+     * (e.g. for concurrent ingestion). Each returned decoder is owned by one poller,
+     * used from that poller's consumer thread, and closed when the poller shuts down.
      *
      * @param indexMetadata metadata of the index this shard belongs to
      * @param shardId       the shard id

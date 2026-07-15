@@ -111,7 +111,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionPayloadDecoderFactory;
-import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -162,6 +161,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.pollingingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
@@ -1283,9 +1283,8 @@ public class IndicesService extends AbstractLifecycleComponent
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            IngestionPayloadDecoderFactory decoderFactory = payloadDecoderRegistry.get(
-                indexMetadata.getIngestionSource().getDecoderType()
-            );
+            IngestionPayloadDecoderFactory decoderFactory = payloadDecoderRegistry.get(indexMetadata.getIngestionSource().getDecoderType());
+            decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
             return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
         }
 

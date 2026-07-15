@@ -10,11 +10,13 @@ package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IngestionPayloadDecoder;
 import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.IngestionPayloadDecodingException;
+import org.opensearch.index.Message;
 
 import java.util.Map;
 
@@ -26,11 +28,12 @@ import java.util.Map;
  */
 public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder {
 
-    static final XContentIngestionPayloadDecoder INSTANCE = new XContentIngestionPayloadDecoder();
+    public static final XContentIngestionPayloadDecoder INSTANCE = new XContentIngestionPayloadDecoder();
 
     @Override
-    public Map<String, Object> decode(BytesReference payload) {
+    public Map<String, Object> decode(Message<?> message) {
         try {
+            BytesReference payload = new BytesArray((byte[]) message.getPayload());
             return XContentHelper.convertToMap(payload, false, MediaTypeRegistry.xContentType(payload)).v2();
         } catch (Exception e) {
             throw new IngestionPayloadDecodingException("Failed to decode XContent payload: " + e.getMessage(), e);

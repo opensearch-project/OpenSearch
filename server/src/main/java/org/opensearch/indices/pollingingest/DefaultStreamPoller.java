@@ -26,7 +26,6 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
-import org.opensearch.core.common.bytes.BytesArray;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -322,15 +321,15 @@ public class DefaultStreamPoller implements StreamPoller {
             try {
                 totalPolledCount.inc();
 
-                // Decode payload bytes to a field map before the mapper sees the message.
+                // Decode payload to a field map before the mapper sees the message.
                 // Errors here are caught below and handled by the configured DROP/BLOCK strategy.
-                @SuppressWarnings("unchecked")
-                BytesArray payload = new BytesArray((byte[]) result.getMessage().getPayload());
-                Map<String, Object> decodedPayload = payloadDecoder.decode(payload);
+                Map<String, Object> decodedPayload = payloadDecoder.decode(result.getMessage());
 
                 // Use mapper to create ShardUpdateMessage
                 ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(
-                    result.getPointer(), result.getMessage(), decodedPayload
+                    result.getPointer(),
+                    result.getMessage(),
+                    decodedPayload
                 );
 
                 blockingQueueContainer.add(shardUpdateMessage);
@@ -384,6 +383,12 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void close() {
         closed = true;
+        // Always close the decoder, regardless of whether the poller was started.
+        try {
+            payloadDecoder.close();
+        } catch (Exception e) {
+            logger.warn("Error closing payload decoder for shard {}: {}", shardId, e.getMessage());
+        }
         if (!started) {
             logger.info("consumer thread not started");
             return;
@@ -404,11 +409,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         consumerThread.shutdown();
         blockingQueueContainer.close();
-        try {
-            payloadDecoder.close();
-        } catch (Exception e) {
-            logger.warn("Error closing payload decoder for shard {}: {}", shardId, e.getMessage());
-        }
         logger.info("closed the poller of shard {}", shardId);
     }
 

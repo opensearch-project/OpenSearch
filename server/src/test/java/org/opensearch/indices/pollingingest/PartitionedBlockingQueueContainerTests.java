@@ -9,7 +9,6 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
@@ -91,7 +90,7 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
             ShardUpdateMessage shardUpdateMessage = mapper.mapAndProcess(
                 readResult.getPointer(),
                 readResult.getMessage(),
-                XContentIngestionPayloadDecoder.INSTANCE.decode(new BytesArray((byte[]) readResult.getMessage().getPayload()))
+                XContentIngestionPayloadDecoder.INSTANCE.decode(readResult.getMessage())
             );
             blockingQueueContainer.add(shardUpdateMessage);
         }

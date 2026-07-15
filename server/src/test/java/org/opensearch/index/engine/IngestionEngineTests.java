@@ -24,6 +24,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.test.IndexSettingsModule;
@@ -162,7 +163,7 @@ public class IngestionEngineTests extends EngineTestCase {
         MapperService mapperService = createMapperService(mapping);
         engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null), clusterApplierService);
         try {
-            new IngestionEngine(engineConfig, consumerFactory, mock(IngestService.class));
+            new IngestionEngine(engineConfig, consumerFactory, mock(IngestService.class), XContentIngestionPayloadDecoder.Factory.INSTANCE);
             fail("Expected EngineException to be thrown");
         } catch (EngineException e) {
             assertEquals("failed to create engine", e.getMessage());
@@ -251,7 +252,12 @@ public class IngestionEngineTests extends EngineTestCase {
             );
             store.associateIndexWithNewTranslog(translogUuid);
         }
-        IngestionEngine ingestionEngine = new IngestionEngine(engineConfig, consumerFactory, mock(IngestService.class));
+        IngestionEngine ingestionEngine = new IngestionEngine(
+            engineConfig,
+            consumerFactory,
+            mock(IngestService.class),
+            XContentIngestionPayloadDecoder.Factory.INSTANCE
+        );
         ingestionEngine.start();
         return ingestionEngine;
     }
@@ -288,7 +294,12 @@ public class IngestionEngineTests extends EngineTestCase {
 
         // non-null IngestService — engine should start with pipeline support available
         IngestService ingestService = mock(IngestService.class);
-        IngestionEngine engine = new IngestionEngine(config, consumerFactory, ingestService);
+        IngestionEngine engine = new IngestionEngine(
+            config,
+            consumerFactory,
+            ingestService,
+            XContentIngestionPayloadDecoder.Factory.INSTANCE
+        );
         engine.start();
         waitForResults(engine, 2);
         engine.close();

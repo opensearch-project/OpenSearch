@@ -13,7 +13,6 @@ import org.opensearch.index.Message;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -24,7 +23,7 @@ import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIME
 public class IngestionMessageMapperTests extends OpenSearchTestCase {
 
     private static Map<String, Object> decode(byte[] payload) {
-        return XContentIngestionPayloadDecoder.INSTANCE.decode(new BytesArray(payload));
+        return XContentIngestionPayloadDecoder.INSTANCE.decode(new FakeIngestionSource.FakeIngestionMessage(payload));
     }
 
     public void testMapperTypeFromStringAndName() {

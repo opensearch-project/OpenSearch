@@ -37,11 +37,15 @@ public class IngestionPayloadDecoderRegistry {
         IngestionPayloadDecoderFactory factory = factories.get(decoderType);
         if (factory == null) {
             throw new IllegalArgumentException(
-                "No ingestion payload decoder registered for type [" + decoderType + "]. "
-                    + "Available types: " + factories.keySet()
+                "No ingestion payload decoder registered for type [" + decoderType + "]. " + "Available types: " + factories.keySet()
             );
         }
         return factory;
+    }
+
+    /** Returns all registered factories, for lifecycle management (e.g. closing on node shutdown). */
+    public Map<String, IngestionPayloadDecoderFactory> factories() {
+        return factories;
     }
 
     public static Builder builder() {
@@ -57,9 +61,7 @@ public class IngestionPayloadDecoderRegistry {
 
         public Builder register(String name, IngestionPayloadDecoderFactory factory) {
             if (factories.containsKey(name)) {
-                throw new IllegalStateException(
-                    "Duplicate ingestion payload decoder registration for name [" + name + "]"
-                );
+                throw new IllegalStateException("Duplicate ingestion payload decoder registration for name [" + name + "]");
             }
             factories.put(name, factory);
             return this;

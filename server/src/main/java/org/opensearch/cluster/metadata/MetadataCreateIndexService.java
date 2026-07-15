@@ -1313,24 +1313,21 @@ public class MetadataCreateIndexService {
             // (multi-partition consumer factory). The check will be wired here once available.
         }
 
-        // Decoder type validation. Any non-default decoder_type (i.e. anything other than "xcontent")
-        // requires all nodes to support the payload-decoder registry introduced in V_3_8_0. Older nodes
-        // do not recognise the setting and cannot load the index or create the decoder.
-        if (IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.exists(settings)) {
-            String decoderType = IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.get(settings);
-            if ("xcontent".equals(decoderType) == false) {
-                Version minNodeVersion = state.nodes().getMinNodeVersion();
-                if (minNodeVersion.before(Version.V_3_8_0)) {
-                    throw new IllegalArgumentException(
-                        "index.ingestion_source.decoder_type ["
-                            + decoderType
-                            + "] requires all nodes in the cluster to be on version ["
-                            + Version.V_3_8_0
-                            + "] or later, but the minimum node version is ["
-                            + minNodeVersion
-                            + "]"
-                    );
-                }
+        // Decoder settings validation. Both decoder_type and decoder_settings.* were introduced in V_3_8_0.
+        // Reject any explicit value (including the default "xcontent") on mixed clusters where some nodes
+        // do not recognise the setting key at all — they would fail to load the index metadata.
+        if (IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.exists(settings)
+            || IndexMetadata.INGESTION_SOURCE_DECODER_SETTINGS.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_8_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.decoder_type and index.ingestion_source.decoder_settings require all nodes "
+                        + "in the cluster to be on version ["
+                        + Version.V_3_8_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
             }
         }
 

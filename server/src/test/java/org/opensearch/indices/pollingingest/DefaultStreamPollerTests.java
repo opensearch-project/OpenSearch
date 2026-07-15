@@ -25,7 +25,6 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
-import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
