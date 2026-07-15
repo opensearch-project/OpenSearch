@@ -362,34 +362,32 @@ impl SortingChunkedWriter {
     }
 }
 
-/// Bundles all per-writer resources so a single `DashMap::remove` atomically
-/// drops the writer, closes the file handle, and cleans up sort config.
-struct WriterState {
+/// Bundles all per-writer resources. The writer's lifetime is owned by Java via an opaque
+/// handle (`Box::into_raw`); dropping the box (on finalize/free) closes the file handle,
+/// releases the memory reservation, and cleans up sort config. Stores its own file paths
+/// (previously the registry key) so the handle-based FFI entry points don't need them passed in.
+pub struct WriterState {
     variant: WriterVariant,
     settings: NativeSettings,
     crc_handle: Option<crate::crc_writer::CrcHandle>,
     writer_generation: i64,
     reservation: MemoryReservation,
+    /// Final output path (temp file is renamed to this on finalize).
+    filename: String,
+    /// Temporary path written to before finalize (`temp-<basename>`); also the IPC staging base.
+    temp_filename: String,
 }
 
 /// Path suffix for the intermediate Arrow IPC file used during sort-on-close.
 const IPC_STAGING_SUFFIX: &str = ".arrow_ipc_staging";
 
 lazy_static! {
-    /// Unified per-writer registry. Keyed by temp filename.
-    /// Holds both Parquet and IPC writers via the `WriterVariant` enum.
-    static ref WRITERS: DashMap<String, WriterState> = DashMap::new();
     pub static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
 }
 
 pub struct NativeParquetWriter;
 
 impl NativeParquetWriter {
-    /// Returns true if a writer is currently open for the given filename.
-    pub fn has_writer(filename: &str) -> bool {
-        let temp_filename = Self::temp_filename(filename);
-        WRITERS.contains_key(&temp_filename)
-    }
     /// Build the temp filename by prepending "temp-" to the basename.
     fn temp_filename(filename: &str) -> String {
         let path = Path::new(filename);
@@ -411,7 +409,7 @@ impl NativeParquetWriter {
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
         writer_generation: i64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<*mut WriterState, Box<dyn std::error::Error>> {
         log_debug!(
             "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, writer_generation: {}",
             filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation
@@ -426,12 +424,6 @@ impl NativeParquetWriter {
         }
 
         let temp_filename = Self::temp_filename(&filename);
-
-        if WRITERS.contains_key(&temp_filename) {
-            log_error!("ERROR: Writer already exists for file: {}", temp_filename);
-            return Err("Writer already exists for this file".into());
-        }
-
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
         log_debug!("Schema created with {} fields", schema.fields().len());
@@ -483,38 +475,43 @@ impl NativeParquetWriter {
             )
         };
 
-        WRITERS.insert(
+        let state = Box::new(WriterState {
+            variant,
+            settings,
+            crc_handle,
+            writer_generation,
+            reservation: MemoryReservation::new(
+                write_pool(),
+                "parquet_writer",
+                PoolBehavior::IgnoreLimit,
+            ),
+            filename,
             temp_filename,
-            WriterState {
-                variant,
-                settings,
-                crc_handle,
-                writer_generation,
-                reservation: MemoryReservation::new(
-                    write_pool(),
-                    "parquet_writer",
-                    PoolBehavior::IgnoreLimit,
-                ),
-            },
-        );
-
-        Ok(())
+        });
+        let handle = Box::into_raw(state);
+        Ok(handle)
     }
 
     pub fn write_data(
-        filename: String,
+        handle: *mut WriterState,
         array_address: i64,
         schema_address: i64,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let temp_filename = Self::temp_filename(&filename);
-        log_debug!(
-            "write_data called for file: {} (temp: {})",
-            filename,
-            temp_filename
-        );
+        if handle.is_null() {
+            return Err("Invalid writer handle (null)".into());
+        }
+        // Safety: `handle` is a live pointer minted by `create_writer` and owned by Java, which
+        // serializes all handle-touching native calls (write/finalize/free/memory) under a
+        // per-writer lock, so there is no concurrent `&mut`/`&` aliasing on this allocation.
+        // Reborrow only (not Box::from_raw): does NOT take ownership, so the writer is not dropped here and lives on for subsequent writes.
+        let state = unsafe { &mut *handle };
+        log_debug!("write_data called for temp file: {}", state.temp_filename);
 
         if (array_address as *mut u8).is_null() || (schema_address as *mut u8).is_null() {
-            log_error!("ERROR: Invalid FFI addresses for file: {}", temp_filename);
+            log_error!(
+                "ERROR: Invalid FFI addresses for file: {}",
+                state.temp_filename
+            );
             return Err("Invalid FFI addresses (null pointers)".into());
         }
 
@@ -533,36 +530,31 @@ impl NativeParquetWriter {
                     record_batch.num_columns()
                 );
 
-                if let Some(mut state) = WRITERS.get_mut(&temp_filename) {
-                    match &state.variant {
-                        WriterVariant::Ipc(writer_arc) => {
-                            log_debug!("Writing RecordBatch to IPC staging file");
-                            let writer_arc = writer_arc.clone();
-                            let mut writer = writer_arc.lock().unwrap();
-                            writer.write(&record_batch, &mut state.reservation)?;
-                        }
-                        WriterVariant::Parquet(writer_arc) => {
-                            log_debug!("Writing RecordBatch to Parquet file");
-                            let batch_bytes = record_batch.get_array_memory_size();
-                            // Reserve 3× batch as estimate — ArrowWriter encoding may temporarily
-                            // hold dictionary, compressed pages, and data page buffers.
-                            let estimated = batch_bytes * 3;
-                            let writer_arc = writer_arc.clone();
-                            state.reservation.reserve_estimated(estimated)?;
-                            let mut writer = writer_arc.lock().unwrap();
-                            let before = writer.memory_size();
-                            writer.write(&record_batch)?;
-                            // Reconcile: adjust reservation to actual delta reported by ArrowWriter
-                            let actual = writer.memory_size().saturating_sub(before);
-                            drop(writer);
-                            state.reservation.reconcile(estimated, actual);
-                        }
+                match &state.variant {
+                    WriterVariant::Ipc(writer_arc) => {
+                        log_debug!("Writing RecordBatch to IPC staging file");
+                        let writer_arc = writer_arc.clone();
+                        let mut writer = writer_arc.lock().unwrap();
+                        writer.write(&record_batch, &mut state.reservation)?;
                     }
-                    Ok(())
-                } else {
-                    log_error!("ERROR: No writer found for temp file: {}", temp_filename);
-                    Err("Writer not found".into())
+                    WriterVariant::Parquet(writer_arc) => {
+                        log_debug!("Writing RecordBatch to Parquet file");
+                        let batch_bytes = record_batch.get_array_memory_size();
+                        // Reserve 3× batch as estimate — ArrowWriter encoding may temporarily
+                        // hold dictionary, compressed pages, and data page buffers.
+                        let estimated = batch_bytes * 3;
+                        let writer_arc = writer_arc.clone();
+                        state.reservation.reserve_estimated(estimated)?;
+                        let mut writer = writer_arc.lock().unwrap();
+                        let before = writer.memory_size();
+                        writer.write(&record_batch)?;
+                        // Reconcile: adjust reservation to actual delta reported by ArrowWriter
+                        let actual = writer.memory_size().saturating_sub(before);
+                        drop(writer);
+                        state.reservation.reconcile(estimated, actual);
+                    }
                 }
+                Ok(())
             } else {
                 log_error!(
                     "ERROR: Array is not a StructArray, type: {:?}",
@@ -574,135 +566,133 @@ impl NativeParquetWriter {
     }
 
     pub fn finalize_writer(
-        filename: String,
+        handle: *mut WriterState,
     ) -> Result<Option<FinalizeResult>, Box<dyn std::error::Error>> {
-        let temp_filename = Self::temp_filename(&filename);
+        if handle.is_null() {
+            return Ok(None);
+        }
+        // Safety: Java hands back a live handle exactly once for finalize; reclaim ownership so the
+        // Box (and its reservation + open file handles) is dropped when this function returns.
+        // Box::from_raw TAKES ownership: the writer is dropped exactly once here (success path).
+        let WriterState {
+            variant,
+            settings,
+            crc_handle,
+            writer_generation,
+            mut reservation,
+            filename,
+            temp_filename,
+        } = unsafe { *Box::from_raw(handle) };
         log_debug!(
             "finalize_writer called for file: {} (temp: {})",
             filename,
             temp_filename
         );
+        let index_name = settings.index_name.as_deref().unwrap_or("");
 
-        if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState {
-                variant,
-                settings,
-                crc_handle,
-                writer_generation,
-                mut reservation,
-            } = state;
-            let index_name = settings.index_name.as_deref().unwrap_or("");
-
-            match variant {
-                WriterVariant::Ipc(writer_arc) => {
-                    match Arc::try_unwrap(writer_arc) {
-                        Ok(mutex) => {
-                            let chunked_writer = mutex.into_inner().unwrap();
-                            let total_rows = chunked_writer.total_rows();
-                            let schema = chunked_writer.schema.clone();
-                            let (chunk_paths, chunk_row_ids, chunk_crcs) =
-                                chunked_writer.finish(&mut reservation)?;
-                            log_info!(
+        match variant {
+            WriterVariant::Ipc(writer_arc) => {
+                match Arc::try_unwrap(writer_arc) {
+                    Ok(mutex) => {
+                        let chunked_writer = mutex.into_inner().unwrap();
+                        let total_rows = chunked_writer.total_rows();
+                        let schema = chunked_writer.schema.clone();
+                        let (chunk_paths, chunk_row_ids, chunk_crcs) =
+                            chunked_writer.finish(&mut reservation)?;
+                        log_info!(
                                 "Successfully closed sorting chunked writer for: {}, total_rows={}, chunks={}",
                                 temp_filename, total_rows, chunk_paths.len()
                             );
 
-                            let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
-                                &chunk_paths,
-                                &chunk_row_ids,
-                                &chunk_crcs,
-                                &filename,
-                                index_name,
-                                &settings.sort_columns,
-                                &settings.reverse_sorts,
-                                &settings.nulls_first,
-                                writer_generation,
-                                schema.clone(),
-                                &mut reservation,
-                            )?;
+                        let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
+                            &chunk_paths,
+                            &chunk_row_ids,
+                            &chunk_crcs,
+                            &filename,
+                            index_name,
+                            &settings.sort_columns,
+                            &settings.reverse_sorts,
+                            &settings.nulls_first,
+                            writer_generation,
+                            schema.clone(),
+                            &mut reservation,
+                        )?;
 
-                            // Clean up sorted chunk files only after successful finalization.
-                            // On failure, chunks are preserved as they may be the only copy of the data.
-                            for path in &chunk_paths {
-                                let _ = std::fs::remove_file(path);
-                            }
-
-                            log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
-
-                            let file = File::open(&filename)?;
-                            let reader = SerializedFileReader::new(file)?;
-                            let parquet_metadata = reader.metadata().clone();
-
-                            // Detach mapping from reservation before handing to FFI/Java.
-                            // FFI layer will track it via write_pool().grow/shrink.
-                            if let Some(ref mapping) = row_id_mapping {
-                                reservation.shrink(mapping.len() * std::mem::size_of::<i64>());
-                            }
-
-                            Ok(Some(FinalizeResult {
-                                metadata: parquet_metadata,
-                                crc32,
-                                row_id_mapping,
-                            }))
+                        // Clean up sorted chunk files only after successful finalization.
+                        // On failure, chunks are preserved as they may be the only copy of the data.
+                        for path in &chunk_paths {
+                            let _ = std::fs::remove_file(path);
                         }
-                        Err(_) => {
-                            log_error!(
-                                "ERROR: IPC Writer still in use for temp file: {}",
-                                temp_filename
-                            );
-                            Err("IPC Writer still in use".into())
+
+                        log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
+
+                        let file = File::open(&filename)?;
+                        let reader = SerializedFileReader::new(file)?;
+                        let parquet_metadata = reader.metadata().clone();
+
+                        // Detach mapping from reservation before handing to FFI/Java.
+                        // FFI layer will track it via write_pool().grow/shrink.
+                        if let Some(ref mapping) = row_id_mapping {
+                            reservation.shrink(mapping.len() * std::mem::size_of::<i64>());
                         }
+
+                        Ok(Some(FinalizeResult {
+                            metadata: parquet_metadata,
+                            crc32,
+                            row_id_mapping,
+                        }))
                     }
-                }
-                WriterVariant::Parquet(writer_arc) => {
-                    match Arc::try_unwrap(writer_arc) {
-                        Ok(mutex) => {
-                            let writer = mutex.into_inner().unwrap();
-                            match writer.close() {
-                                Ok(_) => {
-                                    let crc32 = crc_handle.map(|h| h.crc32()).unwrap_or(0);
-                                    log_info!(
-                                        "Successfully closed temp writer for: {}",
-                                        temp_filename
-                                    );
-
-                                    // Parquet variant is used for non-sorted data; just rename.
-                                    std::fs::rename(&temp_filename, &filename)?;
-
-                                    log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
-
-                                    let file = File::open(&filename)?;
-                                    let reader = SerializedFileReader::new(file)?;
-                                    let parquet_metadata = reader.metadata().clone();
-
-                                    Ok(Some(FinalizeResult {
-                                        metadata: parquet_metadata,
-                                        crc32,
-                                        row_id_mapping: None,
-                                    }))
-                                }
-                                Err(e) => {
-                                    log_error!(
-                                        "ERROR: Failed to close writer for temp file: {}",
-                                        temp_filename
-                                    );
-                                    Err(e.into())
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            log_error!(
-                                "ERROR: Writer still in use for temp file: {}",
-                                temp_filename
-                            );
-                            Err("Writer still in use".into())
-                        }
+                    Err(_) => {
+                        log_error!(
+                            "ERROR: IPC Writer still in use for temp file: {}",
+                            temp_filename
+                        );
+                        Err("IPC Writer still in use".into())
                     }
                 }
             }
-        } else {
-            log_error!("ERROR: Writer not found for temp file: {}", temp_filename);
-            Err("Writer not found".into())
+            WriterVariant::Parquet(writer_arc) => {
+                match Arc::try_unwrap(writer_arc) {
+                    Ok(mutex) => {
+                        let writer = mutex.into_inner().unwrap();
+                        match writer.close() {
+                            Ok(_) => {
+                                let crc32 = crc_handle.map(|h| h.crc32()).unwrap_or(0);
+                                log_info!("Successfully closed temp writer for: {}", temp_filename);
+
+                                // Parquet variant is used for non-sorted data; just rename.
+                                std::fs::rename(&temp_filename, &filename)?;
+
+                                log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
+
+                                let file = File::open(&filename)?;
+                                let reader = SerializedFileReader::new(file)?;
+                                let parquet_metadata = reader.metadata().clone();
+
+                                Ok(Some(FinalizeResult {
+                                    metadata: parquet_metadata,
+                                    crc32,
+                                    row_id_mapping: None,
+                                }))
+                            }
+                            Err(e) => {
+                                log_error!(
+                                    "ERROR: Failed to close writer for temp file: {}",
+                                    temp_filename
+                                );
+                                Err(e.into())
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        log_error!(
+                            "ERROR: Writer still in use for temp file: {}",
+                            temp_filename
+                        );
+                        Err("Writer still in use".into())
+                    }
+                }
+            }
         }
     }
 
@@ -924,16 +914,58 @@ impl NativeParquetWriter {
         Ok(crc32)
     }
 
-    pub fn get_filtered_writer_memory_usage(
-        path_prefix: String,
-    ) -> Result<usize, Box<dyn std::error::Error>> {
-        let mut total_memory = 0;
-        for entry in WRITERS.iter() {
-            if entry.key().starts_with(&path_prefix) {
-                total_memory += entry.value().reservation.size();
-            }
+    /// Returns the native memory reserved by the writer identified by `handle`, or 0 if the handle
+    /// is null. Access is serialized by the Java-side monitor, so the shared borrow never aliases a
+    /// concurrent `&mut`/reclaim. Never panics: any unexpected panic is caught and reported as 0, so
+    /// this can never unwind across the FFI boundary or fail the Java caller.
+    pub fn get_writer_memory_usage(handle: *const WriterState) -> usize {
+        if handle.is_null() {
+            return 0;
         }
-        Ok(total_memory)
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Safety: live handle, access serialized by the Java-side monitor.
+            // Shared reborrow only (not Box::from_raw): does NOT take ownership, so the writer is not dropped here.
+            let state = unsafe { &*handle };
+            state.reservation.size()
+        }))
+        .unwrap_or_else(|_| {
+            log_error!("get_writer_memory_usage: swallowed panic; reporting 0");
+            0
+        })
+    }
+
+    /// Best-effort teardown of a writer that Java is abandoning without finalizing (idempotent on
+    /// the Java side via a released-flag). Reclaims the Box (dropping the reservation and closing
+    /// file handles) and deletes any leftover temp/IPC/sorted-chunk artifacts. Never fails and
+    /// never panics — filesystem errors are ignored and any unexpected panic is caught, so this can
+    /// never unwind across the FFI boundary or fail the Java caller.
+    pub fn free_writer(handle: *mut WriterState) {
+        if handle.is_null() {
+            return;
+        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Safety: Java guarantees free is called at most once per handle (released CAS + Cleaner).
+            // Box::from_raw TAKES ownership: the writer is dropped exactly once here (abandonment path).
+            let state = unsafe { *Box::from_raw(handle) };
+            let temp_filename = state.temp_filename.clone();
+            let ipc_base = format!("{}{}", temp_filename, IPC_STAGING_SUFFIX);
+            // Drop first so the underlying File handles are closed before we unlink.
+            drop(state);
+            let _ = std::fs::remove_file(&temp_filename);
+            let _ = std::fs::remove_file(&ipc_base);
+            // Sorted-chunk files are named "{ipc_base}.sorted_chunk_{i}.parquet"; remove any remaining.
+            let mut idx = 0usize;
+            loop {
+                let chunk = format!("{}.sorted_chunk_{}.parquet", ipc_base, idx);
+                if std::fs::remove_file(&chunk).is_err() {
+                    break;
+                }
+                idx += 1;
+            }
+        }));
+        if result.is_err() {
+            log_error!("free_writer: swallowed panic while freeing writer handle");
+        }
     }
 
     pub fn get_file_metadata(
