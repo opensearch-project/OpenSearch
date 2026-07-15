@@ -67,7 +67,10 @@ pub struct ScopedPageIndexOptimizer {
 
 impl ScopedPageIndexOptimizer {
     pub fn new(store: Arc<dyn ObjectStore>, metadata_cache: Arc<dyn FileMetadataCache>) -> Self {
-        Self { store, metadata_cache }
+        Self {
+            store,
+            metadata_cache,
+        }
     }
 }
 
@@ -134,13 +137,18 @@ impl PhysicalOptimizerRule for ScopedPageIndexOptimizer {
             // Only scope when there's something to scope to. A full-schema scan with no predicate
             // gains nothing from scoping — skip it. A None projection (read-all) or a projection
             // that already covers every column is not a strict subset.
-            let is_projected = !projection_names.is_empty() && projection_names.len() < num_file_cols;
+            let is_projected =
+                !projection_names.is_empty() && projection_names.len() < num_file_cols;
             if predicate_names.is_empty() && !is_projected {
                 return Ok(Transformed::no(node));
             }
             // Pass empty projection when the scan reads all columns — the factory
             // will build all-column OffsetIndex (existing behavior).
-            let projection_names = if is_projected { projection_names } else { Vec::new() };
+            let projection_names = if is_projected {
+                projection_names
+            } else {
+                Vec::new()
+            };
 
             // Build the scoped factory and reinstall the source. The predicate is
             // retained for parity but not used for RG scoping (Step 1 builds an
@@ -176,6 +184,8 @@ impl PhysicalOptimizerRule for ScopedPageIndexOptimizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::page_index;
+    use crate::parquet_page_cache::{clear_scoped_cache_for_test, scoped_cache_stats};
     use arrow::datatypes::{DataType, Field, Schema};
     use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::object_store::ObjectStoreUrl;
@@ -184,8 +194,6 @@ mod tests {
     use datafusion::physical_expr::PhysicalExpr;
     use datafusion_datasource::table_schema::TableSchema;
     use object_store::memory::InMemory;
-    use crate::cache::page_index;
-    use crate::parquet_page_cache::{clear_scoped_cache_for_test, scoped_cache_stats};
 
     fn schema() -> Arc<Schema> {
         Arc::new(Schema::new(vec![
@@ -203,7 +211,8 @@ mod tests {
 
     fn datasource_exec(parquet: ParquetSource) -> Arc<dyn ExecutionPlan> {
         let config =
-            FileScanConfigBuilder::new(ObjectStoreUrl::local_filesystem(), Arc::new(parquet)).build();
+            FileScanConfigBuilder::new(ObjectStoreUrl::local_filesystem(), Arc::new(parquet))
+                .build();
         DataSourceExec::from_data_source(config)
     }
 
@@ -221,10 +230,10 @@ mod tests {
 
     fn get_factory(plan: &Arc<dyn ExecutionPlan>) -> Option<bool> {
         let dse = plan.downcast_ref::<DataSourceExec>()?;
-        let cfg = (dse.data_source().as_ref() as &dyn std::any::Any)
-            .downcast_ref::<FileScanConfig>()?;
-        let pq = (cfg.file_source().as_ref() as &dyn std::any::Any)
-            .downcast_ref::<ParquetSource>()?;
+        let cfg =
+            (dse.data_source().as_ref() as &dyn std::any::Any).downcast_ref::<FileScanConfig>()?;
+        let pq =
+            (cfg.file_source().as_ref() as &dyn std::any::Any).downcast_ref::<ParquetSource>()?;
         Some(pq.parquet_file_reader_factory().is_some())
     }
 
@@ -234,7 +243,11 @@ mod tests {
         let (store, cache) = deps();
         let parquet = parquet_for(&sch).with_predicate(predicate_on_a());
         let plan = datasource_exec(parquet);
-        assert_eq!(get_factory(&plan), Some(false), "precondition: no factory yet");
+        assert_eq!(
+            get_factory(&plan),
+            Some(false),
+            "precondition: no factory yet"
+        );
 
         let rule = ScopedPageIndexOptimizer::new(store, cache);
         let out = rule.optimize(plan, &ConfigOptions::default()).unwrap();
@@ -274,12 +287,10 @@ mod tests {
 
         // Project only column `a` — no predicate.
         let parquet = parquet_for(&sch);
-        let config = FileScanConfigBuilder::new(
-            ObjectStoreUrl::local_filesystem(),
-            Arc::new(parquet),
-        )
-        .with_projection(Some(vec![0])) // project `a` only
-        .build();
+        let config =
+            FileScanConfigBuilder::new(ObjectStoreUrl::local_filesystem(), Arc::new(parquet))
+                .with_projection(Some(vec![0])) // project `a` only
+                .build();
         let plan = DataSourceExec::from_data_source(config);
 
         let rule = ScopedPageIndexOptimizer::new(store, cache);
@@ -309,11 +320,21 @@ mod tests {
             .with_predicate(predicate_on_a())
             .with_parquet_file_reader_factory(pre);
         let plan = datasource_exec(parquet);
-        assert_eq!(get_factory(&plan), Some(true), "precondition: a factory is present");
+        assert_eq!(
+            get_factory(&plan),
+            Some(true),
+            "precondition: a factory is present"
+        );
 
         let rule = ScopedPageIndexOptimizer::new(store, cache);
-        let out = rule.optimize(Arc::clone(&plan), &ConfigOptions::default()).unwrap();
-        assert_eq!(get_factory(&out), Some(true), "scoped factory present after rule");
+        let out = rule
+            .optimize(Arc::clone(&plan), &ConfigOptions::default())
+            .unwrap();
+        assert_eq!(
+            get_factory(&out),
+            Some(true),
+            "scoped factory present after rule"
+        );
         assert!(
             !Arc::ptr_eq(&plan, &out),
             "rule must rewrite the scan to install the scoped factory, replacing the default"
@@ -339,9 +360,7 @@ mod tests {
         use futures::StreamExt;
 
         // Serialize on the shared guard — this asserts on the global cache.
-        let _g = page_index::SCOPED_CACHE_TEST_GUARD
-            .lock()
-            .unwrap();
+        let _g = page_index::SCOPED_CACHE_TEST_GUARD.lock().unwrap();
         crate::cache::page_index::clear_scoped_cache_for_test();
 
         let sch = Arc::new(Schema::new(vec![
@@ -353,8 +372,12 @@ mod tests {
         const ROWS: i32 = 4096;
         let n0: Vec<i32> = (0..ROWS).collect();
         let n1: Vec<i32> = (0..ROWS).collect();
-        let s0: Vec<String> = (0..ROWS).map(|r| format!("s0_{r:06}_padding_padding")).collect();
-        let s1: Vec<String> = (0..ROWS).map(|r| format!("s1_{r:06}_padding_padding")).collect();
+        let s0: Vec<String> = (0..ROWS)
+            .map(|r| format!("s0_{r:06}_padding_padding"))
+            .collect();
+        let s1: Vec<String> = (0..ROWS)
+            .map(|r| format!("s1_{r:06}_padding_padding"))
+            .collect();
         let batch = RecordBatch::try_new(
             sch.clone(),
             vec![
@@ -383,12 +406,16 @@ mod tests {
 
         let ctx = SessionContext::new();
         let store: Arc<dyn ObjectStore> = Arc::new(object_store::local::LocalFileSystem::new());
-        let table_url = ListingTableUrl::parse(format!("file://{}", dir.to_str().unwrap())).unwrap();
+        let table_url =
+            ListingTableUrl::parse(format!("file://{}", dir.to_str().unwrap())).unwrap();
         ctx.register_object_store(table_url.as_ref(), Arc::clone(&store));
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")
             .with_collect_stat(true);
-        let resolved = listing_options.infer_schema(&ctx.state(), &table_url).await.unwrap();
+        let resolved = listing_options
+            .infer_schema(&ctx.state(), &table_url)
+            .await
+            .unwrap();
         let config = ListingTableConfig::new(table_url.clone())
             .with_listing_options(listing_options)
             .with_schema(resolved);
@@ -417,7 +444,10 @@ mod tests {
             stats.entries >= 1 && stats.used_bytes > 0,
             "scoped cache must have filled on the listing path: {stats:?}"
         );
-        assert!(stats.misses >= 1, "first scan must register a scoped-cache miss: {stats:?}");
+        assert!(
+            stats.misses >= 1,
+            "first scan must register a scoped-cache miss: {stats:?}"
+        );
 
         clear_scoped_cache_for_test();
         let _ = std::fs::remove_dir_all(&dir);

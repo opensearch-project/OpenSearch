@@ -89,7 +89,13 @@ impl DelegatedBackendCollectorFactory for FfmDelegatedBackendCollectorFactory {
         doc_min: i32,
         doc_max: i32,
     ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
-        let collector = FfmSegmentCollector::create(context_id, provider_key, writer_generation, doc_min, doc_max)?;
+        let collector = FfmSegmentCollector::create(
+            context_id,
+            provider_key,
+            writer_generation,
+            doc_min,
+            doc_max,
+        )?;
         Ok(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
     }
 }
@@ -311,16 +317,17 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         // the RuntimeManager to drive the async object-store read.
         if let (Some(bloom), Some(pp)) = (&self.bloom_config, &self.pruning_predicate) {
             let _timer = bloom.bloom_filter_eval_time.as_ref().map(|t| t.timer());
-            let pruned = bloom.io_handle.block_on(
-                crate::indexed_table::bloom_pruner::bloom_prune_rg(
-                    &*bloom.store,
-                    &bloom.object_path,
-                    &bloom.metadata,
-                    &bloom.arrow_schema,
-                    rg.index,
-                    pp.as_ref(),
-                )
-            );
+            let pruned =
+                bloom
+                    .io_handle
+                    .block_on(crate::indexed_table::bloom_pruner::bloom_prune_rg(
+                        &*bloom.store,
+                        &bloom.object_path,
+                        &bloom.metadata,
+                        &bloom.arrow_schema,
+                        rg.index,
+                        pp.as_ref(),
+                    ));
             if pruned {
                 if let Some(ref c) = bloom.rg_bloom_pruned {
                     c.add(1);
@@ -446,7 +453,8 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             let mut just_initialized = false;
             let provider = lock.get_or_init(|| {
                 just_initialized = true;
-                create_provider(context_id, annotation_id).expect("create_provider FFM upcall failed")
+                create_provider(context_id, annotation_id)
+                    .expect("create_provider FFM upcall failed")
             });
             if just_initialized {
                 log_debug!(
@@ -710,7 +718,22 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None, HashMap::new());
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
 
         let rg = RowGroupInfo {
             index: 0,
@@ -726,7 +749,22 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None, HashMap::new());
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -754,7 +792,22 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None, HashMap::new());
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
         assert!(eval.needs_row_mask());
     }
 
@@ -762,7 +815,22 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None, HashMap::new());
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -782,7 +850,22 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None, HashMap::new());
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
 
         let rg = RowGroupInfo {
             index: 0,
@@ -804,7 +887,22 @@ mod tests {
             rg_can_match: vec![false],
             children: vec![],
         };
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            Some(Arc::new(spt)),
+            HashMap::from([(0, 0)]),
+        );
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -823,30 +921,65 @@ mod tests {
             rg_can_match: vec![true],
             children: vec![],
         };
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, Some(Arc::new(spt)), HashMap::from([(0, 0)]));
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            Some(Arc::new(spt)),
+            HashMap::from([(0, 0)]),
+        );
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
             num_rows: 8,
         };
-        let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("should have matches");
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("should have matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
         assert_eq!(got, vec![0u32, 3, 7]);
     }
 
     #[test]
     fn stats_prune_tree_none_does_not_prune() {
-        let collector = Arc::new(StubCollector {
-            docs: vec![1, 5],
-        }) as Arc<dyn RowGroupDocsCollector>;
+        let collector =
+            Arc::new(StubCollector { docs: vec![1, 5] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None, None, HashMap::new());
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
             num_rows: 8,
         };
-        let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("should have matches");
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("should have matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
         assert_eq!(got, vec![1u32, 5]);
     }

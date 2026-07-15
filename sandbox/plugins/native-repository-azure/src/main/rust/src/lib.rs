@@ -16,8 +16,8 @@ pub mod azure;
 pub use azure::build;
 pub use azure::AzureConfig;
 
-use std::sync::Arc;
 use object_store::ObjectStore;
+use std::sync::Arc;
 
 /// Create an Azure [`ObjectStore`] from JSON config and return a boxed Arc pointer.
 ///
@@ -40,7 +40,12 @@ pub unsafe extern "C" fn azure_create_store(
     let config_json = std::str::from_utf8(bytes).map_err(|e| format!("invalid UTF-8: {}", e))?;
     let credentials = if cred_provider_ptr != 0 {
         let provider = Box::from_raw(
-            cred_provider_ptr as *mut Arc<dyn object_store::CredentialProvider<Credential = object_store::azure::AzureCredential>>,
+            cred_provider_ptr
+                as *mut Arc<
+                    dyn object_store::CredentialProvider<
+                        Credential = object_store::azure::AzureCredential,
+                    >,
+                >,
         );
         Some(*provider)
     } else {
@@ -56,7 +61,9 @@ pub unsafe extern "C" fn azure_create_store(
 #[native_bridge_common::ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn azure_destroy_store(ptr: i64) -> i64 {
-    if ptr == 0 { return Err("azure_destroy_store: null pointer".to_string()); }
+    if ptr == 0 {
+        return Err("azure_destroy_store: null pointer".to_string());
+    }
     let _: Box<Arc<dyn ObjectStore>> = Box::from_raw(ptr as *mut Arc<dyn ObjectStore>);
     Ok(0)
 }

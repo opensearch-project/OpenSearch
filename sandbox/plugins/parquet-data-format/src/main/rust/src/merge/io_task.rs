@@ -14,13 +14,13 @@ use parquet::file::writer::SerializedFileWriter;
 
 use rayon::ThreadPool;
 
+use crate::crc_writer::CrcWriter;
+use crate::log_error;
+use crate::rate_limited_writer::RateLimitedWriter;
+use native_bridge_common::log_info;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use tokio::task::JoinHandle;
-use native_bridge_common::log_info;
-use crate::crc_writer::CrcWriter;
-use crate::rate_limited_writer::RateLimitedWriter;
-use crate::log_error;
 
 use super::error::{MergeError, MergeResult};
 // =============================================================================
@@ -92,9 +92,9 @@ pub enum IoCommand {
 async fn drain_on_error(rx: &mut tokio_mpsc::Receiver<IoCommand>, msg: &str) {
     while let Some(cmd) = rx.recv().await {
         if let IoCommand::Close(reply) = cmd {
-            let _ = reply.send(Err(MergeError::Logic(
-                format!("Prior IO write failed: {msg}"),
-            )));
+            let _ = reply.send(Err(MergeError::Logic(format!(
+                "Prior IO write failed: {msg}"
+            ))));
         }
     }
 }
