@@ -18,7 +18,11 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermRangeQuery;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.Rewriteable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +38,18 @@ import java.util.List;
 public final class LuceneQueryConversionUtils {
 
     private LuceneQueryConversionUtils() {}
+
+    /**
+     * Compile a query builder for execution against a lucene-secondary segment.
+     *
+     * <p>Query builders must be rewritten against the current shard before conversion. In
+     * particular, a term query targeting an unmapped field rewrites to match-none; calling
+     * {@link QueryBuilder#toQuery(QueryShardContext)} directly instead throws "Rewrite first".
+     */
+    static Query compileQueryForSecondary(QueryBuilder queryBuilder, QueryShardContext context) throws IOException {
+        QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, context, true);
+        return rewriteFieldExistsForSecondary(rewritten.toQuery(context));
+    }
 
     /**
      * Rewrite every {@link FieldExistsQuery} in {@code query} to a postings-only existence query.
