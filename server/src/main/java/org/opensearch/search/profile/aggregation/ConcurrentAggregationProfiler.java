@@ -168,27 +168,26 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
      *     <li>Static configuration flags (e.g. {@code collection_strategy}, {@code has_filter}) that
      *     reflect the aggregator's configured behavior and are identical across every slice.</li>
      * </ul>
-     * Numeric values are summed; any other value is taken from whichever slice is encountered first,
-     * since it is expected to be the same on every slice.
+     * Numeric values are summed, preserving the reported type ({@code Integer}
+     * stays {@code Integer}, since some callers unbox debug values with a narrowing
+     * {@code (int)} cast, e.g. {@code segments_with_single_valued_ords}); any other
+     * value is taken from whichever slice is encountered first, since it is expected
+     * to be the same on every slice.
      */
     static Map<String, Object> mergeDebugInfo(List<ProfileResult> profileResultsAcrossSlices) {
         Map<String, Object> mergedDebug = new HashMap<>();
         for (ProfileResult profileResult : profileResultsAcrossSlices) {
             for (Map.Entry<String, Object> entry : profileResult.getDebugInfo().entrySet()) {
-                Object value = entry.getValue();
-                // Normalize every numeric value to Long up front so a key's reported type doesn't
-                // depend on how many slices happened to report it (e.g. Integer when only one slice
-                // has the key, Long once two or more are summed).
-                if (value instanceof Number) {
-                    value = ((Number) value).longValue();
-                }
-                mergedDebug.merge(entry.getKey(), value, ConcurrentAggregationProfiler::mergeDebugValue);
+                mergedDebug.merge(entry.getKey(), entry.getValue(), ConcurrentAggregationProfiler::mergeDebugValue);
             }
         }
         return mergedDebug;
     }
 
     private static Object mergeDebugValue(Object fromOtherSlices, Object fromThisSlice) {
+        if (fromOtherSlices instanceof Integer && fromThisSlice instanceof Integer) {
+            return (Integer) fromOtherSlices + (Integer) fromThisSlice;
+        }
         if (fromOtherSlices instanceof Number && fromThisSlice instanceof Number) {
             return ((Number) fromOtherSlices).longValue() + ((Number) fromThisSlice).longValue();
         }
