@@ -52,8 +52,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
     }
 
-    private LongKeyedBucketOrds() {
-    }
+    private LongKeyedBucketOrds() {}
 
     /**
      * Add the {@code owningBucketOrd, value} pair. Return the ord for
@@ -108,7 +107,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public interface BucketOrdsEnum {
         /**
          * Advance to the next value.
-         * 
+         *
          * @return {@code true} if there *is* a next value,
          *         {@code false} if there isn't
          */
@@ -250,8 +249,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             // performance.
             long ord = ords.add(owningBucketOrd, value);
             if (ord >= 0) {
-                maxOwningBucketOrd = Math.max(maxOwningBucketOrd, owningBucketOrd);
-                bucketOrdsCounts = bigArrays.grow(bucketOrdsCounts, owningBucketOrd + 1);
+                if (owningBucketOrd > maxOwningBucketOrd) {
+                    maxOwningBucketOrd = owningBucketOrd;
+                    bucketOrdsCounts = bigArrays.grow(bucketOrdsCounts, owningBucketOrd + 1);
+                }
                 bucketOrdsCounts.increment(owningBucketOrd, 1);
             }
             return ord;
