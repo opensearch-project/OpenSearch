@@ -17,12 +17,16 @@ import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchAction;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -79,6 +83,7 @@ public class AnalyticsSearchTransportService {
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
         registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
+        registerCanMatchHandler(this.transportService, searchService);
     }
 
     private static void registerStreamingFragmentHandler(
@@ -141,6 +146,33 @@ public class AnalyticsSearchTransportService {
                     )
                 );
             }
+        );
+    }
+
+    private static void registerCanMatchHandler(StreamTransportService transportService, AnalyticsSearchService searchService) {
+        transportService.registerRequestHandler(
+            AnalyticsCanMatchAction.NAME,
+            ThreadPool.Names.SEARCH,
+            AnalyticsCanMatchRequest::new,
+            (request, channel, task) -> searchService.canMatch(request.getShardId(), request.getFilterBytes(), new ActionListener<>() {
+                @Override
+                public void onResponse(AnalyticsCanMatchResponse response) {
+                    try {
+                        channel.sendResponse(response);
+                    } catch (IOException e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(new AnalyticsCanMatchResponse(true));
+                    } catch (IOException ioe) {
+                        // nothing more we can do
+                    }
+                }
+            })
         );
     }
 

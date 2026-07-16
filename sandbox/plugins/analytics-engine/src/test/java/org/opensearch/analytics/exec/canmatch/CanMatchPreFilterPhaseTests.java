@@ -134,8 +134,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget t4 = target("idx", 4);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(t0, t1, t2, t3, t4), new byte[] { 1 },
-            ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(List.of(t0, t1, t2, t3, t4), new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(3, result.get().size());
         assertSame(t0, result.get().get(0));
@@ -149,8 +148,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 },
-            ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
         assertTrue(result.get().isEmpty());
@@ -162,8 +160,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget only = target("idx", 0);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(only), new byte[] { 1 },
-            ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(List.of(only), new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(1, result.get().size());
         assertSame(only, result.get().get(0));
@@ -175,8 +172,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 },
-            ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
         assertTrue(result.get().isEmpty());
