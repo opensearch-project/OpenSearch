@@ -188,12 +188,39 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         Map<String, Object> mergedForward = ConcurrentAggregationProfiler.mergeDebugInfo(forwardOrder);
         Map<String, Object> mergedReverse = ConcurrentAggregationProfiler.mergeDebugInfo(reverseOrder);
 
-        assertEquals(3L, mergedForward.get("segments_with_single_valued_ords"));
-        assertEquals(4L, mergedForward.get("segments_with_multi_valued_ords"));
+        assertEquals(3, mergedForward.get("segments_with_single_valued_ords"));
+        assertEquals(4, mergedForward.get("segments_with_multi_valued_ords"));
         assertEquals(mergedForward, mergedReverse);
     }
 
-    public void testMergeDebugInfoNormalizesNumericTypeEvenForSingleSlice() {
+    public void testMergeDebugInfoPreservesIntegerTypeWhenSummingAcrossSlices() {
+        // AggregationProfilerIT unboxes segments_with_single/multi_valued_ords with a narrowing
+        // (int) cast, so summing two Integer-valued slices must stay Integer, not get promoted
+        // to Long the way a mixed-type or single-Long-source sum would.
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("segments_with_single_valued_ords", 2),
+                100L,
+                List.of()
+            ),
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("segments_with_single_valued_ords", 3),
+                100L,
+                List.of()
+            )
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(5, mergedDebug.get("segments_with_single_valued_ords"));
+        assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Integer);
+    }
+
+    public void testMergeDebugInfoPreservesOriginalTypeForSingleSlice() {
         List<ProfileResult> profileResultsAcrossSlices = List.of(
             new ProfileResult(
                 "GlobalOrdinalsStringTermsAggregator",
@@ -205,8 +232,8 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
             )
         );
         Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
-        assertEquals(2L, mergedDebug.get("segments_with_single_valued_ords"));
-        assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Long);
+        assertEquals(2, mergedDebug.get("segments_with_single_valued_ords"));
+        assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Integer);
     }
 
     public void testMergeDebugInfoKeepsStaticNonNumericValues() {
