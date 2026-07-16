@@ -236,6 +236,42 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Integer);
     }
 
+    public void testMergeDebugInfoSumsMixedIntegerAndLongAsLong() {
+        // A key reported as Integer by one slice and Long by another shouldn't happen in
+        // practice (each debug key is always populated with the same type by a given
+        // aggregator), but the merge must still be safe: fall through to the wider Number
+        // path rather than only handling the Integer+Integer case.
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 2), 100L, List.of()),
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 3L), 100L, List.of())
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(5L, mergedDebug.get("total_buckets"));
+        assertTrue(mergedDebug.get("total_buckets") instanceof Long);
+    }
+
+    public void testMergeDebugInfoAssertsOnMismatchedNonNumericValues() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("collection_strategy", "dense"),
+                100L,
+                List.of()
+            ),
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("collection_strategy", "remap"),
+                100L,
+                List.of()
+            )
+        );
+        expectThrows(AssertionError.class, () -> ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices));
+    }
+
     public void testMergeDebugInfoKeepsStaticNonNumericValues() {
         List<ProfileResult> profileResultsAcrossSlices = List.of(
             new ProfileResult(
