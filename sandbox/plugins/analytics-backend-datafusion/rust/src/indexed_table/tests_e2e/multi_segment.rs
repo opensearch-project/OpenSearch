@@ -131,9 +131,9 @@ async fn run_two_segment_query(
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-                    sort_min: None,
+            sort_min: None,
             sort_max: None,
-});
+        });
     }
 
     let schema = schema_opt.unwrap();
@@ -142,19 +142,18 @@ async fn run_two_segment_query(
     // Factory produces a single-collector evaluator per chunk. The collector's
     // matching set is pulled from `per_segment_matches[segment.writer_generation]`,
     // so wrong writer_generation propagation would immediately produce wrong rows.
-    let factory: super::super::table_provider::EvaluatorFactory =
-        {
-            let per_segment_matches = Arc::clone(&per_segment_matches);
-            let schema = schema.clone();
-            Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
-                let matching = per_segment_matches
-                    .get(segment.writer_generation as usize)
-                    .cloned()
-                    .unwrap_or_default();
-                let collector: Arc<dyn RowGroupDocsCollector> =
-                    Arc::new(PerSegmentCollector { matching });
-                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-                let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
+    let factory: super::super::table_provider::EvaluatorFactory = {
+        let per_segment_matches = Arc::clone(&per_segment_matches);
+        let schema = schema.clone();
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
+            let matching = per_segment_matches
+                .get(segment.writer_generation as usize)
+                .cloned()
+                .unwrap_or_default();
+            let collector: Arc<dyn RowGroupDocsCollector> =
+                Arc::new(PerSegmentCollector { matching });
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     Some(collector), pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
@@ -167,9 +166,9 @@ async fn run_two_segment_query(
                     std::collections::HashMap::new(),
                 ),
             );
-                Ok(eval)
-            })
-        };
+            Ok(eval)
+        })
+    };
 
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
@@ -268,11 +267,7 @@ struct ConcurrencyWitnessCollector {
 }
 
 impl RowGroupDocsCollector for ConcurrencyWitnessCollector {
-    fn collect_packed_u64_bitset(
-        &self,
-        min_doc: i32,
-        max_doc: i32,
-    ) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
         use std::sync::atomic::Ordering;
         let cur = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
         // Update high-water-mark with a CAS loop.
@@ -341,9 +336,9 @@ async fn run_two_segment_query_witness(
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-                    sort_min: None,
+            sort_min: None,
             sort_max: None,
-});
+        });
     }
 
     let schema = schema_opt.unwrap();
@@ -361,12 +356,11 @@ async fn run_two_segment_query_witness(
                 .get(segment.writer_generation as usize)
                 .cloned()
                 .unwrap_or_default();
-            let collector: Arc<dyn RowGroupDocsCollector> =
-                Arc::new(ConcurrencyWitnessCollector {
-                    inner: PerSegmentCollector { matching },
-                    in_flight: Arc::clone(&in_flight),
-                    max_in_flight: Arc::clone(&max_in_flight),
-                });
+            let collector: Arc<dyn RowGroupDocsCollector> = Arc::new(ConcurrencyWitnessCollector {
+                inner: PerSegmentCollector { matching },
+                in_flight: Arc::clone(&in_flight),
+                max_in_flight: Arc::clone(&max_in_flight),
+            });
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
@@ -439,8 +433,7 @@ async fn single_partition_runs_chunks_sequentially_no_inner_parallelism() {
     // so only the currently-active chunk's `prefetch_rg` (and therefore the
     // collector) is ever in flight → `max_in_flight == 1`.
     let matches = vec![vec![2, 6], vec![3, 7]];
-    let (rows, max_in_flight) =
-        run_two_segment_query_witness(matches, /*num_partitions*/ 1).await;
+    let (rows, max_in_flight) = run_two_segment_query_witness(matches, /*num_partitions*/ 1).await;
     assert_eq!(rows.len(), 4, "result correctness sanity check");
     assert_eq!(
         max_in_flight, 1,
@@ -458,8 +451,7 @@ async fn cross_partition_parallelism_is_preserved() {
     // in *different* partitions and DataFusion drives them concurrently,
     // so the witness collector should observe `max_in_flight == 2`.
     let matches = vec![vec![2, 6], vec![3, 7]];
-    let (rows, max_in_flight) =
-        run_two_segment_query_witness(matches, /*num_partitions*/ 2).await;
+    let (rows, max_in_flight) = run_two_segment_query_witness(matches, /*num_partitions*/ 2).await;
     assert_eq!(rows.len(), 4, "result correctness sanity check");
     assert_eq!(
         max_in_flight, 2,
@@ -561,26 +553,25 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-                    sort_min: None,
+            sort_min: None,
             sort_max: None,
-});
+        });
     }
 
     let schema = schema_opt.unwrap();
     let per_segment_matches = Arc::new(per_segment_matches);
-    let factory: super::super::table_provider::EvaluatorFactory =
-        {
-            let per_segment_matches = Arc::clone(&per_segment_matches);
-            let schema = schema.clone();
-            Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
-                let matching = per_segment_matches
-                    .get(segment.writer_generation as usize)
-                    .cloned()
-                    .unwrap_or_default();
-                let collector: Arc<dyn RowGroupDocsCollector> =
-                    Arc::new(PerSegmentCollector { matching });
-                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-                let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
+    let factory: super::super::table_provider::EvaluatorFactory = {
+        let per_segment_matches = Arc::clone(&per_segment_matches);
+        let schema = schema.clone();
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
+            let matching = per_segment_matches
+                .get(segment.writer_generation as usize)
+                .cloned()
+                .unwrap_or_default();
+            let collector: Arc<dyn RowGroupDocsCollector> =
+                Arc::new(PerSegmentCollector { matching });
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     Some(collector), pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
@@ -593,9 +584,9 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                     std::collections::HashMap::new(),
                 ),
             );
-                Ok(eval)
-            })
-        };
+            Ok(eval)
+        })
+    };
 
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
@@ -1059,9 +1050,9 @@ async fn run_wide_segments(
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-                    sort_min: None,
+            sort_min: None,
             sort_max: None,
-});
+        });
     }
 
     let schema = schema_opt.unwrap();
@@ -1236,9 +1227,7 @@ async fn wide_multi_segment_collector_and_two_predicates() {
     // Tree: AND(all_brand_docs, price > 50, qty < 3)
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector {
-            annotation_id: 0,
-        },
+        BoolNode::Collector { annotation_id: 0 },
         pred_wide_int("price", Operator::Gt, 50),
         pred_wide_int("qty", Operator::Lt, 3),
     ]);
@@ -1254,9 +1243,7 @@ async fn wide_multi_segment_or_of_predicates_under_collector() {
     // Tree: AND(all_brand_docs, OR(region == "us-east", active == true))
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector {
-            annotation_id: 0,
-        },
+        BoolNode::Collector { annotation_id: 0 },
         BoolNode::Or(vec![
             pred_wide_str("region", Operator::Eq, "us-east"),
             pred_wide_bool("active", Operator::Eq, true),
@@ -1274,9 +1261,7 @@ async fn wide_multi_segment_not_and_three_column_predicates() {
     // Tree: AND(all_brand_docs, NOT(price < 30), qty > 2, region != "eu-west")
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector {
-            annotation_id: 0,
-        },
+        BoolNode::Collector { annotation_id: 0 },
         BoolNode::Not(Box::new(pred_wide_int("price", Operator::Lt, 30))),
         pred_wide_int("qty", Operator::Gt, 2),
         pred_wide_str("region", Operator::NotEq, "eu-west"),
@@ -1296,9 +1281,7 @@ async fn wide_multi_segment_deep_tree_four_predicate_columns() {
     // Tree: AND(collector, OR(AND(price >= 100, qty = 3), AND(region == "us-west", active == true)))
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector {
-            annotation_id: 0,
-        },
+        BoolNode::Collector { annotation_id: 0 },
         BoolNode::Or(vec![
             BoolNode::And(vec![
                 pred_wide_int("price", Operator::GtEq, 100),
@@ -1420,7 +1403,9 @@ async fn run_wide_segments_with_stats_pruning(
 
     let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
     collect_pred_exprs(&tree, &mut leaf_exprs);
-    let pruning_predicates: Arc<HashMap<usize, Arc<datafusion::physical_optimizer::pruning::PruningPredicate>>> = Arc::new(
+    let pruning_predicates: Arc<
+        HashMap<usize, Arc<datafusion::physical_optimizer::pruning::PruningPredicate>>,
+    > = Arc::new(
         leaf_exprs
             .iter()
             .filter_map(|expr| {
@@ -1439,12 +1424,21 @@ async fn run_wide_segments_with_stats_pruning(
         Arc::new(move |segment, chunk, stream_metrics, stats_prune_tree| {
             let leaf_count = tree.collector_leaf_count();
             let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = (0..leaf_count)
-                .map(|i| (i as i32, Arc::new(AllDocs) as Arc<dyn RowGroupDocsCollector>))
+                .map(|i| {
+                    (
+                        i as i32,
+                        Arc::new(AllDocs) as Arc<dyn RowGroupDocsCollector>,
+                    )
+                })
                 .collect();
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-            let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
-                .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
+            let rg_index_to_pos: HashMap<usize, usize> = chunk
+                .row_group_indices
+                .iter()
+                .enumerate()
+                .map(|(pos, &idx)| (idx, pos))
+                .collect();
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::TreeBitsetSource {
                     tree: Arc::new(resolved),
@@ -1485,7 +1479,11 @@ async fn run_wide_segments_with_stats_pruning(
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
         emit_row_ids: false,
-        prune_tree_config: Some((Arc::clone(&tree), Arc::clone(&pruning_predicates), schema.clone())),
+        prune_tree_config: Some((
+            Arc::clone(&tree),
+            Arc::clone(&pruning_predicates),
+            schema.clone(),
+        )),
         sort_fields: vec![],
         sort_orders: vec![],
         cancellation_token: None,
@@ -1493,7 +1491,10 @@ async fn run_wide_segments_with_stats_pruning(
 
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    let df = ctx.sql("SELECT brand, price, qty, region, active FROM t").await.unwrap();
+    let df = ctx
+        .sql("SELECT brand, price, qty, region, active FROM t")
+        .await
+        .unwrap();
     let mut stream = df.execute_stream().await.unwrap();
     let mut rows: Vec<(i32, i32, i32, String, bool)> = Vec::new();
     while let Some(batch) = stream.next().await {
@@ -1502,10 +1503,23 @@ async fn run_wide_segments_with_stats_pruning(
         let price = b.column(1).as_any().downcast_ref::<Int32Array>().unwrap();
         let qty = b.column(2).as_any().downcast_ref::<Int32Array>().unwrap();
         let region = b.column(3).as_any().downcast_ref::<StringArray>().unwrap();
-        let active = b.column(4).as_any().downcast_ref::<datafusion::arrow::array::BooleanArray>().unwrap();
+        let active = b
+            .column(4)
+            .as_any()
+            .downcast_ref::<datafusion::arrow::array::BooleanArray>()
+            .unwrap();
         for i in 0..b.num_rows() {
-            let ord = specs.iter().position(|s| s.brand == brand.value(i)).unwrap_or(0) as i32;
-            rows.push((ord, price.value(i), qty.value(i), region.value(i).to_string(), active.value(i)));
+            let ord = specs
+                .iter()
+                .position(|s| s.brand == brand.value(i))
+                .unwrap_or(0) as i32;
+            rows.push((
+                ord,
+                price.value(i),
+                qty.value(i),
+                region.value(i).to_string(),
+                active.value(i),
+            ));
         }
     }
     rows.sort();
@@ -1517,7 +1531,11 @@ async fn run_wide_segments_with_stats_pruning(
 /// RGs with prices [0..30] are stats-pruned by `price > 50`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stats_prune_single_segment_single_partition() {
-    let specs = vec![WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 }];
+    let specs = vec![WideSegSpec {
+        brand: "amazon",
+        rows: 16,
+        max_rg_rows: 4,
+    }];
     let tree = BoolNode::And(vec![
         pred_wide_int("price", Operator::Gt, 50),
         BoolNode::Or(vec![
@@ -1535,7 +1553,11 @@ async fn stats_prune_single_segment_single_partition() {
 /// Each chunk has rg_indices=[N] where N>0 for non-first chunks.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stats_prune_single_segment_multi_partition() {
-    let specs = vec![WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 }];
+    let specs = vec![WideSegSpec {
+        brand: "amazon",
+        rows: 16,
+        max_rg_rows: 4,
+    }];
     let tree = BoolNode::And(vec![
         pred_wide_int("price", Operator::Gt, 50),
         BoolNode::Or(vec![
@@ -1579,7 +1601,8 @@ async fn stats_prune_multi_segment_multi_partition() {
     ]);
     let expected = wide_oracle(&specs, |i| (i as i32) * 10 > 80);
     for np in [2usize, 3, 5, 8] {
-        let rows = run_wide_segments_with_stats_pruning(clone_wide_specs(&specs), tree.clone(), np).await;
+        let rows =
+            run_wide_segments_with_stats_pruning(clone_wide_specs(&specs), tree.clone(), np).await;
         assert_eq!(rows, expected, "np={} failed", np);
     }
 }
@@ -1599,7 +1622,8 @@ async fn stats_prune_multi_segment_multi_partition_with_not() {
     // NOT is conservative in stats (always true), so actual predicate filters.
     let expected = wide_oracle(&specs, |i| !((i as i32) * 10 < 40));
     for np in [1usize, 3, 5] {
-        let rows = run_wide_segments_with_stats_pruning(clone_wide_specs(&specs), tree.clone(), np).await;
+        let rows =
+            run_wide_segments_with_stats_pruning(clone_wide_specs(&specs), tree.clone(), np).await;
         assert_eq!(rows, expected, "np={} failed", np);
     }
 }
@@ -1618,11 +1642,16 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
 
     // Build a segment with 4 RGs of 4 rows each.
     // prices: [0,10,20,30], [40,50,60,70], [80,90,100,110], [120,130,140,150]
-    let spec = WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 };
+    let spec = WideSegSpec {
+        brand: "amazon",
+        rows: 16,
+        max_rg_rows: 4,
+    };
     let tmp = write_wide_segment(spec.brand, spec.rows, spec.max_rg_rows);
     let path = tmp.path().to_path_buf();
     let file = std::fs::File::open(&path).unwrap();
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     let parquet_meta = meta.metadata().clone();
     let schema = meta.schema().clone();
     assert_eq!(parquet_meta.num_row_groups(), 4);
@@ -1640,36 +1669,58 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
     // Build pruning predicates.
     let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
     collect_pred_exprs(&tree, &mut leaf_exprs);
-    let pruning_predicates: HashMap<usize, Arc<datafusion::physical_optimizer::pruning::PruningPredicate>> =
-        leaf_exprs
-            .iter()
-            .filter_map(|expr| {
-                crate::indexed_table::page_pruner::build_pruning_predicate(expr, schema.clone())
-                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
-            })
-            .collect();
+    let pruning_predicates: HashMap<
+        usize,
+        Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+    > = leaf_exprs
+        .iter()
+        .filter_map(|expr| {
+            crate::indexed_table::page_pruner::build_pruning_predicate(expr, schema.clone())
+                .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+        })
+        .collect();
 
     // Simulate a chunk with RGs [2, 3] (offset — doesn't start at 0).
     let rg_indices: Vec<usize> = vec![2, 3];
     let spt = StatsPruneTree::build_from_bool_node(
-        &tree, &pruning_predicates, &parquet_meta, &schema, &rg_indices,
+        &tree,
+        &pruning_predicates,
+        &parquet_meta,
+        &schema,
+        &rg_indices,
     );
 
     // Assert: rg_can_match for position 0 (RG2, prices 80-110) should be true (price>60 matches).
     // Assert: rg_can_match for position 1 (RG3, prices 120-150) should be true.
-    let rg_index_to_pos: HashMap<usize, usize> = rg_indices.iter()
-        .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
+    let rg_index_to_pos: HashMap<usize, usize> = rg_indices
+        .iter()
+        .enumerate()
+        .map(|(pos, &idx)| (idx, pos))
+        .collect();
     assert_eq!(spt.rg_can_match.len(), 2, "subset-relative: 2 RGs in chunk");
-    assert!(spt.rg_can_match[0], "RG2 (prices 80-110) should match price>60");
-    assert!(spt.rg_can_match[1], "RG3 (prices 120-150) should match price>60");
+    assert!(
+        spt.rg_can_match[0],
+        "RG2 (prices 80-110) should match price>60"
+    );
+    assert!(
+        spt.rg_can_match[1],
+        "RG3 (prices 120-150) should match price>60"
+    );
 
     // Now simulate a chunk with RGs [0, 1] — these SHOULD be pruned.
     let rg_indices_low: Vec<usize> = vec![0, 1];
     let spt_low = StatsPruneTree::build_from_bool_node(
-        &tree, &pruning_predicates, &parquet_meta, &schema, &rg_indices_low,
+        &tree,
+        &pruning_predicates,
+        &parquet_meta,
+        &schema,
+        &rg_indices_low,
     );
     // RG0 (prices 0-30): price>60 → false → AND=false
-    assert!(!spt_low.rg_can_match[0], "RG0 (prices 0-30) should be pruned by price>60");
+    assert!(
+        !spt_low.rg_can_match[0],
+        "RG0 (prices 0-30) should be pruned by price>60"
+    );
     // RG1 (prices 40-70): price>60 might be true for row with price=70
     // (stats: min=40, max=70, so max > 60 → can_match=true at RG stats level)
     // This is expected: stats pruning is conservative.
@@ -1678,25 +1729,32 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
     #[derive(Debug)]
     struct AllDocs;
     impl RowGroupDocsCollector for AllDocs {
-        fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<Vec<u64>, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
-            for i in 0..span { out[i / 64] |= 1u64 << (i % 64); }
+            for i in 0..span {
+                out[i / 64] |= 1u64 << (i % 64);
+            }
             Ok(out)
         }
     }
 
     let tree_arc = Arc::new(tree);
-    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = vec![
-        (0, Arc::new(AllDocs) as Arc<dyn RowGroupDocsCollector>),
-    ];
+    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
+        vec![(0, Arc::new(AllDocs) as Arc<dyn RowGroupDocsCollector>)];
     let resolved = tree_arc.resolve(&per_leaf).unwrap();
     let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&parquet_meta)));
 
     let source = crate::indexed_table::eval::TreeBitsetSource {
         tree: Arc::new(resolved),
         evaluator: Arc::new(crate::indexed_table::eval::bitmap_tree::BitmapTreeEvaluator),
-        leaves: Arc::new(crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics()),
+        leaves: Arc::new(
+            crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics(),
+        ),
         page_pruner: pruner,
         cost_predicate: 1,
         cost_collector: 10,
@@ -1705,26 +1763,46 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         page_prune_metrics: None,
         collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
         stats_prune_tree: Some(Arc::new(spt_low)),
-        rg_index_to_pos: rg_indices_low.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
+        rg_index_to_pos: rg_indices_low
+            .iter()
+            .enumerate()
+            .map(|(pos, &idx)| (idx, pos))
+            .collect(),
     };
 
     // Assert: prefetch_rg for RG0 (offset index 0, pruned) returns None.
-    let rg0 = RowGroupInfo { index: 0, first_row: 0, num_rows: 4 };
+    let rg0 = RowGroupInfo {
+        index: 0,
+        first_row: 0,
+        num_rows: 4,
+    };
     let result_rg0 = source.prefetch_rg(&rg0, 0, 4).unwrap();
-    assert!(result_rg0.is_none(), "RG0 should be pruned by stats (price>60 fails for prices 0-30)");
+    assert!(
+        result_rg0.is_none(),
+        "RG0 should be pruned by stats (price>60 fails for prices 0-30)"
+    );
 
     // Assert: prefetch_rg for RG1 at offset index 1 — may or may not be pruned
     // depending on stats (max price in RG1 is 70 which > 60, so can_match=true).
-    let rg1 = RowGroupInfo { index: 1, first_row: 4, num_rows: 4 };
+    let rg1 = RowGroupInfo {
+        index: 1,
+        first_row: 4,
+        num_rows: 4,
+    };
     let result_rg1 = source.prefetch_rg(&rg1, 4, 8).unwrap();
     // RG1 (prices 40-70): max=70 > 60, so stats say can-match. Not pruned.
-    assert!(result_rg1.is_some(), "RG1 (max price=70) should not be stats-pruned");
+    assert!(
+        result_rg1.is_some(),
+        "RG1 (max price=70) should not be stats-pruned"
+    );
 
     // Now build source for chunk [2,3] — both survive. Verify offset lookup works.
     let source2 = crate::indexed_table::eval::TreeBitsetSource {
         tree: source.tree.clone(),
         evaluator: Arc::new(crate::indexed_table::eval::bitmap_tree::BitmapTreeEvaluator),
-        leaves: Arc::new(crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics()),
+        leaves: Arc::new(
+            crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics(),
+        ),
         page_pruner: Arc::new(PagePruner::new(&schema, Arc::clone(&parquet_meta))),
         cost_predicate: 1,
         cost_collector: 10,
@@ -1737,17 +1815,34 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
     };
 
     // RG2 at absolute index 2: should NOT be pruned (prices 80-110, all > 60).
-    let rg2 = RowGroupInfo { index: 2, first_row: 8, num_rows: 4 };
+    let rg2 = RowGroupInfo {
+        index: 2,
+        first_row: 8,
+        num_rows: 4,
+    };
     let result_rg2 = source2.prefetch_rg(&rg2, 8, 12).unwrap();
-    assert!(result_rg2.is_some(), "RG2 at offset index should not be pruned");
+    assert!(
+        result_rg2.is_some(),
+        "RG2 at offset index should not be pruned"
+    );
     // Verify the collector bitmap is non-empty (all docs match).
     let prefetched = result_rg2.unwrap();
-    assert!(!prefetched.candidates.is_empty(), "RG2 should have non-empty candidates");
+    assert!(
+        !prefetched.candidates.is_empty(),
+        "RG2 should have non-empty candidates"
+    );
 
     // RG3 at absolute index 3: should NOT be pruned.
-    let rg3 = RowGroupInfo { index: 3, first_row: 12, num_rows: 4 };
+    let rg3 = RowGroupInfo {
+        index: 3,
+        first_row: 12,
+        num_rows: 4,
+    };
     let result_rg3 = source2.prefetch_rg(&rg3, 12, 16).unwrap();
-    assert!(result_rg3.is_some(), "RG3 at offset index should not be pruned");
+    assert!(
+        result_rg3.is_some(),
+        "RG3 at offset index should not be pruned"
+    );
 }
 
 /// Directly asserts that when a subtree under OR is stats-pruned, the
@@ -1762,11 +1857,16 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
     use crate::indexed_table::eval::RowGroupBitsetSource;
     use crate::indexed_table::page_pruner::StatsPruneTree;
 
-    let spec = WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 };
+    let spec = WideSegSpec {
+        brand: "amazon",
+        rows: 16,
+        max_rg_rows: 4,
+    };
     let tmp = write_wide_segment(spec.brand, spec.rows, spec.max_rg_rows);
     let path = tmp.path().to_path_buf();
     let file = std::fs::File::open(&path).unwrap();
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     let parquet_meta = meta.metadata().clone();
     let schema = meta.schema().clone();
 
@@ -1784,24 +1884,36 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
 
     let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
     collect_pred_exprs(&tree, &mut leaf_exprs);
-    let pruning_predicates: HashMap<usize, Arc<datafusion::physical_optimizer::pruning::PruningPredicate>> =
-        leaf_exprs
-            .iter()
-            .filter_map(|expr| {
-                crate::indexed_table::page_pruner::build_pruning_predicate(expr, schema.clone())
-                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
-            })
-            .collect();
+    let pruning_predicates: HashMap<
+        usize,
+        Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+    > = leaf_exprs
+        .iter()
+        .filter_map(|expr| {
+            crate::indexed_table::page_pruner::build_pruning_predicate(expr, schema.clone())
+                .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+        })
+        .collect();
 
     // Chunk with RG1 only (prices 40-70). Offset index = 1.
     let rg_indices: Vec<usize> = vec![1];
     let spt = StatsPruneTree::build_from_bool_node(
-        &tree, &pruning_predicates, &parquet_meta, &schema, &rg_indices,
+        &tree,
+        &pruning_predicates,
+        &parquet_meta,
+        &schema,
+        &rg_indices,
     );
     // Root OR should still be true (Collector1 child is always-true).
-    assert!(spt.rg_can_match[0], "OR root should be true (Collector1 always matches)");
+    assert!(
+        spt.rg_can_match[0],
+        "OR root should be true (Collector1 always matches)"
+    );
     // AND child should be false (price>100 fails for RG1 max=70).
-    assert!(!spt.children[0].rg_can_match[0], "AND(price>100, Coll0) should be false for RG1");
+    assert!(
+        !spt.children[0].rg_can_match[0],
+        "AND(price>100, Coll0) should be false for RG1"
+    );
     // Collector1 child should be true.
     assert!(spt.children[1].rg_can_match[0], "Collector1 should be true");
 
@@ -1809,10 +1921,16 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
     #[derive(Debug)]
     struct AllDocs;
     impl RowGroupDocsCollector for AllDocs {
-        fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<Vec<u64>, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
-            for i in 0..span { out[i / 64] |= 1u64 << (i % 64); }
+            for i in 0..span {
+                out[i / 64] |= 1u64 << (i % 64);
+            }
             Ok(out)
         }
     }
@@ -1823,13 +1941,18 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
     ];
     let resolved = Arc::new(tree).resolve(&per_leaf).unwrap();
     let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&parquet_meta)));
-    let rg_index_to_pos: HashMap<usize, usize> = rg_indices.iter()
-        .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
+    let rg_index_to_pos: HashMap<usize, usize> = rg_indices
+        .iter()
+        .enumerate()
+        .map(|(pos, &idx)| (idx, pos))
+        .collect();
 
     let source = crate::indexed_table::eval::TreeBitsetSource {
         tree: Arc::new(resolved),
         evaluator: Arc::new(crate::indexed_table::eval::bitmap_tree::BitmapTreeEvaluator),
-        leaves: Arc::new(crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics()),
+        leaves: Arc::new(
+            crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics(),
+        ),
         page_pruner: pruner,
         cost_predicate: 1,
         cost_collector: 10,
@@ -1842,33 +1965,51 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
     };
 
     // RG1 at absolute index 1: NOT pruned at root (OR is true).
-    let rg1 = RowGroupInfo { index: 1, first_row: 4, num_rows: 4 };
+    let rg1 = RowGroupInfo {
+        index: 1,
+        first_row: 4,
+        num_rows: 4,
+    };
     let result = source.prefetch_rg(&rg1, 4, 8).unwrap();
-    assert!(result.is_some(), "RG1 should NOT be pruned at root (OR has surviving child)");
+    assert!(
+        result.is_some(),
+        "RG1 should NOT be pruned at root (OR has surviving child)"
+    );
 
     let prefetched = result.unwrap();
     // Candidates should be non-empty (Collector1 matches all docs).
-    assert!(!prefetched.candidates.is_empty(), "Collector1 should produce non-empty candidates");
+    assert!(
+        !prefetched.candidates.is_empty(),
+        "Collector1 should produce non-empty candidates"
+    );
 
     // Downcast context to TreePrefetch to inspect per_leaf bitmaps.
-    let tree_prefetch = prefetched.context
+    let tree_prefetch = prefetched
+        .context
         .downcast_ref::<crate::indexed_table::eval::TreePrefetch>()
         .expect("context should be TreePrefetch");
 
     // Critical assertion: per_leaf must have 2 entries (one per collector).
     assert_eq!(
-        tree_prefetch.per_leaf.len(), 2,
+        tree_prefetch.per_leaf.len(),
+        2,
         "both collectors must have per_leaf entries; got {}",
         tree_prefetch.per_leaf.len()
     );
 
     // Collector0 (inside pruned AND subtree) must have EMPTY bitmap.
     let has_empty = tree_prefetch.per_leaf.iter().any(|(_, bm)| bm.is_empty());
-    assert!(has_empty, "pruned Collector0 should have an empty bitmap in per_leaf");
+    assert!(
+        has_empty,
+        "pruned Collector0 should have an empty bitmap in per_leaf"
+    );
 
     // Collector1 (surviving) must have NON-EMPTY bitmap.
     let has_nonempty = tree_prefetch.per_leaf.iter().any(|(_, bm)| !bm.is_empty());
-    assert!(has_nonempty, "surviving Collector1 should have a non-empty bitmap in per_leaf");
+    assert!(
+        has_nonempty,
+        "surviving Collector1 should have a non-empty bitmap in per_leaf"
+    );
 }
 
 /// Regression test for the flatten-misalignment bug: when the BoolNode tree
@@ -1892,7 +2033,11 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
 /// Without the fix, branch0's pruning would incorrectly affect branch1.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stats_prune_three_way_or_flatten_misalignment_regression() {
-    let specs = vec![WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 }];
+    let specs = vec![WideSegSpec {
+        brand: "amazon",
+        rows: 16,
+        max_rg_rows: 4,
+    }];
 
     // Build as nested OR(OR(A,B), C) — this is how convert_expr produces it
     // from `A OR B OR C` (left-associative binary OR).
@@ -1926,14 +2071,21 @@ async fn stats_prune_three_way_or_flatten_misalignment_regression() {
     });
 
     let rows = run_wide_segments_with_stats_pruning(specs, tree, 1).await;
-    assert_eq!(rows, expected, "3-way OR with nested structure must produce correct results after flatten");
+    assert_eq!(
+        rows, expected,
+        "3-way OR with nested structure must produce correct results after flatten"
+    );
 }
 
 /// Same as above but tests different clause orderings to ensure no
 /// order-dependent pruning bugs.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stats_prune_three_way_or_ordering_independence() {
-    let specs = vec![WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 }];
+    let specs = vec![WideSegSpec {
+        brand: "amazon",
+        rows: 16,
+        max_rg_rows: 4,
+    }];
 
     let expected = wide_oracle(&specs, |i| {
         let price = (i as i32) * 10;
@@ -1951,35 +2103,67 @@ async fn stats_prune_three_way_or_ordering_independence() {
         // OR(OR(A,B), C)
         BoolNode::Or(vec![
             BoolNode::Or(vec![
-                BoolNode::And(vec![BoolNode::Collector { annotation_id: 0 }, pred_wide_int("price", Operator::Gt, 100)]),
-                BoolNode::And(vec![BoolNode::Collector { annotation_id: 1 }, pred_wide_str("region", Operator::Eq, "us-east")]),
+                BoolNode::And(vec![
+                    BoolNode::Collector { annotation_id: 0 },
+                    pred_wide_int("price", Operator::Gt, 100),
+                ]),
+                BoolNode::And(vec![
+                    BoolNode::Collector { annotation_id: 1 },
+                    pred_wide_str("region", Operator::Eq, "us-east"),
+                ]),
             ]),
-            BoolNode::And(vec![BoolNode::Collector { annotation_id: 2 }, pred_wide_int("qty", Operator::Gt, 5)]),
+            BoolNode::And(vec![
+                BoolNode::Collector { annotation_id: 2 },
+                pred_wide_int("qty", Operator::Gt, 5),
+            ]),
         ]),
         // OR(A, OR(B,C))
         BoolNode::Or(vec![
-            BoolNode::And(vec![BoolNode::Collector { annotation_id: 0 }, pred_wide_int("price", Operator::Gt, 100)]),
+            BoolNode::And(vec![
+                BoolNode::Collector { annotation_id: 0 },
+                pred_wide_int("price", Operator::Gt, 100),
+            ]),
             BoolNode::Or(vec![
-                BoolNode::And(vec![BoolNode::Collector { annotation_id: 1 }, pred_wide_str("region", Operator::Eq, "us-east")]),
-                BoolNode::And(vec![BoolNode::Collector { annotation_id: 2 }, pred_wide_int("qty", Operator::Gt, 5)]),
+                BoolNode::And(vec![
+                    BoolNode::Collector { annotation_id: 1 },
+                    pred_wide_str("region", Operator::Eq, "us-east"),
+                ]),
+                BoolNode::And(vec![
+                    BoolNode::Collector { annotation_id: 2 },
+                    pred_wide_int("qty", Operator::Gt, 5),
+                ]),
             ]),
         ]),
         // OR(OR(B,C), A)
         BoolNode::Or(vec![
             BoolNode::Or(vec![
-                BoolNode::And(vec![BoolNode::Collector { annotation_id: 1 }, pred_wide_str("region", Operator::Eq, "us-east")]),
-                BoolNode::And(vec![BoolNode::Collector { annotation_id: 2 }, pred_wide_int("qty", Operator::Gt, 5)]),
+                BoolNode::And(vec![
+                    BoolNode::Collector { annotation_id: 1 },
+                    pred_wide_str("region", Operator::Eq, "us-east"),
+                ]),
+                BoolNode::And(vec![
+                    BoolNode::Collector { annotation_id: 2 },
+                    pred_wide_int("qty", Operator::Gt, 5),
+                ]),
             ]),
-            BoolNode::And(vec![BoolNode::Collector { annotation_id: 0 }, pred_wide_int("price", Operator::Gt, 100)]),
+            BoolNode::And(vec![
+                BoolNode::Collector { annotation_id: 0 },
+                pred_wide_int("price", Operator::Gt, 100),
+            ]),
         ]),
     ];
 
     for (idx, tree) in orderings.into_iter().enumerate() {
         let rows = run_wide_segments_with_stats_pruning(
-            vec![WideSegSpec { brand: "amazon", rows: 16, max_rg_rows: 4 }],
+            vec![WideSegSpec {
+                brand: "amazon",
+                rows: 16,
+                max_rg_rows: 4,
+            }],
             tree,
             1,
-        ).await;
+        )
+        .await;
         assert_eq!(rows, expected, "ordering {} produced wrong results", idx);
     }
 }

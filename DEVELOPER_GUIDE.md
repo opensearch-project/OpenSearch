@@ -193,6 +193,12 @@ External plugins may also be fetched and installed from maven snapshots:
 ./gradlew run -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin']"
 ```
 
+In case when `opensearch-security` is required, provide the `crypto.standard` property explicitly:
+
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-security']" -Pcrypto.standard=FIPS-140-3
+```
+
 You can specify a plugin version to pull to test a specific version in the org.opensearch.plugin groupId:
 ```bash
 ./gradlew run -PinstalledPlugins="['opensearch-job-scheduler:3.3.x.x']"
@@ -216,7 +222,7 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 ```bash
 curl localhost:9200
 ```
-The expected reponse should be
+The expected response should be
 ```
 {
   "name" : "runTask-0",

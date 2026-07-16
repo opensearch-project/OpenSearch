@@ -2693,6 +2693,7 @@ dependencies = [
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
+ "tokio",
 ]
 
 [[package]]
@@ -2955,6 +2956,7 @@ dependencies = [
  "object_store",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

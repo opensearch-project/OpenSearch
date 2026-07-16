@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
@@ -147,8 +148,33 @@ public class AnalyticsSearchService implements AutoCloseable {
             throw e;
         } catch (Exception e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            // Log the original failure with its full stack at the origin: the thrown exception is handed
+            // to async dispatch / stream transport and can be re-wrapped or swallowed downstream, so this
+            // is the one place guaranteed to see the real cause and stack.
+            LOGGER.warn(
+                new ParameterizedMessage(
+                    "[FragmentExecution] failed to start streaming fragment on shard={} queryId={} stageId={}",
+                    shard.shardId(),
+                    resolved.queryId,
+                    resolved.stageId
+                ),
+                e
+            );
+            // Convert native errors (e.g. memory-pool / admission trips) to typed exceptions via the
+            // ACTUALLY-SELECTED backend so a resource-exhaustion failure surfaces as 429 instead of a
+            // generic 500. Only wrap as a generic RuntimeException when conversion found nothing.
+            Exception converted = convertWith(resolved.plan().getBackendId(), e);
+            if (converted != e) {
+                throw converted instanceof RuntimeException re ? re : new RuntimeException(converted);
+            }
             throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
         }
+    }
+
+    /** Converts {@code e} via the named backend's exception SPI; returns {@code e} unchanged if the backend is absent or doesn't recognize it. */
+    private Exception convertWith(String backendId, Exception e) {
+        AnalyticsSearchBackendPlugin backend = backends.get(backendId);
+        return backend == null ? e : backend.convertException(e);
     }
 
     private record ResolvedExecution(FragmentResources resources, ResolvedFragment resolved) implements AutoCloseable {
@@ -229,7 +255,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                 } catch (Exception e) {
                     // Query phase failed: no fetch will follow, so free the reader eagerly (no-op if already freed).
                     readerContextStore.freeContext(request.getQueryId(), shard.shardId());
-                    responseHandler.onFailure(e);
+                    responseHandler.onFailure(convertWith(selectedBackendId(request), e));
                 }
             });
         } catch (Exception e) {
@@ -352,7 +378,10 @@ public class AnalyticsSearchService implements AutoCloseable {
             if (rowIdVector != null) rowIdVector.close();
             // Fetch is terminal: free the reader eagerly.
             readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
-            responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
+            Exception converted = backend.convertException(e);
+            responseHandler.onFailure(
+                converted == e ? new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e) : converted
+            );
             return;
         }
         // On cancel, release a fetch parked in the native pull via cooperative cancellation, not
@@ -365,7 +394,7 @@ public class AnalyticsSearchService implements AutoCloseable {
             }
             responseHandler.onComplete();
         } catch (Exception e) {
-            responseHandler.onFailure(e);
+            responseHandler.onFailure(backend.convertException(e));
         } finally {
             task.clearCancellationListener();
         }
@@ -525,6 +554,20 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,
         int stageId, String shardIdStr) {
+    }
+
+    /**
+     * Backend id of the plan alternative {@code request} will actually run — the first whose backend is
+     * registered locally. Mirrors {@link #resolveFragment}'s selection so exception conversion uses the
+     * same backend that produced the failure. Returns null if none is registered.
+     */
+    private String selectedBackendId(FragmentExecutionRequest request) {
+        for (FragmentExecutionRequest.PlanAlternative alt : request.getPlanAlternatives()) {
+            if (backends.containsKey(alt.getBackendId())) {
+                return alt.getBackendId();
+            }
+        }
+        return null;
     }
 
     private ResolvedFragment resolveFragment(FragmentExecutionRequest request, IndexShard shard) {

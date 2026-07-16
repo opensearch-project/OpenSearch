@@ -8,20 +8,18 @@
 
 use std::sync::Arc;
 
-use native_bridge_common::log_debug;
-use datafusion::{
-    common::DataFusionError,
-    datasource::listing::ListingTableUrl,
-    execution::runtime_env::RuntimeEnvBuilder,
-    physical_plan::displayable,
-    physical_plan::execute_stream,
-};
 use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{col, lit};
+use datafusion::{
+    common::DataFusionError, datasource::listing::ListingTableUrl,
+    execution::runtime_env::RuntimeEnvBuilder, physical_plan::displayable,
+    physical_plan::execute_stream,
+};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
+use native_bridge_common::log_debug;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use prost::Message;
@@ -30,7 +28,9 @@ use substrait::proto::Plan;
 use crate::api::{DataFusionRuntime, ShardFileInfo};
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::helper::{build_query_runtime_env_with_store, build_query_session_context, register_listing_table};
+use crate::helper::{
+    build_query_runtime_env_with_store, build_query_session_context, register_listing_table,
+};
 use crate::session_context::SessionContextHandle;
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
@@ -146,9 +146,8 @@ async fn build_dataframe(
     }
 
     // Standard user-search flow: Substrait → logical plan → DataFrame.
-    let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
-        DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
-    })?;
+    let substrait_plan = Plan::decode(plan_bytes)
+        .map_err(|e| DataFusionError::Execution(format!("Failed to decode Substrait: {}", e)))?;
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     ctx.execute_logical_plan(logical_plan).await
 }
@@ -213,12 +212,20 @@ pub async fn execute_with_context(
         // and fall through to the standard decode + execute below.
         if let Some(prepared) = handle.prepared_plan.as_ref() {
             let physical_plan = std::sync::Arc::clone(prepared);
-            let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
-                error!("execute_with_context: failed to execute prepared plan: {}", e);
-                e
-            })?;
+            let df_stream =
+                execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
+                    error!(
+                        "execute_with_context: failed to execute prepared plan: {}",
+                        e
+                    );
+                    e
+                })?;
             let (cross_rt_stream, abort_handle, _task_done) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
+                CrossRtStream::new_with_df_error_stream_cancellable(
+                    df_stream,
+                    cpu_executor.clone(),
+                    None,
+                );
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
             }
@@ -229,9 +236,13 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>(
-                (Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)),
-            );
+            return Ok::<
+                (
+                    i64,
+                    Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+                ),
+                DataFusionError,
+            >((Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)));
         }
 
         let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
@@ -240,7 +251,10 @@ pub async fn execute_with_context(
 
         // Union schema widening was applied at table registration (session_context::widen_to_union_schema).
         let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
-        log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
+        log_debug!(
+            "DataFusion logical plan:\n{}",
+            logical_plan.display_indent()
+        );
 
         // Empty shard: skip physical planning (ParquetExec errors on zero files)
         // and emit an EmptyExec stream with the logical plan's output schema.
@@ -249,8 +263,7 @@ pub async fn execute_with_context(
             use datafusion::physical_plan::ExecutionPlan;
             let plan_schema: arrow::datatypes::SchemaRef =
                 Arc::new(logical_plan.schema().as_arrow().clone());
-            let plan_schema =
-                crate::schema_coerce::coerce_inferred_schema(plan_schema);
+            let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
             let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
             let df_stream = empty_exec.execute(0, handle.ctx.task_ctx()).map_err(|e| {
                 error!("execute_with_context: failed to create empty stream: {}", e);
@@ -258,7 +271,11 @@ pub async fn execute_with_context(
             })?;
 
             let (cross_rt_stream, abort_handle, _task_done) =
-                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
+                CrossRtStream::new_with_df_error_stream_cancellable(
+                    df_stream,
+                    cpu_executor.clone(),
+                    None,
+                );
             if let Some(h) = abort_handle {
                 crate::query_tracker::set_abort_handle(context_id, h);
             }
@@ -269,7 +286,13 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>((Box::into_raw(Box::new(wrapped)) as i64, None));
+            return Ok::<
+                (
+                    i64,
+                    Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+                ),
+                DataFusionError,
+            >((Box::into_raw(Box::new(wrapped)) as i64, None));
         }
 
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
@@ -278,16 +301,25 @@ pub async fn execute_with_context(
         let physical_plan = dataframe.create_physical_plan().await?;
 
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
+        let physical_plan =
+            crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+        log_debug!(
+            "DataFusion physical plan:\n{}",
+            displayable(physical_plan.as_ref()).indent(true)
+        );
 
-        let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
-            error!("execute_with_context: failed to create stream: {}", e);
-            e
-        })?;
+        let df_stream =
+            execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
+                error!("execute_with_context: failed to create stream: {}", e);
+                e
+            })?;
 
         let (cross_rt_stream, abort_handle, _task_done) =
-            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor.clone(), None);
+            CrossRtStream::new_with_df_error_stream_cancellable(
+                df_stream,
+                cpu_executor.clone(),
+                None,
+            );
 
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id, h);
@@ -301,20 +333,43 @@ pub async fn execute_with_context(
             cross_rt_stream,
         );
 
-        Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>((Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)))
+        Ok::<
+            (
+                i64,
+                Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+            ),
+            DataFusionError,
+        >((Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)))
     };
 
-    let (stream_ptr, physical_plan) = crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
-        .await
-        .map_err(|e| DataFusionError::Execution(e))?;
+    let (stream_ptr, physical_plan) =
+        crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
+            .await
+            .map_err(|e| DataFusionError::Execution(e))?;
 
     // Reconstruct the stream from the raw pointer
-    let stream = unsafe { *Box::from_raw(stream_ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>) };
+    let stream = unsafe {
+        *Box::from_raw(
+            stream_ptr
+                as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>,
+        )
+    };
     // Permit is held until the QueryStreamHandle is dropped (query complete).
     // If cancellation fires → stream drops → handle drops → permit drops → gate releases.
     let stream_handle = match physical_plan {
-        Some(plan) => crate::api::QueryStreamHandle::with_physical_plan(stream, handle.query_context, handle.ctx, Some(permit), plan),
-        None => crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit)),
+        Some(plan) => crate::api::QueryStreamHandle::with_physical_plan(
+            stream,
+            handle.query_context,
+            handle.ctx,
+            Some(permit),
+            plan,
+        ),
+        None => crate::api::QueryStreamHandle::with_session_context(
+            stream,
+            handle.query_context,
+            handle.ctx,
+            Some(permit),
+        ),
     };
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
@@ -330,7 +385,9 @@ pub fn query_runtime_env_builder(
     list_file_cache: Arc<DefaultListFilesCache>,
 ) -> RuntimeEnvBuilder {
     RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_object_store_registry(Arc::new(datafusion::execution::object_store::DefaultObjectStoreRegistry::new()))
+        .with_object_store_registry(Arc::new(
+            datafusion::execution::object_store::DefaultObjectStoreRegistry::new(),
+        ))
         .with_cache_manager(
             CacheManagerConfig::default()
                 .with_list_files_cache(Some(list_file_cache))
@@ -358,7 +415,10 @@ pub fn build_query_runtime_env(
         table: None,
         path: table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.to_vec()));
+    list_file_cache.put(
+        &table_scoped_path,
+        CachedFileList::new(object_metas.to_vec()),
+    );
 
     let runtime_env = query_runtime_env_builder(runtime, list_file_cache).build()?;
     Ok(Arc::from(runtime_env))
@@ -374,8 +434,10 @@ pub async fn build_shard_file_infos(
     let mut cumulative_rows: i64 = 0;
     for meta in object_metas {
         let reader = datafusion::parquet::arrow::async_reader::ParquetObjectReader::new(
-            Arc::clone(store), meta.location.clone(),
-        ).with_file_size(meta.size);
+            Arc::clone(store),
+            meta.location.clone(),
+        )
+        .with_file_size(meta.size);
         let builder = datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder::new(reader)
             .await
             .map_err(|e| DataFusionError::Execution(format!("parquet metadata: {}", e)))?;
@@ -399,13 +461,17 @@ pub async fn build_shard_file_infos(
 }
 
 /// Parse a ListingTableUrl into an ObjectStoreUrl (scheme + authority).
-pub fn store_url_from_table_path(table_path: &ListingTableUrl) -> Result<datafusion::execution::object_store::ObjectStoreUrl, DataFusionError> {
+pub fn store_url_from_table_path(
+    table_path: &ListingTableUrl,
+) -> Result<datafusion::execution::object_store::ObjectStoreUrl, DataFusionError> {
     let url_str = table_path.as_str();
     let parsed = url::Url::parse(url_str)
         .map_err(|e| DataFusionError::Execution(format!("parse URL: {}", e)))?;
-    datafusion::execution::object_store::ObjectStoreUrl::parse(
-        format!("{}://{}", parsed.scheme(), parsed.authority()),
-    )
+    datafusion::execution::object_store::ObjectStoreUrl::parse(format!(
+        "{}://{}",
+        parsed.scheme(),
+        parsed.authority()
+    ))
 }
 
 /// Wrap a DataFusion stream in CrossRtStream and package as a QueryStreamHandle pointer.

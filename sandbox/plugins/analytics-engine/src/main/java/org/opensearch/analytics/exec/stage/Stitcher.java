@@ -15,6 +15,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.exec.VectorUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -76,6 +77,14 @@ public final class Stitcher {
     private final ConcurrentLinkedQueue<Exception> failures = new ConcurrentLinkedQueue<>();
     private final Runnable onComplete;
     private final Object outputLock = new Object();
+    /**
+     * Guards the output VSR's disposition, mutated only under {@link #outputLock}. Set once, either
+     * to {@code true} when {@link #finish} hands output to {@code parentSink} (ownership transferred
+     * — this stitcher must not close it), or left {@code false} so exactly one of {@link #finish}'s
+     * finally or {@link #close} frees it. Prevents a double-close race between the last shard's
+     * {@code finish} and a concurrent terminal-transition {@code close}.
+     */
+    private boolean outputDisposed = false;
 
     public Stitcher(
         BufferAllocator allocator,
@@ -169,21 +178,72 @@ public final class Stitcher {
     }
 
     private void finish() {
+        // Ownership of the output VSR transfers to parentSink only once feed() returns normally
+        // (see ExchangeSink#feed — the sink then owns and releases it). Until then this stitcher
+        // owns output's buffers, which live on the coordinator allocator; if setRowCount /
+        // sanitizeNullViewSlots / feed throws before the hand-off, the finally must free them or
+        // they leak onto the long-lived coordinator allocator (the pool never goes back down).
+        boolean ownershipTransferred = false;
         try {
             if (failures.isEmpty()) {
                 output.setRowCount(totalRows);
                 VectorUtils.sanitizeNullViewSlots(output);
                 parentSink.feed(output);
-                parentSink.close();
+                // Mark disposed under the lock BEFORE anything else can observe it, so a concurrent
+                // close() (from the stage's terminal transition) sees ownership has moved and won't
+                // close the VSR parentSink now owns.
+                synchronized (outputLock) {
+                    outputDisposed = true;
+                }
+                ownershipTransferred = true;
+                // Guard the sink close like the failure branch below: feed() already transferred
+                // ownership of output, so a close-time failure must not propagate out of finish()
+                // (it runs on a shard's GatherListener callback thread) — log and swallow it.
+                try {
+                    parentSink.close();
+                } catch (Exception e) {
+                    logger.warn(new ParameterizedMessage("[Stitcher] parentSink.close() failed after emit for {} rows", totalRows), e);
+                }
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
             } else {
-                output.close();
                 try {
                     parentSink.close();
                 } catch (Exception ignore) {}
             }
         } finally {
+            if (ownershipTransferred == false) {
+                closeOutputOnce();
+            }
             onComplete.run();
+        }
+    }
+
+    /**
+     * Releases the pre-allocated output VSR if it was never emitted. Idempotent and safe to call
+     * from the owning LM stage's terminal / cancel path to cover the window where {@link #finish}
+     * never runs — e.g. a shard's fetch stream neither completes nor fails (dropped listener, node
+     * lost mid-fetch, task cancelled before the stream terminates), so {@link #pendingShards} never
+     * reaches zero. Without this, {@code output}'s buffers stay pinned on the coordinator allocator
+     * for the node's lifetime. A no-op once ownership has transferred to {@code parentSink} via
+     * {@link #finish}, and a no-op on repeated calls.
+     */
+    public void close() {
+        closeOutputOnce();
+    }
+
+    /**
+     * Closes {@code output} at most once, and never after ownership transferred to {@code parentSink}.
+     * The {@code outputDisposed} flag is read-and-set under {@link #outputLock} so the last shard's
+     * {@link #finish} and a concurrent terminal-transition {@link #close} cannot double-close (or
+     * close a VSR the sink now owns).
+     */
+    private void closeOutputOnce() {
+        synchronized (outputLock) {
+            if (outputDisposed) {
+                return;
+            }
+            outputDisposed = true;
+            output.close();
         }
     }
 

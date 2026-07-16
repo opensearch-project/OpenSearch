@@ -395,6 +395,29 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     }
 
     /**
+     * COUNT(DISTINCT smallint_col) inserts a widening CAST(col AS INTEGER) below the aggregate
+     * so DataFusion uses HLL (Binary state) instead of bitmap (List state).
+     */
+    public void testCountDistinctOnSmallintWidensToInteger() {
+        RelNode scan = stubScan(
+            mockTable("test_index", new String[] { "status", "size" }, new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.SMALLINT })
+        );
+        AggregateCall countDistinct = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        RelNode result = runPlanner(makeAggregate(scan, countDistinct), defaultContext(1));
+        String plan = RelOptUtil.toString(result);
+        logger.info("Full plan with SMALLINT dc:\n{}", plan);
+        assertTrue("Plan must contain CAST to widen SMALLINT to INTEGER", plan.contains("CAST") && plan.contains("INTEGER"));
+    }
+
+    /**
      * Stdop {@code APPROX_COUNT_DISTINCT} (already canonical) must not be rewritten — the rule's
      * predicate excludes the stdop, so no Project wrap is added and the result is a plain
      * {@link OpenSearchAggregate}.

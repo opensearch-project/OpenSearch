@@ -64,32 +64,49 @@ impl FileCursor {
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
         let writer_generation = crate::writer_properties_builder::read_writer_generation(
-            builder.metadata().file_metadata(), file_id,
+            builder.metadata().file_metadata(),
+            file_id,
         );
         let total_row_count = builder.metadata().file_metadata().num_rows() as usize;
         let parquet_schema_descr = builder.parquet_schema().clone();
 
         // Resolve sort column types
-        let sort_col_types: Vec<ArrowDataType> = sort_columns.iter()
-            .map(|col| schema.fields().iter()
-                .find(|f| f.name() == col.as_str())
-                .map(|f| f.data_type().clone())
-                .ok_or_else(|| MergeError::Logic(format!(
-                    "Sort column '{}' not found in file '{}' (cursor {})", col, path, file_id
-                )))
-            )
+        let sort_col_types: Vec<ArrowDataType> = sort_columns
+            .iter()
+            .map(|col| {
+                schema
+                    .fields()
+                    .iter()
+                    .find(|f| f.name() == col.as_str())
+                    .map(|f| f.data_type().clone())
+                    .ok_or_else(|| {
+                        MergeError::Logic(format!(
+                            "Sort column '{}' not found in file '{}' (cursor {})",
+                            col, path, file_id
+                        ))
+                    })
+            })
             .collect::<MergeResult<_>>()?;
 
         // Decide mode based on schema width
         let sort_col_set: std::collections::HashSet<&str> =
             sort_columns.iter().map(|s| s.as_str()).collect();
-        let deferred = schema.fields().iter()
+        let deferred = schema
+            .fields()
+            .iter()
             .filter(|f| !sort_col_set.contains(f.name().as_str()))
             .filter(|f| f.name() != super::schema::ROW_ID_COLUMN_NAME)
-            .filter(|f| matches!(f.data_type(),
-                ArrowDataType::Utf8 | ArrowDataType::LargeUtf8
-                | ArrowDataType::Binary | ArrowDataType::LargeBinary))
-            .count() >= deferred_threshold;
+            .filter(|f| {
+                matches!(
+                    f.data_type(),
+                    ArrowDataType::Utf8
+                        | ArrowDataType::LargeUtf8
+                        | ArrowDataType::Binary
+                        | ArrowDataType::LargeBinary
+                )
+            })
+            .count()
+            >= deferred_threshold;
 
         // Data projection: all columns except __row_id__
         let data_projection_indices = projection_indices_excluding_row_id(&schema);
@@ -98,50 +115,76 @@ impl FileCursor {
         let file1 = File::open(path)?;
         let builder1 = ParquetRecordBatchReaderBuilder::try_new(file1)?;
         let sort_projection = if deferred {
-            let sort_indices: Vec<usize> = sort_columns.iter()
+            let sort_indices: Vec<usize> = sort_columns
+                .iter()
                 .filter_map(|c| schema.fields().iter().position(|f| f.name() == c.as_str()))
                 .collect();
             parquet::arrow::ProjectionMask::roots(builder1.parquet_schema(), sort_indices)
         } else {
-            parquet::arrow::ProjectionMask::roots(builder1.parquet_schema(), data_projection_indices.clone())
+            parquet::arrow::ProjectionMask::roots(
+                builder1.parquet_schema(),
+                data_projection_indices.clone(),
+            )
         };
-        let mut sort_reader = builder1.with_batch_size(batch_size).with_projection(sort_projection).build()?;
+        let mut sort_reader = builder1
+            .with_batch_size(batch_size)
+            .with_projection(sort_projection)
+            .build()?;
 
         // Build data reader (only in deferred mode)
         let data_reader = if deferred {
             let file2 = File::open(path)?;
             let builder2 = ParquetRecordBatchReaderBuilder::try_new(file2)?;
             let data_proj = parquet::arrow::ProjectionMask::roots(
-                builder2.parquet_schema(), data_projection_indices.clone(),
+                builder2.parquet_schema(),
+                data_projection_indices.clone(),
             );
-            Some(builder2.with_batch_size(batch_size).with_projection(data_proj).build()?)
+            Some(
+                builder2
+                    .with_batch_size(batch_size)
+                    .with_projection(data_proj)
+                    .build()?,
+            )
         } else {
             None
         };
 
         // Projected schema from file metadata
         let projected_schema = Arc::new(ArrowSchema::new(
-            data_projection_indices.iter().map(|&i| schema.field(i).clone()).collect::<Vec<_>>()
+            data_projection_indices
+                .iter()
+                .map(|&i| schema.field(i).clone())
+                .collect::<Vec<_>>(),
         ));
 
         // Read first sort batch
         let first_sort_batch = match sort_reader.next() {
             Some(Ok(b)) if b.num_rows() > 0 => b,
             Some(Err(e)) => return Err(e.into()),
-            _ => return Err(MergeError::Logic(format!(
-                "File '{}' (cursor {}) yielded no rows", path, file_id
-            ))),
+            _ => {
+                return Err(MergeError::Logic(format!(
+                    "File '{}' (cursor {}) yielded no rows",
+                    path, file_id
+                )))
+            }
         };
 
         // Resolve sort column indices within the sort batch schema
         let sort_batch_schema = first_sort_batch.schema();
-        let sort_col_indices: Vec<usize> = sort_columns.iter()
-            .map(|col| sort_batch_schema.fields().iter()
-                .position(|f| f.name() == col.as_str())
-                .ok_or_else(|| MergeError::Logic(format!(
-                    "Sort column '{}' not found in projected batch for file '{}'", col, path
-                )))
-            )
+        let sort_col_indices: Vec<usize> = sort_columns
+            .iter()
+            .map(|col| {
+                sort_batch_schema
+                    .fields()
+                    .iter()
+                    .position(|f| f.name() == col.as_str())
+                    .ok_or_else(|| {
+                        MergeError::Logic(format!(
+                            "Sort column '{}' not found in projected batch for file '{}'",
+                            col, path
+                        ))
+                    })
+            })
             .collect::<MergeResult<_>>()?;
 
         let (sort_prefetch_tx, sort_prefetch_rx) =
@@ -174,7 +217,13 @@ impl FileCursor {
         cursor.current_sort_batch_bytes = batch_bytes;
 
         cursor.start_sort_prefetch();
-        Ok((cursor, projected_schema, parquet_schema_descr, writer_generation, total_row_count))
+        Ok((
+            cursor,
+            projected_schema,
+            parquet_schema_descr,
+            writer_generation,
+            total_row_count,
+        ))
     }
 
     fn start_sort_prefetch(&mut self) {
@@ -268,7 +317,9 @@ impl FileCursor {
     }
 
     fn try_load_data(&mut self, reservation: &mut MemoryReservation) -> MergeResult<()> {
-        let reader = self.data_reader.as_mut()
+        let reader = self
+            .data_reader
+            .as_mut()
             .ok_or_else(|| MergeError::Logic("Data reader already closed".into()))?;
 
         // Release previous data_batch — about to load a new one
@@ -293,7 +344,9 @@ impl FileCursor {
                             if batch.num_rows() != sb.num_rows() {
                                 return Err(MergeError::Logic(format!(
                                     "Data batch rows ({}) != sort batch rows ({}) at index {}",
-                                    batch.num_rows(), sb.num_rows(), self.sort_batch_index
+                                    batch.num_rows(),
+                                    sb.num_rows(),
+                                    self.sort_batch_index
                                 )));
                             }
                         }
@@ -307,10 +360,12 @@ impl FileCursor {
                     self.data_batch_index += 1;
                 }
                 Some(Err(e)) => return Err(e.into()),
-                None => return Err(MergeError::Logic(format!(
-                    "Data reader exhausted at position {}, needed sort_batch_index={}",
-                    self.data_batch_index, self.sort_batch_index
-                ))),
+                None => {
+                    return Err(MergeError::Logic(format!(
+                        "Data reader exhausted at position {}, needed sort_batch_index={}",
+                        self.data_batch_index, self.sort_batch_index
+                    )))
+                }
             }
         }
         Ok(())
@@ -318,16 +373,32 @@ impl FileCursor {
 
     #[inline]
     pub fn current_sort_values(&self) -> MergeResult<Vec<SortKey>> {
-        let batch = self.sort_batch.as_ref()
+        let batch = self
+            .sort_batch
+            .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
-        get_sort_values(batch, self.row_idx, &self.sort_col_indices, &self.sort_col_types, &self.nulls_first)
+        get_sort_values(
+            batch,
+            self.row_idx,
+            &self.sort_col_indices,
+            &self.sort_col_types,
+            &self.nulls_first,
+        )
     }
 
     #[inline]
     pub fn last_sort_values(&self) -> MergeResult<Vec<SortKey>> {
-        let batch = self.sort_batch.as_ref()
+        let batch = self
+            .sort_batch
+            .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
-        get_sort_values(batch, batch.num_rows() - 1, &self.sort_col_indices, &self.sort_col_types, &self.nulls_first)
+        get_sort_values(
+            batch,
+            batch.num_rows() - 1,
+            &self.sort_col_indices,
+            &self.sort_col_types,
+            &self.nulls_first,
+        )
     }
 
     #[inline]
@@ -336,14 +407,23 @@ impl FileCursor {
     }
 
     #[inline]
-    pub fn take_slice(&mut self, start: usize, len: usize, reservation: &mut MemoryReservation) -> MergeResult<RecordBatch> {
+    pub fn take_slice(
+        &mut self,
+        start: usize,
+        len: usize,
+        reservation: &mut MemoryReservation,
+    ) -> MergeResult<RecordBatch> {
         if self.deferred {
             self.ensure_data_loaded(reservation)?;
-            let batch = self.data_batch.as_ref()
+            let batch = self
+                .data_batch
+                .as_ref()
                 .ok_or_else(|| MergeError::Logic("Data batch not loaded".into()))?;
             Ok(batch.slice(start, len))
         } else {
-            let batch = self.sort_batch.as_ref()
+            let batch = self
+                .sort_batch
+                .as_ref()
                 .ok_or_else(|| MergeError::Logic("Batch is None".into()))?;
             Ok(batch.slice(start, len))
         }

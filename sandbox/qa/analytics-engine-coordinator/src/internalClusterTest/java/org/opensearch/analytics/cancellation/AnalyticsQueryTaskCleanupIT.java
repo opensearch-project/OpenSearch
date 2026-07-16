@@ -10,7 +10,9 @@ package org.opensearch.analytics.cancellation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
@@ -26,6 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
@@ -38,6 +41,8 @@ import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -124,6 +129,7 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
+            .put("datafusion.spill_directory", createTempDir().toString())
             .build();
     }
 
@@ -217,6 +223,16 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
         return client().execute(UnifiedPPLExecuteAction.INSTANCE, new PPLRequest(ppl)).actionGet(timeout);
     }
 
+    /** Returns {@code target} if any OpenSearchException in {@code t}'s cause chain reports it, else null. */
+    private static RestStatus firstStatus(Throwable t, RestStatus target) {
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            if (c instanceof OpenSearchException ose && ose.status() == target) {
+                return ose.status();
+            }
+        }
+        return null;
+    }
+
     private void assertNoResidualTasks(String action) throws Exception {
         assertBusy(() -> {
             ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
@@ -245,6 +261,134 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * The REAL native pool-exhaustion path (no injection): squeeze {@code datafusion.memory_pool_limit_bytes}
+     * to 1 so a GROUP BY aggregation trips the native memory pool on the shard. The native error
+     * ("Failed to allocate …") is NOT a {@code CircuitBreakingException} object — it is converted to one on
+     * the data node by the backend's {@code convertException} SPI ({@code NativeErrorConverter}) before it
+     * crosses transport, then tagged RESOURCE_EXHAUSTED ({@code AnalyticsTransportErrors.toWireError}) and
+     * rebuilt into a breaker at the coordinator ({@code AnalyticsTransportErrors.fromWireError}). Without the
+     * data-node conversion the raw native error crosses as a typeless INTERNAL error and surfaces as HTTP 500
+     * ("Stage 0 failed"). This is the path {@code MemoryGuardIT} exercises; here we assert the unwrapped
+     * 429 and clean teardown.
+     */
+    public void testRealNativePoolExhaustionSurfacesAs429AndCleansUp() throws Exception {
+        createAndSeedIndex();
+        // Squeeze the native pool so any aggregation allocation trips it.
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("datafusion.memory_pool_limit_bytes", 1L))
+                .get()
+                .isAcknowledged()
+        );
+        try {
+            Throwable failure = null;
+            PPLResponse response = null;
+            try {
+                response = executePPL("source = " + INDEX + " | stats count() by value", QUERY_TIMEOUT);
+            } catch (Throwable t) {
+                failure = t;
+            }
+            assertNotNull("native pool exhaustion must fail the query, not return (response=" + response + ")", failure);
+            // The contract is the STATUS (429), not a specific class: a native pool/admission trip is
+            // converted on the data node to either a CircuitBreakingException or an OpenSearchStatusException
+            // (admission-rejected), both of which report TOO_MANY_REQUESTS. Find the 429-bearing exception
+            // anywhere in the surfaced cause chain.
+            RestStatus status = firstStatus(failure, RestStatus.TOO_MANY_REQUESTS);
+            assertEquals(
+                "a native memory-pool trip must surface as HTTP 429 (got " + failure.getClass().getName() + ": " + failure
+                    .getMessage() + ")",
+                RestStatus.TOO_MANY_REQUESTS,
+                status
+            );
+            assertNoNativeLeak(failure);
+        } finally {
+            // Reset so other tests / teardown aren't starved.
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull("datafusion.memory_pool_limit_bytes"))
+                .get();
+        }
+        assertNoResidualTasks(AnalyticsQueryAction.NAME);
+        assertNoResidualTasks(FragmentExecutionAction.NAME);
+    }
+
+    /**
+     * Real native pool exhaustion through a SORT/LIMIT (TopK) query on a MULTI-SHARD index — the exact
+     * staging shape (high-q07..q10). The shard fragment trips the pool, the breaker crosses stream
+     * transport, and must surface to the user as HTTP 429 with NO leaked native allocator dump
+     * ("top memory consumers / query_untracked(...) consumed N MB"). Exercises BOTH the shard→coordinator
+     * transport path and the cause sanitization.
+     */
+    public void testShardSortPoolExhaustionSurfacesAs429WithoutLeak() throws Exception {
+        createAndSeedIndex();
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("datafusion.memory_pool_limit_bytes", 1L))
+                .get()
+                .isAcknowledged()
+        );
+        try {
+            Throwable failure = null;
+            PPLResponse response = null;
+            try {
+                response = executePPL("source = " + INDEX + " | sort value | head 50", QUERY_TIMEOUT);
+            } catch (Throwable t) {
+                failure = t;
+            }
+            assertNotNull("shard sort pool exhaustion must fail the query (response=" + response + ")", failure);
+            assertEquals(
+                "a shard-side native pool trip must surface as HTTP 429 (got " + failure.getClass().getName() + ": " + failure
+                    .getMessage() + ")",
+                RestStatus.TOO_MANY_REQUESTS,
+                firstStatus(failure, RestStatus.TOO_MANY_REQUESTS)
+            );
+            assertNoNativeLeak(failure);
+        } finally {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull("datafusion.memory_pool_limit_bytes"))
+                .get();
+        }
+        assertNoResidualTasks(AnalyticsQueryAction.NAME);
+        assertNoResidualTasks(FragmentExecutionAction.NAME);
+    }
+
+    /** Flattens an exception's cause chain to a single string (class:message per level) for substring checks. */
+    private static String renderedChain(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            sb.append(c.getClass().getName()).append(':').append(c.getMessage()).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** Asserts no raw native allocator internals leak into the rendered exception chain shown to the user. */
+    private static void assertNoNativeLeak(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            sb.append(c.getClass().getName()).append(':').append(c.getMessage()).append('\n');
+        }
+        String rendered = sb.toString();
+        for (String leak : new String[] {
+            "top memory consumers",
+            "query_untracked",
+            "can spill",
+            "already reserved",
+            "GroupedHashAggregateStream",
+            "RepartitionExec",
+            "batch_size",
+            "avg_row_bytes" }) {
+            assertFalse("native detail '" + leak + "' must not leak to the user, got: " + rendered, rendered.contains(leak));
+        }
+    }
+
+    /**
      * A shard fragment returning a {@link TaskCancelledException} over stream transport — exactly what
      * Search BackPressure does when it cancels a leaf {@code AnalyticsShardTask} (the bottom-up cancel
      * that does NOT touch the coordinator action) — must tear down the whole query cleanly: the
@@ -262,8 +406,13 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
         for (String node : internalCluster().getDataNodeNames()) {
             MockTransportService mts = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
             mts.addRequestHandlingBehavior(FragmentExecutionAction.NAME, (handler, request, channel, task) -> {
-                // What SBP surfaces when it cancels the shard task mid-fragment.
-                channel.sendResponse(new TaskCancelledException("task cancelled by search backpressure on " + node));
+                // Replacing the handler bypasses the production classify seam (channelResponseHandler.onFailure
+                // → AnalyticsTransportErrors.toWireError), so we inject the post-classification wire form: a
+                // StreamException(CANCELLED). This exercises the half that crosses the wire + the coordinator's
+                // fromWireError, mirroring what production produces when SBP cancels a shard fragment.
+                channel.sendResponse(
+                    new StreamException(StreamErrorCode.CANCELLED, "task cancelled by search backpressure on " + node)
+                );
             });
             mtsList.add(mts);
         }
@@ -283,6 +432,21 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
                 failure == null ? "none" : failure.getClass().getName() + ": " + failure.getMessage()
             );
             assertNotNull("a cancelled shard must fail the query, not silently return a result (response=" + response + ")", failure);
+            // Contract: the shard cancellation must reach the coordinator as a recognizable cancellation,
+            // NOT the old bare RuntimeException("Stage N failed") ISE a client would retry. There are two
+            // valid race outcomes depending on which shard's failure wins:
+            //   1. the cancel propagates as a TaskCancelledException (fromWireError rebuilds it), or
+            //   2. with multiple shards, the failure cascade cancels a sibling's gRPC stream before its
+            //      typed CANCELLED error is flushed (sendError no-ops on an already-cancelled channel), so
+            //      that stream surfaces gRPC's generic cancellation teardown ("Internal error [task_id=N]").
+            // Both are acceptable; a plain "Stage N failed" with no cancellation signal is the bug.
+            boolean isTaskCancelled = ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null;
+            boolean isGrpcCancelTeardown = renderedChain(failure).contains("Internal error [task_id=");
+            assertTrue(
+                "shard cancellation must surface as TaskCancelledException or a gRPC cancellation teardown, not a generic "
+                    + "'Stage N failed' ISE (got chain: " + renderedChain(failure) + ")",
+                isTaskCancelled || isGrpcCancelTeardown
+            );
         } finally {
             mtsList.forEach(MockTransportService::clearAllRules);
         }
@@ -401,7 +565,7 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
         assertNoResidualTasks(FetchByRowIdsAction.NAME);
     }
 
-    /** SBP stand-in on the QTF QUERY phase: TaskCancelledException → clean teardown of all three actions. */
+    /** SBP stand-in on the QTF QUERY phase: a cancelled shard fragment must tear down the whole 3-level QTF tree. */
     public void testQtfFragmentCancelTearsDownAndCleansUp() throws Exception {
         createAndSeedQtfIndex();
         assertQtfInjectedFailureSurfacesAndCleansUp(
@@ -410,7 +574,7 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
         );
     }
 
-    /** SBP stand-in on the QTF FETCH phase: TaskCancelledException → clean teardown of all three actions. */
+    /** SBP stand-in on the QTF FETCH phase: a cancelled fetch must tear down the whole 3-level QTF tree. */
     public void testQtfFetchCancelTearsDownAndCleansUp() throws Exception {
         createAndSeedQtfIndex();
         assertQtfInjectedFailureSurfacesAndCleansUp(
