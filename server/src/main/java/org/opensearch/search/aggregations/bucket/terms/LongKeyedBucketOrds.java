@@ -52,7 +52,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
     }
 
-    private LongKeyedBucketOrds() {}
+    private LongKeyedBucketOrds() {
+    }
 
     /**
      * Add the {@code owningBucketOrd, value} pair. Return the ord for
@@ -107,6 +108,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public interface BucketOrdsEnum {
         /**
          * Advance to the next value.
+         * 
          * @return {@code true} if there *is* a next value,
          *         {@code false} if there isn't
          */
@@ -157,7 +159,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long add(long owningBucketOrd, long value) {
-            // This is in the critical path for collecting most aggs. Be careful of performance.
+            // This is in the critical path for collecting most aggs. Be careful of
+            // performance.
             assert owningBucketOrd == 0;
             return ords.add(value);
         }
@@ -243,12 +246,13 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long add(long owningBucketOrd, long value) {
-            // This is in the critical path for collecting most aggs. Be careful of performance.
+            // This is in the critical path for collecting most aggs. Be careful of
+            // performance.
             long ord = ords.add(owningBucketOrd, value);
             if (ord >= 0) {
                 maxOwningBucketOrd = Math.max(maxOwningBucketOrd, owningBucketOrd);
                 bucketOrdsCounts = bigArrays.grow(bucketOrdsCounts, owningBucketOrd + 1);
-                bucketOrdsCounts.set(owningBucketOrd, bucketOrdsCounts.get(owningBucketOrd) + 1);
+                bucketOrdsCounts.increment(owningBucketOrd, 1);
             }
             return ord;
         }
@@ -316,13 +320,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
-            try {
-                ords.close();
-            } finally {
-                if (bucketOrdsCounts != null) {
-                    bucketOrdsCounts.close();
-                }
-            }
+            ords.close();
+            bucketOrdsCounts.close();
         }
     }
 }
