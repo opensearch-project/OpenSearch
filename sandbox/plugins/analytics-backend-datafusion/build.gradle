@@ -80,7 +80,7 @@ dependencies {
   implementation "io.substrait:core:0.89.1"
   // avatica ByteString is needed at compile time for IpBinaryFunctionAdapter's VARBINARY
   // literal construction; runtime is provided by analytics-framework's runtimeOnly avatica.
-  compileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
+  compileOnly "org.apache.calcite.avatica:avatica-core:${versions.avatica}"
   // CIDR parsing for CidrMatchFunctionAdapter (parses cidr strings into 16-byte ipv6 ranges
   // for the byte-range AND rewrite + literal-only const-fold tiers).
   implementation "com.github.seancfoley:ipaddress:5.4.2"

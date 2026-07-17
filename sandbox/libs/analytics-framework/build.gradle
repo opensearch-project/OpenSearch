@@ -53,7 +53,7 @@ dependencies {
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
   // Calcite's JDBC abstraction layer — required by calcite-core internals
-  runtimeOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+  runtimeOnly "org.apache.calcite.avatica:avatica-core:${versions.avatica}"
   // Guava — required by Calcite internally, forbidden on compile classpaths by OpenSearch policy
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'
@@ -83,7 +83,7 @@ dependencies {
   testRuntimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   testRuntimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   testRuntimeOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
-  runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
+  runtimeOnly "com.jayway.jsonpath:json-path:${versions.jsonpath}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
