@@ -108,6 +108,8 @@ flatbuffers           = "2.0.0"
 # Published as org.apache.calcite:calcite-core:${calcite}-opensearch-${calcite_os_rev}.
 calcite               = "1.41.0"
 calcite_os_rev        = "1"
+avatica               = "1.28.0"
+jsonpath              = "2.10.0"
 
 # property-based testing
 [libraries]
