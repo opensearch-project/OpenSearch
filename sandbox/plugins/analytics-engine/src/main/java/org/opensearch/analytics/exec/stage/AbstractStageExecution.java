@@ -16,6 +16,7 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.Collections;
 import java.util.List;
@@ -105,29 +106,49 @@ public abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
-     * Template: materialise task list, hand to {@link #publishTasksAndStart}. Final —
-     * subclasses customise via {@link #materializeTasks()}. Any exception from
-     * {@code materializeTasks()} marks the stage FAILED rather than leaking back to the
-     * scheduler.
+     * Template: materialise task list (possibly async), hand to {@link #publishTasksAndStart}.
+     * Final — subclasses customise via {@link #materializeTasks()} for synchronous work or
+     * {@link #materializeTasksAsync} for deferred work (e.g. a network round-trip).
+     *
+     * <p>{@code start()} may return BEFORE the stage has transitioned to RUNNING when the
+     * async path is used. Callers that need to act on the transition must register a state
+     * listener rather than polling {@link #getState()} after this call.
      */
     @Override
     public final void start() {
-        List<StageTask> ts;
         try {
-            ts = materializeTasks();
+            materializeTasksAsync(ActionListener.wrap(this::publishTasksAndStart, this::failWithCause));
         } catch (Exception e) {
             failWithCause(e);
-            return;
         }
-        publishTasksAndStart(ts);
     }
 
     /**
      * Build this stage's task list. Called once from {@link #start()}. Return empty for
      * "nothing to do" — the base will short-circuit straight to SUCCEEDED. Throw to mark
      * the stage FAILED (e.g. target resolution failure).
+     *
+     * <p>Default sync path; override {@link #materializeTasksAsync} instead when work must
+     * be deferred (network call, lock wait, etc.).
      */
     protected abstract List<StageTask> materializeTasks();
+
+    /**
+     * Async variant of {@link #materializeTasks()}. Default runs the sync method and invokes
+     * the listener inline. Override when the work needs to defer publication — e.g.
+     * {@code ShardFragmentStageExecution} dispatches a can-match round-trip before publishing.
+     *
+     * <p>Implementations MUST eventually call exactly one of {@code listener.onResponse}
+     * or {@code listener.onFailure}. Synchronous exceptions thrown before either are caught
+     * by {@link #start()} and treated as failures.
+     */
+    protected void materializeTasksAsync(ActionListener<List<StageTask>> listener) {
+        try {
+            listener.onResponse(materializeTasks());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
     /**
      * Pre-listener cleanup hook. Fires inside {@link #transitionTo} on any terminal

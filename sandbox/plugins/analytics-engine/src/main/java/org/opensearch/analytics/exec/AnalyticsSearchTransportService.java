@@ -86,6 +86,10 @@ public class AnalyticsSearchTransportService {
         registerCanMatchHandler(this.transportService, searchService);
     }
 
+    public StreamTransportService getTransportService() {
+        return transportService;
+    }
+
     private static void registerStreamingFragmentHandler(
         StreamTransportService transportService,
         AnalyticsSearchService searchService,

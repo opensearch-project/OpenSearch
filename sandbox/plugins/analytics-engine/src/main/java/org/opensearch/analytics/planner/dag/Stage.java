@@ -9,6 +9,8 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilterExtractor;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
@@ -58,6 +60,8 @@ public class Stage {
     @Nullable
     private InputSinkDecorator inputSinkDecorator;
 
+    private final List<CanMatchFilter> canMatchFilters;
+
     public Stage(
         int stageId,
         RelNode fragment,
@@ -74,6 +78,7 @@ public class Stage {
         this.targetResolver = targetResolver;
         this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver, fragment);
         this.planAlternatives = List.of();
+        this.canMatchFilters = fragment != null ? CanMatchFilterExtractor.extract(fragment) : List.of();
     }
 
     public int getStageId() {
@@ -83,6 +88,11 @@ public class Stage {
     /** Marked plan fragment with annotations intact. */
     public RelNode getFragment() {
         return fragment;
+    }
+
+    /** Range filters extracted from the fragment at DAG-build time for can-match pre-filtering. */
+    public List<CanMatchFilter> getCanMatchFilters() {
+        return canMatchFilters;
     }
 
     public List<Stage> getChildStages() {

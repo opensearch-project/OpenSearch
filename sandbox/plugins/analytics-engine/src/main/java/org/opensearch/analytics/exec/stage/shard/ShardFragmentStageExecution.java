@@ -9,12 +9,17 @@
 package org.opensearch.analytics.exec.stage.shard;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
+import org.opensearch.analytics.exec.canmatch.CanMatchPreFilterPhase;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageTask;
@@ -24,11 +29,15 @@ import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
@@ -40,9 +49,13 @@ import java.util.function.Function;
  */
 public class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
 
+    private static final Logger logger = LogManager.getLogger(ShardFragmentStageExecution.class);
+    private static final TimeValue CAN_MATCH_TIMEOUT = TimeValue.timeValueSeconds(30);
+
     private final QueryContext config;
     private final ExchangeSink outputSink;
     private final ClusterService clusterService;
+    private final AnalyticsSearchTransportService dispatcher;
 
     public ShardFragmentStageExecution(
         Stage stage,
@@ -56,22 +69,104 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         this.config = config;
         this.outputSink = outputSink;
         this.clusterService = clusterService;
+        this.dispatcher = dispatcher;
         this.runner = new ShardTaskRunner(this, config, dispatcher, requestBuilder);
     }
 
     @Override
     protected List<StageTask> materializeTasks() {
-        List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
-        // Empty list → base short-circuits to SUCCEEDED (nothing to dispatch).
-        List<StageTask> tasks = new ArrayList<>(resolved.size());
-        List<ShardExecutionTarget> shardTargets = new ArrayList<>(resolved.size());
-        for (int i = 0; i < resolved.size(); i++) {
-            ExecutionTarget target = resolved.get(i);
+        return buildTasks(stage.getTargetResolver().resolve(clusterService.state(), null));
+    }
+
+    @Override
+    protected void materializeTasksAsync(ActionListener<List<StageTask>> listener) {
+        final List<ExecutionTarget> resolved;
+        try {
+            resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (resolved.isEmpty()) {
+            listener.onResponse(List.of());
+            return;
+        }
+
+        List<CanMatchFilter> filters = stage.getCanMatchFilters();
+        if (dispatcher == null || filters == null || filters.isEmpty()) {
+            listener.onResponse(buildTasks(resolved));
+            return;
+        }
+
+        byte[] filterBytes;
+        try {
+            filterBytes = CanMatchFilterSerializer.serialize(filters);
+        } catch (Exception e) {
+            logger.debug("can-match: filter serialization failed, skipping prune: {}", e.getMessage());
+            listener.onResponse(buildTasks(resolved));
+            return;
+        }
+
+        CanMatchPreFilterPhase canMatchPhase = new CanMatchPreFilterPhase(dispatcher.getTransportService());
+        dispatchWithTimeoutAsync(
+            resolved,
+            filterBytes,
+            canMatchPhase,
+            CAN_MATCH_TIMEOUT,
+            ActionListener.wrap(filtered -> listener.onResponse(buildTasks(filtered)), e -> listener.onResponse(buildTasks(resolved)))
+        );
+    }
+
+    /**
+     * Dispatches can-match with a timeout. Ensures exactly one listener invocation:
+     * either the filtered result on success, or the full target list on timeout/error.
+     */
+    private void dispatchWithTimeoutAsync(
+        List<ExecutionTarget> targets,
+        byte[] filterBytes,
+        CanMatchPreFilterPhase phase,
+        TimeValue timeout,
+        ActionListener<List<ExecutionTarget>> listener
+    ) {
+        long startNanos = System.nanoTime();
+        AtomicBoolean fired = new AtomicBoolean(false);
+
+        Scheduler.ScheduledCancellable scheduled = dispatcher.getTransportService().getThreadPool().schedule(() -> {
+            if (fired.compareAndSet(false, true)) {
+                logger.warn("can-match timed out after {} — fail-open, using all targets", timeout);
+                listener.onResponse(targets);
+            }
+        }, timeout, ThreadPool.Names.SAME);
+
+        phase.filter(targets, filterBytes, ActionListener.wrap(filtered -> {
+            if (fired.compareAndSet(false, true)) {
+                scheduled.cancel();
+                long elapsed = (System.nanoTime() - startNanos) / 1_000_000;
+                logger.debug(
+                    "can-match complete: {} shards checked, {} pruned, {}ms",
+                    targets.size(),
+                    targets.size() - filtered.size(),
+                    elapsed
+                );
+                listener.onResponse(filtered);
+            }
+        }, e -> {
+            if (fired.compareAndSet(false, true)) {
+                scheduled.cancel();
+                logger.debug("can-match failed, using all targets: {}", e.getMessage());
+                listener.onResponse(targets);
+            }
+        }));
+    }
+
+    private List<StageTask> buildTasks(List<ExecutionTarget> targets) {
+        List<StageTask> tasks = new ArrayList<>(targets.size());
+        List<ShardExecutionTarget> shardTargets = new ArrayList<>(targets.size());
+        for (int i = 0; i < targets.size(); i++) {
+            ExecutionTarget target = targets.get(i);
             tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), target));
             shardTargets.add((ShardExecutionTarget) target);
         }
-        // Side-table for cross-stage routing (e.g. QTF Phase C maps ___ugsi → target).
-        // See QueryContext.resolvedTargetsByStage Javadoc for HACK rationale.
         config.recordResolvedTargets(getStageId(), shardTargets);
         return tasks;
     }
