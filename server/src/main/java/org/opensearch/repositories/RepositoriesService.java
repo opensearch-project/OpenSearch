@@ -174,6 +174,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerOrUpdateRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
+        final long startTimeMillis = threadPool.relativeTimeInMillis();
+        final ActionListener<ClusterStateUpdateResponse> timedListener = ActionListener.runAfter(
+            listener,
+            () -> logger.info(
+                "put/update repository [{}] took [{}]",
+                request.name(),
+                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+            )
+        );
+
         RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
             request.name(),
             request.type(),
@@ -188,7 +198,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
-            registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
+            registrationListener = ActionListener.delegateFailure(timedListener, (delegatedListener, clusterStateUpdateResponse) -> {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
                     verifyRepository(
@@ -203,7 +213,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             });
         } else {
-            registrationListener = listener;
+            registrationListener = timedListener;
         }
 
         Repository currentRepository = repositories.get(request.name());
@@ -341,9 +351,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @param listener unregister repository listener
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        final long startTimeMillis = threadPool.relativeTimeInMillis();
+        final ActionListener<ClusterStateUpdateResponse> timedListener = ActionListener.runAfter(
+            listener,
+            () -> logger.info(
+                "delete repository [{}] took [{}]",
+                request.name(),
+                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+            )
+        );
         clusterService.submitStateUpdateTask(
             "delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, timedListener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -509,7 +528,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     repositoryMetadata
                                 );
                                 repository.validateMetadata(repositoryMetadata);
+                                final long reloadStartTimeMillis = threadPool.relativeTimeInMillis();
                                 repository.reload(repositoryMetadata);
+                                logger.info(
+                                    "reloaded repository [{}][{}] in [{}]",
+                                    repositoryMetadata.type(),
+                                    repositoryMetadata.name(),
+                                    TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - reloadStartTimeMillis)
+                                );
                             } else {
                                 logger.debug("updating repository [{}]", repositoryMetadata.name());
                                 closeRepository(repository);
@@ -664,7 +690,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /** Closes the given repository. */
     public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
+        final long startTimeMillis = threadPool.relativeTimeInMillis();
         repository.close();
+        logger.info(
+            "closed repository [{}][{}] in [{}]",
+            repository.getMetadata().type(),
+            repository.getMetadata().name(),
+            TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+        );
     }
 
     /**
@@ -685,8 +718,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         Repository repository = null;
         try {
+            final long startTimeMillis = threadPool.relativeTimeInMillis();
             repository = factory.create(repositoryMetadata, factories::get);
             repository.start();
+            logger.info(
+                "created repository [{}][{}] in [{}]",
+                repositoryMetadata.type(),
+                repositoryMetadata.name(),
+                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+            );
             return repository;
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(repository);
