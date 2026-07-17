@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion.nativelib;
 import org.opensearch.be.datafusion.stats.AdaptiveBudgetStats;
 import org.opensearch.be.datafusion.stats.CacheGroupStats;
 import org.opensearch.be.datafusion.stats.CacheStats;
+import org.opensearch.be.datafusion.stats.LiquidCacheStats;
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
 import org.opensearch.be.datafusion.stats.SearchStats;
@@ -95,12 +96,13 @@ public final class StatsLayout {
         partitionGateGroup("fragment_executor_gate"),
         adaptiveBudgetGroup("adaptive_budget"),
         cacheStatsGroup("cache_stats"),
-        searchStatsGroup("search_stats")
+        searchStatsGroup("search_stats"),
+        liquidCacheStatsGroup("liquid_cache")
     );
 
     static {
-        if (LAYOUT.byteSize() != 85 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (85 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 93 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (93 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -214,6 +216,16 @@ public final class StatsLayout {
     private static final VarHandle SS_ON_BATCH_MASK_TIME_MS = handle("search_stats", "on_batch_mask_time_ms");
     private static final VarHandle SS_FILTER_RECORD_BATCH_TIME_MS = handle("search_stats", "filter_record_batch_time_ms");
     private static final VarHandle SS_OBJECT_STORE_READ_TIME_MS = handle("search_stats", "object_store_read_time_ms");
+
+    // ---- VarHandles for liquid_cache fields ----
+    private static final VarHandle LC_CACHE_HIT = handle("liquid_cache", "cache_hit");
+    private static final VarHandle LC_CACHE_MISS = handle("liquid_cache", "cache_miss");
+    private static final VarHandle LC_PREDICATE_EVALS = handle("liquid_cache", "predicate_evals");
+    private static final VarHandle LC_MEMORY_EVICTIONS = handle("liquid_cache", "memory_evictions");
+    private static final VarHandle LC_TRANSCODES = handle("liquid_cache", "transcodes");
+    private static final VarHandle LC_TOTAL_ENTRIES = handle("liquid_cache", "total_entries");
+    private static final VarHandle LC_MEMORY_USAGE_BYTES = handle("liquid_cache", "memory_usage_bytes");
+    private static final VarHandle LC_MAX_MEMORY_BYTES = handle("liquid_cache", "max_memory_bytes");
 
     private StatsLayout() {}
 
@@ -380,6 +392,25 @@ public final class StatsLayout {
         return new AdaptiveBudgetStats((long) AB_FALLBACKS.get(seg, 0L), (long) AB_REJECTIONS.get(seg, 0L));
     }
 
+    /**
+     * Read the liquid_cache group (8 fields) from the segment.
+     *
+     * @param seg the memory segment containing the DfStatsBuffer
+     * @return a populated LiquidCacheStats instance (all-zero when LC is not engaged)
+     */
+    public static LiquidCacheStats readLiquidCacheStats(MemorySegment seg) {
+        return new LiquidCacheStats(
+            (long) LC_CACHE_HIT.get(seg, 0L),
+            (long) LC_CACHE_MISS.get(seg, 0L),
+            (long) LC_PREDICATE_EVALS.get(seg, 0L),
+            (long) LC_MEMORY_EVICTIONS.get(seg, 0L),
+            (long) LC_TRANSCODES.get(seg, 0L),
+            (long) LC_TOTAL_ENTRIES.get(seg, 0L),
+            (long) LC_MEMORY_USAGE_BYTES.get(seg, 0L),
+            (long) LC_MAX_MEMORY_BYTES.get(seg, 0L)
+        );
+    }
+
     // ---- Private helpers ----
 
     private static StructLayout runtimeGroup(String name) {
@@ -463,6 +494,19 @@ public final class StatsLayout {
     private static StructLayout adaptiveBudgetGroup(String name) {
         return MemoryLayout.structLayout(ValueLayout.JAVA_LONG.withName("fallbacks"), ValueLayout.JAVA_LONG.withName("rejections"))
             .withName(name);
+    }
+
+    private static StructLayout liquidCacheStatsGroup(String name) {
+        return MemoryLayout.structLayout(
+            ValueLayout.JAVA_LONG.withName("cache_hit"),
+            ValueLayout.JAVA_LONG.withName("cache_miss"),
+            ValueLayout.JAVA_LONG.withName("predicate_evals"),
+            ValueLayout.JAVA_LONG.withName("memory_evictions"),
+            ValueLayout.JAVA_LONG.withName("transcodes"),
+            ValueLayout.JAVA_LONG.withName("total_entries"),
+            ValueLayout.JAVA_LONG.withName("memory_usage_bytes"),
+            ValueLayout.JAVA_LONG.withName("max_memory_bytes")
+        ).withName(name);
     }
 
     private static VarHandle handle(String group, String field) {

@@ -14,6 +14,7 @@ import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.be.datafusion.stats.AdaptiveBudgetStats;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.LiquidCacheStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
@@ -174,6 +175,8 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
             }
         }
 
-        return new DataFusionStats(filteredNativeStats, fragmentExecutorGate, adaptiveBudget, spillStats);
+        LiquidCacheStats liquidCache = filter.contains("liquid_cache") ? stats.getLiquidCacheStats() : null;
+
+        return new DataFusionStats(filteredNativeStats, fragmentExecutorGate, adaptiveBudget, spillStats, null, null, liquidCache);
     }
 }

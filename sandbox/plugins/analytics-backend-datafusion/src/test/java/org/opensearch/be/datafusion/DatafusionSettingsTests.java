@@ -54,8 +54,53 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
         assertTrue(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.hasNodeScope());
     }
 
+    public void testLiquidCacheIndexedQueryMaxColumnsSettingDefinition() {
+        assertEquals(
+            "datafusion.liquid_cache.indexed_query.max_columns",
+            DatafusionSettings.LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS.getKey()
+        );
+        assertEquals(Integer.valueOf(10), DatafusionSettings.LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS.get(Settings.EMPTY));
+        assertTrue(DatafusionSettings.LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS.isDynamic());
+        assertTrue(DatafusionSettings.LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS.hasNodeScope());
+    }
+
+    public void testLiquidCacheListingTableMaxColumnsSettingDefinition() {
+        assertEquals(
+            "datafusion.liquid_cache.listing_table.max_columns",
+            DatafusionSettings.LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS.getKey()
+        );
+        assertEquals(Integer.valueOf(4), DatafusionSettings.LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS.get(Settings.EMPTY));
+        assertTrue(DatafusionSettings.LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS.isDynamic());
+        assertTrue(DatafusionSettings.LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS.hasNodeScope());
+    }
+
+    public void testLiquidCacheEvictionPolicySettingDefinition() {
+        assertEquals("datafusion.liquid_cache.eviction_policy", DatafusionSettings.LIQUID_CACHE_EVICTION_POLICY.getKey());
+        assertEquals("lru", DatafusionSettings.LIQUID_CACHE_EVICTION_POLICY.get(Settings.EMPTY));
+        assertTrue(DatafusionSettings.LIQUID_CACHE_EVICTION_POLICY.hasNodeScope());
+        assertFalse("eviction policy is Final, not dynamic", DatafusionSettings.LIQUID_CACHE_EVICTION_POLICY.isDynamic());
+    }
+
+    public void testLiquidCacheEvictionPolicyValidationAndNormalization() {
+        // Accepted values, case-insensitive, normalized to the lower-case form the native runtime matches on.
+        assertEquals("lru", DatafusionSettings.validateLiquidCacheEvictionPolicy("LRU"));
+        assertEquals("liquid", DatafusionSettings.validateLiquidCacheEvictionPolicy("Liquid"));
+        assertEquals(
+            "lru",
+            DatafusionSettings.LIQUID_CACHE_EVICTION_POLICY.get(
+                Settings.builder().put("datafusion.liquid_cache.eviction_policy", "LRU").build()
+            )
+        );
+        // Any other value is rejected so an operator typo fails fast instead of silently defaulting.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DatafusionSettings.validateLiquidCacheEvictionPolicy("fifo")
+        );
+        assertTrue(e.getMessage().contains("eviction_policy"));
+    }
+
     public void testAllSettingsContainsAllExpectedSettings() {
-        assertEquals(31, DatafusionSettings.ALL_SETTINGS.size());
+        assertEquals(36, DatafusionSettings.ALL_SETTINGS.size());
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY));

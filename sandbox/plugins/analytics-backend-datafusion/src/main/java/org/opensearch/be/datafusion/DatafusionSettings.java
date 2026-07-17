@@ -19,6 +19,7 @@ import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.search.SearchService;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Consolidates all DataFusion plugin settings (existing memory/spill/reduce/cache settings
@@ -188,6 +189,89 @@ public final class DatafusionSettings {
 
     // ── All settings registered by the plugin ──
 
+    /**
+     * Dynamically enables or disables Liquid Cache for new queries.
+     * When false, optimizers are not injected and queries bypass the cache.
+     * The cache remains initialized (for fast re-enable) but idle.
+     */
+    public static final Setting<Boolean> LIQUID_CACHE_ENABLED = Setting.boolSetting(
+        "datafusion.liquid_cache.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls the Liquid Cache max memory size in bytes for byte-level Parquet caching.
+     * Only used when liquid cache is enabled via the experimental feature flag.
+     */
+    public static final Setting<Long> LIQUID_CACHE_SIZE = Setting.longSetting(
+        "datafusion.liquid_cache.size_bytes",
+        1L * 1024 * 1024 * 1024, // 1GB default
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Liquid Cache eviction policy.
+     * <ul>
+     *   <li>{@code lru} (default) — Standard LRU eviction across all entry types (LruPolicy)</li>
+     *   <li>{@code liquid} — Independent FIFO queues per batch type (LiquidPolicy)</li>
+     * </ul>
+     * Validated to one of the two accepted values (case-insensitive, normalized to
+     * lower-case for the native runtime). {@code NodeScope + Final} — the policy is
+     * built once at runtime startup.
+     */
+    public static final Setting<String> LIQUID_CACHE_EVICTION_POLICY = new Setting<>(
+        "datafusion.liquid_cache.eviction_policy",
+        "lru",
+        DatafusionSettings::validateLiquidCacheEvictionPolicy,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * Validates and normalizes the liquid cache eviction policy. Accepts
+     * {@code liquid} or {@code lru} (case-insensitive) and returns the lower-case
+     * form the native runtime matches on; any other value is rejected so an
+     * operator typo fails fast instead of silently selecting a default policy.
+     */
+    static String validateLiquidCacheEvictionPolicy(String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        if (!normalized.equals("liquid") && !normalized.equals("lru")) {
+            throw new IllegalArgumentException(
+                "Invalid value [" + value + "] for [datafusion.liquid_cache.eviction_policy]. Must be 'liquid' or 'lru'."
+            );
+        }
+        return normalized;
+    }
+
+    /**
+     * Maximum number of output columns for LC engagement on the <b>indexed-query</b> path
+     * (indexed_table::parquet_bridge). Queries projecting more columns than this are skipped.
+     */
+    public static final Setting<Integer> LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS = Setting.intSetting(
+        "datafusion.liquid_cache.indexed_query.max_columns",
+        10,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of output columns for LC engagement on the <b>listing-table</b> path
+     * (LocalModeOptimizer). Defaults lower than the indexed path because the listing path
+     * decodes full columns, so per-column cache overhead outweighs decode savings sooner.
+     */
+    public static final Setting<Integer> LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS = Setting.intSetting(
+        "datafusion.liquid_cache.listing_table.max_columns",
+        4,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
 
         // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
@@ -229,7 +313,13 @@ public final class DatafusionSettings {
         INDEXED_PUSHDOWN_FILTERS,
         INDEXED_MIN_SKIP_RUN_DEFAULT,
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
-        INDEXED_FORCE_STRATEGY
+        INDEXED_FORCE_STRATEGY,
+
+        LIQUID_CACHE_ENABLED,
+        LIQUID_CACHE_SIZE,
+        LIQUID_CACHE_EVICTION_POLICY,
+        LIQUID_CACHE_INDEXED_QUERY_MAX_COLUMNS,
+        LIQUID_CACHE_LISTING_TABLE_MAX_COLUMNS
     );
 
     // ── Snapshot management ──

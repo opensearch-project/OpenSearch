@@ -128,6 +128,16 @@ public class FeatureFlags {
     public static final Setting<Boolean> STREAM_TRANSPORT_SETTING = Setting.boolSetting(STREAM_TRANSPORT, false, Property.NodeScope);
 
     /**
+     * Gates the functionality of Liquid Cache for byte-level Parquet caching.
+     */
+    public static final String LIQUID_CACHE_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "liquid_cache.enabled";
+    public static final Setting<Boolean> LIQUID_CACHE_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        LIQUID_CACHE_EXPERIMENTAL_FLAG,
+        false,
+        Property.NodeScope
+    );
+
+    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -153,6 +163,7 @@ public class FeatureFlags {
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING, CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(LIQUID_CACHE_EXPERIMENTAL_SETTING, LIQUID_CACHE_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
             }
         };
 

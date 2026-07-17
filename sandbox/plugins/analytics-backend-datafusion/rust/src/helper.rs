@@ -178,6 +178,15 @@ pub fn build_query_session_context(
         // combine-partial-final physical optimizer pass.
         builder = builder.with_physical_optimizer_rules(physical_optimizer_rules_without_combine());
     }
+    // Only apply the physical optimizer (LocalModeLiquidCacheOptimizer) — it
+    // wraps ParquetSource with LiquidParquetSource for filter pushdown +
+    // decoded-batch caching. The LineageOptimizer (logical) is excluded because
+    // it adds planning overhead that causes regression.
+    if crate::liquid_cache::LiquidOnlyRuntime::is_enabled_globally() {
+        if let Some(optimizer) = crate::liquid_cache::LiquidOnlyRuntime::optimizer_globally() {
+            builder = builder.with_physical_optimizer_rule(optimizer);
+        }
+    }
     let state = builder.build();
 
     let ctx = SessionContext::new_with_state(state);

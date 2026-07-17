@@ -53,7 +53,7 @@ public class NativeBridgeLocalSessionTests extends OpenSearchTestCase {
     private NativeRuntimeHandle createRuntime() {
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
-        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024, false, 0L, "lru");
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
         return new NativeRuntimeHandle(runtimePtr);
     }

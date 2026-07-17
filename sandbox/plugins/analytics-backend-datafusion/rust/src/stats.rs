@@ -140,6 +140,53 @@ pub struct SearchStatsRepr {
     pub object_store_read_time_ms: i64,
 }
 
+/// Liquid Cache counters (node-global). Appended at the END of DfStatsBuffer
+/// so existing field offsets in the Java StatsLayout mirror are unchanged.
+#[repr(C)]
+pub struct LiquidCacheStatsRepr {
+    pub cache_hit: i64,
+    pub cache_miss: i64,
+    pub predicate_evals: i64,
+    pub memory_evictions: i64,
+    pub transcodes: i64,
+    pub total_entries: i64,
+    pub memory_usage_bytes: i64,
+    pub max_memory_bytes: i64,
+}
+
+impl Default for LiquidCacheStatsRepr {
+    fn default() -> Self {
+        Self {
+            cache_hit: 0,
+            cache_miss: 0,
+            predicate_evals: 0,
+            memory_evictions: 0,
+            transcodes: 0,
+            total_entries: 0,
+            memory_usage_bytes: 0,
+            max_memory_bytes: 0,
+        }
+    }
+}
+
+/// Packs the current Liquid Cache counters, or zeros if the runtime is not
+/// initialized (feature flag off / never engaged). Non-destructive read.
+pub fn pack_liquid_cache_stats() -> LiquidCacheStatsRepr {
+    match crate::liquid_cache::LiquidOnlyRuntime::liquid_cache_stats_for_ffi() {
+        Some(v) => LiquidCacheStatsRepr {
+            cache_hit: v[0],
+            cache_miss: v[1],
+            predicate_evals: v[2],
+            memory_evictions: v[3],
+            transcodes: v[4],
+            total_entries: v[5],
+            memory_usage_bytes: v[6],
+            max_memory_bytes: v[7],
+        },
+        None => LiquidCacheStatsRepr::default(),
+    }
+}
+
 #[repr(C)]
 pub struct DfStatsBuffer {
     pub io_runtime: RuntimeMetricsRepr,
@@ -152,6 +199,7 @@ pub struct DfStatsBuffer {
     pub adaptive_budget: AdaptiveBudgetRepr,
     pub cache_stats: CacheStatsRepr,
     pub search_stats: SearchStatsRepr,
+    pub liquid_cache: LiquidCacheStatsRepr,
 }
 
 #[repr(C)]
@@ -167,12 +215,13 @@ const _: () = assert!(size_of::<AdaptiveBudgetRepr>() == 2 * 8);
 const _: () = assert!(size_of::<CacheGroupRepr>() == 5 * 8);
 const _: () = assert!(size_of::<CacheStatsRepr>() == 20 * 8);
 const _: () = assert!(size_of::<SearchStatsRepr>() == 17 * 8);
-const _: () = assert!(size_of::<DfStatsBuffer>() == 85 * 8);
+const _: () = assert!(size_of::<LiquidCacheStatsRepr>() == 8 * 8);
+const _: () = assert!(size_of::<DfStatsBuffer>() == 93 * 8);
 
 pub mod layout {
     use super::*;
     pub const BUFFER_BYTE_SIZE: usize = size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 680);
+    const _: () = assert!(BUFFER_BYTE_SIZE == 744);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.

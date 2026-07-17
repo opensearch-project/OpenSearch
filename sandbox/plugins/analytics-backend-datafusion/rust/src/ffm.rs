@@ -156,17 +156,81 @@ pub unsafe extern "C" fn df_create_global_runtime(
     spill_dir_ptr: *const u8,
     spill_dir_len: i64,
     spill_limit: i64,
+    liquid_cache_enabled: i64,
+    liquid_cache_size: i64,
+    liquid_cache_eviction_policy_ptr: *const u8,
+    liquid_cache_eviction_policy_len: i64,
 ) -> i64 {
     crate::memory_guard::set_pool_limit_for_guard(memory_pool_limit);
     let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len)
         .map_err(|e| format!("df_create_global_runtime: {}", e))?;
-    api::create_global_runtime(memory_pool_limit, cache_manager_ptr, spill_dir, spill_limit)
-        .map_err(|e| e.to_string())
+    let liquid_cache_eviction_policy = str_from_raw(
+        liquid_cache_eviction_policy_ptr,
+        liquid_cache_eviction_policy_len,
+    )
+    .map_err(|e| {
+        format!(
+            "df_create_global_runtime: liquid_cache_eviction_policy: {}",
+            e
+        )
+    })?;
+    api::create_global_runtime(
+        memory_pool_limit,
+        cache_manager_ptr,
+        spill_dir,
+        spill_limit,
+        liquid_cache_enabled != 0,
+        liquid_cache_size,
+        liquid_cache_eviction_policy,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn df_close_global_runtime(ptr: i64) {
     api::close_global_runtime(ptr);
+}
+
+// ---- Liquid Cache FFM entry points ----
+
+#[no_mangle]
+pub unsafe extern "C" fn df_clear_liquid_cache(runtime_ptr: i64) {
+    // Guard the FFI boundary: a panic here (e.g. a poisoned Mutex in the cache
+    // reset path) must not unwind across `extern "C"` — on this toolchain that
+    // aborts the whole node process. Clearing is best-effort and idempotent, so
+    // a panic is caught and logged rather than propagated.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        api::clear_liquid_cache(runtime_ptr);
+    }));
+    if result.is_err() {
+        log::error!("df_clear_liquid_cache: panic while clearing liquid cache (ignored)");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn df_set_liquid_cache_enabled(enabled: i64) {
+    crate::liquid_cache::LiquidOnlyRuntime::set_enabled_globally(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "C" fn df_set_liquid_cache_memory_limit(bytes: i64) {
+    if bytes >= 0 {
+        crate::liquid_cache::LiquidOnlyRuntime::set_max_memory_bytes_globally(bytes as usize);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn df_set_liquid_cache_indexed_max_columns(count: i64) {
+    if count > 0 {
+        crate::liquid_cache::set_lc_indexed_max_columns(count as usize);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn df_set_liquid_cache_listing_max_columns(count: i64) {
+    if count > 0 {
+        crate::liquid_cache::set_lc_listing_max_columns(count as usize);
+    }
 }
 
 // ---- Memory pool observability and dynamic limit ----
@@ -489,6 +553,7 @@ pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
     api::stream_close(stream_ptr);
+    crate::liquid_cache::LiquidOnlyRuntime::log_stats_if_initialized();
 }
 
 /// Returns execution metrics as JSON bytes for the given stream.
@@ -1398,8 +1463,9 @@ pub unsafe extern "C" fn df_execute_with_context(
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i64) -> i64 {
     use crate::stats::{
-        layout, pack_adaptive_budget, pack_cache_stats, pack_partition_gate, pack_runtime_metrics,
-        pack_task_monitor, CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
+        layout, pack_adaptive_budget, pack_cache_stats, pack_liquid_cache_stats,
+        pack_partition_gate, pack_runtime_metrics, pack_task_monitor, CacheStatsRepr,
+        DfStatsBuffer, RuntimeMetricsRepr,
     };
     use crate::task_monitors::{
         coordinator_reduce_monitor, plan_setup_monitor, query_execution_monitor,
@@ -1453,6 +1519,7 @@ pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i
         adaptive_budget: pack_adaptive_budget(),
         cache_stats,
         search_stats: crate::search_stats::snapshot(),
+        liquid_cache: pack_liquid_cache_stats(),
     };
 
     // Copy struct bytes to caller buffer

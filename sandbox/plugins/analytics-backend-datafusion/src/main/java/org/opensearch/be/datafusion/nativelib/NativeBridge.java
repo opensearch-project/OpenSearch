@@ -143,6 +143,11 @@ public final class NativeBridge {
     private static final MethodHandle SET_SCOPED_PAGE_INDEX_ENABLED;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
+    private static final MethodHandle CLEAR_LIQUID_CACHE;
+    private static final MethodHandle SET_LIQUID_CACHE_ENABLED;
+    private static final MethodHandle SET_LIQUID_CACHE_MEMORY_LIMIT;
+    private static final MethodHandle SET_LIQUID_CACHE_INDEXED_MAX_COLUMNS;
+    private static final MethodHandle SET_LIQUID_CACHE_LISTING_MAX_COLUMNS;
     private static final MethodHandle STATS;
     private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
     private static final MethodHandle DF_NATIVE_NODE_STATS;
@@ -174,12 +179,41 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
         );
 
         CLOSE_GLOBAL_RUNTIME = linker.downcallHandle(
             lib.find("df_close_global_runtime").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        CLEAR_LIQUID_CACHE = linker.downcallHandle(
+            lib.find("df_clear_liquid_cache").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_LIQUID_CACHE_ENABLED = linker.downcallHandle(
+            lib.find("df_set_liquid_cache_enabled").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_LIQUID_CACHE_MEMORY_LIMIT = linker.downcallHandle(
+            lib.find("df_set_liquid_cache_memory_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_LIQUID_CACHE_INDEXED_MAX_COLUMNS = linker.downcallHandle(
+            lib.find("df_set_liquid_cache_indexed_max_columns").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_LIQUID_CACHE_LISTING_MAX_COLUMNS = linker.downcallHandle(
+            lib.find("df_set_liquid_cache_listing_max_columns").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
@@ -768,16 +802,61 @@ public final class NativeBridge {
      * This pointer is <b>not</b> a MemorySegment — it's a Rust heap address that lives
      * until {@link #closeGlobalRuntime} is called.
      */
-    public static long createGlobalRuntime(long memoryLimit, long cacheManagerPtr, String spillDir, long spillLimit) {
+    public static long createGlobalRuntime(
+        long memoryLimit,
+        long cacheManagerPtr,
+        String spillDir,
+        long spillLimit,
+        boolean liquidCacheEnabled,
+        long liquidCacheSize,
+        String liquidCacheEvictionPolicy
+    ) {
         try (var call = new NativeCall()) {
             var dir = call.str(spillDir);
-            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, cacheManagerPtr, dir.segment(), dir.len(), spillLimit);
+            var eviction = call.str(liquidCacheEvictionPolicy);
+            return call.invoke(
+                CREATE_GLOBAL_RUNTIME,
+                memoryLimit,
+                cacheManagerPtr,
+                dir.segment(),
+                dir.len(),
+                spillLimit,
+                liquidCacheEnabled ? 1L : 0L,
+                liquidCacheSize,
+                eviction.segment(),
+                eviction.len()
+            );
         }
     }
 
     /** Frees the native runtime. Safe to call once. */
     public static void closeGlobalRuntime(long ptr) {
         NativeCall.invokeVoid(CLOSE_GLOBAL_RUNTIME, ptr);
+    }
+
+    /** Clears all Liquid Cache entries and DataFusion internal caches. */
+    public static void clearLiquidCache(long runtimePtr) {
+        NativeCall.invokeVoid(CLEAR_LIQUID_CACHE, runtimePtr);
+    }
+
+    /** Dynamically enable or disable Liquid Cache for new queries. */
+    public static void setLiquidCacheEnabled(boolean enabled) {
+        NativeCall.invokeVoid(SET_LIQUID_CACHE_ENABLED, enabled ? 1L : 0L);
+    }
+
+    /** Dynamically update the Liquid Cache memory limit in bytes. */
+    public static void setLiquidCacheMemoryLimit(long bytes) {
+        NativeCall.invokeVoid(SET_LIQUID_CACHE_MEMORY_LIMIT, bytes);
+    }
+
+    /** Dynamically update the max columns for LC engagement on the indexed-query path. */
+    public static void setLiquidCacheIndexedMaxColumns(long count) {
+        NativeCall.invokeVoid(SET_LIQUID_CACHE_INDEXED_MAX_COLUMNS, count);
+    }
+
+    /** Dynamically update the max columns for LC engagement on the listing-table path. */
+    public static void setLiquidCacheListingMaxColumns(long count) {
+        NativeCall.invokeVoid(SET_LIQUID_CACHE_LISTING_MAX_COLUMNS, count);
     }
 
     // ---- Memory pool observability and dynamic limit ----
@@ -1137,13 +1216,17 @@ public final class NativeBridge {
             // Search stats
             var searchStats = StatsLayout.readSearchStats(seg);
 
+            // Liquid cache stats (zeroed in native when LC is not engaged)
+            var liquidCacheStats = StatsLayout.readLiquidCacheStats(seg);
+
             return new DataFusionStats(
                 new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
                 fragmentExecutorGate,
                 StatsLayout.readAdaptiveBudgetStats(seg),
                 null,
                 cacheStats,
-                searchStats
+                searchStats,
+                liquidCacheStats
             );
         }
     }

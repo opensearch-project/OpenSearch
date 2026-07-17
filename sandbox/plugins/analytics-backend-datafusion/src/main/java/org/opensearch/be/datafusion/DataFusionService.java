@@ -49,6 +49,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final double datanodeMultiplier;
     private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
+    private final boolean liquidCacheEnabled;
+    private final long liquidCacheSize;
+    private final String liquidCacheEvictionPolicy;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
@@ -64,6 +67,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.datanodeMultiplier = builder.datanodeMultiplier;
         this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
+        this.liquidCacheEnabled = builder.liquidCacheEnabled;
+        this.liquidCacheSize = builder.liquidCacheSize;
+        this.liquidCacheEvictionPolicy = builder.liquidCacheEvictionPolicy;
     }
 
     /** Creates a new builder. */
@@ -98,7 +104,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
         }
 
         try {
-            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            long ptr = NativeBridge.createGlobalRuntime(
+                memoryPoolLimit,
+                cacheManagerPtr,
+                spillDirectory,
+                spillMemoryLimit,
+                liquidCacheEnabled,
+                liquidCacheSize,
+                liquidCacheEvictionPolicy
+            );
             if (cacheHandle != null) {
                 cacheHandle.markConsumed();
             }
@@ -232,7 +246,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
             nativeStats.getAdaptiveBudgetStats(),
             spill,
             nativeStats.getCacheStats(),
-            nativeStats.getSearchStats()
+            nativeStats.getSearchStats(),
+            nativeStats.getLiquidCacheStats()
         );
     }
 
@@ -296,6 +311,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * Clears the Liquid Cache and DataFusion internal caches.
+     */
+    public void clearLiquidCache() {
+        NativeBridge.clearLiquidCache(getNativeRuntime().get());
+    }
+
     private void releaseRuntime() {
         NativeRuntimeHandle handle = runtimeHandle;
         if (handle != null) {
@@ -316,6 +338,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private double datanodeMultiplier = 1.0;
         private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
+        private boolean liquidCacheEnabled = false;
+        private long liquidCacheSize = 1L * 1024 * 1024 * 1024; // 1GB default
+        private String liquidCacheEvictionPolicy = "lru";
 
         private Builder() {}
 
@@ -373,6 +398,33 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder clusterSettings(ClusterSettings clusterSettings) {
             this.clusterSettings = clusterSettings;
+            return this;
+        }
+
+        /**
+         * Enables or disables Liquid Cache for byte-level Parquet caching.
+         * @param enabled whether to enable liquid cache
+         */
+        public Builder liquidCacheEnabled(boolean enabled) {
+            this.liquidCacheEnabled = enabled;
+            return this;
+        }
+
+        /**
+         * Sets the Liquid Cache size in bytes.
+         * @param bytes cache size limit
+         */
+        public Builder liquidCacheSize(long bytes) {
+            this.liquidCacheSize = bytes;
+            return this;
+        }
+
+        /**
+         * Sets the Liquid Cache eviction policy (liquid, lru).
+         * @param policy the eviction policy
+         */
+        public Builder liquidCacheEvictionPolicy(String policy) {
+            this.liquidCacheEvictionPolicy = policy;
             return this;
         }
 

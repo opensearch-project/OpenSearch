@@ -690,12 +690,14 @@ impl IndexedStream {
         rg: &RowGroupInfo,
         selection: RowSelection,
         push_predicate: bool,
+        selectivity: f64,
     ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
         parquet_bridge::create_row_selection_stream(
             &self.bridge_config(),
             rg.index,
             selection,
             push_predicate,
+            selectivity,
         )
     }
 
@@ -1079,6 +1081,15 @@ impl IndexedStream {
                     let min_skip_run =
                         self.pick_min_skip_run(candidates.len() as usize, rg.num_rows as usize);
 
+                    // Candidate selectivity for this RG — forwarded to
+                    // parquet_bridge so the Liquid Cache gate can log/decide
+                    // per-RG engagement.
+                    let selectivity = if rg.num_rows > 0 {
+                        candidates.len() as f64 / rg.num_rows as f64
+                    } else {
+                        1.0
+                    };
+
                     // Metrics: track which regime we landed in, using the
                     // same counters as before so `EXPLAIN ANALYZE` output
                     // stays comparable.
@@ -1158,7 +1169,7 @@ impl IndexedStream {
                         && !alignment_risk
                         && !self.evaluator.forbid_parquet_pushdown();
 
-                    match self.create_row_selection_stream(&rg, selection, push) {
+                    match self.create_row_selection_stream(&rg, selection, push, selectivity) {
                         Ok((stream, plan)) => {
                             if let Some(ref timer) = self.metrics.parquet_time {
                                 timer.add_duration(t_plan.elapsed());

@@ -47,7 +47,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         super.setUp();
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("spill");
-        long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
+        long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024, false, 0L, "lru");
         runtimeHandle = new NativeRuntimeHandle(ptr);
         testRootAllocator = new RootAllocator(Long.MAX_VALUE);
 
@@ -237,7 +237,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         // Create a valid stream, close the runtime handle to force streamNext failure,
         // then verify the stream still closes cleanly
         Path spillDir2 = createTempDir("spill2");
-        long ptr2 = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir2.toString(), 64 * 1024 * 1024);
+        long ptr2 = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir2.toString(), 64 * 1024 * 1024, false, 0L, "lru");
         NativeRuntimeHandle tempRuntime = new NativeRuntimeHandle(ptr2);
 
         byte[] substrait = NativeBridge.sqlToSubstrait(
