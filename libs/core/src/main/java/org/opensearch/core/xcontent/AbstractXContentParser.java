@@ -385,13 +385,19 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     // Maximum depth for recursive deserialization of nested objects/arrays.
-    private static final int MAX_DESERIALIZATION_DEPTH = Integer.parseInt(System.getProperty("opensearch.xcontent.depth.max", "100"));
+    // Must stay aligned with XContentConstraints.DEFAULT_MAX_DEPTH_PROPERTY / DEFAULT_MAX_DEPTH (same property,
+    // same default) since both guards sit on the same parse path; libs/core cannot reference libs/x-content,
+    // hence the duplicated definitions.
+    private static final String DEFAULT_MAX_DEPTH_PROPERTY = "opensearch.xcontent.depth.max";
+    private static final int MAX_NESTING_DEPTH = Integer.parseInt(
+        System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, "1000" /* StreamReadConstraints.DEFAULT_MAX_DEPTH */)
+    );
 
     // read a list without bounds checks, assuming the current parser is always on an array start
     private static List<Object> readListUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory, int depth)
         throws IOException {
-        if (depth > MAX_DESERIALIZATION_DEPTH) {
-            throw new IllegalStateException("Maximum nesting depth [" + MAX_DESERIALIZATION_DEPTH + "] exceeded");
+        if (depth > MAX_NESTING_DEPTH) {
+            throw new IllegalStateException("Maximum nesting depth [" + MAX_NESTING_DEPTH + "] exceeded");
         }
         assert parser.currentToken() == Token.START_ARRAY;
         ArrayList<Object> list = new ArrayList<>();
@@ -428,8 +434,8 @@ public abstract class AbstractXContentParser implements XContentParser {
             case VALUE_BOOLEAN:
                 return parser.booleanValue();
             case START_OBJECT: {
-                if (depth > MAX_DESERIALIZATION_DEPTH) {
-                    throw new IllegalStateException("Maximum nesting depth [" + MAX_DESERIALIZATION_DEPTH + "] exceeded");
+                if (depth > MAX_NESTING_DEPTH) {
+                    throw new IllegalStateException("Maximum nesting depth [" + MAX_NESTING_DEPTH + "] exceeded");
                 }
                 final Map<String, Object> map = mapFactory.get();
                 return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map, depth + 1);

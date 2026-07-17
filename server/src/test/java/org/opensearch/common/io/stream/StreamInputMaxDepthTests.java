@@ -17,7 +17,7 @@ public class StreamInputMaxDepthTests extends OpenSearchTestCase {
 
     public void testDeeplyNestedArrayListThrows() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 1200; i++) {
             out.writeByte((byte) 7);  // ArrayList type tag
             out.writeVInt(1);         // size = 1
         }
@@ -31,7 +31,7 @@ public class StreamInputMaxDepthTests extends OpenSearchTestCase {
 
     public void testDeeplyNestedHashMapThrows() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 1200; i++) {
             out.writeByte((byte) 10); // HashMap type tag
             out.writeVInt(1);         // size = 1
             out.writeString("k");     // key
