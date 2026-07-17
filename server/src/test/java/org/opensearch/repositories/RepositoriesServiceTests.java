@@ -144,6 +144,8 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             TestRepository::new,
             ReloadableTestRepository.TYPE,
             ReloadableTestRepository::new,
+            FailingOnStartTestRepository.TYPE,
+            FailingOnStartTestRepository::new,
             MeteredRepositoryTypeA.TYPE,
             metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -226,6 +228,27 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 )
             );
             repositoriesService.applyClusterState(new ClusterChangedEvent("removed repo", emptyState(), clusterStateWithRepo));
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testCreateRepositoryLogsTimeTakenOnFailure() throws Exception {
+        String repoName = "name";
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository creation timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "created repository [" + FailingOnStartTestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            expectThrows(
+                RepositoryException.class,
+                () -> repositoriesService.createRepository(
+                    new RepositoryMetadata(repoName, FailingOnStartTestRepository.TYPE, Settings.EMPTY)
+                )
+            );
             appender.assertAllExpectationsMatched();
         }
     }
@@ -1069,6 +1092,20 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             if (failOnReload) {
                 throw new RuntimeException("reload failed");
             }
+        }
+    }
+
+    private static class FailingOnStartTestRepository extends TestRepository {
+
+        private static final String TYPE = "failing-on-start";
+
+        private FailingOnStartTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        public void start() {
+            throw new RuntimeException("start failed");
         }
     }
 

@@ -174,13 +174,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerOrUpdateRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        final long startTimeMillis = threadPool.relativeTimeInMillis();
+        final long startTimeNanos = System.nanoTime();
         final ActionListener<ClusterStateUpdateResponse> timedListener = ActionListener.runAfter(
             listener,
             () -> logger.info(
                 "put/update repository [{}] took [{}]",
                 request.name(),
-                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
             )
         );
 
@@ -351,13 +351,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @param listener unregister repository listener
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final long startTimeMillis = threadPool.relativeTimeInMillis();
+        final long startTimeNanos = System.nanoTime();
         final ActionListener<ClusterStateUpdateResponse> timedListener = ActionListener.runAfter(
             listener,
             () -> logger.info(
                 "delete repository [{}] took [{}]",
                 request.name(),
-                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
             )
         );
         clusterService.submitStateUpdateTask(
@@ -528,7 +528,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     repositoryMetadata
                                 );
                                 repository.validateMetadata(repositoryMetadata);
-                                final long reloadStartTimeMillis = threadPool.relativeTimeInMillis();
+                                final long reloadStartTimeNanos = System.nanoTime();
                                 try {
                                     repository.reload(repositoryMetadata);
                                 } finally {
@@ -536,7 +536,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                         "reloaded repository [{}][{}] in [{}]",
                                         repositoryMetadata.type(),
                                         repositoryMetadata.name(),
-                                        TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - reloadStartTimeMillis)
+                                        TimeValue.timeValueNanos(System.nanoTime() - reloadStartTimeNanos)
                                     );
                                 }
                             } else {
@@ -693,7 +693,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /** Closes the given repository. */
     public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
-        final long startTimeMillis = threadPool.relativeTimeInMillis();
+        final long startTimeNanos = System.nanoTime();
         try {
             repository.close();
         } finally {
@@ -701,7 +701,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 "closed repository [{}][{}] in [{}]",
                 repository.getMetadata().type(),
                 repository.getMetadata().name(),
-                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
             );
         }
     }
@@ -724,15 +724,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         Repository repository = null;
         try {
-            final long startTimeMillis = threadPool.relativeTimeInMillis();
-            repository = factory.create(repositoryMetadata, factories::get);
-            repository.start();
-            logger.info(
-                "created repository [{}][{}] in [{}]",
-                repositoryMetadata.type(),
-                repositoryMetadata.name(),
-                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
-            );
+            final long startTimeNanos = System.nanoTime();
+            try {
+                repository = factory.create(repositoryMetadata, factories::get);
+                repository.start();
+            } finally {
+                logger.info(
+                    "created repository [{}][{}] in [{}]",
+                    repositoryMetadata.type(),
+                    repositoryMetadata.name(),
+                    TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
+                );
+            }
             return repository;
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(repository);
