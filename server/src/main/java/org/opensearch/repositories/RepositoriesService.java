@@ -529,13 +529,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 );
                                 repository.validateMetadata(repositoryMetadata);
                                 final long reloadStartTimeMillis = threadPool.relativeTimeInMillis();
-                                repository.reload(repositoryMetadata);
-                                logger.info(
-                                    "reloaded repository [{}][{}] in [{}]",
-                                    repositoryMetadata.type(),
-                                    repositoryMetadata.name(),
-                                    TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - reloadStartTimeMillis)
-                                );
+                                try {
+                                    repository.reload(repositoryMetadata);
+                                } finally {
+                                    logger.info(
+                                        "reloaded repository [{}][{}] in [{}]",
+                                        repositoryMetadata.type(),
+                                        repositoryMetadata.name(),
+                                        TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - reloadStartTimeMillis)
+                                    );
+                                }
                             } else {
                                 logger.debug("updating repository [{}]", repositoryMetadata.name());
                                 closeRepository(repository);
@@ -691,13 +694,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         final long startTimeMillis = threadPool.relativeTimeInMillis();
-        repository.close();
-        logger.info(
-            "closed repository [{}][{}] in [{}]",
-            repository.getMetadata().type(),
-            repository.getMetadata().name(),
-            TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
-        );
+        try {
+            repository.close();
+        } finally {
+            logger.info(
+                "closed repository [{}][{}] in [{}]",
+                repository.getMetadata().type(),
+                repository.getMetadata().name(),
+                TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startTimeMillis)
+            );
+        }
     }
 
     /**
