@@ -33,6 +33,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
@@ -90,6 +91,15 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
         SnapshotInfo roundTripped = copyInstance(original);
         assertNull(roundTripped.version());
         assertEquals(original, roundTripped);
+    }
+
+    /** With strict version parsing enabled, an unsupported {@code version_id} must fail fast rather than resolve to null. */
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_STRICT_VERSION_PARSING)
+    public void testUnsupportedVersionIdFailsWhenStrictParsingEnabled() throws IOException {
+        final String json = snapshotJson("snap-legacy", LEGACY_ES_7_10_2_VERSION_ID);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            expectThrows(Version.UnsupportedVersionException.class, () -> SnapshotInfo.fromXContentInternal(parser));
+        }
     }
 
     @Override

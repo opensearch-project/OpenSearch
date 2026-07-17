@@ -40,6 +40,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -813,6 +814,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         try {
             return Version.fromId(versionId);
         } catch (Version.UnsupportedVersionException e) {
+            if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_STRICT_VERSION_PARSING_SETTING)) {
+                throw e;
+            }
             logger.debug("Encountered unsupported snapshot version_id [{}]; reporting version as unknown", versionId);
             return null;
         }

@@ -96,7 +96,7 @@ public class LegacySnapshotVersionIT extends AbstractSnapshotIntegTestCase {
             SnapshotRestoreException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true).get()
         );
-        assertThat(e.getMessage(), containsString("unsupported"));
+        assertThat(e.getMessage(), containsString("unknown or unsupported version"));
     }
 
     /**

@@ -1379,7 +1379,7 @@ public class RestoreService implements ClusterStateApplier {
         if (snapshotInfo.version() == null) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository, snapshotInfo.snapshotId()),
-                "the snapshot was created by an unsupported (e.g. legacy Elasticsearch) version and cannot be restored"
+                "the snapshot has an unknown or unsupported version and cannot be restored"
             );
         }
         if (Version.CURRENT.before(snapshotInfo.version())) {
