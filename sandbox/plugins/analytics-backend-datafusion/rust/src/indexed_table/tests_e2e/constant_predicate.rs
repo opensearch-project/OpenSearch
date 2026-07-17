@@ -74,27 +74,29 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     // FilterClass::None: no pruning predicate (column-less), constant applied
     // as residual in on_batch_mask.
     let factory: EvaluatorFactory = {
         let schema = schema.clone();
         let residual = Arc::clone(&residual);
-        Arc::new(move |segment: &SegmentFileInfo, _chunk, stream_metrics, _stats_prune_tree| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(PredicateOnlyEvaluator::new(
-                pruner,
-                None,
-                Some(Arc::clone(&residual)),
-                Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
-                None,
-                HashMap::new(),
-            ));
-            Ok(eval)
-        })
+        Arc::new(
+            move |segment: &SegmentFileInfo, _chunk, stream_metrics, _stats_prune_tree| {
+                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+                let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(PredicateOnlyEvaluator::new(
+                    pruner,
+                    None,
+                    Some(Arc::clone(&residual)),
+                    Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
+                    None,
+                    HashMap::new(),
+                ));
+                Ok(eval)
+            },
+        )
     };
 
     let store: Arc<dyn object_store::ObjectStore> =
@@ -103,7 +105,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -118,6 +120,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

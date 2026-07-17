@@ -388,7 +388,10 @@ pub fn cancel_query(context_id: i64) {
             handle.abort();
         }
         let nanos = PROCESS_START.elapsed().as_nanos() as u64;
-        tracker.cancelled_at_nanos.compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed).ok();
+        tracker
+            .cancelled_at_nanos
+            .compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed)
+            .ok();
     }
 }
 
@@ -430,7 +433,8 @@ pub fn flush_cpu_runtime_with_handle(handle: &tokio::runtime::Handle, context_id
         if rx.recv_timeout(CANCEL_FLUSH_TIMEOUT).is_err() {
             warn!(
                 "flush_cpu_runtime({}): timed out after {}ms",
-                context_id, CANCEL_FLUSH_TIMEOUT.as_millis()
+                context_id,
+                CANCEL_FLUSH_TIMEOUT.as_millis()
             );
             break;
         }
@@ -448,7 +452,9 @@ pub fn take_cpu_runtime_handle(context_id: i64) -> Option<tokio::runtime::Handle
 
 /// Clone the cancellation token for the given context_id, if registered.
 pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
-    QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
+    QUERY_REGISTRY
+        .get(&context_id)
+        .map(|t| t.cancellation_token.clone())
 }
 
 /// Store the CPU task's AbortHandle for the given context_id.
@@ -510,7 +516,11 @@ impl QueryTrackingContext {
     /// disabled and `memory_pool()` returns `None`.
     pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>, query_type: QueryType) -> Self {
         if context_id == 0 {
-            return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
+            return Self {
+                tracker: None,
+                phantom_reservation: None,
+                phantom_corrector: None,
+            };
         }
         let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
         let tracker = Arc::new(QueryTracker {
@@ -550,10 +560,11 @@ impl QueryTrackingContext {
 
     /// Apply pending phantom correction from the self-correcting budget.
     pub fn apply_pending_phantom_correction(&mut self) {
-        let (corrector, reservation) = match (&self.phantom_corrector, &mut self.phantom_reservation) {
-            (Some(c), Some(r)) => (c, r),
-            _ => return,
-        };
+        let (corrector, reservation) =
+            match (&self.phantom_corrector, &mut self.phantom_reservation) {
+                (Some(c), Some(r)) => (c, r),
+                _ => return,
+            };
         let delta = corrector.take_pending_delta();
         if delta == 0 {
             return;
@@ -604,7 +615,8 @@ impl Drop for QueryTrackingContext {
             // If this query was cancelled and ran past the threshold, bump the total counter.
             let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
             if cancelled_nanos > 0 {
-                let elapsed_since_cancel = PROCESS_START.elapsed().as_nanos() as u64 - cancelled_nanos;
+                let elapsed_since_cancel =
+                    PROCESS_START.elapsed().as_nanos() as u64 - cancelled_nanos;
                 if elapsed_since_cancel >= cancel_stats_threshold().as_nanos() as u64 {
                     match tracker.query_type {
                         QueryType::Shard => {
@@ -886,11 +898,19 @@ mod tests {
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         cancel_query(ctx_id);
-        let first = QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at_nanos.load(Ordering::Relaxed);
+        let first = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .cancelled_at_nanos
+            .load(Ordering::Relaxed);
 
         thread::sleep(Duration::from_millis(10));
         cancel_query(ctx_id);
-        let second = QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at_nanos.load(Ordering::Relaxed);
+        let second = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .cancelled_at_nanos
+            .load(Ordering::Relaxed);
 
         // Second cancel should not overwrite the first timestamp
         assert_eq!(first, second);
@@ -929,7 +949,8 @@ mod tests {
         let coord_id = 60_006;
 
         let shard_ctx = QueryTrackingContext::new(shard_id, Arc::clone(&global), QueryType::Shard);
-        let coord_ctx = QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
+        let coord_ctx =
+            QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
 
         cancel_query(shard_id);
         cancel_query(coord_id);
@@ -948,7 +969,6 @@ mod tests {
         drop(shard_ctx);
         drop(coord_ctx);
     }
-
 
     // -----------------------------------------------------------------------
     // Flush-on-cancel tests
@@ -988,7 +1008,7 @@ mod tests {
 
         let (abort_handle, _join_fut) = exec.spawn_with_abort_handle(async move {
             let _hold = sentinel; // captured in the future's state
-            // Block forever — only abort can end this.
+                                  // Block forever — only abort can end this.
             futures::future::pending::<()>().await;
         });
 
@@ -1000,14 +1020,17 @@ mod tests {
         thread::sleep(Duration::from_millis(10));
 
         // Verify not yet dropped
-        assert!(!dropped.load(Ordering::Acquire), "sentinel should be alive before cancel");
+        assert!(
+            !dropped.load(Ordering::Acquire),
+            "sentinel should be alive before cancel"
+        );
 
         // cancel_query aborts the task (marks it cancelled in the runtime)
         cancel_query(ctx_id);
 
         // The abort is async — the task future may not be dropped yet.
         // flush_cpu_runtime gives the runtime scheduling opportunities to
-         // process the abort and drop the future (freeing the sentinel). A single
+        // process the abort and drop the future (freeing the sentinel). A single
         // flush is best-effort: it spawns a fixed number of yield tasks and
         // returns once they finish, which under heavy parallel test load (a
         // CPU-starved CI box running 1000+ tests against a 2-worker runtime) can

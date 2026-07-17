@@ -24,6 +24,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -3908,8 +3909,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             // Re-index same doc — resolveDocVersion misses versionMap (cleared by refresh rotation),
             // falls back to provider which returns version=5. MATCH_ANY accepts.
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
-            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-            assertThat(result.getSeqNo(), equalTo(1L));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
         }
     }
 
@@ -4029,7 +4030,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo(5L));
             // Index "x" again — should succeed (versionMap has version=2 from seqNo=5 entry)
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("x", null)));
-            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
         }
     }
 

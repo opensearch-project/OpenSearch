@@ -28,6 +28,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use datafusion::arrow::compute::SortOptions;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{Session, TableProvider};
 use datafusion::common::{Result, Statistics};
@@ -35,14 +36,17 @@ use datafusion::datasource::TableType;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_expr::{EquivalenceProperties, LexOrdering, Partitioning, PhysicalSortExpr};
 use datafusion::physical_expr::expressions::col as physical_col;
-use datafusion::arrow::compute::SortOptions;
+use datafusion::physical_expr::{
+    EquivalenceProperties, LexOrdering, Partitioning, PhysicalSortExpr,
+};
+use datafusion::physical_optimizer::pruning::PruningPredicate;
 use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
-use datafusion::physical_plan::metrics::{Count, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet};
+use datafusion::physical_plan::metrics::{
+    Count, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet,
+};
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
-use datafusion::physical_optimizer::pruning::PruningPredicate;
 
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::StreamExt;
@@ -55,7 +59,7 @@ use super::partitioning::{
     compute_assignments, compute_assignments_one_per_segment, segments_chain_on_sort_key,
     PartitionAssignment, SegmentChunk, SegmentLayout,
 };
-use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use super::stream::{IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
@@ -206,6 +210,10 @@ pub struct IndexedTableConfig {
     /// matches the wire format from `DataFusionPlugin`). Same length as
     /// `sort_fields` (validated at index creation).
     pub sort_orders: Vec<String>,
+    /// Per-query cancellation token (from the global `QUERY_REGISTRY`). Threaded
+    /// down to `IndexReader` so the scan cooperatively stops when the query task
+    /// is cancelled. `None` for untracked queries (`context_id == 0`) and tests.
+    pub cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -266,7 +274,9 @@ impl TableProvider for IndexedTableProvider {
         let row_id_col_in_full_schema = full_schema.index_of(crate::ROW_ID_COLUMN_NAME).ok();
         let row_id_output_index: Option<usize> = if self.config.emit_row_ids {
             match projection {
-                Some(proj) => proj.iter().position(|&idx| Some(idx) == row_id_col_in_full_schema),
+                Some(proj) => proj
+                    .iter()
+                    .position(|&idx| Some(idx) == row_id_col_in_full_schema),
                 None => row_id_col_in_full_schema,
             }
         } else {
@@ -281,7 +291,8 @@ impl TableProvider for IndexedTableProvider {
                 None => full_schema.clone(),
             };
             if let Some(idx) = row_id_output_index {
-                let mut fields: Vec<Field> = base.fields().iter().map(|f| f.as_ref().clone()).collect();
+                let mut fields: Vec<Field> =
+                    base.fields().iter().map(|f| f.as_ref().clone()).collect();
                 fields[idx] = Field::new(crate::ROW_ID_COLUMN_NAME, DataType::Int64, false);
                 Arc::new(Schema::new(fields))
             } else {
@@ -292,7 +303,8 @@ impl TableProvider for IndexedTableProvider {
         // Read projection = output columns (minus ___row_id) + predicate columns for evaluator.
         let read_projection: Option<Vec<usize>> = if self.config.emit_row_ids {
             let output_cols: Vec<usize> = match projection {
-                Some(proj) => proj.iter()
+                Some(proj) => proj
+                    .iter()
                     .filter(|&&idx| Some(idx) != row_id_col_in_full_schema)
                     .copied()
                     .collect(),
@@ -372,9 +384,10 @@ impl TableProvider for IndexedTableProvider {
             None
         };
 
-        let (assignments, eq_properties, advertised_ordering) = if chain_ok && lex_ordering.is_some() {
-            let assignments =
-                compute_assignments_one_per_segment(&self.config.segments, &layouts);
+        let (assignments, eq_properties, advertised_ordering) = if chain_ok
+            && lex_ordering.is_some()
+        {
+            let assignments = compute_assignments_one_per_segment(&self.config.segments, &layouts);
             let lex = lex_ordering.unwrap();
             let eq = EquivalenceProperties::new_with_orderings(
                 projected_schema.clone(),
@@ -572,12 +585,6 @@ impl ExecutionPlan for QueryShardExec {
             FilterPushdownPhase, FilterPushdownPropagation, PushedDown,
         };
 
-        // Feature gate: when disabled, decline everything so behaviour is
-        // identical to before this feature (parent keeps its FilterExec).
-        if !self.config.query_config.indexed_dynamic_filter_pushdown {
-            return Ok(FilterPushdownPropagation::if_all(child_pushdown_result));
-        }
-
         // Only the Post phase carries dynamic filters; in Pre we own static
         // WHERE semantics via the BoolNode tree and want no interference.
         if phase != FilterPushdownPhase::Post {
@@ -596,7 +603,9 @@ impl ExecutionPlan for QueryShardExec {
         }
 
         if accepted.is_empty() {
-            return Ok(FilterPushdownPropagation::with_parent_pushdown_result(statuses));
+            return Ok(FilterPushdownPropagation::with_parent_pushdown_result(
+                statuses,
+            ));
         }
 
         let new_self = self.clone_with_dynamic_filters(accepted);
@@ -620,9 +629,10 @@ impl ExecutionPlan for QueryShardExec {
             pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
         stream_metrics.io_stats = Some(Arc::clone(&self.io_stats));
 
-        let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
-            (!self.dynamic_filters.is_empty())
-                .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
+        let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = (!self
+            .dynamic_filters
+            .is_empty())
+        .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
 
         let mut streams: Vec<SendableRecordBatchStream> =
             Vec::with_capacity(assignment.chunks.len());
@@ -644,23 +654,38 @@ impl ExecutionPlan for QueryShardExec {
             }
 
             // Build stats prune tree for segment/RG/subtree-level pruning.
-            let stats_prune_tree = self.config.prune_tree_config.as_ref().map(|(tree, preds, schema)| {
-                let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
-                Arc::new(StatsPruneTree::build_from_bool_node(
-                    tree, preds, &segment.metadata, schema, &rg_indices,
-                ))
-            });
+            let stats_prune_tree =
+                self.config
+                    .prune_tree_config
+                    .as_ref()
+                    .map(|(tree, preds, schema)| {
+                        let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
+                        Arc::new(StatsPruneTree::build_from_bool_node(
+                            tree,
+                            preds,
+                            &segment.metadata,
+                            schema,
+                            &rg_indices,
+                        ))
+                    });
 
             // Segment-level skip: if no RG in the chunk can match, skip entirely.
             if let Some(ref spt) = stats_prune_tree {
                 if !spt.rg_can_match.iter().any(|&k| k) {
-                    native_bridge_common::log_debug!("[segment-skip] skipping chunk — pruned by segment-level stats");
+                    native_bridge_common::log_debug!(
+                        "[segment-skip] skipping chunk — pruned by segment-level stats"
+                    );
                     continue;
                 }
             }
 
-            let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics, stats_prune_tree.as_ref())
-                .map_err(|e| DataFusionError::External(e.into()))?;
+            let evaluator = (self.config.evaluator_factory)(
+                segment,
+                chunk,
+                &stream_metrics,
+                stats_prune_tree.as_ref(),
+            )
+            .map_err(|e| DataFusionError::External(e.into()))?;
 
             // When the sort-aware path fired (`advertised_ordering: Some`), the
             // chain-aware partitioning guarantees this chunk is one whole
@@ -705,15 +730,15 @@ impl ExecutionPlan for QueryShardExec {
                 emit_row_ids: self.config.emit_row_ids,
                 row_id_output_index: self.row_id_output_index,
                 dynamic_filter: dynamic_filter.clone(),
+                cancellation_token: self.config.cancellation_token.clone(),
             };
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
         let stream: SendableRecordBatchStream = match streams.len() {
             0 => {
-                let empty = datafusion::physical_plan::empty::EmptyExec::new(
-                    self.projected_schema.clone(),
-                );
+                let empty =
+                    datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
                 empty.execute(0, context)?
             }
             1 => streams.into_iter().next().unwrap(),
@@ -729,11 +754,7 @@ impl ExecutionPlan for QueryShardExec {
 
 impl Drop for QueryShardExec {
     fn drop(&mut self) {
-        accumulate_from_exec(
-            &self.metrics,
-            &self.inner_parquet_metrics,
-            &self.io_stats,
-        );
+        accumulate_from_exec(&self.metrics, &self.inner_parquet_metrics, &self.io_stats);
     }
 }
 
@@ -834,6 +855,7 @@ mod tests {
             prune_tree_config: None,
             sort_fields: vec![],
             sort_orders: vec![],
+            cancellation_token: None,
         }
     }
 

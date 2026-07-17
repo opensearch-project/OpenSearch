@@ -27,6 +27,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * POST /_plugins/_analytics_backend_datafusion/cache/_clear?footer=true  → footer metadata only
  * POST /_plugins/_analytics_backend_datafusion/cache/_clear?column=true  → column index only
  * POST /_plugins/_analytics_backend_datafusion/cache/_clear?offset=true  → offset index only
+ * POST /_plugins/_analytics_backend_datafusion/cache/_clear?statistics=true  → statistics only
  * </pre>
  *
  * <p>Multiple params may be combined. When no param is set, all caches are cleared.
@@ -54,6 +55,7 @@ public class RestClearCacheAction extends BaseRestHandler {
         nodesRequest.setFooter(request.paramAsBoolean("footer", false));
         nodesRequest.setColumn(request.paramAsBoolean("column", false));
         nodesRequest.setOffset(request.paramAsBoolean("offset", false));
+        nodesRequest.setStatistics(request.paramAsBoolean("statistics", false));
         return channel -> client.execute(ClearCacheActionType.INSTANCE, nodesRequest, new NodesResponseRestListener<>(channel));
     }
 

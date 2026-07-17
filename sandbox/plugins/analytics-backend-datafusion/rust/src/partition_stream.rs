@@ -291,9 +291,11 @@ mod tests {
         let (sender, receiver) = channel(Arc::clone(&schema));
         drop(receiver);
 
-        let outcome = std::thread::spawn(move || sender.send_blocking(Ok(test_batch(&schema, &[1])), &handle))
-            .join()
-            .unwrap();
+        let outcome = std::thread::spawn(move || {
+            sender.send_blocking(Ok(test_batch(&schema, &[1])), &handle)
+        })
+        .join()
+        .unwrap();
         assert!(matches!(outcome, SendOutcome::ReceiverDropped));
     }
 

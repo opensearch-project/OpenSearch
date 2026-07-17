@@ -62,9 +62,9 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -101,7 +101,8 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -121,7 +122,7 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
             qc.target_partitions = 1;
             qc.force_strategy = Some(FilterStrategy::BooleanMask);
-            qc.force_pushdown = Some(false);
+            qc.indexed_pushdown_filters = false;
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
@@ -129,6 +130,7 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -154,10 +156,7 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
 /// Run the fetch phase: given row IDs, build a ShardTableProvider with
 /// ParquetAccessPlan to read only those rows, then execute SQL to get data.
 /// Returns (row_id, column_values) tuples sorted by row_id.
-async fn fetch_phase(
-    row_ids: &[i64],
-    fetch_columns: &[&str],
-) -> Vec<RecordBatch> {
+async fn fetch_phase(row_ids: &[i64], fetch_columns: &[&str]) -> Vec<RecordBatch> {
     if row_ids.is_empty() {
         return vec![];
     }
@@ -202,8 +201,7 @@ async fn fetch_phase(
             }
         }
         if !rg_bitmap.is_empty() {
-            let selection =
-                build_row_selection_with_min_skip_run(&rg_bitmap, rg_num_rows, 1);
+            let selection = build_row_selection_with_min_skip_run(&rg_bitmap, rg_num_rows, 1);
             plan.set(rg_idx, RowGroupAccess::Selection(selection));
         }
     }
@@ -302,7 +300,6 @@ fn extract_id_brand(batches: &[RecordBatch]) -> Vec<(i64, String)> {
     rows.sort_by_key(|r| r.0);
     rows
 }
-
 
 // ── Tests ────────────────────────────────────────────────────────────
 
@@ -451,7 +448,8 @@ async fn test_qtf_full_loop_two_segments() {
     ctx.register_object_store(store_url.as_ref(), store);
     ctx.register_table("t", provider).unwrap();
 
-    let sql = "SELECT (\"__row_id__\" + \"row_base\") AS \"__row_id__\", \"brand\", \"price\" FROM t";
+    let sql =
+        "SELECT (\"__row_id__\" + \"row_base\") AS \"__row_id__\", \"brand\", \"price\" FROM t";
     let df = ctx.sql(sql).await.unwrap();
     let plan = df.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
@@ -509,10 +507,7 @@ async fn test_qtf_fetch_subset_columns() {
 /// brand="amazon" AND price=30 matches only row 12.
 #[tokio::test]
 async fn test_qtf_fetch_single_row() {
-    let tree = BoolNode::And(vec![
-        index_leaf(0),
-        pred_int("price", Operator::Eq, 30),
-    ]);
+    let tree = BoolNode::And(vec![index_leaf(0), pred_int("price", Operator::Eq, 30)]);
     let (row_ids, batches) = query_then_fetch(tree, vec!["brand", "price"]).await;
 
     assert_eq!(row_ids, vec![12]);
@@ -526,10 +521,7 @@ async fn test_qtf_fetch_single_row() {
 /// brand="amazon" AND price > 500 matches nothing.
 #[tokio::test]
 async fn test_qtf_fetch_empty_result() {
-    let tree = BoolNode::And(vec![
-        index_leaf(0),
-        pred_int("price", Operator::Gt, 500),
-    ]);
+    let tree = BoolNode::And(vec![index_leaf(0), pred_int("price", Operator::Gt, 500)]);
     let (row_ids, batches) = query_then_fetch(tree, vec!["brand", "price"]).await;
 
     assert!(row_ids.is_empty());

@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.Version;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
@@ -20,6 +21,7 @@ public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockC
 
     @Override
     protected BlockCacheStats createTestInstance() {
+        BlockCacheTieredStats tiered = randomBoolean() ? randomTieredStats() : null;
         return new BlockCacheStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -32,7 +34,8 @@ public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockC
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            tiered
         );
     }
 
@@ -55,5 +58,114 @@ public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockC
         assertTrue(json.contains("\"hit_count\":10"));
         assertTrue(json.contains("\"miss_count\":5"));
         assertTrue(json.contains("\"used_in_bytes\":4096"));
+        assertFalse("Non-tiered stats should not contain data_cache_stats", json.contains("\"data_cache_stats\""));
+    }
+
+    public void testToXContentWithTieredStats() throws IOException {
+        BlockCacheTieredStats tiered = new BlockCacheTieredStats(
+            100,
+            10,
+            5000,
+            500,
+            2,
+            200,
+            3,
+            300,
+            8000,
+            10000,
+            64,
+            50,
+            5,
+            2500,
+            250,
+            1,
+            100,
+            2,
+            150,
+            4000,
+            5000,
+            32
+        );
+        BlockCacheStats stats = new BlockCacheStats(150, 15, 7500, 750, 3, 300, 0, 0, 0, 12000, 15000, 96, tiered);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String json = builder.toString();
+        assertTrue(json.contains("\"data_cache_stats\""));
+        assertTrue(json.contains("\"metadata_cache_stats\""));
+        assertTrue(json.contains("\"capacity_in_bytes\":10000"));
+        assertTrue(json.contains("\"capacity_in_bytes\":5000"));
+    }
+
+    public void testNonTieredConstructorHasNullTieredStats() {
+        BlockCacheStats stats = new BlockCacheStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        assertNull(stats.tieredStats());
+    }
+
+    // ── Version-gated (BWC) wire serialization ───────────────────────────────
+
+    /**
+     * Serializing to a pre-{@code V_3_8_0} node must drop {@code tieredStats}
+     * (the field is gated at {@code V_3_8_0}), while all 12 base counters survive.
+     */
+    public void testSerializationBeforeV_3_8_0DropsTieredStats() throws IOException {
+        BlockCacheStats original = new BlockCacheStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, randomTieredStats());
+        BlockCacheStats roundTripped = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), Version.V_3_7_0);
+
+        assertNull("tieredStats must be dropped when written to a pre-V_3_8_0 node", roundTripped.tieredStats());
+        // The 12 base counters must survive; the stripped instance is the null-tiered equivalent.
+        BlockCacheStats expectedStripped = new BlockCacheStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        assertEquals("base counters must survive the BWC round-trip", expectedStripped, roundTripped);
+    }
+
+    /**
+     * Round-tripping at {@code V_3_8_0} (CURRENT) preserves {@code tieredStats} verbatim.
+     */
+    public void testSerializationAtV_3_8_0PreservesTieredStats() throws IOException {
+        BlockCacheTieredStats tiered = randomTieredStats();
+        BlockCacheStats original = new BlockCacheStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, tiered);
+        BlockCacheStats roundTripped = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), Version.V_3_8_0);
+
+        assertEquals(tiered, roundTripped.tieredStats());
+        assertEquals(original, roundTripped);
+    }
+
+    /**
+     * A null-tiered instance round-trips cleanly across the version boundary —
+     * the pre-{@code V_3_8_0} path must not write/read the optional field.
+     */
+    public void testSerializationBeforeV_3_8_0WithNullTieredStats() throws IOException {
+        BlockCacheStats original = new BlockCacheStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        BlockCacheStats roundTripped = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), Version.V_3_7_0);
+
+        assertNull(roundTripped.tieredStats());
+        assertEquals(original, roundTripped);
+    }
+
+    private BlockCacheTieredStats randomTieredStats() {
+        return new BlockCacheTieredStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 }

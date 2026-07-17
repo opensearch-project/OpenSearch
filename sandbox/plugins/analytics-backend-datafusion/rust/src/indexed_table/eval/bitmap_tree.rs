@@ -212,7 +212,8 @@ fn prefetch_node(
     match node {
         ResolvedNode::And(children) => {
             let mut indices: Vec<usize> = (0..children.len()).collect();
-            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
+            indices
+                .sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
 
             let mut result_bitmap: Option<RoaringBitmap> = None;
             let mut ranges: Option<Vec<(i32, i32)>> = ctx.collector_call_ranges.clone();
@@ -284,7 +285,8 @@ fn prefetch_node(
             let mut indices: Vec<usize> = (0..children.len()).collect();
 
             // sort the children by cost to prune children better
-            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
+            indices
+                .sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
             let total_docs = (ctx.max_doc - ctx.min_doc) as u64;
 
             let mut result_bitmap = RoaringBitmap::new();
@@ -574,14 +576,12 @@ fn ranges_from_bitmap(bm: &RoaringBitmap, ctx: &RgEvalContext) -> Vec<(i32, i32)
     use super::CollectorCallStrategy;
     match ctx.collector_strategy {
         CollectorCallStrategy::FullRange => vec![(ctx.min_doc, ctx.max_doc)],
-        CollectorCallStrategy::TightenOuterBounds => {
-            match (bm.min(), bm.max()) {
-                (Some(lo), Some(hi)) => {
-                    vec![(ctx.min_doc + lo as i32, ctx.min_doc + hi as i32 + 1)]
-                }
-                _ => vec![(ctx.min_doc, ctx.max_doc)],
+        CollectorCallStrategy::TightenOuterBounds => match (bm.min(), bm.max()) {
+            (Some(lo), Some(hi)) => {
+                vec![(ctx.min_doc + lo as i32, ctx.min_doc + hi as i32 + 1)]
             }
-        }
+            _ => vec![(ctx.min_doc, ctx.max_doc)],
+        },
         CollectorCallStrategy::PageRangeSplit => {
             // Extract contiguous runs of set bits as absolute doc ranges.
             let mut ranges = Vec::new();
@@ -1218,7 +1218,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
         assert_eq!(result.per_leaf.len(), 2);
@@ -1232,7 +1241,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[1, 2, 3]));
     }
@@ -1245,7 +1263,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         // Universe is [0, 16). Minus {0,1,2} = {3..15}
         let expected: RoaringBitmap = (3u32..16).collect();
@@ -1260,7 +1287,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let state = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
 
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
@@ -1520,7 +1556,16 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1560,7 +1605,16 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         // OR contributes {5} from standalone_leaf → non-empty candidates.
         assert!(!result.candidates.is_empty());
@@ -1598,7 +1652,16 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         // NOT inverts empty AND → universe.
         assert_eq!(result.candidates.len(), 16);
@@ -1630,7 +1693,8 @@ mod tests {
             ctx.cost_predicate * COST_SCALE
         );
         assert_eq!(
-            subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp), ctx.cost_collector * COST_SCALE
+            subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp),
+            ctx.cost_collector * COST_SCALE
         );
     }
 
@@ -1641,7 +1705,8 @@ mod tests {
         let pp = HashMap::new();
         let wrapped = ResolvedNode::Not(Box::new(test_predicate_node()));
         assert_eq!(
-            subtree_cost(&wrapped, &ctx, &pruner, &pp), ctx.cost_predicate * COST_SCALE
+            subtree_cost(&wrapped, &ctx, &pruner, &pp),
+            ctx.cost_predicate * COST_SCALE
         );
     }
 
@@ -1673,7 +1738,8 @@ mod tests {
         let pruner = empty_pruner();
         let pp = HashMap::new();
         assert!(
-            subtree_cost(&nested, &ctx, &pruner, &pp) < subtree_cost(&single_collector, &ctx, &pruner, &pp),
+            subtree_cost(&nested, &ctx, &pruner, &pp)
+                < subtree_cost(&single_collector, &ctx, &pruner, &pp),
         );
     }
 
@@ -1684,7 +1750,10 @@ mod tests {
         let ctx = test_ctx();
         let pruner = empty_pruner();
         let pp = HashMap::new();
-        assert!(subtree_cost(&nested, &ctx, &pruner, &pp) > subtree_cost(&single_collector, &ctx, &pruner, &pp));
+        assert!(
+            subtree_cost(&nested, &ctx, &pruner, &pp)
+                > subtree_cost(&single_collector, &ctx, &pruner, &pp)
+        );
     }
 
     // ── intersect_range_lists unit tests ────────────────────────────
@@ -1771,10 +1840,10 @@ mod tests {
         let mut ctx = test_ctx();
         ctx.collector_strategy = super::super::CollectorCallStrategy::PageRangeSplit;
         let mut bm = RoaringBitmap::new();
-        bm.insert_range(2..5);  // bits 2,3,4
+        bm.insert_range(2..5); // bits 2,3,4
         bm.insert_range(8..11); // bits 8,9,10
-        bm.insert(14);          // bit 14
-        // Three contiguous runs → three ranges
+        bm.insert(14); // bit 14
+                       // Three contiguous runs → three ranges
         assert_eq!(
             ranges_from_bitmap(&bm, &ctx),
             vec![(2, 5), (8, 11), (14, 15)]
@@ -1798,9 +1867,7 @@ mod tests {
         }
     }
 
-    fn prune_tree_and(
-        children: Vec<StatsPruneTree>,
-    ) -> StatsPruneTree {
+    fn prune_tree_and(children: Vec<StatsPruneTree>) -> StatsPruneTree {
         let mut rg_can_match = vec![true; children[0].rg_can_match.len()];
         for c in &children {
             for (r, v) in rg_can_match.iter_mut().zip(c.rg_can_match.iter()) {
@@ -1813,9 +1880,7 @@ mod tests {
         }
     }
 
-    fn prune_tree_or(
-        children: Vec<StatsPruneTree>,
-    ) -> StatsPruneTree {
+    fn prune_tree_or(children: Vec<StatsPruneTree>) -> StatsPruneTree {
         let mut rg_can_match = vec![false; children[0].rg_can_match.len()];
         for c in &children {
             for (r, v) in rg_can_match.iter_mut().zip(c.rg_can_match.iter()) {
@@ -1840,7 +1905,16 @@ mod tests {
             prune_tree_leaf(vec![true]),
         ]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1857,7 +1931,16 @@ mod tests {
             prune_tree_leaf(vec![true]),
         ]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
     }
@@ -1874,7 +1957,16 @@ mod tests {
             prune_tree_leaf(vec![false]),
         ]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1898,7 +1990,16 @@ mod tests {
         ]);
         let spt = prune_tree_and(vec![or_spt, prune_tree_leaf(vec![true])]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         // collector2 (dfs=0) → {3,4,5}; OR-child1 (dfs=2) → {3,4,5,6}; OR = {3,4,5,6}
         // AND = {3,4,5} ∩ {3,4,5,6} = {3,4,5}
@@ -1921,7 +2022,16 @@ mod tests {
         ]);
         let spt = prune_tree_and(vec![or_spt, prune_tree_leaf(vec![true])]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1934,7 +2044,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
     }
@@ -1960,7 +2079,16 @@ mod tests {
         let mut ctx = test_ctx();
         ctx.rg_idx = 5;
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &ctx, &leaves, &pruner, &HashMap::new(), None, Some(&spt), &rg_map)
+            .prefetch(
+                &tree,
+                &ctx,
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &rg_map,
+            )
             .unwrap();
         // Not pruned — both collectors contribute.
         assert_eq!(result.candidates, bm(&[2, 3]));
@@ -1986,7 +2114,16 @@ mod tests {
         let mut ctx = test_ctx();
         ctx.rg_idx = 3;
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &ctx, &leaves, &pruner, &HashMap::new(), None, Some(&spt), &rg_map)
+            .prefetch(
+                &tree,
+                &ctx,
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &rg_map,
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -2011,8 +2148,8 @@ mod tests {
     /// entries since coll2 survives → candidates non-empty → refinement runs.
     #[test]
     fn stats_prune_under_or_materialises_empty_bitmaps_for_collectors() {
-        use datafusion::physical_expr::expressions::Literal;
         use datafusion::common::ScalarValue;
+        use datafusion::physical_expr::expressions::Literal;
         let always_true_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
 
@@ -2033,15 +2170,25 @@ mod tests {
         let pruner = empty_pruner();
         // Stats: AND subtree = false (Predicate child stats=false), coll2 = true
         let and_spt = prune_tree_and(vec![
-            prune_tree_leaf(vec![false]),  // Predicate
-            prune_tree_or(vec![           // OR(coll0, coll1)
+            prune_tree_leaf(vec![false]), // Predicate
+            prune_tree_or(vec![
+                // OR(coll0, coll1)
                 prune_tree_leaf(vec![true]),
                 prune_tree_leaf(vec![true]),
             ]),
         ]);
         let spt = prune_tree_or(vec![and_spt, prune_tree_leaf(vec![true])]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         // AND subtree pruned → empty; coll2 → {5,6,7}; OR = {5,6,7}
         assert_eq!(result.candidates, bm(&[5, 6, 7]));
@@ -2055,10 +2202,19 @@ mod tests {
             result.per_leaf.len()
         );
         // coll2 (dfs=0) gets real bitmap
-        assert!(!result.per_leaf[0].1.is_empty(), "coll2 should have non-empty bitmap");
+        assert!(
+            !result.per_leaf[0].1.is_empty(),
+            "coll2 should have non-empty bitmap"
+        );
         // coll0 (dfs=2) and coll1 (dfs=3) get empty bitmaps from pruned subtree
-        assert!(result.per_leaf[1].1.is_empty(), "pruned coll0 should have empty bitmap");
-        assert!(result.per_leaf[2].1.is_empty(), "pruned coll1 should have empty bitmap");
+        assert!(
+            result.per_leaf[1].1.is_empty(),
+            "pruned coll0 should have empty bitmap"
+        );
+        assert!(
+            result.per_leaf[2].1.is_empty(),
+            "pruned coll1 should have empty bitmap"
+        );
     }
 
     /// Same scenario but deeper — mirrors a query like:
@@ -2077,8 +2233,8 @@ mod tests {
     /// coll0 and coll1 must still get empty per_leaf entries.
     #[test]
     fn stats_prune_deep_or_under_and_materialises_all_collector_bitmaps() {
-        use datafusion::physical_expr::expressions::Literal;
         use datafusion::common::ScalarValue;
+        use datafusion::physical_expr::expressions::Literal;
         let pred_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
 
@@ -2097,14 +2253,20 @@ mod tests {
         // Cost sort at OR: coll2(10) before AND(Pred+OR=1+20=21)
         // DFS: coll3=0, coll2=1, Predicate=2, coll0=3, coll1=4
         let leaves = FixedLeafBitmaps {
-            bitmaps: vec![bm(&[5, 6, 7, 8]), bm(&[6, 7, 8]), bm(&[99]), bm(&[99]), bm(&[99])],
+            bitmaps: vec![
+                bm(&[5, 6, 7, 8]),
+                bm(&[6, 7, 8]),
+                bm(&[99]),
+                bm(&[99]),
+                bm(&[99]),
+            ],
         };
         let pruner = empty_pruner();
         // Stats: outer AND[coll3=true, OR=true]
         //   OR[inner AND=false (pruned), coll2=true]
         //     inner AND[Predicate=false, OR(coll0=true, coll1=true)]
         let inner_and_spt = prune_tree_and(vec![
-            prune_tree_leaf(vec![false]),  // Predicate stats=false
+            prune_tree_leaf(vec![false]), // Predicate stats=false
             prune_tree_or(vec![
                 prune_tree_leaf(vec![true]),
                 prune_tree_leaf(vec![true]),
@@ -2113,7 +2275,16 @@ mod tests {
         let or_spt = prune_tree_or(vec![inner_and_spt, prune_tree_leaf(vec![true])]);
         let spt = prune_tree_and(vec![prune_tree_leaf(vec![true]), or_spt]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         // coll3={5,6,7,8}; OR: inner AND pruned→empty, coll2={6,7,8}; OR={6,7,8}
         // Final AND = {5,6,7,8} ∩ {6,7,8} = {6,7,8}
@@ -2127,10 +2298,22 @@ mod tests {
             result.per_leaf.len()
         );
         // coll3 (dfs=0) and coll2 (dfs=1) are real
-        assert!(!result.per_leaf[0].1.is_empty(), "coll3 should have non-empty bitmap");
-        assert!(!result.per_leaf[1].1.is_empty(), "coll2 should have non-empty bitmap");
+        assert!(
+            !result.per_leaf[0].1.is_empty(),
+            "coll3 should have non-empty bitmap"
+        );
+        assert!(
+            !result.per_leaf[1].1.is_empty(),
+            "coll2 should have non-empty bitmap"
+        );
         // coll0 (dfs=3) and coll1 (dfs=4) are empty from pruned subtree
-        assert!(result.per_leaf[2].1.is_empty(), "pruned coll0 should have empty bitmap");
-        assert!(result.per_leaf[3].1.is_empty(), "pruned coll1 should have empty bitmap");
+        assert!(
+            result.per_leaf[2].1.is_empty(),
+            "pruned coll0 should have empty bitmap"
+        );
+        assert!(
+            result.per_leaf[3].1.is_empty(),
+            "pruned coll1 should have empty bitmap"
+        );
     }
 }

@@ -213,9 +213,10 @@ fn bench_clickbench(c: &mut Criterion) {
                     .unwrap();
                     let mut stream = unsafe {
                         Box::from_raw(
-                            ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
-                                opensearch_datafusion::cross_rt_stream::CrossRtStream,
-                            >,
+                            ptr
+                                as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
+                                    opensearch_datafusion::cross_rt_stream::CrossRtStream,
+                                >,
                         )
                     };
                     let mut rows = 0u64;

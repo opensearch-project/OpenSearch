@@ -19,7 +19,9 @@ import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
+import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -874,19 +876,22 @@ public class DataFusionPlugin extends Plugin
         long oiLimit = total * oiPct / 100;
         long statsLimit = total * statsPct / 100;
         logger.info(
-            "Updating cache limits: footer_metadata={} bytes (node restart required), "
-                + "column_index={} bytes, offset_index={} bytes, statistics={} bytes (node restart required)",
+            "Updating cache limits: footer_metadata={} bytes, " + "column_index={} bytes, offset_index={} bytes, statistics={} bytes",
             metaLimit,
             ciLimit,
             oiLimit,
             statsLimit
         );
-        // CI and OI limits take effect immediately via FFI.
-        // Footer metadata and statistics cache limits require a node restart
-        // (no runtime FFI to update the Java-side DefaultFilesMetadataCache limits).
-        // TODO: add df_update_metadata_cache_limit FFI to make them dynamic.
         NativeBridge.setColumnIndexCacheLimit(ciLimit);
         NativeBridge.setOffsetIndexCacheLimit(oiLimit);
+        DataFusionService service = dataFusionService;
+        if (service != null) {
+            CacheManager cm = service.getCacheManager();
+            if (cm != null) {
+                cm.updateSizeLimit(CacheUtils.CacheType.METADATA, metaLimit);
+                cm.updateSizeLimit(CacheUtils.CacheType.STATISTICS, statsLimit);
+            }
+        }
     }
 
     /**

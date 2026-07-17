@@ -228,7 +228,8 @@ impl PartitionMetrics {
             row_groups_processed: counter("row_groups_processed"),
             row_groups_skipped: counter("row_groups_skipped"),
             rg_bloom_pruned: counter("rg_bloom_pruned"),
-            bloom_filter_eval_time: MetricBuilder::new(metrics).subset_time("bloom_filter_eval_time", partition),
+            bloom_filter_eval_time: MetricBuilder::new(metrics)
+                .subset_time("bloom_filter_eval_time", partition),
             pages_pruned: counter("pages_pruned"),
             pages_total: counter("pages_total"),
             page_pruning_unavailable: counter("page_pruning_unavailable"),
@@ -253,8 +254,7 @@ impl PartitionMetrics {
                 .subset_time("projection_fixup_time", partition),
             parquet_poll_time: MetricBuilder::new(metrics)
                 .subset_time("parquet_poll_time", partition),
-            inter_poll_gap: MetricBuilder::new(metrics)
-                .subset_time("inter_poll_gap", partition),
+            inter_poll_gap: MetricBuilder::new(metrics).subset_time("inter_poll_gap", partition),
             poll_count: counter("poll_count"),
             init_prefetch_time: MetricBuilder::new(metrics)
                 .subset_time("init_prefetch_time", partition),
