@@ -134,6 +134,10 @@ public class NodeSearchRequest extends TransportRequest {
         return shardIds == null ? 0 : shardIds.size();
     }
 
+    int totalShardsAcrossAllNodes() {
+        return totalShardsAcrossAllNodes;
+    }
+
     public ShardSearchRequest shardRequest(int index) {
         final ShardId shardId = shardIds.get(index);
         final int indexMaterial = indexMaterialByShard[index];

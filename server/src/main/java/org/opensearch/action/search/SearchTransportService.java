@@ -304,7 +304,7 @@ public class SearchTransportService {
             TransportRequestOptions.EMPTY,
             new ConnectionCountingHandler<>(
                 listener,
-                NodeSearchResponse::readQueryThenFetch,
+                NodeSearchResponse.queryThenFetchReader(request),
                 clientConnections,
                 connection.getNode().getId()
             )
@@ -761,7 +761,11 @@ public class SearchTransportService {
             NodeSearchRequest::new,
             (request, channel, task) -> nodeSearchHandler.messageReceived(request, channel, task)
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_NODE_ACTION_NAME, NodeSearchResponse::readQueryThenFetch);
+        TransportActionProxy.registerProxyActionWithDynamicResponseType(
+            transportService,
+            QUERY_NODE_ACTION_NAME,
+            request -> NodeSearchResponse.queryThenFetchReader((NodeSearchRequest) request)
+        );
         transportService.registerRequestHandler(
             QUERY_CAN_MATCH_NODE_NAME,
             ThreadPool.Names.SAME,

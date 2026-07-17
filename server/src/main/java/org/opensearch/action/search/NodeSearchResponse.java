@@ -15,6 +15,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -53,8 +54,11 @@ public class NodeSearchResponse<Result extends SearchPhaseResult> extends Transp
         }
     }
 
-    static NodeSearchResponse<SearchPhaseResult> readQueryThenFetch(StreamInput in) throws IOException {
-        return new NodeSearchResponse<>(in, QuerySearchResult::new);
+    static Writeable.Reader<NodeSearchResponse<SearchPhaseResult>> queryThenFetchReader(NodeSearchRequest request) {
+        final Writeable.Reader<? extends SearchPhaseResult> resultReader = request.totalShardsAcrossAllNodes() == 1
+            ? QueryFetchSearchResult::new
+            : QuerySearchResult::new;
+        return in -> new NodeSearchResponse<>(in, resultReader);
     }
 
     static NodeSearchResponse<SearchService.CanMatchResponse> readCanMatch(StreamInput in) throws IOException {

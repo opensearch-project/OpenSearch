@@ -88,6 +88,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -376,6 +377,66 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                     .setTransientSettings(Settings.builder().putNull(SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED.getKey()).build())
             );
         }
+    }
+
+    public void testNodeLevelQueryThenFetchWithSingleShard() {
+        final String index = "index-1";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+        );
+        ensureGreen(index);
+
+        client().prepareIndex(index).setId("doc-1").setSource("value", 1, "message", "message1").get();
+        client().admin().indices().prepareRefresh(index).get();
+
+        final SearchRequest searchRequest = new SearchRequest(index);
+        searchRequest.nodeLevelQueryFanout(true);
+        searchRequest.source(new SearchSourceBuilder().size(1));
+
+        final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(1, searchResponse.getTotalShards());
+        assertEquals(1, searchResponse.getSuccessfulShards());
+        assertEquals(0, searchResponse.getFailedShards());
+        assertEquals(1L, searchResponse.getHits().getTotalHits().value());
+        assertEquals(1, searchResponse.getHits().getHits().length);
+        assertEquals("doc-1", searchResponse.getHits().getAt(0).getId());
+        assertEquals("message1", searchResponse.getHits().getAt(0).getSourceAsMap().get("message"));
+    }
+
+    public void testNodeLevelQueryThenFetchWithSingleShardMultiIndexOnSameNode() {
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        final String targetNode = internalCluster().getDataNodeNames().iterator().next();
+        final Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", targetNode)
+            .build();
+
+        assertAcked(client().admin().indices().prepareCreate(index1).setSettings(indexSettings));
+        assertAcked(client().admin().indices().prepareCreate(index2).setSettings(indexSettings));
+        ensureGreen(index1, index2);
+
+        client().prepareIndex(index1).setId("doc-1").setSource("value", 1, "message", "first index").get();
+        client().prepareIndex(index2).setId("doc-2").setSource("value", 2, "message", "second index").get();
+        client().admin().indices().prepareRefresh(index1, index2).get();
+
+        final SearchRequest searchRequest = new SearchRequest(index1, index2);
+        searchRequest.nodeLevelQueryFanout(true);
+        searchRequest.source(new SearchSourceBuilder().size(2));
+
+        final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(2, searchResponse.getTotalShards());
+        assertEquals(2, searchResponse.getSuccessfulShards());
+        assertEquals(0, searchResponse.getFailedShards());
+        assertEquals(2L, searchResponse.getHits().getTotalHits().value());
+        assertEquals(2, searchResponse.getHits().getHits().length);
+        assertEquals(2L, Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).distinct().count());
     }
 
     public void testNodeLevelQueryWithAllowPartialSearchResults() {
