@@ -1603,6 +1603,92 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
     Ok(0)
 }
 
+/// Can-match evaluation via FFM. Checks parquet row-group statistics to determine
+/// if a shard can possibly match a range predicate on the given column.
+///
+/// Two-tier: tries the metadata cache first (zero I/O), falls back to reading
+/// the footer via the shard's ObjectStore (works on both local disk and S3).
+///
+/// Returns: 1 = Yes (may match), 0 = No (prune), -1 = Unknown (fail-open).
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    file_path_ptr: *const u8,
+    file_path_len: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    filter_min: i64,
+    filter_max: i64,
+    file_size: i64,
+) -> i64 {
+    let file_path = str_from_raw(file_path_ptr, file_path_len)?;
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    let result = if runtime_ptr != 0 {
+        // Try cache-first path
+        match try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max) {
+            Some(r) => r,
+            None => {
+                // Cache miss — read footer via the shard's ObjectStore
+                try_store_can_match(shard_view_ptr, file_path, column_name, filter_min, filter_max, file_size)
+                    .unwrap_or(crate::can_match::CanMatchResult::Unknown)
+            }
+        }
+    } else {
+        crate::can_match::CanMatchResult::Unknown
+    };
+
+    Ok(match result {
+        crate::can_match::CanMatchResult::Yes => 1,
+        crate::can_match::CanMatchResult::No => 0,
+        crate::can_match::CanMatchResult::Unknown => -1,
+    })
+}
+
+/// Cache-miss fallback: read footer via the shard's ObjectStore.
+/// Uses the shard_view's store (handles local AND S3 transparently).
+unsafe fn try_store_can_match(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+    file_size: i64,
+) -> Option<crate::can_match::CanMatchResult> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    let size = file_size as usize;
+    Some(rt_manager.io_runtime.block_on(async {
+        crate::can_match::can_match_range_via_store(store, &path, size, column_name, filter_min, filter_max).await
+    }))
+}
+
+/// Probe the metadata cache for the file. If present, evaluate can-match in memory.
+unsafe fn try_cached_can_match(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+) -> Option<crate::can_match::CanMatchResult> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime.custom_cache_manager.as_ref()?.get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry.file_metadata.as_any().downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    Some(crate::can_match::can_match_range_with_metadata(&metadata, column_name, filter_min, filter_max))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
