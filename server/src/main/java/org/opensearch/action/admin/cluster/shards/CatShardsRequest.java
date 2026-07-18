@@ -32,6 +32,10 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
     private TimeValue cancelAfterTimeInterval;
     private PageParams pageParams = null;
     private boolean requestLimitCheckSupported;
+    // True (default) preserves existing behavior: the transport action fetches IndicesStats for all
+    // requested shards. When the REST layer determines that no requested column (h= or s=) requires
+    // per-shard stats, it sets this to false to skip the broadcast fan-out entirely.
+    private boolean indicesStatsRequired = true;
 
     public CatShardsRequest() {}
 
@@ -44,6 +48,9 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
                 pageParams = new PageParams(in);
             }
             requestLimitCheckSupported = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            indicesStatsRequired = in.readBoolean();
         }
     }
 
@@ -62,6 +69,9 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
                 pageParams.writeTo(out);
             }
             out.writeBoolean(requestLimitCheckSupported);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeBoolean(indicesStatsRequired);
         }
     }
 
@@ -100,6 +110,14 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public boolean isRequestLimitCheckSupported() {
         return this.requestLimitCheckSupported;
+    }
+
+    public void setIndicesStatsRequired(boolean indicesStatsRequired) {
+        this.indicesStatsRequired = indicesStatsRequired;
+    }
+
+    public boolean isIndicesStatsRequired() {
+        return this.indicesStatsRequired;
     }
 
     @Override

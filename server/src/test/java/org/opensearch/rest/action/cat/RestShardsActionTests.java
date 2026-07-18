@@ -145,6 +145,60 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertEquals("test", table.getPageToken().getPaginatedEntity());
     }
 
+    // --- Phase 2: routing-only fast path tests ---
+
+    public void testIndicesStatsRequiredWhenNoHParam() {
+        // No h= → default headers include 'docs' and 'store' which need stats.
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(new FakeRestRequest()));
+    }
+
+    public void testIndicesStatsRequiredWhenHIsRoutingOnly() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,prirep,state,node,ip");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenHUsesAliases() {
+        FakeRestRequest req = new FakeRestRequest();
+        // i=index, sh=shard, p=prirep, st=state, n=node, ip=ip, ur=unassigned.reason
+        req.params().put("h", "i,sh,p,st,n,ip,ur");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenHContainsStatsColumn() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,docs"); // docs requires stats
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenHContainsWildcard() {
+        FakeRestRequest req = new FakeRestRequest();
+        // Wildcards conservatively force the slow path.
+        req.params().put("h", "index,shard*");
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenSortReferencesStatsColumn() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        req.params().put("s", "docs:desc"); // sort on stats column → stats still needed
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsNotRequiredWhenSortIsRoutingOnly() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        req.params().put("s", "index:asc,shard:desc"); // routing columns only
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredOnUnknownColumn() {
+        FakeRestRequest req = new FakeRestRequest();
+        // Unknown column conservatively forces slow path (don't optimize unrecognized tokens).
+        req.params().put("h", "index,shard,not_a_column");
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
     private void assertTable(Table table) {
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
