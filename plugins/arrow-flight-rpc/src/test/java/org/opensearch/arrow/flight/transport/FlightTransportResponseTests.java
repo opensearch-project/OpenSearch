@@ -95,15 +95,15 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         future.get(5, TimeUnit.SECONDS); // prefetch finished → flightStream published
 
         response.close();
-        // close() ran after publish; the finally in the prefetch saw closed=false, so close() owns the close.
+        // close() ran after publish; the prefetch had already passed its closed-check, so close() owns the close.
         verify(stream, timeout(5_000).atLeastOnce()).close();
     }
 
     /**
      * The race the fix targets: close() runs while the prefetch thread is still inside getStream(),
      * so close() sees flightStream==null and closes nothing. When the prefetch then publishes the
-     * stream, its finally block must self-close it (closed already true) so the first-batch root is
-     * not stranded on the client allocator.
+     * stream, its synchronous closed-check must self-close it (closed already true) so the first-batch
+     * root is not stranded on the client allocator.
      */
     public void testCloseDuringPrefetchSelfClosesStream() throws Exception {
         FlightStream stream = mock(FlightStream.class);
@@ -127,7 +127,7 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         response.close(); // sees flightStream==null → closes nothing itself
         verify(stream, never()).close();
 
-        // Let the prefetch publish the stream; its finally must self-close it.
+        // Let the prefetch publish the stream; its closed-check must self-close it.
         proceed.countDown();
         verify(stream, timeout(5_000)).close();
     }
@@ -156,7 +156,8 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         response.close();
         response.close();
         response.close();
-        // The prefetch finally saw closed=false (publish happened first), so only the first close() closes.
+        // The prefetch passed its closed-check before publishing the future, so it never self-closes;
+        // only the first close() closes the stream and the later calls short-circuit.
         verify(stream, times(1)).close();
     }
 

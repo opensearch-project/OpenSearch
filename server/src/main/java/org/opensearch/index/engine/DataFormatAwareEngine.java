@@ -86,6 +86,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
@@ -483,10 +484,8 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             );
 
-            // Restore version map and checkpoint tracker after crash recovery.
-            if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
-                restoreVersionMapAndCheckpointTracker();
-            }
+            // Restore version map and checkpoint tracker after recovery.
+            restoreVersionMapAndCheckpointTracker();
 
             // Merge failure cleanup: cleans up unreferenced files and acts as a safety net
             // for refreshLock. The preMergeCommitHook acquires refreshLock on the merge thread;
@@ -946,6 +945,9 @@ public class DataFormatAwareEngine implements Indexer {
             ensureOpen();
             ensureNoTragicException();
             refreshLock.lock();
+
+            // refresh only if new segments have been created or force param is true
+            notifyRefreshListenersBefore();
             try (GatedCloseable<CatalogSnapshot> catalogSnapshot = catalogSnapshotManager.acquireSnapshot()) {
                 if (store.tryIncRef()) {
                     try {
@@ -1059,8 +1061,6 @@ public class DataFormatAwareEngine implements Indexer {
                             .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
                             : "new segment generation collides with an existing segment generation";
 
-                        // refresh only if new segments have been created or force param is true
-                        notifyRefreshListenersBefore();
                         if (refreshed) {
                             final long engineRefreshStartNanos = System.nanoTime();
                             long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
@@ -1095,7 +1095,6 @@ public class DataFormatAwareEngine implements Indexer {
                         } else if ("flush".equals(source)) {
                             catalogSnapshotManager.bumpGeneration();
                         }
-                        notifyRefreshListenersAfter(refreshed);
                     } finally {
                         store.decRef();
                     }
@@ -1106,7 +1105,7 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
             } finally {
-                versionMap.afterRefresh(refreshed);
+                notifyRefreshListenersAfter(refreshed);
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
@@ -2107,9 +2106,20 @@ public class DataFormatAwareEngine implements Indexer {
             refreshLock.lock();
         }
         try (GatedCloseable<CatalogSnapshot> oldSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-            notifyRefreshListenersBefore();
+            // A merge only swaps segments in the catalog; it does not advance the checkpoint, so
+            // checkpoint-publishing listeners must not be notified. We invoke only the
+            // RemoteStoreRefreshListener so the merged segments get uploaded to the remote store.
+            for (ReferenceManager.RefreshListener refreshListener : refreshListeners) {
+                if (refreshListener instanceof RemoteStoreRefreshListener) {
+                    refreshListener.beforeRefresh();
+                }
+            }
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
-            notifyRefreshListenersAfter(true);
+            for (ReferenceManager.RefreshListener refreshListener : refreshListeners) {
+                if (refreshListener instanceof RemoteStoreRefreshListener) {
+                    refreshListener.afterRefresh(true);
+                }
+            }
         } catch (Exception ex) {
             try {
                 logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);

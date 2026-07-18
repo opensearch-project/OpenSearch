@@ -19,7 +19,9 @@ import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
+import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -366,6 +368,18 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Kill-switch for the scoped page-index feature.
+     * When false, the scoped CI/OI caches are bypassed and the metadata cache
+     * retains the full page index (fallback mode). Default: true.
+     */
+    public static final Setting<Boolean> SCOPED_PAGE_INDEX_ENABLED = Setting.boolSetting(
+        "datafusion.scoped_page_index.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Admission threshold for the jemalloc memory guard (0.0–1.0).
      * When pool accounting rejects a phantom reservation but jemalloc reports
      * actual RSS below this fraction of the pool limit, the reservation proceeds
@@ -560,33 +574,37 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
         // Recompute and push absolute cache limits whenever the total budget or any
         // sub-cache percentage changes. Validates that percentages sum to 100 first.
+        // The total-size budget and the four sub-cache percentages together determine the
+        // absolute CI/OI limits, so they are wired through a single grouped Consumer<Settings>.
+        // This MUST use the grouped overload (not `v -> recompute(getClusterSettings())`): during
+        // an apply cycle the per-setting getter resolves against `lastSettingsApplied`, which the
+        // settings framework only swaps in AFTER all update consumers have run — so a callback that
+        // re-reads via getClusterSettings().get() sees the stale/previous value and pushes the
+        // limit derived from the OLD budget (an off-by-one update). The grouped consumer receives a
+        // Settings built from the cycle's new values, so reading each setting from it is correct.
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
-                CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
-                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
-                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
-                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
-                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                CacheSettings.STATISTICS_CACHE_PERCENT,
-                v -> recomputePageCacheLimits(clusterService.getClusterSettings())
+                this::recomputePageCacheLimits,
+                List.of(
+                    CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE,
+                    CacheSettings.FOOTER_METADATA_CACHE_PERCENT,
+                    CacheSettings.OFFSET_INDEX_CACHE_PERCENT,
+                    CacheSettings.COLUMN_INDEX_CACHE_PERCENT,
+                    CacheSettings.STATISTICS_CACHE_PERCENT
+                )
             );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SCOPED_PAGE_INDEX_ENABLED, enabled -> {
+            NativeBridge.setScopedPageIndexEnabled(enabled);
+            if (!enabled) {
+                // Clear scoped caches immediately when disabling — entries are
+                // useless in fallback mode and would waste native heap.
+                NativeBridge.clearColumnIndexCache();
+                NativeBridge.clearOffsetIndexCache();
+                logger.info("Scoped page-index disabled: cleared CI and OI caches");
+            }
+        });
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP, NativeBridge::setSpillExemptCapBytes);
         // The four memory-guard thresholds are pushed to the native pool together via a single
@@ -625,6 +643,7 @@ public class DataFusionPlugin extends Plugin
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
         NativeBridge.setSpillExemptCapBytes(DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP.get(settings));
+        NativeBridge.setScopedPageIndexEnabled(SCOPED_PAGE_INDEX_ENABLED.get(settings));
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),
@@ -836,35 +855,43 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
-     * Recompute absolute ColumnIndex and OffsetIndex cache limits from the current
+     * Recompute absolute ColumnIndex and OffsetIndex cache limits from the updated
      * {@link CacheSettings#METADATA_INDEX_CACHE_TOTAL_SIZE} and percent settings, then push them
      * to native. Validates that percentages sum to 100 before applying.
+     *
+     * <p>Reads each value from the {@code updated} Settings supplied by the grouped settings-update
+     * consumer — NOT via {@code clusterService.getClusterSettings().get(...)}, which during an apply
+     * cycle still resolves against the previous settings and would derive limits from the stale
+     * budget (an off-by-one update).
      */
-    private void recomputePageCacheLimits(org.opensearch.common.settings.ClusterSettings cs) {
-        long total = cs.get(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE).getBytes();
-        int metaPct = cs.get(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
-        int oiPct = cs.get(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
-        int ciPct = cs.get(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
-        int statsPct = cs.get(CacheSettings.STATISTICS_CACHE_PERCENT);
+    private void recomputePageCacheLimits(org.opensearch.common.settings.Settings updated) {
+        long total = CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE.get(updated).getBytes();
+        int metaPct = CacheSettings.FOOTER_METADATA_CACHE_PERCENT.get(updated);
+        int oiPct = CacheSettings.OFFSET_INDEX_CACHE_PERCENT.get(updated);
+        int ciPct = CacheSettings.COLUMN_INDEX_CACHE_PERCENT.get(updated);
+        int statsPct = CacheSettings.STATISTICS_CACHE_PERCENT.get(updated);
         CacheSettings.validatePercentSum(metaPct, oiPct, ciPct, statsPct);
         long metaLimit = total * metaPct / 100;
         long ciLimit = total * ciPct / 100;
         long oiLimit = total * oiPct / 100;
         long statsLimit = total * statsPct / 100;
         logger.info(
-            "Updating cache limits: footer_metadata={} bytes (node restart required), "
-                + "column_index={} bytes, offset_index={} bytes, statistics={} bytes (node restart required)",
+            "Updating cache limits: footer_metadata={} bytes, " + "column_index={} bytes, offset_index={} bytes, statistics={} bytes",
             metaLimit,
             ciLimit,
             oiLimit,
             statsLimit
         );
-        // CI and OI limits take effect immediately via FFI.
-        // Footer metadata and statistics cache limits require a node restart
-        // (no runtime FFI to update the Java-side DefaultFilesMetadataCache limits).
-        // TODO: add df_update_metadata_cache_limit FFI to make them dynamic.
         NativeBridge.setColumnIndexCacheLimit(ciLimit);
         NativeBridge.setOffsetIndexCacheLimit(oiLimit);
+        DataFusionService service = dataFusionService;
+        if (service != null) {
+            CacheManager cm = service.getCacheManager();
+            if (cm != null) {
+                cm.updateSizeLimit(CacheUtils.CacheType.METADATA, metaLimit);
+                cm.updateSizeLimit(CacheUtils.CacheType.STATISTICS, statsLimit);
+            }
+        }
     }
 
     /**

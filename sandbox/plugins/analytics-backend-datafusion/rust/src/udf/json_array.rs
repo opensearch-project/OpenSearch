@@ -40,7 +40,9 @@ pub struct JsonArrayUdf {
 
 impl JsonArrayUdf {
     pub fn new() -> Self {
-        Self { signature: Signature::user_defined(Volatility::Immutable) }
+        Self {
+            signature: Signature::user_defined(Volatility::Immutable),
+        }
     }
 }
 
@@ -70,7 +72,11 @@ impl ScalarUDFImpl for JsonArrayUdf {
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let n = args.number_rows;
 
-        if args.args.iter().all(|v| matches!(v, ColumnarValue::Scalar(_))) {
+        if args
+            .args
+            .iter()
+            .all(|v| matches!(v, ColumnarValue::Scalar(_)))
+        {
             let cells: Vec<Option<&str>> = args.args.iter().map(scalar_utf8).collect();
             let out = build_array(&cells);
             return Ok(ColumnarValue::Scalar(ScalarValue::Utf8(out)));
@@ -81,8 +87,10 @@ impl ScalarUDFImpl for JsonArrayUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<StringArrayView<'_>> =
-            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> = arrays
+            .iter()
+            .map(StringArrayView::from_array)
+            .collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 32);
         let mut row_cells: Vec<Option<&str>> = Vec::with_capacity(columns.len());
@@ -126,12 +134,18 @@ mod tests {
     fn numeric_values_emit_unquoted() {
         // testJsonArray — six numerics in source order.
         let cells = [
-            Some("n"), Some("1"),
-            Some("n"), Some("2"),
-            Some("n"), Some("0"),
-            Some("n"), Some("-1"),
-            Some("n"), Some("1.1"),
-            Some("n"), Some("-0.11"),
+            Some("n"),
+            Some("1"),
+            Some("n"),
+            Some("2"),
+            Some("n"),
+            Some("0"),
+            Some("n"),
+            Some("-1"),
+            Some("n"),
+            Some("1.1"),
+            Some("n"),
+            Some("-0.11"),
         ];
         assert_eq!(build_array(&cells).as_deref(), Some("[1,2,0,-1,1.1,-0.11]"));
     }
@@ -140,9 +154,12 @@ mod tests {
     fn mixed_types_round_trip_per_tag() {
         // testJsonArrayWithDifferentType — int + string + nested-json.
         let cells = [
-            Some("n"), Some("1"),
-            Some("s"), Some("123"),
-            Some("j"), Some(r#"{"name":3}"#),
+            Some("n"),
+            Some("1"),
+            Some("s"),
+            Some("123"),
+            Some("j"),
+            Some(r#"{"name":3}"#),
         ];
         assert_eq!(
             build_array(&cells).as_deref(),
@@ -169,6 +186,9 @@ mod tests {
 
     #[test]
     fn return_type_is_utf8() {
-        assert_eq!(JsonArrayUdf::new().return_type(&[DataType::Utf8]).unwrap(), DataType::Utf8);
+        assert_eq!(
+            JsonArrayUdf::new().return_type(&[DataType::Utf8]).unwrap(),
+            DataType::Utf8
+        );
     }
 }

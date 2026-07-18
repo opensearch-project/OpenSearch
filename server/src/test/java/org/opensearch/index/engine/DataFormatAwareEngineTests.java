@@ -24,6 +24,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -2160,8 +2161,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /**
      * Covers {@code DataFormatAwareEngine.applyMergeChanges}: a forceMerge over two
      * previously-refreshed segments must (1) replace the source segments in the catalog
-     * with a single merged segment, (2) invoke beforeRefresh/afterRefresh exactly once
-     * each on registered refresh listeners while holding the refresh lock, and
+     * with a single merged segment, (2) restrict its beforeRefresh/afterRefresh
+     * notifications to {@code RemoteStoreRefreshListener} instances only, so a plain
+     * refresh listener that fires on real refreshes is NOT invoked by the merge, and
      * (3) release the refresh lock on exit so a subsequent {@code refresh()} proceeds.
      *
      * <p>The system-property gate on {@code MERGE_ENABLED_PROPERTY} applies only to
@@ -2169,7 +2171,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * straight to {@code MergeScheduler.forceMerge} and does not consult it, so this
      * test drives the merge end-to-end without touching system properties.
      */
-    public void testApplyMergeChangesUpdatesCatalogAndNotifiesListeners() throws Exception {
+    public void testApplyMergeChangesUpdatesCatalogAndSkipsNonRemoteStoreListeners() throws Exception {
         AtomicInteger beforeCalls = new AtomicInteger();
         AtomicInteger afterCalls = new AtomicInteger();
         // Records call order: 'B' for beforeRefresh, 'A' for afterRefresh.
@@ -2233,12 +2235,17 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 }
             }, 10, java.util.concurrent.TimeUnit.SECONDS);
 
-            // applyMergeChanges must have invoked the listeners exactly once each, in order.
-            assertThat("beforeRefresh must fire exactly once for the merge", beforeCalls.get() - beforeAfterSeed, equalTo(1));
-            assertThat("afterRefresh must fire exactly once for the merge", afterCalls.get() - afterAfterSeed, equalTo(1));
+            // applyMergeChanges must notify only RemoteStoreRefreshListener instances. The plain
+            // listener registered here is not one, so the merge must NOT invoke it.
+            assertThat(
+                "merge must not invoke beforeRefresh on a non-remote-store listener",
+                beforeCalls.get() - beforeAfterSeed,
+                equalTo(0)
+            );
+            assertThat("merge must not invoke afterRefresh on a non-remote-store listener", afterCalls.get() - afterAfterSeed, equalTo(0));
             synchronized (callOrder) {
-                // Seed cycles contribute "BABA"; the merge must append exactly "BA".
-                assertThat("call order must be before-then-after for every cycle", callOrder.toString(), equalTo("BABABA"));
+                // Seed cycles contribute "BABA"; the merge must append nothing for this listener.
+                assertThat("merge must not append before/after for a non-remote-store listener", callOrder.toString(), equalTo("BABA"));
             }
 
             // Sanity: the refreshLock must have been released. A follow-up refresh must
@@ -3902,8 +3909,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             // Re-index same doc — resolveDocVersion misses versionMap (cleared by refresh rotation),
             // falls back to provider which returns version=5. MATCH_ANY accepts.
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
-            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-            assertThat(result.getSeqNo(), equalTo(1L));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
         }
     }
 
@@ -4023,7 +4030,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo(5L));
             // Index "x" again — should succeed (versionMap has version=2 from seqNo=5 entry)
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("x", null)));
-            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertEquals(result.getFailure().getClass(), AppendOnlyIndexOperationRetryException.class);
         }
     }
 

@@ -21,5 +21,4 @@ native-bridge-common = { workspace = true }
 opensearch-block-cache = { path = "../../../../../plugins/block-cache-foyer/src/main/rust" }
 
 [dev-dependencies]
-tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

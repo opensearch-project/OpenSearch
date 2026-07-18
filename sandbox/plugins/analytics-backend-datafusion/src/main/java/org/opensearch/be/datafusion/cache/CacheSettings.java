@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion.cache;
 
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -24,22 +25,23 @@ import java.util.Locale;
  * <pre>
  * node.native_memory.limit = 80% of off-heap
  *   ├── 71% → datafusion.memory_pool_limit_bytes  (operator pool)
- *   ├──  3% → datafusion.metadata_index_cache.total_size   (all metadata caches (footer + page indexes), this class)
+ *   ├──  9% → datafusion.metadata_index_cache.total_size   (all metadata caches (footer + page indexes), this class)
+ *   │     │       (9% on warm nodes; 3% on all other node types)
  *   │     ├── 50% → metadata cache   (footer metadata, Rust jemalloc)
  *   │     ├── 35% → offset index     (projection-driven, Rust jemalloc)
  *   │     └── 15% → column index     (predicate-driven, Rust jemalloc)
- *   ├──  8% → Arrow ingest pool
+ *   ├──  4% → Arrow ingest pool                            (4% on warm nodes; 8% on all other node types)
  *   ├──  5% → Arrow flight pool
  *   ├──  5% → Arrow query pool
- *   ├──  5% → Parquet write pool
+ *   ├──  3% → Parquet write pool                           (3% on warm nodes; 5% on all other node types)
  *   └──  3% → Parquet merge pool
- *   = 100%
+ *   = 100% (warm node)
  * </pre>
  *
  * <p>The three sub-cache percentages must sum to &lt;= 100 (unused headroom is accepted). Changing any one without adjusting
  * the others is rejected at validation time.
  *
- * <p>The statistics cache is sized independently (not part of the 3% total) because it
+ * <p>The statistics cache is sized independently (not part of the 9% total) because it
  * holds file-level row-group statistics, not page-level indexes — a different working set
  * with different eviction characteristics.
  */
@@ -77,14 +79,40 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
-    // Page-cache total budget (3% of node.native_memory.limit)
+    /**
+     * Eviction policy for the scoped ColumnIndex cache.
+     * Currently only {@code FIFO} is supported — the CI/OI caches use a lock-free
+     * read design (FIFO insert-order eviction under a single write lock).
+     * {@code S3_FIFO} will be added as a follow-up.
+     */
+    public static final Setting<String> COLUMN_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
+        "datafusion.column_index.cache.eviction.type",
+        "FIFO",
+        CacheSettings::validateScopedEvictionType,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Eviction policy for the scoped OffsetIndex cache.
+     * Currently only {@code FIFO} is supported.
+     */
+    public static final Setting<String> OFFSET_INDEX_CACHE_EVICTION_TYPE = new Setting<>(
+        "datafusion.offset_index.cache.eviction.type",
+        "FIFO",
+        CacheSettings::validateScopedEvictionType,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    // Page-cache total budget (9% of node.native_memory.limit on warm nodes, 3% otherwise)
 
     public static final String METADATA_INDEX_CACHE_TOTAL_SIZE_KEY = "datafusion.metadata_index_cache.total_size";
 
     /**
      * Total byte budget for all three metadata caches (footer metadata, ColumnIndex,
-     * OffsetIndex). Defaults to 3% of {@code node.native_memory.limit}; falls back to
-     * 500 MB when AC is unconfigured.
+     * OffsetIndex). Defaults to 9% of {@code node.native_memory.limit} on warm nodes
+     * (3% on all other node types); falls back to 500 MB when AC is unconfigured.
      */
     public static final Setting<ByteSizeValue> METADATA_INDEX_CACHE_TOTAL_SIZE = new Setting<>(
         METADATA_INDEX_CACHE_TOTAL_SIZE_KEY,
@@ -194,22 +222,42 @@ public class CacheSettings {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
-     * Default total page-cache budget: 3% of {@code node.native_memory.limit}.
-     * Falls back to 500 MB when AC is unconfigured (limit == 0).
+     * Default total page-cache budget: 9% of {@code node.native_memory.limit} on warm nodes,
+     * 3% on all other node types. Falls back to 500 MB when AC is unconfigured (limit == 0).
      */
     static String deriveMetadataIndexCacheTotalDefault(Settings settings) {
         ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
         if (nativeLimit.getBytes() <= 0) {
             return (500L * 1024 * 1024) + "b";
         }
-        long total = Math.max(nativeLimit.getBytes() * 3 / 100, 0L);
+        // Warm nodes dedicate a larger share (9%) to metadata caches; other node types retain the 3% default.
+        int percent = DiscoveryNode.isWarmNode(settings) ? 9 : 3;
+        long total = Math.max(nativeLimit.getBytes() * percent / 100, 0L);
         return total + "b";
     }
 
+    /** Validates eviction type for metadata/statistics caches (LRU or LFU via CachePolicy). */
     private static String validateEvictionType(String value) {
         String upper = value.toUpperCase(Locale.ROOT);
         if (!upper.equals("LRU") && !upper.equals("LFU")) {
             throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU' or 'LFU'.");
+        }
+        return upper;
+    }
+
+    /**
+     * Validates eviction type for the scoped CI/OI caches.
+     * Only {@code FIFO} is supported today; {@code S3_FIFO} will be added as a follow-up.
+     */
+    private static String validateScopedEvictionType(String value) {
+        String upper = value.toUpperCase(Locale.ROOT);
+        if (!upper.equals("FIFO")) {
+            throw new IllegalArgumentException(
+                "Invalid eviction type '"
+                    + value
+                    + "' for scoped page-index cache. "
+                    + "Only 'FIFO' is supported. S3_FIFO support is planned as a follow-up."
+            );
         }
         return upper;
     }

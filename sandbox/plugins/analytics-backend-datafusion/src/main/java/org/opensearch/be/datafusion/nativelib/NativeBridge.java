@@ -125,12 +125,14 @@ public final class NativeBridge {
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
     private static final MethodHandle CACHE_MANAGER_ADD_FILES;
+    private static final MethodHandle CACHE_MANAGER_ADD_FILES_WITH_STORE;
     private static final MethodHandle CACHE_MANAGER_REMOVE_FILES;
     private static final MethodHandle CACHE_MANAGER_CLEAR;
     private static final MethodHandle CACHE_MANAGER_CLEAR_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_UPDATE_SIZE_LIMIT;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
@@ -138,6 +140,7 @@ public final class NativeBridge {
     private static final MethodHandle SET_COLUMN_INDEX_CACHE_LIMIT;
     private static final MethodHandle SET_OFFSET_INDEX_CACHE_LIMIT;
     private static final MethodHandle CLEAR_SCOPED_PAGE_INDEX_CACHE;
+    private static final MethodHandle SET_SCOPED_PAGE_INDEX_ENABLED;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
@@ -467,6 +470,18 @@ public final class NativeBridge {
             )
         );
 
+        CACHE_MANAGER_ADD_FILES_WITH_STORE = linker.downcallHandle(
+            lib.find("df_cache_manager_add_files_with_store").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // runtime_ptr
+                ValueLayout.JAVA_LONG,  // store_ptr
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.JAVA_LONG   // files_count
+            )
+        );
+
         CACHE_MANAGER_REMOVE_FILES = linker.downcallHandle(
             lib.find("df_cache_manager_remove_files").orElseThrow(),
             FunctionDescriptor.of(
@@ -512,6 +527,17 @@ public final class NativeBridge {
             )
         );
 
+        CACHE_MANAGER_UPDATE_SIZE_LIMIT = linker.downcallHandle(
+            lib.find("df_cache_manager_update_size_limit").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
         SET_COLUMN_INDEX_CACHE_LIMIT = linker.downcallHandle(
             lib.find("df_set_column_index_cache_limit").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
@@ -523,6 +549,10 @@ public final class NativeBridge {
         CLEAR_SCOPED_PAGE_INDEX_CACHE = linker.downcallHandle(
             lib.find("df_clear_scoped_page_index_cache").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
+        SET_SCOPED_PAGE_INDEX_ENABLED = linker.downcallHandle(
+            lib.find("df_set_scoped_page_index_enabled").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
@@ -1617,6 +1647,22 @@ public final class NativeBridge {
         }
     }
 
+    /**
+     * Load metadata for files through the given TieredObjectStore.
+     * Reads footer (lightweight) into heap cache, fetches page/offset index bytes
+     * through the store (populating data Foyer), and returns for promotion to metadata Foyer.
+     *
+     * @param runtimePtr pointer from createGlobalRuntime
+     * @param storePtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer (from TieredStorageBridge.getObjectStoreBoxPtr)
+     * @param filePaths array of absolute file paths
+     */
+    public static void cacheManagerAddFilesWithStore(long runtimePtr, long storePtr, String[] filePaths) {
+        try (var call = new NativeCall()) {
+            var f = call.strArray(filePaths);
+            call.invoke(CACHE_MANAGER_ADD_FILES_WITH_STORE, runtimePtr, storePtr, f.ptrs(), f.lens(), f.count());
+        }
+    }
+
     public static void cacheManagerRemoveFiles(long runtimePtr, String[] filePaths) {
         try (var call = new NativeCall()) {
             var f = call.strArray(filePaths);
@@ -1659,6 +1705,13 @@ public final class NativeBridge {
         }
     }
 
+    public static void cacheManagerUpdateSizeLimit(long runtimePtr, String cacheType, long newLimit) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CACHE_MANAGER_UPDATE_SIZE_LIMIT, runtimePtr, type.segment(), type.len(), newLimit);
+        }
+    }
+
     /**
      * Sets the byte budget of the process-global scoped ColumnIndex cache.
      * Shrinking evicts LRU entries immediately. Zero is ignored.
@@ -1689,14 +1742,6 @@ public final class NativeBridge {
         }
     }
 
-    /** Clears the footer metadata cache. */
-    public static void clearFooterCache() {
-        // TODO(PR1): wire to df_clear_footer_cache when available
-        try (var call = new NativeCall()) {
-            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
-        }
-    }
-
     /** Clears the scoped ColumnIndex (predicate) cache. */
     public static void clearColumnIndexCache() {
         // TODO(PR1): wire to df_clear_column_index_cache when available
@@ -1710,6 +1755,17 @@ public final class NativeBridge {
         // TODO(PR1): wire to df_clear_offset_index_cache when available
         try (var call = new NativeCall()) {
             call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /**
+     * Enable or disable the scoped page-index feature.
+     * When disabled, the metadata cache retains the full page index (fallback mode)
+     * and CI/OI scoped caches are bypassed entirely.
+     */
+    public static void setScopedPageIndexEnabled(boolean enabled) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_SCOPED_PAGE_INDEX_ENABLED, enabled ? 1L : 0L);
         }
     }
 

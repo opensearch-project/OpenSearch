@@ -11,7 +11,9 @@ package org.opensearch.be.datafusion.action.stats;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.TransportNodesAction;
-import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.DataFusionService;
+import org.opensearch.be.datafusion.cache.CacheManager;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -22,8 +24,11 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Broadcast transport action that clears the process-global scoped page-index
- * caches (ColumnIndex + OffsetIndex) on every target node.
+ * Broadcast transport action that clears the DataFusion parquet caches on every
+ * target node. Clearing is routed through the node-local {@link CacheManager},
+ * which holds the native runtime handle: the metadata (footer) and statistics
+ * caches are runtime-scoped and can only be cleared through that handle, while
+ * the ColumnIndex/OffsetIndex scoped caches are cleared alongside them.
  *
  * @opensearch.internal
  */
@@ -33,12 +38,15 @@ public class TransportClearCacheAction extends TransportNodesAction<
     ClearCacheNodeRequest,
     ClearCacheNodeResponse> {
 
+    private final DataFusionService dataFusionService;
+
     @Inject
     public TransportClearCacheAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        DataFusionService dataFusionService
     ) {
         super(
             ClearCacheActionType.NAME,
@@ -51,6 +59,7 @@ public class TransportClearCacheAction extends TransportNodesAction<
             ThreadPool.Names.MANAGEMENT,
             ClearCacheNodeResponse.class
         );
+        this.dataFusionService = dataFusionService;
     }
 
     @Override
@@ -64,7 +73,7 @@ public class TransportClearCacheAction extends TransportNodesAction<
 
     @Override
     protected ClearCacheNodeRequest newNodeRequest(ClearCacheNodesRequest request) {
-        return new ClearCacheNodeRequest(request.isFooter(), request.isColumn(), request.isOffset());
+        return new ClearCacheNodeRequest(request.isFooter(), request.isColumn(), request.isOffset(), request.isStatistics());
     }
 
     @Override
@@ -74,14 +83,18 @@ public class TransportClearCacheAction extends TransportNodesAction<
 
     @Override
     protected ClearCacheNodeResponse nodeOperation(ClearCacheNodeRequest request) {
-        if (request.isClearAll()) {
-            NativeBridge.clearColumnIndexCache();
-            NativeBridge.clearOffsetIndexCache();
-            NativeBridge.clearFooterCache();
-        } else {
-            if (request.isColumn()) NativeBridge.clearColumnIndexCache();
-            if (request.isOffset()) NativeBridge.clearOffsetIndexCache();
-            if (request.isFooter()) NativeBridge.clearFooterCache();
+        CacheManager cacheManager = dataFusionService.getCacheManager();
+        // Caching may not be configured on this node (DataFusion not started or
+        // caches disabled). Nothing to clear in that case.
+        if (cacheManager != null) {
+            if (request.isClearAll()) {
+                cacheManager.clearAllCache();
+            } else {
+                if (request.isFooter()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.METADATA);
+                if (request.isColumn()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.COLUMN_INDEX);
+                if (request.isOffset()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.OFFSET_INDEX);
+                if (request.isStatistics()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.STATISTICS);
+            }
         }
         return new ClearCacheNodeResponse(clusterService.localNode());
     }

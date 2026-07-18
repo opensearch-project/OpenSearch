@@ -97,18 +97,18 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
             new_proj_indices.push(row_base_partition_idx);
 
             // Rebuild the DataSourceExec with new projections
-            let new_table_schema = TableSchema::new(
-                file_schema.clone(),
-                partition_cols.clone(),
-            );
+            let new_table_schema = TableSchema::new(file_schema.clone(), partition_cols.clone());
             let new_source = Arc::new(ParquetSource::new(new_table_schema));
 
             let new_config = FileScanConfigBuilder::from(file_scan_config.clone())
                 .with_source(new_source)
                 .with_projection_indices(Some(new_proj_indices))
-                .map_err(|e| datafusion::error::DataFusionError::Internal(
-                    format!("ProjectRowIdOptimizer: set projection: {}", e)
-                ))?
+                .map_err(|e| {
+                    datafusion::error::DataFusionError::Internal(format!(
+                        "ProjectRowIdOptimizer: set projection: {}",
+                        e
+                    ))
+                })?
                 .build();
 
             let new_datasource: Arc<dyn ExecutionPlan> =
@@ -132,10 +132,8 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                 } else if field.name() == ROW_BASE_FIELD_NAME {
                     continue; // drop from output
                 } else {
-                    projection_exprs.push((
-                        Arc::new(Column::new(field.name(), i)),
-                        field.name().clone(),
-                    ));
+                    projection_exprs
+                        .push((Arc::new(Column::new(field.name(), i)), field.name().clone()));
                 }
             }
 
