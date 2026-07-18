@@ -176,6 +176,22 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
+     * Removes multiple existing files in the directory in a batch operation.
+     *
+     * <p>This method will not throw an exception when a file doesn't exist and simply ignores missing files.
+     * This is consistent with the behavior of {@link #deleteFile(String)}.
+     *
+     * @param names the collection of filenames to delete.
+     * @throws IOException if the files exist but could not be deleted.
+     */
+    public void deleteFiles(List<String> names) throws IOException {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        blobContainer.deleteBlobsIgnoringIfNotExists(names);
+    }
+
+    /**
      * Creates and returns a new instance of {@link RemoteIndexOutput} which will be used to copy files to the remote
      * store.
      *
