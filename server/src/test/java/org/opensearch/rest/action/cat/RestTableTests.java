@@ -341,6 +341,59 @@ public class RestTableTests extends OpenSearchTestCase {
         return paginatedTable;
     }
 
+    public void testHeaderAggregationTriggersSummarizedJsonOutput() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(new Object[] { "idx-a", 100L }, new Object[] { "idx-a", 200L }, new Object[] { "idx-b", 50L })) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        // A function token in h= triggers summarization; `index` is inferred as the GROUP BY key.
+        req.params().put("h", "index,sum(docs)");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(
+            response.content().utf8ToString(),
+            equalTo("[{\"index\":\"idx-a\",\"sum(docs)\":\"300\"},{\"index\":\"idx-b\",\"sum(docs)\":\"50\"}]")
+        );
+    }
+
+    public void testHeaderWithoutAggregationIsNotSummarized() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(new Object[] { "idx-a", 100L }, new Object[] { "idx-a", 200L }, new Object[] { "idx-b", 50L })) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        // Bare columns only => ordinary listing, all three rows preserved (no grouping).
+        req.params().put("h", "index");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(response.content().utf8ToString(), equalTo("[{\"index\":\"idx-a\"},{\"index\":\"idx-a\"},{\"index\":\"idx-b\"}]"));
+    }
+
     private void addHeaders(Table table) {
         table.startHeaders();
         table.addCell("bulk.foo", "alias:f;desc:foo");

@@ -72,6 +72,13 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
+        String hParam = request.param("h");
+        // Grouping/aggregation is inferred from h=: if any h= token is an aggregation function
+        // (e.g. sum(docs)), summarize the table; bare tokens are treated as GROUP BY keys. Plain
+        // h= listings (no functions) are returned unchanged by TableSummarizer.summarize.
+        if (TableSummarizer.hasAggregation(hParam)) {
+            table = TableSummarizer.summarize(table, hParam);
+        }
         MediaType mediaType = getXContentType(request);
         if (mediaType != null) {
             return buildXContentBuilder(table, channel);
