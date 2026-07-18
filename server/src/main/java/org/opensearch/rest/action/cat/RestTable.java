@@ -212,6 +212,13 @@ public class RestTable {
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
         }
+
+        // Apply the limit parameter (if positive). Applied after sort so `?s=field:desc&limit=N`
+        // yields the top-N rows by the sort key. This also caps unsummarized responses.
+        int limit = request.paramAsInt("limit", -1);
+        if (limit > 0 && rowOrder.size() > limit) {
+            rowOrder = new ArrayList<>(rowOrder.subList(0, limit));
+        }
         return rowOrder;
     }
 
