@@ -155,4 +155,12 @@ public interface SearchPhaseContext extends Executor {
      * Set the resource usage info for this phase
      */
     void setPhaseResourceUsages();
+
+    /**
+     * Returns the latency breakdown tracker for this search request, or {@code null}
+     * if breakdown tracking is not available in this context.
+     */
+    default SearchLatencyBreakdown getLatencyBreakdown() {
+        return null;
+    }
 }

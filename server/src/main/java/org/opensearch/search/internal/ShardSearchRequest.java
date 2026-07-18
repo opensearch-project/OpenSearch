@@ -107,6 +107,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
 
+    // Absolute System.nanoTime() from coordinator at request dispatch time.
+    // Used by data nodes to compute absolute start_offset_micros for Gantt chart positioning.
+    // Defaults to 0 when not set (older coordinator or not applicable).
+    private long requestStartNanos;
+
+    // Absolute System.currentTimeMillis() from coordinator at request dispatch time.
+    // Used by data nodes for cross-node absolute offset computation via NTP-synced wall clocks.
+    // Defaults to 0 when not set (older coordinator).
+    private long requestStartMillis;
+
     // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
@@ -266,6 +276,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         readerId = in.readOptionalWriteable(ShardSearchContextId::new);
         keepAlive = in.readOptionalTimeValue();
         originalIndices = OriginalIndices.readOriginalIndices(in);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            requestStartNanos = in.readVLong();
+            requestStartMillis = in.readVLong();
+        } else {
+            requestStartNanos = 0;
+            requestStartMillis = 0;
+        }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
@@ -290,6 +307,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.requestStartNanos = clone.requestStartNanos;
+        this.requestStartMillis = clone.requestStartMillis;
     }
 
     @Override
@@ -297,6 +316,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeVLong(requestStartNanos);
+            out.writeVLong(requestStartMillis);
+        }
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -403,6 +426,41 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public void setOutboundNetworkTime(long newTime) {
         this.outboundNetworkTime = newTime;
+    }
+
+    /**
+     * Returns the absolute {@code System.nanoTime()} recorded by the coordinator at request dispatch time.
+     * Data nodes use this to compute absolute start_offset_micros for Gantt chart positioning.
+     * A value of 0 means not set (older coordinator or not applicable), and the data node should
+     * fall back to duration-only reporting.
+     */
+    public long getRequestStartNanos() {
+        return requestStartNanos;
+    }
+
+    /**
+     * Sets the absolute {@code System.nanoTime()} from the coordinator at request dispatch time.
+     * This allows data nodes to compute absolute start_offset_micros relative to the original request start.
+     */
+    public void setRequestStartNanos(long nanos) {
+        this.requestStartNanos = nanos;
+    }
+
+    /**
+     * Returns the absolute {@code System.currentTimeMillis()} recorded by the coordinator at request dispatch time.
+     * Data nodes use this for cross-node absolute offset computation via NTP-synced wall clocks.
+     * A value of 0 means not set (older coordinator).
+     */
+    public long getRequestStartMillis() {
+        return requestStartMillis;
+    }
+
+    /**
+     * Sets the absolute {@code System.currentTimeMillis()} from the coordinator at request dispatch time.
+     * Enables cross-node absolute positioning using NTP-synced wall clocks.
+     */
+    public void setRequestStartMillis(long millis) {
+        this.requestStartMillis = millis;
     }
 
     public Boolean requestCache() {

@@ -230,6 +230,7 @@ final class FetchSearchPhase extends SearchPhase {
         final QuerySearchResult querySearchResult,
         final Transport.Connection connection
     ) {
+        final long fetchSendTimestamp = System.nanoTime();
         context.getSearchTransport()
             .sendExecuteFetch(
                 connection,
@@ -239,6 +240,12 @@ final class FetchSearchPhase extends SearchPhase {
                     @Override
                     public void innerOnResponse(FetchSearchResult result) {
                         try {
+                            // Record fetch-phase network roundtrip time
+                            long fetchRoundtripNanos = Math.max(0, System.nanoTime() - fetchSendTimestamp);
+                            SearchLatencyBreakdown breakdown = context.getLatencyBreakdown();
+                            if (breakdown != null) {
+                                breakdown.recordNetworkRoundtripFetch(fetchRoundtripNanos);
+                            }
                             progressListener.notifyFetchResult(shardIndex);
                             context.setPhaseResourceUsages();
                             counter.onResult(result);
@@ -264,7 +271,8 @@ final class FetchSearchPhase extends SearchPhase {
                             releaseIrrelevantSearchContext(querySearchResult);
                         }
                     }
-                }
+                },
+                context.getLatencyBreakdown()
             );
     }
 

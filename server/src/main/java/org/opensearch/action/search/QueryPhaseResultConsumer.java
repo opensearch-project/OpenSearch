@@ -89,6 +89,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     final PendingReduces pendingReduces;
     private final Consumer<Exception> cancelTaskOnFailure;
     private final BooleanSupplier isTaskCancelled;
+    private final SearchLatencyBreakdown latencyBreakdown;
 
     public QueryPhaseResultConsumer(
         SearchRequest request,
@@ -109,7 +110,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             namedWriteableRegistry,
             expectedResultSize,
             cancelTaskOnFailure,
-            () -> false
+            () -> false,
+            null
         );
     }
 
@@ -128,6 +130,36 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Consumer<Exception> cancelTaskOnFailure,
         BooleanSupplier isTaskCancelled
     ) {
+        this(
+            request,
+            executor,
+            circuitBreaker,
+            controller,
+            progressListener,
+            namedWriteableRegistry,
+            expectedResultSize,
+            cancelTaskOnFailure,
+            isTaskCancelled,
+            null
+        );
+    }
+
+    /**
+     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
+     * as shard results are consumed, optionally recording reduce latencies into the provided breakdown.
+     */
+    public QueryPhaseResultConsumer(
+        SearchRequest request,
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchPhaseController controller,
+        SearchProgressListener progressListener,
+        NamedWriteableRegistry namedWriteableRegistry,
+        int expectedResultSize,
+        Consumer<Exception> cancelTaskOnFailure,
+        BooleanSupplier isTaskCancelled,
+        SearchLatencyBreakdown latencyBreakdown
+    ) {
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
@@ -145,6 +177,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int batchReduceSize = getBatchReduceSize(request.getBatchedReduceSize(), expectedResultSize);
         this.pendingReduces = new PendingReduces(batchReduceSize, request.resolveTrackTotalHitsUpTo());
         this.isTaskCancelled = isTaskCancelled;
+        this.latencyBreakdown = latencyBreakdown;
     }
 
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
@@ -192,7 +225,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingReduces.numReducePhases,
             false,
             aggReduceContextBuilder,
-            performFinalReduce
+            performFinalReduce,
+            latencyBreakdown
         );
         if (hasAggs && reducePhase.aggregations != null) {
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result

@@ -34,6 +34,8 @@ package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.Version;
+import org.opensearch.action.search.SearchLatencyBreakdownNode;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
@@ -52,6 +54,8 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.opensearch.common.lucene.Lucene.readTopDocs;
 import static org.opensearch.common.lucene.Lucene.writeTopDocs;
@@ -87,6 +91,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
+
+    /** Shard-level latency breakdown timings (nanos) for latency breakdown feature */
+    private Map<String, Long> shardLatencyBreakdownNanos;
+
+    /** Shard-level latency breakdown node tree for hierarchical visualization */
+    private SearchLatencyBreakdownNode latencyBreakdownNode;
 
     private final boolean isNull;
 
@@ -327,6 +337,37 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public Map<String, Long> getShardLatencyBreakdownNanos() {
+        return shardLatencyBreakdownNanos;
+    }
+
+    public void setShardLatencyBreakdownNanos(Map<String, Long> breakdown) {
+        this.shardLatencyBreakdownNanos = breakdown;
+    }
+
+    public void recordShardTiming(String key, long nanos) {
+        if (shardLatencyBreakdownNanos == null) {
+            shardLatencyBreakdownNanos = new HashMap<>();
+        }
+        shardLatencyBreakdownNanos.merge(key, nanos, Long::sum);
+    }
+
+    /**
+     * Returns the shard-level latency breakdown node tree for hierarchical visualization.
+     * May be null if breakdown instrumentation is not active.
+     */
+    public SearchLatencyBreakdownNode getLatencyBreakdownNode() {
+        return latencyBreakdownNode;
+    }
+
+    /**
+     * Sets the shard-level latency breakdown node tree.
+     * Called after query phase execution to attach the breakdown tree for transport back to coordinator.
+     */
+    public void setLatencyBreakdownNode(SearchLatencyBreakdownNode node) {
+        this.latencyBreakdownNode = node;
+    }
+
     /**
      * Returns <code>true</code> if this result has any suggest score docs
      */
@@ -366,6 +407,20 @@ public final class QuerySearchResult extends SearchPhaseResult {
         nodeQueueSize = in.readInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setRescoreDocIds(new RescoreDocIds(in));
+
+        // Latency breakdown data — version-gated for backward compatibility with older nodes
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.readBoolean()) {
+                int mapSize = in.readVInt();
+                shardLatencyBreakdownNanos = new HashMap<>(mapSize);
+                for (int i = 0; i < mapSize; i++) {
+                    shardLatencyBreakdownNanos.put(in.readString(), in.readVLong());
+                }
+            }
+            if (in.readBoolean()) {
+                latencyBreakdownNode = new SearchLatencyBreakdownNode(in);
+            }
+        }
     }
 
     @Override
@@ -408,6 +463,26 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
+
+        // Latency breakdown data — version-gated for backward compatibility with older nodes
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (shardLatencyBreakdownNanos != null && !shardLatencyBreakdownNanos.isEmpty()) {
+                out.writeBoolean(true);
+                out.writeVInt(shardLatencyBreakdownNanos.size());
+                for (Map.Entry<String, Long> entry : shardLatencyBreakdownNanos.entrySet()) {
+                    out.writeString(entry.getKey());
+                    out.writeVLong(entry.getValue());
+                }
+            } else {
+                out.writeBoolean(false);
+            }
+            if (latencyBreakdownNode != null) {
+                out.writeBoolean(true);
+                latencyBreakdownNode.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     public TotalHits getTotalHits() {

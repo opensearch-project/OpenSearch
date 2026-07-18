@@ -439,6 +439,9 @@ final class DefaultSearchContext extends SearchContext {
             }
         }
         // initialize the filtering alias based on the provided filters
+        // Time global ordinals loading: alias filter toQuery() and buildFilteredQuery() can trigger
+        // global ordinals loading via field data access for keyword/ordinal-based fields
+        final long goStart = System.nanoTime();
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
             aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
@@ -453,11 +456,32 @@ final class DefaultSearchContext extends SearchContext {
             parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
         }
         this.query = buildFilteredQuery(query);
+        final long goDuration = Math.max(0, System.nanoTime() - goStart);
+        if (goDuration > 0) {
+            queryResult().recordShardTiming("global_ordinals_loading", goDuration);
+            // Record start offset for absolute positioning in the breakdown tree
+            final long requestStartNanos = request.getRequestStartNanos();
+            if (requestStartNanos > 0) {
+                queryResult().recordShardTiming("global_ordinals_loading_start", Math.max(0, goStart - requestStartNanos));
+            }
+        }
+
+        // Time script compilation: query rewriting triggers script compilation for script-based queries
         if (rewrite) {
+            final long scStart = System.nanoTime();
             try {
                 this.query = searcher.rewrite(query);
             } catch (IOException e) {
                 throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
+            }
+            final long scDuration = Math.max(0, System.nanoTime() - scStart);
+            if (scDuration > 0) {
+                queryResult().recordShardTiming("script_compilation", scDuration);
+                // Record start offset for absolute positioning in the breakdown tree
+                final long requestStartNanos = request.getRequestStartNanos();
+                if (requestStartNanos > 0) {
+                    queryResult().recordShardTiming("script_compilation_start", Math.max(0, scStart - requestStartNanos));
+                }
             }
         }
     }
@@ -465,10 +489,20 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
+        // Time nested bitset construction: building the non-nested filter for indices with nested documents
         if (mapperService().hasNested()
             && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
             && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
+            final long nbStart = System.nanoTime();
             filters.add(Queries.newNonNestedFilter());
+            final long nbDuration = Math.max(0, System.nanoTime() - nbStart);
+            if (nbDuration > 0) {
+                queryResult().recordShardTiming("nested_bitset_construction", nbDuration);
+                final long requestStartNanos = request.getRequestStartNanos();
+                if (requestStartNanos > 0) {
+                    queryResult().recordShardTiming("nested_bitset_construction_start", Math.max(0, nbStart - requestStartNanos));
+                }
+            }
         }
 
         if (aliasFilter != null) {

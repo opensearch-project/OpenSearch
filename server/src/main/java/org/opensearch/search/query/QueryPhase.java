@@ -47,6 +47,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchLatencyBreakdownNode;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
@@ -125,7 +126,17 @@ public class QueryPhase {
             cancellation = null;
         }
         try {
+            final long preProcessStartNanos = System.nanoTime();
             context.preProcess(true);
+            final long preProcessNanos = System.nanoTime() - preProcessStartNanos;
+            // Record preProcess timing which includes global ordinals loading,
+            // script compilation, nested bitset construction, and star-tree setup
+            context.queryResult().recordShardTiming("query_pre_process", preProcessNanos);
+            // Record start offset for absolute positioning in the breakdown tree
+            final long requestStartNanos = context.request().getRequestStartNanos();
+            if (requestStartNanos > 0) {
+                context.queryResult().recordShardTiming("query_pre_process_start", Math.max(0, preProcessStartNanos - requestStartNanos));
+            }
         } finally {
             if (cancellation != null) {
                 context.searcher().removeQueryCancellation(cancellation);
@@ -152,14 +163,171 @@ public class QueryPhase {
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
+        final long aggPreProcessStartNanos = System.nanoTime();
         aggregationProcessor.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
+        final long aggPreProcessEndNanos = System.nanoTime();
 
+        final long queryExecStartNanos = System.nanoTime();
+        boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
+        final long queryExecEndNanos = System.nanoTime();
+
+        long rescoreStartNanos = 0;
+        long rescoreDurationNanos = 0;
         if (rescore) { // only if we do a regular search
+            rescoreStartNanos = System.nanoTime();
             rescoreProcessor.process(searchContext);
+            rescoreDurationNanos = Math.max(0, System.nanoTime() - rescoreStartNanos);
         }
-        suggestProcessor.process(searchContext);
+
+        long suggestStartNanos = 0;
+        long suggestDurationNanos = 0;
+        if (searchContext.suggest() != null) {
+            suggestStartNanos = System.nanoTime();
+            suggestProcessor.process(searchContext);
+            suggestDurationNanos = Math.max(0, System.nanoTime() - suggestStartNanos);
+        } else {
+            suggestProcessor.process(searchContext);
+        }
+
+        final long aggPostProcessStartNanos = System.nanoTime();
         aggregationProcessor.postProcess(searchContext);
+        final long aggPostProcessEndNanos = System.nanoTime();
+
+        // Record aggregation timings into QuerySearchResult for latency breakdown
+        searchContext.queryResult().recordShardTiming("agg_pre_process", aggPreProcessEndNanos - aggPreProcessStartNanos);
+        searchContext.queryResult().recordShardTiming("query_internal_execution", queryExecEndNanos - queryExecStartNanos);
+        searchContext.queryResult().recordShardTiming("agg_post_process", aggPostProcessEndNanos - aggPostProcessStartNanos);
+        if (rescore && rescoreDurationNanos > 0) {
+            searchContext.queryResult().recordShardTiming("rescore", rescoreDurationNanos);
+        }
+
+        // Record absolute start offsets for timeline positioning in the breakdown chart
+        final long requestStartNanos = searchContext.request().getRequestStartNanos();
+        if (requestStartNanos > 0) {
+            searchContext.queryResult().recordShardTiming(
+                "agg_pre_process_start",
+                Math.max(0, aggPreProcessStartNanos - requestStartNanos)
+            );
+            searchContext.queryResult().recordShardTiming(
+                "query_internal_execution_start",
+                Math.max(0, queryExecStartNanos - requestStartNanos)
+            );
+            searchContext.queryResult().recordShardTiming(
+                "agg_post_process_start",
+                Math.max(0, aggPostProcessStartNanos - requestStartNanos)
+            );
+        }
+
+        // Build SearchLatencyBreakdownNode tree for the query phase internals
+        final long queryPhaseStartNanos = aggPreProcessStartNanos;
+        final long queryPhaseTotalNanos = aggPostProcessEndNanos - queryPhaseStartNanos;
+        SearchLatencyBreakdownNode queryPhaseNode = new SearchLatencyBreakdownNode(
+            "Query Phase", SearchLatencyBreakdownNode.CATEGORY_PHASE, queryPhaseTotalNanos
+        );
+
+        // Add child nodes for each sub-operation with start offsets relative to query phase start
+        long aggPreProcessDuration = aggPreProcessEndNanos - aggPreProcessStartNanos;
+        if (aggPreProcessDuration > 0) {
+            SearchLatencyBreakdownNode aggPreProcessNode = new SearchLatencyBreakdownNode(
+                "Agg Pre-Process",
+                SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                aggPreProcessStartNanos - queryPhaseStartNanos,
+                aggPreProcessDuration
+            );
+            // Add finer-grained agg_initialize as a child of Agg Pre-Process
+            Map<String, Long> preShardTimings = searchContext.queryResult().getShardLatencyBreakdownNanos();
+            if (preShardTimings != null) {
+                Long aggInitNanos = preShardTimings.get("agg_initialize");
+                if (aggInitNanos != null && aggInitNanos > 0) {
+                    aggPreProcessNode.addChild(
+                        "Agg Initialize",
+                        SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                        aggInitNanos
+                    );
+                }
+            }
+            queryPhaseNode.addChild(aggPreProcessNode);
+        }
+
+        long queryExecDuration = queryExecEndNanos - queryExecStartNanos;
+        if (queryExecDuration > 0) {
+            queryPhaseNode.addChild(
+                "Query Execution",
+                SearchLatencyBreakdownNode.CATEGORY_QUERY,
+                queryExecStartNanos - queryPhaseStartNanos,
+                queryExecDuration
+            );
+        }
+
+        // Record rescore timing only when rescore was actually executed
+        if (rescore && rescoreDurationNanos > 0) {
+            queryPhaseNode.addChild(
+                "Rescore",
+                SearchLatencyBreakdownNode.CATEGORY_QUERY,
+                Math.max(0, rescoreStartNanos - queryPhaseStartNanos),
+                rescoreDurationNanos
+            );
+        }
+
+        // Record suggest timing only when suggest is configured
+        if (searchContext.suggest() != null && suggestDurationNanos > 0) {
+            queryPhaseNode.addChild(
+                "Suggest",
+                SearchLatencyBreakdownNode.CATEGORY_QUERY,
+                Math.max(0, suggestStartNanos - queryPhaseStartNanos),
+                suggestDurationNanos
+            );
+        }
+
+        long aggPostProcessDuration = aggPostProcessEndNanos - aggPostProcessStartNanos;
+        if (aggPostProcessDuration > 0) {
+            SearchLatencyBreakdownNode aggPostProcessNode = new SearchLatencyBreakdownNode(
+                "Agg Post-Process",
+                SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                aggPostProcessStartNanos - queryPhaseStartNanos,
+                aggPostProcessDuration
+            );
+            // Add finer-grained aggregation sub-timings as children of Agg Post-Process
+            Map<String, Long> postShardTimings = searchContext.queryResult().getShardLatencyBreakdownNanos();
+            if (postShardTimings != null) {
+                Long aggPostCollectionNanos = postShardTimings.get("agg_post_collection");
+                if (aggPostCollectionNanos != null && aggPostCollectionNanos > 0) {
+                    aggPostProcessNode.addChild(
+                        "Agg Post-Collection",
+                        SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                        aggPostCollectionNanos
+                    );
+                }
+                Long aggBuildNanos = postShardTimings.get("agg_build_aggregation");
+                if (aggBuildNanos != null && aggBuildNanos > 0) {
+                    aggPostProcessNode.addChild(
+                        "Agg Build Aggregation",
+                        SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                        aggBuildNanos
+                    );
+                }
+                Long aggCollectNanos = postShardTimings.get("agg_collect");
+                if (aggCollectNanos != null && aggCollectNanos > 0) {
+                    aggPostProcessNode.addChild(
+                        "Agg Collect",
+                        SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                        aggCollectNanos
+                    );
+                }
+                Long globalAggNanos = postShardTimings.get("global_agg_separate_pass");
+                if (globalAggNanos != null && globalAggNanos > 0) {
+                    aggPostProcessNode.addChild(
+                        "Global Agg Separate Pass",
+                        SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                        globalAggNanos
+                    );
+                }
+            }
+            queryPhaseNode.addChild(aggPostProcessNode);
+        }
+
+        // Attach the breakdown node tree to the query result for transport back to coordinator
+        searchContext.queryResult().setLatencyBreakdownNode(queryPhaseNode);
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(

@@ -133,4 +133,16 @@ public final class PipelinedRequest extends SearchRequest {
     public SystemGeneratedPipelineHolder getSystemGeneratedPipelineHolder() {
         return systemGeneratedPipelineHolder;
     }
+
+    /**
+     * Returns true if any pipeline in the chain has response processors configured.
+     */
+    public boolean hasResponseProcessors() {
+        for (Pipeline p : getPipelines()) {
+            if (!p.getSearchResponseProcessors().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

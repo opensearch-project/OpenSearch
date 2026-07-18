@@ -210,6 +210,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         while (weight instanceof CachingWeightWrapper cachingWeightWrapper) {
             weight = cachingWeightWrapper.in;
         }
+        // TODO: [Search Latency Breakdown] Instrumenting query_cache_lookup and query_cache_write requires deeper
+        // Lucene integration. The actual cache lookup/write happens inside Lucene's LRUQueryCache when
+        // scorerSupplier() is called on the cached Weight, which occurs per-segment during query execution.
+        // To instrument this, we would need to either:
+        //   1. Extend LRUQueryCache to expose timing callbacks (requires Lucene fork/patch), or
+        //   2. Wrap the returned Weight's scorerSupplier() to time the inner call and detect cache hits
+        //      via LRUQueryCache stats delta (complex and may introduce non-trivial overhead).
+        // For now, query cache timing is not captured. The request_cache_lookup and request_cache_write
+        // metrics (instrumented in IndicesService.loadIntoContext) provide the primary cache visibility.
         final Weight in = cache.doCache(weight, policy);
         // We wrap the weight to track the readers it sees and map them with
         // the shards they belong to

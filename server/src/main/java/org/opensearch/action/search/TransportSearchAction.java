@@ -485,13 +485,52 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
             try {
+                long pipelineStartNanos = System.nanoTime();
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, indexNameExpressionResolver);
-                listener = searchRequest.transformResponseListener(updatedListener);
+                // Wrap the listener to instrument pipeline response transform if response processors are configured
+                final boolean hasResponseProcessors = searchRequest.hasResponseProcessors();
+                final SearchLatencyBreakdown breakdown = searchRequestContext.getLatencyBreakdown();
+                ActionListener<SearchResponse> instrumentedUpdatedListener;
+                if (hasResponseProcessors) {
+                    instrumentedUpdatedListener = ActionListener.wrap(response -> {
+                        // This is called after pipeline response processing completes
+                        long responseTransformEndNanos = System.nanoTime();
+                        Long responseTransformStartNanos = searchRequestContext.getPipelineResponseTransformStartNanos();
+                        if (responseTransformStartNanos != null) {
+                            breakdown.recordPipelineResponseTransform(
+                                Math.max(0, responseTransformEndNanos - responseTransformStartNanos)
+                            );
+                            breakdown.recordTimedEvent(
+                                "pipeline_response_transform",
+                                responseTransformStartNanos,
+                                responseTransformEndNanos
+                            );
+                        }
+                        updatedListener.onResponse(response);
+                    }, updatedListener::onFailure);
+                } else {
+                    instrumentedUpdatedListener = updatedListener;
+                }
+                listener = searchRequest.transformResponseListener(instrumentedUpdatedListener);
+                if (hasResponseProcessors) {
+                    // Wrap the listener to capture start time when response first enters pipeline processing
+                    final ActionListener<SearchResponse> pipelineListener = listener;
+                    listener = ActionListener.wrap(response -> {
+                        searchRequestContext.setPipelineResponseTransformStartNanos(System.nanoTime());
+                        pipelineListener.onResponse(response);
+                    }, pipelineListener::onFailure);
+                }
+                // Record pipeline resolution time in latency breakdown
+                long pipelineEndNanos = System.nanoTime();
+                long pipelineElapsed = Math.max(0, pipelineEndNanos - pipelineStartNanos);
+                searchRequestContext.getLatencyBreakdown().recordPipelineRequestTransform(pipelineElapsed);
+                searchRequestContext.getLatencyBreakdown().recordTimedEvent("pipeline_request_transform", pipelineStartNanos, pipelineStartNanos + pipelineElapsed);
             } catch (Exception e) {
                 updatedListener.onFailure(e);
                 return;
             }
 
+            final ActionListener<SearchResponse> finalListener = listener;
             ActionListener<SearchRequest> requestTransformListener = ActionListener.wrap(sr -> {
 
                 ActionListener<SearchSourceBuilder> rewriteListener = buildRewriteListener(
@@ -499,19 +538,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     timeProvider,
                     searchAsyncActionProvider,
-                    listener,
+                    finalListener,
                     searchRequestContext
                 );
                 if (sr.source() == null) {
                     rewriteListener.onResponse(sr.source());
                 } else {
+                    final long rewriteStartNanos = System.nanoTime();
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest),
-                        rewriteListener
+                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest, searchRequestContext.getLatencyBreakdown()),
+                        ActionListener.wrap(
+                            rewritten -> {
+                                long rewriteEndNanos = System.nanoTime();
+                                long rewriteElapsed = Math.max(0, rewriteEndNanos - rewriteStartNanos);
+                                searchRequestContext.getLatencyBreakdown().recordQueryRewrite(rewriteElapsed);
+                                searchRequestContext.getLatencyBreakdown().recordTimedEvent("query_rewrite", rewriteStartNanos, rewriteStartNanos + rewriteElapsed);
+                                rewriteListener.onResponse(rewritten);
+                            },
+                            rewriteListener::onFailure
+                        )
                     );
                 }
-            }, listener::onFailure);
+            }, finalListener::onFailure);
             searchRequest.transformRequest(requestTransformListener);
         }
     }
@@ -1092,16 +1141,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.pointInTimeBuilder().getKeepAlive()
             );
         } else {
+            final long indexResolutionStartNanos = System.nanoTime();
             ResolvedIndices.Local.Concrete indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
                 clusterState,
                 searchRequest.routing(),
                 searchRequest.indices()
             );
+            long indexResolutionEndNanos = System.nanoTime();
+            long indexResolutionElapsed = Math.max(0, indexResolutionEndNanos - indexResolutionStartNanos);
+            searchRequestContext.getLatencyBreakdown().recordIndexResolution(indexResolutionElapsed);
+            searchRequestContext.getLatencyBreakdown().recordTimedEvent("index_resolution", indexResolutionStartNanos, indexResolutionStartNanos + indexResolutionElapsed);
             routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);
             concreteLocalIndices = indices.namesOfConcreteIndicesAsArray();
             Map<String, Long> nodeSearchCounts = searchTransportService.getPendingSearchRequests();
             SliceBuilder slice = searchRequest.source() == null ? null : searchRequest.source().slice();
+            final long shardRoutingStartNanos = System.nanoTime();
             GroupShardsIterator<ShardIterator> localShardRoutings = clusterService.operationRouting()
                 .searchShards(
                     clusterState,
@@ -1112,11 +1167,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     nodeSearchCounts,
                     slice
                 );
+            long shardRoutingEndNanos = System.nanoTime();
+            long shardRoutingElapsed = Math.max(0, shardRoutingEndNanos - shardRoutingStartNanos);
+            searchRequestContext.getLatencyBreakdown().recordShardRouting(shardRoutingElapsed);
+            searchRequestContext.getLatencyBreakdown().recordTimedEvent("shard_routing", shardRoutingStartNanos, shardRoutingStartNanos + shardRoutingElapsed);
+            final long aliasFilterStartNanos = System.nanoTime();
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
                 .map(it -> new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), localIndices))
                 .collect(Collectors.toList());
             aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
             indexRoutings = routingMap;
+            searchRequestContext.getLatencyBreakdown().recordTimedEvent("alias_filter_build", aliasFilterStartNanos, System.nanoTime());
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
         failIfOverShardCountLimit(clusterService, shardIterators.size());
@@ -1147,6 +1208,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteConnections,
             searchTransportService::getConnection
         );
+        final long asyncSetupStartNanos = System.nanoTime();
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices, clusterState);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(
             clusterState,
@@ -1154,7 +1216,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
-        searchAsyncActionProvider.asyncSearchAction(
+        searchRequestContext.getLatencyBreakdown().recordTimedEvent("async_action_setup", asyncSetupStartNanos, System.nanoTime());
+        final long actionStartNanos = System.nanoTime();
+        searchRequestContext.getLatencyBreakdown().recordTimedEvent("action_start_dispatch", actionStartNanos, actionStartNanos);
+        AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAction = searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,
             asyncSearchExecutor,
@@ -1170,7 +1235,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             threadPool,
             clusters,
             searchRequestContext
-        ).start();
+        );
+        // Record dispatch submit time for coordinator queue wait measurement
+        searchAction.setDispatchSubmitNanos(System.nanoTime());
+        searchAction.start();
     }
 
     Executor asyncSearchExecutor(final String[] indices, final ClusterState clusterState) {
@@ -1320,7 +1388,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc),
-                task::isCancelled
+                task::isCancelled,
+                searchRequestContext.getLatencyBreakdown()
             );
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
