@@ -54,6 +54,7 @@ import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAda
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -494,6 +495,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public String name() {
         return plugin.name();
+    }
+
+    @Override
+    public boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return ParquetRangeEvaluator.evaluate(shard, filterBytes, plugin);
     }
 
     @Override

@@ -54,7 +54,12 @@ public class CanMatchPreFilterPhase {
      * @param filterBytes serialized filter list (from {@link CanMatchFilterSerializer})
      * @param listener    receives the filtered target list (only those that can match)
      */
-    public void filter(List<ExecutionTarget> targets, byte[] filterBytes, ActionListener<List<ExecutionTarget>> listener) {
+    public void filter(
+        List<ExecutionTarget> targets,
+        byte[] filterBytes,
+        String backendId,
+        ActionListener<List<ExecutionTarget>> listener
+    ) {
         if (targets.isEmpty()) {
             listener.onResponse(Collections.emptyList());
             return;
@@ -75,7 +80,7 @@ public class CanMatchPreFilterPhase {
             }
 
             DiscoveryNode node = shardTarget.node();
-            AnalyticsCanMatchRequest request = new AnalyticsCanMatchRequest(shardTarget.shardId(), filterBytes);
+            AnalyticsCanMatchRequest request = new AnalyticsCanMatchRequest(shardTarget.shardId(), filterBytes, backendId);
 
             try {
                 transportService.sendRequest(

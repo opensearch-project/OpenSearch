@@ -27,6 +27,7 @@ import org.opensearch.analytics.exec.stage.StageTaskId;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.unit.TimeValue;
@@ -107,10 +108,16 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             return;
         }
 
+        String backendId = resolveBackendId();
+        if (backendId == null) {
+            listener.onResponse(buildTasks(resolved));
+            return;
+        }
         CanMatchPreFilterPhase canMatchPhase = new CanMatchPreFilterPhase(dispatcher.getTransportService());
         dispatchWithTimeoutAsync(
             resolved,
             filterBytes,
+            backendId,
             canMatchPhase,
             CAN_MATCH_TIMEOUT,
             ActionListener.wrap(filtered -> listener.onResponse(buildTasks(filtered)), e -> listener.onResponse(buildTasks(resolved)))
@@ -124,6 +131,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     private void dispatchWithTimeoutAsync(
         List<ExecutionTarget> targets,
         byte[] filterBytes,
+        String backendId,
         CanMatchPreFilterPhase phase,
         TimeValue timeout,
         ActionListener<List<ExecutionTarget>> listener
@@ -138,7 +146,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             }
         }, timeout, ThreadPool.Names.SAME);
 
-        phase.filter(targets, filterBytes, ActionListener.wrap(filtered -> {
+        phase.filter(targets, filterBytes, backendId, ActionListener.wrap(filtered -> {
             if (fired.compareAndSet(false, true)) {
                 scheduled.cancel();
                 long elapsed = (System.nanoTime() - startNanos) / 1_000_000;
@@ -157,6 +165,15 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                 listener.onResponse(targets);
             }
         }));
+    }
+
+    /** Pulls the backend id off the first plan alternative; {@code null} when none present. */
+    private String resolveBackendId() {
+        List<StagePlan> plans = stage.getPlanAlternatives();
+        if (plans == null || plans.isEmpty()) {
+            return null;
+        }
+        return plans.get(0).backendId();
     }
 
     private List<StageTask> buildTasks(List<ExecutionTarget> targets) {

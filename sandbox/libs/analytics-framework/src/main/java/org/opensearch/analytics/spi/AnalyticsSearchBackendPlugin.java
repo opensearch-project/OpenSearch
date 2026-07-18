@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
 
 import java.util.Collections;
 import java.util.List;
@@ -145,6 +146,22 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Evaluates whether a shard can possibly match the given serialized filter predicates.
+     * Used by the can-match pre-filter phase to prune shards before fragment dispatch.
+     *
+     * <p>Default returns true (fail-open: shard is kept). Backends that store data with
+     * rich metadata statistics should override to check row-group min/max against the
+     * filter range.
+     *
+     * @param shard the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @return true if the shard can possibly match, false if provably cannot
+     */
+    default boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return true;
     }
 
     /**

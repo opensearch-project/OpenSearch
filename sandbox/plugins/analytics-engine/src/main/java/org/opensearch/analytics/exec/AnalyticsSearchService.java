@@ -38,7 +38,6 @@ import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
@@ -132,12 +131,20 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     /**
      * Evaluates whether a shard can possibly match the given filter predicates.
-     * Returns true (keep shard) by default — real evaluation will be added when
-     * the ParquetRangeEvaluator is wired in.
+     * Dispatches to the named backend. Fail-open on any error or unknown backend.
      */
-    public void canMatch(ShardId shardId, byte[] filterBytes, ActionListener<AnalyticsCanMatchResponse> listener) {
-        // TODO: invoke ParquetRangeEvaluator here once wired
-        listener.onResponse(new AnalyticsCanMatchResponse(true));
+    public void canMatch(IndexShard shard, byte[] filterBytes, String backendId, ActionListener<AnalyticsCanMatchResponse> listener) {
+        try {
+            AnalyticsSearchBackendPlugin backend = backends.get(backendId);
+            if (backend == null) {
+                listener.onResponse(new AnalyticsCanMatchResponse(true));
+                return;
+            }
+            boolean result = backend.canMatch(shard, filterBytes);
+            listener.onResponse(new AnalyticsCanMatchResponse(result));
+        } catch (Exception e) {
+            listener.onResponse(new AnalyticsCanMatchResponse(true));
+        }
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
