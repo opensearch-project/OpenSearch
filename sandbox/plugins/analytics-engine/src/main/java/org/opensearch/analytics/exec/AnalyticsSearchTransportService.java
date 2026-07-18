@@ -83,7 +83,7 @@ public class AnalyticsSearchTransportService {
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
         registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
-        registerCanMatchHandler(this.transportService, searchService);
+        registerCanMatchHandler(this.transportService, searchService, indicesService);
     }
 
     public StreamTransportService getTransportService() {
@@ -153,30 +153,37 @@ public class AnalyticsSearchTransportService {
         );
     }
 
-    private static void registerCanMatchHandler(StreamTransportService transportService, AnalyticsSearchService searchService) {
+    private static void registerCanMatchHandler(
+        StreamTransportService transportService,
+        AnalyticsSearchService searchService,
+        IndicesService indicesService
+    ) {
         transportService.registerRequestHandler(
             AnalyticsCanMatchAction.NAME,
             ThreadPool.Names.SEARCH,
             AnalyticsCanMatchRequest::new,
-            (request, channel, task) -> searchService.canMatch(request.getShardId(), request.getFilterBytes(), new ActionListener<>() {
-                @Override
-                public void onResponse(AnalyticsCanMatchResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (IOException e) {
-                        onFailure(e);
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                searchService.canMatch(shard, request.getFilterBytes(), request.getBackendId(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(AnalyticsCanMatchResponse response) {
+                        try {
+                            channel.sendResponse(response);
+                        } catch (IOException e) {
+                            onFailure(e);
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(new AnalyticsCanMatchResponse(true));
-                    } catch (IOException ioe) {
-                        // nothing more we can do
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(new AnalyticsCanMatchResponse(true));
+                        } catch (IOException ioe) {
+                            // nothing more we can do
+                        }
                     }
-                }
-            })
+                });
+            }
         );
     }
 

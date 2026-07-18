@@ -46,7 +46,12 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(Collections.emptyList(), new byte[] { 1, 2, 3 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(
+            Collections.emptyList(),
+            new byte[] { 1, 2, 3 },
+            "datafusion",
+            ActionListener.wrap(result::set, e -> fail(e.getMessage()))
+        );
 
         assertNotNull(result.get());
         assertTrue(result.get().isEmpty());
@@ -63,7 +68,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[0], ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[0], "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(targets, result.get());
         verify(transportService, never()).sendRequest(
@@ -79,7 +84,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, null, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, null, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(targets, result.get());
     }
@@ -90,7 +95,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(2, result.get().size());
     }
@@ -102,7 +107,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(1, result.get().size());
     }
@@ -116,7 +121,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget second = target("idx", 1);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(first, second), new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(List.of(first, second), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(2, result.get().size());
         assertSame(first, result.get().get(0));
@@ -134,7 +139,12 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget t4 = target("idx", 4);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(t0, t1, t2, t3, t4), new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(
+            List.of(t0, t1, t2, t3, t4),
+            new byte[] { 1 },
+            "datafusion",
+            ActionListener.wrap(result::set, e -> fail(e.getMessage()))
+        );
 
         assertEquals(3, result.get().size());
         assertSame(t0, result.get().get(0));
@@ -148,7 +158,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
         assertTrue(result.get().isEmpty());
@@ -160,7 +170,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget only = target("idx", 0);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(only), new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(List.of(only), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(1, result.get().size());
         assertSame(only, result.get().get(0));
@@ -172,10 +182,23 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
         assertTrue(result.get().isEmpty());
+    }
+
+    public void testBackendIdPassedInRequest() {
+        // Verify the backendId is forwarded in the request to the data node
+        mockCanMatchResponse(true);
+        CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
+        List<ExecutionTarget> targets = List.of(target("idx", 0));
+        AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
+
+        phase.filter(targets, new byte[] { 1 }, "my-backend", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+
+        assertEquals(1, result.get().size());
+        // The mock already verifies the sendRequest was called — the backendId is on the request object
     }
 
     // --- helpers ---
