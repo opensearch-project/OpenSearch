@@ -86,6 +86,41 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         assertEquals(2 * size, pipelinedRequest.source().size());
     }
 
+    /**
+     * The resolved {@link PipelinedRequest} must carry the named pipeline id forward: it wraps the request through the
+     * {@link SearchRequest} copy constructor, which does not copy the pipeline id, so the id is set explicitly in the
+     * PipelinedRequest constructor. Otherwise {@code pipeline()} would read null on the resolved request even though it
+     * is the request the pipeline was resolved for, and consumers reading the id later in the request lifecycle (e.g.
+     * during coordinator query rewrite) would not see it.
+     */
+    public void testResolvedRequestRetainsNamedPipelineId() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .putCustom(SearchPipelineMetadata.TYPE, metadata)
+            .put(indexBuilder("my-index").putAlias(AliasMetadata.builder("barbaz")));
+        clusterState = ClusterState.builder(clusterState).metadata(mdBuilder).build();
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(10);
+        SearchRequest request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
+
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(request, indexNameExpressionResolver);
+
+        assertEquals("p1", pipelinedRequest.pipeline());
+    }
+
     public void testTransformRequestWithSystemGeneratedPipeline() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);

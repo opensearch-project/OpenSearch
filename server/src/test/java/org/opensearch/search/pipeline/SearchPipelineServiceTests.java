@@ -671,6 +671,41 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         }
     }
 
+    /**
+     * Resolving an inline (ad hoc) pipeline must NOT drain the request's search pipeline source map. Pipeline
+     * construction reads the config by removing keys (ConfigurationUtils.readXxx), so the resolver copies the config
+     * first; otherwise consumers that read the inline pipeline definition later in the request lifecycle (e.g. during
+     * coordinator query rewrite) would see an emptied map.
+     */
+    public void testInlinePipelineSourceIsNotDrainedAfterResolve() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        Map<String, Object> requestProcessorConfig = new HashMap<>();
+        requestProcessorConfig.put("scale", 2);
+        Map<String, Object> requestProcessorObject = new HashMap<>();
+        requestProcessorObject.put("scale_request_size", requestProcessorConfig);
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(requestProcessorObject));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+
+        // The ad hoc pipeline was built (proving the config was read)...
+        assertEquals(SearchPipelineService.AD_HOC_PIPELINE_ID, pipelinedRequest.getPipeline().getId());
+        assertEquals(1, pipelinedRequest.getPipeline().getSearchRequestProcessors().size());
+        // ...but the request's original inline source survives intact for later readers (not drained by the read).
+        Map<String, Object> sourceAfter = searchRequest.source().searchPipelineSource();
+        assertNotNull(sourceAfter);
+        assertTrue(sourceAfter.containsKey(Pipeline.REQUEST_PROCESSORS_KEY));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> processorsAfter = (List<Map<String, Object>>) sourceAfter.get(Pipeline.REQUEST_PROCESSORS_KEY);
+        assertEquals(1, processorsAfter.size());
+        Map<String, Object> scaleProcessorAfter = (Map<String, Object>) processorsAfter.get(0).get("scale_request_size");
+        assertNotNull("nested processor config must not be drained", scaleProcessorAfter);
+        assertEquals(2, scaleProcessorAfter.get("scale"));
+    }
+
     public void testInlineDefinedPipeline() throws Exception {
         SearchPipelineService searchPipelineService = createWithProcessors();
 

@@ -34,6 +34,11 @@ public final class PipelinedRequest extends SearchRequest {
         SystemGeneratedPipelineHolder systemGeneratedPipelineHolder
     ) {
         super(transformedRequest);
+        // The SearchRequest copy constructor invoked by super(...) intentionally does not carry over the search
+        // pipeline id, so preserve it here. Otherwise pipeline() would read null on the resolved request even though
+        // this request is the one the pipeline was resolved for, and consumers that read the id later in the request
+        // lifecycle (e.g. during coordinator query rewrite) would not see it.
+        this.pipeline(transformedRequest.pipeline());
         this.pipeline = pipeline;
         this.requestContext = requestContext;
         this.systemGeneratedPipelineHolder = systemGeneratedPipelineHolder;
@@ -41,6 +46,7 @@ public final class PipelinedRequest extends SearchRequest {
 
     PipelinedRequest(SearchRequest transformedRequest, PipelinedRequest original) {
         super(transformedRequest);
+        this.pipeline(transformedRequest.pipeline());
         this.pipeline = original.pipeline;
         this.requestContext = original.requestContext;
         this.systemGeneratedPipelineHolder = original.systemGeneratedPipelineHolder;
