@@ -405,7 +405,8 @@ public class RestTable {
         }
     }
 
-    private static String renderValue(RestRequest request, Object value) {
+    // package-private for testing
+    static String renderValue(RestRequest request, Object value) {
         if (value == null) {
             return null;
         }

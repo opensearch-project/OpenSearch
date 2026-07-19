@@ -12,7 +12,6 @@ import org.opensearch.common.Table;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -83,13 +82,7 @@ public class TableSummarizerTests extends OpenSearchTestCase {
     }
 
     private String renderValueViaResponse(FakeRestRequest request, Object value) {
-        try {
-            java.lang.reflect.Method m = RestTable.class.getDeclaredMethod("renderValue", RestRequest.class, Object.class);
-            m.setAccessible(true);
-            return (String) m.invoke(null, request, value);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return RestTable.renderValue(request, value);
     }
 
     // ---------- hasAggregation ----------
