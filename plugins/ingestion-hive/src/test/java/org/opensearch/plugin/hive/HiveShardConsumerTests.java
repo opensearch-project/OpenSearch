@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.hive;
 
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -111,6 +112,40 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         MessageType schema = HiveShardConsumer.hiveSchemaToParquet(columns);
 
         assertEquals(PrimitiveType.PrimitiveTypeName.BINARY, schema.getType("custom").asPrimitiveType().getPrimitiveTypeName());
+    }
+
+    public void testHiveSchemaToParquetParameterizedTypes() {
+        // Metastore reports parameterized type names like "varchar(255)" and "decimal(10,2)";
+        // the base type must be resolved after stripping the parameters.
+        List<MetastoreCatalog.ColumnInfo> columns = new ArrayList<>();
+        columns.add(new MetastoreCatalog.ColumnInfo("name", "varchar(255)"));
+        columns.add(new MetastoreCatalog.ColumnInfo("code", "char(3)"));
+        columns.add(new MetastoreCatalog.ColumnInfo("amount", "decimal(10,2)"));
+
+        MessageType schema = HiveShardConsumer.hiveSchemaToParquet(columns);
+
+        assertEquals(PrimitiveType.PrimitiveTypeName.BINARY, schema.getType("name").asPrimitiveType().getPrimitiveTypeName());
+        assertTrue(schema.getType("name").getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation);
+        assertTrue(schema.getType("code").getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation);
+        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal = (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) schema.getType(
+            "amount"
+        ).getLogicalTypeAnnotation();
+        assertEquals(10, decimal.getPrecision());
+        assertEquals(2, decimal.getScale());
+    }
+
+    public void testHiveSchemaToParquetDecimalWithoutParameters() {
+        // Hive's default decimal is decimal(10,0)
+        List<MetastoreCatalog.ColumnInfo> columns = new ArrayList<>();
+        columns.add(new MetastoreCatalog.ColumnInfo("amount", "decimal"));
+
+        MessageType schema = HiveShardConsumer.hiveSchemaToParquet(columns);
+
+        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal = (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) schema.getType(
+            "amount"
+        ).getLogicalTypeAnnotation();
+        assertEquals(10, decimal.getPrecision());
+        assertEquals(0, decimal.getScale());
     }
 
     public void testRowToJsonBasicTypes() throws Exception {

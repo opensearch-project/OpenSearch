@@ -702,7 +702,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     private static Type hiveTypeToParquetType(String name, String hiveType) {
-        return switch (hiveType.toLowerCase(Locale.ROOT)) {
+        String normalized = hiveType.toLowerCase(Locale.ROOT).trim();
+        // Strip type parameters: "decimal(10,2)" -> "decimal", "varchar(255)" -> "varchar"
+        int paren = normalized.indexOf('(');
+        String baseType = paren > 0 ? normalized.substring(0, paren).trim() : normalized;
+        return switch (baseType) {
             case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(name);
             case "tinyint", "smallint", "int" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named(name);
             case "bigint" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(name);
@@ -714,11 +718,33 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             case "binary" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
             case "timestamp" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
             case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(name);
-            case "decimal" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
-                .as(LogicalTypeAnnotation.decimalType(0, 10))
-                .named(name);
+            case "decimal" -> {
+                int[] precisionScale = parseDecimalParameters(normalized);
+                yield Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.decimalType(precisionScale[1], precisionScale[0]))
+                    .named(name);
+            }
             default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
         };
+    }
+
+    /**
+     * Parses precision and scale from a Hive decimal type string like "decimal(10,2)".
+     * Returns {precision, scale}; Hive's defaults are precision 10, scale 0.
+     */
+    private static int[] parseDecimalParameters(String decimalType) {
+        int precision = 10;
+        int scale = 0;
+        int open = decimalType.indexOf('(');
+        int close = decimalType.lastIndexOf(')');
+        if (open > 0 && close > open) {
+            String[] parts = decimalType.substring(open + 1, close).split(",");
+            precision = Integer.parseInt(parts[0].trim());
+            if (parts.length > 1) {
+                scale = Integer.parseInt(parts[1].trim());
+            }
+        }
+        return new int[] { precision, scale };
     }
 
     @Override

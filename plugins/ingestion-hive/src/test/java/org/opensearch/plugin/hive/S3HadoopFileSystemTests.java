@@ -59,6 +59,36 @@ public class S3HadoopFileSystemTests extends OpenSearchTestCase {
         assertEquals(42L, status.getLen());
     }
 
+    public void testCreateS3ClientHonorsEndpointAndRegion() {
+        org.apache.hadoop.conf.Configuration conf = new org.apache.hadoop.conf.Configuration();
+        conf.set("fs.s3a.endpoint", "http://minio.example.com:9000");
+        conf.set("fs.s3a.endpoint.region", "us-west-2");
+        conf.set("fs.s3a.path.style.access", "true");
+        conf.set("fs.s3a.access.key", "test-access");
+        conf.set("fs.s3a.secret.key", "test-secret");
+
+        try (S3Client client = S3HadoopFileSystem.createS3Client(conf)) {
+            assertEquals(
+                java.net.URI.create("http://minio.example.com:9000"),
+                client.serviceClientConfiguration().endpointOverride().orElse(null)
+            );
+            assertEquals(software.amazon.awssdk.regions.Region.US_WEST_2, client.serviceClientConfiguration().region());
+        }
+    }
+
+    public void testCreateS3ClientDefaultsToHttpsForSchemelessEndpoint() {
+        org.apache.hadoop.conf.Configuration conf = new org.apache.hadoop.conf.Configuration();
+        conf.set("fs.s3a.endpoint", "s3.eu-central-1.amazonaws.com");
+        conf.set("fs.s3a.endpoint.region", "eu-central-1");
+
+        try (S3Client client = S3HadoopFileSystem.createS3Client(conf)) {
+            assertEquals(
+                java.net.URI.create("https://s3.eu-central-1.amazonaws.com"),
+                client.serviceClientConfiguration().endpointOverride().orElse(null)
+            );
+        }
+    }
+
     public void testGetFileStatusReturnsDirectoryWhenPrefixHasObjects() throws Exception {
         when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
             (S3Exception) S3Exception.builder().statusCode(404).message("no such key").build()

@@ -24,6 +24,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
@@ -151,6 +153,80 @@ public class ParquetHiveFileReaderTests extends OpenSearchTestCase {
                 assertEquals(i, row.get("id"));
             }
             assertNull(reader.readNext());
+        }
+    }
+
+    public void testReadDecimalBinaryBacked() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message test {\n  optional binary amount (DECIMAL(10,2));\n}");
+
+        File file = writeParquet(schema, factory -> {
+            Group g = factory.newGroup();
+            // Unscaled value 12345 with scale 2 represents 123.45
+            g.append("amount", Binary.fromConstantByteArray(BigInteger.valueOf(12345).toByteArray()));
+            return g;
+        });
+
+        try (ParquetHiveFileReader reader = new ParquetHiveFileReader(file.getAbsolutePath(), hadoopConf, schema)) {
+            Map<String, Object> row = reader.readNext();
+            assertNotNull(row);
+            assertEquals(new BigDecimal("123.45"), row.get("amount"));
+        }
+    }
+
+    public void testReadDecimalInt32Backed() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message test {\n  optional int32 amount (DECIMAL(9,2));\n}");
+
+        File file = writeParquet(schema, factory -> factory.newGroup().append("amount", 12345));
+
+        try (ParquetHiveFileReader reader = new ParquetHiveFileReader(file.getAbsolutePath(), hadoopConf, schema)) {
+            Map<String, Object> row = reader.readNext();
+            assertNotNull(row);
+            assertEquals(new BigDecimal("123.45"), row.get("amount"));
+        }
+    }
+
+    public void testReadDecimalInt64Backed() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message test {\n  optional int64 amount (DECIMAL(18,2));\n}");
+
+        File file = writeParquet(schema, factory -> factory.newGroup().append("amount", 12345L));
+
+        try (ParquetHiveFileReader reader = new ParquetHiveFileReader(file.getAbsolutePath(), hadoopConf, schema)) {
+            Map<String, Object> row = reader.readNext();
+            assertNotNull(row);
+            assertEquals(new BigDecimal("123.45"), row.get("amount"));
+        }
+    }
+
+    public void testProjectionUsesFileTypeWhenPhysicalTypeDiffers() throws IOException {
+        // File stores the decimal as int64; the Metastore-derived projection requests binary.
+        // The reader must adopt the file's physical type instead of failing on the mismatch.
+        MessageType fileSchema = MessageTypeParser.parseMessageType("message test {\n  optional int64 amount (DECIMAL(18,2));\n}");
+        MessageType requestedSchema = MessageTypeParser.parseMessageType("message table {\n  optional binary amount (DECIMAL(18,2));\n}");
+
+        File file = writeParquet(fileSchema, factory -> factory.newGroup().append("amount", 12345L));
+
+        try (ParquetHiveFileReader reader = new ParquetHiveFileReader(file.getAbsolutePath(), hadoopConf, requestedSchema)) {
+            Map<String, Object> row = reader.readNext();
+            assertNotNull(row);
+            assertEquals(new BigDecimal("123.45"), row.get("amount"));
+        }
+    }
+
+    public void testProjectionMissingColumnReturnsNull() throws IOException {
+        // Schema evolution: the Metastore schema has a column the file does not.
+        MessageType fileSchema = MessageTypeParser.parseMessageType("message test {\n  optional int32 id;\n}");
+        MessageType requestedSchema = MessageTypeParser.parseMessageType(
+            "message table {\n  optional int32 id;\n  optional binary added_later (UTF8);\n}"
+        );
+
+        File file = writeParquet(fileSchema, factory -> factory.newGroup().append("id", 7));
+
+        try (ParquetHiveFileReader reader = new ParquetHiveFileReader(file.getAbsolutePath(), hadoopConf, requestedSchema)) {
+            Map<String, Object> row = reader.readNext();
+            assertNotNull(row);
+            assertEquals(7, row.get("id"));
+            assertTrue(row.containsKey("added_later"));
+            assertNull(row.get("added_later"));
         }
     }
 

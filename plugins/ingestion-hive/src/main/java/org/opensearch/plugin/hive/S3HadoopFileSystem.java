@@ -8,9 +8,13 @@
 
 package org.opensearch.plugin.hive;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -30,6 +34,7 @@ import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,6 +42,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Minimal Hadoop FileSystem implementation for S3 using AWS SDK v2.
@@ -54,8 +60,45 @@ public class S3HadoopFileSystem extends FileSystem {
     public void initialize(URI name, Configuration conf) throws IOException {
         super.initialize(name, conf);
         this.uri = URI.create(name.getScheme() + "://" + name.getAuthority());
-        this.s3Client = S3Client.builder().build();
+        this.s3Client = createS3Client(conf);
         this.workingDir = new Path("/");
+    }
+
+    /**
+     * Builds an S3 client honoring the standard fs.s3a.* keys from the Hadoop
+     * configuration, so that {@code hadoop_config.fs.s3a.*} ingestion parameters
+     * take effect. Keys that are not set fall back to the AWS SDK default
+     * provider chains (environment, instance profile, etc.).
+     *
+     * Supported keys: fs.s3a.endpoint, fs.s3a.endpoint.region,
+     * fs.s3a.path.style.access, fs.s3a.access.key, fs.s3a.secret.key.
+     */
+    static S3Client createS3Client(Configuration conf) {
+        S3ClientBuilder builder = S3Client.builder();
+        String endpoint = conf.getTrimmed("fs.s3a.endpoint", "");
+        if (endpoint.isEmpty() == false) {
+            // s3a convention allows an endpoint without a scheme; default to https
+            String endpointUri = endpoint.contains("://") ? endpoint : "https://" + endpoint;
+            builder.endpointOverride(URI.create(endpointUri));
+        }
+        String region = conf.getTrimmed("fs.s3a.endpoint.region", "");
+        if (region.isEmpty() == false) {
+            builder.region(Region.of(region));
+        }
+        if (conf.getBoolean("fs.s3a.path.style.access", false)) {
+            // Required by most S3-compatible stores (e.g., MinIO) where
+            // virtual-hosted-style bucket DNS is not available.
+            builder.forcePathStyle(true);
+        }
+        String accessKey = conf.getTrimmed("fs.s3a.access.key", "");
+        String secretKey = conf.getTrimmed("fs.s3a.secret.key", "");
+        if (accessKey.isEmpty() == false && secretKey.isEmpty() == false) {
+            builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
+        }
+        // Building the client reads AWS profile files (~/.aws/config, ~/.aws/credentials)
+        // through the default provider chains; run privileged so the plugin's own
+        // FilePermission applies regardless of unprivileged callers on the stack.
+        return AccessController.doPrivileged((Supplier<S3Client>) builder::build);
     }
 
     @Override
