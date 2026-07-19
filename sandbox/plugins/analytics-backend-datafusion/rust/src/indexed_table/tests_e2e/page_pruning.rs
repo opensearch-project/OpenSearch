@@ -216,10 +216,10 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         parquet_size: size,
         row_groups: rgs,
         metadata: parquet_meta,
-            global_base: 0,
-            sort_min: None,
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
     (seg, schema)
 }
 
@@ -328,7 +328,8 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

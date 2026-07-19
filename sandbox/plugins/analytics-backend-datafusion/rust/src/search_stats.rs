@@ -212,7 +212,10 @@ mod tests {
         inc_bitmap_tree_scan();
         let after = snapshot();
         assert_eq!(after.listing_table_scan - before.listing_table_scan, 1);
-        assert_eq!(after.single_collector_scan - before.single_collector_scan, 2);
+        assert_eq!(
+            after.single_collector_scan - before.single_collector_scan,
+            2
+        );
         assert_eq!(after.bitmap_tree_scan - before.bitmap_tree_scan, 1);
     }
 
@@ -222,11 +225,13 @@ mod tests {
         let metrics_set = ExecutionPlanMetricsSet::new();
         let pm = PartitionMetrics::new(&metrics_set, 0);
 
-        pm.elapsed_compute.add_duration(std::time::Duration::from_millis(50));
+        pm.elapsed_compute
+            .add_duration(std::time::Duration::from_millis(50));
         pm.ffm_collector_calls.add(3);
         pm.row_groups_processed.add(2);
         pm.row_groups_skipped.add(1);
-        pm.prefetch_wait_time.add_duration(std::time::Duration::from_millis(10));
+        pm.prefetch_wait_time
+            .add_duration(std::time::Duration::from_millis(10));
         pm.prefetch_wait_count.add(2);
 
         accumulate(&pm.into_stream_metrics(None));

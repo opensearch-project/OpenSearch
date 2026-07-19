@@ -170,7 +170,9 @@ where
 /// Standard arity guard.
 pub(crate) fn check_arity(udf: &str, observed: usize, expected: usize) -> Result<()> {
     (observed == expected).then_some(()).ok_or_else(|| {
-        DataFusionError::Plan(format!("{udf} expects {expected} arguments, got {observed}"))
+        DataFusionError::Plan(format!(
+            "{udf} expects {expected} arguments, got {observed}"
+        ))
     })
 }
 
@@ -187,13 +189,19 @@ impl<'a> StringArrayView<'a> {
     pub(crate) fn from_array(arr: &'a ArrayRef) -> Result<Self> {
         match arr.data_type() {
             DataType::Utf8 => Ok(Self::Utf8(
-                arr.as_any().downcast_ref::<StringArray>().expect("Utf8 downcast"),
+                arr.as_any()
+                    .downcast_ref::<StringArray>()
+                    .expect("Utf8 downcast"),
             )),
             DataType::LargeUtf8 => Ok(Self::LargeUtf8(
-                arr.as_any().downcast_ref::<LargeStringArray>().expect("LargeUtf8 downcast"),
+                arr.as_any()
+                    .downcast_ref::<LargeStringArray>()
+                    .expect("LargeUtf8 downcast"),
             )),
             DataType::Utf8View => Ok(Self::Utf8View(
-                arr.as_any().downcast_ref::<StringViewArray>().expect("Utf8View downcast"),
+                arr.as_any()
+                    .downcast_ref::<StringViewArray>()
+                    .expect("Utf8View downcast"),
             )),
             other => Err(DataFusionError::Internal(format!(
                 "expected string array (Utf8/LargeUtf8/Utf8View), got {other:?}"
@@ -241,7 +249,10 @@ mod tests {
         ] {
             assert_eq!(convert_ppl_path(input).unwrap(), want, "input={input}");
         }
-        assert!(convert_ppl_path("a{0").unwrap_err().to_string().contains("Unmatched"));
+        assert!(convert_ppl_path("a{0")
+            .unwrap_err()
+            .to_string()
+            .contains("Unmatched"));
     }
 
     #[test]

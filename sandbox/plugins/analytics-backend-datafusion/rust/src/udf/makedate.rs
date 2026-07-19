@@ -136,13 +136,17 @@ mod tests {
         // (year, doy) → (y, m, d) expected.
         for (y, doy, ey, em, ed) in [
             (2024.0, 1.0, 2024, 1, 1),
-            (2024.0, 60.0, 2024, 2, 29),   // 2024 leap; doy 60 = Feb 29
+            (2024.0, 60.0, 2024, 2, 29), // 2024 leap; doy 60 = Feb 29
             (2024.0, 366.0, 2024, 12, 31),
-            (0.0, 1.0, 2000, 1, 1),        // year 0 remaps to 2000
-            (2023.0, 366.0, 2024, 1, 1),   // non-leap overflow cascades
-            (2024.4, 60.6, 2024, 3, 1),    // fractional operands round: 2024, 61
+            (0.0, 1.0, 2000, 1, 1),      // year 0 remaps to 2000
+            (2023.0, 366.0, 2024, 1, 1), // non-leap overflow cascades
+            (2024.4, 60.6, 2024, 3, 1),  // fractional operands round: 2024, 61
         ] {
-            assert_eq!(days_since_epoch(y, doy), Some(days(ey, em, ed)), "y={y} doy={doy}");
+            assert_eq!(
+                days_since_epoch(y, doy),
+                Some(days(ey, em, ed)),
+                "y={y} doy={doy}"
+            );
         }
     }
 

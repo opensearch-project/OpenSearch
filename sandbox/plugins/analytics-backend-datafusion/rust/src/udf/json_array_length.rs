@@ -87,9 +87,9 @@ impl ScalarUDFImpl for JsonArrayLengthUdf {
         // Scalar fast-path: parse once, broadcast as scalar output.
         if let ColumnarValue::Scalar(sv) = &args.args[0] {
             let len = match sv {
-                ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt) => {
-                    opt.as_deref().and_then(json_array_len)
-                }
+                ScalarValue::Utf8(opt)
+                | ScalarValue::LargeUtf8(opt)
+                | ScalarValue::Utf8View(opt) => opt.as_deref().and_then(json_array_len),
                 _ => None,
             };
             return Ok(ColumnarValue::Scalar(ScalarValue::Int32(len)));
@@ -199,7 +199,9 @@ mod tests {
     fn invoke_scalar_input_produces_scalar_output() {
         let udf = JsonArrayLengthUdf::new();
         let args = ScalarFunctionArgs {
-            args: vec![ColumnarValue::Scalar(ScalarValue::Utf8(Some("[1,2,3,4]".into())))],
+            args: vec![ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                "[1,2,3,4]".into(),
+            )))],
             number_rows: 1,
             arg_fields: vec![],
             return_field: Arc::new(Field::new("out", DataType::Int32, true)),

@@ -58,8 +58,8 @@ import java.util.Set;
 /**
  * Export OpenSearch build resources to configurable paths
  * <p>
- * Wil overwrite existing files and create missing directories.
- * Useful for resources that that need to be passed to other processes trough the filesystem or otherwise can't be
+ * Will overwrite existing files and create missing directories.
+ * Useful for resources that need to be passed to other processes through the filesystem or otherwise can't be
  * consumed from the classpath.
  */
 public class ExportOpenSearchBuildResourcesTask extends DefaultTask {

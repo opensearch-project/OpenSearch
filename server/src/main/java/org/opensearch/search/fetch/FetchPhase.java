@@ -320,7 +320,7 @@ public class FetchPhase {
                 for (String fieldName : fieldNames) {
                     MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        // Only fail if we know it is an object field, missing paths / fields shouldn't fail.
                         if (context.getObjectMapper(fieldName) != null) {
                             throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                         }
