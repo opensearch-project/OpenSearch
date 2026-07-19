@@ -115,7 +115,7 @@ dependencies {
   // CalciteCatalogReader's compile-time signature transitively requires Avatica's
   // ConnectionConfigImpl (parent of CalciteConnectionConfigImpl). analytics-framework
   // declares avatica-core as runtimeOnly only, so test compilation needs it explicitly.
-  testCompileOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+  testCompileOnly "org.apache.calcite.avatica:avatica-core:${versions.avatica}"
 }
 
 tasks.withType(JavaCompile).configureEach {

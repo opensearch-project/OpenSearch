@@ -103,12 +103,12 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
                 // nodes and updated by different callbacks in the warmer flow, so they only
                 // reconcile once the async warmer push has fully completed on both sides.
                 assertEquals(
-                    "Expected sent size by node 2 to be equal to recieved size by node 1.",
+                    "Expected sent size by node 2 to be equal to received size by node 1.",
                     allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalReceivedSize(),
                     allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalSentSize()
                 );
                 assertEquals(
-                    "Expected sent size by node 1 to be equal to recieved size by node 2.",
+                    "Expected sent size by node 1 to be equal to received size by node 2.",
                     allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalSentSize(),
                     allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalReceivedSize()
                 );
@@ -168,12 +168,12 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
 
             for (int shard = 0; shard <= 1; shard++) {
                 assertEquals(
-                    "Expected sent size by primary shard to be equal to recieved size by replica shard.",
+                    "Expected sent size by primary shard to be equal to received size by replica shard.",
                     shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("RECEIVED"),
                     shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("SENT")
                 );
                 assertEquals(
-                    "Expected sent size by replica shard to be equal to recieved size by primary shard.",
+                    "Expected sent size by replica shard to be equal to received size by primary shard.",
                     shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("SENT"),
                     shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("RECEIVED")
                 );

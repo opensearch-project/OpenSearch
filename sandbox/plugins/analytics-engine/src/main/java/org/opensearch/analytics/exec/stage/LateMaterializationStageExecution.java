@@ -36,6 +36,7 @@ import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -287,6 +288,25 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), this::drainAndClose));
     }
 
+    /**
+     * Releases the stitcher's pre-allocated output VSR on any terminal transition. The stitcher
+     * allocates {@code output} on the coordinator allocator up front and only frees it when
+     * {@link Stitcher#finish} runs (all shards reported). If the stage terminates — via cancel,
+     * timeout, or an upstream failure — while a shard's fetch stream is still outstanding, that
+     * countdown never reaches zero and {@code finish} never runs, pinning {@code output}'s buffers
+     * on the long-lived coordinator allocator. Closing here guarantees release; it is a no-op when
+     * {@code finish} already emitted (ownership transferred to {@code parentSink}, and
+     * {@link Stitcher#close} / {@code VectorSchemaRoot#close} are idempotent), and when no stitcher
+     * was ever created (K=0 or a pre-stitch failure).
+     */
+    @Override
+    protected void onTerminalTransition(State terminal) {
+        Stitcher s = this.stitcher;
+        if (s != null) {
+            s.close();
+        }
+    }
+
     /** Drained {@code ___row_id} per row, indexed by sort-order position. Populated by Phase A. */
     private long[] drainedRowIds;
 
@@ -369,7 +389,29 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 outerListener.onFailure(failure);
             }
         });
+        // Publish the stitcher BEFORE any shard dispatch so onTerminalTransition (which may fire on a
+        // concurrent cancel thread) can always find it and close its pre-allocated output VSR. The
+        // Stitcher constructor already allocated that VSR on the coordinator allocator, so any window
+        // where the field is still null but output exists would leak it on a racing terminal.
         this.stitcher = stitcher;
+        // Close the publication race: if a terminal transition already fired while we were between
+        // Stitcher construction and the assignment above, its onTerminalTransition saw a null field
+        // and skipped the close. Re-check here and release output now that the field is published.
+        // state is an AtomicReference, so this read pairs with the CAS in transitionTo: either that
+        // CAS-then-read-stitcher saw our published field (and closed output), or our set-then-read-state
+        // sees the terminal here — output is freed exactly once on this racing-cancel path.
+        //
+        // We must also settle outerListener: the task body owns firing the per-task listener (see
+        // LocalStageTask), and a stage cancel does NOT fire it independently — so returning without
+        // firing would strand the task. This mirrors the K==0 branch below, which likewise settles
+        // the listener directly. onComplete (which also fires outerListener) can no longer run here
+        // because no shards are dispatched, and LocalTaskRunner wraps outerListener in a
+        // NotifyOnceListener regardless, so this can never double-fire.
+        if (getState().isTerminal()) {
+            stitcher.close();
+            outerListener.onFailure(new TaskCancelledException("late materialization stage terminated before fetch dispatch"));
+            return;
+        }
 
         for (Map.Entry<Integer, ShardFetchPlan> entry : plansByUgsi.entrySet()) {
             int ugsi = entry.getKey();
@@ -398,7 +440,9 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
     }
 
     /** Stashed for the {@code onComplete} closure to read {@link Stitcher#surfaceableFailure()}. */
-    private Stitcher stitcher;
+    // volatile: set on the drain thread in scatterFetchAndStitch, read by onTerminalTransition
+    // which may fire on a different thread (cancel / timeout / upstream failure).
+    private volatile Stitcher stitcher;
 
     /**
      * Per-shard streaming response listener: forwards each Arrow batch to the
