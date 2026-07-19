@@ -97,6 +97,7 @@ PUT /my-secure-index
 - Hive Metastore (Hive 3.x or 4.x) accessible via Thrift
 - Table data stored as Parquet files on a filesystem accessible from OpenSearch nodes
 - For Kerberos: a valid keytab and `krb5.conf` configured on OpenSearch nodes
+- Kerberos authentication applies to the Metastore connection. Reading data files from Kerberos-secured HDFS is not yet supported
 
 ## Delivery Guarantees
 
