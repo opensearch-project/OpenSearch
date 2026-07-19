@@ -71,13 +71,15 @@ public class HiveSourceConfig {
         this.monitorIntervalMillis = TimeValue.parseTimeValue(interval, "monitor_interval").millis();
 
         String order = ConfigurationUtils.readStringProperty(params, "partition_order", "partition-name");
-        if ("create-time".equals(order)) {
-            this.partitionOrder = PartitionOrder.CREATE_TIME;
-        } else if ("partition-time".equals(order)) {
-            this.partitionOrder = PartitionOrder.PARTITION_TIME;
-        } else {
-            this.partitionOrder = PartitionOrder.PARTITION_NAME;
-        }
+        this.partitionOrder = switch (order) {
+            case "partition-name" -> PartitionOrder.PARTITION_NAME;
+            case "create-time" -> PartitionOrder.CREATE_TIME;
+            case "partition-time" -> PartitionOrder.PARTITION_TIME;
+            default -> throw ConfigurationUtils.newConfigurationException(
+                "partition_order",
+                "unknown value [" + order + "], expected one of [partition-name, create-time, partition-time]"
+            );
+        };
 
         this.partitionTimePattern = ConfigurationUtils.readOptionalStringProperty(params, "partition_time_pattern");
 
@@ -85,7 +87,14 @@ public class HiveSourceConfig {
         this.numShards = numberOfShards;
 
         String transport = ConfigurationUtils.readStringProperty(params, "transport_mode", "unframed");
-        this.transportMode = "framed".equals(transport) ? TransportMode.FRAMED : TransportMode.UNFRAMED;
+        this.transportMode = switch (transport) {
+            case "unframed" -> TransportMode.UNFRAMED;
+            case "framed" -> TransportMode.FRAMED;
+            default -> throw ConfigurationUtils.newConfigurationException(
+                "transport_mode",
+                "unknown value [" + transport + "], expected one of [unframed, framed]"
+            );
+        };
 
         this.connectTimeoutMillis = ConfigurationUtils.readIntProperty(params, "connect_timeout", 10000);
         this.maxRetries = ConfigurationUtils.readIntProperty(params, "max_retries", 3);
@@ -95,10 +104,25 @@ public class HiveSourceConfig {
         ).millis();
 
         String auth = ConfigurationUtils.readStringProperty(params, "authentication", "none");
-        this.authMode = "kerberos".equals(auth) ? AuthMode.KERBEROS : AuthMode.NONE;
+        this.authMode = switch (auth) {
+            case "none" -> AuthMode.NONE;
+            case "kerberos" -> AuthMode.KERBEROS;
+            default -> throw ConfigurationUtils.newConfigurationException(
+                "authentication",
+                "unknown value [" + auth + "], expected one of [none, kerberos]"
+            );
+        };
         this.kerberosPrincipal = ConfigurationUtils.readOptionalStringProperty(params, "kerberos_principal");
         this.kerberosKeytabPath = ConfigurationUtils.readOptionalStringProperty(params, "kerberos_keytab");
         this.metastoreServicePrincipal = ConfigurationUtils.readOptionalStringProperty(params, "metastore_service_principal");
+        if (this.authMode == AuthMode.KERBEROS) {
+            if (this.kerberosPrincipal == null || this.kerberosPrincipal.isEmpty()) {
+                throw ConfigurationUtils.newConfigurationException("kerberos_principal", "required when authentication is [kerberos]");
+            }
+            if (this.kerberosKeytabPath == null || this.kerberosKeytabPath.isEmpty()) {
+                throw ConfigurationUtils.newConfigurationException("kerberos_keytab", "required when authentication is [kerberos]");
+            }
+        }
 
         // Collect hadoop_config.* entries for Hadoop Configuration (e.g., fs.s3a.* for S3 access)
         Map<String, String> hadoop = new HashMap<>();

@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.hive;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -195,5 +196,70 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         expectThrows(UnsupportedOperationException.class, () -> config.getHadoopProperties().put("new", "entry"));
+    }
+
+    private Map<String, Object> requiredParams() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        return params;
+    }
+
+    public void testUnknownPartitionOrderIsRejected() {
+        Map<String, Object> params = requiredParams();
+        // Underscore instead of hyphen: previously fell back to partition-name silently
+        params.put("partition_order", "create_time");
+
+        Exception e = expectThrows(OpenSearchException.class, () -> new HiveSourceConfig(params, 1));
+        assertTrue(e.getMessage().contains("partition_order"));
+        assertTrue(e.getMessage().contains("create_time"));
+    }
+
+    public void testUnknownTransportModeIsRejected() {
+        Map<String, Object> params = requiredParams();
+        params.put("transport_mode", "frame");
+
+        Exception e = expectThrows(OpenSearchException.class, () -> new HiveSourceConfig(params, 1));
+        assertTrue(e.getMessage().contains("transport_mode"));
+    }
+
+    public void testUnknownAuthenticationIsRejected() {
+        Map<String, Object> params = requiredParams();
+        // Capitalization typo: previously fell back to no authentication silently
+        params.put("authentication", "Kerberos");
+
+        Exception e = expectThrows(OpenSearchException.class, () -> new HiveSourceConfig(params, 1));
+        assertTrue(e.getMessage().contains("authentication"));
+    }
+
+    public void testKerberosRequiresPrincipal() {
+        Map<String, Object> params = requiredParams();
+        params.put("authentication", "kerberos");
+        params.put("kerberos_keytab", "/etc/security/keytabs/opensearch.keytab");
+
+        Exception e = expectThrows(OpenSearchException.class, () -> new HiveSourceConfig(params, 1));
+        assertTrue(e.getMessage().contains("kerberos_principal"));
+    }
+
+    public void testKerberosRequiresKeytab() {
+        Map<String, Object> params = requiredParams();
+        params.put("authentication", "kerberos");
+        params.put("kerberos_principal", "opensearch@EXAMPLE.COM");
+
+        Exception e = expectThrows(OpenSearchException.class, () -> new HiveSourceConfig(params, 1));
+        assertTrue(e.getMessage().contains("kerberos_keytab"));
+    }
+
+    public void testKerberosWithPrincipalAndKeytab() {
+        Map<String, Object> params = requiredParams();
+        params.put("authentication", "kerberos");
+        params.put("kerberos_principal", "opensearch@EXAMPLE.COM");
+        params.put("kerberos_keytab", "/etc/security/keytabs/opensearch.keytab");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        assertEquals(HiveSourceConfig.AuthMode.KERBEROS, config.getAuthMode());
+        assertEquals("opensearch@EXAMPLE.COM", config.getKerberosPrincipal());
     }
 }
