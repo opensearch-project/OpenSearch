@@ -234,7 +234,9 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
             ExitCodes.CODE_ERROR,
             true,
             (output, error) -> assertThat(error, containsString(cause.getMessage())),
-            (foreground, pidFile, quiet, env) -> { throw new StartupException(cause); }
+            (foreground, pidFile, quiet, env) -> {
+                throw new StartupException(cause);
+            }
         );
     }
 
