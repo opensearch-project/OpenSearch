@@ -173,25 +173,27 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     }
 
     /**
-     * Always returns {@code null}: this producer serves no {@link DocValuesSkipper} in the
-     * DocValues-codec base. The per-page Parquet {@code ColumnIndex} min/max needed to skip whole
-     * pages during range work is loaded (see {@code ColumnPageIndex}) but not exposed as a skipper
-     * here. Range/terms filter routing — the sole consumer of a skipper — is a separate change that
-     * will own the {@code DocValuesSkipper} implementation and decide the float/double raw-bits vs
-     * numeric-order question (IEEE-754 bit order diverges from numeric order for negatives, so a
-     * naive bit-min/max skipper would be wrong for float/double).
+     * Serves a {@link DocValuesSkipper} backed by the column's Parquet ColumnIndex (per-page
+     * min/max/null-count), letting Lucene's range machinery skip whole pages whose stats
+     * exclude the query range — no decode, no FFM crossing for skipped pages.
      *
-     * <p>The synthetic {@code FieldInfo}s produced by {@code ParquetDocValuesLeafReader} declare
-     * {@link org.apache.lucene.index.DocValuesSkipIndexType#NONE} to stay in lockstep with this:
-     * no field claims a RANGE skip index that this method cannot serve.
+     * <p>Integer-shaped columns only (INT32/INT64/BOOL physical): their raw-bits order is
+     * numeric order. Float/double doc values are IEEE-754 raw bits whose order diverges from
+     * numeric order for negative values, so page min/max computed on bits would be wrong for
+     * them; they get no skipper. BYTE_ARRAY min/max is not exchanged as i64 at all.
      */
-    // TODO(skipper): deferred to the range/terms filter-routing change. That change re-introduces
-    // ParquetDocValuesSkipper over ColumnPageIndex (INT32/INT64/BOOL only) and resolves the
-    // float/double order-preserving-encoding question before enabling a skipper for them.
     @Override
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
         ensureOpen();
-        return null;
+        ParquetPhysicalType phys = physicalType(field);
+        if (phys != ParquetPhysicalType.INT32 && phys != ParquetPhysicalType.INT64 && phys != ParquetPhysicalType.BOOL) {
+            return null;
+        }
+        // Match the repeated flag the field's DV accessor will use — readerFor caches by field
+        // name, so opening here with a mismatched flag would poison the cache for the accessor.
+        boolean repeated = field.getDocValuesType() == DocValuesType.SORTED_NUMERIC;
+        ParquetColumnReader reader = readerFor(field, repeated);
+        return new ParquetDocValuesSkipper(reader.pageIndex(), maxDoc);
     }
 
     /**

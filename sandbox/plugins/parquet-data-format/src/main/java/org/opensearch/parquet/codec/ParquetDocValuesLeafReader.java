@@ -196,18 +196,16 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
     }
 
     /**
-     * Skip-index declaration for a synthetic field: always {@link DocValuesSkipIndexType#NONE}.
-     * The DocValues-codec base serves no {@link DocValuesSkipper} (see
-     * {@link ParquetDocValuesProducer#getSkipper}, which always returns null), so no synthetic
-     * field may claim a RANGE skip index — a field declaring RANGE whose getSkipper returns null
-     * would break Lucene consumers that trust the declaration.
-     *
-     * <p>Range/terms filter routing (a separate change) will re-introduce a skipper and, at that
-     * point, restore a RANGE declaration for the physical types it can serve, kept in lockstep
-     * with {@code getSkipper}.
+     * Skip-index declaration for a synthetic field: RANGE for integer-shaped columns whose
+     * Parquet ColumnIndex min/max the producer can serve through a {@link DocValuesSkipper}
+     * (raw-bits order == numeric order), NONE otherwise. Must stay in sync with
+     * {@link ParquetDocValuesProducer#getSkipper}'s physical-type gate: declaring RANGE for a
+     * field whose getSkipper returns null would break consumers that trust the declaration.
      */
     private static DocValuesSkipIndexType skipIndexTypeFor(FieldTypeMapping.Mapping mapping) {
-        return DocValuesSkipIndexType.NONE;
+        ParquetPhysicalType phys = mapping.physical();
+        boolean skippable = phys == ParquetPhysicalType.INT32 || phys == ParquetPhysicalType.INT64 || phys == ParquetPhysicalType.BOOL;
+        return skippable ? DocValuesSkipIndexType.RANGE : DocValuesSkipIndexType.NONE;
     }
 
     /** Builds a synthetic doc-values {@link FieldInfo} carrying the given DV type. */
@@ -391,11 +389,12 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
     public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
         FieldInfo fi = parquetFieldInfo(field);
         if (fi != null) {
-            // Parquet-served fields declare DocValuesSkipIndexType.NONE (see skipIndexTypeFor) and
-            // the producer serves no skipper in the DocValues-codec base, so there is never a skip
-            // index for a Parquet field here. Range/terms filter routing (a separate change) will
-            // re-introduce both the RANGE declaration and the backing skipper.
-            return null;
+            if (fi.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE) {
+                return null;
+            }
+            // Doc IDs and Parquet rows coincide (IDENTITY resolver — see newRowIdResolver), so
+            // page row ranges are directly valid as skipper doc ID intervals.
+            return producer().getSkipper(fi);
         }
         return in.getDocValuesSkipper(field);
     }
