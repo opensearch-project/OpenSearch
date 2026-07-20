@@ -703,6 +703,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING,
                 SnapshotsService.SNAPSHOT_REPOSITORY_MAX_OUTSTANDING_OPS_SETTING,
                 SnapshotsService.SNAPSHOT_DELETE_CLEANUP_STALE_BLOBS_SETTING,
+                SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING,
+                SnapshotsService.SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING,
                 FsHealthService.ENABLED_SETTING,
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
