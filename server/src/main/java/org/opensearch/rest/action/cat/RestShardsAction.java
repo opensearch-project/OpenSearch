@@ -209,10 +209,11 @@ public class RestShardsAction extends AbstractListAction {
         String sParam = request.param("s");
         if (sParam != null && sParam.isEmpty() == false) {
             for (String token : Strings.splitStringByCommaToArray(sParam)) {
-                // strip :asc / :desc suffix before checking
-                String col = token;
-                if (col.endsWith(":desc")) col = col.substring(0, col.length() - 5);
-                else if (col.endsWith(":asc")) col = col.substring(0, col.length() - 4);
+                // strip :asc / :desc suffix before checking (case-insensitive, whitespace-tolerant)
+                String col = token.trim();
+                String lower = col.toLowerCase(Locale.ROOT);
+                if (lower.endsWith(":desc")) col = col.substring(0, col.length() - 5);
+                else if (lower.endsWith(":asc")) col = col.substring(0, col.length() - 4);
                 if (isRoutingOnlyToken(col) == false) {
                     return true;
                 }
