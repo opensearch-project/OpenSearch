@@ -31,7 +31,9 @@ public interface XContentConstraints {
         System.getProperty(DEFAULT_MAX_NAME_LEN_PROPERTY, "50000" /* StreamReadConstraints.DEFAULT_MAX_NAME_LEN */)
     );
 
-    final int DEFAULT_MAX_DEPTH = Integer.parseInt(System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, "100"));
+    final int DEFAULT_MAX_DEPTH = Integer.parseInt(
+        System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, "1000" /* StreamReadConstraints.DEFAULT_MAX_DEPTH */)
+    );
 
     final int DEFAULT_CODEPOINT_LIMIT = Integer.parseInt(System.getProperty(DEFAULT_CODEPOINT_LIMIT_PROPERTY, "52428800" /* ~50 Mb */));
     final int DEFAULT_BUFFER_SIZE = Integer.parseInt(

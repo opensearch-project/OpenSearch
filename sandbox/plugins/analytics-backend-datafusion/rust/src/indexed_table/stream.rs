@@ -400,6 +400,9 @@ pub struct IndexedExec {
     /// dispatching further row groups and `IndexedStream` stops draining.
     /// `None` disables cancellation checks.
     pub(crate) cancellation_token: Option<tokio_util::sync::CancellationToken>,
+    /// Cached per-segment arrow schema derived from parquet footer. Used by
+    /// page pruning and dynamic filter to avoid repeated `parquet_to_arrow_schema`.
+    pub(crate) seg_arrow_schema: SchemaRef,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -497,6 +500,7 @@ impl ExecutionPlan for IndexedExec {
             self.emit_row_ids,
             self.row_id_output_index,
             self.dynamic_filter.clone(),
+            self.seg_arrow_schema.clone(),
         )))
     }
 }
@@ -599,11 +603,15 @@ impl IndexedStream {
         emit_row_ids: bool,
         row_id_output_index: Option<usize>,
         dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+        seg_arrow_schema: SchemaRef,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
         let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
-        let dynamic_rg_pruner =
-            super::dynamic_filter::DynamicRgPruner::new(dynamic_filter, full_schema.clone());
+        let dynamic_rg_pruner = super::dynamic_filter::DynamicRgPruner::new(
+            dynamic_filter,
+            full_schema.clone(),
+            seg_arrow_schema,
+        );
         Self {
             schema,
             full_schema,

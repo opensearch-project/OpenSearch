@@ -1376,6 +1376,12 @@ public class RestoreService implements ClusterStateApplier {
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
+        if (snapshotInfo.version() == null) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository, snapshotInfo.snapshotId()),
+                "the snapshot has an unknown or unsupported version and cannot be restored"
+            );
+        }
         if (Version.CURRENT.before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository, snapshotInfo.snapshotId()),
