@@ -46,7 +46,6 @@ public final class PipelinedRequest extends SearchRequest {
 
     PipelinedRequest(SearchRequest transformedRequest, PipelinedRequest original) {
         super(transformedRequest);
-        this.pipeline(transformedRequest.pipeline());
         this.pipeline = original.pipeline;
         this.requestContext = original.requestContext;
         this.systemGeneratedPipelineHolder = original.systemGeneratedPipelineHolder;

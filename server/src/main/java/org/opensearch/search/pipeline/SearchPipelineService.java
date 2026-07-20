@@ -55,6 +55,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -555,6 +556,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
      * it reads them; copying leaves the request's original {@code searchPipelineSource} intact for later readers.
      */
     static Map<String, Object> deepCopyConfig(Map<String, Object> config) {
+        if (Objects.isNull(config)) {
+            return null;
+        }
         Map<String, Object> copy = new LinkedHashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             copy.put(entry.getKey(), deepCopyConfigValue(entry.getValue()));
@@ -570,6 +574,13 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         } else if (value instanceof List) {
             List<Object> source = (List<Object>) value;
             List<Object> copy = new ArrayList<>(source.size());
+            for (Object item : source) {
+                copy.add(deepCopyConfigValue(item));
+            }
+            return copy;
+        } else if (value instanceof Set) {
+            Set<Object> source = (Set<Object>) value;
+            Set<Object> copy = new LinkedHashSet<>(source.size());
             for (Object item : source) {
                 copy.add(deepCopyConfigValue(item));
             }
