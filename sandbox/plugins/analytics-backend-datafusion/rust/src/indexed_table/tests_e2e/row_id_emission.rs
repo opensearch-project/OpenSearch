@@ -50,6 +50,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -69,7 +70,11 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -222,6 +227,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base,
         sort_min: None,
         sort_max: None,
@@ -241,7 +247,11 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -503,6 +513,7 @@ async fn test_row_id_with_data_columns() {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -523,7 +534,11 @@ async fn test_row_id_with_data_columns() {
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -759,6 +774,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         parquet_size: size1,
         row_groups: rgs1,
         metadata: Arc::clone(&parquet_meta1),
+        arrow_schema: schema.clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -770,6 +786,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         parquet_size: size2,
         row_groups: rgs2,
         metadata: Arc::clone(&parquet_meta2),
+        arrow_schema: schema.clone(),
         global_base: 16,
         sort_min: None,
         sort_max: None,
@@ -789,7 +806,11 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
