@@ -38,6 +38,8 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.search.pruning.FieldDomainEvaluationContext;
+import org.opensearch.action.search.pruning.SearchIndexPruningResult;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
@@ -71,6 +73,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.index.fielddomain.ClusterStateFieldDomainProvider;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
@@ -189,6 +192,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private TaskResourceTrackingService taskResourceTrackingService;
 
+    private final SearchIndexPruningService searchIndexPruningService;
+
     @Inject
     public TransportSearchAction(
         NodeClient client,
@@ -231,6 +236,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.tracer = tracer;
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.indicesService = indicesService;
+        this.searchIndexPruningService = new SearchIndexPruningService(
+            clusterService.getClusterSettings(),
+            new ClusterStateFieldDomainProvider()
+        );
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -1274,6 +1283,68 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext
     ) {
+        maybeApplySearchIndexPruning(searchRequest, shardIterators, clusterState, timeProvider);
+        return createSearchAsyncAction(
+            task,
+            searchRequest,
+            executor,
+            shardIterators,
+            timeProvider,
+            connectionLookup,
+            clusterState,
+            aliasFilter,
+            concreteIndexBoosts,
+            indexRoutings,
+            listener,
+            preFilter,
+            threadPool,
+            clusters,
+            searchRequestContext
+        );
+    }
+
+    /**
+     * Applies index pruning results to the request-local shard iterators.
+     */
+    private void maybeApplySearchIndexPruning(
+        SearchRequest searchRequest,
+        GroupShardsIterator<SearchShardIterator> shardIterators,
+        ClusterState clusterState,
+        SearchTimeProvider timeProvider
+    ) {
+        final SearchIndexPruningResult pruningResult = searchIndexPruningService.prune(
+            searchRequest,
+            shardIterators,
+            clusterState,
+            new FieldDomainEvaluationContext(timeProvider::getAbsoluteStartMillis)
+        );
+        if (pruningResult.pruned() == false) {
+            return;
+        }
+        for (int i = 0; i < pruningResult.originalShardGroups(); i++) {
+            if (pruningResult.isPrunedShardGroup(i)) {
+                pruningResult.shardIterators().get(i).resetAndSkip();
+            }
+        }
+    }
+
+    private AbstractSearchAsyncAction<? extends SearchPhaseResult> createSearchAsyncAction(
+        SearchTask task,
+        SearchRequest searchRequest,
+        Executor executor,
+        GroupShardsIterator<SearchShardIterator> shardIterators,
+        SearchTimeProvider timeProvider,
+        BiFunction<String, String, Transport.Connection> connectionLookup,
+        ClusterState clusterState,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Map<String, Set<String>> indexRoutings,
+        ActionListener<SearchResponse> listener,
+        boolean preFilter,
+        ThreadPool threadPool,
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext
+    ) {
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(
                 logger,
@@ -1290,7 +1361,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 clusterState,
                 task,
                 (iter) -> new WrappingSearchAsyncActionPhase(
-                    searchAsyncAction(
+                    createSearchAsyncAction(
                         task,
                         searchRequest,
                         executor,

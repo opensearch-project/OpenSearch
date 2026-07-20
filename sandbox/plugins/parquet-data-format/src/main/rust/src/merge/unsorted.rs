@@ -19,8 +19,8 @@ use super::context::MergeContext;
 use super::error::MergeResult;
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
-use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 use crate::memory::merge_pool;
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
 /// rewrites `__row_id__` with globally sequential values. No sorting performed.
@@ -30,8 +30,15 @@ pub fn merge_unsorted(
     index_name: &str,
     output_writer_generation: i64,
 ) -> MergeResult<super::MergeOutput> {
-    let mut reservation = MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Reject);
-    merge_unsorted_with_pool(input_files, output_path, index_name, output_writer_generation, &mut reservation)
+    let mut reservation =
+        MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Reject);
+    merge_unsorted_with_pool(
+        input_files,
+        output_path,
+        index_name,
+        output_writer_generation,
+        &mut reservation,
+    )
 }
 
 /// Unsorted merge with an explicit memory reservation.
@@ -69,11 +76,17 @@ pub fn merge_unsorted_with_pool(
         let schema = builder.schema().clone();
         let parquet_descr = builder.parquet_schema().clone();
         let num_rows = builder.metadata().file_metadata().num_rows() as usize;
-        let generation = crate::writer_properties_builder::read_writer_generation(builder.metadata().file_metadata(), file_idx);
+        let generation = crate::writer_properties_builder::read_writer_generation(
+            builder.metadata().file_metadata(),
+            file_idx,
+        );
 
         let projection_indices = projection_indices_excluding_row_id(&schema);
         let projection = parquet::arrow::ProjectionMask::roots(&parquet_descr, projection_indices);
-        let reader = builder.with_batch_size(batch_size).with_projection(projection).build()?;
+        let reader = builder
+            .with_batch_size(batch_size)
+            .with_projection(projection)
+            .build()?;
 
         // The reader's schema is the projected schema (__row_id__ excluded).
         arrow_schemas.push(reader.schema().as_ref().clone());
@@ -97,7 +110,8 @@ pub fn merge_unsorted_with_pool(
     )?;
 
     // Precompute column mappings per reader
-    let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
+    let col_mappings: Vec<ColumnMapping> = arrow_schemas
+        .iter()
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
 
@@ -105,7 +119,9 @@ pub fn merge_unsorted_with_pool(
     // old_row_id maps directly to new_row_id with a per-file offset.
     let total_rows: usize = file_row_counts.iter().sum();
     let mapping_bytes = total_rows * std::mem::size_of::<i64>();
-    reservation.request(mapping_bytes).map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
+    reservation
+        .request(mapping_bytes)
+        .map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
     let mut mapping: Vec<i64> = vec![0i64; total_rows];
     let mut gen_keys: Vec<i64> = Vec::with_capacity(input_files.len());
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(input_files.len());

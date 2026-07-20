@@ -9,6 +9,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Andrew Ross       | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko      | [reta](https://github.com/reta)                         | Independent |
 | Ankit Jain        | [jainankitk](https://github.com/jainankitk)             | Amazon      |
+| Arpit Bandejiya   | [alchemist51](https://github.com/alchemist51)           | Amazon      |
 | Ashish Singh      | [ashking94](https://github.com/ashking94)               | Amazon      |
 | Atri Sharma       | [atris](https://github.com/atris)                       | Apple       |
 | Bharathwaj G      | [bharath-techie](https://github.com/bharath-techie)     | Amazon      |
@@ -23,14 +24,14 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Marc Handalian    | [mch2](https://github.com/mch2)                         | Amazon      |
-| Michael Froh      | [msfroh](https://github.com/msfroh)                     | Uber        |
+| Michael Froh      | [msfroh](https://github.com/msfroh)                     | Apple       |
 | Mohit Godwani     | [mgodwan](https://github.com/mgodwan)                   | Amazon      |
 | Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
 | Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |
 | Prudhvi Godithi   | [prudhvigodithi](https://github.com/prudhvigodithi)     | Amazon      |
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
-| Rishav Sagar      | [RS146BIJAY](https://github.com/RS146BIJAY)             | Amazon      |
+| Rishav Sagar      | [RS146BIJAY](https://github.com/RS146BIJAY)             | Apple       |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |

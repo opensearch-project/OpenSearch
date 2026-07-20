@@ -78,7 +78,11 @@ impl ScalarUDFImpl for ExtractUdf {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
             // Time32/Time64: handle directly to avoid a Time→Timestamp cast kernel.
             DataType::Time32(_) | DataType::Time64(_) => arg_types[1].clone(),
-            other => return plan_err!("extract: arg 1 expected timestamp/date/time/string, got {other:?}"),
+            other => {
+                return plan_err!(
+                    "extract: arg 1 expected timestamp/date/time/string, got {other:?}"
+                )
+            }
         };
         Ok(vec![unit, ts])
     }
@@ -100,7 +104,9 @@ impl ScalarUDFImpl for ExtractUdf {
                 ScalarValue::Time32Millisecond(v) => v.map(|ms| (ms as i64) * 1_000),
                 ScalarValue::Time64Microsecond(v) => *v,
                 ScalarValue::Time64Nanosecond(v) => v.map(|ns| ns / 1_000),
-                ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => v.as_deref().and_then(parse_string_to_micros),
+                ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => {
+                    v.as_deref().and_then(parse_string_to_micros)
+                }
                 other => return exec_err!("extract: unsupported ts scalar: {other:?}"),
             };
             let out = match (unit_str, micros) {
@@ -257,7 +263,9 @@ fn unit_at(array: &ArrayRef, row: usize) -> Result<Option<String>> {
 fn compute(unit: &str, micros: i64) -> Option<i64> {
     let seconds = micros.div_euclid(1_000_000);
     let micro_fraction = micros.rem_euclid(1_000_000) as u32;
-    let dt = Utc.timestamp_opt(seconds, micro_fraction * 1_000).single()?;
+    let dt = Utc
+        .timestamp_opt(seconds, micro_fraction * 1_000)
+        .single()?;
     extract_for_unit(&unit.to_ascii_uppercase(), dt)
 }
 
@@ -320,22 +328,38 @@ mod tests {
     }
 
     fn us(y: i32, mo: u32, d: u32, h: u32, mi: u32, s: u32) -> i64 {
-        Utc.with_ymd_and_hms(y, mo, d, h, mi, s).unwrap().timestamp() * 1_000_000
+        Utc.with_ymd_and_hms(y, mo, d, h, mi, s)
+            .unwrap()
+            .timestamp()
+            * 1_000_000
     }
 
     #[test]
     fn simple_and_composite_units_on_reference_sample() {
         // Reference sample (Sunday, 2020 leap year, ISO week 11):
         for (unit, want) in [
-            ("MICROSECOND", 123_456_i64), ("SECOND", 45), ("MINUTE", 30), ("HOUR", 10),
-            ("DAY", 15), ("MONTH", 3), ("QUARTER", 1), ("YEAR", 2020),
-            ("DOY", 75), ("WEEK", 11), ("DOW", 7), // 2020-03-15 is a Sunday (ISO DOW=7)
-            ("DAY_MICROSECOND", 15_103_045_123_456), ("DAY_SECOND", 15_103_045),
-            ("DAY_MINUTE", 151_030), ("DAY_HOUR", 1510),
-            ("HOUR_MICROSECOND", 103_045_123_456), ("HOUR_SECOND", 103_045),
+            ("MICROSECOND", 123_456_i64),
+            ("SECOND", 45),
+            ("MINUTE", 30),
+            ("HOUR", 10),
+            ("DAY", 15),
+            ("MONTH", 3),
+            ("QUARTER", 1),
+            ("YEAR", 2020),
+            ("DOY", 75),
+            ("WEEK", 11),
+            ("DOW", 7), // 2020-03-15 is a Sunday (ISO DOW=7)
+            ("DAY_MICROSECOND", 15_103_045_123_456),
+            ("DAY_SECOND", 15_103_045),
+            ("DAY_MINUTE", 151_030),
+            ("DAY_HOUR", 1510),
+            ("HOUR_MICROSECOND", 103_045_123_456),
+            ("HOUR_SECOND", 103_045),
             ("HOUR_MINUTE", 1030),
-            ("MINUTE_MICROSECOND", 3_045_123_456), ("MINUTE_SECOND", 3045),
-            ("SECOND_MICROSECOND", 45_123_456), ("YEAR_MONTH", 202_003),
+            ("MINUTE_MICROSECOND", 3_045_123_456),
+            ("MINUTE_SECOND", 3045),
+            ("SECOND_MICROSECOND", 45_123_456),
+            ("YEAR_MONTH", 202_003),
         ] {
             assert_eq!(eval(unit), Some(want), "unit={unit}");
         }

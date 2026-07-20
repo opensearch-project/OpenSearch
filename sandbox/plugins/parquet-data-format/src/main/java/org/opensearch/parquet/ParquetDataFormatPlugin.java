@@ -176,6 +176,12 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
                 writePool.updateStats(s[1], s[2]);
                 mergePool.updateStats(s[4], s[5]);
             });
+
+            // Wire the over-commit decision to the allocator. When a native pool is full, the Rust
+            // reservation consults this decider (an FFM upcall); the decision runs in
+            // ArrowNativeAllocator.tryOverCommitToken based on node-level native memory pressure; the
+            // returned token is echoed back on release so the exact grant is freed.
+            RustBridge.registerOverCommitCallbacks(nativeAllocator::tryOverCommitToken, nativeAllocator::releaseOverCommitToken);
         } else {
             // No allocator — wire dynamic consumers directly to Rust pools
             ClusterSettings cs = clusterService.getClusterSettings();
