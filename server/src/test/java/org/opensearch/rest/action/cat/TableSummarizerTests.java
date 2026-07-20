@@ -99,6 +99,32 @@ public class TableSummarizerTests extends OpenSearchTestCase {
         assertFalse(TableSummarizer.hasAggregation(null));
     }
 
+    public void testAggregationFunctionIsCaseInsensitive() {
+        // Users may pass mixed-case function names; detection and summarization must both accept them.
+        assertTrue(TableSummarizer.hasAggregation("index,SUM(docs)"));
+        assertTrue(TableSummarizer.hasAggregation("Count(shard)"));
+
+        Table t = buildNumericTable();
+        Table result = TableSummarizer.summarize(t, "index,SUM(docs),Avg(docs)");
+        // idx-a: sum=300, avg=150
+        assertThat(result.getAsMap().get("SUM(docs)").get(0).value, equalTo(300L));
+        assertThat(((Number) result.getAsMap().get("Avg(docs)").get(0).value).longValue(), equalTo(150L));
+    }
+
+    public void testSafeLongClampsOverflowAndRounds() {
+        // Round-half-up rather than truncate.
+        assertThat(TableSummarizer.safeLong(2.6), equalTo(3L));
+        assertThat(TableSummarizer.safeLong(-2.6), equalTo(-3L));
+        // Clamp instead of silently wrapping to a negative long.
+        assertThat(TableSummarizer.safeLong(Double.MAX_VALUE), equalTo(Long.MAX_VALUE));
+        assertThat(TableSummarizer.safeLong(-Double.MAX_VALUE), equalTo(Long.MIN_VALUE));
+        assertThat(TableSummarizer.safeLong(Double.NaN), equalTo(0L));
+        // A ByteSizeValue sum that exceeds Long.MAX_VALUE as a double clamps rather than throwing.
+        Object clamped = TableSummarizer.formatValue(Double.MAX_VALUE, new ByteSizeValue(1));
+        assertTrue(clamped instanceof ByteSizeValue);
+        assertThat(((ByteSizeValue) clamped).getBytes(), equalTo(Long.MAX_VALUE));
+    }
+
     // ---------- summarize returns original table when h= is null/empty or has no aggregation ----------
 
     public void testNullOrEmptyHeadersReturnsOriginal() {
@@ -226,8 +252,8 @@ public class TableSummarizerTests extends OpenSearchTestCase {
         assertThat(((TimeValue) sumVal).millis(), equalTo(75020L));
         assertThat(((TimeValue) minVal).millis(), equalTo(0L));
         assertThat(((TimeValue) maxVal).millis(), equalTo(75000L));
-        // avg: (0 + 20 + 75000) / 3 = 25006.67 → cast back to TimeValue gives 25006ms
-        assertThat(((TimeValue) avgVal).millis(), equalTo(25006L));
+        // avg: (0 + 20 + 75000) / 3 = 25006.67 → round-half-up to TimeValue gives 25007ms
+        assertThat(((TimeValue) avgVal).millis(), equalTo(25007L));
     }
 
     public void testSummarizeTimeValueHumanReadable() {

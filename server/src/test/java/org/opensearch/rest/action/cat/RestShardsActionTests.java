@@ -192,6 +192,14 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
     }
 
+    public void testIndicesStatsNotRequiredWhenSortSuffixIsUpperCaseOrSpaced() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        // Mixed-case direction suffix and surrounding whitespace must still resolve to routing-only.
+        req.params().put("s", "index:DESC, shard:Asc");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
     public void testIndicesStatsRequiredOnUnknownColumn() {
         FakeRestRequest req = new FakeRestRequest();
         // Unknown column conservatively forces slow path (don't optimize unrecognized tokens).

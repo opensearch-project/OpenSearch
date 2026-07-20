@@ -45,8 +45,8 @@ import java.util.regex.Pattern;
  */
 public final class TableSummarizer {
 
-    /** Matches function syntax like {@code sum(docs.count)}, {@code count(shard)}. */
-    private static final Pattern AGG_FUNC_PATTERN = Pattern.compile("^(sum|count|avg|min|max)\\((.+)\\)$");
+    /** Matches function syntax like {@code sum(docs.count)}, {@code count(shard)}. Case-insensitive so {@code SUM(docs)} also matches. */
+    private static final Pattern AGG_FUNC_PATTERN = Pattern.compile("^(sum|count|avg|min|max)\\((.+)\\)$", Pattern.CASE_INSENSITIVE);
 
     private TableSummarizer() {}
 
@@ -311,20 +311,34 @@ public final class TableSummarizer {
 
     /** Wrap an aggregated double back into the original source type so renderers preserve units. */
     static Object formatValue(double num, Object sampleValue) {
-        if (sampleValue instanceof ByteSizeValue) return new ByteSizeValue((long) num);
-        if (sampleValue instanceof SizeValue) return new SizeValue((long) num);
-        if (sampleValue instanceof TimeValue) return new TimeValue((long) num);
+        if (sampleValue instanceof ByteSizeValue) return new ByteSizeValue(safeLong(num));
+        if (sampleValue instanceof SizeValue) return new SizeValue(safeLong(num));
+        if (sampleValue instanceof TimeValue) return new TimeValue(safeLong(num));
         if (sampleValue instanceof Long || sampleValue instanceof Integer || sampleValue instanceof Short || sampleValue instanceof Byte) {
-            return (long) num;
+            return safeLong(num);
         }
         if (sampleValue instanceof String) {
             if (num == Math.floor(num) && !Double.isInfinite(num)) {
-                return String.valueOf((long) num);
+                return String.valueOf(safeLong(num));
             }
             return String.format(Locale.ROOT, "%.2f", num);
         }
         // Default: return Long when integral (consistent with the original inline impl), else Double.
-        if (num == Math.floor(num) && !Double.isInfinite(num)) return (long) num;
+        if (num == Math.floor(num) && !Double.isInfinite(num)) return safeLong(num);
         return num;
+    }
+
+    /**
+     * Convert an aggregated double to a long using round-half-up semantics, clamping to
+     * {@link Long#MIN_VALUE}/{@link Long#MAX_VALUE} instead of silently overflowing. This matters
+     * for sums of many large {@link ByteSizeValue}s (which can exceed {@code Long.MAX_VALUE} as a
+     * double) and prevents {@code ByteSizeValue}/{@code SizeValue} from being constructed with a
+     * wrapped negative value.
+     */
+    static long safeLong(double num) {
+        if (Double.isNaN(num)) return 0L;
+        if (num >= (double) Long.MAX_VALUE) return Long.MAX_VALUE;
+        if (num <= (double) Long.MIN_VALUE) return Long.MIN_VALUE;
+        return Math.round(num);
     }
 }
