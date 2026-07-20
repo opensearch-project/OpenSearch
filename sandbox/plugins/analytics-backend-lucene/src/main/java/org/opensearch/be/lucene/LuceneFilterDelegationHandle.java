@@ -212,7 +212,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     @Override
-    public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+    public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
         ScorerHandle handle = scorersByCollectorKey.get(collectorKey);
         if (handle == null) {
             return -1;
@@ -222,6 +222,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
         int span = maxDoc - minDoc;
         FixedBitSet bits = new FixedBitSet(span);
+        int nextDoc = Integer.MAX_VALUE;
 
         if (handle.scorer != null) {
             int scanFrom = Math.max(minDoc, handle.partitionMinDoc);
@@ -241,9 +242,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                         }
                         handle.currentDoc = docId;
                     }
+                    nextDoc = (handle.currentDoc == DocIdSetIterator.NO_MORE_DOCS)
+                        ? Integer.MAX_VALUE
+                        : Math.max(handle.currentDoc, maxDoc);
                 } catch (IOException exception) {
                     LOGGER.warn("IOException during collectDocs, returning partial bitset", exception);
                 }
+            } else {
+                nextDoc = (handle.currentDoc == DocIdSetIterator.NO_MORE_DOCS) ? Integer.MAX_VALUE : Math.max(handle.currentDoc, maxDoc);
             }
         }
 
@@ -252,15 +258,16 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
-                "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
+                "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={} nextDoc={}",
                 collectorKey,
                 minDoc,
                 maxDoc,
                 bits.cardinality(),
-                wordCount
+                wordCount,
+                nextDoc
             );
         }
-        return wordCount;
+        return ((long) nextDoc << 32) | (wordCount & 0xFFFFFFFFL);
     }
 
     @Override

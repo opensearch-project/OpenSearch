@@ -984,14 +984,22 @@ pub struct CollectorLeafBitmaps {
     /// round-trip to Java per Collector leaf per RG. `None` for tests
     /// that don't care about metrics.
     pub ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
+    /// Per-leaf next_doc tracking. Key = Arc pointer identity of the collector.
+    /// Value = next matching docId from the last collectDocs call for that leaf.
+    leaf_next_doc: std::sync::Mutex<HashMap<usize, i32>>,
 }
 
 impl CollectorLeafBitmaps {
+    pub fn new(ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>) -> Self {
+        Self {
+            ffm_collector_calls,
+            leaf_next_doc: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+
     /// Construct a `CollectorLeafBitmaps` with no metrics.
     pub fn without_metrics() -> Self {
-        Self {
-            ffm_collector_calls: None,
-        }
+        Self::new(None)
     }
 }
 
@@ -1008,11 +1016,14 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
                 return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into())
             }
         };
-        // Use the narrowed call ranges if available (set by AND evaluator
-        // after earlier children shrink the candidate set). Each range
-        // produces one FFM call; results are merged into one bitmap in
-        // min_doc-relative coordinates.
-        // Use narrowed call ranges if available (set by AND evaluator).
+
+        let leaf_key = Arc::as_ptr(collector) as *const () as usize;
+
+        let mut last_next_doc = {
+            let map = self.leaf_next_doc.lock().unwrap();
+            map.get(&leaf_key).copied().unwrap_or(i32::MIN)
+        };
+
         let call_ranges = ctx
             .collector_call_ranges
             .clone()
@@ -1020,14 +1031,22 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
 
         let mut result_bitmap = RoaringBitmap::new();
         for (call_min, call_max) in &call_ranges {
-            let bitset = collector.collect_packed_u64_bitset(*call_min, *call_max)?;
+            if last_next_doc > *call_max {
+                continue;
+            }
+            let effective_min = last_next_doc.max(*call_min);
+            let result = collector.collect_packed_u64_bitset(effective_min, *call_max)?;
             if let Some(ref c) = self.ffm_collector_calls {
                 c.add(1);
             }
-            let offset = (*call_min - ctx.min_doc) as u32;
-            let num_docs = (*call_max - *call_min) as u32;
+            last_next_doc = result.next_doc;
+            let offset = (effective_min - ctx.min_doc) as u32;
+            let num_docs = (*call_max - effective_min) as u32;
             let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+                std::slice::from_raw_parts(
+                    result.words.as_ptr() as *const u8,
+                    result.words.len() * 8,
+                )
             };
             let mut chunk = RoaringBitmap::from_lsb0_bytes(offset, bytes);
             let upper = offset + num_docs;
@@ -1036,6 +1055,10 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
             }
             result_bitmap |= chunk;
         }
+
+        let mut map = self.leaf_next_doc.lock().unwrap();
+        map.insert(leaf_key, last_next_doc);
+
         Ok(result_bitmap)
     }
 }
@@ -1048,6 +1071,7 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
 mod tests {
     use super::*;
     use crate::indexed_table::bool_tree::ResolvedNode;
+    use crate::indexed_table::index::CollectDocsResult;
     use crate::indexed_table::index::RowGroupDocsCollector;
     use datafusion::arrow::array::Int32Array;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
@@ -1120,8 +1144,12 @@ mod tests {
         #[derive(Debug)]
         struct Dummy;
         impl RowGroupDocsCollector for Dummy {
-            fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
-                Ok(vec![])
+            fn collect_packed_u64_bitset(
+                &self,
+                _: i32,
+                _: i32,
+            ) -> Result<CollectDocsResult, String> {
+                Ok(vec![].into())
             }
         }
         let _ = idx;
@@ -1366,7 +1394,11 @@ mod tests {
         #[derive(Debug)]
         struct Poison;
         impl RowGroupDocsCollector for Poison {
-            fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
+            fn collect_packed_u64_bitset(
+                &self,
+                _: i32,
+                _: i32,
+            ) -> Result<CollectDocsResult, String> {
                 unreachable!("Phase 2 must not call collect")
             }
         }
@@ -2010,6 +2042,244 @@ mod tests {
             .unwrap();
         // Not pruned — both collectors contribute.
         assert_eq!(result.candidates, bm(&[2, 3]));
+    }
+
+    // ── CollectorLeafBitmaps next_doc skip/tighten tests ─────────────
+
+    /// Mock collector that returns configurable docs and next_doc, and records
+    /// the (min_doc, max_doc) arguments it was called with.
+    #[derive(Debug)]
+    struct NextDocMockCollector {
+        /// Absolute doc IDs to include in the returned bitset.
+        docs: Vec<i32>,
+        /// The `next_doc` value to return from `collect_packed_u64_bitset`.
+        next_doc: i32,
+        /// Records each (min_doc, max_doc) invocation.
+        calls: std::sync::Mutex<Vec<(i32, i32)>>,
+    }
+
+    impl NextDocMockCollector {
+        fn new(docs: Vec<i32>, next_doc: i32) -> Self {
+            Self {
+                docs,
+                next_doc,
+                calls: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn call_args(&self) -> Vec<(i32, i32)> {
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    impl RowGroupDocsCollector for NextDocMockCollector {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<CollectDocsResult, String> {
+            self.calls.lock().unwrap().push((min_doc, max_doc));
+            let num_docs = (max_doc - min_doc) as usize;
+            let num_words = num_docs.div_ceil(64);
+            let mut words = vec![0u64; num_words];
+            for &d in &self.docs {
+                if d >= min_doc && d < max_doc {
+                    let bit = (d - min_doc) as usize;
+                    words[bit / 64] |= 1u64 << (bit % 64);
+                }
+            }
+            Ok(CollectDocsResult {
+                words,
+                next_doc: self.next_doc,
+            })
+        }
+    }
+
+    /// Helper: build a ResolvedNode::Collector wrapping a given Arc collector.
+    fn collector_node_from_arc(collector: Arc<dyn RowGroupDocsCollector>) -> ResolvedNode {
+        ResolvedNode::Collector {
+            provider_key: 1,
+            collector,
+        }
+    }
+
+    /// Test 1: Per-leaf skip.
+    /// RG0 returns next_doc=500. RG1 covers [100, 200).
+    /// Since 500 > 200 (call_max), the sub-range is skipped entirely,
+    /// resulting in an empty bitmap for RG1.
+    #[test]
+    fn next_doc_skip_when_next_doc_exceeds_call_max() {
+        let mock = Arc::new(NextDocMockCollector::new(vec![110, 120, 130], 500));
+        let node = collector_node_from_arc(mock.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        // RG0: covers [0, 100). Collector returns next_doc=500.
+        let ctx0 = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 100,
+            min_doc: 0,
+            max_doc: 100,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm0 = source.leaf_bitmap(&node, 0, &ctx0).unwrap();
+        // The mock returns docs in [0,100) that match — none do, so empty.
+        assert!(bm0.is_empty());
+        // Verify the collector was called for RG0.
+        assert_eq!(mock.call_args().len(), 1);
+
+        // RG1: covers [100, 200). Since last_next_doc=500 > 200 (call_max),
+        // the entire range is skipped — collector should NOT be called again.
+        let ctx1 = RgEvalContext {
+            rg_idx: 1,
+            rg_first_row: 100,
+            rg_num_rows: 100,
+            min_doc: 100,
+            max_doc: 200,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm1 = source.leaf_bitmap(&node, 0, &ctx1).unwrap();
+        assert!(
+            bm1.is_empty(),
+            "RG1 should be empty because next_doc > max_doc"
+        );
+        // Collector was NOT called for RG1 — still only 1 total call.
+        assert_eq!(
+            mock.call_args().len(),
+            1,
+            "collector should not be called when next_doc > call_max"
+        );
+    }
+
+    /// Test 2: Per-leaf tighten.
+    /// RG0 returns next_doc=150. RG1 covers [100, 200).
+    /// effective_min = max(150, 100) = 150. The collector should be called
+    /// with min_doc=150, not 100.
+    #[test]
+    fn next_doc_tighten_effective_min() {
+        // Docs at 160, 170 — both within the tightened range [150, 200).
+        let mock = Arc::new(NextDocMockCollector::new(vec![160, 170], 150));
+        let node = collector_node_from_arc(mock.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        // RG0: covers [0, 100). Returns next_doc=150.
+        let ctx0 = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 100,
+            min_doc: 0,
+            max_doc: 100,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let _ = source.leaf_bitmap(&node, 0, &ctx0).unwrap();
+        assert_eq!(mock.call_args(), vec![(0, 100)]);
+
+        // RG1: covers [100, 200). last_next_doc=150, so effective_min=max(150,100)=150.
+        let ctx1 = RgEvalContext {
+            rg_idx: 1,
+            rg_first_row: 100,
+            rg_num_rows: 100,
+            min_doc: 100,
+            max_doc: 200,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm1 = source.leaf_bitmap(&node, 0, &ctx1).unwrap();
+
+        // Verify the collector was called with tightened min_doc=150, not 100.
+        let calls = mock.call_args();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls[1],
+            (150, 200),
+            "collector should be called with tightened min_doc=150"
+        );
+
+        // The bitmap should contain docs 160 and 170, positioned relative to
+        // ctx1.min_doc=100. So bit positions are (160-100)=60 and (170-100)=70.
+        assert!(bm1.contains(60), "doc 160 should be at position 60");
+        assert!(bm1.contains(70), "doc 170 should be at position 70");
+        assert_eq!(bm1.len(), 2);
+    }
+
+    /// Test 3: Multiple leaves are independent.
+    /// Leaf A returns next_doc=500, leaf B returns next_doc=50.
+    /// For RG1 [100, 200): leaf A skips (500 > 200), leaf B does not (50 < 200).
+    #[test]
+    fn next_doc_multiple_leaves_independent() {
+        let mock_a = Arc::new(NextDocMockCollector::new(vec![], 500));
+        let mock_b = Arc::new(NextDocMockCollector::new(vec![110, 120], 50));
+        let node_a = collector_node_from_arc(mock_a.clone());
+        let node_b = collector_node_from_arc(mock_b.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        // RG0: covers [0, 100). Both leaves are called.
+        let ctx0 = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 100,
+            min_doc: 0,
+            max_doc: 100,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let _ = source.leaf_bitmap(&node_a, 0, &ctx0).unwrap();
+        let _ = source.leaf_bitmap(&node_b, 1, &ctx0).unwrap();
+        assert_eq!(mock_a.call_args().len(), 1);
+        assert_eq!(mock_b.call_args().len(), 1);
+
+        // RG1: covers [100, 200).
+        let ctx1 = RgEvalContext {
+            rg_idx: 1,
+            rg_first_row: 100,
+            rg_num_rows: 100,
+            min_doc: 100,
+            max_doc: 200,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm_a = source.leaf_bitmap(&node_a, 0, &ctx1).unwrap();
+        let bm_b = source.leaf_bitmap(&node_b, 1, &ctx1).unwrap();
+
+        // Leaf A: next_doc=500 > 200 (call_max) → skipped, empty bitmap.
+        assert!(
+            bm_a.is_empty(),
+            "leaf A should skip: next_doc=500 > max_doc=200"
+        );
+        assert_eq!(
+            mock_a.call_args().len(),
+            1,
+            "leaf A collector should not be called for RG1"
+        );
+
+        // Leaf B: next_doc=50 < 200 → not skipped, collector called.
+        assert!(
+            !bm_b.is_empty(),
+            "leaf B should not skip: next_doc=50 < max_doc=200"
+        );
+        assert_eq!(
+            mock_b.call_args().len(),
+            2,
+            "leaf B collector should be called for RG1"
+        );
+        // Docs 110, 120 relative to min_doc=100 → bits 10, 20.
+        assert!(bm_b.contains(10));
+        assert!(bm_b.contains(20));
     }
 
     /// When `rg_idx` IS in the reverse map and maps to a position where

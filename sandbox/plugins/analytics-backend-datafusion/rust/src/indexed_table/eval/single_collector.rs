@@ -32,7 +32,7 @@ use roaring::RoaringBitmap;
 
 use super::{PrefetchedRg, RowGroupBitsetSource};
 use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, ProviderHandle};
-use crate::indexed_table::index::RowGroupDocsCollector;
+use crate::indexed_table::index::{CollectDocsResult, RowGroupDocsCollector};
 use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner, StatsPruneTree};
 use crate::indexed_table::row_selection::{
     bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
@@ -186,6 +186,9 @@ pub struct SingleCollectorEvaluator {
     stats_prune_tree: Option<Arc<StatsPruneTree>>,
     /// Reverse map: absolute RG index → position in `rg_can_match` vectors.
     rg_index_to_pos: HashMap<usize, usize>,
+    /// Next matching docId from the last collectDocs call. When next_doc >= rg.max_doc,
+    /// the RG can be skipped without an FFM call. Initialized to i32::MIN (no skip info).
+    last_next_doc: std::sync::atomic::AtomicI32,
 }
 
 /// Resources needed for per-RG bloom filter pruning.
@@ -231,6 +234,7 @@ impl SingleCollectorEvaluator {
             bloom_config,
             stats_prune_tree,
             rg_index_to_pos,
+            last_next_doc: std::sync::atomic::AtomicI32::new(i32::MIN),
         }
     }
 }
@@ -282,6 +286,20 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                     return Ok(None);
                 }
             }
+        }
+
+        // Skip RG if the previous collectDocs told us the next match is beyond this RG.
+        let mut last_next = self
+            .last_next_doc
+            .load(std::sync::atomic::Ordering::Acquire);
+        if last_next > max_doc {
+            native_bridge_common::log_debug!(
+                "SingleCollector: skipping RG {} — nextDoc={} > maxDoc={}",
+                rg.index,
+                last_next,
+                max_doc
+            );
+            return Ok(None);
         }
 
         // Page-prune to discover which row ranges survive.
@@ -359,8 +377,12 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 // Call collector for each range, merge into one RG-relative bitmap.
                 let mut bm = RoaringBitmap::new();
                 for (r_min, r_max) in &call_ranges {
-                    let bitset = collector
-                        .collect_packed_u64_bitset(*r_min, *r_max)
+                    if last_next > *r_max {
+                        continue;
+                    }
+                    let effective_min = last_next.max(*r_min);
+                    let result = collector
+                        .collect_packed_u64_bitset(effective_min, *r_max)
                         .map_err(|e| {
                             format!(
                                 "collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
@@ -370,10 +392,14 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                     if let Some(ref c) = self.ffm_collector_calls {
                         c.add(1);
                     }
-                    let offset = (*r_min as i64 - rg.first_row) as u32;
-                    let num_docs = (*r_max - *r_min) as u32;
+                    last_next = result.next_doc;
+                    let offset = (effective_min as i64 - rg.first_row) as u32;
+                    let num_docs = (*r_max - effective_min) as u32;
                     let bytes: &[u8] = unsafe {
-                        std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+                        std::slice::from_raw_parts(
+                            result.words.as_ptr() as *const u8,
+                            result.words.len() * 8,
+                        )
                     };
                     let mut chunk = RoaringBitmap::from_lsb0_bytes(offset, bytes);
                     let upper = offset.saturating_add(num_docs);
@@ -382,6 +408,8 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                     }
                     bm |= chunk;
                 }
+                self.last_next_doc
+                    .store(last_next, std::sync::atomic::Ordering::Release);
 
                 // For FullRange and TightenOuterBounds, AND with page bitmap
                 // to remove rows in dead pages that the collector scanned.
@@ -477,7 +505,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                         e
                     )
                 })?;
-            let bitset = collector
+            let result = collector
                 .collect_packed_u64_bitset(min_doc, max_doc)
                 .map_err(|e| {
                     format!(
@@ -491,7 +519,10 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             let offset = (min_doc as i64 - rg.first_row) as u32;
             let num_docs = (max_doc - min_doc) as u32;
             let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+                std::slice::from_raw_parts(
+                    result.words.as_ptr() as *const u8,
+                    result.words.len() * 8,
+                )
             };
             let mut peer_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
             let upper = offset.saturating_add(num_docs);
@@ -674,7 +705,7 @@ mod tests {
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut bitset = vec![0u64; (span + 63) / 64];
             for &doc in &self.docs {
@@ -683,7 +714,7 @@ mod tests {
                     bitset[idx / 64] |= 1u64 << (idx % 64);
                 }
             }
-            Ok(bitset)
+            Ok(bitset.into())
         }
     }
 
@@ -986,6 +1017,179 @@ mod tests {
             .expect("should have matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
         assert_eq!(got, vec![1u32, 5]);
+    }
+
+    /// Mock collector that returns specific docs AND a configurable next_doc.
+    #[derive(Debug)]
+    struct NextDocCollector {
+        docs: Vec<i32>,
+        next_doc: i32,
+    }
+
+    impl RowGroupDocsCollector for NextDocCollector {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<CollectDocsResult, String> {
+            let span = (max_doc - min_doc) as usize;
+            let mut words = vec![0u64; (span + 63) / 64];
+            for &doc in &self.docs {
+                if doc >= min_doc && doc < max_doc {
+                    let idx = (doc - min_doc) as usize;
+                    words[idx / 64] |= 1u64 << (idx % 64);
+                }
+            }
+            Ok(CollectDocsResult {
+                words,
+                next_doc: self.next_doc,
+            })
+        }
+    }
+
+    #[test]
+    fn next_doc_skips_subsequent_rg() {
+        // RG0 [0,8): collector returns next_doc=20 (beyond RG1's max_doc=16)
+        // RG1 [8,16): should be skipped entirely
+        // RG2 [16,24): next_doc=20 < 24, should NOT be skipped (doc 20 is in range)
+        let collector = Arc::new(NextDocCollector {
+            docs: vec![2, 20],
+            next_doc: 20,
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
+
+        let rg0 = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        let rg1 = RowGroupInfo {
+            index: 1,
+            first_row: 8,
+            num_rows: 8,
+        };
+        let rg2 = RowGroupInfo {
+            index: 2,
+            first_row: 16,
+            num_rows: 8,
+        };
+
+        // RG0: has doc 2
+        let pf = eval.prefetch_rg(&rg0, 0, 8).unwrap().expect("has match");
+        assert_eq!(pf.candidates.iter().collect::<Vec<_>>(), vec![2u32]);
+
+        // RG1: skipped (next_doc=20 > max_doc=16)
+        assert!(eval.prefetch_rg(&rg1, 8, 16).unwrap().is_none());
+
+        // RG2: NOT skipped (next_doc=20 < max_doc=24)
+        let pf = eval.prefetch_rg(&rg2, 16, 24).unwrap();
+        assert!(pf.is_some());
+    }
+
+    #[test]
+    fn next_doc_tightens_min_doc() {
+        // Collector has doc at position 5. next_doc=5 means the iterator
+        // is at doc 5 after RG0. For RG1 [4,8), effective_min should be
+        // max(5, 4) = 5, not 4.
+        let collector = Arc::new(NextDocCollector {
+            docs: vec![1, 5],
+            next_doc: 5,
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
+
+        let rg0 = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 4,
+        };
+        let rg1 = RowGroupInfo {
+            index: 1,
+            first_row: 4,
+            num_rows: 4,
+        };
+
+        // RG0 [0,4): doc 1 matches
+        let pf = eval.prefetch_rg(&rg0, 0, 4).unwrap().expect("has match");
+        assert_eq!(pf.candidates.iter().collect::<Vec<_>>(), vec![1u32]);
+
+        // RG1 [4,8): doc 5 matches, effective_min tightened to 5
+        let pf = eval.prefetch_rg(&rg1, 4, 8).unwrap().expect("has match");
+        assert_eq!(pf.candidates.iter().collect::<Vec<_>>(), vec![1u32]); // doc 5 is at RG-relative pos 1
+    }
+
+    #[test]
+    fn next_doc_max_value_skips_all_remaining() {
+        // next_doc = i32::MAX means scorer exhausted — all subsequent RGs skipped
+        let collector = Arc::new(NextDocCollector {
+            docs: vec![0],
+            next_doc: i32::MAX,
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::new(),
+        );
+
+        let rg0 = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        let rg1 = RowGroupInfo {
+            index: 1,
+            first_row: 8,
+            num_rows: 8,
+        };
+
+        // RG0: has doc 0
+        assert!(eval.prefetch_rg(&rg0, 0, 8).unwrap().is_some());
+
+        // RG1: skipped (next_doc=MAX > any max_doc)
+        assert!(eval.prefetch_rg(&rg1, 8, 16).unwrap().is_none());
     }
 
     // Keep the `fmt` import used

@@ -724,6 +724,7 @@ fn precompute_collector_leaves<'a>(
 mod tests {
     use super::*;
     use crate::indexed_table::bool_tree::ResolvedNode;
+    use crate::indexed_table::index::CollectDocsResult;
     use crate::indexed_table::index::RowGroupDocsCollector;
     use crate::indexed_table::page_pruner::PagePruner;
     use datafusion::arrow::array::Int32Array;
@@ -814,8 +815,12 @@ mod tests {
         #[derive(Debug)]
         struct Dummy;
         impl RowGroupDocsCollector for Dummy {
-            fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
-                Ok(vec![])
+            fn collect_packed_u64_bitset(
+                &self,
+                _: i32,
+                _: i32,
+            ) -> Result<CollectDocsResult, String> {
+                Ok(vec![].into())
             }
         }
         let source = TreeBitsetSource {
