@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.analytics.planner;
 
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;

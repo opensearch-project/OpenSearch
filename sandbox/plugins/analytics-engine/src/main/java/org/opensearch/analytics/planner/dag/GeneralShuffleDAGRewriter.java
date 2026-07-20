@@ -6,21 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.join;
+package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
+import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
+import org.opensearch.analytics.exec.join.ShuffleEnrichment;
 import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerLevel;
+import org.opensearch.analytics.exec.join.UnifiedDispatch;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
-import org.opensearch.analytics.planner.dag.ExchangeInfo;
-import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
-import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
-import org.opensearch.analytics.planner.dag.PlanForker;
-import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.planner.dag.WorkerTargetResolver;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;

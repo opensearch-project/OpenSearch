@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.analytics.planner;
 
 import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
@@ -41,11 +41,11 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-final class CalciteToArrowSchema {
+public final class CalciteToArrowSchema {
 
     private CalciteToArrowSchema() {}
 
-    static Schema convert(RelDataType rowType) {
+    public static Schema convert(RelDataType rowType) {
         List<Field> fields = new ArrayList<>(rowType.getFieldCount());
         for (RelDataTypeField field : rowType.getFieldList()) {
             fields.add(new Field(field.getName(), toFieldType(field.getType()), null));

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.dag.GeneralShuffleDAGRewriter;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;

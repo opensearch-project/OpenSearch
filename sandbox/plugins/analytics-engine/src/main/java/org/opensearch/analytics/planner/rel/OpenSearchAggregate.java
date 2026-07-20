@@ -304,6 +304,14 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
      * isolation, the partials never merge, and queries return silently wrong results. Plan-shape
      * tests happen to catch the current shapes, but they are not a substitute for this gate;
      * deleting it breaks correctness, not just a test.
+     *
+     * <p>TODO(trait-propagation): PARTIAL/FINAL split PLACEMENT is already a trait algebra — see
+     * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
+     * on this class, consulted by the post-CBO {@code DistributionEnforcementPass}. A future top-down
+     * migration ({@code setTopDownOpt} + Calcite {@code PhysicalNode} {@code deriveTraits}/
+     * {@code passThroughTraits}) would fold the cost-RANKING part of this override into the trait
+     * machinery. NOTE: the SINGLE-mode infinite-cost gate below is a CORRECTNESS backstop, not cost
+     * ranking — it must survive any such migration (see the paragraph above).
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {

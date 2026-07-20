@@ -30,8 +30,8 @@ import java.util.Set;
  * coordinator (enforced by {@link #computeSelfCost}). {@code right} is always the
  * build side (matches substrait {@code JoinRel.right}).
  *
- * <p>Implements {@link DistributionAware}: under the post-CBO distribution-enforcement pass (Option B,
- * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
+ * <p>Implements {@link DistributionAware}: under the post-CBO distribution-enforcement pass
+ * ({@code DistributionEnforcementPass}), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
  * on its equi keys — it requires {@code WORKER+HASH(leftKeys,N)} on the left input and
  * {@code WORKER+HASH(rightKeys,N)} on the right, and outputs {@code WORKER+HASH(leftKeys,N)}. That lets a
  * parent join/aggregate keyed on the same column consume the output with no further exchange, so the
@@ -109,6 +109,15 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
      *       demanding the appropriate per-side HASH on each input; Volcano materializes
      *       an {@link OpenSearchShuffleExchange} on any input not already so distributed.</li>
      * </ul>
+     *
+     * <p>TODO(trait-propagation): exchange PLACEMENT is already a trait algebra — see
+     * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
+     * on this class, which the post-CBO {@code DistributionEnforcementPass} consults (the
+     * {@code passThroughTraits}/{@code deriveTraits} logic expressed as plain methods). Join-ALGORITHM
+     * selection (broadcast/shuffle/coord) still rides this cost gate because Volcano runs bottom-up. A
+     * future migration to top-down mode ({@code setTopDownOpt} + Calcite {@code PhysicalNode} hooks)
+     * would fold this derivation into the trait machinery and let this override shrink; deferred as a
+     * separate refactor, not a correctness blocker.
      */
     @Override
     public org.apache.calcite.plan.RelOptCost computeSelfCost(

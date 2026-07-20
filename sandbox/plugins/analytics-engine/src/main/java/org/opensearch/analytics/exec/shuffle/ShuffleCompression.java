@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.analytics.exec.shuffle;
 
 import org.apache.arrow.compression.CommonsCompressionFactory;
 import org.apache.arrow.vector.compression.CompressionCodec;
@@ -20,10 +20,10 @@ import java.util.Locale;
  * Hash-shuffle IPC compression policy — the single source of truth for the codec used on the
  * shuffle wire.
  *
- * <p>Shuffle ships each producer partition as an Arrow IPC stream blob (see
- * {@link DatafusionPartitionedSink}); the consumer buffers every chunk on heap in
- * {@code ShuffleBufferManager} until both sides report {@code isLast}, then drains (see
- * {@link ShuffleScanHandler}). For a wide fact-table shuffle (TPC-H lineitem) that buffered
+ * <p>Shuffle ships each producer partition as an Arrow IPC stream blob (the DataFusion backend's
+ * {@code DatafusionPartitionedSink}); the consumer buffers every chunk on heap in
+ * {@link ShuffleBufferManager} until both sides report {@code isLast}, then drains (the backend's
+ * {@code ShuffleScanHandler}). For a wide fact-table shuffle (TPC-H lineitem) that buffered
  * footprint is what trips the parent circuit breaker before the per-query shuffle budget forces a
  * spill. Compressing the IPC buffers shrinks BOTH the wire payload AND the heap-resident buffered
  * bytes — relieving the breaker — for a compress/decompress cost that is cheap relative to the
@@ -48,7 +48,7 @@ import java.util.Locale;
  * choice (incl. a peer still on Arrow's commons-compress LZ4).
  *
  * <p>Configured by three {@code NodeScope + Dynamic} cluster settings, resolved per-query into a
- * {@link Config} at sink construction ({@link Config#from(Settings)}):
+ * {@link Config} at sink construction ({@link Config#from(ClusterSettings)}):
  * <ul>
  *   <li>{@link AnalyticsSettings#MPP_SHUFFLE_COMPRESS} {@code analytics.mpp.shuffle.compress}
  *       (default {@code false}) — enable only for memory-constrained clusters that cannot fit even a
@@ -63,7 +63,7 @@ import java.util.Locale;
  *
  * @opensearch.internal
  */
-final class ShuffleCompression {
+public final class ShuffleCompression {
 
     /**
      * Shared factory; reused for both write (codec-typed) and read (auto-detect) paths. Delegates to
@@ -71,7 +71,7 @@ final class ShuffleCompression {
      * fast {@link FastLz4CompressionCodec} for LZ4_FRAME (Arrow's bundled LZ4 is the pathologically
      * slow commons-compress pure-Java impl — see {@link FastLz4CompressionCodec}).
      */
-    static final CompressionCodec.Factory FACTORY = new CompressionCodec.Factory() {
+    public static final CompressionCodec.Factory FACTORY = new CompressionCodec.Factory() {
         @Override
         public CompressionCodec createCodec(CompressionUtil.CodecType codecType) {
             if (codecType == CompressionUtil.CodecType.LZ4_FRAME) {
@@ -99,13 +99,13 @@ final class ShuffleCompression {
      * {@code analytics.mpp.compression.zstd.level} settings — then handed to the producer sink. The
      * reader never needs this — it auto-detects the codec from the IPC metadata via {@link #FACTORY}.
      */
-    record Config(boolean compress, CompressionUtil.CodecType codec, java.util.Optional<Integer> zstdLevel) {
+    public record Config(boolean compress, CompressionUtil.CodecType codec, java.util.Optional<Integer> zstdLevel) {
 
         /** Off — the sink writes plain (uncompressed) IPC. Used by tests / when no cluster settings is handy. */
-        static final Config DISABLED = new Config(false, CompressionUtil.CodecType.NO_COMPRESSION, java.util.Optional.empty());
+        public static final Config DISABLED = new Config(false, CompressionUtil.CodecType.NO_COMPRESSION, java.util.Optional.empty());
 
         /** Resolve the live values from the cluster settings ({@link AnalyticsSettings}). */
-        static Config from(ClusterSettings clusterSettings) {
+        public static Config from(ClusterSettings clusterSettings) {
             if (!clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_COMPRESS)) {
                 return DISABLED;
             }

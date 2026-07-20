@@ -36,6 +36,13 @@ import java.util.List;
  * <p>{@code probeNodeEstimate} is resolved at split-rule time from the cluster setting
  * {@code analytics.mpp.broadcast.probe_estimate}, defaulting to the cluster's data-node count.
  *
+ * <p>TODO(trait-propagation): this node is NOT only a cost holder — {@code DAGBuilder} cuts a child
+ * {@code Stage} at each exchange, so it is also the physical stage boundary that becomes a
+ * {@code BROADCAST_BUILD} fragment with its own transport (distinct from a shuffle edge). If a future
+ * top-down migration ({@code setTopDownOpt} + Calcite {@code PhysicalNode}) folds the broadcast COST
+ * into {@link OpenSearchJoin}'s derived distribution trait, this boundary node must still exist for the
+ * DAG builder to cut on — a trait on the join alone gives the executor no stage to schedule.
+ *
  * @opensearch.internal
  */
 public class OpenSearchBroadcastExchange extends SingleRel implements OpenSearchRelNode {

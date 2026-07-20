@@ -17,6 +17,7 @@ import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CloseableIterator;
 import org.opensearch.analytics.spi.CommonExecutionContext;

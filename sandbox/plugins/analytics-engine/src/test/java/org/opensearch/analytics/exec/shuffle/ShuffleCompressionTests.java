@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.analytics.exec.shuffle;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -30,10 +30,11 @@ import java.util.List;
 
 /**
  * Round-trip tests for the hash-shuffle IPC compression contract: a batch serialized by the
- * producer ({@link DatafusionPartitionedSink}) with a given codec must decode losslessly on the
- * consumer ({@link ShuffleScanHandler}) where the {@link ArrowStreamReader} is given
- * {@link ShuffleCompression#FACTORY} and AUTO-DETECTS the codec from IPC metadata. Pure Arrow IPC,
- * no native deps. Mirrors the exact writer/reader construction the sink and scan handler use.
+ * producer (the DataFusion backend's {@code DatafusionPartitionedSink}) with a given codec must decode
+ * losslessly on the consumer (the backend's {@code ShuffleScanHandler}) where the
+ * {@link ArrowStreamReader} is given {@link ShuffleCompression#FACTORY} and AUTO-DETECTS the codec from
+ * IPC metadata. Pure Arrow IPC, no native deps. Mirrors the exact writer/reader construction the sink
+ * and scan handler use.
  */
 public class ShuffleCompressionTests extends OpenSearchTestCase {
 
