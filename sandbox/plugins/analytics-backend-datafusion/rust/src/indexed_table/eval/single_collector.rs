@@ -708,7 +708,11 @@ mod tests {
         let file = tmp.reopen().unwrap();
         let options = ArrowReaderOptions::new().with_page_index(true);
         let meta = ArrowReaderMetadata::load(&file, options).unwrap();
-        let pruner = PagePruner::new(meta.schema(), meta.metadata().clone());
+        let pruner = PagePruner::new(
+            meta.schema(),
+            meta.metadata().clone(),
+            meta.schema().clone(),
+        );
         Arc::new(pruner)
     }
 

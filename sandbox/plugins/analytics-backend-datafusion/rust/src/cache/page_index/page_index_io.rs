@@ -685,6 +685,7 @@ mod tests {
     use object_store::memory::InMemory;
     use object_store::path::Path as ObjPath;
     use object_store::{ObjectStoreExt, PutPayload};
+    use parquet::arrow::parquet_to_arrow_schema;
 
     use super::super::SCOPED_CACHE_TEST_GUARD as CACHE_TEST_GUARD;
 
@@ -900,7 +901,7 @@ mod tests {
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
 
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         assert_eq!(cols, vec![0]);
 
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
@@ -930,10 +931,10 @@ mod tests {
         let fo = footer_only(&bytes);
         let names_a = vec!["price".to_string()];
         let names_b = vec!["qty".to_string(), "price".to_string()];
-        let mut single_a = resolve_predicate_parquet_columns(&schema, &fo, &names_a);
-        let mut single_b = resolve_predicate_parquet_columns(&schema, &fo, &names_b);
+        let mut single_a = resolve_predicate_parquet_columns(&schema, &fo, &names_a, &schema);
+        let mut single_b = resolve_predicate_parquet_columns(&schema, &fo, &names_b, &schema);
         let (mut pair_a, mut pair_b) =
-            resolve_predicate_parquet_columns_pair(&schema, &fo, &names_a, &names_b);
+            resolve_predicate_parquet_columns_pair(&schema, &fo, &names_a, &names_b, &schema);
         single_a.sort_unstable();
         single_b.sort_unstable();
         pair_a.sort_unstable();
@@ -991,15 +992,15 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
             .await
             .unwrap();
         let full = full_index(&bytes);
         let pp =
             build_pruning_predicate(&pred("price", 0, Operator::GtEq, 20), schema.clone()).unwrap();
-        let s = PagePruner::new(&schema, Arc::clone(&aug)).prune_rg(&pp, 0, None);
-        let f = PagePruner::new(&schema, full).prune_rg(&pp, 0, None);
+        let s = PagePruner::new(&schema, Arc::clone(&aug), schema.clone()).prune_rg(&pp, 0, None);
+        let f = PagePruner::new(&schema, full, schema.clone()).prune_rg(&pp, 0, None);
         assert_eq!(s.as_ref().map(kept), f.as_ref().map(kept));
         assert_eq!(s.as_ref().map(kept), Some(16));
     }
@@ -1060,7 +1061,19 @@ mod tests {
 
         // Must resolve to the file's TRUE leaf for `price` = 1, NOT the union
         // position 0 (which is `extra` in this file).
-        let cols = resolve_predicate_parquet_columns(&union_schema, &fo, &["price".to_string()]);
+        let file_own_schema: SchemaRef = Arc::new(
+            parquet::arrow::parquet_to_arrow_schema(
+                fo.file_metadata().schema_descr(),
+                fo.file_metadata().key_value_metadata(),
+            )
+            .unwrap(),
+        );
+        let cols = resolve_predicate_parquet_columns(
+            &union_schema,
+            &fo,
+            &["price".to_string()],
+            &file_own_schema,
+        );
         assert_eq!(
             cols,
             vec![1],
@@ -1081,8 +1094,9 @@ mod tests {
         let pp =
             build_pruning_predicate(&pred("price", 1, Operator::GtEq, 20), file_schema.clone())
                 .unwrap();
-        let s = PagePruner::new(&file_schema, Arc::clone(&aug)).prune_rg(&pp, 0, None);
-        let f = PagePruner::new(&file_schema, full).prune_rg(&pp, 0, None);
+        let s = PagePruner::new(&file_schema, Arc::clone(&aug), file_schema.clone())
+            .prune_rg(&pp, 0, None);
+        let f = PagePruner::new(&file_schema, full, file_schema.clone()).prune_rg(&pp, 0, None);
         assert_eq!(
             s.as_ref().map(kept),
             f.as_ref().map(kept),
@@ -1117,7 +1131,7 @@ mod tests {
 
         // Scope the page index to `price` ONLY (mimics the predicate-scoped indexed
         // path). `qty` therefore gets the one-page placeholder + NONE ColumnIndex.
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         assert_eq!(cols, vec![0]);
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
             .await
@@ -1132,10 +1146,10 @@ mod tests {
             Arc::new(BinaryExpr::new(price_ge, Operator::And, qty_le));
         let pp = build_pruning_predicate(&residual, schema.clone()).unwrap();
 
-        let s_kept = PagePruner::new(&schema, Arc::clone(&aug))
+        let s_kept = PagePruner::new(&schema, Arc::clone(&aug), schema.clone())
             .prune_rg(&pp, 0, None)
             .map(|s| kept(&s));
-        let f_kept = PagePruner::new(&schema, full)
+        let f_kept = PagePruner::new(&schema, full, schema.clone())
             .prune_rg(&pp, 0, None)
             .map(|s| kept(&s));
         // Superset invariant: scoped must keep AT LEAST what full keeps (never
@@ -1162,7 +1176,7 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
             .await
             .unwrap();
@@ -1187,7 +1201,7 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
             .await
@@ -1230,8 +1244,9 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let c_price = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
-        let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()]);
+        let c_price =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
+        let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()], &schema);
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[])
             .await
@@ -1266,11 +1281,13 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let c_price = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let c_price =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         let c_both = resolve_predicate_parquet_columns(
             &schema,
             &fo,
             &["price".to_string(), "qty".to_string()],
+            &schema,
         );
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[])
@@ -1306,7 +1323,7 @@ mod tests {
         let fo = footer_only(&bytes);
         // Both predicates are on `price` (col 0) — only the literal differs, which
         // never enters the cache key.
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
             .await
@@ -1331,8 +1348,9 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let c_price = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
-        let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()]);
+        let c_price =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
+        let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()], &schema);
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_price, &[])
             .await
@@ -1367,8 +1385,9 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let c_price = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
-        let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()]);
+        let c_price =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
+        let c_qty = resolve_predicate_parquet_columns(&schema, &fo, &["qty".to_string()], &schema);
 
         // Measure one CI cell (predicate `price` = col0 at the single RG), then set
         // a budget of ~1.5 cells so a second distinct cell forces an eviction.
@@ -1416,7 +1435,7 @@ mod tests {
         let (bytes, schema) = four_rg_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()], &schema);
 
         // Cold: 4 RGs × 1 predicate col → 4 CI misses, 4 CI entries.
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[])
@@ -1450,11 +1469,19 @@ mod tests {
         let (bytes, schema) = wide4_parquet(); // n0,n1,s0,s1 — 1 RG
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let c_n0 = resolve_predicate_parquet_columns(&schema, &fo, &["n0".to_string()]);
-        let c_n0_n1 =
-            resolve_predicate_parquet_columns(&schema, &fo, &["n0".to_string(), "n1".to_string()]);
-        let c_n1_s0 =
-            resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string(), "s0".to_string()]);
+        let c_n0 = resolve_predicate_parquet_columns(&schema, &fo, &["n0".to_string()], &schema);
+        let c_n0_n1 = resolve_predicate_parquet_columns(
+            &schema,
+            &fo,
+            &["n0".to_string(), "n1".to_string()],
+            &schema,
+        );
+        let c_n1_s0 = resolve_predicate_parquet_columns(
+            &schema,
+            &fo,
+            &["n1".to_string(), "s0".to_string()],
+            &schema,
+        );
 
         // {n0}: 1 new cell.
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &c_n0, &[])
@@ -1493,7 +1520,8 @@ mod tests {
         let (bytes, schema) = wide4_parquet(); // n0=0,n1=1,s0=2,s1=3 — 1 RG
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()], &schema);
 
         // Project s0 (col 2): offset cols = {0, 1(n1), 2(s0)} → 3 new cells.
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[2])
@@ -1526,7 +1554,8 @@ mod tests {
         let (bytes, schema) = wide4_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()], &schema);
         assert_eq!(pred_cols, vec![1]);
 
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[2])
@@ -1570,7 +1599,8 @@ mod tests {
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
         // Scope to n1 (pred) + s0 (proj). Col 3 (s1) is scoped out → placeholder.
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()], &schema);
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[2])
             .await
             .unwrap();
@@ -1621,7 +1651,8 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[1])
             .await
             .unwrap();
@@ -1641,7 +1672,8 @@ mod tests {
         let (bytes, schema) = wide4_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["n1".to_string()], &schema);
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[])
             .await
@@ -1671,7 +1703,8 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
 
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &[])
             .await
@@ -1698,8 +1731,10 @@ mod tests {
         let (bytes, schema) = four_rg_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let pred_cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
-        let proj_cols = resolve_predicate_parquet_columns(&schema, &fo, &["val".to_string()]);
+        let pred_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()], &schema);
+        let proj_cols =
+            resolve_predicate_parquet_columns(&schema, &fo, &["val".to_string()], &schema);
 
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &pred_cols, &proj_cols)
             .await
@@ -1725,7 +1760,7 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
 
         // Warm: 1 CI cell (price,rg0) + 2 OI cells (col0, col1).
         let _ = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[0, 1])
@@ -1768,6 +1803,7 @@ mod tests {
             &schema,
             &footer_only(&bytes),
             &["price".to_string()],
+            &schema,
         );
 
         // Stage two identical files at different paths.
@@ -1829,7 +1865,7 @@ mod tests {
         let (bytes, schema) = four_rg_parquet(); // id, v — 4 RGs, multi-page
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["id".to_string()], &schema);
 
         // Whole CI region is a strict superset of the scoped `id`-only union.
         let region = whole_index_region(&fo, ci_extent).unwrap();
@@ -1860,8 +1896,10 @@ mod tests {
         let pp =
             build_pruning_predicate(&pred("id", 0, Operator::GtEq, 20), schema.clone()).unwrap();
         for rg in 0..4 {
-            let s = PagePruner::new(&schema, Arc::clone(&aug)).prune_rg(&pp, rg, None);
-            let f = PagePruner::new(&schema, Arc::clone(&full)).prune_rg(&pp, rg, None);
+            let s =
+                PagePruner::new(&schema, Arc::clone(&aug), schema.clone()).prune_rg(&pp, rg, None);
+            let f =
+                PagePruner::new(&schema, Arc::clone(&full), schema.clone()).prune_rg(&pp, rg, None);
             assert_eq!(
                 s.as_ref().map(kept),
                 f.as_ref().map(kept),
@@ -1885,7 +1923,7 @@ mod tests {
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
         let fo = footer_only(&bytes);
-        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()]);
+        let cols = resolve_predicate_parquet_columns(&schema, &fo, &["price".to_string()], &schema);
         let aug = load_scoped_page_index_cols(&store, &loc, &fo, &cols, &[1])
             .await
             .unwrap();
