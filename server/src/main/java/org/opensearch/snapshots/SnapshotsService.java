@@ -227,6 +227,43 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Setting that specifies the time budget for snapshot repository I/O operations on the cluster-manager node
+     * (finalization, deletion). Operations exceeding this budget are treated as failures.
+     */
+    public static final Setting<TimeValue> SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING = Setting.timeSetting(
+        "snapshot.repository.io_timeout",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting that specifies the maximum number of outstanding (dispatched but uncompleted) cluster-manager-side
+     * repository blob operations per repository. Past this limit, further operations fail fast with a
+     * "repository unreachable" error instead of parking another thread.
+     */
+    public static final Setting<Integer> SNAPSHOT_REPOSITORY_MAX_OUTSTANDING_OPS_SETTING = Setting.intSetting(
+        "snapshot.repository.max_outstanding_ops",
+        4,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting that controls whether a successful snapshot delete should opportunistically reclaim storage
+     * orphaned by previously interrupted deletes.
+     */
+    public static final Setting<Boolean> SNAPSHOT_DELETE_CLEANUP_STALE_BLOBS_SETTING = Setting.boolSetting(
+        "snapshot.delete.cleanup_stale_blobs",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
