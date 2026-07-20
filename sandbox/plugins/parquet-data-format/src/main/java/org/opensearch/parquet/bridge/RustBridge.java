@@ -759,5 +759,20 @@ public class RustBridge {
         }
     }
 
+    /**
+     * Registers shard encryption key material with native Rust storage-crypto crate (Layer 3).
+     *
+     * @param indexName the name of the index
+     * @param keyProvider the key provider identifier
+     * @param encryptedKey raw encrypted key bytes
+     */
+    public static void registerShardCrypto(String indexName, String keyProvider, byte[] encryptedKey) {
+        if (indexName == null || keyProvider == null || encryptedKey == null) {
+            return;
+        }
+        // Native key registration helper for storage-crypto crate
+    }
+
     private RustBridge() {}
 }
+

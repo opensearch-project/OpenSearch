@@ -932,6 +932,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<String> INDEX_STORE_CRYPTO_KEY_PROVIDER_SETTING = Setting.simpleString(
+        "index.store.crypto.key_provider",
+        "",
+        Property.IndexScope,
+        Property.Final
+    );
+
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -990,7 +998,9 @@ public final class IndexSettings {
     private final boolean derivedSourceEnabled;
     private final boolean pluggableDataFormatEnabled;
     private final String pluggedDataFormat;
+    private final String cryptoKeyProvider;
     private volatile boolean derivedSourceEnabledForTranslog;
+
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1243,7 +1253,9 @@ public final class IndexSettings {
             && scopedSettings.get(PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
         derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING) || pluggableDataFormatEnabled;
         pluggedDataFormat = scopedSettings.get(PLUGGABLE_DATAFORMAT_VALUE_SETTING);
+        cryptoKeyProvider = scopedSettings.get(INDEX_STORE_CRYPTO_KEY_PROVIDER_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
+
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
@@ -2409,4 +2421,23 @@ public final class IndexSettings {
     public String pluggableDataFormat() {
         return pluggedDataFormat;
     }
+
+    /**
+     * Returns whether storage encryption is enabled for this index.
+     *
+     * @return {@code true} if index.store.crypto.key_provider is configured
+     */
+    public boolean isStorageEncryptionEnabled() {
+        return cryptoKeyProvider != null && !cryptoKeyProvider.trim().isEmpty();
+    }
+
+    /**
+     * Returns the configured key provider name for storage encryption, or empty string if not configured.
+     *
+     * @return key provider name
+     */
+    public String getCryptoKeyProvider() {
+        return cryptoKeyProvider;
+    }
 }
+

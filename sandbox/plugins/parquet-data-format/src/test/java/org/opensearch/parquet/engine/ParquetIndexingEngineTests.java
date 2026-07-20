@@ -184,6 +184,45 @@ public class ParquetIndexingEngineTests extends ParquetBaseTests {
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
     }
 
+    public void testEngineWithShardCryptoContext() throws Exception {
+        String indexUUID = "test_index_crypto_uuid";
+        ShardId shardId = new ShardId("test_index_crypto", indexUUID, 0);
+        Path dataPath = tempDir.resolve(indexUUID).resolve("0");
+        Files.createDirectories(dataPath.resolve("parquet"));
+        ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Settings indexSettingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_STORE_CRYPTO_KEY_PROVIDER_SETTING.getKey(), "kms-test")
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test_index_crypto").settings(indexSettingsBuilder).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        org.opensearch.common.crypto.ShardCryptoContext cryptoContext = new org.opensearch.common.crypto.ShardCryptoContext(
+            "kms-test",
+            "kms",
+            "arn:aws:kms:us-east-1:123:key/test",
+            new org.opensearch.common.crypto.DataKeyPair("enc".getBytes(), "dec".getBytes()),
+            Map.of()
+        );
+
+        ParquetIndexingEngine cryptoEngine = new ParquetIndexingEngine(
+            Settings.EMPTY,
+            new ParquetDataFormat(),
+            shardPath,
+            () -> schema,
+            () -> 1L,
+            indexSettings,
+            threadPool,
+            new org.opensearch.index.store.PrecomputedChecksumStrategy(),
+            nativeAllocator,
+            cryptoContext
+        );
+
+        assertNotNull(cryptoEngine);
+        assertEquals("parquet", cryptoEngine.getDataFormat().name());
+    }
+
+
     private ParquetIndexingEngine createEngine() {
         try {
             String indexUUID = "test_index_uuid";

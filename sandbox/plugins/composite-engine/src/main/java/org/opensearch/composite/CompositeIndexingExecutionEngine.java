@@ -142,16 +142,17 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormat primaryFormat = dataFormatRegistry.format(primaryFormatName);
-        this.primaryEngine = dataFormatRegistry.getIndexingEngine(engineSettings, primaryFormat);
+        this.primaryEngine = dataFormatRegistry.getIndexingEngine(engineSettings.childConfigFor(indexSettings), primaryFormat);
         allFormats.add(primaryFormat);
 
         List<IndexingExecutionEngine<?, ?>> secondaries = new ArrayList<>();
         for (String secondaryName : secondaryFormatNames) {
             DataFormat secondaryFormat = dataFormatRegistry.format(secondaryName);
-            secondaries.add(dataFormatRegistry.getIndexingEngine(engineSettings, secondaryFormat));
+            secondaries.add(dataFormatRegistry.getIndexingEngine(engineSettings.childConfigFor(indexSettings), secondaryFormat));
             allFormats.add(secondaryFormat);
         }
         this.secondaryEngines = Set.copyOf(secondaries);
+
 
         this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;

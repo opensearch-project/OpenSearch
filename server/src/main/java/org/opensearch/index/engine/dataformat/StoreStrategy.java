@@ -82,4 +82,15 @@ public abstract class StoreStrategy {
      * {@link Optional#empty()}.
      */
     public abstract Optional<DataFormatStoreHandlerFactory> storeHandler();
+
+    /**
+     * Returns true if this store strategy supports transparent storage encryption
+     * via {@link org.opensearch.index.store.StoreHandleDecorator}. Default is true.
+     *
+     * @return true if storage encryption is supported
+     */
+    public boolean supportsTransparentEncryption() {
+        return true;
+    }
 }
+

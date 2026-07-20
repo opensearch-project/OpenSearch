@@ -1,0 +1,22 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Storage encryption orchestrator plugin providing generic encryption context and store decoration across data format engines.'
+  classname = 'org.opensearch.crypto.engine.CryptoEnginePlugin'
+}
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+java { sourceCompatibility = JavaVersion.toVersion(21); targetCompatibility = JavaVersion.toVersion(21) }
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(':libs:opensearch-common')
+  testImplementation project(':test:framework')
+}

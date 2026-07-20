@@ -88,53 +88,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
     private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
-
-    /**
-     * Creates a new ParquetIndexingEngine.
-     *
-     * @param settings          the node-level settings
-     * @param dataFormat        the Parquet data format descriptor
-     * @param shardPath         the shard path for file storage
-     * @param schemaSupplier     the supplier for schema resolution
-     * @param mappingVersionSupplier     the supplier for mapping version resolution
-     * @param indexSettings     the index-level settings
-     * @param threadPool        the thread pool for background native writes
-     */
-    public ParquetIndexingEngine(
-        Settings settings,
-        ParquetDataFormat dataFormat,
-        ShardPath shardPath,
-        Supplier<Schema> schemaSupplier,
-        Supplier<Long> mappingVersionSupplier,
-        IndexSettings indexSettings,
-        ThreadPool threadPool,
-        ArrowNativeAllocator nativeAllocator
-    ) {
-        this(
-            settings,
-            dataFormat,
-            shardPath,
-            schemaSupplier,
-            mappingVersionSupplier,
-            indexSettings,
-            threadPool,
-            new PrecomputedChecksumStrategy(),
-            nativeAllocator
-        );
-    }
+    private final ShardCryptoContext shardCryptoContext;
 
     /**
      * Creates a new ParquetIndexingEngine with an externally provided checksum strategy.
-     *
-     * @param settings          the node-level settings
-     * @param dataFormat        the Parquet data format descriptor
-     * @param shardPath         the shard path for file storage
-     * @param schemaSupplier     the supplier for schema resolution
-     * @param mappingVersionSupplier     the supplier for mapping version resolution
-     * @param indexSettings     the index-level settings
-     * @param threadPool        the thread pool for background native writes
-     * @param checksumStrategy  the checksum strategy to use (shared with the directory)
-     * @param nativeAllocator   the framework's unified native allocator
      */
     public ParquetIndexingEngine(
         Settings settings,
@@ -147,6 +104,35 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         FormatChecksumStrategy checksumStrategy,
         ArrowNativeAllocator nativeAllocator
     ) {
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            mappingVersionSupplier,
+            indexSettings,
+            threadPool,
+            checksumStrategy,
+            nativeAllocator,
+            null
+        );
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine with encryption context.
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator,
+        ShardCryptoContext shardCryptoContext
+    ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
@@ -156,6 +142,16 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.nodeSettings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
+        this.shardCryptoContext = shardCryptoContext;
+
+        if (shardCryptoContext != null && shardCryptoContext.getDataKeyPair().isPresent()) {
+            RustBridge.registerShardCrypto(
+                indexSettings.getIndex().getName(),
+                shardCryptoContext.getKeyProviderName(),
+                shardCryptoContext.getDataKeyPair().get().getEncryptedDataKey()
+            );
+        }
+
         try {
             Files.createDirectory(shardPath.resolve(dataFormat.name()));
         } catch (FileAlreadyExistsException ex) {

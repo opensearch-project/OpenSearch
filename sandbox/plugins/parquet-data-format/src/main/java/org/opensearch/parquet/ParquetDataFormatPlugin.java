@@ -202,8 +202,10 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
             engineConfig.indexSettings(),
             threadPool,
             engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),
-            nativeAllocator
+            nativeAllocator,
+            engineConfig.shardContext()
         );
+
     }
 
     @Override
