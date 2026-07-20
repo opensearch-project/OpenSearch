@@ -412,7 +412,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         let provider_locks = Arc::clone(&provider_locks);
         let schema = loaded.schema.clone();
         Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&correctness)),
                 pruner,
