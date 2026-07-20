@@ -1989,7 +1989,8 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
         .downcast_ref::<crate::indexed_table::eval::TreePrefetch>()
         .expect("context should be TreePrefetch");
 
-    // Critical assertion: per_leaf must have 2 entries (one per collector).
+    // Both collectors have per_leaf entries. Collector0 (inside pruned AND)
+    // gets empty bitmap from skip_dfs_with_empty_bitmaps (no FFM call).
     assert_eq!(
         tree_prefetch.per_leaf.len(),
         2,
