@@ -87,7 +87,7 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(8, result.getRowType().getFieldCount());
+        assertEquals(9, result.getRowType().getFieldCount());
         List<String> fieldNames = result.getRowType().getFieldNames();
         assertTrue(fieldNames.contains("name"));
         assertTrue(fieldNames.contains("brand"));
@@ -101,7 +101,7 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(9, result.getRowType().getFieldCount());
+        assertEquals(10, result.getRowType().getFieldCount());
         assertFalse(result.getRowType().getFieldNames().contains("rating"));
     }
 
@@ -124,7 +124,7 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(9, result.getRowType().getFieldCount());
+        assertEquals(10, result.getRowType().getFieldCount());
         assertFalse(result.getRowType().getFieldNames().contains("rating"));
     }
 
