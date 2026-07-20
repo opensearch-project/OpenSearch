@@ -154,6 +154,15 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         return true;
     }
 
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Only benefit from intra-segment partitioning when there is a sub-aggregation. Without sub-aggs
+        // the filter-rewrite fast path counts buckets from the point tree in sub-linear time (no per-doc
+        // work), which intra cannot beat and would actually regress by forcing a doc-by-doc fallback. With
+        // sub-aggs the per-doc collection dominates and the partition-aware traversal parallelizes it.
+        return factories.countAggregators() > 0;
+    }
+
     public Rounding.DateTimeUnit getRounding() {
         return this.rounding.unit();
     }

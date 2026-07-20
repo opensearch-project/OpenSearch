@@ -39,6 +39,19 @@ public final class FilterRewriteOptimizationContext {
     private final boolean canOptimize;
     private boolean preparedAtShardLevel = false;
 
+    // When intra-segment search is enabled, a single segment may be split into multiple partitions
+    // and getLeafCollector (hence tryOptimize) is invoked once per partition on the same segment.
+    // The filter-rewrite optimization computes whole-segment bucket counts via a point-tree
+    // traversal that ignores partition doc-id ranges, so running it per partition would multiply
+    // the counts. Disable it in that case and fall back to doc-by-doc collection, which correctly
+    // respects the partition's [minDocId, maxDocId) range. See
+    // https://github.com/opensearch-project/OpenSearch/issues/18016
+    private final boolean intraSegmentSearchEnabled;
+
+    // Search context, retained so the sub-agg path can read the current thread's partition doc-id range
+    // (set by ContextIndexSearcher#searchLeaf) to restrict collection to the active partition under intra.
+    private final SearchContext searchContext;
+
     private final AggregatorBridge aggregatorBridge;
     private String shardId;
 
@@ -61,7 +74,17 @@ public final class FilterRewriteOptimizationContext {
         SearchContext context
     ) throws IOException {
         this.aggregatorBridge = aggregatorBridge;
+        this.searchContext = context;
+        this.intraSegmentSearchEnabled = context.shouldUseIntraSegmentSearch();
         this.canOptimize = this.canOptimize(parent, subAggLength, context);
+    }
+
+    /**
+     * The current thread's active leaf partition doc-id range {minDocId, maxDocId} under intra-segment
+     * search, or null if no partition boundary is in effect (whole segment).
+     */
+    private int[] subAggPartitionRange() {
+        return searchContext.getPartitionDocIdRange();
     }
 
     /**
@@ -115,6 +138,18 @@ public final class FilterRewriteOptimizationContext {
             return false;
         }
 
+        // Under intra-segment search a single segment is split into partitions searched on different
+        // threads. The filter-rewrite point-tree traversal counts over the whole segment, so running it
+        // per partition would multiply counts (see #18016). The no-sub-agg path bulk-counts whole value
+        // cells via pointTree.size(), which cannot be restricted to a partition's doc-id range, so we skip
+        // it under intra and fall back to the (partition-safe) doc-by-doc / skiplist path. The sub-agg path,
+        // however, visits doc ids individually (collectDocId), so it CAN be made partition-aware by clamping
+        // to the current partition's [minDocId, maxDocId); we allow it and pass the range down.
+        int[] partitionRange = intraSegmentSearchEnabled ? subAggPartitionRange() : null;
+        if (intraSegmentSearchEnabled && (hasSubAgg == false || partitionRange == null)) {
+            return false;
+        }
+
         // Since we explicitly create bitset of matching docIds for each bucket
         // in case of sub-aggregations, deleted documents can be filtered out
         if (leafCtx.reader().hasDeletions() && hasSubAgg == false) return false;
@@ -145,7 +180,11 @@ public final class FilterRewriteOptimizationContext {
         OptimizeResult optimizeResult;
         SubAggCollectorParam subAggCollectorParam;
         if (hasSubAgg) {
-            subAggCollectorParam = new SubAggCollectorParam(collectableSubAggregators, leafCtx);
+            // Under intra-segment search, restrict sub-agg doc collection to the current partition's
+            // [minDocId, maxDocId); otherwise cover the whole segment.
+            int minDocId = partitionRange != null ? partitionRange[0] : 0;
+            int maxDocId = partitionRange != null ? partitionRange[1] : Integer.MAX_VALUE;
+            subAggCollectorParam = new SubAggCollectorParam(collectableSubAggregators, leafCtx, minDocId, maxDocId);
         } else {
             subAggCollectorParam = null;
         }
@@ -167,7 +206,11 @@ public final class FilterRewriteOptimizationContext {
     /**
      * Parameters for {@link org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector}
      */
-    public record SubAggCollectorParam(BucketCollector collectableSubAggregators, LeafReaderContext leafCtx) {
+    /**
+     * @param minDocId inclusive lower bound of the partition's doc-id range (0 for whole segment)
+     * @param maxDocId exclusive upper bound of the partition's doc-id range (Integer.MAX_VALUE for whole segment)
+     */
+    public record SubAggCollectorParam(BucketCollector collectableSubAggregators, LeafReaderContext leafCtx, int minDocId, int maxDocId) {
     }
 
     static class AbortFilterRewriteOptimizationException extends RuntimeException {

@@ -129,4 +129,11 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Only partition under intra when a sub-aggregation is present; without one the filter-rewrite
+        // fast path is sub-linear and intra would regress. See DateHistogramAggregatorFactory for details.
+        return factories.countAggregators() > 0;
+    }
 }

@@ -622,4 +622,46 @@ public abstract class SearchContext implements Releasable {
     public boolean shouldUseIntraSegmentSearch() {
         return false;
     }
+
+    /**
+     * Holds the doc-id range [minDocId, maxDocId) of the leaf partition currently being searched on this thread.
+     * Under intra-segment search a single segment is split into partitions that are searched concurrently on
+     * different threads (one slice per thread); this thread-local lets segment-level aggregation optimizations
+     * (e.g. the filter-rewrite point-tree traversal) restrict their work to the current partition's doc-id range
+     * instead of the whole segment. A value of null means the whole segment (no intra-segment partitioning in
+     * effect on this thread). The range cannot be passed as a method argument because it must reach the
+     * aggregation collector through Lucene's fixed {@code Collector#getLeafCollector(LeafReaderContext)} signature.
+     */
+    private final ThreadLocal<int[]> partitionDocIdRange = new ThreadLocal<>();
+
+    /**
+     * Scope the current thread's active leaf partition doc-id range for the duration of the returned
+     * {@link Releasable}. Intended to be used with try-with-resources so the range is always restored, e.g.:
+     * <pre>
+     * try (Releasable ignore = searchContext.withPartitionDocIdRange(minDocId, maxDocId)) {
+     *     leafCollector = collector.getLeafCollector(ctx);
+     * }
+     * </pre>
+     * This mirrors the {@code Releasable}/try-with-resources idiom used elsewhere (e.g. {@code ReleasableLock},
+     * {@code ThreadContext#stashContext}) and guarantees the thread-local is cleared even on exception.
+     */
+    public Releasable withPartitionDocIdRange(int minDocId, int maxDocId) {
+        final int[] previous = partitionDocIdRange.get();
+        partitionDocIdRange.set(new int[] { minDocId, maxDocId });
+        return () -> {
+            if (previous == null) {
+                partitionDocIdRange.remove();
+            } else {
+                partitionDocIdRange.set(previous);
+            }
+        };
+    }
+
+    /**
+     * @return the current thread's active leaf partition doc-id range as {minDocId, maxDocId}, or null if the
+     * whole segment should be searched (no intra-segment partition boundary in effect).
+     */
+    public int[] getPartitionDocIdRange() {
+        return partitionDocIdRange.get();
+    }
 }
