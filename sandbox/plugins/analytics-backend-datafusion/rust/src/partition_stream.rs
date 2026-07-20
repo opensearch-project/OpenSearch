@@ -383,9 +383,15 @@ mod tests {
         // Then the stream yields the terminal Err exactly once (not None/clean-EOF).
         let terminal = receiver.next().await.expect("a terminal item, not EOF");
         let err = terminal.expect_err("truncated partition must surface as Err, never clean EOF");
-        assert!(err.to_string().contains("spill read failed"), "error carries the failure reason: {err}");
+        assert!(
+            err.to_string().contains("spill read failed"),
+            "error carries the failure reason: {err}"
+        );
         // Emitted exactly once — the stream is done afterward.
-        assert!(receiver.next().await.is_none(), "stream ends after the terminal error");
+        assert!(
+            receiver.next().await.is_none(),
+            "stream ends after the terminal error"
+        );
     }
 
     #[tokio::test]
@@ -396,12 +402,19 @@ mod tests {
         let (sender, mut receiver) = channel(Arc::clone(&schema));
         let producer_schema = Arc::clone(&schema);
         let producer = tokio::spawn(async move {
-            sender.tx.send(Ok(test_batch(&producer_schema, &[1]))).await.unwrap();
+            sender
+                .tx
+                .send(Ok(test_batch(&producer_schema, &[1])))
+                .await
+                .unwrap();
             drop(sender);
         });
         let batch = receiver.next().await.unwrap().unwrap();
         assert_eq!(batch.num_rows(), 1);
-        assert!(receiver.next().await.is_none(), "clean close is EOF, not Err");
+        assert!(
+            receiver.next().await.is_none(),
+            "clean close is EOF, not Err"
+        );
         producer.await.unwrap();
     }
 

@@ -444,7 +444,11 @@ pub async unsafe fn create_worker_session_context(
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
 
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool.clone(), crate::query_tracker::QueryType::Shard);
+    let query_context = QueryTrackingContext::new(
+        context_id,
+        global_pool.clone(),
+        crate::query_tracker::QueryType::Shard,
+    );
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn MemoryPool>);
@@ -454,7 +458,10 @@ pub async unsafe fn create_worker_session_context(
         runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
     }
     let runtime_env = runtime_env_builder.build().map_err(|e| {
-        error!("create_worker_session_context: failed to build runtime env: {}", e);
+        error!(
+            "create_worker_session_context: failed to build runtime env: {}",
+            e
+        );
         e
     })?;
 
@@ -482,7 +489,10 @@ pub async unsafe fn create_worker_session_context(
     // Sentinel placeholder for table_path — workers never reference a listing table; the
     // handle still requires a value here. Use the project root as a benign stable URL.
     let placeholder_path = ListingTableUrl::parse("file:///").map_err(|e| {
-        error!("create_worker_session_context: failed to parse placeholder path: {}", e);
+        error!(
+            "create_worker_session_context: failed to parse placeholder path: {}",
+            e
+        );
         e
     })?;
 
@@ -931,8 +941,11 @@ mod tests {
     async fn register_name_uses_logical_table_not_plan_placeholder() {
         let ctx = SessionContext::new();
         let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, true)]));
-        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(Int64Array::from(vec![1i64]))])
-            .expect("batch");
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        )
+        .expect("batch");
         // The plan names a STAGE PLACEHOLDER, not the shard's real index.
         ctx.register_table(
             "input-7",
@@ -940,7 +953,8 @@ mod tests {
         )
         .expect("register");
         let df = ctx.sql("SELECT x FROM \"input-7\"").await.expect("sql");
-        let substrait = to_substrait_plan(&df.logical_plan().clone(), &ctx.state()).expect("to_substrait");
+        let substrait =
+            to_substrait_plan(&df.logical_plan().clone(), &ctx.state()).expect("to_substrait");
         let mut plan_bytes = Vec::new();
         substrait.encode(&mut plan_bytes).expect("encode");
 

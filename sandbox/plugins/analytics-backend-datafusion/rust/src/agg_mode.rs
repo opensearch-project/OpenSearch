@@ -419,15 +419,7 @@ mod tests {
         let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> =
             Arc::new(crate::partition_stream::SingleReceiverPartition::new(rx));
         Arc::new(
-            StreamingTableExec::try_new(
-                schema,
-                vec![partition],
-                None,
-                None,
-                false,
-                None,
-            )
-            .unwrap(),
+            StreamingTableExec::try_new(schema, vec![partition], None, None, false, None).unwrap(),
         )
     }
 
@@ -463,15 +455,14 @@ mod tests {
     fn test_preserve_hash_repartition_over_non_streaming_input() {
         // RepartitionExec(Hash) over an EmptyExec (or any non-streaming leaf) should NOT be
         // stripped — the rows aren't already hash-partitioned by an upstream shuffle.
-        let leaf: Arc<dyn ExecutionPlan> = Arc::new(
-            datafusion::physical_plan::empty::EmptyExec::new(Arc::new(
+        let leaf: Arc<dyn ExecutionPlan> =
+            Arc::new(datafusion::physical_plan::empty::EmptyExec::new(Arc::new(
                 arrow::datatypes::Schema::new(vec![arrow::datatypes::Field::new(
                     "x",
                     arrow::datatypes::DataType::Int64,
                     false,
                 )]),
-            )),
-        );
+            )));
         let hash_repart = Arc::new(
             RepartitionExec::try_new(
                 Arc::clone(&leaf),
@@ -499,8 +490,11 @@ mod tests {
         // load balancing pre-Final) — the strip must NOT touch it.
         let leaf = streaming_table_leaf();
         let rr_repart = Arc::new(
-            RepartitionExec::try_new(Arc::clone(&leaf), datafusion::physical_expr::Partitioning::RoundRobinBatch(4))
-                .unwrap(),
+            RepartitionExec::try_new(
+                Arc::clone(&leaf),
+                datafusion::physical_expr::Partitioning::RoundRobinBatch(4),
+            )
+            .unwrap(),
         ) as Arc<dyn ExecutionPlan>;
 
         let stripped = strip_redundant_shuffle_repartition(Arc::clone(&rr_repart)).unwrap();

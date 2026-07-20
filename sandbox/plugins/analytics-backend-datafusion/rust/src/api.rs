@@ -2200,7 +2200,10 @@ fn conform_batch_to_schema(
     let mut columns = Vec::with_capacity(batch.num_columns());
     for (i, want) in declared.fields().iter().enumerate() {
         let col = batch.column(i);
-        if col.data_type() != want.data_type() && is_utf8_family(col.data_type()) && is_utf8_family(want.data_type()) {
+        if col.data_type() != want.data_type()
+            && is_utf8_family(col.data_type())
+            && is_utf8_family(want.data_type())
+        {
             let cast = arrow::compute::cast(col, want.data_type()).map_err(|e| {
                 DataFusionError::Execution(format!(
                     "sender_send: failed to cast column {} ('{}') from {:?} to declared {:?}: {}",
@@ -2220,7 +2223,10 @@ fn conform_batch_to_schema(
     }
     let target_schema = Arc::new(arrow_schema::Schema::new(fields));
     RecordBatch::try_new(target_schema, columns).map_err(|e| {
-        DataFusionError::Execution(format!("sender_send: failed to assemble conformed batch: {}", e))
+        DataFusionError::Execution(format!(
+            "sender_send: failed to assemble conformed batch: {}",
+            e
+        ))
     })
 }
 
@@ -2932,8 +2938,10 @@ mod tests {
             DataType::Timestamp(TimeUnit::Millisecond, None),
             true,
         )]));
-        let col: arrow_array::ArrayRef =
-            Arc::new(TimestampNanosecondArray::from(vec![1_000_000_001i64, 2_000_000_999]));
+        let col: arrow_array::ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            1_000_000_001i64,
+            2_000_000_999,
+        ]));
         let batch = RecordBatch::try_new(
             Arc::new(Schema::new(vec![Field::new(
                 "ts",
@@ -2947,7 +2955,10 @@ mod tests {
         let out = super::conform_batch_to_schema(batch, &declared).unwrap();
         // Column passes through unchanged — same Arc, original nanosecond type, no truncation.
         assert!(Arc::ptr_eq(out.column(0), &col));
-        assert_eq!(out.column(0).data_type(), &DataType::Timestamp(TimeUnit::Nanosecond, None));
+        assert_eq!(
+            out.column(0).data_type(),
+            &DataType::Timestamp(TimeUnit::Nanosecond, None)
+        );
         let ts = out
             .column(0)
             .as_any()
@@ -2984,7 +2995,10 @@ mod tests {
         // String column conformed to the declared view type.
         assert_eq!(out.column(0).data_type(), &DataType::Utf8View);
         // Timestamp column kept its actual (nanosecond) type — not truncated to the declared ms.
-        assert_eq!(out.column(1).data_type(), &DataType::Timestamp(TimeUnit::Nanosecond, None));
+        assert_eq!(
+            out.column(1).data_type(),
+            &DataType::Timestamp(TimeUnit::Nanosecond, None)
+        );
     }
 
     #[test]
@@ -3152,8 +3166,9 @@ pub unsafe fn register_partition_stream_on_session_context(
 ) -> Result<i64, DataFusionError> {
     let table_schema = schema_from_ipc_bytes(schema_ipc)?;
     let (sender, receiver) = crate::partition_stream::channel(Arc::clone(&table_schema));
-    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> =
-        Arc::new(crate::partition_stream::SingleReceiverPartition::new(receiver));
+    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> = Arc::new(
+        crate::partition_stream::SingleReceiverPartition::new(receiver),
+    );
     let table = datafusion::catalog::streaming::StreamingTable::try_new(
         Arc::clone(&table_schema),
         vec![partition],
@@ -3205,8 +3220,9 @@ pub unsafe fn register_partition_stream_on_session_context_from_partial_plan(
 ) -> Result<i64, DataFusionError> {
     let table_schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
     let (sender, receiver) = crate::partition_stream::channel(Arc::clone(&table_schema));
-    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> =
-        Arc::new(crate::partition_stream::SingleReceiverPartition::new(receiver));
+    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> = Arc::new(
+        crate::partition_stream::SingleReceiverPartition::new(receiver),
+    );
     let table = datafusion::catalog::streaming::StreamingTable::try_new(
         Arc::clone(&table_schema),
         vec![partition],
@@ -3382,14 +3398,17 @@ pub unsafe fn partition_batch_by_hash(
             )));
         }
         let field_name = schema.field(col_idx).name().clone();
-        exprs.push(Arc::new(datafusion::physical_expr::expressions::Column::new(&field_name, col_idx)));
+        exprs.push(Arc::new(
+            datafusion::physical_expr::expressions::Column::new(&field_name, col_idx),
+        ));
     }
 
     // Construct DataFusion's BatchPartitioner — exactly the type RepartitionExec uses
     // internally — so the row-to-partition mapping matches what a downstream RepartitionExec
     // / HashJoinExec would compute on the receiver side.
     let timer = datafusion::physical_plan::metrics::Time::default();
-    let partitioning = datafusion::physical_plan::Partitioning::Hash(exprs, partition_count as usize);
+    let partitioning =
+        datafusion::physical_plan::Partitioning::Hash(exprs, partition_count as usize);
     // input_partition=0 / num_input_partitions=1 — we partition each batch independently here,
     // not as part of a stream of partitioned batches, so the input "partition index" is 0 of 1.
     let mut partitioner = datafusion::physical_plan::repartition::BatchPartitioner::try_new(

@@ -780,8 +780,13 @@ pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
 /// Returns 0 on success, a non-empty error string (via `ffm_wrap`) only on argument-decode failure.
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_sender_fail(sender_ptr: i64, reason_ptr: *const u8, reason_len: i64) -> i64 {
-    let reason = str_from_raw(reason_ptr, reason_len).map_err(|e| format!("df_sender_fail: reason: {}", e))?;
+pub unsafe extern "C" fn df_sender_fail(
+    sender_ptr: i64,
+    reason_ptr: *const u8,
+    reason_len: i64,
+) -> i64 {
+    let reason = str_from_raw(reason_ptr, reason_len)
+        .map_err(|e| format!("df_sender_fail: reason: {}", e))?;
     api::sender_fail(sender_ptr, reason);
     Ok(0)
 }
@@ -902,8 +907,12 @@ pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
     schema_ipc_ptr: *const u8,
     schema_ipc_len: i64,
 ) -> i64 {
-    let input_id = str_from_raw(input_id_ptr, input_id_len)
-        .map_err(|e| format!("df_register_partition_stream_on_session_context: input_id: {}", e))?;
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context: input_id: {}",
+            e
+        )
+    })?;
     let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
     api::register_partition_stream_on_session_context(session_ctx_handle_ptr, input_id, schema_ipc)
         .map_err(|e| e.to_string())
@@ -931,11 +940,18 @@ pub unsafe extern "C" fn df_register_partition_stream_on_session_context_from_pa
     partial_plan_len: i64,
 ) -> i64 {
     let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
-        format!("df_register_partition_stream_on_session_context_from_partial_plan: input_id: {}", e)
+        format!(
+            "df_register_partition_stream_on_session_context_from_partial_plan: input_id: {}",
+            e
+        )
     })?;
     let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
-    api::register_partition_stream_on_session_context_from_partial_plan(session_ctx_handle_ptr, input_id, partial_plan)
-        .map_err(|e| e.to_string())
+    api::register_partition_stream_on_session_context_from_partial_plan(
+        session_ctx_handle_ptr,
+        input_id,
+        partial_plan,
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// Hash-partitions one Arrow C Data batch into N output batches using DataFusion's
@@ -959,16 +975,31 @@ pub unsafe extern "C" fn df_partition_batch_by_hash(
     out_len: *mut i64,
 ) -> i64 {
     let n = hash_key_indices_len as usize;
-    let key_slice: &[i32] = if n == 0 { &[] } else { slice::from_raw_parts(hash_key_indices_ptr, n) };
-    let pairs =
-        api::partition_batch_by_hash(input_array_ptr, input_schema_ptr, key_slice, partition_count).map_err(|e| e.to_string())?;
+    let key_slice: &[i32] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(hash_key_indices_ptr, n)
+    };
+    let pairs = api::partition_batch_by_hash(
+        input_array_ptr,
+        input_schema_ptr,
+        key_slice,
+        partition_count,
+    )
+    .map_err(|e| e.to_string())?;
     // Pack as parallel little-endian i64 pairs: [array_ptr_0, schema_ptr_0, array_ptr_1, ...]
     let mut bytes = Vec::with_capacity(pairs.len() * 16);
     for (a, s) in &pairs {
         bytes.extend_from_slice(&a.to_le_bytes());
         bytes.extend_from_slice(&s.to_le_bytes());
     }
-    write_out_buffer(&bytes, out_ptr, out_cap, out_len, "partition_batch_by_hash output ptrs")?;
+    write_out_buffer(
+        &bytes,
+        out_ptr,
+        out_cap,
+        out_len,
+        "partition_batch_by_hash output ptrs",
+    )?;
     Ok(0)
 }
 
@@ -1217,7 +1248,11 @@ pub unsafe extern "C" fn df_create_worker_session_context(
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::task_monitors::plan_setup_monitor().instrument(
-            crate::session_context::create_worker_session_context(runtime_ptr, context_id, query_config),
+            crate::session_context::create_worker_session_context(
+                runtime_ptr,
+                context_id,
+                query_config,
+            ),
         ))
         .map_err(|e| e.to_string())
 }
