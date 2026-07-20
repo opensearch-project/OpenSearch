@@ -1183,7 +1183,11 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        PagePruner::new(meta.schema(), meta.metadata().clone())
+        PagePruner::new(
+            meta.schema(),
+            meta.metadata().clone(),
+            meta.schema().clone(),
+        )
     }
 
     fn collector_leaf(idx: usize) -> ResolvedNode {
