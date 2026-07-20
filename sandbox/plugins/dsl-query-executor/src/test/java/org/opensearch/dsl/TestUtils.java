@@ -39,7 +39,7 @@ import java.util.Properties;
  *
  * Standard test schema: name (VARCHAR), price (INTEGER), brand (VARCHAR), rating (DOUBLE),
  * created_date (DATE), is_active (BOOLEAN), timestamp (BIGINT), location (GEOMETRY),
- * status (VARCHAR), binary_data (VARBINARY).
+ * status (VARCHAR), binary_data (VARBINARY), event_time (TIMESTAMP(3)).
  */
 public class TestUtils {
 
@@ -83,6 +83,7 @@ public class TestUtils {
                     .add("location", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.GEOMETRY), true))
                     .add("status", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
                     .add("binary_data", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARBINARY), true))
+                    .add("event_time", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.TIMESTAMP, 3), true))
                     .build();
             }
         });

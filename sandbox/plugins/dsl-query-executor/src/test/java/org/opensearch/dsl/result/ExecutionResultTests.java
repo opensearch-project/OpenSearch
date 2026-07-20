@@ -25,7 +25,19 @@ public class ExecutionResultTests extends OpenSearchTestCase {
         assertSame(rows, result.getRows());
         assertEquals(QueryPlans.Type.HITS, result.getType());
         assertEquals(
-            List.of("name", "price", "brand", "rating", "created_date", "is_active", "timestamp", "location", "status", "binary_data"),
+            List.of(
+                "name",
+                "price",
+                "brand",
+                "rating",
+                "created_date",
+                "is_active",
+                "timestamp",
+                "location",
+                "status",
+                "binary_data",
+                "event_time"
+            ),
             result.getFieldNames()
         );
     }

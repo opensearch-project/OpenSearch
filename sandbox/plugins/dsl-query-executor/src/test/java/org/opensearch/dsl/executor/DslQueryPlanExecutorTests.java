@@ -43,7 +43,19 @@ public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
         assertNotNull(result.getPlan());
         assertSame(scan, result.getPlan().relNode());
         assertEquals(
-            List.of("name", "price", "brand", "rating", "created_date", "is_active", "timestamp", "location", "status", "binary_data"),
+            List.of(
+                "name",
+                "price",
+                "brand",
+                "rating",
+                "created_date",
+                "is_active",
+                "timestamp",
+                "location",
+                "status",
+                "binary_data",
+                "event_time"
+            ),
             result.getFieldNames()
         );
     }
