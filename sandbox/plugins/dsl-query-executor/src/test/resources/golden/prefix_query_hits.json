@@ -1,0 +1,38 @@
+{
+  "testName": "prefix_query_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "prefix": {
+        "name": {
+          "value": "lap"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[LIKE($0, 'lap%', '\\')])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price"],
+  "mockResultRows": [
+    ["laptop", 999],
+    ["laptop_pro", 1499]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
