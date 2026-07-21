@@ -297,7 +297,37 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         stream.close();
     }
 
-    private DatafusionResultStream createStream(String sql) {
+    /**
+     * End-to-end smoke test: a real native stream consumed through {@link DatafusionResultStream} under a
+     * small caller allocator imports and releases cleanly, leaving the shared root allocator drained.
+     *
+     * <p>Note: the deterministic regression for the mid-import-OOM native leak lives in
+     * {@link DatafusionImportLeakTests}; this test's fixture ({@code test.parquet}) is tiny, so it does not
+     * itself force a mid-import OOM — it verifies the staging import path is wired correctly end-to-end and
+     * that a normal small batch is fully released.
+     */
+    public void testStreamConsumeAndCloseDrainsAllocator() throws Exception {
+        try (DatafusionResultStream stream = createStreamWithLimit("SELECT message, message2 FROM test_table", 1024)) {
+            Iterator<EngineResultBatch> it = stream.iterator();
+            while (it.hasNext()) {
+                EngineResultBatch batch = it.next();
+                batch.getArrowRoot().close();
+            }
+        }
+        assertEquals("root allocator not fully drained after import + consume + close", 0L, testRootAllocator.getAllocatedMemory());
+    }
+
+    private DatafusionResultStream createStreamWithLimit(String sql, long limitBytes) {
+        long streamPtr = executeQueryForStream(sql);
+        BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream-bounded", 0, limitBytes);
+        allocatorsToClose.add(childAllocator);
+        return new DatafusionResultStream(
+            new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
+            childAllocator
+        );
+    }
+
+    private long executeQueryForStream(String sql) {
         byte[] substrait = NativeBridge.sqlToSubstrait(readerHandle.getPointer(), "test_table", sql, runtimeHandle.get());
         CompletableFuture<Long> future = new CompletableFuture<>();
         NativeBridge.executeQueryAsync(
@@ -319,7 +349,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
                 }
             }
         );
-        long streamPtr = future.join();
+        return future.join();
+    }
+
+    private DatafusionResultStream createStream(String sql) {
+        long streamPtr = executeQueryForStream(sql);
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
         allocatorsToClose.add(childAllocator);
         return new DatafusionResultStream(
