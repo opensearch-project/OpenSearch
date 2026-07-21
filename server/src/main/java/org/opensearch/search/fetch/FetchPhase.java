@@ -48,6 +48,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -65,6 +66,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
+import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.InnerHitsPhase;
@@ -87,6 +89,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -291,18 +294,18 @@ public class FetchPhase {
 
     protected FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
+        boolean hasFetchContext = context.hasFetchSourceContext();
+        String[] requestSourceIncludes = hasFetchContext ? context.fetchSourceContext().includes() : null;
+        String[] requestSourceExcludes = hasFetchContext ? context.fetchSourceContext().excludes() : null;
+        String[] codecSourceExcludes = codecSourceExcludes(context, requestSourceExcludes);
 
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+            if (!context.hasScriptFields() && !hasFetchContext) {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
-            return new FieldsVisitor(
-                loadSource,
-                context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
-                context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
-            );
+            return new FieldsVisitor(loadSource, requestSourceIncludes, requestSourceExcludes, codecSourceExcludes);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             return null;
@@ -332,22 +335,54 @@ public class FetchPhase {
                 }
             }
             boolean loadSource = sourceRequired(context);
+
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                return new FieldsVisitor(
-                    loadSource,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
-                );
+                return new FieldsVisitor(loadSource, requestSourceIncludes, requestSourceExcludes, codecSourceExcludes);
             } else {
                 return new CustomFieldsVisitor(
                     storedToRequestedFields.keySet(),
                     loadSource,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                    requestSourceIncludes,
+                    requestSourceExcludes,
+                    codecSourceExcludes
                 );
             }
         }
+    }
+
+    private String[] codecSourceExcludes(SearchContext context, String[] requestExcludes) {
+        if (requestExcludes == null || requestExcludes.length == 0) {
+            return null;
+        }
+
+        // context.innerHits won't throw NPE as it creates an empty innerhitscontext if its null
+        final Map<String, InnerHitsContext.InnerHitSubContext> innerHits = context.innerHits().getInnerHits();
+        if (innerHits.isEmpty()) {
+            return requestExcludes;
+        }
+
+        final Set<String> codecExcludes = new HashSet<>(Arrays.asList(requestExcludes));
+
+        final Set<String> requestIncludes = new HashSet<>();
+        for (InnerHitsContext.InnerHitSubContext innerHit : innerHits.values()) {
+            final FetchSourceContext innerSource = innerHit.fetchSourceContext();
+            if (innerSource != null && innerSource.fetchSource()) {
+                requestIncludes.addAll(Arrays.asList(innerSource.includes()));
+            }
+            FetchFieldsContext innerFetchContext = innerHit.fetchFieldsContext();
+            if (innerFetchContext != null && innerFetchContext.fields() != null) {
+                requestIncludes.addAll(
+                    innerFetchContext.fields().stream().map(fieldAndFormat -> fieldAndFormat.field).collect(Collectors.toSet())
+                );
+            }
+        }
+
+        for (String reqInclude : requestIncludes) {
+            codecExcludes.removeIf(userExclude -> Regex.simpleMatchOverlap(userExclude, reqInclude));
+        }
+
+        return codecExcludes.toArray(new String[0]);
     }
 
     private boolean sourceRequired(SearchContext context) {

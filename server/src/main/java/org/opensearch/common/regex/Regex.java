@@ -95,6 +95,25 @@ public class Regex {
     }
 
     /**
+     * Determine whether two simple-match patterns overlap, i.e. whether there
+     * exists at least one string that both patterns would match. Each argument
+     * may be a simple-match pattern ("xxx*", "*xxx", "*xxx*", "xxx*yyy") or a
+     * plain literal, which is treated as an exact-match pattern. Matching is
+     * case sensitive.
+     *
+     * @param pattern1 the first pattern (or literal) to compare
+     * @param pattern2 the second pattern (or literal) to compare
+     * @return whether some string is matched by both patterns
+     */
+    public static boolean simpleMatchOverlap(String pattern1, String pattern2) {
+        if (pattern1 == null || pattern2 == null) {
+            return false;
+        }
+        Automaton intersection = Operations.intersection(simpleMatchToAutomaton(pattern1), simpleMatchToAutomaton(pattern2));
+        return Operations.isEmpty(intersection) == false;
+    }
+
+    /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
      * arbitrary number of pattern parts), as well as direct equality.

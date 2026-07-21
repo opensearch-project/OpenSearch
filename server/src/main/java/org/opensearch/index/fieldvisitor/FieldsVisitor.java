@@ -69,6 +69,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     private final Set<String> requiredFields;
     private final String[] sourceIncludes;
     private final String[] sourceExcludes;
+    private final String[] codecExcludes;
     protected BytesReference source;
     protected String id;
     protected Map<String, List<Object>> fieldsValues;
@@ -77,8 +78,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
         this(loadSource, SourceFieldMapper.NAME, null, null);
     }
 
-    public FieldsVisitor(boolean loadSource, String[] includes, String[] excludes) {
-        this(loadSource, SourceFieldMapper.NAME, includes, excludes);
+    public FieldsVisitor(boolean loadSource, String[] includes, String[] excludes, String[] codecExcludes) {
+        this(loadSource, SourceFieldMapper.NAME, includes, excludes, codecExcludes);
     }
 
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
@@ -86,10 +87,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public FieldsVisitor(boolean loadSource, String sourceFieldName, String[] includes, String[] excludes) {
+        this(loadSource, sourceFieldName, includes, excludes, null);
+    }
+
+    public FieldsVisitor(boolean loadSource, String sourceFieldName, String[] includes, String[] excludes, String[] codecExcludes) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
         this.sourceIncludes = includes != null ? includes : Strings.EMPTY_ARRAY;
         this.sourceExcludes = excludes != null ? excludes : Strings.EMPTY_ARRAY;
+        this.codecExcludes = codecExcludes != null ? codecExcludes : Strings.EMPTY_ARRAY;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -189,6 +195,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
      */
     public String[] excludes() {
         return sourceExcludes;
+    }
+
+    public String[] codecExcludes() {
+        return codecExcludes;
     }
 
     public String id() {

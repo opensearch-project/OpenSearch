@@ -114,6 +114,34 @@ public class RegexTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSimpleMatchOverlap() {
+        // two literals: overlap only when equal
+        assertTrue(Regex.simpleMatchOverlap("foo", "foo"));
+        assertFalse(Regex.simpleMatchOverlap("foo", "bar"));
+
+        // literal vs pattern: literal treated as exact-match pattern
+        assertTrue(Regex.simpleMatchOverlap("foo*", "foobar"));
+        assertTrue(Regex.simpleMatchOverlap("foobar", "foo*"));
+        assertFalse(Regex.simpleMatchOverlap("foo*", "bar"));
+
+        // two patterns sharing at least one string
+        assertTrue(Regex.simpleMatchOverlap("a*", "ab*")); // both match "ab"
+        assertTrue(Regex.simpleMatchOverlap("foo*", "*bar")); // both match "foobar"
+        assertTrue(Regex.simpleMatchOverlap("*", "anything")); // "*" matches everything
+
+        // two patterns with no common string
+        assertFalse(Regex.simpleMatchOverlap("a*", "b*"));
+        assertFalse(Regex.simpleMatchOverlap("foo*", "bar*"));
+
+        // overlap is symmetric
+        assertEquals(Regex.simpleMatchOverlap("a*", "ab*"), Regex.simpleMatchOverlap("ab*", "a*"));
+
+        // null inputs never overlap
+        assertFalse(Regex.simpleMatchOverlap(null, "foo"));
+        assertFalse(Regex.simpleMatchOverlap("foo", null));
+        assertFalse(Regex.simpleMatchOverlap(null, null));
+    }
+
     public void testSimpleMatch() {
         for (int i = 0; i < 1000; i++) {
             final String matchingString = randomAlphaOfLength(between(0, 50));

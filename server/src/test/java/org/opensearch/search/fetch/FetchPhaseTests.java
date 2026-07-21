@@ -34,6 +34,7 @@ package org.opensearch.search.fetch;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -41,7 +42,10 @@ import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FieldAndFormat;
+import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
@@ -89,12 +93,14 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         FetchSourceContext mockFetchSourceContext = new FetchSourceContext(true, includes, excludes);
         when(mockSearchContext.hasFetchSourceContext()).thenReturn(true);
         when(mockSearchContext.fetchSourceContext()).thenReturn(mockFetchSourceContext);
+        when(mockSearchContext.innerHits()).thenReturn(new InnerHitsContext());
 
         // Case 1
         // if storedFieldsContext is null
         FieldsVisitor fieldsVisitor = fetchPhase.createStoredFieldsVisitor(mockSearchContext, null);
         assertArrayEquals(fieldsVisitor.excludes(), excludes);
         assertArrayEquals(fieldsVisitor.includes(), includes);
+        assertArrayEquals(fieldsVisitor.codecExcludes(), excludes);
 
         // Case 2
         // if storedFieldsContext is not null
@@ -111,6 +117,7 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         fieldsVisitor = fetchPhase.createStoredFieldsVisitor(mockSearchContext, Collections.emptyMap());
         assertArrayEquals(fieldsVisitor.excludes(), excludes);
         assertArrayEquals(fieldsVisitor.includes(), includes);
+        assertArrayEquals(fieldsVisitor.codecExcludes(), excludes);
 
         // Case 4
         // if storedToRequested Fields is not empty
@@ -123,7 +130,75 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         assertTrue(fieldsVisitor instanceof CustomFieldsVisitor);
         assertArrayEquals(fieldsVisitor.excludes(), excludes);
         assertArrayEquals(fieldsVisitor.includes(), includes);
+        assertArrayEquals(fieldsVisitor.codecExcludes(), excludes);
+    }
 
+    public void testCodecSourceExcludes() {
+        // A user source exclude is dropped from the codec excludes when an inner hit requests an
+        // overlapping field (so it stays available at the codec level), while the returned _source
+        // includes/excludes are never mutated. Inner-hit fields may be requested via _source
+        // includes (viaSource=true) or via fetch fields with source disabled (viaSource=false), and
+        // both excludes and includes support simple-match wildcards.
+        //
+        // rootIncludes | excludes | innerField | viaSource | -> codecExcludes
+        // ["field3"] | field1,field2 | field1 | source | -> [field2] literal, source include
+        // null | field1,field2 | field2 | fetch | -> [field1] literal, fetch field
+        // null | obj.*,secret* | obj.field | source | -> [secret*] wildcard exclude vs literal
+        // null | foo*,bar* | bar* | fetch | -> [foo*] identical wildcard patterns
+        // null | foo*,x.y | *bar | source | -> [x.y] "foo*" overlaps "*bar" via "foobar"
+        // null | secret* | public.field | source | -> [secret*] no overlap, exclude kept
+        assertCodecExcludes(new String[] { "field3" }, new String[] { "field1", "field2" }, "field1", true, new String[] { "field2" });
+        assertCodecExcludes(null, new String[] { "field1", "field2" }, "field2", false, new String[] { "field1" });
+        assertCodecExcludes(null, new String[] { "obj.*", "secret*" }, "obj.field", true, new String[] { "secret*" });
+        assertCodecExcludes(null, new String[] { "foo*", "bar*" }, "bar*", false, new String[] { "foo*" });
+        assertCodecExcludes(null, new String[] { "foo*", "x.y" }, "*bar", true, new String[] { "x.y" });
+        assertCodecExcludes(null, new String[] { "secret*" }, "public.field", true, new String[] { "secret*" });
+    }
+
+    /**
+     * Builds a search context whose root source has {@code rootIncludes}/{@code excludes} and a single
+     * inner hit requesting {@code innerHitField}, then asserts the resulting codec excludes. When
+     * {@code viaSource} is true the field is an inner-hit source include; otherwise it is requested via
+     * fetch fields with source fetching disabled. The returned _source includes/excludes are asserted
+     * to be the unmodified root request values.
+     */
+    private void assertCodecExcludes(
+        String[] rootIncludes,
+        String[] excludes,
+        String innerHitField,
+        boolean viaSource,
+        String[] expectedCodecExcludes
+    ) {
+        FetchPhase fetchPhase = new FetchPhase(new ArrayList<>());
+        SearchContext context = mock(SearchContext.class);
+        when(context.hasScriptFields()).thenReturn(false);
+        when(context.storedFieldsContext()).thenReturn(null);
+
+        FetchSourceContext rootSource = new FetchSourceContext(true, rootIncludes, excludes);
+        when(context.hasFetchSourceContext()).thenReturn(true);
+        when(context.fetchSourceContext()).thenReturn(rootSource);
+        when(context.sourceRequested()).thenReturn(true);
+        when(context.fetchFieldsContext()).thenReturn(null);
+
+        InnerHitsContext.InnerHitSubContext innerHit = mock(InnerHitsContext.InnerHitSubContext.class);
+        if (viaSource) {
+            when(innerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(true, new String[] { innerHitField }, null));
+            when(innerHit.fetchFieldsContext()).thenReturn(null);
+        } else {
+            when(innerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(false));
+            when(innerHit.fetchFieldsContext()).thenReturn(new FetchFieldsContext(List.of(new FieldAndFormat(innerHitField, null))));
+        }
+
+        InnerHitsContext innerHitsContext = new InnerHitsContext();
+        innerHitsContext.getInnerHits().put("inner", innerHit);
+        when(context.innerHits()).thenReturn(innerHitsContext);
+
+        FieldsVisitor fieldsVisitor = fetchPhase.createStoredFieldsVisitor(context, null);
+
+        // Requested includes/excludes must not be mutated.
+        assertArrayEquals(excludes, fieldsVisitor.excludes());
+        assertArrayEquals(rootIncludes != null ? rootIncludes : Strings.EMPTY_ARRAY, fieldsVisitor.includes());
+        assertArrayEquals(expectedCodecExcludes, fieldsVisitor.codecExcludes());
     }
 
     public void testTaskCancellationDuringFetch() {
@@ -169,5 +244,4 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         TaskCancelledException ex = expectThrows(TaskCancelledException.class, () -> fetchPhase.execute(context));
         assertEquals("cancelled task with reason: test reason", ex.getMessage());
     }
-
 }
