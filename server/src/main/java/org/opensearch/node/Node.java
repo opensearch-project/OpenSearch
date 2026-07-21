@@ -963,8 +963,9 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> plugin.getIngestionPayloadDecoderFactories().forEach(registryBuilder::register));
             final IngestionPayloadDecoderRegistry payloadDecoderRegistry = registryBuilder.build();
-            // Register all factories for cleanup on node shutdown so they can release shared resources.
-            payloadDecoderRegistry.factories().values().forEach(resourcesToClose::add);
+            // If node construction fails before IndicesService takes ownership of the registry
+            // (see IndicesService#doClose), close it here so factories don't leak.
+            resourcesToClose.add(payloadDecoderRegistry);
 
             // Initialize tiered storage prefetch settings
             final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;

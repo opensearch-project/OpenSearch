@@ -49,6 +49,15 @@ public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder 
         public static final Factory INSTANCE = new Factory();
 
         @Override
+        public void validate(Map<String, Object> settings) {
+            if (!settings.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "The [xcontent] decoder does not accept decoder_settings, but found: " + settings.keySet()
+                );
+            }
+        }
+
+        @Override
         public IngestionPayloadDecoder create(IndexMetadata indexMetadata, int shardId, Map<String, Object> settings) {
             return XContentIngestionPayloadDecoder.INSTANCE;
         }

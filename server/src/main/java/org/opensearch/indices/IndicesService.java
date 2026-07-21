@@ -615,7 +615,8 @@ public class IndicesService extends AbstractLifecycleComponent
                         indicesFieldDataCache,
                         cacheCleaner,
                         indicesRequestCache,
-                        indicesQueryCache
+                        indicesQueryCache,
+                        payloadDecoderRegistry
                     );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

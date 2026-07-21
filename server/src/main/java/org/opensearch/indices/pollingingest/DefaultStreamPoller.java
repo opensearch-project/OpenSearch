@@ -383,14 +383,9 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void close() {
         closed = true;
-        // Always close the decoder, regardless of whether the poller was started.
-        try {
-            payloadDecoder.close();
-        } catch (Exception e) {
-            logger.warn("Error closing payload decoder for shard {}: {}", shardId, e.getMessage());
-        }
         if (!started) {
             logger.info("consumer thread not started");
+            closePayloadDecoder();
             return;
         }
         long startTime = System.currentTimeMillis(); // Record the start time
@@ -409,7 +404,18 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         consumerThread.shutdown();
         blockingQueueContainer.close();
+        // Close only after the consumer thread has reached CLOSED (or the wait timed out), so any
+        // in-flight decode() call on the consumer thread is not racing with resource cleanup here.
+        closePayloadDecoder();
         logger.info("closed the poller of shard {}", shardId);
+    }
+
+    private void closePayloadDecoder() {
+        try {
+            payloadDecoder.close();
+        } catch (Exception e) {
+            logger.warn("Error closing payload decoder for shard {}: {}", shardId, e.getMessage());
+        }
     }
 
     @Override
