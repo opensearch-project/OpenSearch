@@ -16,6 +16,8 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 
+import java.util.Locale;
+
 /**
  * Converts a {@link WildcardQueryBuilder} to a Calcite LIKE expression.
  * <p>
@@ -102,7 +104,7 @@ public class WildcardQueryTranslator implements QueryTranslator {
         // Apply LOWER() if case insensitive
         if (caseInsensitive) {
             fieldRef = ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LOWER, fieldRef);
-            pattern = pattern.toLowerCase();
+            pattern = pattern.toLowerCase(Locale.ROOT);
         }
 
         // Convert wildcard pattern to LIKE pattern

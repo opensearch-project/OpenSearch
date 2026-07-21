@@ -16,6 +16,8 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.PrefixQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
+import java.util.Locale;
+
 /**
  * Converts a {@link PrefixQueryBuilder} to a Calcite LIKE expression.
  * <p>
@@ -98,7 +100,7 @@ public class PrefixQueryTranslator implements QueryTranslator {
         // Apply LOWER() if case insensitive
         if (caseInsensitive) {
             fieldRef = ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LOWER, fieldRef);
-            prefix = prefix.toLowerCase();
+            prefix = prefix.toLowerCase(Locale.ROOT);
         }
 
         // Create LIKE pattern: prefix + '%'
