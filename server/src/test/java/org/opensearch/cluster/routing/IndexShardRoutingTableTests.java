@@ -41,7 +41,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class IndexShardRoutingTableTests extends OpenSearchTestCase {
@@ -141,5 +144,80 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
             Arrays.asList(relocatingReplica1, relocatingReplica2),
             table.shardsMatchingPredicate(shardRouting -> !shardRouting.primary() && shardRouting.relocating())
         );
+    }
+
+    /**
+     * The search replica iterator must round-robin evenly across all active search replicas, even
+     * when the replicas list also contains write replicas that the filter rejects. Rotating the
+     * unfiltered list used to collapse two rotation offsets onto the same search replica, giving
+     * it exactly twice the traffic of the others.
+     */
+    public void testSearchReplicaShardIteratorEvenDistribution() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED));
+        // zero write replicas must stay evenly distributed too, not just the mixed case
+        int writeReplicas = randomIntBetween(0, 3);
+        for (int i = 0; i < writeReplicas; i++) {
+            shards.add(TestShardRouting.newShardRouting(shardId, "node-replica-" + i, false, ShardRoutingState.STARTED));
+        }
+        int searchReplicas = randomIntBetween(2, 5);
+        for (int i = 0; i < searchReplicas; i++) {
+            shards.add(TestShardRouting.newShardRouting(shardId, "node-search-" + i, null, false, true, ShardRoutingState.STARTED, null));
+        }
+        // the fix must hold regardless of where the write replicas sit in the list
+        Collections.shuffle(shards, random());
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
+
+        int iterationsPerReplica = 100;
+        Map<String, Integer> firstShardCounts = new HashMap<>();
+        for (int i = 0; i < searchReplicas * iterationsPerReplica; i++) {
+            ShardRouting first = table.searchReplicaActiveInitializingShardIt().nextOrNull();
+            assertNotNull(first);
+            assertTrue(first.isSearchOnly());
+            firstShardCounts.merge(first.currentNodeId(), 1, Integer::sum);
+        }
+        assertEquals(searchReplicas, firstShardCounts.size());
+        for (Map.Entry<String, Integer> count : firstShardCounts.entrySet()) {
+            assertEquals(
+                "search replica on " + count.getKey() + " should receive an equal share of requests",
+                iterationsPerReplica,
+                count.getValue().intValue()
+            );
+        }
+    }
+
+    public void testSearchReplicaShardIteratorReturnsActiveBeforeInitializing() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-replica", false, ShardRoutingState.STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-search-0", null, false, true, ShardRoutingState.STARTED, null));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-search-1", null, false, true, ShardRoutingState.STARTED, null));
+        shards.add(
+            TestShardRouting.newShardRouting(
+                shardId,
+                "node-search-2",
+                false,
+                true,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.PeerRecoverySource.INSTANCE
+            )
+        );
+        Collections.shuffle(shards, random());
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
+
+        for (int i = 0; i < 10; i++) {
+            ShardIterator iterator = table.searchReplicaActiveInitializingShardIt();
+            assertEquals(3, iterator.size());
+            ShardRouting first = iterator.nextOrNull();
+            ShardRouting second = iterator.nextOrNull();
+            ShardRouting third = iterator.nextOrNull();
+            assertTrue(first.isSearchOnly() && first.active());
+            assertTrue(second.isSearchOnly() && second.active());
+            assertTrue(third.isSearchOnly() && third.initializing());
+            assertEquals("node-search-2", third.currentNodeId());
+            assertNull(iterator.nextOrNull());
+        }
     }
 }
