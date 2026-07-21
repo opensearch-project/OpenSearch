@@ -30,6 +30,7 @@ import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.util.List;
@@ -58,12 +59,20 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
 
     public void testFragmentHandlerRegisteredWithSameExecutor() {
         StreamTransportService transportService = mock(StreamTransportService.class);
+        TransportService regularTransportService = mock(TransportService.class);
         AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
         IndicesService indicesService = mock(IndicesService.class);
         ClusterService clusterService = mock(ClusterService.class);
         TaskResourceTrackingService taskResourceTrackingService = mock(TaskResourceTrackingService.class);
 
-        new AnalyticsSearchTransportService(transportService, clusterService, searchService, indicesService, taskResourceTrackingService);
+        new AnalyticsSearchTransportService(
+            transportService,
+            regularTransportService,
+            clusterService,
+            searchService,
+            indicesService,
+            taskResourceTrackingService
+        );
 
         verify(transportService).registerRequestHandler(
             eq(FragmentExecutionAction.NAME),
@@ -125,6 +134,7 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
         StreamingResponseListener<FragmentExecutionArrowResponse> listener
     ) {
         StreamTransportService transportService = mock(StreamTransportService.class);
+        TransportService regularTransportService = mock(TransportService.class);
         AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
         IndicesService indicesService = mock(IndicesService.class);
         ClusterService clusterService = mock(ClusterService.class);
@@ -132,6 +142,7 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
 
         AnalyticsSearchTransportService service = new AnalyticsSearchTransportService(
             transportService,
+            regularTransportService,
             clusterService,
             searchService,
             indicesService,
@@ -178,6 +189,7 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
      */
     public void testGetConnectionWithNullNodeThrowsConnectExceptionNotNpe() {
         StreamTransportService transportService = mock(StreamTransportService.class);
+        TransportService regularTransportService = mock(TransportService.class);
         AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
         IndicesService indicesService = mock(IndicesService.class);
         ClusterService clusterService = mock(ClusterService.class);
@@ -185,6 +197,7 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
 
         AnalyticsSearchTransportService service = new AnalyticsSearchTransportService(
             transportService,
+            regularTransportService,
             clusterService,
             searchService,
             indicesService,

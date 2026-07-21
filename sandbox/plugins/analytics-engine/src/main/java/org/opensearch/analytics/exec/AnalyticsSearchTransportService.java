@@ -42,6 +42,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
@@ -59,18 +60,20 @@ import java.io.IOException;
 @Singleton
 public class AnalyticsSearchTransportService {
 
-    private final StreamTransportService transportService;
+    private final StreamTransportService streamingTransportService;
+    private final TransportService transportService;
     private final ClusterService clusterService;
 
     @Inject
     public AnalyticsSearchTransportService(
-        StreamTransportService streamTransportService,
+        StreamTransportService streamingTransportService,
+        TransportService transportService,
         ClusterService clusterService,
         AnalyticsSearchService searchService,
         IndicesService indicesService,
         TaskResourceTrackingService taskResourceTrackingService
     ) {
-        if (streamTransportService == null) {
+        if (streamingTransportService == null) {
             throw new IllegalStateException(
                 "analytics-engine requires the STREAM_TRANSPORT feature flag to be enabled "
                     + "("
@@ -79,14 +82,21 @@ public class AnalyticsSearchTransportService {
             );
         }
         searchService.setTaskResourceTrackingService(taskResourceTrackingService);
-        this.transportService = streamTransportService;
+        this.streamingTransportService = streamingTransportService;
+        this.transportService = transportService;
         this.clusterService = clusterService;
-        registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
-        registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
+        registerStreamingFragmentHandler(this.streamingTransportService, searchService, indicesService);
+        registerFetchByRowIdsHandler(this.streamingTransportService, searchService, indicesService);
+        // Can-match is a unary RPC — regular transport, not the stream transport (batches only).
         registerCanMatchHandler(this.transportService, searchService, indicesService);
     }
 
-    public StreamTransportService getTransportService() {
+    public StreamTransportService getStreamingTransportService() {
+        return streamingTransportService;
+    }
+
+    /** Regular (non-stream) transport used for the unary can-match RPC. */
+    public TransportService getTransportService() {
         return transportService;
     }
 
@@ -154,7 +164,7 @@ public class AnalyticsSearchTransportService {
     }
 
     private static void registerCanMatchHandler(
-        StreamTransportService transportService,
+        TransportService transportService,
         AnalyticsSearchService searchService,
         IndicesService indicesService
     ) {
@@ -269,7 +279,7 @@ public class AnalyticsSearchTransportService {
             // manager, where it NPEs ("Cannot invoke Object.hashCode() because key is null").
             throw new ConnectTransportException(null, "target node left the cluster before dispatch");
         }
-        return transportService.getConnection(node);
+        return streamingTransportService.getConnection(node);
     }
 
     public void dispatchFragmentStreaming(
@@ -435,7 +445,7 @@ public class AnalyticsSearchTransportService {
         pending.tryRun(() -> {
             try {
                 Transport.Connection connection = getConnection(targetNode);
-                transportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
+                streamingTransportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
                     listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
