@@ -77,7 +77,7 @@ public class WildcardQueryTranslator implements QueryTranslator {
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         WildcardQueryBuilder wildcardQuery = (WildcardQueryBuilder) query;
-        
+
         // Check for unsupported parameters
         if (wildcardQuery.boost() != 1.0f) {
             throw new ConversionException("Wildcard query parameter 'boost' is not supported");
@@ -116,22 +116,22 @@ public class WildcardQueryTranslator implements QueryTranslator {
     /**
      * Converts OpenSearch wildcard pattern to SQL LIKE pattern.
      * <p>
-     * Performs two operations:
-     * <ol>
-     *   <li>Escapes SQL LIKE special characters to prevent unintended matching</li>
-     *   <li>Converts OpenSearch wildcards to SQL wildcards</li>
-     * </ol>
-     * <p>
-     * Character transformations:
+     * OpenSearch wildcard syntax uses backslash as an escape character:
      * <ul>
-     *   <li>{@code \} → {@code \\} (escape character, must be escaped first)</li>
-     *   <li>{@code %} → {@code \%} (escape SQL any-characters wildcard)</li>
-     *   <li>{@code _} → {@code \_} (escape SQL single-character wildcard)</li>
-     *   <li>{@code *} → {@code %} (convert OpenSearch any-characters to SQL)</li>
-     *   <li>{@code ?} → {@code _} (convert OpenSearch single-character to SQL)</li>
+     *   <li>{@code \*} → literal {@code *} (not a wildcard)</li>
+     *   <li>{@code \?} → literal {@code ?} (not a wildcard)</li>
+     *   <li>{@code \\} → literal backslash, escaped as {@code \\} in LIKE</li>
+     *   <li>A trailing lone {@code \} with no following character is treated as a literal backslash</li>
      * </ul>
      * <p>
-     * Example: {@code "a*b?c%d_e\\f"} → {@code "a%b_c\%d\_e\\\\f"}
+     * Unescaped wildcards are converted to SQL LIKE equivalents:
+     * <ul>
+     *   <li>{@code *} → {@code %} (matches any sequence of characters)</li>
+     *   <li>{@code ?} → {@code _} (matches any single character)</li>
+     * </ul>
+     * <p>
+     * SQL LIKE metacharacters ({@code %}, {@code _}) appearing as literal data are escaped
+     * to prevent unintended matching.
      *
      * @param wildcardPattern the OpenSearch wildcard pattern with {@code *} and {@code ?}
      * @return SQL LIKE pattern with {@code %} and {@code _}
@@ -142,15 +142,35 @@ public class WildcardQueryTranslator implements QueryTranslator {
             char c = wildcardPattern.charAt(i);
             switch (c) {
                 case '\\':
-                    // Escape backslash
-                    result.append("\\\\");
+                    // Lookahead: backslash escapes the next character
+                    if (i + 1 < wildcardPattern.length()) {
+                        char next = wildcardPattern.charAt(i + 1);
+                        if (next == '*' || next == '?') {
+                            // \* or \? → emit the literal character (no LIKE metachar meaning)
+                            result.append(next);
+                        } else if (next == '\\') {
+                            // \\ → literal backslash, escaped for LIKE
+                            result.append("\\\\");
+                        } else {
+                            // \<other> → the escaped character literally
+                            // Escape it if it's a SQL LIKE metacharacter
+                            if (next == '%' || next == '_') {
+                                result.append('\\');
+                            }
+                            result.append(next);
+                        }
+                        i++; // consume the next character
+                    } else {
+                        // Trailing lone backslash: treat as literal backslash
+                        result.append("\\\\");
+                    }
                     break;
                 case '%':
-                    // Escape SQL wildcard
+                    // Escape SQL LIKE metacharacter
                     result.append("\\%");
                     break;
                 case '_':
-                    // Escape SQL wildcard
+                    // Escape SQL LIKE metacharacter
                     result.append("\\_");
                     break;
                 case '*':

@@ -73,7 +73,7 @@ public class PrefixQueryTranslator implements QueryTranslator {
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         PrefixQueryBuilder prefixQuery = (PrefixQueryBuilder) query;
-        
+
         // Check for unsupported parameters
         if (prefixQuery.boost() != 1.0f) {
             throw new ConversionException("Prefix query parameter 'boost' is not supported");
