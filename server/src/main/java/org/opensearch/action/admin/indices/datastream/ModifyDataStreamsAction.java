@@ -37,8 +37,7 @@ import java.util.Objects;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Transport action that applies a batch of {@link DataStreamAction} operations (add/remove backing index) to
- * data-stream metadata atomically. This is a metadata-only operation; it does not create, delete, or move shards.
+ * Applies a batch of {@link DataStreamAction} operations (add/remove backing index) to data-stream metadata atomically.
  *
  * @opensearch.api
  */

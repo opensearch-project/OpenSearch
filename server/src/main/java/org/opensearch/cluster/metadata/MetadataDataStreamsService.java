@@ -25,6 +25,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,19 +33,14 @@ import java.util.Map;
 import static org.opensearch.cluster.service.ClusterManagerTask.MODIFY_DATA_STREAM;
 
 /**
- * Applies a batch of {@link DataStreamAction} operations to the cluster's data-stream metadata in a single, atomic
- * cluster-state update. These are metadata-only mutations: they add or remove references to already-existing backing
- * indices. They never create, delete, restore, open, close, or relocate indices. A data stream's generation is derived
- * automatically from its backing indices (the highest backing-index counter), so it is not directly settable.
+ * Adds or removes backing indices of data streams in a single atomic cluster-state update. These are metadata-only
+ * mutations; they never create, delete, restore, open, close, or relocate indices. The write index (and hence the
+ * generation) is preserved: added indices become non-write backing indices, and the write index cannot be removed.
+ * Added indices need not follow the {@code .ds-<dataStream>-NNNNNN} naming convention, which allows migrating
+ * pre-existing regular indices into a data stream.
  * <p>
- * The primary motivation is to let a controller (e.g. cross-cluster replication) reconcile a follower data stream's
- * backing-index set after it has independently bootstrapped and replicated the backing indices, without re-restoring or
- * overwriting the existing write index. Because the generation stays derived from the backing-index set, a subsequent
- * rollover (e.g. after a failover) computes the correct next write-index name.
- * <p>
- * This service is the injectable entry point for the operation: components such as cross-cluster replication can obtain
- * it via dependency injection and call {@link #modifyDataStream} directly, without routing through
- * {@code ModifyDataStreamsAction}'s transport layer.
+ * This service is injectable, so components such as cross-cluster replication can call {@link #modifyDataStream}
+ * directly rather than through {@code ModifyDataStreamsAction}'s transport layer.
  *
  * @opensearch.internal
  */
@@ -120,20 +116,20 @@ public class MetadataDataStreamsService {
         // Track streams we've mutated so multiple actions against the same stream compose within this single update.
         Map<String, DataStream> updated = new LinkedHashMap<>();
         for (DataStreamAction action : actions) {
-            String dataStreamName = action.getDataStream();
+            String dataStreamName = action.dataStream();
             DataStream dataStream = updated.getOrDefault(dataStreamName, currentState.metadata().dataStreams().get(dataStreamName));
             if (dataStream == null) {
                 throw new IllegalArgumentException("data stream [" + dataStreamName + "] not found");
             }
-            switch (action.getType()) {
+            switch (action.type()) {
                 case ADD_BACKING_INDEX:
-                    dataStream = applyAddBackingIndex(currentState.metadata(), metadataBuilder, dataStream, action.getIndex());
+                    dataStream = applyAddBackingIndex(currentState.metadata(), metadataBuilder, dataStream, action.index());
                     break;
                 case REMOVE_BACKING_INDEX:
-                    dataStream = applyRemoveBackingIndex(dataStream, action.getIndex());
+                    dataStream = applyRemoveBackingIndex(dataStream, action.index());
                     break;
                 default:
-                    throw new IllegalArgumentException("unsupported data stream action type [" + action.getType() + "]");
+                    throw new IllegalArgumentException("unsupported data stream action type [" + action.type() + "]");
             }
             updated.put(dataStreamName, dataStream);
         }
@@ -178,68 +174,39 @@ public class MetadataDataStreamsService {
             );
         }
 
-        // The index must follow the data stream's backing-index naming convention (.ds-<dataStream>-NNNNNN). This keeps
-        // the backing-index set consistent with the generation, which is derived from the highest counter below.
-        long addedCounter = parseBackingIndexCounter(dataStream.getName(), indexName);
-
-        // Backing indices are hidden; mark the newly attached index hidden if it is not already, matching how data
-        // stream creation and rollover create backing indices.
+        // Backing indices are hidden; mark the index hidden if it is not already, matching data stream creation and
+        // rollover. put(IndexMetadata.Builder) bumps the index metadata version; the top-level Metadata version is
+        // bumped by the cluster-manager service on publish.
         if (IndexMetadata.INDEX_HIDDEN_SETTING.get(indexMetadata.getSettings()) == false) {
-            IndexMetadata hiddenIndexMetadata = IndexMetadata.builder(indexMetadata)
+            IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(indexMetadata)
                 .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
-                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
-                .build();
-            metadataBuilder.put(hiddenIndexMetadata, false);
-            index = hiddenIndexMetadata.getIndex();
+                .settingsVersion(indexMetadata.getSettingsVersion() + 1);
+            metadataBuilder.put(hiddenIndexMetadata);
+            index = hiddenIndexMetadata.build().getIndex();
         }
 
+        // Metadata validation rejects any convention-named index above the current generation, so the added index is
+        // always a non-write index: keep generation unchanged and re-sort so the write index stays last.
         List<Index> updatedIndices = new ArrayList<>(dataStream.getIndices());
         updatedIndices.add(index);
-        // Keep backing indices ordered by their generation counter so the last element is the highest-generation (write)
-        // index. The naming convention is enforced above, so every name here has a parseable counter.
-        updatedIndices.sort(
-            (a, b) -> Long.compare(
-                parseBackingIndexCounter(dataStream.getName(), a.getName()),
-                parseBackingIndexCounter(dataStream.getName(), b.getName())
-            )
-        );
+        updatedIndices.sort(Comparator.comparingLong(i -> backingIndexSortKey(dataStream.getName(), i.getName())));
 
-        // Generation is derived, never set by the caller: it is the highest backing-index counter, which is always the
-        // (new) write index. This keeps a later rollover computing the correct next write-index name.
-        long generation = Math.max(dataStream.getGeneration(), addedCounter);
-        return new DataStream(dataStream.getName(), dataStream.getTimeStampField(), updatedIndices, generation);
+        return new DataStream(dataStream.getName(), dataStream.getTimeStampField(), updatedIndices, dataStream.getGeneration());
     }
 
     /**
-     * Parses the trailing generation counter of a backing index, rejecting any name that does not follow the data
-     * stream's backing-index naming convention {@code .ds-<dataStream>-NNNNNN}.
+     * Orders backing indices oldest-to-newest: convention-named indices ({@code .ds-<dataStream>-NNNNNN}) sort by their
+     * counter, while arbitrary-named indices have no counter and sort first, keeping the write index last.
      */
-    private static long parseBackingIndexCounter(String dataStreamName, String indexName) {
+    private static long backingIndexSortKey(String dataStreamName, String indexName) {
         String expectedPrefix = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-";
-        if (indexName.startsWith(expectedPrefix) == false) {
-            throw new IllegalArgumentException(
-                "index ["
-                    + indexName
-                    + "] does not follow the backing index naming convention ["
-                    + expectedPrefix
-                    + "NNNNNN] for data stream ["
-                    + dataStreamName
-                    + "]"
-            );
+        if (indexName.startsWith(expectedPrefix)) {
+            String counter = indexName.substring(expectedPrefix.length());
+            if (Metadata.NUMBER_PATTERN.matcher(counter).matches()) {
+                return Long.parseLong(counter);
+            }
         }
-        String counter = indexName.substring(expectedPrefix.length());
-        if (Metadata.NUMBER_PATTERN.matcher(counter).matches() == false) {
-            throw new IllegalArgumentException(
-                "index ["
-                    + indexName
-                    + "] does not follow the backing index naming convention ["
-                    + expectedPrefix
-                    + "NNNNNN] for data stream ["
-                    + dataStreamName
-                    + "]"
-            );
-        }
-        return Long.parseLong(counter);
+        return Long.MIN_VALUE;
     }
 
     private static DataStream applyRemoveBackingIndex(DataStream dataStream, String indexName) {
@@ -262,8 +229,7 @@ public class MetadataDataStreamsService {
                     + "] because it is the last backing index; delete the data stream instead"
             );
         }
-        // Do not allow removing the write index (the highest-generation backing index): the data stream would have no
-        // write index and its generation would point at a missing backing index.
+        // The write index (last, highest-generation) cannot be removed: it would orphan the stream's generation.
         Index writeIndex = dataStream.getIndices().get(dataStream.getIndices().size() - 1);
         if (writeIndex.equals(toRemove)) {
             throw new IllegalArgumentException(

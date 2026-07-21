@@ -94,14 +94,15 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("not found"));
     }
 
-    public void testAddIndexNotFollowingNamingConventionFails() {
-        // A plain index that does not match the .ds-<dataStream>-NNNNNN convention.
+    public void testAddArbitraryNamedIndexAsOldestBackingIndex() {
+        // Migrating a pre-existing regular index into a data stream: the arbitrary-named index is attached as the
+        // oldest backing index, ahead of the convention-following write index, and the generation is unchanged.
         Metadata.Builder metadata = Metadata.builder();
-        IndexMetadata backing = createBackingIndex(DS, 1).build();
-        metadata.put(backing, false);
-        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(backing.getIndex()), 1));
+        IndexMetadata writeIndex = createBackingIndex(DS, 1).build();
+        metadata.put(writeIndex, false);
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(writeIndex.getIndex()), 1));
         metadata.put(
-            IndexMetadata.builder("random-index")
+            IndexMetadata.builder("legacy-logs-2023")
                 .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -110,11 +111,16 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataDataStreamsService.modifyDataStream(state, List.of(DataStreamAction.addBackingIndex(DS, "random-index")))
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.addBackingIndex(DS, "legacy-logs-2023"))
         );
-        assertThat(e.getMessage(), containsString("does not follow the backing index naming convention"));
+
+        // Arbitrary-named index sorts first (oldest); the convention-following write index stays last.
+        assertThat(backingIndexNames(updated), contains("legacy-logs-2023", DataStream.getDefaultBackingIndexName(DS, 1)));
+        assertThat(updated.metadata().dataStreams().get(DS).getGeneration(), equalTo(1L));
+        // The migrated index is marked hidden like every backing index.
+        assertThat(IndexMetadata.INDEX_HIDDEN_SETTING.get(updated.metadata().index("legacy-logs-2023").getSettings()), equalTo(true));
     }
 
     public void testRemoveBackingIndex() {

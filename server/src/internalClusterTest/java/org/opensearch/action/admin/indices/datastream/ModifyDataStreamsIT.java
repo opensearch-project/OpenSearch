@@ -135,6 +135,39 @@ public class ModifyDataStreamsIT extends DataStreamTestCase {
         );
     }
 
+    public void testMigrateArbitraryNamedIndexIntoDataStream() throws Exception {
+        // A user with a pre-existing regular index wants to migrate to data streams: the legacy index is attached as an
+        // older (non-write) backing index even though its name does not follow the .ds-<name>-NNNNNN convention.
+        createDataStreamIndexTemplate("template", List.of("logs-*"));
+        createDataStream(DS);
+        rolloverDataStream(DS); // gen 2, backing [1, 2]
+        long genBefore = generation();
+
+        String legacy = "legacy-logs-2023";
+        assertAcked(client().admin().indices().prepareCreate(legacy).get());
+
+        assertAcked(modify(List.of(DataStreamAction.addBackingIndex(DS, legacy))));
+
+        List<String> after = backingIndices();
+        // Arbitrary-named index is the oldest backing index; the convention-following write index remains last.
+        assertThat(after.get(0), equalTo(legacy));
+        assertThat(after.get(after.size() - 1), equalTo(DataStream.getDefaultBackingIndexName(DS, genBefore)));
+        assertThat(after, hasSize(3));
+        // Generation is unchanged (the migrated index is not the write index).
+        assertThat(generation(), equalTo(genBefore));
+        // The migrated index is now hidden like every backing index.
+        assertThat(
+            org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING.get(
+                client().admin().cluster().prepareState().get().getState().metadata().index(legacy).getSettings()
+            ),
+            equalTo(true)
+        );
+
+        // Rollover still advances correctly off the convention-following write index.
+        rolloverDataStream(DS);
+        assertThat(generation(), equalTo(genBefore + 1));
+    }
+
     public void testRemoveAndReattachMultipleIndicesInSingleRequest() throws Exception {
         createDataStreamIndexTemplate("template", List.of("logs-*"));
         createDataStream(DS);

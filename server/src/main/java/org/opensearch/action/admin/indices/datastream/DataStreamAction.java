@@ -20,19 +20,15 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Represents a single operation applied to a data stream's backing-index set as part of a
- * {@link ModifyDataStreamsAction} request. These are metadata-only mutations; they never create, delete, restore, or
- * move shards. The data stream's generation is derived automatically from its backing indices, so it is not part of the
- * action surface.
+ * A single add- or remove-backing-index operation within a {@link ModifyDataStreamsAction} request.
  *
  * @opensearch.api
  */
 @PublicApi(since = "3.8.0")
-public class DataStreamAction implements Writeable, ToXContentObject {
+public record DataStreamAction(Type type, String dataStream, String index) implements Writeable, ToXContentObject {
 
     /**
      * The type of modification applied to a data stream.
@@ -72,50 +68,29 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         }
     }
 
-    private final Type type;
-    private final String dataStream;
-    private String index;
+    public DataStreamAction {
+        Objects.requireNonNull(type, "[type] is required");
+        Objects.requireNonNull(dataStream, "[data_stream] is required");
+        Objects.requireNonNull(index, "[index] is required");
+    }
 
     public static DataStreamAction addBackingIndex(String dataStream, String index) {
-        DataStreamAction action = new DataStreamAction(Type.ADD_BACKING_INDEX, dataStream);
-        action.index = Objects.requireNonNull(index, "[index] is required for [add_backing_index]");
-        return action;
+        return new DataStreamAction(Type.ADD_BACKING_INDEX, dataStream, index);
     }
 
     public static DataStreamAction removeBackingIndex(String dataStream, String index) {
-        DataStreamAction action = new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream);
-        action.index = Objects.requireNonNull(index, "[index] is required for [remove_backing_index]");
-        return action;
-    }
-
-    private DataStreamAction(Type type, String dataStream) {
-        this.type = Objects.requireNonNull(type, "[type] is required");
-        this.dataStream = Objects.requireNonNull(dataStream, "[data_stream] is required");
+        return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index);
     }
 
     public DataStreamAction(StreamInput in) throws IOException {
-        this.type = Type.fromValue(in.readByte());
-        this.dataStream = in.readString();
-        this.index = in.readOptionalString();
+        this(Type.fromValue(in.readByte()), in.readString(), in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(type.value());
         out.writeString(dataStream);
-        out.writeOptionalString(index);
-    }
-
-    public Type getType() {
-        return type;
-    }
-
-    public String getDataStream() {
-        return dataStream;
-    }
-
-    public String getIndex() {
-        return index;
+        out.writeString(index);
     }
 
     private static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
@@ -140,11 +115,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         ConstructingObjectParser<DataStreamAction, Void> parser = new ConstructingObjectParser<>(
             type.fieldName(),
             false,
-            (args, unused) -> {
-                DataStreamAction action = new DataStreamAction(type, (String) args[0]);
-                action.index = (String) args[1];
-                return action;
-            }
+            args -> new DataStreamAction(type, (String) args[0], (String) args[1])
         );
         parser.declareString(ConstructingObjectParser.constructorArg(), DATA_STREAM_FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
@@ -160,30 +131,10 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         builder.startObject();
         builder.startObject(type.fieldName());
         builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
-        if (index != null) {
-            builder.field(INDEX_FIELD.getPreferredName(), index);
-        }
+        builder.field(INDEX_FIELD.getPreferredName(), index);
         builder.endObject();
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataStreamAction that = (DataStreamAction) o;
-        return type == that.type && Objects.equals(dataStream, that.dataStream) && Objects.equals(index, that.index);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(type, dataStream, index);
-    }
-
-    @Override
-    public String toString() {
-        return String.format(Locale.ROOT, "DataStreamAction{type=%s, dataStream=%s, index=%s}", type, dataStream, index);
     }
 
     private static class ActionHolder {
