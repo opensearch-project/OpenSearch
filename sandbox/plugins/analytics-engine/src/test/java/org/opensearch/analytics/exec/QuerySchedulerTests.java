@@ -353,13 +353,13 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {
+        public void start(ActionListener<Void> onStarted) {
             State from = state;
             state = startTarget;
-            // Honor the StageExecution contract: transitions fire listeners synchronously.
             for (StageStateListener l : stateListeners) {
                 l.onStateChange(from, startTarget);
             }
+            onStarted.onResponse(null);
         }
 
         @Override

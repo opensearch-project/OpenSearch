@@ -330,7 +330,7 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
     }
 
     private static void scheduleAndDispatch(ReduceStageExecution exec) {
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
         @SuppressWarnings("unchecked")
         TaskRunner<StageTask> dispatcher = (TaskRunner<StageTask>) exec.taskRunner();
         if (dispatcher == null) return;
@@ -489,8 +489,9 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {
+        public void start(ActionListener<Void> onStarted) {
             state = State.RUNNING;
+            onStarted.onResponse(null);
         }
 
         @Override

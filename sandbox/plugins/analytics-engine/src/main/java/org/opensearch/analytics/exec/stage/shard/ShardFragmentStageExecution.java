@@ -178,14 +178,9 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     }
 
     /**
-     * Resumes the can-match completion off the transport thread, on the SEARCH pool (the pool
-     * the streaming-fragment/fetch handlers also fork onto). Wrapped in ContextAwareExecutor to
-     * carry the opaque id into the dispatch thread's logging MDC.
-     *
-     * <p>On rejection (SEARCH is a bounded RESIZABLE pool) the stage fails, matching the
-     * fragment/fetch handlers' rejection behavior — we do not run the dispatch chain inline on
-     * the transport thread (which would starve networking). {@code failWithCause} routes to the
-     * stage's terminal FAILED transition.
+     * Runs the can-match completion on the SEARCH pool (same pool the fragment/fetch handlers use),
+     * off the transport thread. Wrapped in ContextAwareExecutor to carry the opaque id into logs.
+     * On SEARCH rejection the stage fails ({@code failWithCause}) rather than running inline.
      */
     private void resumeOnPool(ThreadPool threadPool, Runnable completion) {
         try {
