@@ -56,7 +56,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -586,15 +585,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 copy.add(deepCopyConfigValue(item));
             }
             return copy;
-        } else if (value instanceof Set) {
-            Set<Object> source = (Set<Object>) value;
-            Set<Object> copy = new LinkedHashSet<>(source.size());
-            for (Object item : source) {
-                copy.add(deepCopyConfigValue(item));
-            }
-            return copy;
         }
-        // Scalars (String/Number/Boolean/null) are immutable — safe to share.
+        // Scalars (String/Number/Boolean/null) are immutable — safe to share. The inline pipeline config is produced
+        // by the XContent parser, which only yields Map/List/scalar values (never Set), so no other container types
+        // need deep-copying here.
         return value;
     }
 

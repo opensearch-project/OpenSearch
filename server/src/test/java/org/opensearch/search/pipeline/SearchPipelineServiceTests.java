@@ -51,11 +51,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -796,11 +794,11 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
     }
 
     /**
-     * Directly covers {@link SearchPipelineService#deepCopyConfig} across every value branch (nested map, list, set,
-     * scalar, null) and asserts the copy is deep and independent: mutating the copy must not affect the original inline
-     * source. The {@code Set} branch and the null-config guard are not reachable from the XContent-parsed
-     * {@code resolvePipeline} path (the parser never emits {@code Set}s and the source map is non-null there), so they
-     * are exercised here rather than through a resolve.
+     * Directly covers {@link SearchPipelineService#deepCopyConfig} across every value branch produced by the XContent
+     * parser (nested map, list, scalar, null value) and asserts the copy is deep and independent: mutating the copy
+     * must not affect the original inline source. The null-config guard is not reachable from the XContent-parsed
+     * {@code resolvePipeline} path (the source map is non-null there), so it is exercised here rather than through a
+     * resolve.
      */
     @SuppressWarnings("unchecked")
     public void testDeepCopyConfigIsDeepAndIndependent() {
@@ -809,7 +807,6 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         Map<String, Object> inner = new LinkedHashMap<>();
         inner.put("technique", "min_max");                          // scalar (String) branch
         inner.put("weights", new ArrayList<>(List.of(0.3, 0.7)));   // List branch
-        inner.put("tags", new LinkedHashSet<>(Set.of("a", "b")));   // Set branch
         inner.put("nullable", null);                                // null value via the scalar path
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("normalization", inner);                         // Map branch (recursion)
@@ -823,15 +820,12 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         assertNotSame(config.get("normalization"), copy.get("normalization"));
         Map<String, Object> copiedInner = (Map<String, Object>) copy.get("normalization");
         assertNotSame(inner.get("weights"), copiedInner.get("weights"));
-        assertNotSame(inner.get("tags"), copiedInner.get("tags"));
 
         // Mutating the copy must leave the original intact — the whole reason resolvePipeline copies the config.
         copiedInner.remove("technique");
         ((List<Object>) copiedInner.get("weights")).clear();
-        ((Set<Object>) copiedInner.get("tags")).clear();
         assertTrue("original scalar retained", inner.containsKey("technique"));
         assertEquals("original list retained", 2, ((List<Object>) inner.get("weights")).size());
-        assertEquals("original set retained", 2, ((Set<Object>) inner.get("tags")).size());
     }
 
     public void testInlineDefinedPipeline() throws Exception {

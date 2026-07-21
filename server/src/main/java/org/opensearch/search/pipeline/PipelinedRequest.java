@@ -46,6 +46,10 @@ public final class PipelinedRequest extends SearchRequest {
 
     PipelinedRequest(SearchRequest transformedRequest, PipelinedRequest original) {
         super(transformedRequest);
+        // As above, super(...) does not carry the pipeline id over. Carry the original request's id forward so this
+        // re-wrapped request keeps reporting the pipeline it was resolved for, consistent with reusing the original's
+        // resolved pipeline/context below.
+        this.pipeline(original.pipeline());
         this.pipeline = original.pipeline;
         this.requestContext = original.requestContext;
         this.systemGeneratedPipelineHolder = original.systemGeneratedPipelineHolder;
