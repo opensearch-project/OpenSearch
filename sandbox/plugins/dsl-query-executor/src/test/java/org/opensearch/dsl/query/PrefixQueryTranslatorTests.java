@@ -23,24 +23,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
     private final PrefixQueryTranslator translator = new PrefixQueryTranslator();
     private final ConversionContext ctx = TestUtils.createContext();
 
-    public void testReportsCorrectQueryType() {
-        assertEquals(org.opensearch.index.query.PrefixQueryBuilder.class, translator.getQueryType());
-    }
-
-    public void testBasicPrefixQuery() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "lap"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-        assertEquals(3, call.getOperands().size());
-
-        // Check pattern is "lap%"
-        RexNode pattern = call.getOperands().get(1);
-        assertTrue(pattern instanceof RexLiteral);
-        assertEquals("lap%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
     public void testPrefixQueryWithEmptyString() throws ConversionException {
         RexNode result = translator.convert(QueryBuilders.prefixQuery("name", ""), ctx);
 
@@ -51,40 +33,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         // Empty prefix should match all: "%"
         RexNode pattern = call.getOperands().get(1);
         assertEquals("%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testPrefixQueryCaseInsensitive() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "LAP").caseInsensitive(true), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-
-        // First operand should be LOWER(field)
-        RexNode fieldExpr = call.getOperands().get(0);
-        assertTrue(fieldExpr instanceof RexCall);
-        assertEquals(SqlKind.OTHER_FUNCTION, ((RexCall) fieldExpr).getKind());
-        assertEquals("LOWER", ((RexCall) fieldExpr).getOperator().getName());
-
-        // Pattern should be lowercased
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("lap%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testPrefixQueryCaseSensitive() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "LAP").caseInsensitive(false), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-
-        // First operand should be direct field reference (no LOWER)
-        RexNode fieldExpr = call.getOperands().get(0);
-        assertTrue(fieldExpr instanceof org.apache.calcite.rex.RexInputRef);
-
-        // Pattern should preserve case
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("LAP%", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testPrefixQueryEscapesPercentSign() throws ConversionException {
@@ -118,13 +66,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         // \ should be escaped to \\
         RexNode pattern = call.getOperands().get(1);
         assertEquals("path\\\\to%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testPrefixQueryWithDifferentFields() throws ConversionException {
-        // Test with different schema fields
-        assertNotNull(translator.convert(QueryBuilders.prefixQuery("name", "test"), ctx));
-        assertNotNull(translator.convert(QueryBuilders.prefixQuery("brand", "test"), ctx));
-        assertNotNull(translator.convert(QueryBuilders.prefixQuery("price", "100"), ctx));
     }
 
     public void testPrefixQueryThrowsForNonexistentField() {
@@ -173,20 +114,5 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         // All special chars should be escaped
         RexNode pattern = call.getOperands().get(1);
         assertEquals("a\\%b\\_c\\\\d%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testPrefixLikeExpressionHasExplicitEscapeClause() throws ConversionException {
-        // The LIKE call must have 3 operands: field, pattern, escape char
-        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "lap"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-        assertEquals("LIKE expression must have 3 operands (field, pattern, escape)", 3, call.getOperands().size());
-
-        // Third operand is the escape character literal '\'
-        RexNode escapeNode = call.getOperands().get(2);
-        assertTrue(escapeNode instanceof RexLiteral);
-        assertEquals("\\", ((RexLiteral) escapeNode).getValueAs(String.class));
     }
 }

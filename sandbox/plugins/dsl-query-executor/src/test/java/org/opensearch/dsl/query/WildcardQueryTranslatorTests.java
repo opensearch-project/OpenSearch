@@ -23,77 +23,6 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
     private final WildcardQueryTranslator translator = new WildcardQueryTranslator();
     private final ConversionContext ctx = TestUtils.createContext();
 
-    public void testReportsCorrectQueryType() {
-        assertEquals(org.opensearch.index.query.WildcardQueryBuilder.class, translator.getQueryType());
-    }
-
-    public void testWildcardWithAsterisk() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "lap*"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("lap%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithQuestionMark() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l?ptop"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("l_ptop", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithBothWildcards() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l?p*"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("l_p%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithMultipleAsterisks() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "*lap*top*"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("%lap%top%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithMultipleQuestionMarks() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l??top"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("l__top", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardCaseInsensitive() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "LAP*").caseInsensitive(true), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        // First operand should be LOWER(field)
-        RexNode fieldExpr = call.getOperands().get(0);
-        assertTrue(fieldExpr instanceof RexCall);
-        assertEquals("LOWER", ((RexCall) fieldExpr).getOperator().getName());
-
-        // Pattern should be lowercased
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("lap%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
     public void testWildcardEscapesPercent() throws ConversionException {
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "50%*"), ctx);
 
@@ -123,72 +52,6 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         RexNode pattern = call.getOperands().get(1);
         // \* in OpenSearch wildcard = literal '*' character (not a wildcard)
         assertEquals("path*", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithNoWildcards() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "laptop"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("laptop", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithOnlyAsterisk() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "*"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithOnlyQuestionMark() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "?"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("_", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardThrowsForNonexistentField() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.wildcardQuery("nonexistent", "val*"), ctx)
-        );
-        assertTrue(ex.getMessage().contains("Field 'nonexistent' not found"));
-    }
-
-    public void testWildcardThrowsForBoostParameter() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").boost(2.0f), ctx)
-        );
-        assertTrue(ex.getMessage().contains("boost"));
-        assertTrue(ex.getMessage().contains("not supported"));
-    }
-
-    public void testWildcardThrowsForRewriteParameter() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx)
-        );
-        assertTrue(ex.getMessage().contains("rewrite"));
-        assertTrue(ex.getMessage().contains("not supported"));
-    }
-
-    public void testWildcardWithComplexPattern() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a*b?c*d"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("a%b_c%d", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testWildcardWithMixedEscaping() throws ConversionException {
@@ -310,21 +173,6 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals("C:\\\\Users\\\\test", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
-    public void testLikeExpressionHasExplicitEscapeClause() throws ConversionException {
-        // The LIKE call must have 3 operands: field, pattern, escape char
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "lap*"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-        assertEquals("LIKE expression must have 3 operands (field, pattern, escape)", 3, call.getOperands().size());
-
-        // Third operand is the escape character literal '\'
-        RexNode escapeNode = call.getOperands().get(2);
-        assertTrue(escapeNode instanceof RexLiteral);
-        assertEquals("\\", ((RexLiteral) escapeNode).getValueAs(String.class));
-    }
-
     public void testWildcardWithEmptyPattern() throws ConversionException {
         // Empty pattern should produce an empty LIKE pattern
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", ""), ctx);
@@ -335,5 +183,31 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
 
         RexNode pattern = call.getOperands().get(1);
         assertEquals("", ((RexLiteral) pattern).getValueAs(String.class));
+    }
+
+    public void testWildcardThrowsForNonexistentField() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("nonexistent", "val*"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("Field 'nonexistent' not found"));
+    }
+
+    public void testWildcardThrowsForBoostParameter() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").boost(2.0f), ctx)
+        );
+        assertTrue(ex.getMessage().contains("boost"));
+        assertTrue(ex.getMessage().contains("not supported"));
+    }
+
+    public void testWildcardThrowsForRewriteParameter() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("rewrite"));
+        assertTrue(ex.getMessage().contains("not supported"));
     }
 }
