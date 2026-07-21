@@ -65,6 +65,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
@@ -128,6 +129,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private String pipeline;
 
     private Boolean phaseTook = null;
+
+    private TimeValue coordinatorTimeout = null;
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -234,6 +237,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        this.coordinatorTimeout = searchRequest.coordinatorTimeout;
     }
 
     /**
@@ -281,6 +285,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            coordinatorTimeout = in.readOptionalTimeValue();
+        }
     }
 
     @Override
@@ -315,6 +322,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalTimeValue(coordinatorTimeout);
+        }
     }
 
     @Override
@@ -347,7 +357,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
+            if (source.timeout() != null && coordinatorTimeout != null && source.timeout().compareTo(coordinatorTimeout) < 0) {
+                validationException = addValidationError(
+                    "timeout [" + source.timeout() + "] must be smaller than coordinatorTimeout [" + coordinatorTimeout + "]",
+                    validationException
+                );
+
+            }
         }
+
+        if (coordinatorTimeout != null && allowPartialSearchResults != null && allowPartialSearchResults == false) {
+            validationException = addValidationError(
+                "coordinator_timeout is not supported when allow_partial_search_results is false",
+                validationException
+            );
+        }
+
+        if (coordinatorTimeout != null && scroll) {
+            validationException = addValidationError("coordinator_timeout is not supported in a scroll context", validationException);
+        }
+
         if (pointInTimeBuilder() != null) {
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
@@ -762,9 +791,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return pipeline;
     }
 
+    public void setCoordinatorTimeout(TimeValue coordinatorTimeout) {
+        assert coordinatorTimeout != NO_TIMEOUT;
+        this.coordinatorTimeout = coordinatorTimeout;
+    }
+
+    public TimeValue getCoordinatorTimeout() {
+        return coordinatorTimeout;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval, coordinatorTimeout);
     }
 
     public final String buildDescription() {
@@ -816,7 +854,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(phaseTook, that.phaseTook);
+            && Objects.equals(phaseTook, that.phaseTook)
+            && Objects.equals(coordinatorTimeout, that.coordinatorTimeout);
     }
 
     @Override
@@ -838,7 +877,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             cancelAfterTimeInterval,
-            phaseTook
+            phaseTook,
+            coordinatorTimeout
         );
     }
 
@@ -883,6 +923,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + pipeline
             + ", phaseTook="
             + phaseTook
+            + ", coordinatorTimeout="
+            + coordinatorTimeout
             + "}";
     }
 }
