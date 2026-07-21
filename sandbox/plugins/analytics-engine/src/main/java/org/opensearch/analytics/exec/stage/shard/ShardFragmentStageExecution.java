@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
+import org.opensearch.analytics.exec.ContextAwareExecutor;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
@@ -32,6 +33,7 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -139,10 +141,18 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         long startNanos = System.nanoTime();
         AtomicBoolean fired = new AtomicBoolean(false);
 
-        Scheduler.ScheduledCancellable scheduled = dispatcher.getTransportService().getThreadPool().schedule(() -> {
+        // Can-match responses complete on the transport thread (handler executor="same").
+        // Resume the completion — which chains through publishTasksAndStart into the
+        // fragment-dispatch fan-out — OFF the transport thread. Running the dispatch chain
+        // inline on the transport thread starves the pool: the thread can't return to
+        // process the remaining can-match responses, the fan-in never completes, and the
+        // node deadlocks. See resumeOnPool for the pool choice.
+        ThreadPool threadPool = dispatcher.getStreamingTransportService().getThreadPool();
+
+        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(() -> {
             if (fired.compareAndSet(false, true)) {
                 logger.warn("can-match timed out after {} — fail-open, using all targets", timeout);
-                listener.onResponse(targets);
+                resumeOnPool(threadPool, () -> listener.onResponse(targets));
             }
         }, timeout, ThreadPool.Names.SAME);
 
@@ -156,15 +166,34 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                     targets.size() - filtered.size(),
                     elapsed
                 );
-                listener.onResponse(filtered);
+                resumeOnPool(threadPool, () -> listener.onResponse(filtered));
             }
         }, e -> {
             if (fired.compareAndSet(false, true)) {
                 scheduled.cancel();
                 logger.debug("can-match failed, using all targets: {}", e.getMessage());
-                listener.onResponse(targets);
+                resumeOnPool(threadPool, () -> listener.onResponse(targets));
             }
         }));
+    }
+
+    /**
+     * Resumes the can-match completion off the transport thread, on the SEARCH pool (the pool
+     * the streaming-fragment/fetch handlers also fork onto). Wrapped in ContextAwareExecutor to
+     * carry the opaque id into the dispatch thread's logging MDC.
+     *
+     * <p>On rejection (SEARCH is a bounded RESIZABLE pool) the stage fails, matching the
+     * fragment/fetch handlers' rejection behavior — we do not run the dispatch chain inline on
+     * the transport thread (which would starve networking). {@code failWithCause} routes to the
+     * stage's terminal FAILED transition.
+     */
+    private void resumeOnPool(ThreadPool threadPool, Runnable completion) {
+        try {
+            ContextAwareExecutor.wrap(threadPool.executor(ThreadPool.Names.SEARCH), threadPool).execute(completion);
+        } catch (OpenSearchRejectedExecutionException rejected) {
+            logger.warn("can-match: SEARCH pool rejected completion, failing stage", rejected);
+            failWithCause(rejected);
+        }
     }
 
     /** Pulls the backend id off the first plan alternative; {@code null} when none present. */

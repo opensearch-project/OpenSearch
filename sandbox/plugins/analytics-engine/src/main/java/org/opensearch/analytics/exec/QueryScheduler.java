@@ -27,6 +27,7 @@ import org.opensearch.transport.TransportService;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Default {@link Scheduler} implementation. Builds a {@link QueryExecution} per
@@ -110,10 +111,20 @@ public class QueryScheduler implements Scheduler {
      * SUCCEEDED; concurrent cancel → CANCELLED).
      */
     void scheduleStage(StageExecution stage) {
+        // Dispatch is driven by the RUNNING transition, not by polling state after start().
+        // start() may be asynchronous (e.g. ShardFragmentStageExecution defers publication
+        // behind a can-match round-trip), so the stage can still be CREATED when start()
+        // returns; it transitions to RUNNING later on the response thread. A one-shot
+        // RUNNING listener fires dispatch in both cases — synchronously inside start() for
+        // the sync path, or on the async completion for the deferred path.
+        AtomicBoolean dispatched = new AtomicBoolean(false);
+        stage.addStateListener((from, to) -> {
+            if (to == StageExecution.State.RUNNING && dispatched.compareAndSet(false, true)) {
+                logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+                stage.dispatchTasks(this::handleFor);
+            }
+        });
         stage.start();
-        if (stage.getState() != StageExecution.State.RUNNING) return;
-        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
-        stage.dispatchTasks(this::handleFor);
     }
 
     /**

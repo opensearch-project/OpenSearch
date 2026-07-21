@@ -107,9 +107,8 @@ public class CanMatchPreFilterPhase {
                         public void handleException(TransportException exp) {
                             // Fail-open: include this target on any transport error
                             logger.debug(
-                                "can-match: transport error for shard {}, keeping (fail-open): {}",
-                                shardTarget.shardId(),
-                                exp.getMessage()
+                                () -> "can-match: transport error for shard " + shardTarget.shardId() + ", keeping (fail-open)",
+                                exp
                             );
                             addAndMaybeComplete(matching, target, pending, targets, listener);
                         }
