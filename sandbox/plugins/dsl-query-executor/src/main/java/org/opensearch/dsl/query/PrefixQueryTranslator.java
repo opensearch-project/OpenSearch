@@ -13,6 +13,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.PrefixQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -77,7 +78,7 @@ public class PrefixQueryTranslator implements QueryTranslator {
         PrefixQueryBuilder prefixQuery = (PrefixQueryBuilder) query;
 
         // Check for unsupported parameters
-        if (prefixQuery.boost() != 1.0f) {
+        if (prefixQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             throw new ConversionException("Prefix query parameter 'boost' is not supported");
         }
         if (prefixQuery.rewrite() != null) {
@@ -107,8 +108,11 @@ public class PrefixQueryTranslator implements QueryTranslator {
         String likePattern = escapeLikePattern(prefix) + "%";
         RexNode patternLiteral = ctx.getRexBuilder().makeLiteral(likePattern);
 
-        // Return LIKE expression
-        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LIKE, fieldRef, patternLiteral);
+        // Create escape character literal for explicit ESCAPE clause
+        RexNode escapeChar = ctx.getRexBuilder().makeLiteral("\\");
+
+        // Return LIKE expression with explicit ESCAPE clause
+        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LIKE, fieldRef, patternLiteral, escapeChar);
     }
 
     /**

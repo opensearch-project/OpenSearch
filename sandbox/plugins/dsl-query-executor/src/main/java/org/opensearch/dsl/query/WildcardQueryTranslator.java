@@ -13,6 +13,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 
@@ -81,7 +82,7 @@ public class WildcardQueryTranslator implements QueryTranslator {
         WildcardQueryBuilder wildcardQuery = (WildcardQueryBuilder) query;
 
         // Check for unsupported parameters
-        if (wildcardQuery.boost() != 1.0f) {
+        if (wildcardQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             throw new ConversionException("Wildcard query parameter 'boost' is not supported");
         }
         if (wildcardQuery.rewrite() != null) {
@@ -111,8 +112,11 @@ public class WildcardQueryTranslator implements QueryTranslator {
         String likePattern = convertWildcardToLike(pattern);
         RexNode patternLiteral = ctx.getRexBuilder().makeLiteral(likePattern);
 
-        // Return LIKE expression
-        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LIKE, fieldRef, patternLiteral);
+        // Create escape character literal for explicit ESCAPE clause
+        RexNode escapeChar = ctx.getRexBuilder().makeLiteral("\\");
+
+        // Return LIKE expression with explicit ESCAPE clause
+        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LIKE, fieldRef, patternLiteral, escapeChar);
     }
 
     /**
@@ -154,10 +158,14 @@ public class WildcardQueryTranslator implements QueryTranslator {
                             // \\ → literal backslash, escaped for LIKE
                             result.append("\\\\");
                         } else {
-                            // \<other> → the escaped character literally
-                            // Escape it if it's a SQL LIKE metacharacter
+                            // \<other> → literal backslash + character
+                            // The backslash is itself a LIKE escape char, so emit \\ for the literal backslash
+                            // then escape the character if it's a SQL LIKE metacharacter
                             if (next == '%' || next == '_') {
+                                result.append("\\\\");
                                 result.append('\\');
+                            } else {
+                                result.append("\\\\");
                             }
                             result.append(next);
                         }
