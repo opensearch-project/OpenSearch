@@ -63,6 +63,8 @@ public class ConcurrentAggregationProcessor implements AggregationProcessor {
             .get(GlobalAggCollectorManager.class);
         try {
             if (globalCollectorManager != null) {
+                final long globalAggStartNanos = System.nanoTime();
+
                 Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
                 if (context.getProfilers() != null) {
                     globalCollectorManager = new InternalProfileCollectorManager(
@@ -74,6 +76,17 @@ public class ConcurrentAggregationProcessor implements AggregationProcessor {
                 }
                 final ReduceableSearchResult result = context.searcher().search(query, globalCollectorManager);
                 result.reduce(context.queryResult());
+
+                context.queryResult().recordShardTiming("global_agg_separate_pass", System.nanoTime() - globalAggStartNanos);
+
+                // Record absolute start offset for timeline positioning in the breakdown chart
+                final long requestStartNanos = context.request().getRequestStartNanos();
+                if (requestStartNanos > 0) {
+                    context.queryResult().recordShardTiming(
+                        "global_agg_separate_pass_start",
+                        Math.max(0, globalAggStartNanos - requestStartNanos)
+                    );
+                }
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);

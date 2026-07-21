@@ -47,6 +47,7 @@ import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.ListPitInfo;
 import org.opensearch.action.search.PitSearchContextIdForNode;
+import org.opensearch.action.search.SearchLatencyBreakdownNode;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.UpdatePitContextRequest;
@@ -785,8 +786,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final boolean canCache = indicesService.canCache(request, context);
         context.getQueryShardContext().freezeContext();
         if (canCache) {
+            // Request cache lookup/write timing is instrumented inside IndicesService.loadIntoContext().
+            // It records "request_cache_lookup" on cache hit and "request_cache_write" on cache miss.
             indicesService.loadIntoContext(request, context, queryPhase);
         } else {
+            // TODO: [Search Latency Breakdown] query_cache_lookup and query_cache_write timing would be
+            // recorded here if Lucene's LRUQueryCache were instrumented. The query cache operates at the
+            // per-segment Weight/Scorer level inside ContextIndexSearcher during queryPhase.execute().
+            // See IndicesQueryCache.doCache() for details on why this requires deeper Lucene integration.
             queryPhase.execute(context);
         }
     }
@@ -841,9 +848,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
                 // fork the execution in the search thread pool
+                final long submitTimeNanos = System.nanoTime();
                 runAsync(
                     getExecutor(executorName, shard),
-                    () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
+                    () -> {
+                        final long execStartNanos = System.nanoTime();
+                        final long queueWaitNanos = execStartNanos - submitTimeNanos;
+                        SearchPhaseResult result = executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener);
+                        if (result != null && result.queryResult() != null) {
+                            result.queryResult().recordShardTiming("data_node_queue_wait", queueWaitNanos);
+                        }
+                        return result;
+                    },
                     listener
                 );
             }
@@ -874,18 +890,243 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean isStreamSearch,
         ActionListener<SearchPhaseResult> listener
     ) throws Exception {
+        // Check if the shard is in search-idle state BEFORE acquiring the reader context.
+        // acquireSearcherSupplier() calls markSearcherAccessed() which resets the idle timer,
+        // so we must check idle state first to know if reactivation (refresh) was needed.
+        final boolean wasSearchIdle;
+        if (request.readerId() == null) {
+            IndexShard idleCheckShard = indicesService.indexServiceSafe(request.shardId().getIndex())
+                .getShard(request.shardId().id());
+            wasSearchIdle = idleCheckShard.isSearchIdle();
+        } else {
+            wasSearchIdle = false;
+        }
+
+        final long readerAcquireStartNanos = System.nanoTime();
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        final long readerAcquireEndNanos = System.nanoTime();
+        final long readerAcquireNanos = readerAcquireEndNanos - readerAcquireStartNanos;
+
+        // Extract requestStartNanos for absolute offset computation.
+        // When > 0, data-node events compute start_offset_micros = (event_start_nanos - requestStartNanos) / 1000
+        // When == 0 (older coordinator or not set), fall back to duration-only mode (relative offsets within phase)
+        final long requestStartNanos = request.getRequestStartNanos();
+
+        // For cross-node positioning: use wall clock (System.currentTimeMillis) when available.
+        // requestStartMillis > 0 means the coordinator sent its wall clock time, enabling
+        // absolute offset computation across different physical nodes via NTP-synced clocks.
+        final long requestStartMillis = request.getRequestStartMillis();
+        final long dataNodeStartMillis = (requestStartMillis > 0) ? System.currentTimeMillis() : 0;
+
+        final long createContextStartNanos = System.nanoTime();
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
         ) {
+            final long createContextEndNanos = System.nanoTime();
+            final long createContextNanos = createContextEndNanos - createContextStartNanos;
             if (isStreamSearch) {
                 assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
                 context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                final long queryExecStartNanos = System.nanoTime();
                 loadOrExecuteQueryPhase(request, context);
+                final long queryExecEndNanos = System.nanoTime();
+                final long queryExecNanos = queryExecEndNanos - queryExecStartNanos;
+
+                // Record shard-level breakdown timings into QuerySearchResult
+                context.queryResult().recordShardTiming("acquire_reader_context", readerAcquireNanos);
+                context.queryResult().recordShardTiming("search_context_creation", createContextNanos);
+                context.queryResult().recordShardTiming("query_execution", queryExecNanos);
+
+                // Record search idle reactivation timing when the shard was actually idle.
+                // The reactivation (refresh) cost is captured as part of reader acquisition.
+                if (wasSearchIdle) {
+                    context.queryResult().recordShardTiming("search_idle_reactivation", readerAcquireNanos);
+                    if (requestStartNanos > 0) {
+                        context.queryResult().recordShardTiming(
+                            "search_idle_reactivation_start", Math.max(0, readerAcquireStartNanos - requestStartNanos)
+                        );
+                    }
+                }
+
+                // Record absolute start offsets for coordinator merge when requestStartNanos is available
+                if (requestStartNanos > 0) {
+                    context.queryResult().recordShardTiming(
+                        "acquire_reader_context_start", Math.max(0, readerAcquireStartNanos - requestStartNanos)
+                    );
+                    context.queryResult().recordShardTiming(
+                        "search_context_creation_start", Math.max(0, createContextStartNanos - requestStartNanos)
+                    );
+                }
+                // Also record wall-clock-based offsets for cross-node absolute positioning
+                if (requestStartMillis > 0) {
+                    // Wall clock offset in micros: (currentTimeMillis at event - coordinator startMillis) * 1000
+                    long wallClockOffsetMicros = Math.max(0, (dataNodeStartMillis - requestStartMillis) * 1000);
+                    context.queryResult().recordShardTiming("wall_clock_offset_micros", wallClockOffsetMicros);
+                }
+
+                // Enrich the SearchLatencyBreakdownNode tree with context creation and acquire searcher timings
+                SearchLatencyBreakdownNode queryPhaseNode = context.queryResult().getLatencyBreakdownNode();
+                if (queryPhaseNode != null) {
+                    // Compute absolute offsets when requestStartNanos is available;
+                    // otherwise use relative offsets within the phase (duration-only mode)
+                    final long readerAcquireOffset = (requestStartNanos > 0)
+                        ? Math.max(0, readerAcquireStartNanos - requestStartNanos)
+                        : 0;
+                    final long createContextOffset = (requestStartNanos > 0)
+                        ? Math.max(0, createContextStartNanos - requestStartNanos)
+                        : readerAcquireNanos;
+
+                    // Set absolute start offset on the query phase node itself
+                    if (requestStartNanos > 0) {
+                        queryPhaseNode.setStartOffset(Math.max(0, readerAcquireStartNanos - requestStartNanos));
+                    }
+
+                    // Add acquire searcher as a child of the query phase node
+                    if (readerAcquireNanos > 0) {
+                        queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                            "Acquire Searcher",
+                            SearchLatencyBreakdownNode.CATEGORY_SEARCH_CONTEXT,
+                            readerAcquireOffset,
+                            readerAcquireNanos
+                        ));
+                    }
+
+                    // Add search context creation as a child
+                    if (createContextNanos > 0) {
+                        queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                            "Search Ctx Creation",
+                            SearchLatencyBreakdownNode.CATEGORY_SEARCH_CONTEXT,
+                            createContextOffset,
+                            createContextNanos
+                        ));
+                    }
+
+                    // Add sub-operation children from recorded shard timings (if available)
+                    Map<String, Long> shardTimings = context.queryResult().getShardLatencyBreakdownNanos();
+                    if (shardTimings != null) {
+                        // Global ordinals loading is part of search context creation / preProcess
+                        Long globalOrdinalsNanos = shardTimings.get("global_ordinals_loading");
+                        if (globalOrdinalsNanos != null && globalOrdinalsNanos > 0) {
+                            Long goStartOffset = shardTimings.get("global_ordinals_loading_start");
+                            if (goStartOffset != null && goStartOffset > 0) {
+                                // Use absolute start offset when available
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Global Ordinals Loading",
+                                    SearchLatencyBreakdownNode.CATEGORY_SEARCH_CONTEXT,
+                                    goStartOffset,
+                                    globalOrdinalsNanos
+                                ));
+                            } else {
+                                // Fall back to duration-only mode
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Global Ordinals Loading",
+                                    SearchLatencyBreakdownNode.CATEGORY_SEARCH_CONTEXT,
+                                    globalOrdinalsNanos
+                                ));
+                            }
+                        }
+
+                        // Script compilation happens during preProcess / query rewrite
+                        Long scriptCompilationNanos = shardTimings.get("script_compilation");
+                        if (scriptCompilationNanos != null && scriptCompilationNanos > 0) {
+                            Long scStartOffset = shardTimings.get("script_compilation_start");
+                            if (scStartOffset != null && scStartOffset > 0) {
+                                // Use absolute start offset when available
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Script Compilation",
+                                    SearchLatencyBreakdownNode.CATEGORY_SEARCH_CONTEXT,
+                                    scStartOffset,
+                                    scriptCompilationNanos
+                                ));
+                            } else {
+                                // Fall back to duration-only mode
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Script Compilation",
+                                    SearchLatencyBreakdownNode.CATEGORY_SEARCH_CONTEXT,
+                                    scriptCompilationNanos
+                                ));
+                            }
+                        }
+
+                        // Nested bitset construction
+                        Long nestedBitsetNanos = shardTimings.get("nested_bitset_construction");
+                        if (nestedBitsetNanos != null && nestedBitsetNanos > 0) {
+                            Long nbStartOffset = shardTimings.get("nested_bitset_construction_start");
+                            if (nbStartOffset != null && nbStartOffset > 0) {
+                                // Use absolute start offset when available
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Nested Bitset Construction",
+                                    SearchLatencyBreakdownNode.CATEGORY_QUERY,
+                                    nbStartOffset,
+                                    nestedBitsetNanos
+                                ));
+                            } else {
+                                // Fall back to duration-only mode
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Nested Bitset Construction",
+                                    SearchLatencyBreakdownNode.CATEGORY_QUERY,
+                                    nestedBitsetNanos
+                                ));
+                            }
+                        }
+
+                        // Star-tree setup
+                        Long starTreeSetupNanos = shardTimings.get("star_tree_setup");
+                        if (starTreeSetupNanos != null && starTreeSetupNanos > 0) {
+                            Long stStartOffset = shardTimings.get("star_tree_setup_start");
+                            if (stStartOffset != null && stStartOffset > 0) {
+                                // Use absolute start offset when available
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Star-Tree Setup",
+                                    SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                                    stStartOffset,
+                                    starTreeSetupNanos
+                                ));
+                            } else {
+                                // Fall back to duration-only mode
+                                queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                    "Star-Tree Setup",
+                                    SearchLatencyBreakdownNode.CATEGORY_AGGREGATION,
+                                    starTreeSetupNanos
+                                ));
+                            }
+                        }
+
+                        // Request cache lookup (cache hit)
+                        Long requestCacheLookupNanos = shardTimings.get("request_cache_lookup");
+                        if (requestCacheLookupNanos != null && requestCacheLookupNanos > 0) {
+                            queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                "Request Cache Lookup",
+                                SearchLatencyBreakdownNode.CATEGORY_CACHE,
+                                requestCacheLookupNanos
+                            ));
+                        }
+
+                        // Request cache write (cache miss - includes query execution + write to cache)
+                        Long requestCacheWriteNanos = shardTimings.get("request_cache_write");
+                        if (requestCacheWriteNanos != null && requestCacheWriteNanos > 0) {
+                            queryPhaseNode.addChild(new SearchLatencyBreakdownNode(
+                                "Request Cache Write",
+                                SearchLatencyBreakdownNode.CATEGORY_CACHE,
+                                requestCacheWriteNanos
+                            ));
+                        }
+                    }
+
+                    // Update the query phase node to encompass the full duration including context creation
+                    long totalDuration = queryExecEndNanos - readerAcquireStartNanos;
+                    queryPhaseNode.setDuration(Math.max(0, totalDuration));
+
+                    // Set absolute end offset when requestStartNanos is available
+                    if (requestStartNanos > 0) {
+                        queryPhaseNode.setEndOffset(Math.max(0, queryExecEndNanos - requestStartNanos));
+                    }
+                }
+
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
                 }
@@ -1778,10 +2019,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {
+            final long starTreeStartNanos = System.nanoTime();
             StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
             boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
             if (consolidated) {
                 queryShardContext.setStarTreeQueryContext(starTreeQueryContext);
+            }
+            final long starTreeDuration = Math.max(0, System.nanoTime() - starTreeStartNanos);
+            context.queryResult().recordShardTiming("star_tree_setup", starTreeDuration);
+            // Record start offset for absolute positioning in the breakdown tree
+            final long requestStartNanos = context.request().getRequestStartNanos();
+            if (requestStartNanos > 0) {
+                context.queryResult().recordShardTiming("star_tree_setup_start", Math.max(0, starTreeStartNanos - requestStartNanos));
             }
         }
     }
@@ -2005,6 +2254,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest) {
         return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest);
+    }
+
+    /**
+     * Returns a new {@link QueryCoordinatorContext} with the given {@code now} provider, {@link IndicesRequest searchRequest},
+     * and latency breakdown for timing sub-operations during rewrite.
+     */
+    public QueryRewriteContext getRewriteContext(
+        LongSupplier nowInMillis,
+        IndicesRequest searchRequest,
+        org.opensearch.action.search.SearchLatencyBreakdown latencyBreakdown
+    ) {
+        return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest, latencyBreakdown);
     }
 
     /**

@@ -76,6 +76,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -127,6 +128,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private boolean currentPhaseHasLifecycle;
 
     private final List<Releasable> releasables = new ArrayList<>();
+
+    // Network round-trip tracking: per-shard send timestamps for computing round-trip time
+    private final ConcurrentHashMap<Integer, Long> shardSendTimestamps = new ConcurrentHashMap<>();
+    // Accumulated network round-trip for average computation
+    private final AtomicLong totalNetworkRoundtripNanos = new AtomicLong(0);
+    private final AtomicInteger networkRoundtripCount = new AtomicInteger(0);
+    // Coordinator queue wait: time captured just before action dispatch for measuring queue wait
+    private volatile long dispatchSubmitNanos;
 
     AbstractSearchAsyncAction(
         String name,
@@ -207,6 +216,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * This is the main entry point for a search. This method starts the search execution of the initial phase.
      */
     public final void start() {
+        // Record coordinator queue wait: time from dispatch submission to actual execution start
+        if (dispatchSubmitNanos > 0) {
+            long queueWaitNanos = Math.max(0, System.nanoTime() - dispatchSubmitNanos);
+            searchRequestContext.getLatencyBreakdown().recordCoordinatorQueueWait(queueWaitNanos);
+        }
         if (getNumShards() == 0) {
             // no search shards to search on, bail with empty response
             // (it happens with search across _all with no indices around and consistent with broadcast operations)
@@ -232,6 +246,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onRequestEnd(searchRequestContext);
             return;
         }
+        // Record coordinator dispatch time (time from action creation to first phase execution)
+        final long dispatchStartNanos = System.nanoTime();
+        searchRequestContext.getLatencyBreakdown().recordTimedEvent("coordinator_dispatch", dispatchStartNanos, dispatchStartNanos);
         executePhase(this);
     }
 
@@ -304,7 +321,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         pendingExecutions,
                         thread
                     );
+                    // Record shard send timestamp for network round-trip calculation
+                    shardSendTimestamps.put(shardIndex, System.nanoTime());
+                    // Measure request serialization overhead (time spent in sendRequest which includes serialization)
+                    long serStart = System.nanoTime();
                     executePhaseOnShard(shardIt, shard, listener);
+                    long serDuration = Math.max(0, System.nanoTime() - serStart);
+                    searchRequestContext.getLatencyBreakdown().recordRequestSerialization(serDuration);
                 } catch (final Exception e) {
                     try {
                         /*
@@ -484,8 +507,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void onPhaseEnd(SearchRequestContext searchRequestContext) {
         if (getCurrentPhase() != null) {
-            long tookInNanos = System.nanoTime() - getCurrentPhase().getStartTimeInNanos();
+            long phaseEndNanos = System.nanoTime();
+            long tookInNanos = phaseEndNanos - getCurrentPhase().getStartTimeInNanos();
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            // Record phase end for latency breakdown (inter-phase gap tracking)
+            searchRequestContext.onPhaseEndForBreakdown(getCurrentPhase().getName(), phaseEndNanos);
+            // Record phase as timed event for Gantt chart
+            searchRequestContext.getLatencyBreakdown().recordTimedEvent(
+                getCurrentPhase().getName(), getCurrentPhase().getStartTimeInNanos(), phaseEndNanos
+            );
         }
         if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
@@ -494,6 +524,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
+        // Record phase start for latency breakdown (pre-phase + inter-phase gap tracking)
+        long phaseStartNanos = System.nanoTime();
+        searchRequestContext.onPhaseStartForBreakdown(phase.getName(), phaseStartNanos);
         if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
         }
@@ -657,6 +690,117 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
+        // Compute network round-trip time for this shard
+        Long sendTimestamp = shardSendTimestamps.remove(result.getShardIndex());
+        if (sendTimestamp != null) {
+            long roundtripNanos = Math.max(0, System.nanoTime() - sendTimestamp);
+            searchRequestContext.getLatencyBreakdown().recordNetworkRoundtripMax(roundtripNanos);
+            // Record as query-phase network roundtrip (this handler is for query phase responses)
+            searchRequestContext.getLatencyBreakdown().recordNetworkRoundtripQuery(roundtripNanos);
+            totalNetworkRoundtripNanos.addAndGet(roundtripNanos);
+            networkRoundtripCount.incrementAndGet();
+        }
+        // Capture per-shard network time into latency breakdown
+        if (result.getShardSearchRequest() != null) {
+            long inbound = result.getShardSearchRequest().getInboundNetworkTime();
+            long outbound = result.getShardSearchRequest().getOutboundNetworkTime();
+            if (inbound > 0) {
+                searchRequestContext.getLatencyBreakdown().recordInboundNetworkTime(
+                    java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(inbound)
+                );
+            }
+            if (outbound > 0) {
+                searchRequestContext.getLatencyBreakdown().recordOutboundNetworkTime(
+                    java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(outbound)
+                );
+            }
+        }
+        // Note: Request serialization timing is now measured in performPhaseOnShard() by wrapping
+        // executePhaseOnShard() with nanoTime calls and recording max via recordRequestSerialization().
+        // Response deserialization timing is measured via TimedResponseHandler wrapper in SearchTransportService.
+        // Capture shard-level latency breakdown from QuerySearchResult
+        if (result.queryResult() != null && result.queryResult().getShardLatencyBreakdownNanos() != null) {
+            java.util.Map<String, Long> shardBreakdown = result.queryResult().getShardLatencyBreakdownNanos();
+            SearchLatencyBreakdown breakdown = searchRequestContext.getLatencyBreakdown();
+            long queryPhaseStartNanos = breakdown.getFirstPhaseStartNanos();
+
+            // Determine whether absolute offsets are available from the data node.
+            // When the coordinator set requestStartNanos > 0 on the shard request, data nodes compute
+            // absolute start offsets (relative to request start) and include them as *_start keys.
+            // When requestStartNanos == 0 (old coordinator), fall back to sequential cursor positioning.
+            final long requestAbsoluteStartNanos = searchRequestContext.getAbsoluteStartNanos();
+            final boolean hasAbsoluteOffsets = requestAbsoluteStartNanos > 0;
+
+            // Running offset for sequential cursor positioning (fallback when no absolute offsets)
+            long currentOffsetNanos = queryPhaseStartNanos > 0 ? queryPhaseStartNanos : System.nanoTime();
+
+            // Generic merge loop: iterate all shard breakdown entries and position them
+            // using absolute offsets (preferred), query-phase-relative positioning, or
+            // sequential cursor fallback. This replaces the per-key switch statement to
+            // support self-describing metrics (any X + X_start pair auto-positions).
+            for (java.util.Map.Entry<String, Long> entry : shardBreakdown.entrySet()) {
+                String key = entry.getKey();
+                long value = entry.getValue();
+
+                // Skip _start keys — they are consumed inline with their duration key
+                if (key.endsWith("_start")) {
+                    continue;
+                }
+
+                // Handle metadata keys
+                if (key.equals("wall_clock_offset_micros")) {
+                    // Cross-node wall clock offset: records the time elapsed (in micros) from
+                    // coordinator dispatch to data-node processing start, computed via NTP-synced
+                    // System.currentTimeMillis(). Used for accurate Gantt positioning when
+                    // coordinator and data node are on different physical nodes.
+                    breakdown.recordWallClockOffsetMicros(value); // value is already in micros
+                    continue;
+                }
+
+                // Legacy per-key recording for backward-compatible accumulator fields
+                applyLegacyRecording(key, value, breakdown);
+
+                // Determine the event name for timed positioning (some keys have legacy name mappings)
+                String eventName = getLegacyEventName(key);
+
+                // Special handling for data_node_queue_wait: positioned before query phase start
+                if (key.equals("data_node_queue_wait")) {
+                    if (queryPhaseStartNanos > 0 && value > 0) {
+                        breakdown.recordTimedEvent("data_node_queue_wait", queryPhaseStartNanos - value, queryPhaseStartNanos);
+                    }
+                    continue;
+                }
+
+                // Skip keys that don't need timeline positioning (e.g., fetch_execution is positioned during fetch phase)
+                if (key.equals("fetch_execution") || key.equals("query_execution")) {
+                    continue;
+                }
+
+                // Skip zero-duration entries from timeline positioning
+                if (value <= 0) {
+                    continue;
+                }
+
+                // Generic positioning: check for corresponding X_start key
+                String startKey = key + "_start";
+                Long startOffset = shardBreakdown.get(startKey);
+
+                if (hasAbsoluteOffsets && startOffset != null && startOffset >= 0) {
+                    // ABSOLUTE POSITIONING: use data node's recorded offset relative to request start
+                    long absStart = requestAbsoluteStartNanos + startOffset;
+                    breakdown.recordTimedEvent(eventName, absStart, absStart + value);
+                    // DO NOT advance sequential cursor — absolute positioning is independent
+                } else if (queryPhaseStartNanos > 0 && isQueryPhaseChild(key)) {
+                    // QUERY-PHASE-RELATIVE: position within known query phase bounds using sequential cursor
+                    breakdown.recordTimedEvent(eventName, currentOffsetNanos, currentOffsetNanos + value);
+                    currentOffsetNanos += value;
+                } else {
+                    // SEQUENTIAL CURSOR FALLBACK: for metrics without absolute offsets or unknown keys
+                    breakdown.recordTimedEvent(eventName, currentOffsetNanos, currentOffsetNanos + value);
+                    currentOffsetNanos += value;
+                }
+            }
+        }
         this.setPhaseResourceUsages();
         results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
     }
@@ -664,6 +808,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public void setPhaseResourceUsages() {
         TaskResourceInfo taskResourceUsage = searchRequestContext.getTaskResourceUsageSupplier().get();
         searchRequestContext.recordPhaseResourceUsage(taskResourceUsage);
+    }
+
+    @Override
+    public SearchLatencyBreakdown getLatencyBreakdown() {
+        return searchRequestContext.getLatencyBreakdown();
     }
 
     private void onShardResultConsumed(Result result, SearchShardIterator shardIt) {
@@ -743,6 +892,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return searchRequestContext;
     }
 
+    /**
+     * Records the time at which this action was submitted for execution.
+     * Used to compute coordinator queue wait (time spent waiting in thread pool queue).
+     *
+     * @param nanos the {@code System.nanoTime()} at submission time
+     */
+    void setDispatchSubmitNanos(long nanos) {
+        this.dispatchSubmitNanos = nanos;
+    }
+
     protected final SearchResponse buildSearchResponse(
         InternalSearchResponse internalSearchResponse,
         ShardSearchFailure[] failures,
@@ -798,6 +957,72 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     .map(result -> result.getSearchShardTarget().getShardId().getIndex())
                     .collect(Collectors.toSet())
             );
+            // Compute and record average network round-trip time across all shards
+            int rtCount = networkRoundtripCount.get();
+            if (rtCount > 0) {
+                long avgRoundtripNanos = totalNetworkRoundtripNanos.get() / rtCount;
+                searchRequestContext.getLatencyBreakdown().recordNetworkRoundtripAvg(avgRoundtripNanos);
+            }
+            // Compute wire_out_query and wire_back_query from wall_clock_offset + network roundtrip.
+            // wire_out_query represents the network transit time from coordinator to data node.
+            // wire_back_query represents the network transit time from data node back to coordinator.
+            // These replace the confusing overlapping network_roundtrip bars with clear sequential bars.
+            {
+                SearchLatencyBreakdown breakdown = searchRequestContext.getLatencyBreakdown();
+                long wallClockOffsetMicros = breakdown.getWallClockOffsetMaxMicros();
+                if (wallClockOffsetMicros > 0) {
+                    long wireOutNanos = TimeUnit.MICROSECONDS.toNanos(wallClockOffsetMicros);
+                    long dataNodeExecNanos = breakdown.getDataNodeQueryExecutionNanos();
+                    long networkRoundtripNanos = breakdown.getNetworkRoundtripQueryNanos();
+                    long wireBackNanos = Math.max(0, networkRoundtripNanos - wireOutNanos - dataNodeExecNanos);
+
+                    // Position wire_out_query between pre-search end and query phase start.
+                    // Pre-search end is the start of the first phase (firstPhaseStartNanos).
+                    long preSearchEndNanos = breakdown.getFirstPhaseStartNanos();
+                    if (preSearchEndNanos > 0) {
+                        long wireOutStart = preSearchEndNanos;
+                        breakdown.recordTimedEvent("wire_out_query", wireOutStart, wireOutStart + wireOutNanos);
+                    }
+
+                    // Position wire_back_query immediately after query phase ends.
+                    long[] queryTiming = breakdown.getNamedEventTiming("query");
+                    if (queryTiming != null) {
+                        long queryPhaseEndNanos = queryTiming[0] + queryTiming[1];
+                        breakdown.recordTimedEvent("wire_back_query", queryPhaseEndNanos, queryPhaseEndNanos + wireBackNanos);
+                    }
+
+                    // Compute wire_out_fetch and wire_back_fetch for the fetch phase.
+                    // wire_out_fetch = wall_clock_offset_micros (same offset assumption for fetch dispatch).
+                    // wire_back_fetch = max(0, network_roundtrip_fetch - wire_out_fetch - data_node_fetch_execution).
+                    long networkRoundtripFetchNanos = breakdown.getNetworkRoundtripFetchNanos();
+                    if (networkRoundtripFetchNanos > 0) {
+                        long wireOutFetchNanos = wireOutNanos;
+                        long dataNodeFetchExecNanos = breakdown.getDataNodeFetchExecutionNanos();
+                        long wireBackFetchNanos = Math.max(0, networkRoundtripFetchNanos - wireOutFetchNanos - dataNodeFetchExecNanos);
+
+                        // Position wire_out_fetch before the fetch phase starts.
+                        // Use wire_back_query end as the anchor, or query phase end if wire_back_query is not available.
+                        long[] fetchTiming = breakdown.getNamedEventTiming("fetch");
+                        if (fetchTiming != null) {
+                            long wireOutFetchStart = fetchTiming[0] - wireOutFetchNanos;
+                            // Ensure wire_out_fetch start is not before wire_back_query end
+                            if (queryTiming != null) {
+                                long wireBackQueryEnd = queryTiming[0] + queryTiming[1] + wireBackNanos;
+                                wireOutFetchStart = Math.max(wireOutFetchStart, wireBackQueryEnd);
+                            }
+                            breakdown.recordTimedEvent("wire_out_fetch", wireOutFetchStart, wireOutFetchStart + wireOutFetchNanos);
+
+                            // Position wire_back_fetch immediately after fetch phase ends.
+                            long fetchPhaseEndNanos = fetchTiming[0] + fetchTiming[1];
+                            breakdown.recordTimedEvent("wire_back_fetch", fetchPhaseEndNanos, fetchPhaseEndNanos + wireBackFetchNanos);
+                        }
+                    }
+                }
+            }
+            // Enforce phase containment: clamp all child events to their parent phase boundaries.
+            // This ensures no child bar extends beyond its parent in the Gantt chart visualization.
+            searchRequestContext.getLatencyBreakdown().enforcePhaseContainment();
+
             onPhaseEnd(searchRequestContext);
             onRequestEnd(searchRequestContext);
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
@@ -894,6 +1119,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive()
         );
+        // Set the coordinator's absolute start nanos so data nodes can compute absolute start_offset_micros
+        shardRequest.setRequestStartNanos(searchRequestContext.getAbsoluteStartNanos());
+        // Set wall clock start time for cross-node absolute positioning (NTP-synced)
+        shardRequest.setRequestStartMillis(searchRequestContext.getAbsoluteStartMillis());
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
@@ -923,6 +1152,138 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
         } else {
             assert runnable == null;
+        }
+    }
+
+    // ========== GENERIC MERGE LOOP HELPER METHODS ==========
+
+    /**
+     * Set of shard breakdown keys that represent query-phase child operations.
+     * Used for query-phase-relative positioning when absolute offsets are unavailable.
+     */
+    private static final java.util.Set<String> QUERY_PHASE_CHILD_KEYS = java.util.Set.of(
+        "acquire_reader_context",
+        "search_context_creation",
+        "request_cache_lookup",
+        "request_cache_hit",
+        "request_cache",
+        "request_cache_write",
+        "star_tree_setup",
+        "agg_pre_process",
+        "query_internal_execution",
+        "agg_post_process",
+        "global_agg_separate_pass",
+        "global_ordinals",
+        "query_pre_process",
+        "search_idle_reactivation",
+        "script_compilation",
+        "nested_bitset_construction",
+        "slice_creation",
+        "slice_scheduling",
+        "slice_max_execution",
+        "slice_min_execution",
+        "slice_result_aggregation"
+    );
+
+    /**
+     * Determines whether a shard breakdown key represents a query-phase child operation.
+     * Query-phase children are positioned relative to the query phase start when absolute offsets
+     * are unavailable, rather than using an independent sequential cursor.
+     *
+     * @param key the shard breakdown entry key
+     * @return true if the key is a known query-phase child
+     */
+    private static boolean isQueryPhaseChild(String key) {
+        return QUERY_PHASE_CHILD_KEYS.contains(key);
+    }
+
+    /**
+     * Applies legacy per-key recording to the breakdown accumulator fields for backward compatibility.
+     * This ensures the existing flat-map metrics (e.g., acquireSearcherNanos, aggInitializeNanos)
+     * continue to be populated even with the new generic merge loop.
+     * <p>
+     * For unknown keys (not in the legacy set), this method is a no-op — the generic positioning
+     * logic still records them as timed events.
+     *
+     * @param key the shard breakdown key
+     * @param value the duration in nanoseconds
+     * @param breakdown the breakdown accumulator
+     */
+    private static void applyLegacyRecording(String key, long value, SearchLatencyBreakdown breakdown) {
+        switch (key) {
+            case "data_node_queue_wait":
+                breakdown.recordDataNodeQueueWaitMax(value);
+                break;
+            case "acquire_reader_context":
+                breakdown.recordAcquireSearcher(value);
+                break;
+            case "search_context_creation":
+                breakdown.recordSearchContextCreation(value);
+                break;
+            case "request_cache_hit":
+            case "request_cache":
+            case "request_cache_lookup":
+                breakdown.recordRequestCacheLookup(value);
+                break;
+            case "request_cache_write":
+                breakdown.recordRequestCacheWrite(value);
+                break;
+            case "star_tree_setup":
+                breakdown.recordStarTreeSetup(value);
+                break;
+            case "agg_pre_process":
+                breakdown.recordAggInitialize(value);
+                break;
+            case "query_internal_execution":
+                breakdown.recordAggCollect(value);
+                break;
+            case "agg_post_process":
+                breakdown.recordAggPostCollection(value);
+                break;
+            case "global_agg_separate_pass":
+                breakdown.recordAggBuildAggregation(value);
+                break;
+            case "query_execution":
+                breakdown.recordDataNodeQueryExecution(value);
+                break;
+            case "fetch_execution":
+                breakdown.recordDataNodeFetchExecution(value);
+                break;
+            case "global_ordinals":
+                breakdown.recordGlobalOrdinalsLoading(value);
+                break;
+            case "query_pre_process":
+                breakdown.recordQueryPreProcess(value);
+                break;
+            default:
+                // Unknown keys: no legacy recording needed — they are handled generically
+                break;
+        }
+    }
+
+    /**
+     * Returns the event name to use when recording a timed event for the given shard breakdown key.
+     * Some legacy keys map to different display names (e.g., "agg_pre_process" → "agg_initialize",
+     * "global_ordinals" → "global_ordinals_loading"). For most keys, the event name is the same
+     * as the breakdown key. For legacy alias keys (request_cache_hit, request_cache), they map
+     * to the canonical "request_cache_lookup" name.
+     *
+     * @param key the shard breakdown key
+     * @return the event name for timed event recording
+     */
+    private static String getLegacyEventName(String key) {
+        switch (key) {
+            case "agg_pre_process":
+                return "agg_initialize";
+            case "query_internal_execution":
+                return "agg_collect";
+            case "global_ordinals":
+                return "global_ordinals_loading";
+            case "request_cache_hit":
+            case "request_cache":
+                return "request_cache_lookup";
+            default:
+                return key;
         }
     }
 

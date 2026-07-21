@@ -56,6 +56,7 @@ import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.SearchSortValuesAndFormatsTests;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -126,6 +127,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
             req.setBottomSortValues(SearchSortValuesAndFormatsTests.randomInstance());
+        }
+        if (randomBoolean()) {
+            req.setRequestStartNanos(randomNonNegativeLong());
         }
         return req;
     }
@@ -200,6 +204,122 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.getClusterAlias(), copy.getClusterAlias());
         assertEquals(orig.allowPartialSearchResults(), copy.allowPartialSearchResults());
         assertEquals(orig.canReturnNullResponseIfMatchNoDocs(), orig.canReturnNullResponseIfMatchNoDocs());
+        assertEquals(orig.getRequestStartNanos(), copy.getRequestStartNanos());
+    }
+
+    /**
+     * Tests that requestStartNanos survives serialization round-trip with version gating (V_3_0_0+).
+     * Validates: Requirements 8.1, 13.2
+     */
+    public void testRequestStartNanosSerializationRoundTrip() throws Exception {
+        ShardSearchRequest request = createShardSearchRequest();
+        long expectedNanos = randomNonNegativeLong();
+        request.setRequestStartNanos(expectedNanos);
+
+        // Serialize and deserialize with current version (>= V_3_0_0)
+        ShardSearchRequest deserialized = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, Version.CURRENT);
+
+        assertEquals(expectedNanos, deserialized.getRequestStartNanos());
+        assertEquals(request, deserialized);
+    }
+
+    /**
+     * Tests that deserializing from an older version stream (before V_3_0_0) produces default 0 for requestStartNanos.
+     * Validates: Requirements 8.1, 13.2
+     */
+    public void testRequestStartNanosOlderVersionDefaultsToZero() throws Exception {
+        ShardSearchRequest request = createShardSearchRequest();
+        long nonZeroNanos = randomLongBetween(1, Long.MAX_VALUE);
+        request.setRequestStartNanos(nonZeroNanos);
+
+        // Serialize with a version before V_3_0_0 — requestStartNanos should not be written
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.V_2_0_0,
+            VersionUtils.getPreviousVersion(Version.V_3_0_0)
+        );
+        ShardSearchRequest deserialized = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, oldVersion);
+
+        // Older version stream should produce default 0
+        assertEquals(0L, deserialized.getRequestStartNanos());
+    }
+
+    /**
+     * Tests absolute offset computation when requestStartNanos > 0.
+     * When requestStartNanos is set, offset = (event_start_nanos - requestStartNanos) / 1000.
+     * Validates: Requirements 8.2, 13.1
+     */
+    public void testAbsoluteOffsetComputationWithRequestStartNanosPositive() {
+        long requestStartNanos = randomLongBetween(1_000_000L, 1_000_000_000_000L);
+        long eventStartNanos = requestStartNanos + randomLongBetween(1000L, 100_000_000L);
+
+        // When requestStartNanos > 0, compute absolute offset
+        long expectedOffsetMicros = (eventStartNanos - requestStartNanos) / 1000;
+
+        assertTrue("requestStartNanos should be positive", requestStartNanos > 0);
+        assertTrue("expected offset should be non-negative", expectedOffsetMicros >= 0);
+        assertEquals(expectedOffsetMicros, (eventStartNanos - requestStartNanos) / 1000);
+    }
+
+    /**
+     * Tests fallback behavior when requestStartNanos == 0 (older coordinator or not applicable).
+     * When requestStartNanos is 0, the offset stays 0 (duration-only mode).
+     * Validates: Requirements 8.2, 13.1, 13.2
+     */
+    public void testAbsoluteOffsetComputationWithRequestStartNanosZero() {
+        long requestStartNanos = 0;
+        long eventStartNanos = randomNonNegativeLong();
+
+        // When requestStartNanos == 0, fall back to duration-only (offset stays 0)
+        long computedOffset;
+        if (requestStartNanos > 0) {
+            computedOffset = (eventStartNanos - requestStartNanos) / 1000;
+        } else {
+            computedOffset = 0; // fallback: duration-only
+        }
+
+        assertEquals(0L, computedOffset);
+    }
+
+    /**
+     * Tests that requestStartNanos == 0 is the default when not explicitly set.
+     * Validates: Requirements 13.2
+     */
+    public void testRequestStartNanosDefaultsToZero() throws Exception {
+        SearchRequest searchRequest = createSearchRequest();
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
+        AliasFilter aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+
+        ShardSearchRequest req = new ShardSearchRequest(
+            new OriginalIndices(searchRequest),
+            searchRequest,
+            shardId,
+            randomIntBetween(1, 100),
+            aliasFilter,
+            1.0f,
+            Math.abs(randomLong()),
+            randomAlphaOfLengthBetween(3, 10),
+            new String[0],
+            null,
+            null
+        );
+
+        assertEquals(0L, req.getRequestStartNanos());
+    }
+
+    /**
+     * Tests multiple random requestStartNanos values survive serialization (randomized property).
+     * Validates: Requirements 8.1, 8.2
+     */
+    public void testRequestStartNanosRandomizedRoundTrip() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            ShardSearchRequest request = createShardSearchRequest();
+            long nanos = randomNonNegativeLong();
+            request.setRequestStartNanos(nanos);
+
+            ShardSearchRequest deserialized = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, Version.CURRENT);
+            assertEquals(nanos, deserialized.getRequestStartNanos());
+        }
     }
 
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {

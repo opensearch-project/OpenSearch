@@ -57,6 +57,8 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -455,6 +457,41 @@ public final class SearchPhaseController {
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
         boolean performFinalReduce
     ) {
+        return reducedQueryPhase(
+            queryResults,
+            bufferedAggs,
+            bufferedTopDocs,
+            topDocsStats,
+            numReducePhases,
+            isScrollRequest,
+            aggReduceContextBuilder,
+            performFinalReduce,
+            null
+        );
+    }
+
+    /**
+     * Reduces the given query results and consumes all aggregations and profile results,
+     * recording reduce latencies into the provided breakdown if non-null.
+     * @param queryResults a list of non-null query shard results
+     * @param bufferedAggs a list of pre-collected aggregations.
+     * @param bufferedTopDocs a list of pre-collected top docs.
+     * @param numReducePhases the number of non-final reduce phases applied to the query results.
+     * @param breakdown optional latency breakdown to record reduce metrics into (may be null)
+     * @see QuerySearchResult#consumeAggs()
+     * @see QuerySearchResult#consumeProfileResult()
+     */
+    ReducedQueryPhase reducedQueryPhase(
+        Collection<? extends SearchPhaseResult> queryResults,
+        List<InternalAggregations> bufferedAggs,
+        List<TopDocs> bufferedTopDocs,
+        TopDocsStats topDocsStats,
+        int numReducePhases,
+        boolean isScrollRequest,
+        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        boolean performFinalReduce,
+        SearchLatencyBreakdown breakdown
+    ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
@@ -526,12 +563,75 @@ public final class SearchPhaseController {
             reducedSuggest = null;
             reducedCompletionSuggestions = Collections.emptyList();
         } else {
+            long suggestStart = System.nanoTime();
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
+            long suggestElapsed = System.nanoTime() - suggestStart;
+            if (breakdown != null) {
+                breakdown.recordReduceSuggestions(Math.max(0, suggestElapsed));
+            }
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+
+        // --- Reduce aggregations (regular reduce + pipeline aggs, timed separately) ---
+        final InternalAggregations aggregations;
+        if (bufferedAggs.isEmpty()) {
+            aggregations = null;
+        } else {
+            final ReduceContext reduceContext = performFinalReduce
+                ? aggReduceContextBuilder.forFinalReduction()
+                : aggReduceContextBuilder.forPartialReduction();
+
+            // Step 1: Regular aggregation reduction
+            long aggsStart = System.nanoTime();
+            InternalAggregations reduced = InternalAggregations.reduce(bufferedAggs, reduceContext);
+            long aggsEnd = System.nanoTime();
+
+            if (breakdown != null) {
+                breakdown.recordReduceAggregations(Math.max(0, aggsEnd - aggsStart));
+                breakdown.recordTimedEvent("reduce_aggregations", aggsStart, aggsEnd);
+            }
+
+            // Step 2: Pipeline aggregation execution (only on final reduce when pipelines exist)
+            if (reduced != null && reduceContext.isFinalReduce()) {
+                boolean hasPipelineAggs = reduceContext.pipelineTreeRoot().hasSubTrees()
+                    || !reduceContext.pipelineTreeRoot().aggregators().isEmpty();
+
+                long pipelineStart = System.nanoTime();
+                List<InternalAggregation> reducedInternalAggs = reduced.copyResults();
+                reducedInternalAggs = reducedInternalAggs.stream()
+                    .map(
+                        agg -> agg.reducePipelines(agg, reduceContext, reduceContext.pipelineTreeRoot().subTree(agg.getName()))
+                    )
+                    .collect(Collectors.toList());
+
+                for (PipelineAggregator pipelineAggregator : reduceContext.pipelineTreeRoot().aggregators()) {
+                    SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+                    InternalAggregation newAgg = sib.doReduce(InternalAggregations.from(reducedInternalAggs), reduceContext);
+                    reducedInternalAggs.add(newAgg);
+                }
+                reduced = InternalAggregations.from(reducedInternalAggs);
+                long pipelineEnd = System.nanoTime();
+
+                // Record reduce_pipeline_aggs only when pipeline aggregations actually existed
+                if (breakdown != null && hasPipelineAggs) {
+                    long pipelineElapsed = Math.max(0, pipelineEnd - pipelineStart);
+                    breakdown.recordReducePipelineAggs(pipelineElapsed);
+                    breakdown.recordTimedEvent("reduce_pipeline_aggs", pipelineStart, pipelineEnd);
+                }
+            }
+
+            aggregations = reduced;
+        }
+
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+
+        long topDocsStart = System.nanoTime();
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+        long topDocsEnd = System.nanoTime();
+        if (breakdown != null) {
+            breakdown.recordReduceTopDocs(Math.max(0, topDocsEnd - topDocsStart));
+            breakdown.recordTimedEvent("reduce_top_docs", topDocsStart, topDocsEnd);
+        }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
             totalHits,
@@ -549,19 +649,6 @@ public final class SearchPhaseController {
             from,
             false
         );
-    }
-
-    private static InternalAggregations reduceAggs(
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<InternalAggregations> toReduce
-    ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduce(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
     }
 
     /**
@@ -780,7 +867,7 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
-        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false);
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false, null);
     }
 
     /**
@@ -795,6 +882,23 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
     ) {
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, isTaskCancelled, null);
+    }
+
+    /**
+     * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally,
+     * optionally recording reduce latencies into the provided breakdown.
+     */
+    QueryPhaseResultConsumer newSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled,
+        SearchLatencyBreakdown breakdown
+    ) {
         return new QueryPhaseResultConsumer(
             request,
             executor,
@@ -804,7 +908,8 @@ public final class SearchPhaseController {
             namedWriteableRegistry,
             numShards,
             onPartialMergeFailure,
-            isTaskCancelled
+            isTaskCancelled,
+            breakdown
         );
     }
 

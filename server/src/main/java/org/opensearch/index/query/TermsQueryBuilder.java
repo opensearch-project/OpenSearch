@@ -715,10 +715,26 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         // Support: terms lookup by document id && Support: terms lookup by subquery
         else if (this.termsLookup != null && (this.termsLookup.id() != null || this.termsLookup.query() != null)) {
             SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
-                supplier.set(list);
-                return null;
-            })));
+            // Extract latency breakdown from coordinator context for terms lookup sub-query timing
+            final org.opensearch.action.search.SearchLatencyBreakdown breakdown;
+            QueryCoordinatorContext coordinatorContext = queryRewriteContext.convertToCoordinatorContext();
+            if (coordinatorContext != null) {
+                breakdown = coordinatorContext.getLatencyBreakdown();
+            } else {
+                breakdown = null;
+            }
+            queryRewriteContext.registerAsyncAction((client, listener) -> {
+                final long termsLookupStartNanos = breakdown != null ? System.nanoTime() : 0;
+                fetch(termsLookup, client, ActionListener.map(listener, list -> {
+                    if (breakdown != null) {
+                        long elapsed = Math.max(0, System.nanoTime() - termsLookupStartNanos);
+                        breakdown.recordTermsLookupSubQuery(elapsed);
+                        breakdown.recordTimedEvent("terms_lookup_sub_query", termsLookupStartNanos, termsLookupStartNanos + elapsed);
+                    }
+                    supplier.set(list);
+                    return null;
+                }));
+            });
             return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
         }
 

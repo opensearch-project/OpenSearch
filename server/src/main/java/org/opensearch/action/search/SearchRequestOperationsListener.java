@@ -53,6 +53,12 @@ public abstract class SearchRequestOperationsListener {
 
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
+    /**
+     * Called when latency breakdown data is available. Listeners can override this
+     * to capture the detailed latency breakdown map.
+     */
+    protected void onLatencyBreakdownAvailable(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+
     protected boolean isEnabled(SearchRequest searchRequest) {
         return isEnabled();
     }

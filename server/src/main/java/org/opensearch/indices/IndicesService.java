@@ -2120,6 +2120,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
+        final long cacheStartNanos = System.nanoTime();
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
             long beforeQueryPhase = System.nanoTime();
             queryPhase.execute(context);
@@ -2129,28 +2130,60 @@ public class IndicesService extends AbstractLifecycleComponent
             cachedQueryResult.writeToNoId(out);
             loadedFromCache[0] = false;
         });
+        final long cacheElapsedNanos = Math.max(0, System.nanoTime() - cacheStartNanos);
+
+        final long requestStartNanos = request.getRequestStartNanos();
 
         if (loadedFromCache[0]) {
+            // Cache hit: the entire elapsed time was spent on lookup (retrieving from cache + deserialization)
+            context.queryResult().recordShardTiming("request_cache_lookup", cacheElapsedNanos);
+            // Record absolute start offset for cache lookup
+            if (requestStartNanos > 0) {
+                context.queryResult().recordShardTiming(
+                    "request_cache_lookup_start",
+                    Math.max(0, cacheStartNanos - requestStartNanos)
+                );
+            }
+            // Save shard timing before loading cached result (which overwrites QuerySearchResult contents)
+            final java.util.Map<String, Long> preservedTimings = context.queryResult().getShardLatencyBreakdownNanos();
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
             // Load the cached QSR into result, discarding values used only in the cache
             CachedQueryResult.loadQSR(bytesReference, result, context.id(), namedWriteableRegistry);
             result.setSearchShardTarget(context.shardTarget());
-        } else if (context.queryResult().searchTimedOut()) {
-            // we have to invalidate the cache entry if we cached a query result form a request that timed out.
-            // we can't really throw exceptions in the loading part to signal a timed out search to the outside world since if there are
-            // multiple requests that wait for the cache entry to be calculated they'd fail all with the same exception.
-            // instead we all caching such a result for the time being, return the timed out result for all other searches with that cache
-            // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
-            // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
-            // cache. One other option is to not cache requests with a timeout at all...
-            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "Query timed out, invalidating cache entry for request on shard [{}]:\n {}",
-                    request.shardId(),
-                    request.source()
+            // Restore the shard timing that was recorded before the cache load overwrote it
+            if (preservedTimings != null) {
+                for (java.util.Map.Entry<String, Long> entry : preservedTimings.entrySet()) {
+                    result.recordShardTiming(entry.getKey(), entry.getValue());
+                }
+            }
+        } else {
+            // Cache miss: the elapsed time includes query execution + serialization/write to cache.
+            // Record as request_cache_write since the dominant cost is writing the computed result into the cache.
+            context.queryResult().recordShardTiming("request_cache_write", cacheElapsedNanos);
+            // Record absolute start offset for cache write
+            if (requestStartNanos > 0) {
+                context.queryResult().recordShardTiming(
+                    "request_cache_write_start",
+                    Math.max(0, cacheStartNanos - requestStartNanos)
                 );
+            }
+            if (context.queryResult().searchTimedOut()) {
+                // we have to invalidate the cache entry if we cached a query result form a request that timed out.
+                // we can't really throw exceptions in the loading part to signal a timed out search to the outside world since if there are
+                // multiple requests that wait for the cache entry to be calculated they'd fail all with the same exception.
+                // instead we all caching such a result for the time being, return the timed out result for all other searches with that cache
+                // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
+                // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
+                // cache. One other option is to not cache requests with a timeout at all...
+                indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "Query timed out, invalidating cache entry for request on shard [{}]:\n {}",
+                        request.shardId(),
+                        request.source()
+                    );
+                }
             }
         }
     }

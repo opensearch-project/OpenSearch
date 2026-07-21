@@ -135,7 +135,13 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         if (request != null) {
             request.setInboundNetworkTime(System.currentTimeMillis());
         }
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        getSearchTransport().sendExecuteQuery(
+            getConnection(shard.getClusterAlias(), shard.getNodeId()),
+            request,
+            getTask(),
+            listener,
+            getSearchRequestContext().getLatencyBreakdown()
+        );
     }
 
     @Override

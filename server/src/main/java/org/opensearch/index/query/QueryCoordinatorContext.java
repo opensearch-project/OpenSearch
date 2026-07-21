@@ -9,6 +9,7 @@
 package org.opensearch.index.query;
 
 import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.search.SearchLatencyBreakdown;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
@@ -35,11 +36,18 @@ import java.util.function.BiConsumer;
 public class QueryCoordinatorContext implements QueryRewriteContext {
     private final QueryRewriteContext rewriteContext;
     private final IndicesRequest searchRequest;
+    private final SearchLatencyBreakdown latencyBreakdown;
 
     @InternalApi
     public QueryCoordinatorContext(QueryRewriteContext rewriteContext, IndicesRequest searchRequest) {
+        this(rewriteContext, searchRequest, null);
+    }
+
+    @InternalApi
+    public QueryCoordinatorContext(QueryRewriteContext rewriteContext, IndicesRequest searchRequest, SearchLatencyBreakdown latencyBreakdown) {
         this.rewriteContext = rewriteContext;
         this.searchRequest = searchRequest;
+        this.latencyBreakdown = latencyBreakdown;
     }
 
     @Override
@@ -97,5 +105,13 @@ public class QueryCoordinatorContext implements QueryRewriteContext {
 
     public IndicesRequest getSearchRequest() {
         return searchRequest;
+    }
+
+    /**
+     * Returns the latency breakdown tracker associated with this coordinator context, or null if not available.
+     * Used by query builders (e.g., TermsQueryBuilder) to record sub-query timing during rewrite.
+     */
+    public SearchLatencyBreakdown getLatencyBreakdown() {
+        return latencyBreakdown;
     }
 }

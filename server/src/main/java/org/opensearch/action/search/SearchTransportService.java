@@ -238,19 +238,49 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<SearchPhaseResult> listener
     ) {
+        sendExecuteQuery(connection, request, task, listener, null);
+    }
+
+    /**
+     * Sends a query phase request to a data node, optionally wrapping the response handler
+     * with deserialization timing instrumentation.
+     *
+     * @param connection the transport connection to the target node
+     * @param request    the shard search request
+     * @param task       the parent search task
+     * @param listener   the action listener for the response
+     * @param breakdown  if non-null, wraps the response handler to measure deserialization time
+     */
+    public void sendExecuteQuery(
+        Transport.Connection connection,
+        final ShardSearchRequest request,
+        SearchTask task,
+        final SearchActionListener<SearchPhaseResult> listener,
+        final SearchLatencyBreakdown breakdown
+    ) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
         final ActionListener handler = responseWrapper.apply(connection, listener);
-        transportService.sendChildRequest(
-            connection,
-            QUERY_ACTION_NAME,
-            request,
-            task,
-            new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
+        ConnectionCountingHandler<SearchPhaseResult> connectionHandler = new ConnectionCountingHandler<>(
+            handler,
+            reader,
+            clientConnections,
+            connection.getNode().getId()
         );
+        if (breakdown != null) {
+            transportService.sendChildRequest(
+                connection,
+                QUERY_ACTION_NAME,
+                request,
+                task,
+                new TimedResponseHandler<>(connectionHandler, breakdown)
+            );
+        } else {
+            transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task, connectionHandler);
+        }
     }
 
     public void sendExecuteQuery(
@@ -304,7 +334,27 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener, null);
+    }
+
+    /**
+     * Sends a fetch phase request to a data node, optionally wrapping the response handler
+     * with deserialization timing instrumentation.
+     *
+     * @param connection the transport connection to the target node
+     * @param request    the shard fetch search request
+     * @param task       the parent search task
+     * @param listener   the action listener for the response
+     * @param breakdown  if non-null, wraps the response handler to measure deserialization time
+     */
+    public void sendExecuteFetch(
+        Transport.Connection connection,
+        final ShardFetchSearchRequest request,
+        SearchTask task,
+        final SearchActionListener<FetchSearchResult> listener,
+        final SearchLatencyBreakdown breakdown
+    ) {
+        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener, breakdown);
     }
 
     public void sendExecuteFetchScroll(
@@ -313,7 +363,7 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener, null);
     }
 
     private void sendExecuteFetch(
@@ -321,15 +371,20 @@ public class SearchTransportService {
         String action,
         final ShardFetchRequest request,
         SearchTask task,
-        final SearchActionListener<FetchSearchResult> listener
+        final SearchActionListener<FetchSearchResult> listener,
+        final SearchLatencyBreakdown breakdown
     ) {
-        transportService.sendChildRequest(
-            connection,
-            action,
-            request,
-            task,
-            new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId())
+        ConnectionCountingHandler<FetchSearchResult> connectionHandler = new ConnectionCountingHandler<>(
+            listener,
+            FetchSearchResult::new,
+            clientConnections,
+            connection.getNode().getId()
         );
+        if (breakdown != null) {
+            transportService.sendChildRequest(connection, action, request, task, new TimedResponseHandler<>(connectionHandler, breakdown));
+        } else {
+            transportService.sendChildRequest(connection, action, request, task, connectionHandler);
+        }
     }
 
     /**

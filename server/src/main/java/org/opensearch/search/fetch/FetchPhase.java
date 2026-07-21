@@ -41,6 +41,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BitSet;
+import org.opensearch.action.search.SearchLatencyBreakdownNode;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.PublicApi;
@@ -66,8 +67,11 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.InnerHitsPhase;
+import org.opensearch.search.fetch.subphase.ScriptFieldsPhase;
+import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
@@ -136,6 +140,16 @@ public class FetchPhase {
             return;
         }
 
+        final long fetchExecStartNanos = System.nanoTime();
+
+        // Wall-clock span tracking for fetch phase internals (latency breakdown)
+        // Record first-start and last-end for each internal to compute single wall-clock spans
+        long storedFieldsStart = 0, storedFieldsEnd = 0;
+        long sourceLoadingStart = 0, sourceLoadingEnd = 0;
+        long highlightingStart = 0, highlightingEnd = 0;
+        long scriptFieldsStart = 0, scriptFieldsEnd = 0;
+        long innerHitsStart = 0, innerHitsEnd = 0;
+
         DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
@@ -159,6 +173,20 @@ public class FetchPhase {
             FetchTimingType.BUILD_SUB_PHASE_PROCESSORS,
             () -> getProcessors(context.shardTarget(), fetchContext)
         );
+
+        // Identify processors by sub-phase class for targeted timing
+        Map<FetchSubPhaseProcessor, String> processorTimingCategory = new HashMap<>();
+        for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
+            if (p.v2() instanceof HighlightPhase) {
+                processorTimingCategory.put(p.v1(), "highlighting");
+            } else if (p.v2() instanceof ScriptFieldsPhase) {
+                processorTimingCategory.put(p.v1(), "script_fields");
+            } else if (p.v2() instanceof InnerHitsPhase) {
+                processorTimingCategory.put(p.v1(), "inner_hits");
+            } else if (p.v2() instanceof FetchSourcePhase) {
+                processorTimingCategory.put(p.v1(), "source_loading");
+            }
+        }
 
         Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
         if (breakdown != null) {
@@ -224,6 +252,10 @@ public class FetchPhase {
                     }
                 }
                 assert currentReaderContext != null;
+
+                // Time stored fields loading (includes prepareHitContext which loads stored fields)
+                // Track wall-clock span: record first start, update last end
+                long sfStart = System.nanoTime();
                 HitContext hit = prepareHitContext(
                     context,
                     fetchContext.searchLookup(),
@@ -234,13 +266,46 @@ public class FetchPhase {
                     fieldReader,
                     breakdown
                 );
+                long sfEnd = System.nanoTime();
+                if (storedFieldsStart == 0) storedFieldsStart = sfStart;
+                storedFieldsEnd = sfEnd;
 
+                // Process each sub-phase processor with targeted timing
                 for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
                     FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
+                    String timingCategory = processorTimingCategory.get(p.v1());
+
+                    long procStart = System.nanoTime();
                     profile(pbd, FetchTimingType.PROCESS, () -> {
                         p.v1().process(hit);
                         return null;
                     });
+                    long procEnd = System.nanoTime();
+
+                    // Track wall-clock spans for identified sub-phases
+                    // Record first start and update last end for each category
+                    if (timingCategory != null) {
+                        switch (timingCategory) {
+                            case "highlighting":
+                                if (highlightingStart == 0) highlightingStart = procStart;
+                                highlightingEnd = procEnd;
+                                break;
+                            case "script_fields":
+                                if (scriptFieldsStart == 0) scriptFieldsStart = procStart;
+                                scriptFieldsEnd = procEnd;
+                                break;
+                            case "inner_hits":
+                                if (innerHitsStart == 0) innerHitsStart = procStart;
+                                innerHitsEnd = procEnd;
+                                break;
+                            case "source_loading":
+                                if (sourceLoadingStart == 0) sourceLoadingStart = procStart;
+                                sourceLoadingEnd = procEnd;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
                 }
                 hits[docs[index].index] = hit.hit();
             } catch (Exception e) {
@@ -249,6 +314,103 @@ public class FetchPhase {
         }
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+        }
+
+        final long fetchExecEndNanos = System.nanoTime();
+        final long fetchTotalNanos = fetchExecEndNanos - fetchExecStartNanos;
+
+        // Compute wall-clock span durations (end - start) for each fetch internal
+        // Math.max(0, delta) prevents negative values from clock drift
+        final long storedFieldsRawDuration = Math.max(0, storedFieldsEnd - storedFieldsStart);
+        final long sourceLoadingRawDuration = Math.max(0, sourceLoadingEnd - sourceLoadingStart);
+        final long highlightingRawDuration = Math.max(0, highlightingEnd - highlightingStart);
+        final long scriptFieldsRawDuration = Math.max(0, scriptFieldsEnd - scriptFieldsStart);
+        final long innerHitsRawDuration = Math.max(0, innerHitsEnd - innerHitsStart);
+
+        // Clamp each child duration to the parent fetch phase duration
+        // This guarantees the invariant: child.duration_micros <= parent.duration_micros
+        final long storedFieldsDuration = Math.min(storedFieldsRawDuration, fetchTotalNanos);
+        final long sourceLoadingDuration = Math.min(sourceLoadingRawDuration, fetchTotalNanos);
+        final long highlightingDuration = Math.min(highlightingRawDuration, fetchTotalNanos);
+        final long scriptFieldsDuration = Math.min(scriptFieldsRawDuration, fetchTotalNanos);
+        final long innerHitsDuration = Math.min(innerHitsRawDuration, fetchTotalNanos);
+
+        // Record fetch phase internal timings into QuerySearchResult for latency breakdown
+        // Clamped values are used to maintain parent-child consistency
+        context.queryResult().recordShardTiming("fetch_execution", fetchTotalNanos);
+        context.queryResult().recordShardTiming("fetch_stored_fields", storedFieldsDuration);
+        context.queryResult().recordShardTiming("fetch_source_loading", sourceLoadingDuration);
+        context.queryResult().recordShardTiming("fetch_highlighting", highlightingDuration);
+        context.queryResult().recordShardTiming("fetch_script_fields", scriptFieldsDuration);
+        context.queryResult().recordShardTiming("fetch_inner_hits", innerHitsDuration);
+
+        // Build SearchLatencyBreakdownNode tree for the fetch phase
+        // Use absolute offsets when requestStartNanos is available from the coordinator
+        final long requestStartNanos = context.request().getRequestStartNanos();
+        final long fetchAbsoluteOffset = (requestStartNanos > 0)
+            ? Math.max(0, fetchExecStartNanos - requestStartNanos)
+            : 0;
+
+        SearchLatencyBreakdownNode fetchNode = new SearchLatencyBreakdownNode(
+            "Fetch Phase", SearchLatencyBreakdownNode.CATEGORY_FETCH, fetchAbsoluteOffset, fetchTotalNanos
+        );
+
+        // Add child nodes for each sub-operation using wall-clock span start offsets
+        // When requestStartNanos > 0, children use absolute offsets from their actual start time
+        if (storedFieldsStart > 0 && storedFieldsDuration > 0) {
+            long childOffset = (requestStartNanos > 0) ? Math.max(0, storedFieldsStart - requestStartNanos) : 0;
+            fetchNode.addChild(
+                "Stored Fields",
+                SearchLatencyBreakdownNode.CATEGORY_FETCH,
+                childOffset,
+                storedFieldsDuration
+            );
+        }
+        if (sourceLoadingStart > 0 && sourceLoadingDuration > 0) {
+            long childOffset = (requestStartNanos > 0) ? Math.max(0, sourceLoadingStart - requestStartNanos) : 0;
+            fetchNode.addChild(
+                "Source Loading",
+                SearchLatencyBreakdownNode.CATEGORY_FETCH,
+                childOffset,
+                sourceLoadingDuration
+            );
+        }
+        if (highlightingStart > 0 && highlightingDuration > 0) {
+            long childOffset = (requestStartNanos > 0) ? Math.max(0, highlightingStart - requestStartNanos) : 0;
+            fetchNode.addChild(
+                "Highlighting",
+                SearchLatencyBreakdownNode.CATEGORY_FETCH,
+                childOffset,
+                highlightingDuration
+            );
+        }
+        if (scriptFieldsStart > 0 && scriptFieldsDuration > 0) {
+            long childOffset = (requestStartNanos > 0) ? Math.max(0, scriptFieldsStart - requestStartNanos) : 0;
+            fetchNode.addChild(
+                "Script Fields",
+                SearchLatencyBreakdownNode.CATEGORY_FETCH,
+                childOffset,
+                scriptFieldsDuration
+            );
+        }
+        if (innerHitsStart > 0 && innerHitsDuration > 0) {
+            long childOffset = (requestStartNanos > 0) ? Math.max(0, innerHitsStart - requestStartNanos) : 0;
+            fetchNode.addChild(
+                "Inner Hits",
+                SearchLatencyBreakdownNode.CATEGORY_FETCH,
+                childOffset,
+                innerHitsDuration
+            );
+        }
+
+        // Attach the fetch breakdown node tree to the query result for transport back to coordinator
+        SearchLatencyBreakdownNode existingNode = context.queryResult().getLatencyBreakdownNode();
+        if (existingNode != null) {
+            // If query phase already attached a node, add fetch as a sibling
+            // The coordinator will receive both as part of the shard result
+            existingNode.addChild(fetchNode);
+        } else {
+            context.queryResult().setLatencyBreakdownNode(fetchNode);
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();

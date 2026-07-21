@@ -100,6 +100,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -121,6 +122,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
+
+    // Concurrent segment search timing fields
+    private volatile long sliceCreationNanos;
+    private final AtomicLong sliceMaxExecutionNanos = new AtomicLong(0);
+    private final AtomicLong sliceMinExecutionNanos = new AtomicLong(Long.MAX_VALUE);
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -310,6 +316,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
+        final long sliceExecStartNanos = System.nanoTime();
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -330,6 +337,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (Throwable t) {
             searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
             throw t;
+        } finally {
+            // Record per-slice execution time for concurrent segment search metrics
+            long sliceExecNanos = Math.max(0, System.nanoTime() - sliceExecStartNanos);
+            sliceMaxExecutionNanos.accumulateAndGet(sliceExecNanos, Math::max);
+            sliceMinExecutionNanos.accumulateAndGet(sliceExecNanos, Math::min);
         }
         searchContext.indexShard().getSearchOperationListener().onSliceExecution(searchContext);
     }
@@ -587,30 +599,61 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        if (leaves == null || leaves.isEmpty()) {
-            return new LeafSlice[0];
-        }
-        int targetMaxSlice = searchContext.getTargetMaxSliceCount();
-        if (targetMaxSlice == 0) {
-            LeafSlice[] leafSlices = super.slices(leaves);
-            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+        final long sliceStartNanos = System.nanoTime();
+        try {
+            if (leaves == null || leaves.isEmpty()) {
+                return new LeafSlice[0];
+            }
+            int targetMaxSlice = searchContext.getTargetMaxSliceCount();
+            if (targetMaxSlice == 0) {
+                LeafSlice[] leafSlices = super.slices(leaves);
+                logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+                return leafSlices;
+            }
+            LeafSlice[] leafSlices = MaxTargetSliceSupplier.getSlices(
+                leaves,
+                targetMaxSlice,
+                searchContext.shouldUseIntraSegmentSearch(),
+                searchContext.getPartitionStrategy(),
+                searchContext.getPartitionMinSegmentSize()
+            );
+            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
             return leafSlices;
+        } finally {
+            // Record slice creation time (only meaningful when concurrent search is active)
+            this.sliceCreationNanos = Math.max(0, System.nanoTime() - sliceStartNanos);
         }
-        LeafSlice[] leafSlices = MaxTargetSliceSupplier.getSlices(
-            leaves,
-            targetMaxSlice,
-            searchContext.shouldUseIntraSegmentSearch(),
-            searchContext.getPartitionStrategy(),
-            searchContext.getPartitionMinSegmentSize()
-        );
-        logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
-        return leafSlices;
     }
 
     public DirectoryReader getDirectoryReader() {
         final IndexReader reader = getIndexReader();
         assert reader instanceof DirectoryReader : "expected an instance of DirectoryReader, got " + reader.getClass();
         return (DirectoryReader) reader;
+    }
+
+    /**
+     * Returns the time in nanoseconds spent creating slices for concurrent segment search.
+     * Only meaningful when concurrent segment search is active.
+     */
+    public long getSliceCreationNanos() {
+        return sliceCreationNanos;
+    }
+
+    /**
+     * Returns the maximum slice execution time in nanoseconds across all slices.
+     * Only meaningful when concurrent segment search is active.
+     */
+    public long getSliceMaxExecutionNanos() {
+        return sliceMaxExecutionNanos.get();
+    }
+
+    /**
+     * Returns the minimum slice execution time in nanoseconds across all slices.
+     * Returns 0 if no slices have been executed.
+     */
+    public long getSliceMinExecutionNanos() {
+        long val = sliceMinExecutionNanos.get();
+        return val == Long.MAX_VALUE ? 0 : val;
     }
 
     /**

@@ -86,8 +86,76 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         }
 
         try {
+            // Time the concurrent search execution (includes slice scheduling and execution within Lucene)
+            final long searchStartNanos = System.nanoTime();
             final ReduceableSearchResult result = searcher.search(query, collectorManager);
+            final long searchEndNanos = System.nanoTime();
+
+            // Time the slice result aggregation (reduce step)
+            final long reduceStartNanos = System.nanoTime();
             result.reduce(queryResult);
+            final long reduceEndNanos = System.nanoTime();
+
+            // Record concurrent segment search metrics
+            // slice_creation is captured inside ContextIndexSearcher.slices()
+            long sliceCreationNanos = searcher.getSliceCreationNanos();
+            if (sliceCreationNanos > 0) {
+                queryResult.recordShardTiming("slice_creation", sliceCreationNanos);
+            }
+
+            // slice_scheduling: time from search start to after slice creation is the scheduling overhead
+            // This approximates the time to submit slices to the executor
+            // (Lucene internally creates slices via slices() then submits tasks to the executor)
+            long totalSearchNanos = Math.max(0, searchEndNanos - searchStartNanos);
+            long sliceMaxExecNanos = searcher.getSliceMaxExecutionNanos();
+            long sliceSchedulingNanos = Math.max(0, totalSearchNanos - sliceMaxExecNanos);
+            if (sliceSchedulingNanos > 0) {
+                queryResult.recordShardTiming("slice_scheduling", sliceSchedulingNanos);
+            }
+
+            // slice_max_execution and slice_min_execution captured in ContextIndexSearcher.search(partitions...)
+            if (sliceMaxExecNanos > 0) {
+                queryResult.recordShardTiming("slice_max_execution", sliceMaxExecNanos);
+            }
+            long sliceMinExecNanos = searcher.getSliceMinExecutionNanos();
+            if (sliceMinExecNanos > 0) {
+                queryResult.recordShardTiming("slice_min_execution", sliceMinExecNanos);
+            }
+
+            // slice_result_aggregation: time to merge slice results via reduce
+            long sliceResultAggregationNanos = Math.max(0, reduceEndNanos - reduceStartNanos);
+            if (sliceResultAggregationNanos > 0) {
+                queryResult.recordShardTiming("slice_result_aggregation", sliceResultAggregationNanos);
+            }
+
+            // Record absolute start offsets for timeline positioning in the breakdown chart
+            final long requestStartNanos = searchContext.request().getRequestStartNanos();
+            if (requestStartNanos > 0) {
+                // slice_creation starts at the beginning of the searcher.search() call
+                if (sliceCreationNanos > 0) {
+                    queryResult.recordShardTiming("slice_creation_start", Math.max(0, searchStartNanos - requestStartNanos));
+                }
+                // slice_scheduling starts after slice creation completes
+                if (sliceSchedulingNanos > 0) {
+                    long sliceSchedulingStartNanos = searchStartNanos + sliceCreationNanos;
+                    queryResult.recordShardTiming("slice_scheduling_start", Math.max(0, sliceSchedulingStartNanos - requestStartNanos));
+                }
+                // slice execution starts after scheduling (slices run concurrently after being submitted)
+                long sliceExecStartNanos = searchStartNanos + sliceCreationNanos + sliceSchedulingNanos;
+                if (sliceMaxExecNanos > 0) {
+                    queryResult.recordShardTiming("slice_max_execution_start", Math.max(0, sliceExecStartNanos - requestStartNanos));
+                }
+                if (sliceMinExecNanos > 0) {
+                    queryResult.recordShardTiming("slice_min_execution_start", Math.max(0, sliceExecStartNanos - requestStartNanos));
+                }
+                // slice_result_aggregation starts at reduceStartNanos
+                if (sliceResultAggregationNanos > 0) {
+                    queryResult.recordShardTiming(
+                        "slice_result_aggregation_start",
+                        Math.max(0, reduceStartNanos - requestStartNanos)
+                    );
+                }
+            }
         } catch (RuntimeException re) {
             rethrowCauseIfPossible(re, searchContext);
         }
