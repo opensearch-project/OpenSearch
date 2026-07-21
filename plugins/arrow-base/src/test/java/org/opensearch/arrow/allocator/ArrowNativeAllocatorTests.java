@@ -14,6 +14,8 @@ import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
 
     private ArrowNativeAllocator allocator;
@@ -142,7 +144,7 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         allocator.getOrCreatePool("ingest", 0L, 80 * 1024 * 1024, PoolGroup.INDEXING);
         allocator.getOrCreatePool("write", 0L, 50 * 1024 * 1024, PoolGroup.INDEXING);
 
-        java.util.concurrent.atomic.AtomicLong received = new java.util.concurrent.atomic.AtomicLong(-1);
+        AtomicLong received = new AtomicLong(-1);
         allocator.addPoolGroupLimitListener(PoolGroup.INDEXING, received::set);
 
         // Change limits
@@ -160,7 +162,7 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         allocator.getOrCreatePool("flight", 0L, 50 * 1024 * 1024, PoolGroup.TRANSPORT);
         allocator.getOrCreatePool("ingest", 0L, 80 * 1024 * 1024, PoolGroup.INDEXING);
 
-        java.util.concurrent.atomic.AtomicLong transportReceived = new java.util.concurrent.atomic.AtomicLong(-1);
+        AtomicLong transportReceived = new AtomicLong(-1);
         allocator.addPoolGroupLimitListener(PoolGroup.TRANSPORT, transportReceived::set);
 
         // Fire INDEXING group — should NOT trigger TRANSPORT listener
@@ -170,5 +172,72 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         // Fire TRANSPORT group — should trigger
         allocator.firePoolGroupListeners(PoolGroup.TRANSPORT);
         assertEquals(50L * 1024 * 1024, transportReceived.get());
+    }
+
+    // ─── Unmanaged (special, unbounded) pool ───────────────────────────────────────
+
+    public void testRegisterUnmanagedPoolIsUnboundedAndFlagged() {
+        NativeAllocator.PoolHandle handle = allocator.registerUnmanagedPool("query", PoolGroup.SEARCH);
+        assertNotNull(handle);
+        assertEquals("unmanaged pool is fixed at Long.MAX_VALUE", Long.MAX_VALUE, handle.limit());
+        assertTrue(allocator.isUnmanagedPool("query"));
+        assertFalse(allocator.isUnmanagedPool("some-other-pool"));
+    }
+
+    public void testRegisterUnmanagedPoolRejectsExistingManagedPool() {
+        // A pool created as managed (bounded child allocator) must not be flippable to unmanaged.
+        allocator.getOrCreatePool("query", 0L, 100 * 1024 * 1024, PoolGroup.SEARCH);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> allocator.registerUnmanagedPool("query", PoolGroup.SEARCH)
+        );
+        assertTrue(e.getMessage().contains("already exists as a managed pool"));
+        assertFalse("must not be flagged unmanaged after a rejected re-register", allocator.isUnmanagedPool("query"));
+    }
+
+    public void testUnmanagedPoolExcludedFromManagedPoolNames() {
+        allocator.getOrCreatePool("flight", 0L, 50 * 1024 * 1024, PoolGroup.TRANSPORT);
+        allocator.registerUnmanagedPool("query", PoolGroup.SEARCH);
+
+        // Both appear in the full set, but only the managed one is in getManagedPoolNames.
+        assertTrue(allocator.getAllPoolNames().contains("query"));
+        assertTrue(allocator.getAllPoolNames().contains("flight"));
+        assertTrue(allocator.getManagedPoolNames().contains("flight"));
+        assertFalse(
+            "unmanaged query pool must be excluded from the rebalancer's managed set",
+            allocator.getManagedPoolNames().contains("query")
+        );
+    }
+
+    public void testUnmanagedPoolExcludedFromBudgetValidation() {
+        // Budget only fits the flight pool's max; the unbounded query pool must NOT be summed
+        // against the budget (else its Long.MAX_VALUE would trip validation).
+        allocator.setBudget(100 * 1024 * 1024);
+        allocator.getOrCreatePool("flight", 0L, 50 * 1024 * 1024, PoolGroup.TRANSPORT);
+        // Registering the unbounded pool must not throw despite Long.MAX_VALUE > budget.
+        allocator.registerUnmanagedPool("query", PoolGroup.SEARCH);
+
+        // A managed pool whose max would exceed the remaining budget still trips — proving the
+        // unmanaged pool simply isn't counted, not that validation was disabled entirely.
+        expectThrows(IllegalArgumentException.class, () -> allocator.getOrCreatePool("ingest", 0L, 80 * 1024 * 1024, PoolGroup.INDEXING));
+    }
+
+    public void testUnmanagedPoolExcludedFromPoolGroupSum() {
+        // A managed SEARCH pool + an unmanaged SEARCH pool: the group sum must reflect only the
+        // managed one, not the unmanaged pool's Long.MAX_VALUE limit.
+        allocator.getOrCreatePool("datafusion", 0L, 70 * 1024 * 1024, PoolGroup.SEARCH);
+        allocator.registerUnmanagedPool("query", PoolGroup.SEARCH);
+
+        AtomicLong received = new AtomicLong(-1);
+        allocator.addPoolGroupLimitListener(PoolGroup.SEARCH, received::set);
+        allocator.firePoolGroupListeners(PoolGroup.SEARCH);
+
+        assertEquals("group sum must exclude the unmanaged pool", 70L * 1024 * 1024, received.get());
+    }
+
+    public void testUnmanagedPoolLimitUntouchedByResetAllPoolsToMax() {
+        allocator.registerUnmanagedPool("query", PoolGroup.SEARCH);
+        allocator.resetAllPoolsToMax();
+        assertEquals(Long.MAX_VALUE, allocator.getPoolAllocator("query").getLimit());
     }
 }
