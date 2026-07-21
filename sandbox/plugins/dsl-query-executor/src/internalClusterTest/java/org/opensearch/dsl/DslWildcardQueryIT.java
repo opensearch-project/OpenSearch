@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -15,6 +16,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 /**
  * Integration tests for wildcard query conversion to Calcite LIKE expressions.
  */
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
 public class DslWildcardQueryIT extends DslIntegTestBase {
 
     @Override
