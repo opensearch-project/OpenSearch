@@ -21,7 +21,7 @@ public class DslPrefixQueryIT extends DslIntegTestBase {
     protected void createTestIndex() {
         createIndex(INDEX);
         ensureGreen();
-        
+
         client().prepareIndex(INDEX)
             .setId("1")
             .setSource("{\"name\":\"laptop\",\"brand\":\"Apple\",\"model\":\"MacBook Pro\"}", XContentType.JSON)
@@ -39,52 +39,44 @@ public class DslPrefixQueryIT extends DslIntegTestBase {
 
     public void testBasicPrefixQuery() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.prefixQuery("name", "lap")
-        )));
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.prefixQuery("name", "lap"))));
     }
 
     public void testPrefixQueryCaseSensitive() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.prefixQuery("brand", "Apple")
-        )));
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.prefixQuery("brand", "Apple"))));
     }
 
     public void testPrefixQueryCaseInsensitive() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.prefixQuery("brand", "apple").caseInsensitive(true)
-        )));
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.prefixQuery("brand", "apple").caseInsensitive(true))));
     }
 
     public void testPrefixQueryWithEmptyString() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.prefixQuery("name", "")
-        )));
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.prefixQuery("name", ""))));
     }
 
     public void testPrefixQueryWithMultipleWords() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.prefixQuery("model", "MacBook")
-        )));
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.prefixQuery("model", "MacBook"))));
     }
 
     public void testPrefixQueryInBoolQuery() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.boolQuery()
-                .must(QueryBuilders.prefixQuery("name", "lap"))
-                .should(QueryBuilders.prefixQuery("brand", "App"))
-        )));
+        assertOk(
+            search(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.prefixQuery("name", "lap"))
+                        .should(QueryBuilders.prefixQuery("brand", "App"))
+                )
+            )
+        );
     }
 
     public void testPrefixQueryWithSpecialCharacters() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.prefixQuery("model", "Galaxy S")
-        )));
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.prefixQuery("model", "Galaxy S"))));
     }
 }
