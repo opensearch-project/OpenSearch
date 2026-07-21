@@ -128,8 +128,7 @@ fn bench_acquire_budget_concurrent(c: &mut Criterion) {
                             thread::spawn(move || {
                                 barrier.wait();
                                 for _ in 0..100 {
-                                    let budget =
-                                        acquire_budget(&pool, &schema, 4, 8192).unwrap();
+                                    let budget = acquire_budget(&pool, &schema, 4, 8192).unwrap();
                                     drop(budget);
                                 }
                             })

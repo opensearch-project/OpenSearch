@@ -985,6 +985,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() {
@@ -1001,6 +1002,118 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
+    }
+
+    public void testDefaultNumberOfReplicasUsesNodeSetting() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
+    }
+
+    public void testDefaultNumberOfReplicasUsesPersistentSettingOverNodeSetting() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Metadata metadata = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        clusterSettings.applySettings(clusterState.metadata().settings());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
+    }
+
+    public void testDefaultNumberOfReplicasUsesTransientSettingOverPersistentAndNodeSettings() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Metadata metadata = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2).build())
+            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 3).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        clusterSettings.applySettings(clusterState.metadata().settings());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("3"));
+    }
+
+    public void testExplicitNumberOfReplicasOverridesClusterDefault() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        request.settings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 4).build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("4"));
+    }
+
+    public void testTemplateNumberOfReplicasOverridesClusterDefault() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings templateSettings = Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 2).build();
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            templateSettings,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
     }
 
     public void testTemplateOrder() throws Exception {
@@ -1276,6 +1389,51 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(validationErrors.size(), is(0));
 
         threadPool.shutdown();
+    }
+
+    public void testValidateIndexSettingsUsesDefaultNumberOfReplicasFromClusterSettings() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(Metadata.builder().build())
+            .build();
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            indicesServices,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            threadPool,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            true,
+            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
+        );
+
+        try {
+            List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
+            assertThat(validationErrors.size(), is(0));
+        } finally {
+            threadPool.shutdown();
+        }
     }
 
     public void testIndexTemplateReplicationType() {
@@ -2683,6 +2841,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         Settings settings = Settings.builder().put(CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.applySettings(clusterState.metadata().settings());
         Settings aggregatedSettings = aggregateIndexSettings(
             clusterState,
             request,
@@ -4421,4 +4580,165 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
+
+    /**
+     * Template A (lower priority) defines @fields as a dynamic object.
+     * Template B (higher priority) defines a specific sub-field @fields.userstate as keyword.
+     * After merging, @fields should retain both the dynamic:true/type:object settings AND
+     * the specific userstate mapping. The regression in PR#19958 caused the dynamic/object
+     * settings to be dropped, breaking index creation for dynamic fields under @fields.
+     */
+    public void testV1TemplateMergingPreservesDynamicObjectWithSubFieldMapping() throws Exception {
+        // Template A (lower priority / later in list): defines @fields as dynamic object
+        CompressedXContent templateA = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true",
+                    "properties": {
+                      "status": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B (higher priority / earlier in list): defines specific sub-field @fields.userstate
+        CompressedXContent templateB = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B is higher priority (first in list), Template A is lower priority (second in list)
+        List<CompressedXContent> templates = Arrays.asList(templateB, templateA);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("", templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" },
+                                  "status": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Merged V1 template result should preserve dynamic object with all sub-fields", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Tests that V1 template merging correctly handles request mapping overriding template
+     * while still inheriting non-conflicting object-level settings from templates.
+     * This ensures that a request mapping defining only sub-fields of an object still
+     * inherits the object's type/dynamic settings from templates.
+     */
+    public void testV1RequestMappingInheritsObjectSettingsFromTemplate() throws Exception {
+        // Template defines @fields as dynamic object
+        CompressedXContent template = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true"
+                  }
+                }
+              }
+            }
+            """);
+
+        // Request mapping defines a specific sub-field under @fields
+        String requestMapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        List<CompressedXContent> templates = Collections.singletonList(template);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings(requestMapping, templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Request mapping should inherit object settings from template", expected, actual);
+            }
+        }
+    }
+
 }

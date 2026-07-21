@@ -697,7 +697,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * @param owningBucketOrd the ordinal of the bucket that owns this collection
          * @param doc the doc id in to collect
          * @param globalOrd the global ordinal to collect
-         * @param sub the sub-aggregators that that will collect the bucket data
+         * @param sub the sub-aggregators that will collect the bucket data
          */
         abstract void collectGlobalOrd(long owningBucketOrd, int doc, long globalOrd, LeafBucketCollector sub) throws IOException;
 

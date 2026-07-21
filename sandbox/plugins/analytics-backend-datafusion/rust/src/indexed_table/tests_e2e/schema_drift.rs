@@ -96,10 +96,11 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
-            sort_min: None,
+        arrow_schema: schema.clone(),
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = Arc::new(tree_bool);
     let factory: super::super::table_provider::EvaluatorFactory = {
@@ -107,7 +108,11 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -118,8 +123,10 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
-                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -284,24 +291,21 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
         ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     // Schema handed to the pruner includes the missing column.
     let drift_schema = schema_with_missing();
-    let pruner = PagePruner::new(&drift_schema, meta.metadata().clone());
+    let pruner = PagePruner::new(&drift_schema, meta.metadata().clone(), drift_schema.clone());
 
     // Existing-column predicate: score < 100 (fixture has score = i % 1000
     // so ~10% of rows match, concentrated at the start of every 1000-row
     // cycle → some pages will be prunable).
     let score_idx = drift_schema.index_of("score").unwrap();
-    let score_col: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
-        datafusion::physical_expr::expressions::Column::new("score", score_idx),
-    );
+    let score_col: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        std::sync::Arc::new(datafusion::physical_expr::expressions::Column::new(
+            "score", score_idx,
+        ));
     let lit_100: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
         datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(100))),
     );
     let score_lt: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
-        datafusion::physical_expr::expressions::BinaryExpr::new(
-            score_col,
-            Operator::Lt,
-            lit_100,
-        ),
+        datafusion::physical_expr::expressions::BinaryExpr::new(score_col, Operator::Lt, lit_100),
     );
     let pp_solo = build_pruning_predicate(&score_lt, drift_schema.clone())
         .expect("score<100 is not always_true on this fixture");
@@ -346,8 +350,7 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
         match (solo.as_ref(), combined.as_ref()) {
             (Some(s), Some(c)) => {
                 let solo_kept: usize = s.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
-                let combined_kept: usize =
-                    c.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
+                let combined_kept: usize = c.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
                 assert!(
                     combined_kept <= solo_kept,
                     "rg {}: combined selection kept {} rows, solo kept {} — \
@@ -410,17 +413,22 @@ async fn query_with_mismatched_schema(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: meta.schema().clone(),
         global_base: 0,
-            sort_min: None,
+        sort_min: None,
         sort_max: None,
-};
+    };
     let tree = Arc::new(tree_bool);
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = table_schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -433,7 +441,8 @@ async fn query_with_mismatched_schema(
                 page_prune_metrics: None,
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

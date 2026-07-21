@@ -34,6 +34,7 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptException;
 import org.opensearch.script.TemplateScript;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -44,6 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.script.mustache.CustomMustacheFactory.JSON_MIME_TYPE;
 import static org.opensearch.script.mustache.CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE;
 import static org.opensearch.script.mustache.CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -105,5 +107,30 @@ public class CustomMustacheFactoryTests extends OpenSearchTestCase {
 
         TemplateScript executable = compiled.newInstance(singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
         assertThat(executable.execute(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
+    }
+
+    public void testPartialTemplateWithFileUrlIsBlocked() {
+        final ScriptEngine engine = new MustacheScriptEngine();
+        ScriptException e = expectThrows(
+            ScriptException.class,
+            () -> engine.compile(null, "{{>file:///tmp/secret.txt}}", TemplateScript.CONTEXT, emptyMap())
+        );
+        assertThat(e.getMessage(), containsString("Partial templates are not supported"));
+    }
+
+    public void testPartialTemplateWithRelativePathIsBlocked() {
+        final ScriptEngine engine = new MustacheScriptEngine();
+        ScriptException e = expectThrows(
+            ScriptException.class,
+            () -> engine.compile(null, "{{>../../../tmp/data}}", TemplateScript.CONTEXT, emptyMap())
+        );
+        assertThat(e.getMessage(), containsString("Partial templates are not supported"));
+    }
+
+    public void testInlineTemplateWithoutPartialsStillRenders() {
+        final ScriptEngine engine = new MustacheScriptEngine();
+        TemplateScript.Factory compiled = engine.compile(null, "hello {{name}}", TemplateScript.CONTEXT, emptyMap());
+        TemplateScript executable = compiled.newInstance(singletonMap("name", "world"));
+        assertThat(executable.execute(), equalTo("hello world"));
     }
 }
