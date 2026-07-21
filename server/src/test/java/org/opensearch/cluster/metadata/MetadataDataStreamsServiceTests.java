@@ -150,6 +150,17 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("because it is the write index"));
     }
 
+    public void testRemoveIndexNotPartOfStreamFails() {
+        // Removing an index that is not a backing index of the stream is rejected (remove only checks stream
+        // membership, so the index need not exist elsewhere).
+        ClusterState state = state(2, List.of(1, 2));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(state, List.of(DataStreamAction.removeBackingIndex(DS, "not-a-member")))
+        );
+        assertThat(e.getMessage(), containsString("is not part of data stream [" + DS + "]"));
+    }
+
     public void testRemoveThenReAddComposeInSingleUpdate() {
         ClusterState state = state(3, List.of(1, 2, 3));
         String middle = DataStream.getDefaultBackingIndexName(DS, 2);
@@ -210,5 +221,96 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("data stream [no-such-stream] not found"));
+    }
+
+    /**
+     * Builds a cluster state with two data streams. {@code logs-a} has backing gen 1 (arbitrary index {@code shared}
+     * belongs to it), and {@code logs-b} has backing gen 1. {@code shared} is a standalone arbitrary-named index that
+     * belongs to logs-a in the initial state.
+     */
+    private ClusterState twoStreamsWithSharedCandidate() {
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata a1 = createBackingIndex("logs-a", 1).build();
+        IndexMetadata b1 = createBackingIndex("logs-b", 1).build();
+        IndexMetadata shared = IndexMetadata.builder("shared-idx")
+            .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        metadata.put(a1, false);
+        metadata.put(b1, false);
+        metadata.put(shared, false);
+        // logs-a owns both its convention write index and the arbitrary "shared-idx".
+        metadata.put(new DataStream("logs-a", createTimestampField("@timestamp"), List.of(shared.getIndex(), a1.getIndex()), 1));
+        metadata.put(new DataStream("logs-b", createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
+        return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+    }
+
+    private static List<String> backingIndexNames(ClusterState state, String dataStream) {
+        return state.metadata().dataStreams().get(dataStream).getIndices().stream().map(Index::getName).collect(Collectors.toList());
+    }
+
+    public void testCannotAddSameIndexToTwoStreamsInOneRequest() {
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata a1 = createBackingIndex("logs-a", 1).build();
+        IndexMetadata b1 = createBackingIndex("logs-b", 1).build();
+        metadata.put(a1, false);
+        metadata.put(b1, false);
+        metadata.put(new DataStream("logs-a", createTimestampField("@timestamp"), List.of(a1.getIndex()), 1));
+        metadata.put(new DataStream("logs-b", createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
+        metadata.put(
+            IndexMetadata.builder("legacy-idx")
+                .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            false
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                state,
+                List.of(DataStreamAction.addBackingIndex("logs-a", "legacy-idx"), DataStreamAction.addBackingIndex("logs-b", "legacy-idx"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("more than one data stream"));
+    }
+
+    public void testMoveBackingIndexBetweenStreamsRemoveThenAdd() {
+        ClusterState state = twoStreamsWithSharedCandidate();
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.removeBackingIndex("logs-a", "shared-idx"), DataStreamAction.addBackingIndex("logs-b", "shared-idx"))
+        );
+
+        assertThat(backingIndexNames(updated, "logs-a"), contains(DataStream.getDefaultBackingIndexName("logs-a", 1)));
+        assertThat(backingIndexNames(updated, "logs-b"), contains("shared-idx", DataStream.getDefaultBackingIndexName("logs-b", 1)));
+    }
+
+    public void testMoveBackingIndexBetweenStreamsAddThenRemove() {
+        // Reverse action order from the previous test; the outcome must be identical.
+        ClusterState state = twoStreamsWithSharedCandidate();
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.addBackingIndex("logs-b", "shared-idx"), DataStreamAction.removeBackingIndex("logs-a", "shared-idx"))
+        );
+
+        assertThat(backingIndexNames(updated, "logs-a"), contains(DataStream.getDefaultBackingIndexName("logs-a", 1)));
+        assertThat(backingIndexNames(updated, "logs-b"), contains("shared-idx", DataStream.getDefaultBackingIndexName("logs-b", 1)));
+    }
+
+    public void testAddWithoutRemoveStillRejectedRegardlessOfOrder() {
+        // Adding shared-idx to logs-b without removing it from logs-a must fail, in either action order.
+        ClusterState state = twoStreamsWithSharedCandidate();
+
+        IllegalArgumentException forward = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(state, List.of(DataStreamAction.addBackingIndex("logs-b", "shared-idx")))
+        );
+        assertThat(forward.getMessage(), containsString("more than one data stream"));
     }
 }

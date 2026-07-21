@@ -26,6 +26,7 @@ import org.opensearch.core.index.Index;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -123,7 +124,7 @@ public class MetadataDataStreamsService {
             }
             switch (action.type()) {
                 case ADD_BACKING_INDEX:
-                    dataStream = applyAddBackingIndex(currentState.metadata(), metadataBuilder, dataStream, action.index());
+                    dataStream = applyAddBackingIndex(metadataBuilder, dataStream, action.index());
                     break;
                 case REMOVE_BACKING_INDEX:
                     dataStream = applyRemoveBackingIndex(dataStream, action.index());
@@ -138,17 +139,39 @@ public class MetadataDataStreamsService {
             logger.info("updating data stream [{}]", dataStream.getName());
             metadataBuilder.put(dataStream);
         }
-        // Metadata.build() runs validateDataStreams, which will reject any state where a backing index that matches the
-        // stream prefix has a generation counter greater than the stream's generation. That is the invariant we rely on.
+        validateNoSharedBackingIndices(currentState.metadata().dataStreams(), updated);
+        // Metadata.build() additionally rejects a stream whose prefix matches an index with a counter above its
+        // generation.
         return ClusterState.builder(currentState).metadata(metadataBuilder).build();
     }
 
-    private static DataStream applyAddBackingIndex(
-        Metadata metadata,
-        Metadata.Builder metadataBuilder,
-        DataStream dataStream,
-        String indexName
-    ) {
+    /**
+     * Rejects a resulting state in which any index is a backing index of more than one data stream, checking the full
+     * final membership so the outcome does not depend on action order.
+     */
+    private static void validateNoSharedBackingIndices(Map<String, DataStream> currentStreams, Map<String, DataStream> updatedStreams) {
+        Map<String, DataStream> finalStreams = new HashMap<>(currentStreams);
+        finalStreams.putAll(updatedStreams);
+        Map<String, String> indexToStream = new HashMap<>();
+        for (DataStream dataStream : finalStreams.values()) {
+            for (Index index : dataStream.getIndices()) {
+                String previousOwner = indexToStream.putIfAbsent(index.getName(), dataStream.getName());
+                if (previousOwner != null && previousOwner.equals(dataStream.getName()) == false) {
+                    throw new IllegalArgumentException(
+                        "index ["
+                            + index.getName()
+                            + "] cannot be a backing index of more than one data stream, but is claimed by ["
+                            + previousOwner
+                            + "] and ["
+                            + dataStream.getName()
+                            + "]"
+                    );
+                }
+            }
+        }
+    }
+
+    private static DataStream applyAddBackingIndex(Metadata.Builder metadataBuilder, DataStream dataStream, String indexName) {
         IndexMetadata indexMetadata = metadataBuilder.get(indexName);
         if (indexMetadata == null) {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
@@ -157,21 +180,6 @@ public class MetadataDataStreamsService {
         if (dataStream.getIndices().contains(index)) {
             // Idempotent: already a member.
             return dataStream;
-        }
-
-        // Reject an index that is already a backing index of a different data stream.
-        IndexAbstraction abstraction = metadata.getIndicesLookup().get(indexName);
-        IndexAbstraction.DataStream parentDataStream = abstraction == null ? null : abstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getName().equals(dataStream.getName()) == false) {
-            throw new IllegalArgumentException(
-                "cannot add index ["
-                    + indexName
-                    + "] to data stream ["
-                    + dataStream.getName()
-                    + "] because it is already a backing index of data stream ["
-                    + parentDataStream.getName()
-                    + "]"
-            );
         }
 
         // Backing indices are hidden; mark the index hidden if it is not already, matching data stream creation and

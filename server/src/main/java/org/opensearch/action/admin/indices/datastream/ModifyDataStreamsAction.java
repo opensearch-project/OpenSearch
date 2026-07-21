@@ -52,7 +52,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
     }
 
     /**
-     * Request carrying the ordered list of data-stream actions to apply.
+     * Request carrying the data-stream actions to apply.
      *
      * @opensearch.api
      */
