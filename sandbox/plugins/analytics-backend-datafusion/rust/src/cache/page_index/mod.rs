@@ -78,6 +78,7 @@ pub mod column_schema_resolver;
 pub mod page_index_io;
 
 use crate::cache::eviction_policy::CacheEvictionPolicy;
+use crate::cache::unified::{CacheKind, CacheStats, ManagedCache};
 use cache_keys::{CiCellKey, OiCellKey, OiColumn};
 use cache_store::{BoundedCache, DEFAULT_SCOPED_CACHE_LIMIT};
 
@@ -182,6 +183,83 @@ pub fn clear_scoped_cache() {
 pub fn evict_file_from_scoped_cache(file_path: &str) {
     COLUMN_INDEX_CACHE.evict_by_prefix(file_path);
     OFFSET_INDEX_CACHE.evict_by_prefix(file_path);
+}
+
+// ── ManagedCache handles ─────────────────────────────────────────────────────
+//
+// The CI/OI caches are process-global singletons (queries reach them without a
+// manager reference), so the unified management interface is implemented on
+// zero-sized handle types that forward to the statics. `CustomCacheManager`
+// registers these handles like any other `Arc<dyn ManagedCache>`.
+
+/// [`ManagedCache`] handle over the global [`COLUMN_INDEX_CACHE`].
+pub struct ColumnIndexCacheHandle;
+
+/// [`ManagedCache`] handle over the global [`OFFSET_INDEX_CACHE`].
+pub struct OffsetIndexCacheHandle;
+
+impl ManagedCache for ColumnIndexCacheHandle {
+    fn kind(&self) -> CacheKind {
+        CacheKind::ColumnIndex
+    }
+
+    fn stats(&self) -> CacheStats {
+        COLUMN_INDEX_CACHE.stats()
+    }
+
+    fn set_limit(&self, limit: usize) {
+        set_column_index_cache_limit(limit);
+    }
+
+    fn clear(&self) {
+        COLUMN_INDEX_CACHE.clear_keep_limit();
+    }
+
+    fn reset_counters(&self) {
+        // clear_keep_limit is the only counter reset the scoped caches expose;
+        // entries and counters reset together (as before this interface).
+        COLUMN_INDEX_CACHE.clear_keep_limit();
+    }
+
+    fn remove_file(&self, file_path: &str) -> bool {
+        COLUMN_INDEX_CACHE.evict_by_prefix(file_path)
+    }
+
+    fn contains_file(&self, _file_path: &str) -> bool {
+        // Cell-keyed cache — a per-file scan is not worth a boolean probe;
+        // approximate with "has any entries" (diagnostics only, as before).
+        COLUMN_INDEX_CACHE.stats().entries > 0
+    }
+}
+
+impl ManagedCache for OffsetIndexCacheHandle {
+    fn kind(&self) -> CacheKind {
+        CacheKind::OffsetIndex
+    }
+
+    fn stats(&self) -> CacheStats {
+        OFFSET_INDEX_CACHE.stats()
+    }
+
+    fn set_limit(&self, limit: usize) {
+        set_offset_index_cache_limit(limit);
+    }
+
+    fn clear(&self) {
+        OFFSET_INDEX_CACHE.clear_keep_limit();
+    }
+
+    fn reset_counters(&self) {
+        OFFSET_INDEX_CACHE.clear_keep_limit();
+    }
+
+    fn remove_file(&self, file_path: &str) -> bool {
+        OFFSET_INDEX_CACHE.evict_by_prefix(file_path)
+    }
+
+    fn contains_file(&self, _file_path: &str) -> bool {
+        OFFSET_INDEX_CACHE.stats().entries > 0
+    }
 }
 
 /// Crate-wide guard so every test that touches the process-global caches mutually

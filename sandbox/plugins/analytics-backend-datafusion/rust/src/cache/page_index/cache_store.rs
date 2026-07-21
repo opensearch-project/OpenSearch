@@ -11,20 +11,24 @@
 //! # Architecture
 //!
 //! ```text
-//!  BoundedCache<K, V, P: ScopedEvictionPolicy<K>>
-//!  ├── DashMap<K, (V, usize)>        ← lock-free concurrent reads
-//!  ├── Mutex<{ used_bytes, limit }>  ← write-path accounting only
-//!  └── P (eviction policy)           ← owns the eviction queue, uses interior mutability
+//!  BoundedCache<K, V>
+//!  ├── DashMap<K, (V, usize)>          ← lock-free concurrent reads
+//!  ├── Mutex<{ used_bytes, limit }>    ← write-path accounting only
+//!  └── Arc<dyn EvictionPolicy<K>>      ← owns the eviction queue, interior mutability
 //! ```
 //!
-//! **Reads are lock-free** — `get` only touches the `DashMap` shard lock.
+//! **Reads are lock-free** — `get` only touches the `DashMap` shard lock
+//! (FIFO's `on_access` is a no-op).
 //!
 //! **Writes take one `parking_lot::Mutex`** for `used_bytes` + limit accounting.
 //! The eviction policy is called inside the lock for consistency.
 //!
-//! **Pluggable eviction**: [`ScopedEvictionPolicy`] is the trait. Today
-//! [`FifoPolicy`] is the only implementation. S3-FIFO (ghost-set promotion)
-//! can be added later by implementing the same trait.
+//! **Pluggable eviction**: the crate-wide
+//! [`EvictionPolicy`](crate::cache::eviction_policy::EvictionPolicy) trait —
+//! the same trait the statistics cache uses. Today CI/OI run
+//! [`FifoPolicy`](crate::cache::eviction_policy::FifoPolicy); a new policy
+//! (e.g. S3-FIFO) plugs in by implementing that one trait and allowing it in
+//! `CacheKind::validate_policy`.
 //!
 //! **Lazy deletion on overwrite**: re-inserting an existing key leaves a stale
 //! entry in the eviction queue. [`BoundedCache::drain_to_limit`] skips stale
@@ -35,13 +39,13 @@
 //! queue to remove all cells for a deleted/replaced file. This is a rare
 //! cold-path operation (file deletion or merge), not on the query hot path.
 
-use std::cell::UnsafeCell;
-use std::collections::VecDeque;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::Relaxed};
+use std::sync::Arc;
 
-use crate::eviction_policy::CacheEvictionPolicy;
+use crate::cache::unified::CacheStats;
+use crate::eviction_policy::{create_policy, CacheEvictionPolicy, EvictionPolicy};
 use dashmap::DashMap;
 use parking_lot::Mutex;
 
@@ -51,120 +55,6 @@ use parking_lot::Mutex;
 /// plugin initialization before any query runs, so this value is never used
 /// outside tests.
 pub(crate) const DEFAULT_SCOPED_CACHE_LIMIT: usize = 150 * 1024 * 1024;
-
-// ── Eviction policy trait ────────────────────────────────────────────────────
-
-/// Pluggable eviction policy for [`BoundedCache`].
-///
-/// Implementations must use interior mutability (`Mutex`, atomics, etc.) so
-/// they can be called through a shared reference. All methods are called from
-/// inside the `BoundedCache` write lock, so implementations do not need their
-/// own locks — but must still be `Send + Sync` for the `Lazy<BoundedCache>`
-/// statics.
-///
-/// # Implementing a new policy
-///
-/// 1. Implement this trait with interior mutability.
-/// 2. Wire it in `mod.rs` by passing it to `BoundedCache::new`.
-/// 3. Expose a `PolicyType` variant in the Java API and route it from
-///    `df_create_cache` in `ffm.rs`.
-pub(super) trait ScopedEvictionPolicy<K>: Send + Sync {
-    /// Called when a new entry is inserted (or an existing key is overwritten).
-    /// The policy should record `key` as the most-recently inserted entry.
-    fn on_insert(&self, key: K);
-
-    /// Called when an entry is accessed on the hot read path.
-    /// FIFO ignores this; frequency-aware policies (LFU, S3-FIFO) update
-    /// access counts here.
-    fn on_access(&self, key: &K);
-
-    /// Pop and return the next eviction candidate.
-    ///
-    /// Called repeatedly by [`BoundedCache::drain_to_limit`] until
-    /// `used_bytes <= limit`. The caller performs lazy deletion: if the
-    /// returned key is no longer in the `DashMap` (stale entry from an
-    /// overwrite), `drain_to_limit` skips it and calls `next_victim` again.
-    fn next_victim(&self) -> Option<K>;
-
-    /// Called when an entry is explicitly removed (prefix eviction, clear).
-    /// Allows the policy to remove the entry from its internal bookkeeping.
-    fn on_remove(&self, key: &K);
-
-    /// Reset all internal state (called on `clear_keep_limit`).
-    fn clear(&self);
-}
-
-// ── FIFO policy ──────────────────────────────────────────────────────────────
-
-/// Insert-order (FIFO) eviction policy.
-///
-/// Oldest-inserted entry is evicted first. Access order is not tracked — reads
-/// are fully lock-free. Stale entries (from overwrites) are left in the queue
-/// and skipped by the `BoundedCache` eviction loop (lazy deletion).
-///
-/// # No inner lock
-///
-/// All `ScopedEvictionPolicy` methods are called exclusively from inside
-/// `BoundedCache`'s outer `Mutex<WriteState>` lock, which already serializes
-/// all mutations. An additional inner lock on the queue would be a
-/// no-contention lock/unlock cycle with zero benefit. We use `UnsafeCell`
-/// instead, with the outer lock as the synchronization invariant.
-///
-/// # Safety invariant
-///
-/// Every method that calls `queue_mut()` or `queue_ref()` must be called while
-/// the `BoundedCache` write lock is held. `on_access` is a no-op for FIFO and
-/// is called from the lock-free `get` path — it does not touch the queue.
-///
-/// S3-FIFO (planned successor) wraps two FIFO queues with a ghost set. If its
-/// `on_access` needs to update state from the read path, it would need its own
-/// interior mutability (e.g. atomics for frequency counters).
-pub(super) struct FifoPolicy<K> {
-    /// Guarded by the outer `BoundedCache` write lock — no inner lock needed.
-    queue: UnsafeCell<VecDeque<K>>,
-}
-
-// SAFETY: `FifoPolicy` is only mutated under `BoundedCache`'s `Mutex<WriteState>`.
-unsafe impl<K: Send> Send for FifoPolicy<K> {}
-unsafe impl<K: Send> Sync for FifoPolicy<K> {}
-
-impl<K> FifoPolicy<K> {
-    pub(super) fn new() -> Self {
-        Self {
-            queue: UnsafeCell::new(VecDeque::new()),
-        }
-    }
-
-    /// Borrow the queue mutably. Caller must hold the outer write lock.
-    #[inline]
-    fn queue_mut(&self) -> &mut VecDeque<K> {
-        // SAFETY: caller holds the `BoundedCache` write lock.
-        unsafe { &mut *self.queue.get() }
-    }
-}
-
-impl<K: Clone + PartialEq + Send + Sync> ScopedEvictionPolicy<K> for FifoPolicy<K> {
-    fn on_insert(&self, key: K) {
-        self.queue_mut().push_back(key);
-    }
-
-    fn on_access(&self, _key: &K) {
-        // FIFO does not track access order — no queue mutation, reads stay lock-free.
-    }
-
-    fn next_victim(&self) -> Option<K> {
-        self.queue_mut().pop_front()
-    }
-
-    fn on_remove(&self, key: &K) {
-        // O(n) scan — only called from evict_by_prefix (cold path).
-        self.queue_mut().retain(|k| k != key);
-    }
-
-    fn clear(&self) {
-        self.queue_mut().clear();
-    }
-}
 
 // ── Write-lock state ─────────────────────────────────────────────────────────
 
@@ -187,33 +77,25 @@ impl WriteState {
 // ── BoundedCache ─────────────────────────────────────────────────────────────
 
 /// Snapshot of one scoped cache's counters plus occupancy.
-/// Surfaced on node-stats and used by tests.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct ScopedCacheStats {
-    pub hits: u64,
-    pub misses: u64,
-    pub evictions: u64,
-    pub entries: usize,
-    pub used_bytes: usize,
-    pub limit_bytes: usize,
-}
+/// Alias of the crate-wide unified [`CacheStats`]; kept for existing call sites.
+pub type ScopedCacheStats = CacheStats;
 
-/// Byte-bounded concurrent cache parameterised over an eviction policy `P`.
+/// Byte-bounded concurrent cache with a pluggable [`EvictionPolicy`].
 ///
 /// `K` must implement `Display` so `evict_by_prefix` can match keys by their
 /// string representation (e.g. `"path:col:rg"` → prefix `"path"`).
-pub(super) struct BoundedCache<K, V, P = FifoPolicy<K>>
+pub(super) struct BoundedCache<K, V>
 where
     K: Eq + Hash + Clone + Display + Send + Sync + 'static,
     V: Clone + Send + Sync + 'static,
-    P: ScopedEvictionPolicy<K>,
 {
     /// Value store — DashMap for lock-free concurrent reads.
     map: DashMap<K, (V, usize)>,
     /// Byte accounting under one lock. The eviction queue lives in `policy`.
     write: Mutex<WriteState>,
-    /// Eviction policy — uses interior mutability, called inside `write` lock.
-    policy: P,
+    /// Eviction policy — uses interior mutability; mutating calls happen
+    /// inside the `write` lock.
+    policy: Arc<dyn EvictionPolicy<K>>,
     /// Byte cap snapshot for lock-free `stats()`.
     limit_snapshot: AtomicUsize,
     // Lock-free diagnostic counters.
@@ -223,39 +105,28 @@ where
     used_bytes_snapshot: AtomicUsize,
 }
 
-impl<K, V> BoundedCache<K, V, FifoPolicy<K>>
+impl<K, V> BoundedCache<K, V>
 where
     K: Eq + Hash + Clone + Display + Send + Sync + 'static,
     V: Clone + Send + Sync + 'static,
 {
     /// Create a `BoundedCache` with the named eviction policy.
     ///
-    /// Only `Fifo` is accepted — `Lru`/`Lfu` belong to `CustomStatisticsCache`.
-    /// The match is exhaustive over `CacheEvictionPolicy` so adding a new
-    /// variant (e.g. `S3Fifo`) will be a compile error here until it's wired.
+    /// Policy validity per cache type is enforced at the FFI boundary via
+    /// `CacheKind::validate_policy`; this constructor accepts any policy.
     pub(crate) fn with_named_policy(limit: usize, policy: CacheEvictionPolicy) -> Self {
-        use crate::cache::eviction_policy::CacheEvictionPolicy;
-        let CacheEvictionPolicy::Fifo = policy else {
-            unreachable!("BoundedCache only supports Fifo; use CustomStatisticsCache for Lru/Lfu");
-        };
-        Self::with_policy(limit, FifoPolicy::new())
+        Self::with_policy(limit, create_policy::<K>(policy))
     }
 
     /// Create a new cache with FIFO eviction — shorthand for tests.
+    #[cfg(test)]
     pub(super) fn new(limit: usize) -> Self {
         Self::with_named_policy(limit, CacheEvictionPolicy::Fifo)
     }
-}
 
-impl<K, V, P> BoundedCache<K, V, P>
-where
-    K: Eq + Hash + Clone + Display + Send + Sync + 'static,
-    V: Clone + Send + Sync + 'static,
-    P: ScopedEvictionPolicy<K>,
-{
-    /// Create a cache with an explicit policy. Use this when plugging in a
-    /// non-default policy (e.g. S3-FIFO in a future PR).
-    pub(super) fn with_policy(limit: usize, policy: P) -> Self {
+    /// Create a cache with an explicit policy object. Use this when plugging
+    /// in a custom policy implementation.
+    pub(super) fn with_policy(limit: usize, policy: Arc<dyn EvictionPolicy<K>>) -> Self {
         Self {
             map: DashMap::new(),
             write: Mutex::new(WriteState::new(limit)),
@@ -272,7 +143,7 @@ where
     pub(super) fn get(&self, key: &K) -> Option<V> {
         match self.map.get(key) {
             Some(entry) => {
-                self.policy.on_access(key);
+                self.policy.on_access(key, entry.1);
                 self.hits.fetch_add(1, Relaxed);
                 Some(entry.0.clone())
             }
@@ -308,7 +179,7 @@ where
         }
 
         w.used_bytes += size;
-        self.policy.on_insert(key);
+        self.policy.on_insert(&key, size);
 
         let evicted = self.drain_to_limit(&mut w);
         self.used_bytes_snapshot.store(w.used_bytes, Relaxed);
@@ -351,7 +222,7 @@ where
                 w.used_bytes = w.used_bytes.saturating_sub(old_size);
             }
             w.used_bytes += size;
-            self.policy.on_insert(key);
+            self.policy.on_insert(&key, size);
         }
 
         let evicted = self.drain_to_limit(&mut w);
@@ -412,7 +283,8 @@ where
     /// Used when a parquet file is deleted or replaced.
     ///
     /// O(n) scan of the eviction queue — cold path only (file deletion/merge).
-    pub(super) fn evict_by_prefix(&self, prefix: &str) {
+    /// Returns whether any entry was removed.
+    pub(super) fn evict_by_prefix(&self, prefix: &str) -> bool {
         // Collect victims by iterating the DashMap (avoids holding the write
         // lock while doing string comparisons on every FIFO entry).
         let victims: Vec<K> = self
@@ -423,7 +295,7 @@ where
             .collect();
 
         if victims.is_empty() {
-            return;
+            return false;
         }
 
         let mut w = self.write.lock();
@@ -441,6 +313,7 @@ where
         if evicted > 0 {
             self.evictions.fetch_add(evicted, Relaxed);
         }
+        evicted > 0
     }
 
     /// Lock-free stats snapshot.
@@ -461,6 +334,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eviction_policy::FifoPolicy;
     use std::sync::Arc;
 
     #[derive(Clone, PartialEq, Eq, Hash)]
@@ -529,11 +403,12 @@ mod tests {
         c.insert(Key::new("file1:col0"), vec![], 10);
         c.insert(Key::new("file1:col1"), vec![], 10);
         c.insert(Key::new("file2:col0"), vec![], 10);
-        c.evict_by_prefix("file1");
+        assert!(c.evict_by_prefix("file1"));
         assert_eq!(c.get(&Key::new("file1:col0")), None);
         assert_eq!(c.get(&Key::new("file1:col1")), None);
         assert_eq!(c.get(&Key::new("file2:col0")), Some(vec![]));
         assert_eq!(c.stats().used_bytes, 10);
+        assert!(!c.evict_by_prefix("file1"), "already evicted");
     }
 
     #[test]
@@ -572,13 +447,13 @@ mod tests {
 
     // ── pluggable policy ──────────────────────────────────────────────────────
 
-    /// Verify that `with_policy` compiles and works with a custom policy,
-    /// proving the extensibility point works without modifying `BoundedCache`.
+    /// Verify that `with_policy` compiles and works with an explicit policy
+    /// object, proving the extensibility point works without modifying
+    /// `BoundedCache`.
     #[test]
     fn custom_policy_compiles_and_works() {
-        // A trivial "always evict the first key ever inserted" policy (same as FIFO).
-        let cache: BoundedCache<Key, Vec<u8>, FifoPolicy<Key>> =
-            BoundedCache::with_policy(20, FifoPolicy::new());
+        let cache: BoundedCache<Key, Vec<u8>> =
+            BoundedCache::with_policy(20, Arc::new(FifoPolicy::new()));
         cache.insert(Key::new("x"), vec![], 10);
         cache.insert(Key::new("y"), vec![], 10);
         cache.insert(Key::new("z"), vec![], 10); // triggers eviction of "x"

@@ -9,6 +9,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::cache::unified::{CacheKind, CacheStats, ManagedCache};
 use crate::parquet_page_cache::is_scoped_page_index_enabled;
 use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
 use datafusion::execution::cache::cache_manager::{
@@ -20,11 +21,10 @@ use datafusion::parquet::file::metadata::ParquetMetaData;
 use native_bridge_common::log_error;
 use object_store::path::Path;
 
-// Cache type constants
-pub const CACHE_TYPE_METADATA: &str = "METADATA";
-pub const CACHE_TYPE_STATS: &str = "STATISTICS";
-pub const CACHE_TYPE_COLUMN_INDEX: &str = "COLUMN_INDEX";
-pub const CACHE_TYPE_OFFSET_INDEX: &str = "OFFSET_INDEX";
+// Re-exported for backward compatibility; canonical home is `cache::unified`.
+pub use crate::cache::unified::{
+    CACHE_TYPE_COLUMN_INDEX, CACHE_TYPE_METADATA, CACHE_TYPE_OFFSET_INDEX, CACHE_TYPE_STATS,
+};
 
 fn log_cache_error(operation: &str, error: &str) {
     log_error!("[CACHE ERROR] {} operation failed: {}", operation, error);
@@ -201,6 +201,52 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
                 "cache_error".to_string()
             }
         }
+    }
+}
+
+/// Management plane — see [`crate::cache::unified`]. DataFusion's query path
+/// keeps using the `FileMetadataCache` / `CacheAccessor` impls below.
+impl ManagedCache for MutexFileMetadataCache {
+    fn kind(&self) -> CacheKind {
+        CacheKind::Metadata
+    }
+
+    fn stats(&self) -> CacheStats {
+        let (entries, used_bytes, limit_bytes) = match self.inner.lock() {
+            Ok(cache) => (cache.len(), cache.memory_used(), cache.cache_limit()),
+            Err(e) => {
+                log_cache_error("stats", &e.to_string());
+                (0, 0, 0)
+            }
+        };
+        CacheStats {
+            hits: self.hit_count() as u64,
+            misses: self.miss_count() as u64,
+            evictions: 0, // not tracked by DefaultFilesMetadataCache
+            entries,
+            used_bytes,
+            limit_bytes,
+        }
+    }
+
+    fn set_limit(&self, limit: usize) {
+        self.update_cache_limit(limit);
+    }
+
+    fn clear(&self) {
+        self.clear_cache();
+    }
+
+    fn reset_counters(&self) {
+        self.reset_stats();
+    }
+
+    fn remove_file(&self, file_path: &str) -> bool {
+        CacheAccessor::remove(self, &Path::from(file_path)).is_some()
+    }
+
+    fn contains_file(&self, file_path: &str) -> bool {
+        CacheAccessor::contains_key(self, &Path::from(file_path))
     }
 }
 

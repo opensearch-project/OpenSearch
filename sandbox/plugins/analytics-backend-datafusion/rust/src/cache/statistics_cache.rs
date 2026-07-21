@@ -6,7 +6,8 @@
  * compatible open source license.
  */
 
-use crate::eviction_policy::{create_policy, CacheError, CachePolicy, CacheResult, PolicyType};
+use crate::cache::unified::{CacheKind, CacheStats, ManagedCache};
+use crate::eviction_policy::{create_policy, CacheError, CacheResult, EvictionPolicy, PolicyType};
 use arrow_array::Array;
 use dashmap::DashMap;
 use datafusion::common::stats::{ColumnStatistics, Precision};
@@ -130,7 +131,7 @@ pub struct CustomStatisticsCache {
     /// Current eviction policy. `Mutex` guards atomic swaps in `set_policy`;
     /// hot-path callers clone the `Arc` while holding the lock briefly, then call
     /// through the clone without holding the lock.
-    policy: Mutex<Arc<dyn CachePolicy>>,
+    policy: Mutex<Arc<dyn EvictionPolicy<String>>>,
     /// Size limit for the cache in bytes
     size_limit: AtomicUsize,
     /// Eviction threshold (0.0 to 1.0)
@@ -148,9 +149,7 @@ impl CustomStatisticsCache {
     pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
         Self {
             inner_cache: DashMap::new(),
-            policy: Mutex::new(
-                create_policy(policy_type).expect("statistics cache requires Lru or Lfu"),
-            ),
+            policy: Mutex::new(create_policy::<String>(policy_type)),
             size_limit: AtomicUsize::new(size_limit),
             eviction_threshold,
             memory_state: Arc::new(Mutex::new(MemoryState {
@@ -210,7 +209,7 @@ impl CustomStatisticsCache {
 
     /// Clone the policy Arc without holding the Mutex. Hot-path callers use this
     /// so they don't hold the lock while calling policy methods.
-    fn policy(&self) -> Arc<dyn CachePolicy> {
+    fn policy(&self) -> Arc<dyn EvictionPolicy<String>> {
         self.policy
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -224,14 +223,36 @@ impl CustomStatisticsCache {
         if current_size > new_limit {
             let target_eviction =
                 current_size - (new_limit as f64 * self.eviction_threshold) as usize;
-            let candidates = self.policy().select_for_eviction(target_eviction);
-            for candidate_key in candidates {
-                if let Ok(path) = self.parse_key_to_path(&candidate_key) {
-                    self.remove_internal(&path);
+            self.evict_victims(target_eviction);
+        }
+        Ok(())
+    }
+
+    /// Drain policy victims until at least `target_size` bytes are freed (or
+    /// the policy runs out of candidates). Victims are popped from the policy
+    /// by [`EvictionPolicy::next_victim`]; stale victims (already removed from
+    /// the store) are skipped. Returns the bytes actually freed.
+    fn evict_victims(&self, target_size: usize) -> usize {
+        if target_size == 0 {
+            return 0;
+        }
+        let policy = self.policy();
+        let mut freed_size = 0;
+        while freed_size < target_size {
+            let Some(victim) = policy.next_victim() else {
+                break;
+            };
+            let path = Path::from(victim.as_str());
+            if self.inner_cache.remove(&path).is_some() {
+                if let Ok(mut state) = self.memory_state.lock() {
+                    if let Some(old_size) = state.tracker.remove(&victim) {
+                        state.total = state.total.saturating_sub(old_size);
+                        freed_size += old_size;
+                    }
                 }
             }
         }
-        Ok(())
+        freed_size
     }
 
     /// Switch to a different eviction policy, rebuilding state from current entries.
@@ -245,7 +266,10 @@ impl CustomStatisticsCache {
                 })?;
             state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
         };
-        let new_policy = create_policy(policy_type).expect("statistics cache requires Lru or Lfu");
+        CacheKind::Statistics
+            .validate_policy(policy_type)
+            .map_err(|reason| CacheError::PolicyLockError { reason })?;
+        let new_policy = create_policy::<String>(policy_type);
         for (key, size) in entries {
             new_policy.on_insert(&key, size);
         }
@@ -276,40 +300,7 @@ impl CustomStatisticsCache {
 
     /// Manually trigger eviction.
     pub fn evict(&mut self, target_size: usize) -> CacheResult<usize> {
-        if target_size == 0 {
-            return Ok(0);
-        }
-        let candidates = self.policy().select_for_eviction(target_size);
-
-        let mut freed_size = 0;
-        for key in candidates {
-            let entry_size = {
-                let state = self
-                    .memory_state
-                    .lock()
-                    .map_err(|e| CacheError::PolicyLockError {
-                        reason: format!("Failed to acquire memory_state lock: {}", e),
-                    })?;
-                state.tracker.get(&key).copied().unwrap_or(0)
-            };
-
-            if entry_size > 0 {
-                if let Ok(path) = self.parse_key_to_path(&key) {
-                    if self.inner_cache.remove(&path).is_some() {
-                        if let Ok(mut state) = self.memory_state.lock() {
-                            state.tracker.remove(&key);
-                            state.total = state.total.saturating_sub(entry_size);
-                        }
-                        self.policy().on_remove(&key);
-                        freed_size += entry_size;
-                    }
-                    if freed_size >= target_size {
-                        break;
-                    }
-                }
-            }
-        }
-        Ok(freed_size)
+        Ok(self.evict_victims(target_size))
     }
 
     /// Convenience method: put statistics with associated metadata (replaces old put_with_extra)
@@ -326,26 +317,6 @@ impl CustomStatisticsCache {
     /// Convenience method: get just the statistics Arc (for callers that don't need full CachedFileMetadata)
     pub fn get_statistics(&self, k: &Path) -> Option<Arc<Statistics>> {
         self.get(k).map(|c| c.statistics)
-    }
-
-    /// Parse cache key back to Path
-    fn parse_key_to_path(&self, key: &str) -> CacheResult<Path> {
-        Ok(Path::from(key))
-    }
-
-    /// Remove entry internally (works with &self since inner_cache is thread-safe)
-    fn remove_internal(&self, k: &Path) -> Option<CachedFileMetadata> {
-        let key = k.to_string();
-        let result = self.inner_cache.remove(k);
-        if result.is_some() {
-            if let Ok(mut state) = self.memory_state.lock() {
-                if let Some(old_size) = state.tracker.remove(&key) {
-                    state.total = state.total.saturating_sub(old_size);
-                }
-            }
-            self.policy().on_remove(&key);
-        }
-        result.map(|x| x.1)
     }
 }
 
@@ -382,21 +353,13 @@ impl CustomStatisticsCache {
 
         let current_size = self.memory_state.lock().map(|s| s.total).unwrap_or(0);
 
-        let eviction_candidates = {
+        {
             let size_limit = self.size_limit.load(Ordering::Relaxed);
             let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
             if current_size + memory_size > threshold {
                 let target_eviction =
                     (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
-                self.policy().select_for_eviction(target_eviction)
-            } else {
-                vec![]
-            }
-        };
-
-        for candidate_key in eviction_candidates {
-            if let Ok(path) = self.parse_key_to_path(&candidate_key) {
-                self.remove_internal(&path);
+                self.evict_victims(target_eviction);
             }
         }
 
@@ -514,6 +477,47 @@ impl FileStatisticsCache for CustomStatisticsCache {
 impl Default for CustomStatisticsCache {
     fn default() -> Self {
         Self::with_default_config()
+    }
+}
+
+/// Management plane — see [`crate::cache::unified`]. Query-path access stays
+/// on the typed `Path`-keyed inherent methods above.
+impl ManagedCache for CustomStatisticsCache {
+    fn kind(&self) -> CacheKind {
+        CacheKind::Statistics
+    }
+
+    fn stats(&self) -> CacheStats {
+        CacheStats {
+            hits: self.hit_count() as u64,
+            misses: self.miss_count() as u64,
+            evictions: 0, // not tracked by this cache
+            entries: self.len(),
+            used_bytes: self.memory_consumed(),
+            limit_bytes: self.current_size_limit(),
+        }
+    }
+
+    fn set_limit(&self, limit: usize) {
+        // evict_victims drains best-effort; lock poisoning is already handled
+        // inside, so the Result is always Ok.
+        let _ = self.update_size_limit(limit);
+    }
+
+    fn clear(&self) {
+        CustomStatisticsCache::clear(self);
+    }
+
+    fn reset_counters(&self) {
+        self.reset_stats();
+    }
+
+    fn remove_file(&self, file_path: &str) -> bool {
+        self.remove(&Path::from(file_path)).is_some()
+    }
+
+    fn contains_file(&self, file_path: &str) -> bool {
+        self.contains_key(&Path::from(file_path))
     }
 }
 
