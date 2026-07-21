@@ -1,0 +1,37 @@
+{
+  "testName": "wildcard_query_escaped_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "wildcard": {
+        "name": {
+          "value": "test\\*file\\?name\\\\end"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[LIKE($0, 'test*file?name\\\\end', '\\')])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price"],
+  "mockResultRows": [
+    ["test*file?name\\end", 100]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

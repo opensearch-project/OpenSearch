@@ -1,0 +1,38 @@
+{
+  "testName": "wildcard_query_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "wildcard": {
+        "name": {
+          "value": "l*pt?p"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[LIKE($0, 'l%pt_p', '\\')])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price"],
+  "mockResultRows": [
+    ["laptop", 999],
+    ["leptop", 599]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
