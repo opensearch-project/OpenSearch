@@ -111,7 +111,7 @@ public class ExampleSearchResponseProcessorTests extends OpenSearchTestCase {
         sourceBuilder.query(new MatchQueryBuilder("trigger_field", "value"));
         request.source(sourceBuilder);
 
-        ProcessorGenerationContext ctx = new ProcessorGenerationContext(request);
+        ProcessorGenerationContext ctx = new ProcessorGenerationContext(request, null);
         assertTrue(factory.shouldGenerate(ctx));
     }
 
@@ -122,7 +122,7 @@ public class ExampleSearchResponseProcessorTests extends OpenSearchTestCase {
         sourceBuilder.query(new MatchQueryBuilder("field", "value"));
         request.source(sourceBuilder);
 
-        ProcessorGenerationContext ctx = new ProcessorGenerationContext(request);
+        ProcessorGenerationContext ctx = new ProcessorGenerationContext(request, null);
         assertFalse(factory.shouldGenerate(ctx));
     }
 

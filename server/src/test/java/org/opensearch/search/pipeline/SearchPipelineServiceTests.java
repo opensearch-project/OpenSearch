@@ -165,7 +165,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         final SearchRequest searchRequest = new SearchRequest("_index").pipeline("bar");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            () -> searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
         assertTrue(e.getMessage(), e.getMessage().contains(" not defined"));
     }
@@ -175,13 +175,13 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         setUpForResolvePipeline(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
+        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, null, indexNameExpressionResolver));
         assertEquals("p1", pipelinedRequest.getPipeline().getId());
         assertEquals(10, pipelinedRequest.source().size());
 
         // Bypass the default pipeline
         searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5)).pipeline("_none");
-        pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
         assertTrue(pipelinedRequest.getSystemGeneratedPipelineHolder().isNoOp());
@@ -193,7 +193,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         enabledAllSystemGeneratedFactories(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         // user defined pipeline is resolved
         assertEquals("p1", pipelinedRequest.getPipeline().getId());
         // system generated pipelines are resolved
@@ -253,7 +253,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
         IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
-            () -> service.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            () -> service.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
 
         String expectedError =
@@ -268,7 +268,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
         // set a large size to not meet the condition to generate the system generated request processor
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(20));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         // verify the system generated request processor is not generated
         assertTrue(
@@ -283,13 +283,98 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
         // set a large size to not meet the condition to generate the system generated request processor
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         // verify no system generated processors
         assertTrue(
             "Should not systematically generate the search processors",
             pipelinedRequest.getSystemGeneratedPipelineHolder().isNoOp()
         );
+    }
+
+    public void testResolveSystemGeneratedSearchPipeline_whenParentTaskProvided_thenContextHasParentAction() throws Exception {
+        AtomicReference<String> capturedParentAction = new AtomicReference<>();
+        Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> systemGeneratedRequestProcessors =
+            new HashMap<>();
+        systemGeneratedRequestProcessors.put("action_aware_processor", new SystemGeneratedProcessor.SystemGeneratedFactory<>() {
+            @Override
+            public boolean shouldGenerate(ProcessorGenerationContext context) {
+                capturedParentAction.set(context.parentAction());
+                return false;
+            }
+
+            @Override
+            public SearchRequestProcessor create(
+                Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
+                String tag,
+                String description,
+                boolean ignoreFailure,
+                Map<String, Object> config,
+                Processor.PipelineContext pipelineContext
+            ) {
+                return null;
+            }
+        });
+
+        SearchPipelineService service = createWithProcessors(
+            buildBaseProcessors().request,
+            buildBaseProcessors().response,
+            buildBaseProcessors().phase,
+            systemGeneratedRequestProcessors,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        setUpForResolvePipeline(service);
+        enabledAllSystemGeneratedFactories(service);
+
+        org.opensearch.tasks.Task parentTask = mock(org.opensearch.tasks.Task.class);
+        when(parentTask.getAction()).thenReturn("indices:data/read/msearch");
+
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        service.resolvePipeline(searchRequest, parentTask, indexNameExpressionResolver);
+
+        assertEquals("indices:data/read/msearch", capturedParentAction.get());
+    }
+
+    public void testResolveSystemGeneratedSearchPipeline_whenNoParentTask_thenContextHasNullParentAction() throws Exception {
+        AtomicReference<String> capturedParentAction = new AtomicReference<>("sentinel");
+        Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> systemGeneratedRequestProcessors =
+            new HashMap<>();
+        systemGeneratedRequestProcessors.put("action_aware_processor", new SystemGeneratedProcessor.SystemGeneratedFactory<>() {
+            @Override
+            public boolean shouldGenerate(ProcessorGenerationContext context) {
+                capturedParentAction.set(context.parentAction());
+                return false;
+            }
+
+            @Override
+            public SearchRequestProcessor create(
+                Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
+                String tag,
+                String description,
+                boolean ignoreFailure,
+                Map<String, Object> config,
+                Processor.PipelineContext pipelineContext
+            ) {
+                return null;
+            }
+        });
+
+        SearchPipelineService service = createWithProcessors(
+            buildBaseProcessors().request,
+            buildBaseProcessors().response,
+            buildBaseProcessors().phase,
+            systemGeneratedRequestProcessors,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        setUpForResolvePipeline(service);
+        enabledAllSystemGeneratedFactories(service);
+
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
+
+        assertNull(capturedParentAction.get());
     }
 
     @Override
@@ -649,7 +734,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
         // Verify pipeline
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
         Pipeline pipeline = pipelinedRequest.getPipeline();
         assertEquals(SearchPipelineService.AD_HOC_PIPELINE_ID, pipeline.getId());
@@ -693,7 +778,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
 
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         // The ad hoc pipeline was built (proving the config was read)...
         assertEquals(SearchPipelineService.AD_HOC_PIPELINE_ID, pipelinedRequest.getPipeline().getId());
@@ -781,7 +866,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
         // Verify pipeline
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
         Pipeline pipeline = pipelinedRequest.getPipeline();
         assertEquals("p1", pipeline.getId());
@@ -830,7 +915,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         // Exception thrown when creating the pipeline
         expectThrows(
             SearchPipelineProcessingException.class,
-            () -> searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            () -> searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
 
     }
@@ -859,7 +944,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         // Exception thrown when processing the request
         expectThrows(
             SearchPipelineProcessingException.class,
-            () -> syncTransformRequest(searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver))
+            () -> syncTransformRequest(searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver))
         );
     }
 
@@ -884,7 +969,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
 
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         SearchResponse response = createDefaultSearchResponse();
         // Exception thrown when processing response
@@ -922,7 +1007,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
                     "The exception from request processor [throwing_request] in the search pipeline [_ad_hoc_pipeline] was ignored"
                 )
             );
-            syncTransformRequest(searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver));
+            syncTransformRequest(searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver));
             mockAppender.assertAllExpectationsMatched();
         }
     }
@@ -948,7 +1033,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
 
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         SearchResponse response = createDefaultSearchResponse();
 
@@ -994,24 +1079,24 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchResponse response = createDefaultSearchResponse();
 
         syncExecutePipeline(
-            searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline"), indexNameExpressionResolver),
+            searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline"), null, indexNameExpressionResolver),
             response
         );
         expectThrows(
             SearchPipelineProcessingException.class,
             () -> syncExecutePipeline(
-                searchPipelineService.resolvePipeline(request.pipeline("bad_request_pipeline"), indexNameExpressionResolver),
+                searchPipelineService.resolvePipeline(request.pipeline("bad_request_pipeline"), null, indexNameExpressionResolver),
                 response
             )
         );
         syncExecutePipeline(
-            searchPipelineService.resolvePipeline(request.pipeline("good_response_pipeline"), indexNameExpressionResolver),
+            searchPipelineService.resolvePipeline(request.pipeline("good_response_pipeline"), null, indexNameExpressionResolver),
             response
         );
         expectThrows(
             SearchPipelineProcessingException.class,
             () -> syncExecutePipeline(
-                searchPipelineService.resolvePipeline(request.pipeline("bad_response_pipeline"), indexNameExpressionResolver),
+                searchPipelineService.resolvePipeline(request.pipeline("bad_response_pipeline"), null, indexNameExpressionResolver),
                 response
             )
         );
@@ -1093,21 +1178,21 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchResponse response = createDefaultSearchResponse();
 
         syncExecutePipeline(
-            searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline"), indexNameExpressionResolver),
+            searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline"), null, indexNameExpressionResolver),
             response
         );
         // Caught Exception here
         syncExecutePipeline(
-            searchPipelineService.resolvePipeline(request.pipeline("bad_request_pipeline"), indexNameExpressionResolver),
+            searchPipelineService.resolvePipeline(request.pipeline("bad_request_pipeline"), null, indexNameExpressionResolver),
             response
         );
         syncExecutePipeline(
-            searchPipelineService.resolvePipeline(request.pipeline("good_response_pipeline"), indexNameExpressionResolver),
+            searchPipelineService.resolvePipeline(request.pipeline("good_response_pipeline"), null, indexNameExpressionResolver),
             response
         );
         // Caught Exception here
         syncExecutePipeline(
-            searchPipelineService.resolvePipeline(request.pipeline("bad_response_pipeline"), indexNameExpressionResolver),
+            searchPipelineService.resolvePipeline(request.pipeline("bad_response_pipeline"), null, indexNameExpressionResolver),
             response
         );
 
@@ -1253,7 +1338,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
         expectThrows(
             SearchPipelineProcessingException.class,
-            () -> searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            () -> searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
     }
 
@@ -1268,7 +1353,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
         try {
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+            searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
             fail("Exception should have been thrown");
         } catch (SearchPipelineProcessingException e) {
             assertTrue(
@@ -1363,6 +1448,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
         PipelinedRequest request = searchPipelineService.resolvePipeline(
             new SearchRequest().source(createDefaultSearchSourceBuilder()).pipeline("p1"),
+            null,
             indexNameExpressionResolver
         );
         assertNull(contextHolder.get());
@@ -1407,13 +1493,13 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         service.applyClusterState(cce);
 
         SearchRequest searchRequest = new SearchRequest("bar").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
+        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, null, indexNameExpressionResolver));
         assertEquals("p1", pipelinedRequest.getPipeline().getId());
         assertEquals(10, pipelinedRequest.source().size());
 
         // Bypass the default pipeline
         searchRequest = new SearchRequest("bar").source(SearchSourceBuilder.searchSource().size(5)).pipeline("_none");
-        pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
     }
@@ -1468,7 +1554,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         service.applyClusterState(cce);
 
         SearchRequest searchRequest = new SearchRequest("bar").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
+        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, null, indexNameExpressionResolver));
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
     }
@@ -1503,7 +1589,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         service.applyClusterState(cce);
 
         SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
+        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, null, indexNameExpressionResolver));
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
     }
@@ -1538,7 +1624,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         service.applyClusterState(cce);
 
         SearchRequest searchRequest = new SearchRequest("xyz").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
+        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, null, indexNameExpressionResolver));
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
     }
@@ -1573,7 +1659,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         searchRequest.source().verbosePipeline(true);
 
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
 
         SearchResponseSections sections = new SearchResponseSections(
@@ -1606,7 +1692,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            () -> searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
         assertTrue(e.getMessage(), e.getMessage().contains("The 'verbose pipeline' option requires a search pipeline to be defined."));
     }
@@ -1637,7 +1723,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         searchRequest.source().verbosePipeline(true);
 
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
 
         SearchResponseSections sections = new SearchResponseSections(
@@ -1687,7 +1773,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         searchRequest.source().verbosePipeline(true);
 
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver)
         );
 
         SearchResponseSections sections = new SearchResponseSections(

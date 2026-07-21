@@ -76,13 +76,13 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // This request doesn't specify a pipeline, it doesn't get transformed.
         SearchRequest request = new SearchRequest("my-index").source(sourceBuilder);
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(request, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver)
         );
         assertEquals(size, pipelinedRequest.source().size());
 
         // Specify the pipeline and use it to transform the request
         request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
-        pipelinedRequest = syncTransformRequest(searchPipelineService.resolvePipeline(request, indexNameExpressionResolver));
+        pipelinedRequest = syncTransformRequest(searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver));
         assertEquals(2 * size, pipelinedRequest.source().size());
     }
 
@@ -116,7 +116,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(10);
         SearchRequest request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
 
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(request, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver);
 
         assertEquals("p1", pipelinedRequest.pipeline());
     }
@@ -127,7 +127,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         enabledAllSystemGeneratedFactories(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         pipelinedRequest.transformRequest(new ActionListener<SearchRequest>() {
             @Override
             public void onResponse(SearchRequest searchRequest) {
@@ -172,14 +172,14 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createDefaultSearchSourceBuilder());
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         SearchResponse notTransformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
         assertSame(searchResponse, notTransformedResponse);
 
         // Now apply a pipeline
         searchRequest = new SearchRequest().pipeline("p1");
         searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
         assertEquals(size, transformedResponse.getHits().getHits().length);
         for (int i = 0; i < size; i++) {
@@ -193,7 +193,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         enabledAllSystemGeneratedFactories(service);
         int size = 10;
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(size));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         ActionListener<SearchResponse> listener = pipelinedRequest.transformResponseListener(new ActionListener<SearchResponse>() {
 
@@ -259,7 +259,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createDefaultSearchSourceBuilder());
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResults = searchPhaseResults.getAtomicArray();
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
@@ -272,7 +272,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // Now set the pipeline as p1
         searchRequest = new SearchRequest().pipeline("p1");
         searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
@@ -291,7 +291,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // Check Processor doesn't run for between other phases
         searchRequest = new SearchRequest().pipeline("p1");
         searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResult = searchPhaseResults.getAtomicArray();
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
@@ -330,7 +330,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         searchPhaseResults.consumeResult(querySearchResult, () -> {});
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(10));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
