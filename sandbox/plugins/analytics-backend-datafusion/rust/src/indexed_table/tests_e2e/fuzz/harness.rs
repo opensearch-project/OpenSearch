@@ -105,6 +105,7 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -244,7 +245,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         let pruning_predicates = Arc::clone(&pruning_predicates);
         Arc::new(move |segment, chunk, stream_metrics, stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let rg_index_to_pos: HashMap<usize, usize> = chunk
                 .row_group_indices
                 .iter()
@@ -413,7 +418,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         let residual_pp = residual_pp.clone();
         let residual_physical = residual_physical.clone();
         Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&collector)),
                 pruner,
