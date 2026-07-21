@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -156,11 +157,17 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // Only benefit from intra-segment partitioning when there is a sub-aggregation. Without sub-aggs
-        // the filter-rewrite fast path counts buckets from the point tree in sub-linear time (no per-doc
-        // work), which intra cannot beat and would actually regress by forcing a doc-by-doc fallback. With
-        // sub-aggs the per-doc collection dominates and the partition-aware traversal parallelizes it.
-        return factories.countAggregators() > 0;
+        // With a sub-agg the per-doc collection dominates and the partition-aware traversal parallelizes it.
+        if (factories.countAggregators() > 0) {
+            return true;
+        }
+        // No sub-agg: the filter-rewrite fast path (pointTree.size() bulk count) is sub-linear and cannot be
+        // partitioned, so partitioning would only regress it. That fast path applies only when tryOptimize
+        // succeeds. When we can determine UPFRONT (request-level, segment-independent) that it will decline
+        // (non-UTC rounding, script/missing, non-indexed field, or nested under a parent bucket agg), the agg
+        // falls back to an O(docs) doc-by-doc scan that DOES parallelize under intra -> partition it.
+        boolean fastPathApplies = parent == null && DateHistogramAggregatorBridge.filterRewriteFastPathApplies(config, rounding);
+        return fastPathApplies == false;
     }
 
     public Rounding.DateTimeUnit getRounding() {

@@ -26,27 +26,40 @@ import java.util.function.Function;
 public abstract class RangeAggregatorBridge extends AggregatorBridge {
 
     protected boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
-        if (config.fieldType() == null) return false;
-        MappedFieldType fieldType = config.fieldType();
-        assert fieldType != null;
-        if (fieldType.isSearchable() == false || !(fieldType instanceof NumericPointEncoder)) return false;
-
-        if (config.script() == null && config.missing() == null) {
-            if (config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) {
-                // ranges are already sorted by from and then to
-                // we want ranges not overlapping with each other
-                double prevTo = ranges[0].getTo();
-                for (int i = 1; i < ranges.length; i++) {
-                    if (prevTo > ranges[i].getFrom()) {
-                        return false;
-                    }
-                    prevTo = ranges[i].getTo();
-                }
-                this.fieldType = config.fieldType();
-                return true;
-            }
+        if (filterRewriteFastPathApplies(config, ranges)) {
+            this.fieldType = config.fieldType();
+            return true;
         }
         return false;
+    }
+
+    /**
+     * Request-level (segment-independent) predicate for whether the range filter-rewrite fast path can apply.
+     * Pure (no side effects) so it can be consulted upfront by the range aggregator factory to decide
+     * intra-segment eligibility: when this returns false the fast path is unavailable and the doc-by-doc
+     * fallback — which parallelizes under intra-segment search — will run instead. Kept in sync with the
+     * conditions {@link #canOptimize(ValuesSourceConfig, RangeAggregator.Range[])} enforces.
+     */
+    public static boolean filterRewriteFastPathApplies(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
+        MappedFieldType fieldType = config.fieldType();
+        if (fieldType == null || fieldType.isSearchable() == false || !(fieldType instanceof NumericPointEncoder)) {
+            return false;
+        }
+        if (config.script() != null || config.missing() != null) {
+            return false;
+        }
+        if ((config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) == false) {
+            return false;
+        }
+        // ranges are already sorted by from and then to; the fast path requires non-overlapping ranges
+        double prevTo = ranges[0].getTo();
+        for (int i = 1; i < ranges.length; i++) {
+            if (prevTo > ranges[i].getFrom()) {
+                return false;
+            }
+            prevTo = ranges[i].getTo();
+        }
+        return true;
     }
 
     protected void buildRanges(RangeAggregator.Range[] ranges) {

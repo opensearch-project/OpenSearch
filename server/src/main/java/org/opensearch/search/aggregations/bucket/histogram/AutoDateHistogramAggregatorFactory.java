@@ -38,6 +38,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -132,8 +133,15 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // Only partition under intra when a sub-aggregation is present; without one the filter-rewrite
-        // fast path is sub-linear and intra would regress. See DateHistogramAggregatorFactory for details.
-        return factories.countAggregators() > 0;
+        // With a sub-agg the per-doc collection dominates and the partition-aware traversal parallelizes it.
+        if (factories.countAggregators() > 0) {
+            return true;
+        }
+        // No sub-agg: partition only when we can determine UPFRONT that the filter-rewrite fast path will
+        // decline (so the O(docs) doc-by-doc fallback, which parallelizes, runs). auto_date_histogram uses
+        // roundingInfos[0].rounding for its filter-rewrite canOptimize check. See DateHistogramAggregatorFactory.
+        boolean fastPathApplies = parent == null
+            && DateHistogramAggregatorBridge.filterRewriteFastPathApplies(config, roundingInfos[0].rounding);
+        return fastPathApplies == false;
     }
 }

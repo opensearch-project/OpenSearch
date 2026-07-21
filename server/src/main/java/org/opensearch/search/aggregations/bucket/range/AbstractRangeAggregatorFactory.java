@@ -37,6 +37,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.RangeAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -131,8 +132,15 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // Only partition under intra when a sub-aggregation is present; without one the filter-rewrite
-        // fast path is sub-linear and intra would regress. See DateHistogramAggregatorFactory for details.
-        return factories.countAggregators() > 0;
+        // With a sub-agg the per-doc collection dominates and the partition-aware traversal parallelizes it.
+        if (factories.countAggregators() > 0) {
+            return true;
+        }
+        // No sub-agg: partition only when we can determine UPFRONT that the filter-rewrite fast path will
+        // decline (non-indexed/non-numeric field, script/missing, overlapping ranges, or nested under a
+        // parent bucket agg), so the O(docs) doc-by-doc fallback — which parallelizes — runs. Otherwise the
+        // sub-linear fast path applies and intra would only regress it. See DateHistogramAggregatorFactory.
+        boolean fastPathApplies = parent == null && RangeAggregatorBridge.filterRewriteFastPathApplies(config, ranges);
+        return fastPathApplies == false;
     }
 }
