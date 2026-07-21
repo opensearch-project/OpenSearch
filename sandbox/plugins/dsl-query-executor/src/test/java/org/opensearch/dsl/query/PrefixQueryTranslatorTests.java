@@ -33,7 +33,7 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.LIKE, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        assertEquals(3, call.getOperands().size());
 
         // Check pattern is "lap%"
         RexNode pattern = call.getOperands().get(1);
@@ -173,5 +173,20 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         // All special chars should be escaped
         RexNode pattern = call.getOperands().get(1);
         assertEquals("a\\%b\\_c\\\\d%", ((RexLiteral) pattern).getValueAs(String.class));
+    }
+
+    public void testPrefixLikeExpressionHasExplicitEscapeClause() throws ConversionException {
+        // The LIKE call must have 3 operands: field, pattern, escape char
+        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "lap"), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LIKE, call.getKind());
+        assertEquals("LIKE expression must have 3 operands (field, pattern, escape)", 3, call.getOperands().size());
+
+        // Third operand is the escape character literal '\'
+        RexNode escapeNode = call.getOperands().get(2);
+        assertTrue(escapeNode instanceof RexLiteral);
+        assertEquals("\\", ((RexLiteral) escapeNode).getValueAs(String.class));
     }
 }
