@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Shared mechanics for every {@link StageExecution} variant: state CAS, listener
  * fire loop, failure capture, metrics, default {@code tasks}/{@code runner} accessors,
  * default {@code onTaskTerminal}/{@code cancel}/{@code failWithCause} impls, and the
- * {@link #start()} template (materialise → publish → transition).
+ * {@link #start} template (materialise → publish → transition).
  *
  * <p>Subclasses implement {@link #materializeTasks()} (what tasks to run) and
  * optionally {@link #onTerminalTransition(State)} (pre-listener cleanup). The base
@@ -106,25 +106,35 @@ public abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
-     * Template: materialise task list (possibly async), hand to {@link #publishTasksAndStart}.
-     * Final — subclasses customise via {@link #materializeTasks()} for synchronous work or
-     * {@link #materializeTasksAsync} for deferred work (e.g. a network round-trip).
+     * Template: materialise task list (possibly async), publish, transition, then signal
+     * {@code onStarted}. Subclasses customise via {@link #materializeTasks()} for synchronous
+     * work or {@link #materializeTasksAsync} for deferred work (e.g. a can-match round-trip).
      *
-     * <p>{@code start()} may return BEFORE the stage has transitioned to RUNNING when the
-     * async path is used. Callers that need to act on the transition must register a state
-     * listener rather than polling {@link #getState()} after this call.
+     * <p>{@code onStarted.onResponse} fires after the post-materialisation transition (RUNNING
+     * when there is work, terminal otherwise); {@code onStarted.onFailure} fires if
+     * materialisation failed (the stage is FAILED by then). For the synchronous path all of this
+     * happens inline before this method returns; for the async path it happens on the completion
+     * thread — so callers must act via {@code onStarted}, not by polling {@link #getState()}
+     * after the call.
      */
     @Override
-    public final void start() {
+    public final void start(ActionListener<Void> onStarted) {
         try {
-            materializeTasksAsync(ActionListener.wrap(this::publishTasksAndStart, this::failWithCause));
+            materializeTasksAsync(ActionListener.wrap(tasks -> {
+                publishTasksAndStart(tasks);
+                onStarted.onResponse(null);
+            }, cause -> {
+                failWithCause(cause);
+                onStarted.onFailure(cause);
+            }));
         } catch (Exception e) {
             failWithCause(e);
+            onStarted.onFailure(e);
         }
     }
 
     /**
-     * Build this stage's task list. Called once from {@link #start()}. Return empty for
+     * Build this stage's task list. Called once from {@link #start}. Return empty for
      * "nothing to do" — the base will short-circuit straight to SUCCEEDED. Throw to mark
      * the stage FAILED (e.g. target resolution failure).
      *
@@ -140,7 +150,7 @@ public abstract class AbstractStageExecution implements StageExecution {
      *
      * <p>Implementations MUST eventually call exactly one of {@code listener.onResponse}
      * or {@code listener.onFailure}. Synchronous exceptions thrown before either are caught
-     * by {@link #start()} and treated as failures.
+     * by {@link #start} and treated as failures.
      */
     protected void materializeTasksAsync(ActionListener<List<StageTask>> listener) {
         try {

@@ -108,7 +108,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     public void testFastFailsOnFirstTaskFailureWithoutWaitingForSiblings() {
         CapturingSink sink = new CapturingSink();
         ShardFragmentStageExecution exec = buildExecutionWithTargets(sink, 3);
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
 
         assertEquals("setup: stage transitions to RUNNING", StageExecution.State.RUNNING, exec.getState());
         assertEquals("setup: one task per target", 3, exec.tasks().size());
@@ -181,7 +181,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
      * a full QueryExecution + ExecutionGraph in the test.
      */
     private static void scheduleAndDispatch(ShardFragmentStageExecution exec) {
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
         @SuppressWarnings("unchecked")
         TaskRunner<StageTask> dispatcher = (TaskRunner<StageTask>) exec.taskRunner();
         if (dispatcher == null) return;

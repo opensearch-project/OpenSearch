@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec.stage;
 import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -154,7 +155,7 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
         StageTask task = new LocalStageTask(new StageTaskId(7, 0), l -> l.onResponse(null));
         exec.materializeReturn = List.of(task);
 
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
 
         assertEquals(StageExecution.State.RUNNING, exec.getState());
         assertEquals(1, exec.tasks().size());
@@ -166,7 +167,7 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
         TestStageExecution exec = new TestStageExecution(mockStage(8));
         exec.materializeReturn = List.of();  // explicit
 
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
 
         assertEquals(StageExecution.State.SUCCEEDED, exec.getState());
         assertTrue("no tasks published", exec.tasks().isEmpty());
@@ -178,7 +179,7 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
         RuntimeException boom = new RuntimeException("resolve failed");
         exec.materializeThrow = boom;
 
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
 
         assertEquals(StageExecution.State.FAILED, exec.getState());
         assertSame("captured cause is the thrown exception", boom, exec.getFailure());
