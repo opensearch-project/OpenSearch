@@ -78,14 +78,13 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            final long startTime = System.currentTimeMillis();
             final QueryPlans plans;
-            final long convertTime;
+            final SearchSourceConverter converter;
             try {
                 String indexName = resolveToSingleIndex(request);
-                long convertStart = System.nanoTime();
-                SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext().schema());
+                converter = new SearchSourceConverter(contextProvider.getContext().schema());
                 plans = converter.convert(request.source(), indexName);
-                convertTime = System.nanoTime() - convertStart;
             } catch (Exception e) {
                 logger.error("DSL conversion failed", e);
                 listener.onFailure(e);
@@ -94,7 +93,8 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             planExecutor.execute(plans, ActionListener.wrap(results -> {
                 final SearchResponse response;
                 try {
-                    response = SearchResponseBuilder.build(results, convertTime);
+                    long tookInMillis = System.currentTimeMillis() - startTime;
+                    response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), tookInMillis);
                 } catch (Exception buildEx) {
                     logger.error("DSL response building failed", buildEx);
                     listener.onFailure(buildEx);

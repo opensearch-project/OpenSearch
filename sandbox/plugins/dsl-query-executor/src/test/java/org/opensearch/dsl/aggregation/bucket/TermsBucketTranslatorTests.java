@@ -8,8 +8,12 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
+import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -103,7 +107,27 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertTrue(InternalOrder.isKeyAsc(compound.orderElements().get(1)));
     }
 
-    public void testToBucketAggregationNotYetImplemented() {
-        expectThrows(UnsupportedOperationException.class, () -> translator.toBucketAggregation(brandAgg, List.of()));
+    public void testToBucketAggregationBuildsStringTerms() {
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of("BrandA"), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of("BrandB"), 2, InternalAggregations.EMPTY)
+        );
+
+        InternalAggregation agg = translator.toBucketAggregation(brandAgg, entries);
+
+        assertTrue(agg instanceof StringTerms);
+        StringTerms terms = (StringTerms) agg;
+        assertEquals(brandAgg.getName(), terms.getName());
+        assertEquals(2, terms.getBuckets().size());
+        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals(3, terms.getBuckets().get(0).getDocCount());
+        assertEquals("BrandB", terms.getBuckets().get(1).getKeyAsString());
+        assertEquals(2, terms.getBuckets().get(1).getDocCount());
+    }
+
+    public void testToBucketAggregationEmptyBuckets() {
+        InternalAggregation agg = translator.toBucketAggregation(brandAgg, List.of());
+        assertTrue(agg instanceof StringTerms);
+        assertTrue(((StringTerms) agg).getBuckets().isEmpty());
     }
 }
