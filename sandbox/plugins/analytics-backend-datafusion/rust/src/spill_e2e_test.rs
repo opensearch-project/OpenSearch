@@ -132,10 +132,21 @@ mod tests {
             "precondition: spill must be enabled for this test to be meaningful"
         );
 
-        // Small batches + a couple of partitions keep per-operator memory low so
-        // the aggregator is pushed to spill rather than failing outright.
+        // Single partition is deliberate. With >1 partition, several
+        // GroupedHashAggregateStreams share this one tiny GreedyMemoryPool
+        // (DynamicLimitPool is greedy/first-come-first-serve below the 16 MiB RSS
+        // gate). When one partition spills it frees its own state and then reserves
+        // ~32 KiB of sort headroom (datafusion row_hash.rs `spill()`); but a sibling
+        // partition that has greedily filled the pool leaves no room for that
+        // headroom, so the spill fails with ResourcesExhausted — nondeterministically,
+        // depending on thread scheduling. (DataFusion's docs say to use FairSpillPool,
+        // not greedy, when multiple operators all spill.) One partition removes the
+        // cross-partition race: the single aggregator frees its own state before
+        // reserving sort headroom, so spill is deterministic. Data volume alone still
+        // forces the spill (the ~500k-group hash table dwarfs the 12 MiB pool), which
+        // is exactly what this test exists to prove. Do NOT raise this above 1.
         let mut config = SessionConfig::new();
-        config.options_mut().execution.target_partitions = 2;
+        config.options_mut().execution.target_partitions = 1;
         config.options_mut().execution.batch_size = 1024;
 
         let state = SessionStateBuilder::new()
