@@ -204,9 +204,10 @@ public final class FilterRewriteOptimizationContext {
     }
 
     /**
-     * Parameters for {@link org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector}
-     */
-    /**
+     * Parameters for {@link org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector}.
+     *
+     * @param collectableSubAggregators the sub-aggregators to collect into for each range bucket
+     * @param leafCtx the current segment's leaf reader context
      * @param minDocId inclusive lower bound of the partition's doc-id range (0 for whole segment)
      * @param maxDocId exclusive upper bound of the partition's doc-id range (Integer.MAX_VALUE for whole segment)
      */
