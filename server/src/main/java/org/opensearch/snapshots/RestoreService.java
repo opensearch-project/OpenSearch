@@ -57,7 +57,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
-import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -668,33 +667,6 @@ public class RestoreService implements ClusterStateApplier {
                                 .map(ds -> updateDataStream(ds, mdBuilder, request))
                                 .collect(Collectors.toMap(DataStream::getName, Function.identity()))
                         );
-                        // Auto-attach any restored backing index (".ds-<streamName>-NNNNNN") to a pre-existing data stream
-                        // of the same name, in the same cluster-state update as the restore. Creating the index and
-                        // advancing the stream together avoids the transient state that Metadata#validateDataStreams
-                        // forbids (a convention-named index above the stream's generation). Cross-cluster replication of
-                        // data streams relies on this: a follower restores each new backing index and expects it to join
-                        // the local stream, advancing the generation, without a separate rollover/_data_stream/_modify step.
-                        for (String renamedIndexName : indices.keySet()) {
-                            String streamName = DataStream.parseDataStreamName(renamedIndexName);
-                            if (streamName == null) {
-                                continue;
-                            }
-                            DataStream currentDs = updatedDataStreams.get(streamName);
-                            IndexMetadata restoredIndexMetadata = mdBuilder.get(renamedIndexName);
-                            if (currentDs == null || restoredIndexMetadata == null) {
-                                continue;
-                            }
-                            if (currentDs.getIndices().contains(restoredIndexMetadata.getIndex())) {
-                                continue;
-                            }
-                            // A backing index must map the stream's timestamp field as a date, or data stream search
-                            // breaks; enforce the same check as the add-backing-index API.
-                            MetadataDataStreamsService.validateTimestampFieldMapping(
-                                restoredIndexMetadata,
-                                currentDs.getTimeStampField().getName()
-                            );
-                            updatedDataStreams.put(streamName, currentDs.addBackingIndex(restoredIndexMetadata.getIndex()));
-                        }
                         mdBuilder.dataStreams(updatedDataStreams);
 
                         // Restore global state if needed

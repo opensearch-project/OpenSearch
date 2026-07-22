@@ -150,11 +150,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     /**
      * Adds the given index to the data stream's backing indices and returns a new {@code DataStream} instance. Backing
-     * indices are kept ordered oldest-to-newest so the write index remains last: convention-named indices
-     * ({@code .ds-<name>-NNNNNN}) order by their counter, while any non-convention names sort first. The generation is
-     * derived as the highest backing-index counter, so attaching an index whose counter exceeds the current generation
-     * advances the generation and makes it the new write index (as when a restored/replicated rollover index is
-     * attached); attaching a lower-counter or non-convention index leaves the generation unchanged.
+     * indices are ordered oldest-to-newest so the write index remains last: convention-named indices
+     * ({@code .ds-<name>-NNNNNN}) order by their counter, and non-convention names sort first. The generation is derived
+     * as the highest backing-index counter, so adding an index whose counter exceeds the current generation advances
+     * the generation and makes it the new write index; adding a lower-counter or non-convention index leaves the
+     * generation unchanged.
      *
      * @param index the backing index to add
      * @return new {@code DataStream} instance with the index added

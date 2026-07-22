@@ -201,16 +201,14 @@ public class MetadataDataStreamsService {
             index = hiddenIndexMetadata.build().getIndex();
         }
 
-        // The added index is always a non-write index here, so DataStream#addBackingIndex leaves the generation
-        // unchanged: a convention-named index whose counter exceeds the current generation cannot exist in cluster
-        // state alongside a lower-generation stream (Metadata#validateDataStreams rejects it), and this API does not
-        // create indices. New write indices are introduced by rollover or attached during restore.
+        // The added index is always a non-write index, so the generation is unchanged: an index whose counter exceeds
+        // the current generation cannot exist alongside a lower-generation stream (Metadata#validateDataStreams rejects
+        // it), and this API never creates indices. New write indices come from rollover.
         return dataStream.addBackingIndex(index);
     }
 
     /**
      * Verifies the index maps the data stream's timestamp field as a date type, which data stream search requires.
-     * Shared by the add-backing-index API and by auto-attach on snapshot restore.
      */
     @SuppressWarnings("unchecked")
     public static void validateTimestampFieldMapping(IndexMetadata indexMetadata, String timestampFieldName) {
