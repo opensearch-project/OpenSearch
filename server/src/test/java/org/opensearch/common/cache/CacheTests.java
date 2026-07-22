@@ -956,6 +956,71 @@ public class CacheTests extends OpenSearchTestCase {
         }
     }
 
+    public void testKeysSnapshotContainsAllKeys() {
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        Set<Integer> expected = new HashSet<>();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+            expected.add(i);
+        }
+        List<Integer> snapshot = cache.keysSnapshot();
+        assertEquals(expected.size(), snapshot.size());
+        assertEquals(expected, new HashSet<>(snapshot));
+
+        // the snapshot is a copy: invalidating entries does not affect it
+        for (int i = 0; i < numberOfEntries / 2; i++) {
+            cache.invalidate(i);
+        }
+        assertEquals(expected, new HashSet<>(snapshot));
+    }
+
+    // Unlike Cache.keys(), whose iterator can silently skip entries when a concurrent cache hit relinks the
+    // current entry to the head of the LRU list, keysSnapshot must observe every key that is present for the
+    // whole duration of the call, regardless of concurrent reads promoting entries.
+    public void testKeysSnapshotUnderConcurrentPromotion() throws BrokenBarrierException, InterruptedException {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        final int entries = randomIntBetween(1000, 5000);
+        final Set<Integer> expected = new HashSet<>();
+        for (int i = 0; i < entries; i++) {
+            cache.put(i, Integer.toString(i));
+            expected.add(i);
+        }
+
+        final int numberOfReaders = randomIntBetween(2, 4);
+        final AtomicBoolean done = new AtomicBoolean(false);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfReaders);
+        final List<Thread> threads = new ArrayList<>();
+        for (int t = 0; t < numberOfReaders; t++) {
+            Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    Random random = new Random(randomLong());
+                    while (done.get() == false) {
+                        cache.get(random.nextInt(entries));
+                    }
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        barrier.await();
+        try {
+            for (int iteration = 0; iteration < 100; iteration++) {
+                List<Integer> snapshot = cache.keysSnapshot();
+                assertEquals(expected.size(), snapshot.size());
+                assertEquals(expected, new HashSet<>(snapshot));
+            }
+        } finally {
+            done.set(true);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
+    }
+
     public void testWithInvalidSegmentNumber() {
         assertThrows(
             "Number of segments for cache should be a power of two up-to 256",
