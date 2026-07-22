@@ -2308,6 +2308,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         new IndexingPressureService(settings, clusterService),
                         mockIndicesService,
                         new SystemIndices(emptyMap()),
+                        new UpdateHelper(scriptService),
                         NoopTracer.INSTANCE
                     )
                 );
