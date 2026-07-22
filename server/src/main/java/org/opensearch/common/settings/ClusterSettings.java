@@ -98,6 +98,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.discovery.FileBasedSeedHostsProvider;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
 import org.opensearch.discovery.SeedHostsResolver;
@@ -582,6 +583,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiscoveryModule.ELECTION_STRATEGY_SETTING,
                 SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
                 SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+                FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE_PATH_SETTING,
                 SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,
                 SeedHostsResolver.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING,
                 SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
