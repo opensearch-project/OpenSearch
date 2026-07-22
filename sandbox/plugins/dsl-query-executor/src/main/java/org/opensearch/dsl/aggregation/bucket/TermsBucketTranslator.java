@@ -64,7 +64,12 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
         List<StringTerms.Bucket> termBuckets = new ArrayList<>();
         for (BucketEntry entry : buckets) {
             Object key = entry.keys().get(0);
-            BytesRef term = new BytesRef(key == null ? "" : key.toString());
+            if (key == null) {
+                // SQL GROUP BY emits a NULL group; legacy terms excludes docs with a
+                // missing field entirely (no bucket) unless "missing" is configured.
+                continue;
+            }
+            BytesRef term = new BytesRef(key.toString());
             termBuckets.add(new StringTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, DocValueFormat.RAW));
         }
         BucketOrder order = agg.order();

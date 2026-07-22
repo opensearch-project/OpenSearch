@@ -36,7 +36,8 @@ import java.util.stream.StreamSupport;
 public final class AggregationResponseBuilder {
 
     private static final String NO_GROUPING_KEY = "";
-    private static final String AGGREGATION_LEVEL_SEPARATOR = ",";
+    /** NUL cannot appear in field names, so joined keys cannot collide. */
+    private static final String AGGREGATION_LEVEL_SEPARATOR = "\u0000";
 
     private final AggregationRegistry registry;
     private final Map<String, ExecutionResult> granularityMap;
@@ -287,8 +288,10 @@ public final class AggregationResponseBuilder {
             node = node.getInputs().isEmpty() ? null : node.getInput(0);
         }
         if (node instanceof LogicalAggregate agg) {
-            int groupCount = agg.getGroupCount();
-            return granularityKey(agg.getRowType().getFieldNames().stream().limit(groupCount).collect(Collectors.toList()));
+            // Resolve group field names against the aggregate's INPUT row type via the group
+            // set — robust against output-side renames, unlike the aggregate's own row type.
+            List<String> inputFields = agg.getInput().getRowType().getFieldNames();
+            return granularityKey(agg.getGroupSet().asList().stream().map(inputFields::get).collect(Collectors.toList()));
         }
         return NO_GROUPING_KEY;
     }

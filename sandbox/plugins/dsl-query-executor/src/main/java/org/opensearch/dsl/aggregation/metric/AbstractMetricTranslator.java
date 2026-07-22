@@ -76,6 +76,8 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
         if (value instanceof Number number) {
             return number.doubleValue();
         }
-        throw new IllegalStateException("Expected numeric aggregation result but got " + value.getClass().getSimpleName());
+        throw new IllegalStateException(
+            "Expected numeric aggregation result but got " + (value == null ? "null" : value.getClass().getSimpleName())
+        );
     }
 }
