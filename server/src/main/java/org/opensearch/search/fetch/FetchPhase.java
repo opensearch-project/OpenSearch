@@ -297,7 +297,6 @@ public class FetchPhase {
         boolean hasFetchContext = context.hasFetchSourceContext();
         String[] requestSourceIncludes = hasFetchContext ? context.fetchSourceContext().includes() : null;
         String[] requestSourceExcludes = hasFetchContext ? context.fetchSourceContext().excludes() : null;
-        String[] codecSourceExcludes = codecSourceExcludes(context, requestSourceExcludes);
 
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
@@ -305,7 +304,12 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
-            return new FieldsVisitor(loadSource, requestSourceIncludes, requestSourceExcludes, codecSourceExcludes);
+            return new FieldsVisitor(
+                loadSource,
+                requestSourceIncludes,
+                requestSourceExcludes,
+                codecSourceExcludes(context, requestSourceExcludes)
+            );
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             return null;
@@ -336,6 +340,7 @@ public class FetchPhase {
             }
             boolean loadSource = sourceRequired(context);
 
+            String[] codecSourceExcludes = codecSourceExcludes(context, requestSourceExcludes);
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource, requestSourceIncludes, requestSourceExcludes, codecSourceExcludes);
