@@ -14,6 +14,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilePermission;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -43,6 +44,10 @@ public class FileInterceptorIntegTests {
         return integTestFiles;
     }
 
+    private static String getJacocoDirPermissionPath() {
+        return Path.of(System.getProperty("user.dir")).resolve("../../jacoco").normalize() + "/-";
+    }
+
     private String randomAlphaOfLength(int length) {
         // Using UUID to generate random string and taking first 'length' characters
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, length);
@@ -55,6 +60,7 @@ public class FileInterceptorIntegTests {
             public PermissionCollection getPermissions(ProtectionDomain domain) {
                 Permissions permissions = new Permissions();
                 permissions.add(new FilePermission(System.getProperty("user.dir") + "/-", "read,write,delete"));
+                permissions.add(new FilePermission(getJacocoDirPermissionPath(), "write"));
                 return permissions;
             }
 
@@ -312,5 +318,37 @@ public class FileInterceptorIntegTests {
             // Cleanup in case test fails
             Files.deleteIfExists(tempPath);
         }
+    }
+
+    @Test
+    public void testFileInputStreamBlockedForUnauthorizedPath() throws Exception {
+        File unauthorizedFile = Path.of(System.getProperty("java.home"), "release").toFile();
+        assertTrue("JDK release metadata should exist", unauthorizedFile.isFile());
+
+        // FileInputStream should be blocked because java.home is outside user.dir.
+        assertThrows(SecurityException.class, () -> { new FileInputStream(unauthorizedFile); });
+    }
+
+    @Test
+    public void testFileOutputStream() throws Exception {
+        Path tmpDir = getTestDir();
+        Path tempPath = tmpDir.resolve("test-output-stream-" + randomAlphaOfLength(8) + ".txt");
+
+        try {
+            try (FileOutputStream fos = new FileOutputStream(tempPath.toFile())) {
+                fos.write("test content".getBytes(StandardCharsets.UTF_8));
+            }
+
+            assertEquals("test content", Files.readString(tempPath, StandardCharsets.UTF_8));
+        } finally {
+            Files.deleteIfExists(tempPath);
+        }
+    }
+
+    @Test
+    public void testFileOutputStreamBlockedForUnauthorizedPath() {
+        Path unauthorizedPath = getTestDir().getRoot().resolve("test-output-stream-" + randomAlphaOfLength(8) + ".txt");
+
+        assertThrows(SecurityException.class, () -> { new FileOutputStream(unauthorizedPath.toFile()); });
     }
 }

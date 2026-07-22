@@ -34,6 +34,11 @@ repositories {
 allprojects {
   plugins.withId('jacoco') {
     jacoco.toolVersion = '0.8.14'
+
+    tasks.withType(Test).configureEach {
+      // BootstrapForTesting uses this property to grant the JaCoCo agent access to its execution-data directory.
+      systemProperty 'jacoco.dir', layout.buildDirectory.dir('jacoco').get().asFile.absolutePath
+    }
   }
 }
 
