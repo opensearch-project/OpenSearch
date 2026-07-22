@@ -18,6 +18,7 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TermsBucketTranslatorTests extends OpenSearchTestCase {
@@ -123,6 +124,18 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals(3, terms.getBuckets().get(0).getDocCount());
         assertEquals("BrandB", terms.getBuckets().get(1).getKeyAsString());
         assertEquals(2, terms.getBuckets().get(1).getDocCount());
+    }
+
+    /** Legacy parity: docs with a missing field form no bucket — a SQL NULL group is dropped. */
+    public void testNullKeyBucketExcluded() {
+        List<BucketEntry> entries = new ArrayList<>();
+        entries.add(new BucketEntry(java.util.Collections.singletonList(null), 4L, InternalAggregations.EMPTY));
+        entries.add(new BucketEntry(List.of("BrandA"), 3L, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries);
+
+        assertEquals(1, terms.getBuckets().size());
+        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
     }
 
     public void testToBucketAggregationEmptyBuckets() {
