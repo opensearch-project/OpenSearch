@@ -40,9 +40,13 @@ if exist "%OPENSEARCH_HOME%\lib\bc-fips*.jar" (
     set "FOUND_BC_FIPS=true"
 )
 
-REM Enable only if value equals "true" (case-insensitive) AND BC-FIPS JAR is present
-if /I "%OPENSEARCH_FIPS_MODE%"=="true" (
-    if "%FOUND_BC_FIPS%"=="true" (
+REM BC-FIPS triggers a native load on init, so JDK 24+ requires
+REM --enable-native-access=ALL-UNNAMED whenever the jar is on the classpath,
+REM regardless of whether FIPS mode itself is enabled.
+if "%FOUND_BC_FIPS%"=="true" (
+    set "OPENSEARCH_JAVA_OPTS=--enable-native-access=ALL-UNNAMED %OPENSEARCH_JAVA_OPTS%"
+
+    if /I "%OPENSEARCH_FIPS_MODE%"=="true" (
         echo FIPS mode enabled, setting JVM options.
         set "OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties=""%OPENSEARCH_PATH_CONF%\fips_java.security"" %OPENSEARCH_JAVA_OPTS%"
     )

@@ -114,17 +114,19 @@ OPENSEARCH_PATH_CONF=`cd "$OPENSEARCH_PATH_CONF"; pwd`
 
 # FIPS mode is runtime-configured via env var (default: false)
 OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
-
-# Normalize to lowercase for common inputs: TRUE/True/true
-OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
 OPENSEARCH_FIPS_MODE="$(echo "$OPENSEARCH_FIPS_MODE" | tr '[:upper:]' '[:lower:]')"
 
-if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]] && ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
-  echo "FIPS mode enabled, setting JVM options."
-  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
+# BC-FIPS triggers a native load on init, so JDK 24+ requires
+# --enable-native-access=ALL-UNNAMED whenever the jar is on the classpath,
+# regardless of whether FIPS mode itself is enabled.
+if ls "$OPENSEARCH_HOME/lib" 2>/dev/null | grep -E -q "bc-fips.*\.jar"; then
+  export OPENSEARCH_JAVA_OPTS="--enable-native-access=ALL-UNNAMED ${OPENSEARCH_JAVA_OPTS}"
 
-  # Ensure BC-FIPS "approved only" mode is on when FIPS mode is enabled
-  export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true ${OPENSEARCH_JAVA_OPTS}"
+  if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]]; then
+    echo "FIPS mode enabled, setting JVM options."
+    export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
+    export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true ${OPENSEARCH_JAVA_OPTS}"
+  fi
 fi
 
 OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
