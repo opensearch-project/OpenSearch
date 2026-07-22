@@ -11,7 +11,6 @@ package org.opensearch.analytics.planner;
 import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
@@ -31,6 +30,7 @@ import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
+import org.apache.calcite.sql2rel.RelFieldTrimmer;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -118,18 +118,19 @@ public class PlannerImpl {
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
     public static RelNode runAllOptimizations(RelNode rawRelNode, PlannerContext context) {
-        LOGGER.debug("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
+        RelNodeUtils.logPlan(LOGGER, "Input RelNode", rawRelNode);
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
+        modifiedRelNode = trimFields(modifiedRelNode);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        RelNodeUtils.logPlan(LOGGER, "After marking", modifiedRelNode);
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
@@ -141,21 +142,21 @@ public class PlannerImpl {
         // Revisit once those are designed. The rule would also strip performance peers from
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
-        LOGGER.debug("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        RelNodeUtils.logPlan(LOGGER, "After CBO", modifiedRelNode);
         Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
-            LOGGER.debug("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+            RelNodeUtils.logPlan(LOGGER, "After late-materialization", modifiedRelNode);
         }
         Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
         if (topK.isPresent()) {
             modifiedRelNode = topK.get();
-            LOGGER.debug("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
+            RelNodeUtils.logPlan(LOGGER, "After TopK rewrite", modifiedRelNode);
         }
         Optional<RelNode> sortPushdown = OpenSearchSortPushdownRewriter.rewrite(modifiedRelNode);
         if (sortPushdown.isPresent()) {
             modifiedRelNode = sortPushdown.get();
-            LOGGER.debug("After sort pushdown:\n{}", RelOptUtil.toString(modifiedRelNode));
+            RelNodeUtils.logPlan(LOGGER, "After sort pushdown", modifiedRelNode);
         }
 
         if (listener != null) {
@@ -370,6 +371,29 @@ public class PlannerImpl {
             .addRuleInstance(new OpenSearchDistinctCountRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
             .run(input, listener);
+    }
+
+    /**
+     * Invokes Calcite's {@link RelFieldTrimmer} to slim each node to only the columns its consumer
+     * needs, inserting a narrowing Project above the scan so DataFusion prunes the parquet read.
+     */
+    static RelNode trimFields(RelNode input) {
+        RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
+        // Trimming is a pure optimization; the untrimmed tree is always a correct fallback. The
+        // trimmer's stock handlers reject some valid shapes via IllegalArgumentException (e.g.
+        // RelBuilder.sortLimit on a non-literal OFFSET) — fall back rather than fail the query.
+        try {
+            RelNode trimmed = new RelFieldTrimmer(null, relBuilder).trim(input);
+            // trim() asserts an identity ref-mapping at the root, so field count/order are preserved
+            // but names can drift (it drops alias-only top Projects, e.g. transpose's RENAME). Re-impose
+            // the original output names — same contract as Calcite's RelRoot.project()/RelBuilder.rename().
+            trimmed = relBuilder.push(trimmed).rename(input.getRowType().getFieldNames()).build();
+            RelNodeUtils.logPlan(LOGGER, "After field trimming", trimmed);
+            return trimmed;
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
+            return input;
+        }
     }
 
     /**

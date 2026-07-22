@@ -57,6 +57,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(input, multiShardContext());
         // No SPT to lift the inner Project above the Sort, so the swap-Projects never become
         // adjacent for PROJECT_MERGE to collapse — both survive around the inner Sort.
+        // Field trimming adds Project(status) above the shard scan — count-by-key needs only the group key.
         assertPlanShape(
             """
                 OpenSearchSort(sort0=[$1], dir0=[ASC], viableBackends=[[mock-parquet]])
@@ -66,7 +67,8 @@ public class PlanShapeTests extends PlanShapeTestBase {
                         OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                           OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                             OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                              OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -81,6 +83,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(input, multiShardContext());
         // No SPT to lift the inner Project above the Sort, so the swap-Projects never become
         // adjacent for PROJECT_MERGE to collapse — both survive around the inner Sort.
+        // Field trimming adds Project(status) above the shard scan — count-by-key needs only the group key.
         assertPlanShape(
             """
                 OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
@@ -89,7 +92,8 @@ public class PlanShapeTests extends PlanShapeTestBase {
                       OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                           OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                            OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                            OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -106,6 +110,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(input, multiShardContext());
         // No SPT to lift the inner Project above the Sort, so the swap-Projects never become
         // adjacent for PROJECT_MERGE to collapse — both survive around the inner Sort.
+        // Field trimming adds Project(status) above the shard scan — count-by-key needs only the group key.
         assertPlanShape(
             """
                 OpenSearchSort(sort0=[$0], dir0=[ASC], viableBackends=[[mock-parquet]])
@@ -115,7 +120,8 @@ public class PlanShapeTests extends PlanShapeTestBase {
                         OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                           OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                             OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                              OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -159,17 +165,20 @@ public class PlanShapeTests extends PlanShapeTestBase {
         RelNode join = LogicalJoin.create(leftAgg, rightAgg, List.of(), condition, Set.of(), JoinRelType.INNER);
 
         RelNode result = runPlanner(join, context);
+        // Field trimming adds Project(status) above each shard scan — count-by-key needs only the group key.
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -370,17 +379,20 @@ public class PlanShapeTests extends PlanShapeTestBase {
     public void testUnion_twoArmsWithStats_multiShard() {
         RelNode union = buildUnionOfTwoStatsArms("test_index");
         RelNode result = runPlanner(union, unionContextSingleIndex("test_index", 3));
+        // Field trimming adds Project(status) above each arm's scan — count-by-key needs only the group key.
         assertPlanShape(
             """
                 OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -392,12 +404,15 @@ public class PlanShapeTests extends PlanShapeTestBase {
         // (locality-agnostic SINGLETON) is satisfied directly — no top ER.
         RelNode union = buildUnionOfTwoStatsArms("test_index");
         RelNode result = runPlanner(union, unionContextSingleIndex("test_index", 1));
+        // Field trimming adds Project(status) above each arm's scan — count-by-key needs only the group key.
         assertPlanShape("""
             OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
               OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
               OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
             """, result);
     }
 
@@ -414,17 +429,25 @@ public class PlanShapeTests extends PlanShapeTestBase {
      * coord-local SINGLETON, no shuffle to split across).
      */
     public void testJoinThenAggregate_2shard() {
+        RelNode join = buildJoinOfTwoScans("left_idx", "right_idx");
+        // Consume left.size ($1) and right.size ($3) so neither join arm is trimmed below
+        // [status, size]; keeps the join condition at =($0, $2) instead of reindexing.
+        org.apache.calcite.rel.type.RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
         RelNode plan = org.apache.calcite.rel.logical.LogicalAggregate.create(
-            buildJoinOfTwoScans("left_idx", "right_idx"),
+            join,
             List.of(),
             org.apache.calcite.util.ImmutableBitSet.of(0),
             null,
-            List.of(countStarCall())
+            List.of(
+                countStarCall(),
+                AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(1), -1, join, intType, "sum_left_size"),
+                AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(3), -1, join, intType, "sum_right_size")
+            )
         );
         RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], sum_left_size=[SUM($1)], sum_right_size=[SUM($3)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])

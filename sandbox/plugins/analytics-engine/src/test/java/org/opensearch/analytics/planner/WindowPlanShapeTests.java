@@ -91,19 +91,24 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
     public void testAggregateWindowAggregate_2shard_onlyLowerSplits() {
         RelNode lowerAgg = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
         RelNode windowed = projectWithSumOverEmpty(lowerAgg);
-        RelNode plan = makeAggregate(windowed, countStarCall(windowed));
+        // Outer agg consumes BOTH the passthrough cnt ($1, BIGINT) and the window col s ($2) so
+        // neither is dead — keeps cnt in the Project output and keeps the window live.
+        AggregateCallOnWindowedProject cntAgg = aggCallOver(windowed, /* cnt */ 1, "total_cnt", SqlTypeName.BIGINT);
+        AggregateCallOnWindowedProject sAgg = aggCallOver(windowed, /* window col */ 2, "total_s", SqlTypeName.BIGINT);
+        RelNode plan = makeAggregate(windowed, countStarCall(windowed), cntAgg.aggCall, sAgg.aggCall);
         RelNode result = runPlanner(plan, multiShardContext());
         // Upper aggregate stays SINGLE (its input is gathered by the window); lower aggregate splits
         // PARTIAL/FINAL over the partitioned scan. The window's SINGLETON demand is already met by the
         // lower FINAL's coordinator output, so no extra exchange is inserted below the window.
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], total_cnt=[SUM($1)], total_s=[SUM($2)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
                     OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                       OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                         OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                          OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                            OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -122,11 +127,14 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         RelNode windowed = projectWithSumOverEmpty();
         // where s > 0 — s is the window output at column index 2.
         RelNode filter = makeFilter(windowed, makeEquals(2, SqlTypeName.BIGINT, 0));
-        RelNode plan = makeAggregate(filter, countStarCall(filter));
+        // Aggregate consumes size ($1) so it stays in the Project output (else trimmed); the filter
+        // already keeps the window col s live.
+        AggregateCallOnWindowedProject sizeAgg = aggCallOver(filter, /* size */ 1, "total_size");
+        RelNode plan = makeAggregate(filter, countStarCall(filter), sizeAgg.aggCall);
         RelNode result = runPlanner(plan, multiShardContext());
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[mock-parquet], =($2, 0))], viableBackends=[[mock-parquet]])
                     OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
                       OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
@@ -620,7 +628,8 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -663,7 +672,8 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -676,16 +686,19 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
      */
     public void testAggregateAfterWindow_1shard() {
         RelNode windowedProject = projectWithSumOverEmpty();
-        AggregateCallOnWindowedProject helper = aggCallOver(windowedProject, /* sumFieldIndex */ 1, "total_size");
-        RelNode plan = makeAggregate(windowedProject, helper.aggCall);
+        // Aggregate BOTH size ($1) and the window col s ($2) so neither is dead — keeps size in the
+        // Project output and keeps the window live (else field trimming drops the dead window/col).
+        AggregateCallOnWindowedProject sizeAgg = aggCallOver(windowedProject, /* size */ 1, "total_size");
+        AggregateCallOnWindowedProject sAgg = aggCallOver(windowedProject, /* window col */ 2, "total_s", SqlTypeName.BIGINT);
+        RelNode plan = makeAggregate(windowedProject, sizeAgg.aggCall, sAgg.aggCall);
         assertPlanShape("""
-            LogicalAggregate(group=[{0}], total_size=[SUM($1)])
+            LogicalAggregate(group=[{0}], total_size=[SUM($1)], total_s=[SUM($2)])
               LogicalProject(status=[$0], size=[$1], s=[SUM($1) OVER ()])
                 StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape("""
-            OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+            OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], total_s=[SUM($2)], mode=[SINGLE], viableBackends=[[mock-parquet]])
               OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
                 OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
             """, result);
@@ -700,10 +713,12 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
      */
     public void testAggregateAfterWindow_2shard() {
         RelNode windowedProject = projectWithSumOverEmpty();
-        AggregateCallOnWindowedProject helper = aggCallOver(windowedProject, /* sumFieldIndex */ 1, "total_size");
-        RelNode plan = makeAggregate(windowedProject, helper.aggCall);
+        // Aggregate BOTH size ($1) and window col s ($2) so neither is dead (keeps window live + size).
+        AggregateCallOnWindowedProject sizeAgg = aggCallOver(windowedProject, /* size */ 1, "total_size");
+        AggregateCallOnWindowedProject sAgg = aggCallOver(windowedProject, /* window col */ 2, "total_s", SqlTypeName.BIGINT);
+        RelNode plan = makeAggregate(windowedProject, sizeAgg.aggCall, sAgg.aggCall);
         assertPlanShape("""
-            LogicalAggregate(group=[{0}], total_size=[SUM($1)])
+            LogicalAggregate(group=[{0}], total_size=[SUM($1)], total_s=[SUM($2)])
               LogicalProject(status=[$0], size=[$1], s=[SUM($1) OVER ()])
                 StubTableScan(table=[[test_index]])
             """, plan);
@@ -714,7 +729,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         // pass over already-gathered rows.
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], total_s=[SUM($2)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -1066,13 +1081,19 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
     }
 
     private AggregateCallOnWindowedProject aggCallOver(RelNode input, int sumFieldIndex, String alias) {
+        return aggCallOver(input, sumFieldIndex, alias, SqlTypeName.INTEGER);
+    }
+
+    /** SUM over {@code sumFieldIndex} with an explicit return type — needed when summing a BIGINT
+     *  column (e.g. a window output) where the inferred type differs from the INTEGER default. */
+    private AggregateCallOnWindowedProject aggCallOver(RelNode input, int sumFieldIndex, String alias, SqlTypeName returnType) {
         org.apache.calcite.rel.core.AggregateCall call = org.apache.calcite.rel.core.AggregateCall.create(
             SqlStdOperatorTable.SUM,
             false,
             List.of(sumFieldIndex),
             -1,
             input,
-            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            typeFactory.createSqlType(returnType),
             alias
         );
         return new AggregateCallOnWindowedProject(call);
