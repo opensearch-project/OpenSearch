@@ -668,12 +668,9 @@ public class RestoreService implements ClusterStateApplier {
                                 .map(ds -> updateDataStream(ds, mdBuilder, request))
                                 .collect(Collectors.toMap(DataStream::getName, Function.identity()))
                         );
-                        // When requested, attach any restored backing index (".ds-<streamName>-NNNNNN") to a pre-existing
-                        // data stream of the same name, in the same cluster-state update as the restore. Adding the index
-                        // and advancing the stream generation together avoids the transient state that
-                        // Metadata#validateDataStreams forbids (a convention-named index above the stream's generation).
-                        // Opt-in via attachToDataStream so the default behavior (restoring the index as a standalone
-                        // index) is preserved.
+                        // Attach each restored ".ds-<streamName>-NNNNNN" index to a pre-existing data stream of the same
+                        // name. Adding the index and advancing the generation in this same update avoids the transient
+                        // state Metadata#validateDataStreams rejects (a convention-named index above the generation).
                         for (String renamedIndexName : request.attachToDataStream() ? indices.keySet() : Set.<String>of()) {
                             String streamName = DataStream.parseDataStreamName(renamedIndexName);
                             if (streamName == null) {
@@ -687,8 +684,7 @@ public class RestoreService implements ClusterStateApplier {
                             if (currentDs.getIndices().contains(restoredIndexMetadata.getIndex())) {
                                 continue;
                             }
-                            // A backing index must map the stream's timestamp field as a date, or data stream search
-                            // breaks; enforce the same check as the add-backing-index API.
+                            // A backing index must map the timestamp field as a date, or data stream search breaks.
                             MetadataDataStreamsService.validateTimestampFieldMapping(
                                 restoredIndexMetadata,
                                 currentDs.getTimeStampField().getName()
