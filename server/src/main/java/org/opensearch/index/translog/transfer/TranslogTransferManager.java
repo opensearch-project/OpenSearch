@@ -529,23 +529,41 @@ public class TranslogTransferManager {
      */
     public void deleteGenerationAsync(long primaryTerm, Set<Long> generations, Runnable onCompletion) {
         try {
-            List<String> translogFiles = new ArrayList<>();
-            generations.forEach(generation -> {
-                // Add .ckp and .tlog file to translog file list which is located in basePath/<primaryTerm>
-                String ckpFileName = Translog.getCommitCheckpointFileName(generation);
-                String translogFileName = Translog.getFilename(generation);
-                if (isTranslogMetadataEnabled == false) {
-                    translogFiles.addAll(List.of(ckpFileName, translogFileName));
-                } else {
-                    translogFiles.add(translogFileName);
-                }
-            });
-            // Delete the translog and checkpoint files asynchronously
-            deleteTranslogFilesAsync(primaryTerm, translogFiles, onCompletion);
+            if (generations.isEmpty()) {
+                onCompletion.run();
+                return;
+            }
+            List<Long> generationList = new ArrayList<>(generations);
+            deleteGenerationAsyncBatched(primaryTerm, generationList, 0, onCompletion);
         } catch (Exception e) {
             onCompletion.run();
             throw e;
         }
+    }
+
+    private void deleteGenerationAsyncBatched(long primaryTerm, List<Long> generationList, int fromIndex, Runnable onCompletion) {
+        if (fromIndex >= generationList.size()) {
+            onCompletion.run();
+            return;
+        }
+        int batchSize = getTranslogPurgeBatchSize();
+        int toIndex = Math.min(fromIndex + batchSize, generationList.size());
+        List<String> translogFiles = new ArrayList<>();
+        for (int i = fromIndex; i < toIndex; i++) {
+            long generation = generationList.get(i);
+            String ckpFileName = Translog.getCommitCheckpointFileName(generation);
+            String translogFileName = Translog.getFilename(generation);
+            if (isTranslogMetadataEnabled == false) {
+                translogFiles.addAll(List.of(ckpFileName, translogFileName));
+            } else {
+                translogFiles.add(translogFileName);
+            }
+        }
+        deleteTranslogFilesAsync(
+            primaryTerm,
+            translogFiles,
+            () -> deleteGenerationAsyncBatched(primaryTerm, generationList, toIndex, onCompletion)
+        );
     }
 
     /**
@@ -639,47 +657,119 @@ public class TranslogTransferManager {
     }
 
     public void listTranslogMetadataFilesAsync(ActionListener<List<BlobMetadata>> listener) {
+        listTranslogMetadataFilesAsync(listener, Integer.MAX_VALUE);
+    }
+
+    public void listTranslogMetadataFilesForPurgeAsync(ActionListener<List<BlobMetadata>> listener) {
+        listTranslogMetadataFilesAsync(listener, getTranslogPurgeListLimit());
+    }
+
+    private void listTranslogMetadataFilesAsync(ActionListener<List<BlobMetadata>> listener, int limit) {
         transferService.listAllInSortedOrderAsync(
             ThreadPool.Names.REMOTE_PURGE,
             remoteMetadataTransferPath,
             TranslogTransferMetadata.METADATA_PREFIX,
-            Integer.MAX_VALUE,
+            limit,
             listener
         );
     }
 
     public void deleteStaleTranslogMetadataFilesAsync(Runnable onCompletion) {
-        try {
-            transferService.listAllInSortedOrderAsync(
-                ThreadPool.Names.REMOTE_PURGE,
-                remoteMetadataTransferPath,
-                TranslogTransferMetadata.METADATA_PREFIX,
-                Integer.MAX_VALUE,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(List<BlobMetadata> blobMetadata) {
-                        List<String> sortedMetadataFiles = blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList());
-                        if (sortedMetadataFiles.size() <= 1) {
-                            logger.trace("Remote Metadata file count is {}, so skipping deletion", sortedMetadataFiles.size());
-                            onCompletion.run();
-                            return;
-                        }
-                        List<String> metadataFilesToDelete = sortedMetadataFiles.subList(1, sortedMetadataFiles.size());
-                        logger.trace("Deleting remote translog metadata files {}", metadataFilesToDelete);
-                        deleteMetadataFilesAsync(metadataFilesToDelete, onCompletion);
-                    }
+        runDeleteStaleTranslogMetadataPurge(onCompletion);
+    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Exception occurred while listing translog metadata files from remote store", e);
+    private void runDeleteStaleTranslogMetadataPurge(Runnable onCompletion) {
+        try {
+            int listLimit = getTranslogPurgeListLimit();
+            listTranslogMetadataFilesAsync(new ActionListener<>() {
+                @Override
+                public void onResponse(List<BlobMetadata> blobMetadata) {
+                    List<String> sortedMetadataFiles = blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList());
+                    if (sortedMetadataFiles.size() <= 1) {
+                        logger.trace("Remote Metadata file count is {}, so skipping deletion", sortedMetadataFiles.size());
                         onCompletion.run();
+                        return;
                     }
+                    boolean backlogRemaining = sortedMetadataFiles.size() == listLimit;
+                    List<String> metadataFilesToDelete = new ArrayList<>(sortedMetadataFiles.subList(1, sortedMetadataFiles.size()));
+                    int maxFilesToDelete = Math.min(
+                        metadataFilesToDelete.size(),
+                        getTranslogPurgeBatchSize() * getEffectiveMaxBatchesPerCycle(backlogRemaining, sortedMetadataFiles.size())
+                    );
+                    if (maxFilesToDelete == 0) {
+                        onCompletion.run();
+                        return;
+                    }
+                    List<String> metadataFilesThisCycle = metadataFilesToDelete.subList(0, maxFilesToDelete);
+                    logger.trace(
+                        "Deleting remote translog metadata files count={}, backlogRemaining={}",
+                        metadataFilesThisCycle.size(),
+                        backlogRemaining
+                    );
+                    deleteMetadataFilesInBatches(metadataFilesThisCycle, () -> {
+                        if (backlogRemaining) {
+                            runDeleteStaleTranslogMetadataPurge(onCompletion);
+                        } else {
+                            onCompletion.run();
+                        }
+                    });
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Exception occurred while listing translog metadata files from remote store", e);
+                    onCompletion.run();
+                }
+            }, listLimit);
         } catch (Exception e) {
             logger.error("Exception occurred while listing translog metadata files from remote store", e);
             onCompletion.run();
         }
+    }
+
+    /**
+     * Deletes metadata files in bounded batches using the {@code REMOTE_PURGE} threadpool.
+     *
+     * @param files list of metadata files to be deleted.
+     * @param onCompletion runnable to run on completion of deletion regardless of success/failure.
+     */
+    public void deleteMetadataFilesInBatches(List<String> files, Runnable onCompletion) {
+        if (files.isEmpty()) {
+            onCompletion.run();
+            return;
+        }
+        deleteMetadataFilesInBatches(files, 0, onCompletion);
+    }
+
+    private void deleteMetadataFilesInBatches(List<String> files, int fromIndex, Runnable onCompletion) {
+        if (fromIndex >= files.size()) {
+            onCompletion.run();
+            return;
+        }
+        int batchSize = getTranslogPurgeBatchSize();
+        int toIndex = Math.min(fromIndex + batchSize, files.size());
+        List<String> batch = files.subList(fromIndex, toIndex);
+        deleteMetadataFilesAsync(batch, () -> deleteMetadataFilesInBatches(files, toIndex, onCompletion));
+    }
+
+    public int getTranslogPurgeBatchSize() {
+        return remoteStoreSettings.getTranslogPurgeBatchSize();
+    }
+
+    public int getTranslogPurgeMaxBatchesPerCycle() {
+        return remoteStoreSettings.getTranslogPurgeMaxBatchesPerCycle();
+    }
+
+    public int getTranslogPurgeListLimit() {
+        return getTranslogPurgeBatchSize() * getTranslogPurgeMaxBatchesPerCycle() + 1;
+    }
+
+    public int getEffectiveMaxBatchesPerCycle(boolean backlogRemaining, int listedMetadataFiles) {
+        int maxBatchesPerCycle = getTranslogPurgeMaxBatchesPerCycle();
+        if (backlogRemaining && listedMetadataFiles > getTranslogPurgeBatchSize() * 10) {
+            return 1;
+        }
+        return maxBatchesPerCycle;
     }
 
     public void deleteTranslogFiles() throws IOException {
