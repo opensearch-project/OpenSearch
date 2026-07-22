@@ -12,22 +12,28 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.RoutingFieldMapper;
@@ -44,6 +50,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -82,7 +89,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
 
         // Setup basic operation
         source = new BytesArray("{\"field\":1}");
-        operation = new Translog.Index("test", 1L, 1L, 1L, source.toBytesRef().bytes, "routing", 1);
+        operation = new Translog.Index("test", 1L, 1L, 1L, BytesReference.toBytes(source), "routing", 1);
 
         // Initialize the reader
         translogLeafReader = new TranslogLeafReader(operation, engineConfig);
@@ -174,45 +181,57 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
     }
 
     public void testDerivedSourceFieldsUsingDerivedSource() throws IOException {
-        // Setup mapper service with derived source enabled
-        Settings derivedSourceSettings = Settings.builder()
-            .put(defaultIndexSettings.getSettings())
-            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
-            .build();
-        IndexMetadata derivedMetadata = IndexMetadata.builder("test").settings(derivedSourceSettings).build();
-        IndexSettings derivedIndexSettings = new IndexSettings(derivedMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true).build(),
+            """
+                {
+                  "properties": {
+                    "field": { "type": "integer" }
+                  }
+                }"""
+        );
+        translogLeafReader = new TranslogLeafReader(operation, createEngineConfig(mapperService));
 
-        engineConfig = new EngineConfig.Builder().indexSettings(derivedIndexSettings)
-            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .codecService(new CodecService(null, derivedIndexSettings, logger, List.of()))
-            .documentMapperForTypeSupplier(() -> documentMapperForType)
-            .build();
+        BytesReference derivedSource = sourceFromStoredFields(translogLeafReader.storedFields());
+        Map<String, Object> derivedSourceMap = XContentHelper.convertToMap(derivedSource, false, MediaTypeRegistry.JSON).v2();
 
-        // Mock document mapper
-        Document doc = new Document();
-        doc.add(new StringField("field", "value", Field.Store.YES));
-        ParsedDocument parsedDoc = new ParsedDocument(null, null, "1", null, null, source, MediaTypeRegistry.JSON, null);
-        when(documentMapper.parse(any())).thenReturn(parsedDoc);
+        assertEquals(1, ((Number) derivedSourceMap.get("field")).intValue());
+    }
 
-        StoredFields storedFields = translogLeafReader.storedFields();
+    @SuppressWarnings("unchecked")
+    public void testNestedDerivedSourceFieldsUsingTranslogReader() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true).build(),
+            """
+                {
+                  "properties": {
+                    "title": { "type": "keyword" },
+                    "comments": {
+                      "type": "nested",
+                      "properties": {
+                        "tag": { "type": "keyword" },
+                        "score": { "type": "integer" }
+                      }
+                    }
+                  }
+                }"""
+        );
+        EngineConfig engineConfig = createEngineConfig(mapperService);
+        BytesReference source = new BytesArray("""
+            {"title":"doc","comments":[{"tag":"b","score":2},{"tag":"a","score":1}]}""");
+        Translog.Index operation = new Translog.Index("nested", 1L, 1L, 1L, BytesReference.toBytes(source), "routing", 1);
+        TranslogLeafReader reader = new TranslogLeafReader(operation, engineConfig);
 
-        final BytesReference[] sourceRef = new BytesReference[1];
-        StoredFieldVisitor visitor = new StoredFieldVisitor() {
-            @Override
-            public void binaryField(org.apache.lucene.index.FieldInfo fieldInfo, byte[] value) {
-                if (fieldInfo.name.equals(SourceFieldMapper.NAME)) {
-                    sourceRef[0] = new BytesArray(value);
-                }
-            }
+        BytesReference derivedSource = sourceFromStoredFields(reader.storedFields());
+        Map<String, Object> derivedSourceMap = XContentHelper.convertToMap(derivedSource, false, MediaTypeRegistry.JSON).v2();
 
-            @Override
-            public Status needsField(org.apache.lucene.index.FieldInfo fieldInfo) {
-                return fieldInfo.name.equals(SourceFieldMapper.NAME) ? Status.YES : Status.NO;
-            }
-        };
-
-        storedFields.document(0, visitor);
-        assertNotNull(sourceRef[0]);
+        assertEquals("doc", derivedSourceMap.get("title"));
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) derivedSourceMap.get("comments");
+        assertEquals(2, comments.size());
+        assertEquals("b", comments.get(0).get("tag"));
+        assertEquals(2, ((Number) comments.get(0).get("score")).intValue());
+        assertEquals("a", comments.get(1).get("tag"));
+        assertEquals(1, ((Number) comments.get(1).get("score")).intValue());
     }
 
     public void testDerivedSourceFieldsUsingSource() throws IOException {
@@ -294,6 +313,56 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         when(documentMapper.parse(any())).thenReturn(parsedDoc);
 
         // Test creation of in-memory reader
-        assertNotNull(TranslogLeafReader.createInMemoryIndexReader(operation, engineConfig));
+        try (DirectoryReader reader = TranslogLeafReader.createInMemoryIndexReader(operation, engineConfig)) {
+            assertNotNull(reader);
+        }
+    }
+
+    private MapperService createMapperService(Settings settings, String mapping) throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(settings)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(indexSettings).putMapping(mapping).build();
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            createTempDir(),
+            indexSettings,
+            "test"
+        );
+        mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        return mapperService;
+    }
+
+    private EngineConfig createEngineConfig(MapperService mapperService) {
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        return new EngineConfig.Builder().indexSettings(indexSettings)
+            .analyzer(mapperService.indexAnalyzer())
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
+            .documentMapperForTypeSupplier(() -> new DocumentMapperForType(mapperService.documentMapper(), null))
+            .build();
+    }
+
+    private BytesReference sourceFromStoredFields(StoredFields storedFields) throws IOException {
+        final BytesReference[] sourceRef = new BytesReference[1];
+        StoredFieldVisitor visitor = new StoredFieldVisitor() {
+            @Override
+            public void binaryField(org.apache.lucene.index.FieldInfo fieldInfo, byte[] value) {
+                if (fieldInfo.name.equals(SourceFieldMapper.NAME)) {
+                    sourceRef[0] = new BytesArray(value);
+                }
+            }
+
+            @Override
+            public Status needsField(org.apache.lucene.index.FieldInfo fieldInfo) {
+                return fieldInfo.name.equals(SourceFieldMapper.NAME) ? Status.YES : Status.NO;
+            }
+        };
+        storedFields.document(0, visitor);
+        assertNotNull(sourceRef[0]);
+        return sourceRef[0];
     }
 }

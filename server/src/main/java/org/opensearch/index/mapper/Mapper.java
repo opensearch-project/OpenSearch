@@ -384,4 +384,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
         throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
+
+    /**
+     * Method used for deriving source with access to the root/nested derived source context.
+     * @param builder - builder to store the derived source field
+     * @param context - derived source context for the current root document
+     */
+    void deriveSource(XContentBuilder builder, DerivedSourceContext context) throws IOException {
+        deriveSource(builder, context.leafReader(), context.currentDocId());
+    }
 }

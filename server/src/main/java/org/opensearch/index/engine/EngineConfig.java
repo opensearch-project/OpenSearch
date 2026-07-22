@@ -36,10 +36,12 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Nullable;
@@ -52,6 +54,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
@@ -80,6 +83,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -123,6 +127,7 @@ public final class EngineConfig {
     private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
+    private final Function<Query, BitSetProducer> derivedSourceBitSetProducerFactory;
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
     private final DataFormatRegistry dataFormatRegistry;
@@ -320,6 +325,7 @@ public final class EngineConfig {
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
         this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
+        this.derivedSourceBitSetProducerFactory = Objects.requireNonNull(builder.derivedSourceBitSetProducerFactory);
         this.indexReaderWarmer = builder.indexReaderWarmer;
         this.clusterApplierService = builder.clusterApplierService;
         this.mergedSegmentTransferTracker = builder.mergedSegmentTransferTracker;
@@ -375,6 +381,7 @@ public final class EngineConfig {
             .translogFactory(this.translogFactory)
             .leafSorter(this.leafSorter)
             .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
+            .derivedSourceBitSetProducerFactory(this.derivedSourceBitSetProducerFactory)
             .indexReaderWarmer(this.indexReaderWarmer)
             .clusterApplierService(this.clusterApplierService)
             .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker)
@@ -631,6 +638,10 @@ public final class EngineConfig {
         return documentMapperForTypeSupplier;
     }
 
+    public Function<Query, BitSetProducer> getDerivedSourceBitSetProducerFactory() {
+        return derivedSourceBitSetProducerFactory;
+    }
+
     public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
         return translogDeletionPolicyFactory;
     }
@@ -720,6 +731,10 @@ public final class EngineConfig {
         private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
+        private Function<Query, BitSetProducer> derivedSourceBitSetProducerFactory = query -> context -> BitsetFilterCache.bitsetFromQuery(
+            query,
+            context
+        );
         Comparator<LeafReader> leafSorter;
         private IndexWriter.IndexReaderWarmer indexReaderWarmer;
         private ClusterApplierService clusterApplierService;
@@ -845,6 +860,11 @@ public final class EngineConfig {
 
         public Builder documentMapperForTypeSupplier(Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
             this.documentMapperForTypeSupplier = documentMapperForTypeSupplier;
+            return this;
+        }
+
+        public Builder derivedSourceBitSetProducerFactory(Function<Query, BitSetProducer> derivedSourceBitSetProducerFactory) {
+            this.derivedSourceBitSetProducerFactory = Objects.requireNonNull(derivedSourceBitSetProducerFactory);
             return this;
         }
 

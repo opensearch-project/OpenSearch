@@ -13,10 +13,12 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Nullable;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -213,6 +216,7 @@ public class EngineConfigFactory {
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter,
         Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
+        Function<Query, BitSetProducer> derivedSourceBitSetProducerFactory,
         IndexWriter.IndexReaderWarmer indexReaderWarmer,
         ClusterApplierService clusterApplierService,
         MergedSegmentTransferTracker mergedSegmentTransferTracker,
@@ -253,6 +257,7 @@ public class EngineConfigFactory {
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
+            .derivedSourceBitSetProducerFactory(derivedSourceBitSetProducerFactory)
             .indexReaderWarmer(indexReaderWarmer)
             .clusterApplierService(clusterApplierService)
             .mergedSegmentTransferTracker(mergedSegmentTransferTracker)

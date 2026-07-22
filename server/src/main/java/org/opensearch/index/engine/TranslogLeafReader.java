@@ -40,12 +40,14 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -68,6 +70,8 @@ import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.RoutingFieldMapper;
@@ -91,7 +95,7 @@ public final class TranslogLeafReader extends LeafReader {
 
     private final Translog.Index operation;
     private final EngineConfig engineConfig;
-    private volatile LeafReader inMemoryIndexReader;
+    private volatile DirectoryReader inMemoryIndexReader;
     private static final FieldInfo FAKE_SOURCE_FIELD = new FieldInfo(
         SourceFieldMapper.NAME,
         1,
@@ -159,16 +163,18 @@ public final class TranslogLeafReader extends LeafReader {
         this.engineConfig = engineConfig;
     }
 
-    private LeafReader getInMemoryIndexReader() throws IOException {
+    private DirectoryReader getInMemoryIndexReader() throws IOException {
         if (inMemoryIndexReader == null) {
             inMemoryIndexReader = createInMemoryIndexReader(operation, engineConfig);
         }
         return inMemoryIndexReader;
     }
 
-    public static LeafReader createInMemoryIndexReader(Translog.Index operation, EngineConfig engineConfig) throws IOException {
+    public static DirectoryReader createInMemoryIndexReader(Translog.Index operation, EngineConfig engineConfig) throws IOException {
         boolean success = false;
         final Directory directory = new ByteBuffersDirectory();
+        IndexWriter indexWriter = null;
+        DirectoryReader directoryReader = null;
         try {
             SourceToParse sourceToParse = new SourceToParse(
                 engineConfig.getIndexSettings().getIndex().getName(),
@@ -183,9 +189,9 @@ public final class TranslogLeafReader extends LeafReader {
             final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
             iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
             iwc.setCodec(engineConfig.getCodec());
-            IndexWriter indexWriter = new IndexWriter(directory, iwc);
+            indexWriter = new IndexWriter(directory, iwc);
             indexWriter.addDocuments(parsedDocument.docs());
-            final DirectoryReader directoryReader = open(indexWriter);
+            directoryReader = open(indexWriter);
             if (directoryReader.leaves().size() != 1
                 || directoryReader.leaves().get(0).reader().numDocs() != parsedDocument.docs().size()) {
                 throw new IllegalStateException(
@@ -198,38 +204,57 @@ public final class TranslogLeafReader extends LeafReader {
                         + " documents"
                 );
             }
-            LeafReader leafReader = directoryReader.leaves().get(0).reader();
-            LeafReader sequentialLeafReader = new SequentialStoredFieldsLeafReader(leafReader) {
+            final DirectoryReader finalDirectoryReader = directoryReader;
+            final IndexWriter finalIndexWriter = indexWriter;
+            DirectoryReader sequentialDirectoryReader = new FilterDirectoryReader(
+                finalDirectoryReader,
+                new FilterDirectoryReader.SubReaderWrapper() {
+                    @Override
+                    public LeafReader wrap(LeafReader leafReader) {
+                        return new SequentialStoredFieldsLeafReader(leafReader) {
+                            @Override
+                            public CacheHelper getCoreCacheHelper() {
+                                return leafReader.getCoreCacheHelper();
+                            }
+
+                            @Override
+                            public CacheHelper getReaderCacheHelper() {
+                                return leafReader.getReaderCacheHelper();
+                            }
+
+                            @Override
+                            public StoredFieldsReader getSequentialStoredFieldsReader() {
+                                return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
+                            }
+
+                            @Override
+                            protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                                return reader;
+                            }
+                        };
+                    }
+                }
+            ) {
                 @Override
-                protected void doClose() throws IOException {
-                    IOUtils.close(super::doClose, directory);
+                protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                    throw new UnsupportedOperationException("Cannot reopen translog derived source reader");
                 }
 
                 @Override
-                public CacheHelper getCoreCacheHelper() {
-                    return leafReader.getCoreCacheHelper();
+                protected void doClose() throws IOException {
+                    IOUtils.close(finalDirectoryReader, finalIndexWriter, directory);
                 }
 
                 @Override
                 public CacheHelper getReaderCacheHelper() {
-                    return leafReader.getReaderCacheHelper();
-                }
-
-                @Override
-                public StoredFieldsReader getSequentialStoredFieldsReader() {
-                    return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
-                }
-
-                @Override
-                protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
-                    return reader;
+                    return finalDirectoryReader.getReaderCacheHelper();
                 }
             };
             success = true;
-            return sequentialLeafReader;
+            return sequentialDirectoryReader;
         } finally {
             if (!success) {
-                IOUtils.closeWhileHandlingException(directory);
+                IOUtils.closeWhileHandlingException(directoryReader, indexWriter, directory);
             }
         }
     }
@@ -325,15 +350,20 @@ public final class TranslogLeafReader extends LeafReader {
                 if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
                     if (engineConfig.getIndexSettings().isDerivedSourceEnabled()
                         && engineConfig.getIndexSettings().isDerivedSourceEnabledForTranslog()) {
-                        LeafReader leafReader = getInMemoryIndexReader();
-                        assert leafReader != null && leafReader.leaves().size() == 1;
+                        DirectoryReader directoryReader = getInMemoryIndexReader();
+                        assert directoryReader != null && directoryReader.leaves().size() == 1;
+                        LeafReaderContext leafReaderContext = directoryReader.leaves().get(0);
+                        LeafReader leafReader = leafReaderContext.reader();
+                        DocumentMapper documentMapper = engineConfig.getDocumentMapperForTypeSupplier().get().getDocumentMapper();
                         visitor.binaryField(
                             FAKE_SOURCE_FIELD,
-                            engineConfig.getDocumentMapperForTypeSupplier()
-                                .get()
-                                .getDocumentMapper()
-                                .root()
-                                .deriveSource(leafReader, docID)
+                            documentMapper.root()
+                                .derivedSourceProvider(
+                                    leafReaderContext,
+                                    query -> context -> BitsetFilterCache.bitsetFromQuery(query, context),
+                                    documentMapper.hasNestedObjects()
+                                )
+                                .apply(leafReader.maxDoc() - 1)
                                 .toBytesRef().bytes
                         );
                     } else {
@@ -356,8 +386,11 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    protected void doClose() {
-
+    protected void doClose() throws IOException {
+        DirectoryReader reader = inMemoryIndexReader;
+        if (reader != null) {
+            IOUtils.close(reader);
+        }
     }
 
     @Override

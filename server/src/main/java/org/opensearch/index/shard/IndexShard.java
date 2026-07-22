@@ -50,6 +50,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -127,6 +128,7 @@ import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
+import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
@@ -550,10 +552,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         if (indexSettings.isDerivedSourceEnabled()) {
             readerWrapper = reader -> {
+                final DocumentMapper documentMapper = getIndexer().config().getDocumentMapperForTypeSupplier().get().getDocumentMapper();
                 final DirectoryReader wrappedReader = indexReaderWrapper == null ? reader : indexReaderWrapper.apply(reader);
                 return DerivedSourceDirectoryReader.wrap(
                     wrappedReader,
-                    getIndexer().config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
+                    leafReaderContext -> documentMapper.root()
+                        .derivedSourceProvider(leafReaderContext, derivedSourceBitSetProducerFactory(), documentMapper.hasNestedObjects())
                 );
             };
         } else {
@@ -4804,6 +4808,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
             () -> docMapper(),
+            derivedSourceBitSetProducerFactory(),
             mergedSegmentWarmerFactory.get(this),
             clusterApplierService,
             mergedSegmentTransferTracker,
@@ -4811,6 +4816,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mapperService,
             checksumStrategies
         );
+    }
+
+    private Function<Query, BitSetProducer> derivedSourceBitSetProducerFactory() {
+        BitsetFilterCache bitsetFilterCache = indexCache == null ? null : indexCache.bitsetFilterCache();
+        return bitsetFilterCache == null
+            ? query -> context -> BitsetFilterCache.bitsetFromQuery(query, context)
+            : bitsetFilterCache::getBitSetProducer;
     }
 
     private boolean isRemoteStoreEnabled() {

@@ -893,6 +893,70 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         });
     }
 
+    public void testRelocationWithDerivedSourceNestedObjects() throws Exception {
+        logger.info("--> creating test index with derived source enabled and nested mapping");
+        String mapping = """
+            {
+              "properties": {
+                "title": {
+                  "type": "keyword"
+                },
+                "comments": {
+                  "type": "nested",
+                  "properties": {
+                    "tag": {
+                      "type": "keyword"
+                    },
+                    "score": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test_nested",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test_nested")
+                .setId(String.valueOf(i))
+                .setSource(Map.of("title", "doc" + i, "comments", List.of(Map.of("tag", "tag" + i, "score", i))))
+                .get();
+        }
+
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> relocate the shard from node1 to node2");
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test_nested", 0, node1, node2)).get();
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test_nested").setQuery(matchAllQuery()).setSize(numDocs).get();
+            assertNoFailures(response);
+            assertHitCount(response, numDocs);
+            for (SearchHit hit : response.getHits()) {
+                int id = Integer.parseInt(hit.getId());
+                Map<String, Object> source = hit.getSourceAsMap();
+                assertEquals("doc" + id, source.get("title"));
+                List<Map<String, Object>> comments = (List<Map<String, Object>>) source.get("comments");
+                assertEquals(1, comments.size());
+                assertEquals("tag" + id, comments.get(0).get("tag"));
+                assertEquals(id, comments.get(0).get("score"));
+            }
+        });
+    }
+
     public void testRelocationWithDerivedSourceAndConcurrentIndexing() throws Exception {
         String mapping = """
             {

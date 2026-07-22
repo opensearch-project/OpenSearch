@@ -728,12 +728,12 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
                 }
             }""";
 
-        // Should fail because nested fields are not supported with derive source
+        // Should succeed because nested fields are supported with derived source when their child fields are supported
         DocumentMapperParser nestedMapperParser = createIndex(
             "test_derive_6",
             Settings.builder().put("index.derived_source.enabled", true).build()
         ).mapperService().documentMapperParser();
-        expectThrows(UnsupportedOperationException.class, () -> nestedMapperParser.parse("type", new CompressedXContent(nestedMapping)));
+        nestedMapperParser.parse("type", new CompressedXContent(nestedMapping));
 
         // Test 7: Validate field with copy_to
         String copyToMapping = """
