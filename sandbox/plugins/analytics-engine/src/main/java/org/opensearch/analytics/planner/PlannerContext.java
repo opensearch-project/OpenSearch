@@ -33,6 +33,12 @@ public class PlannerContext {
     private final boolean preferMetadataDriver;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
+    // Base-table columns the query actually references, computed once before marking. Null means
+    // "validate all fields" — the pre-existing behavior — used for unanalyzable plan shapes.
+    // Cross-index type-conflict validation ({@link IndexResolution}) is scoped to this set so a
+    // query that never touches a conflicting field is not rejected because of it.
+    @Nullable
+    private java.util.Set<String> referencedFields;
     // Cluster settings the planner consults at planning time (oversampling factor + delegation
     // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
     // instance via setPlannerSettings before planning.
@@ -117,6 +123,21 @@ public class PlannerContext {
 
     public ClusterState getClusterState() {
         return clusterState;
+    }
+
+    /**
+     * The base-table columns the query references, or {@code null} to validate all fields. Set once
+     * by {@link PlannerImpl} before marking; consulted by {@code OpenSearchTableScanRule} to scope
+     * cross-index type-conflict validation. Null (the default) preserves validate-everything.
+     */
+    @Nullable
+    public java.util.Set<String> getReferencedFields() {
+        return referencedFields;
+    }
+
+    /** Sets the referenced-field set computed from the raw plan before marking. */
+    public void setReferencedFields(@Nullable java.util.Set<String> referencedFields) {
+        this.referencedFields = referencedFields;
     }
 
     public double getOversamplingFactor() {
