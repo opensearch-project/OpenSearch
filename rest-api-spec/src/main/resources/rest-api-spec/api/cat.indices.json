@@ -78,6 +78,10 @@
         ],
         "description":"A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
       },
+      "system":{
+        "type":"boolean",
+        "description":"If specified, return only system indices when true or only non-system indices when false"
+      },
       "help":{
         "type":"boolean",
         "description":"Return help information",
