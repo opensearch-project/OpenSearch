@@ -46,9 +46,11 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -754,6 +756,76 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         for (int i = 0; i < size; i++) {
             assertEquals(2.0, transformedResponse.getHits().getHits()[i].getScore(), 0.0001);
         }
+    }
+
+    /**
+     * Resolving an inline (ad hoc) pipeline must NOT drain the request's search pipeline source map. Pipeline
+     * construction reads the config by removing keys (ConfigurationUtils.readXxx), so the resolver copies the config
+     * first; otherwise consumers that read the inline pipeline definition later in the request lifecycle (e.g. during
+     * coordinator query rewrite) would see an emptied map.
+     */
+    public void testInlinePipelineSourceIsNotDrainedAfterResolve() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        Map<String, Object> requestProcessorConfig = new HashMap<>();
+        requestProcessorConfig.put("scale", 2);
+        Map<String, Object> requestProcessorObject = new HashMap<>();
+        requestProcessorObject.put("scale_request_size", requestProcessorConfig);
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(requestProcessorObject));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
+
+        // The ad hoc pipeline was built (proving the config was read)...
+        assertEquals(SearchPipelineService.AD_HOC_PIPELINE_ID, pipelinedRequest.getPipeline().getId());
+        assertEquals(1, pipelinedRequest.getPipeline().getSearchRequestProcessors().size());
+        // ...but the request's original inline source survives intact for later readers (not drained by the read).
+        Map<String, Object> sourceAfter = searchRequest.source().searchPipelineSource();
+        assertNotNull(sourceAfter);
+        assertTrue(sourceAfter.containsKey(Pipeline.REQUEST_PROCESSORS_KEY));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> processorsAfter = (List<Map<String, Object>>) sourceAfter.get(Pipeline.REQUEST_PROCESSORS_KEY);
+        assertEquals(1, processorsAfter.size());
+        Map<String, Object> scaleProcessorAfter = (Map<String, Object>) processorsAfter.get(0).get("scale_request_size");
+        assertNotNull("nested processor config must not be drained", scaleProcessorAfter);
+        assertEquals(2, scaleProcessorAfter.get("scale"));
+    }
+
+    /**
+     * Directly covers {@link SearchPipelineService#deepCopyConfig} across every value branch produced by the XContent
+     * parser (nested map, list, scalar, null value) and asserts the copy is deep and independent: mutating the copy
+     * must not affect the original inline source. The null-config guard is not reachable from the XContent-parsed
+     * {@code resolvePipeline} path (the source map is non-null there), so it is exercised here rather than through a
+     * resolve.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDeepCopyConfigIsDeepAndIndependent() {
+        assertNull("null config copies to null", SearchPipelineService.deepCopyConfig(null));
+
+        Map<String, Object> inner = new LinkedHashMap<>();
+        inner.put("technique", "min_max");                          // scalar (String) branch
+        inner.put("weights", new ArrayList<>(List.of(0.3, 0.7)));   // List branch
+        inner.put("nullable", null);                                // null value via the scalar path
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("normalization", inner);                         // Map branch (recursion)
+
+        Map<String, Object> copy = SearchPipelineService.deepCopyConfig(config);
+
+        // Same content...
+        assertEquals(config, copy);
+        // ...but distinct container instances at every level (a deep copy, not shared references).
+        assertNotSame(config, copy);
+        assertNotSame(config.get("normalization"), copy.get("normalization"));
+        Map<String, Object> copiedInner = (Map<String, Object>) copy.get("normalization");
+        assertNotSame(inner.get("weights"), copiedInner.get("weights"));
+
+        // Mutating the copy must leave the original intact — the whole reason resolvePipeline copies the config.
+        copiedInner.remove("technique");
+        ((List<Object>) copiedInner.get("weights")).clear();
+        assertTrue("original scalar retained", inner.containsKey("technique"));
+        assertEquals("original list retained", 2, ((List<Object>) inner.get("weights")).size());
     }
 
     public void testInlineDefinedPipeline() throws Exception {

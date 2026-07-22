@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -474,9 +475,15 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 );
             }
             try {
+                // Build the ad-hoc pipeline from a DEEP COPY of the inline source map. PipelineWithMetrics.create ->
+                // ConfigurationUtils.readXxx consume the config by removing keys as they are read, which would
+                // otherwise drain the request's live searchPipelineSource map. Downstream consumers that read the
+                // inline pipeline definition later in the request lifecycle (e.g. during coordinator query rewrite)
+                // must still see the original config. Stored/named pipelines are unaffected because their config is
+                // reconstructed fresh from bytes on each PipelineConfiguration.getConfigAsMap() call.
                 pipeline = PipelineWithMetrics.create(
                     AD_HOC_PIPELINE_ID,
-                    searchRequest.source().searchPipelineSource(),
+                    deepCopyConfig(searchRequest.source().searchPipelineSource()),
                     requestProcessorFactories,
                     responseProcessorFactories,
                     phaseInjectorProcessorFactories,
@@ -548,6 +555,41 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         }
         PipelineProcessingContext requestContext = new PipelineProcessingContext();
         return new PipelinedRequest(pipeline, searchRequest, requestContext, systemGeneratedPipelineHolder);
+    }
+
+    /**
+     * Recursively deep-copies an inline search-pipeline config map (the nested {@code Map}/{@code List} structure
+     * produced by the XContent parser). Needed because pipeline construction consumes the config by removing keys as
+     * it reads them; copying leaves the request's original {@code searchPipelineSource} intact for later readers.
+     */
+    static Map<String, Object> deepCopyConfig(Map<String, Object> config) {
+        if (Objects.isNull(config)) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(config.size());
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            copy.put(entry.getKey(), deepCopyConfigValue(entry.getValue()));
+        }
+        return copy;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object deepCopyConfigValue(Object value) {
+        if (value instanceof Map) {
+            // Preserve insertion order (the parser produces an ordered map) so processor ordering is unchanged.
+            return deepCopyConfig((Map<String, Object>) value);
+        } else if (value instanceof List) {
+            List<Object> source = (List<Object>) value;
+            List<Object> copy = new ArrayList<>(source.size());
+            for (Object item : source) {
+                copy.add(deepCopyConfigValue(item));
+            }
+            return copy;
+        }
+        // Scalars (String/Number/Boolean/null) are immutable — safe to share. The inline pipeline config is produced
+        // by the XContent parser, which only yields Map/List/scalar values (never Set), so no other container types
+        // need deep-copying here.
+        return value;
     }
 
     // VisibleForTesting
