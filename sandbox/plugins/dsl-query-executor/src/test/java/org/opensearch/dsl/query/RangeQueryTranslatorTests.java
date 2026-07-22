@@ -852,27 +852,25 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertLiteralEpoch(result, 1643673599999L);
     }
 
-    // ========== GROUP L - FIELD TYPE GUARDS AND IP/NANOS SUPPORT ==========
+    // ========== GROUP L - FIELD TYPE GUARDS AND IP RANGE SUPPORT ==========
 
     /**
-     * Range query on ip-typed field (VARBINARY) throws ConversionException.
-     * Legacy IpFieldMapper.rangeQuery uses InetAddress-order comparison; lexicographic
-     * string comparison would produce incorrect results. Binary fields have no rangeQuery
-     * in BinaryFieldMapper.
+     * Range query on ip-typed field produces VARBINARY byte-range comparison.
+     * Legacy IpFieldMapper.rangeQuery uses InetAddress-order (16-byte IPv6-mapped encoding).
      */
-    public void testRangeOnIpFieldThrows() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("192.168.0.1"), ctx)
-        );
-        assertTrue(
-            "Message should mention ip and binary fields: " + ex.getMessage(),
-            ex.getMessage().contains("ip") && ex.getMessage().contains("binary")
-        );
+    public void testRangeOnIpFieldProducesByteComparison() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("ip_address").gte("192.168.0.1"), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(2, call.getOperands().size());
+        // Field ref at index 11 (ip_address)
+        assertEquals(11, ((RexInputRef) call.getOperands().get(0)).getIndex());
     }
 
     /**
-     * Range query on binary_data field (VARBINARY) throws ConversionException.
+     * Range query on binary_data field (plain VARBINARY, not IpType) throws ConversionException.
      * Legacy BinaryFieldMapper has no rangeQuery implementation.
      */
     public void testRangeOnBinaryFieldThrows() {
@@ -880,10 +878,7 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
             ConversionException.class,
             () -> translator.convert(QueryBuilders.rangeQuery("binary_data").gte("abc"), ctx)
         );
-        assertTrue(
-            "Message should mention ip and binary fields: " + ex.getMessage(),
-            ex.getMessage().contains("ip") && ex.getMessage().contains("binary")
-        );
+        assertTrue("Message should mention binary fields: " + ex.getMessage(), ex.getMessage().contains("binary"));
     }
 
     /**
@@ -900,6 +895,90 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
             "Message should mention nanosecond or date_nanos: " + ex.getMessage(),
             ex.getMessage().contains("anosecond") || ex.getMessage().contains("date_nanos")
         );
+    }
+
+    // ========== GROUP M - IP RANGE VALUE CORRECTNESS ==========
+
+    /**
+     * gte("192.168.0.1") on ip field produces VARBINARY literal with IPv4-mapped-IPv6 encoding:
+     * 10 zero bytes + 0xff 0xff + 192(0xc0) 168(0xa8) 0(0x00) 1(0x01).
+     */
+    public void testIpRangeIpv4EncodingValue() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("ip_address").gte("192.168.0.1"), ctx);
+
+        RexCall call = (RexCall) result;
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        assertNotNull(literal);
+        org.apache.calcite.avatica.util.ByteString bs = literal.getValueAs(org.apache.calcite.avatica.util.ByteString.class);
+        assertNotNull("IP literal should be ByteString", bs);
+        byte[] bytes = bs.getBytes();
+        assertEquals("IPv6-mapped encoding must be 16 bytes", 16, bytes.length);
+        // Verify IPv4-mapped structure: 10 zeros + 0xff 0xff + 192.168.0.1
+        for (int i = 0; i < 10; i++) {
+            assertEquals("Byte " + i + " should be 0x00", 0, bytes[i]);
+        }
+        assertEquals((byte) 0xff, bytes[10]);
+        assertEquals((byte) 0xff, bytes[11]);
+        assertEquals((byte) 192, bytes[12]);
+        assertEquals((byte) 168, bytes[13]);
+        assertEquals((byte) 0, bytes[14]);
+        assertEquals((byte) 1, bytes[15]);
+    }
+
+    /**
+     * gte("::1") on ip field produces VARBINARY literal with native IPv6 encoding:
+     * 15 zero bytes + 0x01.
+     */
+    public void testIpRangeIpv6EncodingValue() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("ip_address").gte("::1"), ctx);
+
+        RexCall call = (RexCall) result;
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        assertNotNull(literal);
+        org.apache.calcite.avatica.util.ByteString bs = literal.getValueAs(org.apache.calcite.avatica.util.ByteString.class);
+        assertNotNull("IP literal should be ByteString", bs);
+        byte[] bytes = bs.getBytes();
+        assertEquals("IPv6 encoding must be 16 bytes", 16, bytes.length);
+        // ::1 = 15 zero bytes + 0x01
+        for (int i = 0; i < 15; i++) {
+            assertEquals("Byte " + i + " should be 0x00", 0, bytes[i]);
+        }
+        assertEquals((byte) 0x01, bytes[15]);
+    }
+
+    /**
+     * Both bounds on ip field produce AND of two byte comparisons with correct operators.
+     */
+    public void testIpRangeBothBounds() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("ip_address").gte("10.0.0.0").lte("10.0.0.255"), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.AND, call.getKind());
+        assertEquals(2, call.getOperands().size());
+
+        RexCall lower = (RexCall) call.getOperands().get(0);
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, lower.getKind());
+
+        RexCall upper = (RexCall) call.getOperands().get(1);
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, upper.getKind());
+    }
+
+    /**
+     * gt on ip field produces GREATER_THAN (exclusive).
+     */
+    public void testIpRangeExclusiveLowerBound() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("ip_address").gt("10.0.0.1"), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN, call.getKind());
+    }
+
+    /**
+     * Invalid IP string throws ConversionException.
+     */
+    public void testIpRangeInvalidIpThrows() {
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("not_an_ip"), ctx));
     }
 
     // ========== END OF TESTS ==========
