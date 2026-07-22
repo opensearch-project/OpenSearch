@@ -15,10 +15,10 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGe
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalTestCluster;
@@ -40,6 +40,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 3)
@@ -646,7 +647,8 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertTrue(response.isAcknowledged());
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
 
-        // Check cluster health for weighed in node, health check should return a response with 200 status code
+        // Check cluster health for weighed in node, health check should return a
+        // response with 200 status code
         ClusterHealthResponse nodeLocalHealth = client(nodes_in_zone_a.get(0)).admin()
             .cluster()
             .prepareHealth()
@@ -655,7 +657,8 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .get();
         assertFalse(nodeLocalHealth.isTimedOut());
 
-        // Check cluster health for weighed away node, health check should respond with an exception
+        // Check cluster health for weighed away node, health check should respond with
+        // an exception
         NodeWeighedAwayException ex = expectThrows(
             NodeWeighedAwayException.class,
             () -> client(nodes_in_zone_c.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
@@ -663,17 +666,20 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertTrue(ex.getMessage().contains("local node is weighed away"));
 
         logger.info("--> running cluster health on an index that does not exists");
-        ClusterHealthResponse healthResponse = client(nodes_in_zone_c.get(0)).admin()
-            .cluster()
-            .prepareHealth("test1")
-            .setLocal(true)
-            .setEnsureNodeWeighedIn(true)
-            .setTimeout("1s")
-            .execute()
-            .actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(true));
-        assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
+        // After the fix, querying non-existent index should return 404 instead of
+        // timeout
+        IndexNotFoundException exception = expectThrows(
+            IndexNotFoundException.class,
+            () -> client(nodes_in_zone_c.get(0)).admin()
+                .cluster()
+                .prepareHealth("test1")
+                .setLocal(true)
+                .setEnsureNodeWeighedIn(true)
+                .setTimeout("1s")
+                .execute()
+                .actionGet()
+        );
+        assertThat(exception.getMessage(), containsString("no such index [test1]"));
 
         Set<String> nodesInOneSide = Stream.of(nodes_in_zone_a.get(0), nodes_in_zone_b.get(0), nodes_in_zone_c.get(0))
             .collect(Collectors.toCollection(HashSet::new));
@@ -689,14 +695,16 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         networkDisruption.startDisrupting();
 
         assertBusy(() -> {
-            // Check cluster health for weighed in node when cluster manager is not discovered, health check should
+            // Check cluster health for weighed in node when cluster manager is not
+            // discovered, health check should
             // return a response with 503 status code
             assertThrows(
                 ClusterManagerNotDiscoveredException.class,
                 () -> client(nodes_in_zone_a.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
             );
 
-            // Check cluster health for weighed away node when cluster manager is not discovered, health check should
+            // Check cluster health for weighed away node when cluster manager is not
+            // discovered, health check should
             // return a response with 503 status code
             assertThrows(
                 ClusterManagerNotDiscoveredException.class,
@@ -779,7 +787,8 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(0).get();
         assertTrue(deleteResponse.isAcknowledged());
 
-        // check weighted routing metadata after node restart, ensure node comes healthy after restart
+        // check weighted routing metadata after node restart, ensure node comes healthy
+        // after restart
         internalCluster().restartNode(nodes_in_zone_a.get(0), new InternalTestCluster.RestartCallback());
         ensureGreen();
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
@@ -878,8 +887,10 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      * https://github.com/opensearch-project/OpenSearch/issues/18817
-     * For regression in custom string query preference with awareness attributes enabled.
-     * We expect preference will consistently route to the same shard replica. However, when awareness attributes
+     * For regression in custom string query preference with awareness attributes
+     * enabled.
+     * We expect preference will consistently route to the same shard replica.
+     * However, when awareness attributes
      * are configured this does not hold.
      */
     public void testCustomPreferenceShardIdCombination() {
@@ -915,10 +926,12 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         refreshAndWaitForReplication("test_index");
 
         /*
-        Execute the same match all query with custom string preference.
-        For each search and each shard in the response we record the node on which the shard was located.
-        Given the custom string preference, we expect each shard or each search should report the exact same node id.
-        Otherwise, the custom string pref is not producing consistent shard routing.
+         * Execute the same match all query with custom string preference.
+         * For each search and each shard in the response we record the node on which
+         * the shard was located.
+         * Given the custom string preference, we expect each shard or each search
+         * should report the exact same node id.
+         * Otherwise, the custom string pref is not producing consistent shard routing.
          */
         Map<String, Set<String>> shardToNodes = new HashMap<>();
         for (int i = 0; i < 20; i++) {
@@ -935,8 +948,9 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         }
 
         /*
-        If more than one node was responsible for serving a request for a given shard,
-        then there was a regression in the custom preference string.
+         * If more than one node was responsible for serving a request for a given
+         * shard,
+         * then there was a regression in the custom preference string.
          */
         logger.info("--> shard to node mappings: {}", shardToNodes);
         for (Map.Entry<String, Set<String>> entry : shardToNodes.entrySet()) {
