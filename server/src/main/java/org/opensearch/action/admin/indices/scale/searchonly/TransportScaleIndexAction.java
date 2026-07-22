@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.scale.searchonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
@@ -224,6 +225,24 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
         clusterService.submitStateUpdateTask("finalize-scale-down", new FinalizeScaleDownTask(index, listener));
     }
 
+    private void removeScaleDownBlockOnFailure(
+        String index,
+        ClusterBlock scaleBlock,
+        Exception failure,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        logger.warn(() -> new ParameterizedMessage("Scale-down failed for index [{}], removing temporary block", index), failure);
+        try {
+            clusterService.submitStateUpdateTask(
+                "remove-block-index-after-scale-down-failure " + index,
+                new RemoveBlockAfterScaleDownFailureTask(index, scaleBlock, failure, listener)
+            );
+        } catch (Exception cleanupSubmissionFailure) {
+            failure.addSuppressed(cleanupSubmissionFailure);
+            listener.onFailure(failure);
+        }
+    }
+
     /**
      * Handles an incoming shard sync request from another node.
      */
@@ -373,7 +392,12 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
             IndexMetadata indexMetadata = newState.metadata().index(index);
             if (indexMetadata != null) {
                 Map<ShardId, String> primaryShardsNodes = scaleIndexShardSyncManager.getPrimaryShardAssignments(indexMetadata, newState);
-                proceedWithScaleDown(index, primaryShardsNodes, listener);
+                ClusterBlock scaleBlock = blockedIndices.get(indexMetadata.getIndex());
+                ActionListener<AcknowledgedResponse> cleanupOnFailureListener = ActionListener.delegateResponse(
+                    listener,
+                    (delegate, e) -> removeScaleDownBlockOnFailure(index, scaleBlock, e, delegate)
+                );
+                proceedWithScaleDown(index, primaryShardsNodes, cleanupOnFailureListener);
             }
         }
 
@@ -381,6 +405,46 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
         public void onFailure(String source, Exception e) {
             logger.error("Failed to process cluster state update for scale down", e);
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Cluster state update task for cleaning up the temporary scale-down block when shard synchronization fails.
+     */
+    class RemoveBlockAfterScaleDownFailureTask extends ClusterStateUpdateTask {
+        private final String index;
+        private final ClusterBlock scaleBlock;
+        private final Exception failure;
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        RemoveBlockAfterScaleDownFailureTask(
+            String index,
+            ClusterBlock scaleBlock,
+            Exception failure,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(Priority.URGENT);
+            this.index = index;
+            this.scaleBlock = scaleBlock;
+            this.failure = failure;
+            this.listener = listener;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) {
+            return scaleIndexClusterStateBuilder.buildScaleDownFailureState(currentState, index, scaleBlock);
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            listener.onFailure(failure);
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+            logger.error("Failed to remove temporary scale-down block", e);
+            failure.addSuppressed(e);
+            listener.onFailure(failure);
         }
     }
 
