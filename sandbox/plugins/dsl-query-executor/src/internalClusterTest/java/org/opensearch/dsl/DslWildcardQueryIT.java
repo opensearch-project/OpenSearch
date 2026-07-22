@@ -16,7 +16,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 /**
  * Integration tests for wildcard query conversion to Calcite LIKE expressions.
  */
-@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
+@AwaitsFix(bugUrl = "DSL query pipeline not fully wired E2E: fragment conversion, shard execution and Arrow Flight drain pending")
 public class DslWildcardQueryIT extends DslIntegTestBase {
 
     @Override
