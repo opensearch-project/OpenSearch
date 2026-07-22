@@ -202,31 +202,36 @@ public class RelNodeUtils {
     }
 
     /** Maximum recursion depth when walking a RelNode tree to extract indices. */
-    static final int MAX_EXTRACT_INDICES_DEPTH = 15;
+    static final int DEFAULT_MAX_PLAN_DEPTH = 15;
 
     /**
      * Extracts all index names referenced by {@link org.apache.calcite.rel.core.TableScan}
-     * nodes in the plan. Walks the tree up to {@link #MAX_EXTRACT_INDICES_DEPTH} levels to
+     * nodes in the plan. Walks the tree up to {@code maxDepth} levels to
      * guard against pathologically deep plans constructed from complex user queries.
      *
      * @param plan the root of the RelNode tree
      * @return array of distinct index names in encounter order
      * @throws IllegalArgumentException if the plan exceeds the maximum depth
      */
-    public static String[] extractIndices(RelNode plan) {
+    public static String[] extractIndices(RelNode plan, int maxDepth) {
         java.util.Set<String> indices = new java.util.LinkedHashSet<>();
-        if (!collectIndices(plan, indices, 0)) {
+        if (!collectIndices(plan, indices, 0, maxDepth)) {
             throw new IllegalArgumentException(
                 "Query plan exceeds maximum depth ("
-                    + MAX_EXTRACT_INDICES_DEPTH
+                    + maxDepth
                     + ") for index extraction. Simplify the query by reducing nested joins or subqueries."
             );
         }
         return indices.toArray(String[]::new);
     }
 
-    private static boolean collectIndices(RelNode node, java.util.Set<String> indices, int depth) {
-        if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
+    /** Overload using the default depth. */
+    public static String[] extractIndices(RelNode plan) {
+        return extractIndices(plan, DEFAULT_MAX_PLAN_DEPTH);
+    }
+
+    private static boolean collectIndices(RelNode node, java.util.Set<String> indices, int depth, int maxDepth) {
+        if (depth >= maxDepth) {
             return false;
         }
         if (node instanceof TableScan scan) {
@@ -242,7 +247,7 @@ public class RelNodeUtils {
             }
         }
         for (RelNode input : node.getInputs()) {
-            if (!collectIndices(input, indices, depth + 1)) {
+            if (!collectIndices(input, indices, depth + 1, maxDepth)) {
                 return false;
             }
         }
