@@ -740,6 +740,26 @@ public class Cache<K, V> {
         };
     }
 
+    /**
+     * A point-in-time copy of the keys in the cache, in no particular order. Unlike {@link #keys()}, the returned
+     * list is not backed by the cache and is safe to iterate under any concurrent mutation. The copy is weakly
+     * consistent: it contains every key that was present in the cache for the entire duration of the call, and may
+     * or may not reflect concurrent insertions and removals. Keys are copied one segment at a time while holding
+     * only that segment's read lock, so this method never blocks cache reads, briefly blocks writes to a single
+     * segment at a time, and does not acquire the LRU lock.
+     *
+     * @return a copy of the keys in the cache
+     */
+    public List<K> keysSnapshot() {
+        List<K> keys = new ArrayList<>(count);
+        for (CacheSegment<K, V> segment : segments) {
+            try (ReleasableLock ignored = segment.readLock.acquire()) {
+                keys.addAll(segment.map.keySet());
+            }
+        }
+        return keys;
+    }
+
     private class CacheIterator implements Iterator<Entry<K, V>> {
         private Entry<K, V> current;
         private Entry<K, V> next;
