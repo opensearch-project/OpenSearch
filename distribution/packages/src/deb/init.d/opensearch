@@ -50,7 +50,7 @@ MAX_OPEN_FILES=65535
 OPENSEARCH_PATH_CONF=/etc/$NAME
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own
-MAX_MAP_COUNT=262144
+MAX_MAP_COUNT=1048576
 
 # OpenSearch PID file directory
 PID_DIR="/var/run/opensearch"

@@ -105,7 +105,7 @@ public class SysVInitTests extends PackagingTestCase {
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
         String maxMapCount = result.stdout.trim();
         sh.run("service opensearch stop");
-        assertThat(maxMapCount, equalTo("262144"));
+        assertThat(maxMapCount, equalTo("1048576"));
     }
 
     public void test32MaxMapBigEnough() throws Exception {
