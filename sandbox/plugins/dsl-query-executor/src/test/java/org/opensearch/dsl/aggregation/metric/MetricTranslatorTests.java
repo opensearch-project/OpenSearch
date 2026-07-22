@@ -19,14 +19,18 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
+
 public class MetricTranslatorTests extends OpenSearchTestCase {
 
     private final ConversionContext ctx = TestUtils.createContext();
 
     public void testAvgTranslator() throws ConversionException {
         AvgMetricTranslator translator = new AvgMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new AvgAggregationBuilder("avg_price").field("price"), ctx.getRowType());
+        List<AggregateCall> calls = translator.toAggregateCalls(new AvgAggregationBuilder("avg_price").field("price"), ctx.getRowType());
 
+        assertEquals(1, calls.size());
+        AggregateCall call = calls.get(0);
         assertEquals(SqlKind.AVG, call.getAggregation().getKind());
         assertEquals("avg_price", call.getName());
         assertEquals(1, call.getArgList().size());
@@ -35,24 +39,30 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
     public void testSumTranslator() throws ConversionException {
         SumMetricTranslator translator = new SumMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new SumAggregationBuilder("total").field("price"), ctx.getRowType());
+        List<AggregateCall> calls = translator.toAggregateCalls(new SumAggregationBuilder("total").field("price"), ctx.getRowType());
 
+        assertEquals(1, calls.size());
+        AggregateCall call = calls.get(0);
         assertEquals(SqlKind.SUM, call.getAggregation().getKind());
         assertEquals("total", call.getName());
     }
 
     public void testMinTranslator() throws ConversionException {
         MinMetricTranslator translator = new MinMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new MinAggregationBuilder("min_price").field("price"), ctx.getRowType());
+        List<AggregateCall> calls = translator.toAggregateCalls(new MinAggregationBuilder("min_price").field("price"), ctx.getRowType());
 
+        assertEquals(1, calls.size());
+        AggregateCall call = calls.get(0);
         assertEquals(SqlKind.MIN, call.getAggregation().getKind());
         assertEquals("min_price", call.getName());
     }
 
     public void testMaxTranslator() throws ConversionException {
         MaxMetricTranslator translator = new MaxMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new MaxAggregationBuilder("max_price").field("price"), ctx.getRowType());
+        List<AggregateCall> calls = translator.toAggregateCalls(new MaxAggregationBuilder("max_price").field("price"), ctx.getRowType());
 
+        assertEquals(1, calls.size());
+        AggregateCall call = calls.get(0);
         assertEquals(SqlKind.MAX, call.getAggregation().getKind());
         assertEquals("max_price", call.getName());
     }
@@ -60,14 +70,14 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     public void testThrowsForUnknownField() {
         AvgMetricTranslator translator = new AvgMetricTranslator();
 
-        expectThrows(
-            ConversionException.class,
-            () -> translator.toAggregateCall(new AvgAggregationBuilder("bad").field("nonexistent"), ctx.getRowType())
-        );
+        expectThrows(ConversionException.class,
+            () -> translator.toAggregateCalls(new AvgAggregationBuilder("bad").field("nonexistent"), ctx.getRowType()));
     }
 
     public void testAggregateFieldName() {
         AvgMetricTranslator translator = new AvgMetricTranslator();
-        assertEquals("avg_price", translator.getAggregateFieldName(new AvgAggregationBuilder("avg_price").field("price")));
+        List<String> names = translator.getAggregateFieldNames(new AvgAggregationBuilder("avg_price").field("price"));
+        assertEquals(1, names.size());
+        assertEquals("avg_price", names.get(0));
     }
 }

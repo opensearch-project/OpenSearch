@@ -11,6 +11,8 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import java.util.Map;
 
 /** Translates MIN metric aggregation to Calcite. */
 public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregationBuilder> {
@@ -31,5 +33,11 @@ public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregation
     @Override
     protected String getFieldName(MinAggregationBuilder agg) {
         return agg.field();
+    }
+
+    @Override
+    public InternalAggregation toInternalAggregation(String name, Map<String, Object> values) {
+        // TODO: Implement conversion from DataFusion result to InternalMin
+        throw new UnsupportedOperationException("toInternalAggregation not yet implemented for MinMetricTranslator");
     }
 }

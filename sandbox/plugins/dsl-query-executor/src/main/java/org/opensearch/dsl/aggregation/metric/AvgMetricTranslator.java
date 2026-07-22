@@ -11,6 +11,8 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import java.util.Map;
 
 /** Translates AVG metric aggregation to Calcite. */
 public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregationBuilder> {
@@ -31,5 +33,11 @@ public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregation
     @Override
     protected String getFieldName(AvgAggregationBuilder agg) {
         return agg.field();
+    }
+
+    @Override
+    public InternalAggregation toInternalAggregation(String name, Map<String, Object> values) {
+        // TODO: Implement conversion from DataFusion result to InternalAvg
+        throw new UnsupportedOperationException("toInternalAggregation not yet implemented for AvgMetricTranslator");
     }
 }
