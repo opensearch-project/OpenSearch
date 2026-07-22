@@ -21,7 +21,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -41,7 +41,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.8.0")
+@ExperimentalApi
 public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
     public static final ModifyDataStreamsAction INSTANCE = new ModifyDataStreamsAction();
@@ -56,7 +56,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.api
      */
-    @PublicApi(since = "3.8.0")
+    @ExperimentalApi
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final List<DataStreamAction> actions;

@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.indices.datastream;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -27,7 +27,7 @@ import java.util.Objects;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.8.0")
+@ExperimentalApi
 public record DataStreamAction(Type type, String dataStream, String index) implements Writeable, ToXContentObject {
 
     /**
@@ -35,7 +35,7 @@ public record DataStreamAction(Type type, String dataStream, String index) imple
      *
      * @opensearch.api
      */
-    @PublicApi(since = "3.8.0")
+    @ExperimentalApi
     public enum Type {
         ADD_BACKING_INDEX((byte) 0, "add_backing_index"),
         REMOVE_BACKING_INDEX((byte) 1, "remove_backing_index");
