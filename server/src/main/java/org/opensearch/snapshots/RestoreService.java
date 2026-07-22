@@ -1030,8 +1030,8 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Attaches each restored ".ds-&lt;streamName&gt;-NNNNNN" index to a pre-existing data stream of the same name, in the
-     * same cluster-state update as the restore. Adding the index and advancing the generation together avoids the
+     * Attaches each restored {@code .ds-<streamName>-NNNNNN} index to a pre-existing data stream of the same name, in
+     * the same cluster-state update as the restore. Adding the index and advancing the generation together avoids the
      * transient state {@link Metadata.Builder} validation rejects (a convention-named index above the generation).
      * Updates {@code updatedDataStreams} in place. Visible for testing.
      */

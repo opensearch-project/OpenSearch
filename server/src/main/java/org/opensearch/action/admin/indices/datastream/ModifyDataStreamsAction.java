@@ -39,7 +39,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Applies a batch of {@link DataStreamAction} operations (add/remove backing index) to data-stream metadata atomically.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 @ExperimentalApi
 public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
@@ -54,7 +54,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
     /**
      * Request carrying the data-stream actions to apply.
      *
-     * @opensearch.api
+     * @opensearch.experimental
      */
     @ExperimentalApi
     public static class Request extends AcknowledgedRequest<Request> {

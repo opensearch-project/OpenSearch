@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * A single add- or remove-backing-index operation within a {@link ModifyDataStreamsAction} request.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 @ExperimentalApi
 public record DataStreamAction(Type type, String dataStream, String index) implements Writeable, ToXContentObject {
@@ -33,7 +33,7 @@ public record DataStreamAction(Type type, String dataStream, String index) imple
     /**
      * The type of modification applied to a data stream.
      *
-     * @opensearch.api
+     * @opensearch.experimental
      */
     @ExperimentalApi
     public enum Type {

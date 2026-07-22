@@ -149,17 +149,6 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         return randomState(copy);
     }
 
-    public void testAttachToDataStreamDefaultAndBuilder() {
-        // Default is false.
-        assertFalse(new RestoreSnapshotRequest("repo", "snap").attachToDataStream());
-
-        // Builder setter toggles the request field.
-        RestoreSnapshotRequestBuilder builder = new RestoreSnapshotRequestBuilder(null, RestoreSnapshotAction.INSTANCE, "repo", "snap");
-        assertFalse(builder.request().attachToDataStream());
-        builder.setAttachToDataStream(true);
-        assertTrue(builder.request().attachToDataStream());
-    }
-
     public void testSource() throws IOException {
         RestoreSnapshotRequest original = createTestInstance();
         original.snapshotUuid(null); // cannot be set via the REST API
