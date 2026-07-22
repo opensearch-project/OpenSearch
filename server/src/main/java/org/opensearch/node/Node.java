@@ -76,6 +76,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
@@ -996,6 +997,7 @@ public class Node implements Closeable {
                 clusterService,
                 metadataCreateIndexService
             );
+            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1456,6 +1458,7 @@ public class Node implements Closeable {
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
+                b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);
                 b.bind(SearchPhaseController.class)
