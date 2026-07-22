@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Field mapper for a datastream field
@@ -48,7 +49,10 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
      * @opensearch.internal
      */
     public static final class Builder extends MetadataFieldMapper.Builder {
-        final Parameter<Boolean> enabledParam = Parameter.boolParam("enabled", false, mapper -> toType(mapper).enabled, Defaults.ENABLED);
+        // The _data_stream_timestamp meta field can be enabled on a mapping update (e.g. when an existing index is
+        // adapted into a data stream backing index) but, once enabled, it cannot be disabled again.
+        final Parameter<Boolean> enabledParam = Parameter.boolParam("enabled", false, mapper -> toType(mapper).enabled, Defaults.ENABLED)
+            .setMergeValidator((previous, current) -> Objects.equals(previous, current) || (previous == false && current));
 
         final Parameter<TimestampField> timestampFieldParam = new Parameter<>(
             "timestamp_field",

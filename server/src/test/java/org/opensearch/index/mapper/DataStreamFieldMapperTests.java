@@ -113,6 +113,79 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testEnableOnMappingMergeIsAllowed() throws Exception {
+        MapperService mapperService = createIndex("test").mapperService();
+
+        // an index that starts out without the _data_stream_timestamp meta field (the default disabled state)
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent("{\"_doc\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}}"),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+
+        // enabling the meta field on a subsequent merge is allowed (this is how an existing index is adapted into a backing index)
+        String enableMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("_data_stream_timestamp")
+            .field("enabled", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        DocumentMapper merged = mapperService.merge(
+            "_doc",
+            new CompressedXContent(enableMapping),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+
+        // the meta field is now enabled, so the timestamp validation in postParse is active
+        MapperException exception = expectThrows(
+            MapperException.class,
+            () -> merged.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+        assertThat(exception.getCause().getMessage(), containsString("documents must contain a single-valued timestamp field"));
+    }
+
+    public void testDisableOnceEnabledIsRejected() throws Exception {
+        MapperService mapperService = createIndex("test").mapperService();
+
+        // start with the meta field enabled
+        String enableMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("_data_stream_timestamp")
+            .field("enabled", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        mapperService.merge("_doc", new CompressedXContent(enableMapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        // attempting to disable it again on a subsequent merge is rejected by the merge validator
+        String disableMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("_data_stream_timestamp")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.merge("_doc", new CompressedXContent(disableMapping), MapperService.MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(exception.getMessage(), containsString("Cannot update parameter [enabled] from [true] to [false]"));
+    }
+
     private void assertDataStreamFieldMapper(String mapping, String timestampFieldName) throws Exception {
         DocumentMapper mapper = createIndex("test").mapperService()
             .merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);

@@ -867,6 +867,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "indices.recovery",
             "indices.segments",
             "indices.stats",
+            "indices.modify_data_stream",
             "ingest.processor_grok",
             "nodes.info",
             "nodes.stats",

@@ -113,6 +113,71 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         }
     }
 
+    public void testAddBackingIndex() {
+        int numBackingIndices = randomIntBetween(2, 32);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int k = 1; k <= numBackingIndices; k++) {
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
+        }
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+
+        Index indexToAdd = new Index("index-to-add", UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.addBackingIndex(indexToAdd);
+        assertThat(updated.getName(), equalTo(original.getName()));
+        // adding a backing index does not change the generation (only rollover does)
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
+        assertThat(updated.getIndices().size(), equalTo(numBackingIndices + 1));
+        // the new index is added to the front so the existing write index stays last
+        assertThat(updated.getIndices().get(0), equalTo(indexToAdd));
+        assertThat(updated.getIndices().get(updated.getIndices().size() - 1), equalTo(original.getIndices().get(numBackingIndices - 1)));
+        for (int k = 0; k < numBackingIndices; k++) {
+            assertThat(updated.getIndices().get(k + 1), equalTo(original.getIndices().get(k)));
+        }
+    }
+
+    public void testRemoveBackingIndexThrowsExceptionIfIndexNotPartOfDataStream() {
+        int numBackingIndices = randomIntBetween(2, 32);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int k = 1; k <= numBackingIndices; k++) {
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
+        }
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+
+        Index standaloneIndex = new Index("index-foo", UUIDs.randomBase64UUID(random()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(standaloneIndex));
+        assertThat(e.getMessage(), equalTo("index [index-foo] is not part of data stream [" + dataStreamName + "]"));
+    }
+
+    public void testRemoveBackingIndexThrowsExceptionIfRemovingWriteIndex() {
+        int numBackingIndices = randomIntBetween(2, 32);
+        int writeIndexPosition = numBackingIndices - 1;
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int k = 1; k <= numBackingIndices; k++) {
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
+        }
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+
+        Index writeIndex = indices.get(writeIndexPosition);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(writeIndex));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot remove backing index ["
+                    + writeIndex.getName()
+                    + "] of data stream ["
+                    + dataStreamName
+                    + "] because it is the write index"
+            )
+        );
+    }
+
     public void testDefaultBackingIndexName() {
         // this test does little more than flag that changing the default naming convention for backing indices
         // will also require changing a lot of hard-coded values in REST tests and docs

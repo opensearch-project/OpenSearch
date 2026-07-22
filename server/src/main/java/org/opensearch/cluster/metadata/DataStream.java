@@ -135,13 +135,46 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices. The index is added at the start of the backing indices list so that the existing write index
+     * (which is always the last backing index) remains the write index.
+     *
+     * @param index the index to add to the data stream as a backing index
+     * @return new {@code DataStream} instance with the added backing index
+     */
+    public DataStream addBackingIndex(Index index) {
+        // validate that index is not part of another data stream is the responsibility of the caller
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(0, index);
+        assert backingIndices.size() == indices.size() + 1;
+        return new DataStream(name, timeStampField, backingIndices, generation);
+    }
+
+    /**
      * Removes the specified backing index and returns a new {@code DataStream} instance with
-     * the remaining backing indices.
+     * the remaining backing indices. An {@code IllegalArgumentException} is thrown if the index to be removed
+     * is not a backing index for this data stream or if it is the {@code DataStream}'s write index.
      *
      * @param index the backing index to remove
      * @return new {@code DataStream} instance with the remaining backing indices
      */
     public DataStream removeBackingIndex(Index index) {
+        int backingIndexPosition = indices.indexOf(index);
+        if (backingIndexPosition == -1) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", index.getName(), name)
+            );
+        }
+        if (indices.size() == (backingIndexPosition + 1)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    index.getName(),
+                    name
+                )
+            );
+        }
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
