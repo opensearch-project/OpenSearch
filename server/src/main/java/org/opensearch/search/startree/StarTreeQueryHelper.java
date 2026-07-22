@@ -121,6 +121,13 @@ public class StarTreeQueryHelper {
      */
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
+        if (context.shouldUseConcurrentSearch()) {
+            return StarTreeTraversalUtil.getStarTreeResult(
+                starTreeValues,
+                context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                context
+            );
+        }
         FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().maybeGetCachedNodeIdsForSegment(ctx.ord);
         if (result == null) {
             result = StarTreeTraversalUtil.getStarTreeResult(
@@ -128,8 +135,8 @@ public class StarTreeQueryHelper {
                 context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                 context
             );
+            context.getQueryShardContext().getStarTreeQueryContext().maybeSetCachedNodeIdsForSegment(ctx.ord, result);
         }
-        context.getQueryShardContext().getStarTreeQueryContext().maybeSetCachedNodeIdsForSegment(ctx.ord, result);
         return result;
     }
 

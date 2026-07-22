@@ -1767,6 +1767,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);
         }
+        maybeInitializeStarTreeQueryContext(context, source, queryShardContext);
         context.evaluateRequestShouldUseConcurrentSearch();
         context.evaluateRequestShouldUseIntraSegmentSearch();
         if (source.profile()) {
@@ -1776,7 +1777,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Profilers profilers = new Profilers(context.searcher(), context.shouldUseConcurrentSearch(), pluginProfileMetricsSupplier);
             context.setProfilers(profilers);
         }
+    }
 
+    /**
+     * Initializes star-tree query context before concurrent and intra-segment search are evaluated.
+     */
+    private static void maybeInitializeStarTreeQueryContext(
+        DefaultSearchContext context,
+        SearchSourceBuilder source,
+        QueryShardContext queryShardContext
+    ) {
         if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {
             StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
             boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
