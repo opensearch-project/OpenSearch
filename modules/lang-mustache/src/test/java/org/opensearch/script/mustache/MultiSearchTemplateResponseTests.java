@@ -223,6 +223,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             .field("successful", 2)
             .field("skipped", 0)
             .field("failed", 0)
+            .field("timed_out", 0)
             .endObject()
             .startObject("hits")
             .startObject("total")

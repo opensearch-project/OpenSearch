@@ -74,6 +74,7 @@ public class RestActions {
     public static final ParseField SKIPPED_FIELD = new ParseField("skipped");
     public static final ParseField FAILED_FIELD = new ParseField("failed");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
+    public static final ParseField TIMED_OUT_FIELD = new ParseField("timed_out");
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
@@ -119,6 +120,34 @@ public class RestActions {
             builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
         }
         builder.field(FAILED_FIELD.getPreferredName(), failed);
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
+            builder.startArray(FAILURES_FIELD.getPreferredName());
+            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
+                shardFailure.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+    }
+
+    public static void buildBroadcastShardsHeader(
+        XContentBuilder builder,
+        Params params,
+        int total,
+        int successful,
+        int skipped,
+        int failed,
+        int timedOut,
+        ShardOperationFailedException[] shardFailures
+    ) throws IOException {
+        builder.startObject(_SHARDS_FIELD.getPreferredName());
+        builder.field(TOTAL_FIELD.getPreferredName(), total);
+        builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
+        if (skipped >= 0) {
+            builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+        }
+        builder.field(FAILED_FIELD.getPreferredName(), failed);
+        builder.field(TIMED_OUT_FIELD.getPreferredName(), timedOut);
         if (CollectionUtils.isEmpty(shardFailures) == false) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
             for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
