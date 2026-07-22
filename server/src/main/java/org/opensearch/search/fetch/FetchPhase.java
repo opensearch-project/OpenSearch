@@ -52,6 +52,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -358,7 +359,7 @@ public class FetchPhase {
     }
 
     private String[] codecSourceExcludes(SearchContext context, String[] requestExcludes) {
-        if (requestExcludes == null || requestExcludes.length == 0) {
+        if (CollectionUtils.isEmpty(requestExcludes)) {
             return null;
         }
 
