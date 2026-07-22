@@ -46,6 +46,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -1129,6 +1130,88 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         );
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
         assertThat(exc.getMessage(), containsString("consider using log1p or log2p instead of log to avoid negative scores"));
+    }
+
+    /**
+     * Verifies that FunctionScoreQuery.explain() does not throw NPE when
+     * functionScorer() returns null. This happens when a compound query
+     * (e.g. HybridQuery) delegates explain to a sub-query whose scorer
+     * is null for the leaf segment, but whose explain reports a match.
+     */
+    public void testExplainDoesNotThrowWhenScorerIsNull() throws IOException {
+        // A query whose explain reports a match, but whose scorer is null.
+        // This simulates what happens when HybridQuery delegates explain to
+        // a sub-query that didn't contribute the hit.
+        Query explainMatchButNoScorer = new Query() {
+            @Override
+            public String toString(String field) {
+                return "explainMatchButNoScorer";
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return obj == this;
+            }
+
+            @Override
+            public int hashCode() {
+                return System.identityHashCode(this);
+            }
+
+            @Override
+            public void visit(org.apache.lucene.search.QueryVisitor visitor) {
+                visitor.visitLeaf(this);
+            }
+
+            @Override
+            public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) {
+                return new Weight(this) {
+                    @Override
+                    public Explanation explain(LeafReaderContext context, int doc) {
+                        return Explanation.match(1.0f, "match (simulated)");
+                    }
+
+                    @Override
+                    public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                        return null;
+                    }
+
+                    @Override
+                    public boolean isCacheable(LeafReaderContext ctx) {
+                        return false;
+                    }
+                };
+            }
+        };
+
+        // Build a function_score with TWO filter functions (score_mode=multiply)
+        // so the code enters the multi-function branch that calls functionScorer().
+        ScoreFunction[] filterFunctions = new ScoreFunction[] {
+            new FunctionScoreQuery.FilterScoreFunction(new TermQuery(TERM), new WeightFactorFunction(2.0f)),
+            new FunctionScoreQuery.FilterScoreFunction(new TermQuery(TERM), new WeightFactorFunction(3.0f)),
+        };
+
+        FunctionScoreQuery query = new FunctionScoreQuery(
+            explainMatchButNoScorer,
+            ScoreMode.MULTIPLY,
+            filterFunctions,
+            CombineFunction.MULTIPLY,
+            Float.MAX_VALUE * -1,
+            Float.MAX_VALUE
+        );
+
+        Weight weight = searcher.createWeight(searcher.rewrite(query), org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
+        LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+
+        // Before the fix this would throw NullPointerException
+        Explanation explanation = weight.explain(context, 0);
+        assertNotNull(explanation);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getDescription(), containsString("function score"));
+        // combineFunction wraps the factor explanation in a "min of:" (maxBoost) layer
+        Explanation minOfExpl = explanation.getDetails()[1];
+        assertThat(minOfExpl.getDescription(), equalTo("min of:"));
+        assertThat(minOfExpl.getDetails()[0].getDescription(), containsString("no scorer for this segment"));
     }
 
     private static class DummyScoreFunction extends ScoreFunction {
