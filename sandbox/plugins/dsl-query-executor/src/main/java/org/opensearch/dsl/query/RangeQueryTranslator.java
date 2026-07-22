@@ -120,12 +120,11 @@ public class RangeQueryTranslator implements QueryTranslator {
             return ctx.getRexBuilder().makeLiteral(false);
         }
 
-        // Guard: ip and binary fields are not supported for range queries.
-        // Legacy IpFieldMapper.rangeQuery relies on InetAddress-order comparison; lexicographic
-        // string comparison would produce incorrect results. Legacy BinaryFieldMapper has no
-        // rangeQuery implementation at all.
-        if (field.getType().getSqlTypeName() == SqlTypeName.VARBINARY) {
-            throw new ConversionException("Range queries on ip and binary fields are not supported by the DSL conversion path");
+        // Guard: binary fields are not supported for range queries.
+        // Legacy BinaryFieldMapper has no rangeQuery implementation at all.
+        // IP fields (IpType marker) are supported via byte-range comparison below.
+        if (field.getType().getSqlTypeName() == SqlTypeName.VARBINARY && !(field.getType() instanceof IpType)) {
+            throw new ConversionException("Range queries on binary fields are not supported by the DSL conversion path");
         }
 
         // IP field handling: encode bound strings to 16-byte IPv6-mapped sortable bytes,
