@@ -109,6 +109,22 @@ public class Regex {
         if (pattern1 == null || pattern2 == null) {
             return false;
         }
+        boolean pattern1IsWildcard = isSimpleMatchPattern(pattern1);
+        boolean pattern2IsWildcard = isSimpleMatchPattern(pattern2);
+        // Fast path: two literals overlap only when they are equal.
+        if (pattern1IsWildcard == false && pattern2IsWildcard == false) {
+            return pattern1.equals(pattern2);
+        }
+        // Fast path: literal vs wildcard overlaps iff the wildcard matches the literal (cheap glob scan).
+        if (pattern1IsWildcard == false) {
+            return simpleMatch(pattern2, pattern1);
+        }
+        if (pattern2IsWildcard == false) {
+            return simpleMatch(pattern1, pattern2);
+        }
+        // Both patterns contain wildcards. Simple-match only supports '*', so each pattern maps to a
+        // linear-sized automaton (literals + makeAnyString); the intersection stays small enough that
+        // determinization never hits Lucene's complexity limit.
         Automaton intersection = Operations.intersection(simpleMatchToAutomaton(pattern1), simpleMatchToAutomaton(pattern2));
         return Operations.isEmpty(intersection) == false;
     }

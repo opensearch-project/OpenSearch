@@ -362,12 +362,37 @@ public class FetchPhase {
             return requestExcludes;
         }
 
-        final Set<String> codecExcludes = new HashSet<>(Arrays.asList(requestExcludes));
-
         final Set<String> requestIncludes = new HashSet<>();
+        // Inner hits (including nested ones) read from the root document's _source, so any field they
+        // request must stay available at the codec level. If any inner hit fetches the whole source,
+        // every field must remain, so no codec excludes apply.
+        if (collectInnerHitIncludes(innerHits, requestIncludes)) {
+            return null;
+        }
+
+        final Set<String> codecExcludes = new HashSet<>(Arrays.asList(requestExcludes));
+        for (String reqInclude : requestIncludes) {
+            codecExcludes.removeIf(userExclude -> Regex.simpleMatchOverlap(userExclude, reqInclude));
+        }
+
+        return codecExcludes.toArray(new String[0]);
+    }
+
+    /**
+     * Recursively collects the source fields requested by the given inner hits and their nested
+     * children into {@code requestIncludes}.
+     *
+     * @return true if any inner hit fetches the whole source (empty includes), meaning no codec
+     *         excludes should be applied
+     */
+    private boolean collectInnerHitIncludes(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, Set<String> requestIncludes) {
         for (InnerHitsContext.InnerHitSubContext innerHit : innerHits.values()) {
             final FetchSourceContext innerSource = innerHit.fetchSourceContext();
             if (innerSource != null && innerSource.fetchSource()) {
+                // Empty includes means "fetch the whole source", so every field must remain available.
+                if (innerSource.includes().length == 0) {
+                    return true;
+                }
                 requestIncludes.addAll(Arrays.asList(innerSource.includes()));
             }
             FetchFieldsContext innerFetchContext = innerHit.fetchFieldsContext();
@@ -376,13 +401,12 @@ public class FetchPhase {
                     innerFetchContext.fields().stream().map(fieldAndFormat -> fieldAndFormat.field).collect(Collectors.toSet())
                 );
             }
+            // Nested inner hits read from the same root _source, so descend into their children too.
+            if (innerHit.innerHits() != null && collectInnerHitIncludes(innerHit.innerHits().getInnerHits(), requestIncludes)) {
+                return true;
+            }
         }
-
-        for (String reqInclude : requestIncludes) {
-            codecExcludes.removeIf(userExclude -> Regex.simpleMatchOverlap(userExclude, reqInclude));
-        }
-
-        return codecExcludes.toArray(new String[0]);
+        return false;
     }
 
     private boolean sourceRequired(SearchContext context) {

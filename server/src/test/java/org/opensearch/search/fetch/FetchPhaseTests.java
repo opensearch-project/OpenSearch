@@ -147,20 +147,23 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         // null | foo*,bar* | bar* | fetch | -> [foo*] identical wildcard patterns
         // null | foo*,x.y | *bar | source | -> [x.y] "foo*" overlaps "*bar" via "foobar"
         // null | secret* | public.field | source | -> [secret*] no overlap, exclude kept
+        // null | field1,field2 | null | source | -> [] full-source fetch drops all codec excludes
         assertCodecExcludes(new String[] { "field3" }, new String[] { "field1", "field2" }, "field1", true, new String[] { "field2" });
         assertCodecExcludes(null, new String[] { "field1", "field2" }, "field2", false, new String[] { "field1" });
         assertCodecExcludes(null, new String[] { "obj.*", "secret*" }, "obj.field", true, new String[] { "secret*" });
         assertCodecExcludes(null, new String[] { "foo*", "bar*" }, "bar*", false, new String[] { "foo*" });
         assertCodecExcludes(null, new String[] { "foo*", "x.y" }, "*bar", true, new String[] { "x.y" });
         assertCodecExcludes(null, new String[] { "secret*" }, "public.field", true, new String[] { "secret*" });
+        assertCodecExcludes(null, new String[] { "field1", "field2" }, null, true, Strings.EMPTY_ARRAY);
     }
 
     /**
      * Builds a search context whose root source has {@code rootIncludes}/{@code excludes} and a single
      * inner hit requesting {@code innerHitField}, then asserts the resulting codec excludes. When
      * {@code viaSource} is true the field is an inner-hit source include; otherwise it is requested via
-     * fetch fields with source fetching disabled. The returned _source includes/excludes are asserted
-     * to be the unmodified root request values.
+     * fetch fields with source fetching disabled. A null {@code innerHitField} with {@code viaSource}
+     * true models a default full-source fetch (fetchSource=true, no explicit includes). The returned
+     * _source includes/excludes are asserted to be the unmodified root request values.
      */
     private void assertCodecExcludes(
         String[] rootIncludes,
@@ -182,7 +185,8 @@ public class FetchPhaseTests extends OpenSearchTestCase {
 
         InnerHitsContext.InnerHitSubContext innerHit = mock(InnerHitsContext.InnerHitSubContext.class);
         if (viaSource) {
-            when(innerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(true, new String[] { innerHitField }, null));
+            String[] innerIncludes = innerHitField != null ? new String[] { innerHitField } : null;
+            when(innerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(true, innerIncludes, null));
             when(innerHit.fetchFieldsContext()).thenReturn(null);
         } else {
             when(innerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(false));
@@ -199,6 +203,48 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         assertArrayEquals(excludes, fieldsVisitor.excludes());
         assertArrayEquals(rootIncludes != null ? rootIncludes : Strings.EMPTY_ARRAY, fieldsVisitor.includes());
         assertArrayEquals(expectedCodecExcludes, fieldsVisitor.codecExcludes());
+    }
+
+    public void testCodecSourceExcludesRemovesNestedInnerHitFields() {
+        // A nested (grandchild) inner hit reads from the same root _source, so a field it requests
+        // must also be dropped from the codec excludes.
+        FetchPhase fetchPhase = new FetchPhase(new ArrayList<>());
+        SearchContext context = mock(SearchContext.class);
+        when(context.hasScriptFields()).thenReturn(false);
+        when(context.storedFieldsContext()).thenReturn(null);
+
+        String[] excludes = new String[] { "field1", "field2" };
+        FetchSourceContext rootSource = new FetchSourceContext(true, null, excludes);
+        when(context.hasFetchSourceContext()).thenReturn(true);
+        when(context.fetchSourceContext()).thenReturn(rootSource);
+        when(context.sourceRequested()).thenReturn(true);
+        when(context.fetchFieldsContext()).thenReturn(null);
+
+        // Child inner hit requests nothing overlapping, but its own nested inner hit requests "field1".
+        InnerHitsContext.InnerHitSubContext nestedInnerHit = mock(InnerHitsContext.InnerHitSubContext.class);
+        when(nestedInnerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(true, new String[] { "field1" }, null));
+        when(nestedInnerHit.fetchFieldsContext()).thenReturn(null);
+        when(nestedInnerHit.innerHits()).thenReturn(null);
+
+        InnerHitsContext nestedInnerHitsContext = new InnerHitsContext();
+        nestedInnerHitsContext.getInnerHits().put("nested", nestedInnerHit);
+
+        InnerHitsContext.InnerHitSubContext innerHit = mock(InnerHitsContext.InnerHitSubContext.class);
+        when(innerHit.fetchSourceContext()).thenReturn(new FetchSourceContext(true, new String[] { "field3" }, null));
+        when(innerHit.fetchFieldsContext()).thenReturn(null);
+        when(innerHit.innerHits()).thenReturn(nestedInnerHitsContext);
+
+        InnerHitsContext innerHitsContext = new InnerHitsContext();
+        innerHitsContext.getInnerHits().put("inner", innerHit);
+        when(context.innerHits()).thenReturn(innerHitsContext);
+
+        FieldsVisitor fieldsVisitor = fetchPhase.createStoredFieldsVisitor(context, null);
+
+        // Requested includes/excludes must not be mutated.
+        assertArrayEquals(excludes, fieldsVisitor.excludes());
+        assertArrayEquals(Strings.EMPTY_ARRAY, fieldsVisitor.includes());
+        // "field1" is requested by the nested inner hit so it is dropped; "field2" is not requested anywhere.
+        assertArrayEquals(new String[] { "field2" }, fieldsVisitor.codecExcludes());
     }
 
     public void testTaskCancellationDuringFetch() {

@@ -136,10 +136,19 @@ public class RegexTests extends OpenSearchTestCase {
         // overlap is symmetric
         assertEquals(Regex.simpleMatchOverlap("a*", "ab*"), Regex.simpleMatchOverlap("ab*", "a*"));
 
+        // literal vs multi-part pattern (fast path via glob, no automaton)
+        assertTrue(Regex.simpleMatchOverlap("foo*bar", "fooXbar"));
+        assertFalse(Regex.simpleMatchOverlap("foo*bar", "fooXbaz"));
+
         // null inputs never overlap
         assertFalse(Regex.simpleMatchOverlap(null, "foo"));
         assertFalse(Regex.simpleMatchOverlap("foo", null));
         assertFalse(Regex.simpleMatchOverlap(null, null));
+
+        // many-wildcard patterns stay cheap: simple-match only supports '*', so the automata are
+        // linear and determinization does not blow up
+        String manyWildcards = "*" + "a*".repeat(200);
+        assertTrue(Regex.simpleMatchOverlap(manyWildcards, manyWildcards));
     }
 
     public void testSimpleMatch() {
