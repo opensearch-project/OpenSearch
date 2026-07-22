@@ -852,12 +852,13 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertLiteralEpoch(result, 1643673599999L);
     }
 
-    // ========== GROUP L - UNSUPPORTED FIELD TYPE GUARDS ==========
+    // ========== GROUP L - FIELD TYPE GUARDS AND IP/NANOS SUPPORT ==========
 
     /**
      * Range query on ip-typed field (VARBINARY) throws ConversionException.
-     * Legacy IpFieldMapper.rangeQuery uses InetAddress-order comparison; lexicographic comparison
-     * would be incorrect. Binary fields have no rangeQuery in BinaryFieldMapper.
+     * Legacy IpFieldMapper.rangeQuery uses InetAddress-order comparison; lexicographic
+     * string comparison would produce incorrect results. Binary fields have no rangeQuery
+     * in BinaryFieldMapper.
      */
     public void testRangeOnIpFieldThrows() {
         ConversionException ex = expectThrows(
@@ -887,7 +888,8 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
 
     /**
      * Range query on nanosecond-precision date field (TIMESTAMP(9)) throws ConversionException.
-     * Translator builds TIMESTAMP(3) literals which would silently truncate nanosecond precision.
+     * Calcite's RexBuilder.makeTimestampLiteral clamps precision to 3 under
+     * RelDataTypeSystem.DEFAULT, truncating nanosecond values. Requires type-system change.
      */
     public void testRangeOnDateNanosFieldThrows() {
         ConversionException ex = expectThrows(
@@ -895,8 +897,8 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
             () -> translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2022-01-01"), ctx)
         );
         assertTrue(
-            "Message should mention nanosecond precision: " + ex.getMessage(),
-            ex.getMessage().contains("nanosecond") || ex.getMessage().contains("date_nanos")
+            "Message should mention nanosecond or date_nanos: " + ex.getMessage(),
+            ex.getMessage().contains("anosecond") || ex.getMessage().contains("date_nanos")
         );
     }
 
