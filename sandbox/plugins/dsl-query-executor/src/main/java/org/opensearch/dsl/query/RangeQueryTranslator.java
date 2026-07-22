@@ -112,6 +112,21 @@ public class RangeQueryTranslator implements QueryTranslator {
             return ctx.getRexBuilder().makeLiteral(false);
         }
 
+        // Guard: ip and binary fields are not supported for range queries.
+        // Legacy IpFieldMapper.rangeQuery relies on InetAddress-order comparison; lexicographic
+        // string comparison would produce incorrect results. Legacy BinaryFieldMapper has no
+        // rangeQuery implementation at all.
+        if (field.getType().getSqlTypeName() == SqlTypeName.VARBINARY) {
+            throw new ConversionException("Range queries on ip and binary fields are not supported by the DSL conversion path");
+        }
+
+        // Guard: nanosecond-precision date fields (date_nanos mapped to TIMESTAMP(9)) are not
+        // yet supported. The translator builds TIMESTAMP(3) literals which would silently truncate
+        // nanosecond precision (see DateFieldMapper.Resolution.NANOSECONDS in legacy).
+        if (isDateType(field.getType().getSqlTypeName()) && field.getType().getPrecision() > 3) {
+            throw new ConversionException("Nanosecond-precision date fields (date_nanos) are not yet supported by the DSL conversion path");
+        }
+
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
         List<RexNode> conditions = new ArrayList<>();
 
