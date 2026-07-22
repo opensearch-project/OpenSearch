@@ -169,6 +169,10 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         assertCodecExcludes(null, new String[] { "x.y", "secret" }, "x.y.z.w", true, new String[] { "secret" });
         assertCodecExcludes(null, new String[] { "x.y.z.w", "secret" }, "x.y", true, new String[] { "secret" });
         assertCodecExcludes(null, new String[] { "x.y.a.z" }, "x.y.b.z", true, new String[] { "x.y.a.z" });
+        assertCodecExcludes(null, new String[] { "x.*" }, "x.y", true, Strings.EMPTY_ARRAY);
+        assertCodecExcludes(null, new String[] { "x.y" }, "x.*", true, Strings.EMPTY_ARRAY);
+        assertCodecExcludes(null, new String[] { "x.*" }, "x.y.z", true, Strings.EMPTY_ARRAY);
+        assertCodecExcludes(null, new String[] { "x.*" }, "*", false, Strings.EMPTY_ARRAY);
     }
 
     /**

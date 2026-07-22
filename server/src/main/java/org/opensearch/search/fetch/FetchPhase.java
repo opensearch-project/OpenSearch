@@ -341,8 +341,8 @@ public class FetchPhase {
                 }
             }
             boolean loadSource = sourceRequired(context);
-
             String[] codecSourceExcludes = codecSourceExcludes(context, requestSourceExcludes);
+
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource, requestSourceIncludes, requestSourceExcludes, codecSourceExcludes);
