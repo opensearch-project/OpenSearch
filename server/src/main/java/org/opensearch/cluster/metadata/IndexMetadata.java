@@ -293,6 +293,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
+    public static final String SETTING_MIN_NUMBER_OF_REPLICAS = "index.min_number_of_replicas";
+    public static final Setting<Integer> INDEX_MIN_NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
+        SETTING_MIN_NUMBER_OF_REPLICAS,
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Setting to control the number of search only replicas for an index.
      * A search only replica exists solely to perform read operations for a shard and are designed to achieve
@@ -1417,6 +1426,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return numberOfReplicas;
     }
 
+    public int getMinNumberOfReplicas() {
+        int min = INDEX_MIN_NUMBER_OF_REPLICAS_SETTING.get(settings);
+        return min == -1 ? numberOfReplicas : min;
+    }
+
     public int getNumberOfSearchOnlyReplicas() {
         return numberOfSearchOnlyReplicas;
     }
@@ -2374,6 +2388,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             final int numberOfReplicas = INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
             final int numberOfSearchReplicas = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(settings);
+            final int minNumberOfReplicas = INDEX_MIN_NUMBER_OF_REPLICAS_SETTING.get(settings);
+            if (minNumberOfReplicas != -1 && minNumberOfReplicas > numberOfReplicas) {
+                throw new IllegalArgumentException(
+                    "index.min_number_of_replicas ["
+                        + minNumberOfReplicas
+                        + "] must be <= index.number_of_replicas ["
+                        + numberOfReplicas
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
             if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {

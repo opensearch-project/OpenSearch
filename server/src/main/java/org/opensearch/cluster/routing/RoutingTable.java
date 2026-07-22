@@ -533,6 +533,22 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
          * @return the builder
          */
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
+            return updateNumberOfReplicas(numberOfReplicas, numberOfReplicas, indices);
+        }
+
+        /**
+         * Update the number of replicas for the specified indices, respecting a minimum replica floor.
+         * <p>
+         * If the current replica count is below {@code minNumberOfReplicas}, replicas are added up to the minimum.
+         * If the current replica count is above {@code numberOfReplicas}, replicas are removed down to that number.
+         * If the current count is between min and max, no changes are made.
+         *
+         * @param numberOfReplicas    the desired (maximum) number of replicas
+         * @param minNumberOfReplicas the minimum number of replicas to maintain
+         * @param indices             the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(final int numberOfReplicas, final int minNumberOfReplicas, final String[] indices) {
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
@@ -548,9 +564,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     builder.addIndexShard(indexShardRoutingTable);
                 }
-                if (currentNumberOfReplicas < numberOfReplicas) {
-                    // now, add "empty" ones
-                    for (int i = 0; i < (numberOfReplicas - currentNumberOfReplicas); i++) {
+                if (currentNumberOfReplicas < minNumberOfReplicas) {
+                    for (int i = 0; i < (minNumberOfReplicas - currentNumberOfReplicas); i++) {
                         builder.addReplica();
                     }
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
