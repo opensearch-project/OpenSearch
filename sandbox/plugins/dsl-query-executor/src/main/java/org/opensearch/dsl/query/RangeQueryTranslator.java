@@ -8,20 +8,23 @@
 
 package org.opensearch.dsl.query;
 
+import org.apache.calcite.avatica.util.ByteString;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.common.time.DateFormatter;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 
 import java.math.BigDecimal;
-import java.time.ZoneId;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,6 +45,9 @@ import java.util.List;
  * <p>
  * Decimal bounds on integer-typed fields are truncated and adjusted per legacy
  * {@code NumberFieldMapper.NumberType.INTEGER.rangeQuery} semantics.
+ * <p>
+ * IP fields use 16-byte IPv6-mapped sortable encoding matching legacy
+ * {@code IpFieldMapper.rangeQuery} with {@code InetAddressPoint.encode} byte ordering.
  */
 public class RangeQueryTranslator implements QueryTranslator {
 
@@ -65,6 +71,7 @@ public class RangeQueryTranslator implements QueryTranslator {
      * - Date math expressions (now-7d, now/d, etc.)
      * - Inclusivity-keyed rounding per legacy DateFieldMapper.dateRangeQuery
      * - Millisecond precision timestamps (TIMESTAMP(3))
+     * - IP field range with InetAddress-order byte comparison
      * - Decimal-to-integer truncation per legacy NumberFieldMapper INTEGER.rangeQuery
      * - Unmapped fields return literal false (match-none)
      * - No-bounds queries return IS_NOT_NULL (exists semantics)
@@ -79,6 +86,7 @@ public class RangeQueryTranslator implements QueryTranslator {
      * - TIMESTAMP/DATE fields: parsed through DateMathParser
      * - Numeric fields: coerced to number using the field's type
      * - VARCHAR/CHAR fields: kept as-is for lexicographic comparison
+     * - IP fields (IpType): encoded to 16-byte sortable bytes
      *
      * @param query the RangeQueryBuilder to convert
      * @param ctx the conversion context containing schema and RexBuilder
@@ -120,82 +128,53 @@ public class RangeQueryTranslator implements QueryTranslator {
             throw new ConversionException("Range queries on ip and binary fields are not supported by the DSL conversion path");
         }
 
+        // IP field handling: encode bound strings to 16-byte IPv6-mapped sortable bytes,
+        // matching legacy IpFieldMapper.rangeQuery with InetAddressPoint.encode byte ordering.
+        if (field.getType() instanceof IpType) {
+            return convertIpRange(rangeQuery, field, ctx);
+        }
+
         // Guard: nanosecond-precision date fields (date_nanos mapped to TIMESTAMP(9)) are not
-        // yet supported. The translator builds TIMESTAMP(3) literals which would silently truncate
-        // nanosecond precision (see DateFieldMapper.Resolution.NANOSECONDS in legacy).
-        if (isDateType(field.getType().getSqlTypeName()) && field.getType().getPrecision() > 3) {
+        // yet supported. Calcite's RexBuilder.makeTimestampLiteral internally calls
+        // typeFactory.createSqlType(TIMESTAMP, precision) which clamps to max precision 3 under
+        // RelDataTypeSystem.DEFAULT. Until a custom RelDataTypeSystem with maxPrecision=9 is
+        // added to the production type factory (SearchSourceConverter), nano-precision literals
+        // cannot be constructed without truncation.
+        SqlTypeName fieldTypeName = field.getType().getSqlTypeName();
+        if (RangeDateParsing.isDateType(fieldTypeName) && field.getType().getPrecision() > 3) {
             throw new ConversionException("Nanosecond-precision date fields (date_nanos) are not yet supported by the DSL conversion path");
         }
 
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
         List<RexNode> conditions = new ArrayList<>();
 
-        SqlTypeName fieldTypeName = field.getType().getSqlTypeName();
         String format = rangeQuery.format();
         String timeZone = rangeQuery.timeZone();
 
-        // Rounding keyed on bound inclusivity, matching DateFieldMapper.dateRangeQuery:
-        // lower bound parsed with roundUp=!includeLower; upper bound parsed with roundUp=includeUpper.
-        Object from = processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName);
-        if (from != null) {
-            // Decimal bounds on integer fields per NumberFieldMapper INTEGER.rangeQuery:
-            // truncate to int and adjust: positive decimal lower bound -> increment; negative -> no adjust.
-            Object adjustedFrom = from;
-            boolean fromInclusive = rangeQuery.includeLower();
-            if (isIntegerType(fieldTypeName) && hasDecimalPart(from)) {
-                long truncated = toLongValue(from);
-                if (signum(from) > 0) {
-                    // Overflow guard: if truncated == type MAX, ++l would overflow -> match-none
-                    if (truncated >= getMaxValueForType(fieldTypeName)) {
-                        return ctx.getRexBuilder().makeLiteral(false);
-                    }
-                    adjustedFrom = narrowToFieldType(truncated + 1, fieldTypeName);
-                } else {
-                    adjustedFrom = narrowToFieldType(truncated, fieldTypeName);
+        // Lower bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
+        if (rangeQuery.from() != null) {
+            Object fromValue = processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName);
+            RexNode bound = translateBound(fromValue, true, rangeQuery.includeLower(), fieldTypeName, field, ctx);
+            if (bound != null) {
+                if (bound instanceof org.apache.calcite.rex.RexLiteral
+                    && Boolean.FALSE.equals(((org.apache.calcite.rex.RexLiteral) bound).getValueAs(Boolean.class))) {
+                    return bound; // overflow guard: match-none
                 }
-                fromInclusive = true; // decimal adjustment makes bound inclusive
-            } else if (isIntegerType(fieldTypeName) && !hasDecimalPart(from) && from instanceof Number) {
-                // Whole numeric value on integer field: narrow to field-appropriate type for Calcite
-                adjustedFrom = narrowToFieldType(((Number) from).longValue(), fieldTypeName);
+                conditions.add(bound);
             }
-            RexNode fromLiteral = createLiteral(adjustedFrom, field, ctx, fieldTypeName);
-            conditions.add(
-                ctx.getRexBuilder()
-                    .makeCall(
-                        fromInclusive ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.GREATER_THAN,
-                        fieldRef,
-                        fromLiteral
-                    )
-            );
         }
 
-        Object to = processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName);
-        if (to != null) {
-            // Decimal bounds on integer fields per NumberFieldMapper INTEGER.rangeQuery:
-            // truncate to int and adjust: negative decimal upper bound -> decrement; positive -> no adjust.
-            Object adjustedTo = to;
-            boolean toInclusive = rangeQuery.includeUpper();
-            if (isIntegerType(fieldTypeName) && hasDecimalPart(to)) {
-                long truncated = toLongValue(to);
-                if (signum(to) < 0) {
-                    // Overflow guard: if truncated == type MIN, --u would overflow -> match-none
-                    if (truncated <= getMinValueForType(fieldTypeName)) {
-                        return ctx.getRexBuilder().makeLiteral(false);
-                    }
-                    adjustedTo = narrowToFieldType(truncated - 1, fieldTypeName);
-                } else {
-                    adjustedTo = narrowToFieldType(truncated, fieldTypeName);
+        // Upper bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
+        if (rangeQuery.to() != null) {
+            Object toValue = processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName);
+            RexNode bound = translateBound(toValue, false, rangeQuery.includeUpper(), fieldTypeName, field, ctx);
+            if (bound != null) {
+                if (bound instanceof org.apache.calcite.rex.RexLiteral
+                    && Boolean.FALSE.equals(((org.apache.calcite.rex.RexLiteral) bound).getValueAs(Boolean.class))) {
+                    return bound; // overflow guard: match-none
                 }
-                toInclusive = true; // decimal adjustment makes bound inclusive
-            } else if (isIntegerType(fieldTypeName) && !hasDecimalPart(to) && to instanceof Number) {
-                // Whole numeric value on integer field: narrow to field-appropriate type for Calcite
-                adjustedTo = narrowToFieldType(((Number) to).longValue(), fieldTypeName);
+                conditions.add(bound);
             }
-            RexNode toLiteral = createLiteral(adjustedTo, field, ctx, fieldTypeName);
-            conditions.add(
-                ctx.getRexBuilder()
-                    .makeCall(toInclusive ? SqlStdOperatorTable.LESS_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN, fieldRef, toLiteral)
-            );
         }
 
         // No bounds -> IS_NOT_NULL (exists semantics), matching legacy RangeQueryBuilder.doToQuery
@@ -204,9 +183,140 @@ public class RangeQueryTranslator implements QueryTranslator {
             return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_NULL, fieldRef);
         }
 
-        RexNode result = conditions.size() == 1 ? conditions.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.AND, conditions);
+        return conditions.size() == 1 ? conditions.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.AND, conditions);
+    }
 
-        return result;
+    /**
+     * Translates a single range bound (lower or upper) into a comparison RexNode.
+     * Applies decimal truncation and overflow guards for integer-typed fields per legacy
+     * {@code NumberFieldMapper.NumberType.INTEGER.rangeQuery} semantics.
+     *
+     * @param value the processed bound value (may be null)
+     * @param isLower true if this is the lower bound, false for upper
+     * @param inclusive true if the original bound is inclusive (gte/lte vs gt/lt)
+     * @param fieldTypeName the SqlTypeName of the field
+     * @param field the field definition from the schema
+     * @param ctx the conversion context
+     * @return RexNode comparison, literal false for overflow match-none, or null if value is null
+     */
+    private RexNode translateBound(
+        Object value,
+        boolean isLower,
+        boolean inclusive,
+        SqlTypeName fieldTypeName,
+        RelDataTypeField field,
+        ConversionContext ctx
+    ) {
+        if (value == null) {
+            return null;
+        }
+
+        Object adjusted = value;
+        boolean adjustedInclusive = inclusive;
+
+        // Decimal bounds on integer fields per NumberFieldMapper INTEGER.rangeQuery:
+        // truncate to int and adjust based on sign and bound direction.
+        if (RangeBoundMath.isIntegerType(fieldTypeName) && RangeBoundMath.hasDecimalPart(value)) {
+            long truncated = RangeBoundMath.toLongValue(value);
+            if (isLower) {
+                // Positive decimal lower bound -> increment
+                if (RangeBoundMath.signum(value) > 0) {
+                    if (truncated >= RangeBoundMath.getMaxValueForType(fieldTypeName)) {
+                        return ctx.getRexBuilder().makeLiteral(false);
+                    }
+                    adjusted = RangeBoundMath.narrowToFieldType(truncated + 1, fieldTypeName);
+                } else {
+                    adjusted = RangeBoundMath.narrowToFieldType(truncated, fieldTypeName);
+                }
+            } else {
+                // Negative decimal upper bound -> decrement
+                if (RangeBoundMath.signum(value) < 0) {
+                    if (truncated <= RangeBoundMath.getMinValueForType(fieldTypeName)) {
+                        return ctx.getRexBuilder().makeLiteral(false);
+                    }
+                    adjusted = RangeBoundMath.narrowToFieldType(truncated - 1, fieldTypeName);
+                } else {
+                    adjusted = RangeBoundMath.narrowToFieldType(truncated, fieldTypeName);
+                }
+            }
+            adjustedInclusive = true; // decimal adjustment makes bound inclusive
+        } else if (RangeBoundMath.isIntegerType(fieldTypeName) && !RangeBoundMath.hasDecimalPart(value) && value instanceof Number) {
+            // Whole numeric value on integer field: narrow to field-appropriate type for Calcite
+            adjusted = RangeBoundMath.narrowToFieldType(((Number) value).longValue(), fieldTypeName);
+        }
+
+        RexNode literal = createLiteral(adjusted, field, ctx, fieldTypeName);
+        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+
+        SqlOperator op;
+        if (isLower) {
+            op = adjustedInclusive ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.GREATER_THAN;
+        } else {
+            op = adjustedInclusive ? SqlStdOperatorTable.LESS_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN;
+        }
+
+        return ctx.getRexBuilder().makeCall(op, fieldRef, literal);
+    }
+
+    /**
+     * Converts an IP-typed range query to byte-range comparisons using 16-byte IPv6-mapped
+     * encoding, matching legacy {@code IpFieldMapper.rangeQuery} with
+     * {@code InetAddressPoint.encode} byte ordering. The encoding is identical to what
+     * {@code CidrMatchFunctionAdapter.encodeIpAsIpv6} produces.
+     */
+    private RexNode convertIpRange(RangeQueryBuilder rangeQuery, RelDataTypeField field, ConversionContext ctx) throws ConversionException {
+        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+        List<RexNode> conditions = new ArrayList<>();
+        RelDataType varbinaryType = ctx.getRexBuilder().getTypeFactory().createSqlType(SqlTypeName.VARBINARY);
+
+        if (rangeQuery.from() != null) {
+            byte[] fromBytes = encodeIpAsIpv6(String.valueOf(rangeQuery.from()));
+            if (fromBytes == null) {
+                throw new ConversionException("Failed to parse IP address value '" + rangeQuery.from() + "'");
+            }
+            RexNode literal = ctx.getRexBuilder().makeLiteral(new ByteString(fromBytes), varbinaryType, false);
+            SqlOperator op = rangeQuery.includeLower() ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.GREATER_THAN;
+            conditions.add(ctx.getRexBuilder().makeCall(op, fieldRef, literal));
+        }
+
+        if (rangeQuery.to() != null) {
+            byte[] toBytes = encodeIpAsIpv6(String.valueOf(rangeQuery.to()));
+            if (toBytes == null) {
+                throw new ConversionException("Failed to parse IP address value '" + rangeQuery.to() + "'");
+            }
+            RexNode literal = ctx.getRexBuilder().makeLiteral(new ByteString(toBytes), varbinaryType, false);
+            SqlOperator op = rangeQuery.includeUpper() ? SqlStdOperatorTable.LESS_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN;
+            conditions.add(ctx.getRexBuilder().makeCall(op, fieldRef, literal));
+        }
+
+        // No bounds -> IS_NOT_NULL (exists semantics)
+        if (conditions.isEmpty()) {
+            return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_NULL, fieldRef);
+        }
+
+        return conditions.size() == 1 ? conditions.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.AND, conditions);
+    }
+
+    /**
+     * IPv6-mapped 16-byte encoding matching what the parquet writer stores. IPv4 input is
+     * encoded as 10 zero bytes + 0xff 0xff + 4 IPv4 bytes (RFC 4291 section 2.5.5.2).
+     * IPv6 is its raw 16 bytes. Identical to {@code CidrMatchFunctionAdapter.encodeIpAsIpv6}
+     * and {@code InetAddressPoint.encode} byte layout.
+     */
+    static byte[] encodeIpAsIpv6(String value) {
+        try {
+            byte[] addr = InetAddress.getByName(value).getAddress();
+            if (addr.length == 16) {
+                return addr;
+            }
+            byte[] mapped = new byte[16];
+            mapped[10] = (byte) 0xff;
+            mapped[11] = (byte) 0xff;
+            System.arraycopy(addr, 0, mapped, 12, 4);
+            return mapped;
+        } catch (UnknownHostException e) {
+            return null;
+        }
     }
 
     /**
@@ -226,7 +336,7 @@ public class RangeQueryTranslator implements QueryTranslator {
      * @return RexNode literal with appropriate type and precision
      */
     private RexNode createLiteral(Object value, RelDataTypeField field, ConversionContext ctx, SqlTypeName fieldTypeName) {
-        if (value instanceof Long && isDateType(fieldTypeName)) {
+        if (value instanceof Long && RangeDateParsing.isDateType(fieldTypeName)) {
             RelDataType timestampType = ctx.getRexBuilder().getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP, 3);
             return ctx.getRexBuilder().makeLiteral(value, timestampType, true);
         }
@@ -274,54 +384,18 @@ public class RangeQueryTranslator implements QueryTranslator {
         String strValue = (String) value;
 
         // If format/timeZone specified or value is date-math, always date-parse
-        if (format != null || timeZone != null || isDateMathExpression(strValue)) {
-            return parseDateValue(strValue, format, timeZone, roundUp);
+        if (format != null || timeZone != null || RangeDateParsing.isDateMathExpression(strValue)) {
+            return RangeDateParsing.parseDateValueMillis(strValue, format, timeZone, roundUp);
         }
 
         // Gate on field type
-        if (isDateType(fieldTypeName)) {
-            return parseDateValue(strValue, null, null, roundUp);
-        } else if (isNumericType(fieldTypeName)) {
+        if (RangeDateParsing.isDateType(fieldTypeName)) {
+            return RangeDateParsing.parseDateValueMillis(strValue, null, null, roundUp);
+        } else if (RangeBoundMath.isNumericType(fieldTypeName)) {
             return new CoercedNumber(coerceToNumber(strValue, fieldTypeName));
         } else {
             // VARCHAR/CHAR and other types: keep string as-is for lexicographic comparison
             return strValue;
-        }
-    }
-
-    /**
-     * Determines if a string value is a date-math expression.
-     * Date-math expressions start with "now" or contain "||" (anchored date-math).
-     */
-    private boolean isDateMathExpression(String value) {
-        return value.startsWith("now") || value.contains("||");
-    }
-
-    /**
-     * Parses a string value as a date using DateMathParser.
-     * Handles epoch_millis format specially: timezone is ignored since epoch is absolute.
-     */
-    private Long parseDateValue(String strValue, String format, String timeZone, boolean roundUp) throws ConversionException {
-        try {
-            if ("epoch_millis".equals(format)) {
-                // epoch_millis: parse as raw long, timezone is irrelevant (epoch is absolute)
-                try {
-                    return Long.parseLong(strValue);
-                } catch (NumberFormatException e) {
-                    throw new ConversionException("Failed to parse epoch_millis value '" + strValue + "': not a valid number");
-                }
-            }
-
-            DateFormatter formatter = format != null
-                ? DateFormatter.forPattern(format)
-                : DateFormatter.forPattern("strict_date_optional_time");
-            ZoneId zoneId = timeZone != null ? ZoneId.of(timeZone) : ZoneId.of("UTC");
-
-            return formatter.toDateMathParser().parse(strValue, System::currentTimeMillis, roundUp, zoneId).toEpochMilli();
-        } catch (ConversionException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ConversionException("Failed to parse date value '" + strValue + "': " + e.getMessage());
         }
     }
 
@@ -362,143 +436,16 @@ public class RangeQueryTranslator implements QueryTranslator {
         }
     }
 
-    /** Returns true if the SqlTypeName represents a date/timestamp family type. */
-    private boolean isDateType(SqlTypeName typeName) {
-        return typeName == SqlTypeName.TIMESTAMP
-            || typeName == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
-            || typeName == SqlTypeName.DATE
-            || typeName == SqlTypeName.TIME;
-    }
-
-    /** Returns true if the SqlTypeName represents a numeric type. */
-    private boolean isNumericType(SqlTypeName typeName) {
-        return typeName == SqlTypeName.INTEGER
-            || typeName == SqlTypeName.BIGINT
-            || typeName == SqlTypeName.SMALLINT
-            || typeName == SqlTypeName.TINYINT
-            || typeName == SqlTypeName.DOUBLE
-            || typeName == SqlTypeName.FLOAT
-            || typeName == SqlTypeName.REAL
-            || typeName == SqlTypeName.DECIMAL;
-    }
-
     /**
      * Wrapper to distinguish string-coerced numbers from raw numbers in createLiteral.
      * Coerced values are built via makeLiteral with the field's type (Calcite canonically
      * types exact-numeric literals as DECIMAL), never as TIMESTAMP.
      */
-    private static class CoercedNumber {
+    static class CoercedNumber {
         final Number value;
 
         CoercedNumber(Number value) {
             this.value = value;
-        }
-    }
-
-    // ========== Decimal bounds on integer fields ==========
-    // Replicates NumberFieldMapper INTEGER.rangeQuery truncate+adjust semantics.
-
-    /** Returns true if the SqlTypeName represents an integer-family type (not float/double/decimal). */
-    private boolean isIntegerType(SqlTypeName typeName) {
-        return typeName == SqlTypeName.INTEGER
-            || typeName == SqlTypeName.BIGINT
-            || typeName == SqlTypeName.SMALLINT
-            || typeName == SqlTypeName.TINYINT;
-    }
-
-    /**
-     * Returns true if the numeric value has a non-zero fractional part.
-     * Mirrors legacy NumberFieldMapper.hasDecimalPart.
-     * Accepts raw Number instances and CoercedNumber wrappers (from string-to-number coercion).
-     */
-    private boolean hasDecimalPart(Object value) {
-        if (value instanceof CoercedNumber) {
-            double d = ((CoercedNumber) value).value.doubleValue();
-            return d % 1 != 0;
-        }
-        if (value instanceof Number) {
-            double d = ((Number) value).doubleValue();
-            return d % 1 != 0;
-        }
-        return false;
-    }
-
-    /**
-     * Returns the signum (-1, 0, or 1) of a numeric value.
-     * Mirrors legacy NumberFieldMapper.signum.
-     * Accepts raw Number instances and CoercedNumber wrappers.
-     */
-    private double signum(Object value) {
-        if (value instanceof CoercedNumber) {
-            return Math.signum(((CoercedNumber) value).value.doubleValue());
-        }
-        if (value instanceof Number) {
-            return Math.signum(((Number) value).doubleValue());
-        }
-        return 0;
-    }
-
-    /**
-     * Truncates a numeric value to long (floor toward zero), supporting all integer family widths.
-     * Used as the base truncation before narrowing to the specific integer type.
-     * Accepts raw Number instances and CoercedNumber wrappers.
-     */
-    private long toLongValue(Object value) {
-        if (value instanceof CoercedNumber) {
-            return ((CoercedNumber) value).value.longValue();
-        }
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        return 0;
-    }
-
-    /**
-     * Narrows a long value to the appropriate Java type for the given SqlTypeName.
-     * INTEGER/SMALLINT/TINYINT -> Integer; BIGINT -> Long.
-     */
-    private Number narrowToFieldType(long value, SqlTypeName typeName) {
-        if (typeName == SqlTypeName.BIGINT) {
-            return value;
-        }
-        return (int) value;
-    }
-
-    /**
-     * Returns the maximum value for the given integer-family SqlTypeName.
-     * Used for overflow guard checks before incrementing truncated values.
-     */
-    private long getMaxValueForType(SqlTypeName typeName) {
-        switch (typeName) {
-            case BIGINT:
-                return Long.MAX_VALUE;
-            case INTEGER:
-                return Integer.MAX_VALUE;
-            case SMALLINT:
-                return Short.MAX_VALUE;
-            case TINYINT:
-                return Byte.MAX_VALUE;
-            default:
-                return Long.MAX_VALUE;
-        }
-    }
-
-    /**
-     * Returns the minimum value for the given integer-family SqlTypeName.
-     * Used for overflow guard checks before decrementing truncated values.
-     */
-    private long getMinValueForType(SqlTypeName typeName) {
-        switch (typeName) {
-            case BIGINT:
-                return Long.MIN_VALUE;
-            case INTEGER:
-                return Integer.MIN_VALUE;
-            case SMALLINT:
-                return Short.MIN_VALUE;
-            case TINYINT:
-                return Byte.MIN_VALUE;
-            default:
-                return Long.MIN_VALUE;
         }
     }
 }
