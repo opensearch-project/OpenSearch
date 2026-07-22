@@ -116,11 +116,7 @@ public class SearchSourceConverter {
 
         // Aggregation path: Scan → Filter → Aggregate → PostAggregate (one per granularity level)
         if (hasAggs) {
-            List<AggregationMetadata> metadataList = treeWalker.walk(
-                searchSource.aggregations().getAggregatorFactories(),
-                table.getRowType(),
-                cluster.getTypeFactory()
-            );
+            List<AggregationMetadata> metadataList = treeWalker.walk(searchSource.aggregations().getAggregatorFactories(), ctx);
             for (AggregationMetadata metadata : metadataList) {
                 ConversionContext aggCtx = ctx.withAggregationMetadata(metadata);
                 RelNode aggs = aggConverter.convert(base, metadata);

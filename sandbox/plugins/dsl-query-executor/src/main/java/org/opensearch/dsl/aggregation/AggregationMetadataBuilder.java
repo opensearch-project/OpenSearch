@@ -13,6 +13,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -38,6 +39,7 @@ public class AggregationMetadataBuilder {
     private final List<String> aggregateFieldNames = new ArrayList<>();
     private final List<BucketOrder> bucketOrders = new ArrayList<>();
     private boolean implicitCountRequested = false;
+    private RexNode filterCondition;
 
     /** Creates a new empty builder. */
     public AggregationMetadataBuilder() {}
@@ -75,6 +77,15 @@ public class AggregationMetadataBuilder {
         } else {
             bucketOrders.add(order);
         }
+    }
+
+    /**
+     * Sets the filter condition from a filter bucket aggregation.
+     *
+     * @param filterCondition the RexNode filter condition, or null for no filter
+     */
+    public void setFilterCondition(RexNode filterCondition) {
+        this.filterCondition = filterCondition;
     }
 
     /**
@@ -151,7 +162,14 @@ public class AggregationMetadataBuilder {
             allFieldNames.add(IMPLICIT_COUNT_NAME);
         }
 
-        return new AggregationMetadata(ImmutableBitSet.of(allGroupIndices), allGroupFieldNames, allCalls, allFieldNames, bucketOrders);
+        return new AggregationMetadata(
+            ImmutableBitSet.of(allGroupIndices),
+            allGroupFieldNames,
+            allCalls,
+            allFieldNames,
+            bucketOrders,
+            filterCondition
+        );
     }
 
     /**

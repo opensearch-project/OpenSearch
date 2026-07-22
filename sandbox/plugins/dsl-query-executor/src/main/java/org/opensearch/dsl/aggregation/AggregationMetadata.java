@@ -9,6 +9,7 @@
 package org.opensearch.dsl.aggregation;
 
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.search.aggregations.BucketOrder;
 
@@ -31,6 +32,7 @@ public class AggregationMetadata {
     private final List<AggregateCall> aggregateCalls;
     private final List<String> aggregateFieldNames;
     private final List<BucketOrder> bucketOrders;
+    private final RexNode filterCondition;
 
     /**
      * Creates aggregation metadata.
@@ -40,19 +42,22 @@ public class AggregationMetadata {
      * @param aggregateCalls Calcite aggregate calls (AVG, SUM, etc.)
      * @param aggregateFieldNames output names for aggregate results
      * @param bucketOrders bucket orders for post-aggregation sorting
+     * @param filterCondition filter condition from a filter bucket, or null if no filter applies
      */
     public AggregationMetadata(
         ImmutableBitSet groupByBitSet,
         List<String> groupByFieldNames,
         List<AggregateCall> aggregateCalls,
         List<String> aggregateFieldNames,
-        List<BucketOrder> bucketOrders
+        List<BucketOrder> bucketOrders,
+        RexNode filterCondition
     ) {
         this.groupByBitSet = groupByBitSet;
         this.groupByFieldNames = List.copyOf(groupByFieldNames);
         this.aggregateCalls = List.copyOf(aggregateCalls);
         this.aggregateFieldNames = List.copyOf(aggregateFieldNames);
-        this.bucketOrders = List.copyOf(bucketOrders);
+        this.bucketOrders = bucketOrders;
+        this.filterCondition = filterCondition;
     }
 
     /** Returns the GROUP BY column indices. */
@@ -78,6 +83,11 @@ public class AggregationMetadata {
     /** Returns the bucket orders for post-aggregation sorting. */
     public List<BucketOrder> getBucketOrders() {
         return bucketOrders;
+    }
+
+    /** Returns the filter condition, or null if no filter bucket applies. */
+    public RexNode getFilterCondition() {
+        return filterCondition;
     }
 
     /** Returns true if bucket orders are present. */
