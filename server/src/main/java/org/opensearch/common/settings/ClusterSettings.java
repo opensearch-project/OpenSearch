@@ -789,6 +789,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TieringUtils.PREPARE_TIERING_TIMEOUT,
                 TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING,
 
+                // Settings related to the external metadata catalog
+                Node.CATALOG_REPOSITORY_TYPE_SETTING,
+                Node.CATALOG_REPOSITORY_SETTINGS,
+
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
                 RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR,
