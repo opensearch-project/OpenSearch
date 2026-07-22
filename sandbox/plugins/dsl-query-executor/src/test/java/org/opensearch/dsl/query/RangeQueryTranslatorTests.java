@@ -981,5 +981,21 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("not_an_ip"), ctx));
     }
 
+    /**
+     * Hostname input (e.g. "localhost") must be rejected with ConversionException.
+     * DNS resolution must never be attempted on user-supplied range bounds.
+     */
+    public void testIpRangeHostnameLocalhostThrows() {
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("localhost"), ctx));
+    }
+
+    /**
+     * Arbitrary hostname input must be rejected with ConversionException,
+     * not passed to DNS resolution.
+     */
+    public void testIpRangeHostnameArbitraryThrows() {
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("evil.example"), ctx));
+    }
+
     // ========== END OF TESTS ==========
 }
