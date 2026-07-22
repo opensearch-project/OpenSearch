@@ -82,9 +82,9 @@ public class DelegationBlockListTests extends OpenSearchTestCase {
     }
 
     public void testDynamicUpdate() {
-        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
-        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings, Settings.EMPTY, registry());
-        // Defaults seed LIKE (the only default that has a serializer in this fixture).
+        Settings initial = Settings.builder().putList("analytics.delegation.lucene.blocked_predicates", "LIKE").build();
+        ClusterSettings clusterSettings = clusterSettings(initial);
+        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings, initial, registry());
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
 
         // Explicit update overrides the seeded default.
@@ -141,58 +141,16 @@ public class DelegationBlockListTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> DelegationBlockList.create(clusterSettings(settings), settings, registry()));
     }
 
-    public void testDefaultsSeededWhenSettingsEmpty() {
-        // Fixture with IS_NULL, IS_NOT_NULL, LIKE serializers — mirrors the real Lucene backend.
-        DelegatedPredicateSerializer stub = (call, fieldStorage) -> new byte[0];
-        AnalyticsSearchBackendPlugin luceneWithDefaults = new AnalyticsSearchBackendPlugin() {
-            @Override
-            public String name() {
-                return LUCENE;
-            }
+    public void testEmptySettingsProducesEmptyBlockList() {
+        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings(Settings.EMPTY), Settings.EMPTY, registry());
+        assertTrue("empty settings = empty blocklist (persistence seeds later)", blockList.isEmpty());
+    }
 
-            @Override
-            public BackendCapabilityProvider getCapabilityProvider() {
-                return new BackendCapabilityProvider() {
-                    @Override
-                    public Set<EngineCapability> supportedEngineCapabilities() {
-                        return Set.of();
-                    }
-
-                    @Override
-                    public Set<DelegationType> acceptedDelegations() {
-                        return Set.of(DelegationType.FILTER);
-                    }
-                };
-            }
-
-            @Override
-            public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
-                return Map.ofEntries(
-                    Map.entry(ScalarFunction.EQUALS, stub),
-                    Map.entry(ScalarFunction.NOT_EQUALS, stub),
-                    Map.entry(ScalarFunction.IS_NULL, stub),
-                    Map.entry(ScalarFunction.IS_NOT_NULL, stub),
-                    Map.entry(ScalarFunction.LIKE, stub),
-                    Map.entry(ScalarFunction.GREATER_THAN, stub),
-                    Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, stub),
-                    Map.entry(ScalarFunction.LESS_THAN, stub),
-                    Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, stub),
-                    Map.entry(ScalarFunction.SARG_PREDICATE, stub)
-                );
-            }
-        };
-        CapabilityRegistry reg = new CapabilityRegistry(List.of(luceneWithDefaults), FieldStorageResolver::new);
-        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings(Settings.EMPTY), Settings.EMPTY, reg);
-        assertFalse("defaults should be seeded", blockList.isEmpty());
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.IS_NULL));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.IS_NOT_NULL));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.NOT_EQUALS));
+    public void testPersistedDefaultsApplied() {
+        Settings persisted = Settings.builder().putList("analytics.delegation.lucene.blocked_predicates", "LIKE").build();
+        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings(persisted), persisted, registry());
+        assertFalse(blockList.isEmpty());
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.GREATER_THAN));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.GREATER_THAN_OR_EQUAL));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LESS_THAN));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LESS_THAN_OR_EQUAL));
-        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.SARG_PREDICATE));
         assertFalse(blockList.isBlocked(LUCENE, ScalarFunction.EQUALS));
     }
 

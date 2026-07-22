@@ -515,4 +515,19 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDelegationBlockListPersistedOnBoot() throws Exception {
+        Request req = new Request("GET", "/_cluster/settings");
+        req.addParameter("flat_settings", "true");
+        Map<String, Object> settings = assertOkAndParse(client().performRequest(req), "GET /_cluster/settings");
+        Map<String, Object> persistent = (Map<String, Object>) settings.get("persistent");
+        assertNotNull("persistent settings present", persistent);
+        Object blocklist = persistent.get("analytics.delegation.lucene.blocked_predicates");
+        assertNotNull("blocklist seeded on boot", blocklist);
+        List<String> predicates = (List<String>) blocklist;
+        assertTrue("blocklist contains IS_NULL", predicates.contains("IS_NULL"));
+        assertTrue("blocklist contains NOT_EQUALS", predicates.contains("NOT_EQUALS"));
+        assertTrue("blocklist contains LIKE", predicates.contains("LIKE"));
+    }
+
 }

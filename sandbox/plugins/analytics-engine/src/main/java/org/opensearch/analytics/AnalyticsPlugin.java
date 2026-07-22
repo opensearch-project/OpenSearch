@@ -15,6 +15,7 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.analytics.exec.AnalyticsFragmentSlowLog;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
 import org.opensearch.analytics.exec.AnalyticsSearchSlowLog;
@@ -28,7 +29,10 @@ import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.analytics.stats.RestAnalyticsStatsAction;
@@ -36,7 +40,9 @@ import org.opensearch.analytics.stats.transport.AnalyticsStatsAction;
 import org.opensearch.analytics.stats.transport.TransportAnalyticsStatsAction;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -47,6 +53,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -73,6 +80,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -194,6 +202,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE)
         );
 
+        seedDelegationBlockListDefaults(client, clusterService, capabilityRegistry);
+
         return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle, analyticsSearchSlowLog, statsCollector);
     }
 
@@ -281,6 +291,44 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             .queryTimeInMillis(fragments.elapsedMs().sumMs())
             .build();
         return new SearchStats(stats, 0, null);
+    }
+
+    private void seedDelegationBlockListDefaults(Client client, ClusterService clusterService, CapabilityRegistry registry) {
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (event.state().nodes().isLocalNodeElectedClusterManager() == false) return;
+                clusterService.removeListener(this);
+
+                Settings persistent = event.state().metadata().persistentSettings();
+                for (String acceptor : registry.delegationAcceptors(DelegationType.FILTER)) {
+                    String key = AnalyticsQuerySettings.DELEGATION_BLOCKED_PREDICATES_PREFIX + acceptor + ".blocked_predicates";
+                    if (persistent.getAsList(key, null) != null) {
+                        // Already persisted. Apply to in-memory blocklist.
+                        clusterService.getClusterSettings().applySettings(persistent);
+                        continue;
+                    }
+
+                    Setting<List<ScalarFunction>> concrete = AnalyticsQuerySettings.DELEGATION_BLOCKED_PREDICATES
+                        .getConcreteSettingForNamespace(acceptor);
+                    Set<ScalarFunction> delegatable = registry.getBackend(acceptor).delegatedPredicateSerializers().keySet();
+                    List<String> defaults = concrete.getDefault(Settings.EMPTY)
+                        .stream()
+                        .filter(delegatable::contains)
+                        .map(ScalarFunction::name)
+                        .toList();
+                    if (defaults.isEmpty()) continue;
+
+                    Settings toApply = Settings.builder().putList(key, defaults).build();
+                    ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
+                    req.persistentSettings(toApply);
+                    client.admin().cluster().updateSettings(req, ActionListener.wrap(r -> {
+                        clusterService.getClusterSettings().applySettings(toApply);
+                        logger.info("Seeded delegation blocklist for [{}]: {}", acceptor, defaults);
+                    }, e -> logger.warn("Failed to seed delegation blocklist for [{}]: {}", acceptor, e.getMessage())));
+                }
+            }
+        });
     }
 
     @Override
