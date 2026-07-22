@@ -9,6 +9,8 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.core.action.ActionListener;
@@ -34,6 +36,24 @@ public interface AsyncMultiStreamBlobContainer extends BlobContainer {
      * @throws IOException if any of the input streams could not be read, or the target blob could not be written to
      */
     void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException;
+
+    /**
+     * Reads blob content basis a preconditional requirement, from multiple streams each from a specific part of the file, which is provided by the
+     * StreamContextSupplier in the WriteContext passed to this method. An {@link IOException} is thrown if reading
+     * any of the input streams fails, or writing to the target blob fails
+     *
+     * @param writeContext         A WriteContext object encapsulating all information needed to perform the upload
+     * @param options              The {@link ConditionalWriteOptions} specifying the preconditions that must be met for the upload to proceed.
+     * @param completionListener   The {@link ActionListener} to which upload events and the result will be published.
+     * @throws IOException if any of the input streams could not be read, or the target blob could not be written to
+     */
+    default void asyncBlobUploadConditionally(
+        WriteContext writeContext,
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> completionListener
+    ) throws IOException {
+        throw new UnsupportedOperationException("asyncBlobUploadConditionally is not implemented yet");
+    };
 
     /**
      * Creates an async callback of a {@link ReadContext} containing the multipart streams for a specified blob within the container.
