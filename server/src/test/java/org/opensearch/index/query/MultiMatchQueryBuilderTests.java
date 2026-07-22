@@ -330,6 +330,18 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
+    public void testToQueryBooleanPrefixWithFuzziness() throws IOException {
+        final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", TEXT_FIELD_NAME);
+        builder.type(Type.BOOL_PREFIX);
+        builder.fuzziness(Fuzziness.ONE);
+        final Query query = builder.toQuery(createShardContext());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        final BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses(), hasSize(2));
+        assertThat(assertBooleanSubQuery(booleanQuery, FuzzyQuery.class, 0).getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "foo")));
+        assertThat(assertBooleanSubQuery(booleanQuery, FuzzyQuery.class, 1).getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "bar")));
+    }
+
     public void testFromJson() throws IOException {
         String json = "{\n"
             + "  \"multi_match\" : {\n"
