@@ -24,7 +24,7 @@ use std::io::Read;
 fn test_create_writer_success() {
     let (_temp_dir, filename) = get_temp_file_path("test.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    assert!(NativeParquetWriter::has_writer(&filename));
+    assert!(test_has_writer(&filename));
     close_writer_and_cleanup_schema(&filename, schema_ptr);
 }
 
@@ -32,7 +32,7 @@ fn test_create_writer_success() {
 fn test_create_writer_invalid_path() {
     let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
     let (_schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(
+    let result = test_create_writer(
         invalid_path.to_string(),
         "test-index".to_string(),
         schema_ptr,
@@ -48,7 +48,7 @@ fn test_create_writer_invalid_path() {
 #[test]
 fn test_create_writer_invalid_schema_pointer() {
     let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
-    let result = NativeParquetWriter::create_writer(
+    let result = test_create_writer(
         filename,
         "test-index".to_string(),
         0,
@@ -69,7 +69,9 @@ fn test_create_writer_multiple_times_same_file() {
     let (_temp_dir, filename) = get_temp_file_path("duplicate.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (_, schema_ptr2) = create_test_ffi_schema();
-    let result2 = NativeParquetWriter::create_writer(
+    // With Java-owned handles there is no filename-keyed native registry, so re-creating a writer
+    // for the same file is allowed — this is what lets a shard recover after an un-closed writer.
+    let result2 = test_create_writer(
         filename.clone(),
         "test-index".to_string(),
         schema_ptr2,
@@ -78,11 +80,7 @@ fn test_create_writer_multiple_times_same_file() {
         vec![],
         0,
     );
-    assert!(result2.is_err());
-    assert!(result2
-        .unwrap_err()
-        .to_string()
-        .contains("Writer already exists"));
+    assert!(result2.is_ok());
     cleanup_ffi_schema(schema_ptr2);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
 }
@@ -92,7 +90,7 @@ fn test_write_data_success() {
     let (_temp_dir, filename) = get_temp_file_path("write_success.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-    let result = NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr);
+    let result = test_write_data(filename.clone(), array_ptr, data_schema_ptr);
     assert!(result.is_ok());
     cleanup_ffi_data(array_ptr, data_schema_ptr);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
@@ -101,10 +99,10 @@ fn test_write_data_success() {
 #[test]
 fn test_write_data_no_writer() {
     let (array_ptr, schema_ptr) = create_test_ffi_data().unwrap();
-    let result =
-        NativeParquetWriter::write_data("nonexistent.parquet".to_string(), array_ptr, schema_ptr);
+    // No writer was created for this filename, so the test shim resolves a null (0) handle and the
+    // native side rejects it.
+    let result = test_write_data("nonexistent.parquet".to_string(), array_ptr, schema_ptr);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Writer not found"));
     cleanup_ffi_data(array_ptr, schema_ptr);
 }
 
@@ -123,13 +121,13 @@ fn test_write_data_multiple_batches() {
 fn test_write_data_invalid_pointers() {
     let (_temp_dir, filename) = get_temp_file_path("invalid_ffi.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    let result = NativeParquetWriter::write_data(filename.clone(), 0, 0);
+    let result = test_write_data(filename.clone(), 0, 0);
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
         .to_string()
         .contains("Invalid FFI addresses"));
-    let result = NativeParquetWriter::write_data(filename.clone(), 0, schema_ptr);
+    let result = test_write_data(filename.clone(), 0, schema_ptr);
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
@@ -143,7 +141,7 @@ fn test_write_data_incompatible_schema() {
     let (_temp_dir, filename) = get_temp_file_path("write_mismatch.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (array_ptr, data_schema_ptr) = create_mismatched_ffi_data().unwrap();
-    let result = NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr);
+    let result = test_write_data(filename.clone(), array_ptr, data_schema_ptr);
     assert!(result.is_err());
     cleanup_ffi_data(array_ptr, data_schema_ptr);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
@@ -155,7 +153,7 @@ fn test_finalize_writer_success() {
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
     cleanup_ffi_data(array_ptr, data_schema_ptr);
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = test_finalize_writer(filename.clone());
     assert!(result.is_ok());
     assert!(Path::new(&filename).exists());
     cleanup_ffi_schema(schema_ptr);
@@ -167,10 +165,10 @@ fn test_finalize_writer_with_data_returns_correct_metadata() {
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     for _ in 0..2 {
         let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-        NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
+        test_write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
         cleanup_ffi_data(array_ptr, data_schema_ptr);
     }
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = test_finalize_writer(filename.clone());
     assert!(result.is_ok());
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
@@ -184,9 +182,11 @@ fn test_finalize_writer_with_data_returns_correct_metadata() {
 
 #[test]
 fn test_close_nonexistent_writer() {
-    let result = NativeParquetWriter::finalize_writer("nonexistent.parquet".to_string());
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Writer not found"));
+    // No writer registered for this file -> the shim resolves a null handle and finalize is a
+    // no-op that returns None (rather than an error).
+    let result = test_finalize_writer("nonexistent.parquet".to_string());
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none());
 }
 
 #[test]
@@ -195,14 +195,12 @@ fn test_close_multiple_times_same_file() {
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
     cleanup_ffi_data(array_ptr, data_schema_ptr);
-    let result1 = NativeParquetWriter::finalize_writer(filename.clone());
+    let result1 = test_finalize_writer(filename.clone());
     assert!(result1.is_ok());
-    let result2 = NativeParquetWriter::finalize_writer(filename);
-    assert!(result2.is_err());
-    assert!(result2
-        .unwrap_err()
-        .to_string()
-        .contains("Writer not found"));
+    // Second finalize: the handle was already consumed/forgotten -> null handle -> no-op None.
+    let result2 = test_finalize_writer(filename);
+    assert!(result2.is_ok());
+    assert!(result2.unwrap().is_none());
     cleanup_ffi_schema(schema_ptr);
 }
 
@@ -217,7 +215,7 @@ fn test_complete_writer_lifecycle() {
         cleanup_ffi_data(array_ptr, data_schema_ptr);
     }
 
-    let close_result = NativeParquetWriter::finalize_writer(filename.clone());
+    let close_result = test_finalize_writer(filename.clone());
     assert!(close_result.is_ok());
     assert!(close_result.unwrap().is_some());
 
@@ -235,15 +233,15 @@ fn test_sorted_writer_ascending() {
     let (ap1, sp1) =
         create_test_ffi_data_with_ids(vec![30, 10, 50], vec![Some("C"), Some("A"), Some("E")])
             .unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    test_write_data(filename.clone(), ap1, sp1).unwrap();
     cleanup_ffi_data(ap1, sp1);
 
     let (ap2, sp2) =
         create_test_ffi_data_with_ids(vec![20, 40], vec![Some("B"), Some("D")]).unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    test_write_data(filename.clone(), ap2, sp2).unwrap();
     cleanup_ffi_data(ap2, sp2);
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ids = read_parquet_file_sorted_ids(&filename);
     assert_eq!(
@@ -263,15 +261,15 @@ fn test_sorted_writer_descending() {
     let (ap1, sp1) =
         create_test_ffi_data_with_ids(vec![30, 10, 50], vec![Some("C"), Some("A"), Some("E")])
             .unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    test_write_data(filename.clone(), ap1, sp1).unwrap();
     cleanup_ffi_data(ap1, sp1);
 
     let (ap2, sp2) =
         create_test_ffi_data_with_ids(vec![20, 40], vec![Some("B"), Some("D")]).unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    test_write_data(filename.clone(), ap2, sp2).unwrap();
     cleanup_ffi_data(ap2, sp2);
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ids = read_parquet_file_sorted_ids(&filename);
     assert_eq!(
@@ -291,15 +289,15 @@ fn test_unsorted_writer_preserves_insertion_order() {
     let (ap1, sp1) =
         create_test_ffi_data_with_ids(vec![30, 10, 50], vec![Some("C"), Some("A"), Some("E")])
             .unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    test_write_data(filename.clone(), ap1, sp1).unwrap();
     cleanup_ffi_data(ap1, sp1);
 
     let (ap2, sp2) =
         create_test_ffi_data_with_ids(vec![20, 40], vec![Some("B"), Some("D")]).unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    test_write_data(filename.clone(), ap2, sp2).unwrap();
     cleanup_ffi_data(ap2, sp2);
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ids = read_parquet_file_sorted_ids(&filename);
     assert_eq!(
@@ -320,18 +318,15 @@ fn test_ipc_staging_sorted_writer_creates_and_cleans_up_staging_file() {
 
     // With eager sort-and-write, no staging file exists until a chunk is flushed.
     // The writer accumulates in memory. Verify the writer is open.
-    assert!(
-        NativeParquetWriter::has_writer(&filename),
-        "Writer should be open"
-    );
+    assert!(test_has_writer(&filename), "Writer should be open");
 
     let (ap, sp) =
         create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")])
             .unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // The final Parquet file should exist
     assert!(
@@ -352,7 +347,7 @@ fn test_ipc_staging_has_writer_returns_true() {
     let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
 
     assert!(
-        NativeParquetWriter::has_writer(&filename),
+        test_has_writer(&filename),
         "has_writer should return true for IPC writer"
     );
 
@@ -365,7 +360,8 @@ fn test_ipc_staging_duplicate_writer_rejected() {
     let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
 
     let (_, schema_ptr2) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(
+    // Handle-owned lifecycle: re-creating a sorted (IPC) writer for the same file is allowed.
+    let result = test_create_writer(
         filename.clone(),
         "test-index".to_string(),
         schema_ptr2,
@@ -374,11 +370,7 @@ fn test_ipc_staging_duplicate_writer_rejected() {
         vec![false],
         0,
     );
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Writer already exists"));
+    assert!(result.is_ok());
 
     cleanup_ffi_schema(schema_ptr2);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
@@ -390,7 +382,7 @@ fn test_ipc_staging_empty_data_produces_valid_parquet() {
     let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
 
     // Finalize without writing any data
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = test_finalize_writer(filename.clone());
     assert!(result.is_ok());
     assert!(
         Path::new(&filename).exists(),
@@ -411,20 +403,20 @@ fn test_ipc_staging_multi_batch_sort() {
     // Write multiple batches with interleaved values
     let (ap1, sp1) =
         create_test_ffi_data_with_ids(vec![50, 10], vec![Some("E"), Some("A")]).unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    test_write_data(filename.clone(), ap1, sp1).unwrap();
     cleanup_ffi_data(ap1, sp1);
 
     let (ap2, sp2) =
         create_test_ffi_data_with_ids(vec![30, 20], vec![Some("C"), Some("B")]).unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    test_write_data(filename.clone(), ap2, sp2).unwrap();
     cleanup_ffi_data(ap2, sp2);
 
     let (ap3, sp3) =
         create_test_ffi_data_with_ids(vec![40, 60], vec![Some("D"), Some("F")]).unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap3, sp3).unwrap();
+    test_write_data(filename.clone(), ap3, sp3).unwrap();
     cleanup_ffi_data(ap3, sp3);
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ids = read_parquet_file_sorted_ids(&filename);
     assert_eq!(
@@ -444,10 +436,10 @@ fn test_ipc_staging_descending_sort() {
     let (ap, sp) =
         create_test_ffi_data_with_ids(vec![10, 30, 20], vec![Some("A"), Some("C"), Some("B")])
             .unwrap();
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ids = read_parquet_file_sorted_ids(&filename);
     assert_eq!(
@@ -472,18 +464,18 @@ fn test_ipc_and_parquet_writers_coexist() {
     let (ap1, dp1) =
         create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")])
             .unwrap();
-    NativeParquetWriter::write_data(sorted_file.clone(), ap1, dp1).unwrap();
+    test_write_data(sorted_file.clone(), ap1, dp1).unwrap();
     cleanup_ffi_data(ap1, dp1);
 
     let (ap2, dp2) =
         create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")])
             .unwrap();
-    NativeParquetWriter::write_data(unsorted_file.clone(), ap2, dp2).unwrap();
+    test_write_data(unsorted_file.clone(), ap2, dp2).unwrap();
     cleanup_ffi_data(ap2, dp2);
 
     // Finalize both
-    NativeParquetWriter::finalize_writer(sorted_file.clone()).unwrap();
-    NativeParquetWriter::finalize_writer(unsorted_file.clone()).unwrap();
+    test_finalize_writer(sorted_file.clone()).unwrap();
+    test_finalize_writer(unsorted_file.clone()).unwrap();
 
     // Sorted file should be sorted
     let sorted_ids = read_parquet_file_sorted_ids(&sorted_file);
@@ -512,7 +504,7 @@ fn test_ipc_staging_concurrent_sorted_writers() {
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
 
-            if NativeParquetWriter::create_writer(
+            if test_create_writer(
                 filename.clone(),
                 "test-index".to_string(),
                 schema_ptr,
@@ -528,13 +520,11 @@ fn test_ipc_staging_concurrent_sorted_writers() {
                     vec![Some("C"), Some("A"), Some("B")],
                 )
                 .unwrap();
-                let write_ok = NativeParquetWriter::write_data(filename.clone(), ap, sp).is_ok();
+                let write_ok = test_write_data(filename.clone(), ap, sp).is_ok();
                 cleanup_ffi_data(ap, sp);
 
                 if write_ok {
-                    if let Ok(Some(metadata)) =
-                        NativeParquetWriter::finalize_writer(filename.clone())
-                    {
+                    if let Ok(Some(metadata)) = test_finalize_writer(filename.clone()) {
                         if metadata.metadata.file_metadata().num_rows() == 3 {
                             let ids = read_parquet_file_sorted_ids(&filename);
                             if ids == vec![10, 20, 30] {
@@ -564,11 +554,11 @@ fn test_ipc_staging_complete_lifecycle_with_sync() {
     for batch_ids in [vec![50, 30], vec![10, 40], vec![20, 60]] {
         let names: Vec<Option<&str>> = batch_ids.iter().map(|_| Some("x")).collect();
         let (ap, sp) = create_test_ffi_data_with_ids(batch_ids, names).unwrap();
-        NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+        test_write_data(filename.clone(), ap, sp).unwrap();
         cleanup_ffi_data(ap, sp);
     }
 
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = test_finalize_writer(filename.clone());
     assert!(result.is_ok());
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
@@ -589,12 +579,11 @@ fn test_ipc_staging_complete_lifecycle_with_sync() {
 fn test_get_filtered_writer_memory_usage_with_writers() {
     let (_temp_dir, filename1) = get_temp_file_path("test1.parquet");
     let (_temp_dir2, filename2) = get_temp_file_path("test2.parquet");
-    let prefix = _temp_dir.path().to_string_lossy().to_string();
     let (_schema1, schema_ptr1) = create_writer_and_assert_success(&filename1);
     let (_schema2, schema_ptr2) = create_writer_and_assert_success(&filename2);
-    let result = NativeParquetWriter::get_filtered_writer_memory_usage(prefix);
-    assert!(result.is_ok());
-    assert!(result.unwrap() >= 0);
+    // Memory is now reported per writer handle (summed on the Java side); assert both are queryable.
+    let total = test_writer_memory_usage(&filename1) + test_writer_memory_usage(&filename2);
+    let _ = total;
     close_writer_and_cleanup_schema(&filename1, schema_ptr1);
     close_writer_and_cleanup_schema(&filename2, schema_ptr2);
 }
@@ -622,11 +611,11 @@ fn test_crc32_matches_reread_with_data() {
 
     for _ in 0..3 {
         let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-        NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
+        test_write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
         cleanup_ffi_data(array_ptr, data_schema_ptr);
     }
 
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = test_finalize_writer(filename.clone());
     assert!(result.is_ok());
     let finalize_result = result.unwrap().unwrap();
     let streaming_crc32 = finalize_result.crc32;
@@ -644,16 +633,16 @@ fn test_crc32_matches_reread_with_data() {
 fn test_crc32_differs_for_different_content() {
     let (_temp_dir1, filename1) = get_temp_file_path("crc32_diff_a.parquet");
     let (_schema1, schema_ptr1) = create_writer_and_assert_success(&filename1);
-    let result1 = NativeParquetWriter::finalize_writer(filename1.clone());
+    let result1 = test_finalize_writer(filename1.clone());
     let crc32_empty = result1.unwrap().unwrap().crc32;
     cleanup_ffi_schema(schema_ptr1);
 
     let (_temp_dir2, filename2) = get_temp_file_path("crc32_diff_b.parquet");
     let (_schema2, schema_ptr2) = create_writer_and_assert_success(&filename2);
     let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(filename2.clone(), array_ptr, data_schema_ptr).unwrap();
+    test_write_data(filename2.clone(), array_ptr, data_schema_ptr).unwrap();
     cleanup_ffi_data(array_ptr, data_schema_ptr);
-    let result2 = NativeParquetWriter::finalize_writer(filename2.clone());
+    let result2 = test_finalize_writer(filename2.clone());
     let crc32_with_data = result2.unwrap().unwrap().crc32;
     cleanup_ffi_schema(schema_ptr2);
 
@@ -677,7 +666,7 @@ fn test_concurrent_writer_creation() {
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
 
-            if NativeParquetWriter::create_writer(
+            if test_create_writer(
                 filename.clone(),
                 "test-index".to_string(),
                 schema_ptr,
@@ -690,9 +679,9 @@ fn test_concurrent_writer_creation() {
             {
                 success_count.fetch_add(1, Ordering::SeqCst);
                 let (ap, sp) = create_test_ffi_data().unwrap();
-                let _ = NativeParquetWriter::write_data(filename.clone(), ap, sp);
+                let _ = test_write_data(filename.clone(), ap, sp);
                 cleanup_ffi_data(ap, sp);
-                let _ = NativeParquetWriter::finalize_writer(filename);
+                let _ = test_finalize_writer(filename);
             }
             cleanup_ffi_schema(schema_ptr);
         });
@@ -722,7 +711,9 @@ fn test_concurrent_close_operations_same_file() {
         let success_count = Arc::clone(&success_count);
 
         let handle = thread::spawn(move || {
-            if NativeParquetWriter::finalize_writer(filename).is_ok() {
+            // Exactly one thread wins the handle (the test map's remove is atomic) and performs the
+            // real finalize (Ok(Some)); the others observe a null handle and no-op (Ok(None)).
+            if matches!(test_finalize_writer(filename), Ok(Some(_))) {
                 success_count.fetch_add(1, Ordering::SeqCst);
             }
         });
@@ -751,7 +742,7 @@ fn test_concurrent_writes_same_file() {
 
         let handle = thread::spawn(move || {
             let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-            if NativeParquetWriter::write_data(filename, array_ptr, data_schema_ptr).is_ok() {
+            if test_write_data(filename, array_ptr, data_schema_ptr).is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
             }
             cleanup_ffi_data(array_ptr, data_schema_ptr);
@@ -793,9 +784,7 @@ fn test_concurrent_writes_different_files() {
         let handle = thread::spawn(move || {
             for _ in 0..2 {
                 let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-                if NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr)
-                    .is_ok()
-                {
+                if test_write_data(filename.clone(), array_ptr, data_schema_ptr).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                 }
                 cleanup_ffi_data(array_ptr, data_schema_ptr);
@@ -832,7 +821,7 @@ fn test_bloom_filter_false_propagates_through_settings_store() {
 
     let (_temp_dir, filename) = get_temp_file_path("bloom_test.parquet");
     let (_schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(
+    let result = test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -863,7 +852,7 @@ fn test_bloom_filter_default_when_no_settings() {
 
     let (_temp_dir, filename) = get_temp_file_path("bloom_default.parquet");
     let (_schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(
+    let result = test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1054,7 +1043,7 @@ fn test_chunked_writer_single_chunk_row_ids_sequential() {
 
     // Create writer with sort on "age" ascending
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    let result = NativeParquetWriter::create_writer(
+    let result = test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1070,11 +1059,9 @@ fn test_chunked_writer_single_chunk_row_ids_sequential() {
         vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify output is sorted by age ascending
     let ages = read_ages_from_parquet(&filename);
@@ -1126,7 +1113,7 @@ fn test_chunked_writer_multi_chunk_row_ids_sequential() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    let result = NativeParquetWriter::create_writer(
+    let result = test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1153,11 +1140,9 @@ fn test_chunked_writer_multi_chunk_row_ids_sequential() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify output is sorted by age ascending
     let ages = read_ages_from_parquet(&filename);
@@ -1213,7 +1198,7 @@ fn test_chunked_writer_multi_chunk_descending_sort() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1229,11 +1214,9 @@ fn test_chunked_writer_multi_chunk_descending_sort() {
         vec![Some("A"), Some("E"), Some("C"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify output is sorted by age descending
     let ages = read_ages_from_parquet(&filename);
@@ -1279,7 +1262,7 @@ fn test_chunked_writer_multiple_write_calls() {
 
     // First batch: row_ids 0..4
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1295,7 +1278,7 @@ fn test_chunked_writer_multiple_write_calls() {
         vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    test_write_data(filename.clone(), ap1, sp1).unwrap();
 
     // Second batch: row_ids 5..9
     let (ap2, sp2) = create_ffi_data_with_row_id(
@@ -1303,11 +1286,9 @@ fn test_chunked_writer_multiple_write_calls() {
         vec![Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
         vec![5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    test_write_data(filename.clone(), ap2, sp2).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sorted output
     let ages = read_ages_from_parquet(&filename);
@@ -1360,7 +1341,7 @@ fn test_chunked_writer_empty_finalize() {
 
     // Just create the writer with the schema, don't write data
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1371,9 +1352,7 @@ fn test_chunked_writer_empty_finalize() {
     )
     .unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     assert_eq!(
         finalize_result.metadata.file_metadata().num_rows(),
@@ -1407,7 +1386,7 @@ fn test_chunked_writer_permutation_is_invertible() {
     let names: Vec<Option<&str>> = (0..10).map(|_| Some("x")).collect();
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1419,11 +1398,9 @@ fn test_chunked_writer_permutation_is_invertible() {
     .unwrap();
 
     let (ap, sp) = create_ffi_data_with_row_id(original_ages.clone(), names, row_ids);
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
     assert_eq!(mapping.len(), 10);
@@ -1474,7 +1451,7 @@ fn test_chunked_writer_large_dataset_multi_chunk() {
     let names: Vec<Option<&str>> = (0..num_rows as usize).map(|_| Some("x")).collect();
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1486,11 +1463,9 @@ fn test_chunked_writer_large_dataset_multi_chunk() {
     .unwrap();
 
     let (ap, sp) = create_ffi_data_with_row_id(ages.clone(), names, row_ids);
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify output is sorted
     let sorted_ages = read_ages_from_parquet(&filename);
@@ -1568,7 +1543,7 @@ fn test_chunked_writer_generation_in_metadata_single_chunk() {
 
     let writer_generation = 42i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1584,8 +1559,8 @@ fn test_chunked_writer_generation_in_metadata_single_chunk() {
         vec![Some("C"), Some("A"), Some("B")],
         vec![0, 1, 2],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let gen = read_writer_generation_from_parquet(&filename);
     assert_eq!(
@@ -1615,7 +1590,7 @@ fn test_chunked_writer_generation_in_metadata_multi_chunk() {
 
     let writer_generation = 7i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1642,8 +1617,8 @@ fn test_chunked_writer_generation_in_metadata_multi_chunk() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Previously writer_generation was lost in the k-way merge path. This has been fixed —
     // merge_sorted now propagates writer_generation into the output file metadata.
@@ -1679,7 +1654,7 @@ fn test_chunked_writer_generation_zero() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1692,8 +1667,8 @@ fn test_chunked_writer_generation_zero() {
 
     let (ap, sp) =
         create_ffi_data_with_row_id(vec![20, 10], vec![Some("B"), Some("A")], vec![0, 1]);
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let gen = read_writer_generation_from_parquet(&filename);
     assert_eq!(
@@ -1720,7 +1695,7 @@ fn test_chunked_writer_generation_large_value() {
 
     let writer_generation = 999_999i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1746,11 +1721,9 @@ fn test_chunked_writer_generation_large_value() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify writer_generation in metadata
     let gen = read_writer_generation_from_parquet(&filename);
@@ -1794,7 +1767,7 @@ fn test_unsorted_writer_generation_in_metadata() {
     let writer_generation = 17i64;
     let (_, schema_ptr) = create_row_id_schema_ptr();
     // No sort columns — uses direct Parquet writer path
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1810,8 +1783,8 @@ fn test_unsorted_writer_generation_in_metadata() {
         vec![Some("C"), Some("A"), Some("B")],
         vec![0, 1, 2],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let gen = read_writer_generation_from_parquet(&filename);
     assert_eq!(
@@ -1843,7 +1816,7 @@ fn test_chunked_writer_crc32_single_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1859,11 +1832,9 @@ fn test_chunked_writer_crc32_single_chunk() {
         vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // CRC should be non-zero for a file with data
     assert_ne!(
@@ -1895,7 +1866,7 @@ fn test_chunked_writer_crc32_multi_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -1922,11 +1893,9 @@ fn test_chunked_writer_crc32_multi_chunk() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Multi-chunk merge also produces a CRC (from merge_sorted's CrcWriter)
     // Verify it matches the actual file
@@ -1957,7 +1926,7 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
 
     // Writer 1
     let (_schema, schema_ptr1) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename1.clone(),
         index_name1.to_string(),
         schema_ptr1,
@@ -1972,14 +1941,12 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
         vec![Some("A"), Some("B"), Some("C")],
         vec![0, 1, 2],
     );
-    NativeParquetWriter::write_data(filename1.clone(), ap1, sp1).unwrap();
-    let result1 = NativeParquetWriter::finalize_writer(filename1.clone())
-        .unwrap()
-        .unwrap();
+    test_write_data(filename1.clone(), ap1, sp1).unwrap();
+    let result1 = test_finalize_writer(filename1.clone()).unwrap().unwrap();
 
     // Writer 2 — different data
     let (_schema, schema_ptr2) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename2.clone(),
         index_name2.to_string(),
         schema_ptr2,
@@ -1994,10 +1961,8 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
         vec![Some("X"), Some("Y"), Some("Z")],
         vec![0, 1, 2],
     );
-    NativeParquetWriter::write_data(filename2.clone(), ap2, sp2).unwrap();
-    let result2 = NativeParquetWriter::finalize_writer(filename2.clone())
-        .unwrap()
-        .unwrap();
+    test_write_data(filename2.clone(), ap2, sp2).unwrap();
+    let result2 = test_finalize_writer(filename2.clone()).unwrap().unwrap();
 
     assert_ne!(
         result1.crc32, result2.crc32,
@@ -2031,7 +1996,7 @@ fn test_chunked_writer_batch_slicing_large_batch() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2057,11 +2022,9 @@ fn test_chunked_writer_batch_slicing_large_batch() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify output is sorted
     let ages = read_ages_from_parquet(&filename);
@@ -2116,7 +2079,7 @@ fn test_chunked_writer_batch_slicing_two_rows_per_slice() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2144,11 +2107,9 @@ fn test_chunked_writer_batch_slicing_two_rows_per_slice() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sorted output
     let ages = read_ages_from_parquet(&filename);
@@ -2201,7 +2162,7 @@ fn test_chunked_writer_batch_slicing_descending() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2217,11 +2178,9 @@ fn test_chunked_writer_batch_slicing_descending() {
         vec![Some("A"), Some("E"), Some("C"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify descending sort
     let ages = read_ages_from_parquet(&filename);
@@ -2260,7 +2219,7 @@ fn test_chunked_writer_batch_slicing_multiple_writes() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2277,7 +2236,7 @@ fn test_chunked_writer_batch_slicing_multiple_writes() {
         vec![Some("E"), Some("A"), Some("C")],
         vec![0, 1, 2],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    test_write_data(filename.clone(), ap1, sp1).unwrap();
 
     // Second batch: rows 3..6
     let (ap2, sp2) = create_ffi_data_with_row_id(
@@ -2285,11 +2244,9 @@ fn test_chunked_writer_batch_slicing_multiple_writes() {
         vec![Some("D"), Some("B"), Some("F")],
         vec![3, 4, 5],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    test_write_data(filename.clone(), ap2, sp2).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify globally sorted
     let ages = read_ages_from_parquet(&filename);
@@ -2369,7 +2326,7 @@ fn test_chunked_writer_no_row_id_single_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2384,11 +2341,9 @@ fn test_chunked_writer_no_row_id_single_chunk() {
         vec![50, 10, 30, 20, 40],
         vec![Some("E"), Some("A"), Some("C"), Some("B"), Some("D")],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sorted output
     let ages = read_ages_from_parquet(&filename);
@@ -2422,7 +2377,7 @@ fn test_chunked_writer_no_row_id_multi_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2446,11 +2401,9 @@ fn test_chunked_writer_no_row_id_multi_chunk() {
             Some("E"),
         ],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sorted output
     let ages = read_ages_from_parquet(&filename);
@@ -2484,7 +2437,7 @@ fn test_chunked_writer_no_row_id_batch_slicing() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2506,11 +2459,9 @@ fn test_chunked_writer_no_row_id_batch_slicing() {
             Some("F"),
         ],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify descending sort
     let ages = read_ages_from_parquet(&filename);
@@ -2620,7 +2571,7 @@ fn test_multi_column_sort_age_asc_score_desc() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2645,11 +2596,9 @@ fn test_multi_column_sort_age_asc_score_desc() {
         ],
         vec![0, 1, 2, 3, 4, 5],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     let ages = read_ages_from_parquet(&filename);
     let scores = read_scores_from_parquet(&filename);
@@ -2690,7 +2639,7 @@ fn test_multi_column_sort_age_desc_score_asc() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2707,9 +2656,9 @@ fn test_multi_column_sort_age_desc_score_asc() {
         vec![Some("A"), Some("B"), Some("C"), Some("D"), Some("E")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ages = read_ages_from_parquet(&filename);
     let scores = read_scores_from_parquet(&filename);
@@ -2739,7 +2688,7 @@ fn test_multi_column_sort_multi_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2768,11 +2717,9 @@ fn test_multi_column_sort_multi_chunk() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     let ages = read_ages_from_parquet(&filename);
     let scores = read_scores_from_parquet(&filename);
@@ -2816,7 +2763,7 @@ fn test_multi_column_sort_batch_slicing() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2833,9 +2780,9 @@ fn test_multi_column_sort_batch_slicing() {
         vec![Some("A"), Some("B"), Some("C"), Some("D"), Some("E")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ages = read_ages_from_parquet(&filename);
     let scores = read_scores_from_parquet(&filename);
@@ -2922,7 +2869,7 @@ fn test_nulls_first_true_ascending() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2937,8 +2884,8 @@ fn test_nulls_first_true_ascending() {
         vec![Some(30), None, Some(10), None, Some(20)],
         vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ages = read_nullable_ages_from_parquet(&filename);
     // NULLs first, then ascending non-nulls
@@ -2961,7 +2908,7 @@ fn test_nulls_first_false_ascending() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -2976,8 +2923,8 @@ fn test_nulls_first_false_ascending() {
         vec![Some(30), None, Some(10), None, Some(20)],
         vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     let ages = read_nullable_ages_from_parquet(&filename);
     // Non-nulls ascending first, then NULLs last
@@ -3044,7 +2991,7 @@ fn test_nulls_first_with_row_id_and_permutation() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_with_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3061,11 +3008,9 @@ fn test_nulls_first_with_row_id_and_permutation() {
         vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sort: NULLs first, then ascending
     let ages = read_nullable_ages_from_parquet(&filename);
@@ -3112,7 +3057,7 @@ fn test_nulls_last_with_row_id_and_permutation() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_nullable_with_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3129,11 +3074,9 @@ fn test_nulls_last_with_row_id_and_permutation() {
         vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sort: ascending non-nulls, then NULLs last
     let ages = read_nullable_ages_from_parquet(&filename);
@@ -3178,7 +3121,7 @@ fn test_empty_batch_write_does_not_corrupt_sorted_writer() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3191,7 +3134,7 @@ fn test_empty_batch_write_does_not_corrupt_sorted_writer() {
 
     // Write an empty batch (0 rows)
     let (ap_empty, sp_empty) = create_ffi_data_with_row_id(vec![], vec![], vec![]);
-    NativeParquetWriter::write_data(filename.clone(), ap_empty, sp_empty).unwrap();
+    test_write_data(filename.clone(), ap_empty, sp_empty).unwrap();
 
     // Write a real batch after the empty one
     let (ap, sp) = create_ffi_data_with_row_id(
@@ -3199,11 +3142,9 @@ fn test_empty_batch_write_does_not_corrupt_sorted_writer() {
         vec![Some("C"), Some("A"), Some("B")],
         vec![0, 1, 2],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // Verify sorted output — empty batch should have no effect
     let ages = read_ages_from_parquet(&filename);
@@ -3232,7 +3173,7 @@ fn test_only_empty_batches_produces_empty_output() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3246,12 +3187,10 @@ fn test_only_empty_batches_produces_empty_output() {
     // Write multiple empty batches
     for _ in 0..3 {
         let (ap, sp) = create_ffi_data_with_row_id(vec![], vec![], vec![]);
-        NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+        test_write_data(filename.clone(), ap, sp).unwrap();
     }
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     assert_eq!(finalize_result.metadata.file_metadata().num_rows(), 0);
     assert!(finalize_result.row_id_mapping.is_none());
@@ -3275,7 +3214,7 @@ fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3287,13 +3226,7 @@ fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
     .unwrap();
 
     // Before writing, memory should be 0 (no chunks flushed yet)
-    let path_prefix = Path::new(&filename)
-        .parent()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-    let mem_before =
-        NativeParquetWriter::get_filtered_writer_memory_usage(path_prefix.clone()).unwrap();
+    let mem_before = test_writer_memory_usage(&filename);
     assert_eq!(mem_before, 0, "Memory should be 0 before any chunk flush");
 
     // Write enough data to trigger at least one chunk flush
@@ -3313,11 +3246,10 @@ fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
     // After writing (chunks flushed), memory should be > 0 due to chunk_row_ids
-    let mem_after =
-        NativeParquetWriter::get_filtered_writer_memory_usage(path_prefix.clone()).unwrap();
+    let mem_after = test_writer_memory_usage(&filename);
     assert!(
         mem_after > 0,
         "Memory should be > 0 after chunk flushes (chunk_row_ids accumulated), got {}",
@@ -3333,9 +3265,9 @@ fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
     );
 
     // Finalize and verify writer is removed
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
-    let mem_final = NativeParquetWriter::get_filtered_writer_memory_usage(path_prefix).unwrap();
+    let mem_final = test_writer_memory_usage(&filename);
     assert_eq!(mem_final, 0, "Memory should be 0 after writer is finalized");
 
     SETTINGS_STORE.remove(index_name);
@@ -3358,7 +3290,7 @@ fn test_memory_usage_path_prefix_filtering() {
 
     // Create writer 1
     let (_schema, schema_ptr1) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename1.clone(),
         index_name.to_string(),
         schema_ptr1,
@@ -3371,7 +3303,7 @@ fn test_memory_usage_path_prefix_filtering() {
 
     // Create writer 2
     let (_schema, schema_ptr2) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename2.clone(),
         index_name.to_string(),
         schema_ptr2,
@@ -3388,30 +3320,19 @@ fn test_memory_usage_path_prefix_filtering() {
         vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename1.clone(), ap, sp).unwrap();
+    test_write_data(filename1.clone(), ap, sp).unwrap();
 
-    // Query with prefix that matches only writer 1's directory
-    let prefix1 = Path::new(&filename1)
-        .parent()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-    let prefix2 = Path::new(&filename2)
-        .parent()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-
-    let mem1 = NativeParquetWriter::get_filtered_writer_memory_usage(prefix1).unwrap();
-    let mem2 = NativeParquetWriter::get_filtered_writer_memory_usage(prefix2).unwrap();
+    // Query per-writer memory by handle (the Java side sums these across a shard's writers).
+    let mem1 = test_writer_memory_usage(&filename1);
+    let mem2 = test_writer_memory_usage(&filename2);
 
     // Writer 1 had data written (and chunks flushed), writer 2 did not
-    assert!(mem1 >= 0, "Writer 1 memory should be reported");
+    let _ = mem1; // writer 1 memory is queryable per handle
     assert_eq!(mem2, 0, "Writer 2 should have 0 memory (no data written)");
 
     // Cleanup
-    NativeParquetWriter::finalize_writer(filename1).unwrap();
-    NativeParquetWriter::finalize_writer(filename2).unwrap();
+    test_finalize_writer(filename1).unwrap();
+    test_finalize_writer(filename2).unwrap();
 
     SETTINGS_STORE.remove(index_name);
 }
@@ -3429,12 +3350,11 @@ fn test_write_data_no_ipc_writer() {
         vec![Some("A"), Some("B"), Some("C")],
         vec![0, 1, 2],
     );
-    let result = NativeParquetWriter::write_data(filename.clone(), ap, sp);
+    let result = test_write_data(filename.clone(), ap, sp);
 
-    assert!(result.is_err());
     assert!(
-        result.unwrap_err().to_string().contains("Writer not found"),
-        "Should get 'Writer not found' error for non-existent IPC writer"
+        result.is_err(),
+        "Should get an error writing to a non-existent (null-handle) IPC writer"
     );
 }
 
@@ -3460,7 +3380,7 @@ fn test_sort_all_identical_keys_produces_valid_permutation() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3477,11 +3397,9 @@ fn test_sort_all_identical_keys_produces_valid_permutation() {
         vec![Some("E"), Some("D"), Some("C"), Some("B"), Some("A")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
 
-    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone())
-        .unwrap()
-        .unwrap();
+    let finalize_result = test_finalize_writer(filename.clone()).unwrap().unwrap();
 
     // All ages should be 30
     let ages = read_ages_from_parquet(&filename);
@@ -3579,7 +3497,7 @@ fn test_writer_properties_honored_empty_path() {
 
     let writer_generation = 99i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3591,7 +3509,7 @@ fn test_writer_properties_honored_empty_path() {
     .unwrap();
 
     // Don't write any data — triggers the empty path
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify format version is stamped
     let format_version = read_format_version_from_parquet(&filename);
@@ -3633,7 +3551,7 @@ fn test_writer_properties_honored_single_chunk_snappy_no_bloom() {
 
     let writer_generation = 55i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3649,8 +3567,8 @@ fn test_writer_properties_honored_single_chunk_snappy_no_bloom() {
         vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify compression is SNAPPY
     let compression = read_compression_from_parquet(&filename);
@@ -3710,7 +3628,7 @@ fn test_writer_properties_honored_single_chunk_zstd_with_bloom() {
 
     let writer_generation = 12i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3726,8 +3644,8 @@ fn test_writer_properties_honored_single_chunk_zstd_with_bloom() {
         vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify compression is ZSTD
     let compression = read_compression_from_parquet(&filename);
@@ -3772,7 +3690,7 @@ fn test_writer_properties_honored_multi_chunk_snappy_no_bloom() {
 
     let writer_generation = 77i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3799,8 +3717,8 @@ fn test_writer_properties_honored_multi_chunk_snappy_no_bloom() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify compression is SNAPPY in the merged output
     let compression = read_compression_from_parquet(&filename);
@@ -3852,7 +3770,7 @@ fn test_writer_properties_honored_multi_chunk_zstd_with_bloom() {
 
     let writer_generation = 33i64;
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3879,8 +3797,8 @@ fn test_writer_properties_honored_multi_chunk_zstd_with_bloom() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify compression is ZSTD in the merged output
     let compression = read_compression_from_parquet(&filename);
@@ -3924,7 +3842,7 @@ fn test_writer_properties_honored_single_chunk_uncompressed() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -3940,8 +3858,8 @@ fn test_writer_properties_honored_single_chunk_uncompressed() {
         vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify compression is UNCOMPRESSED
     let compression = read_compression_from_parquet(&filename);
@@ -3976,7 +3894,7 @@ fn test_writer_properties_honored_multi_chunk_uncompressed() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -4003,8 +3921,8 @@ fn test_writer_properties_honored_multi_chunk_uncompressed() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Verify compression is UNCOMPRESSED
     let compression = read_compression_from_parquet(&filename);
@@ -4043,7 +3961,7 @@ fn test_writer_properties_defaults_single_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -4059,8 +3977,8 @@ fn test_writer_properties_defaults_single_chunk() {
         vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
         vec![0, 1, 2, 3, 4],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Default compression is LZ4_RAW
     let compression = read_compression_from_parquet(&filename);
@@ -4097,7 +4015,7 @@ fn test_writer_properties_defaults_multi_chunk() {
     SETTINGS_STORE.insert(index_name.to_string(), settings);
 
     let (_schema, schema_ptr) = create_row_id_schema_ptr();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
@@ -4124,8 +4042,8 @@ fn test_writer_properties_defaults_multi_chunk() {
         ],
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
-    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+    test_write_data(filename.clone(), ap, sp).unwrap();
+    test_finalize_writer(filename.clone()).unwrap();
 
     // Default compression is LZ4_RAW
     let compression = read_compression_from_parquet(&filename);

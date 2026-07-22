@@ -32,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -58,6 +59,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final FormatChecksumStrategy checksumStrategy;
     private final Supplier<Schema> schemaSupplier;
     private final ParquetShardStatsTracker stats;
+    private final Consumer<ParquetWriter> onClose;
     private volatile long mappingVersion;
     private volatile WriterState state = WriterState.ACTIVE;
     private long acceptedRows = 0L;
@@ -90,7 +92,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
-        ParquetShardStatsTracker stats
+        ParquetShardStatsTracker stats,
+        Consumer<ParquetWriter> onClose
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
@@ -99,6 +102,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         this.checksumStrategy = checksumStrategy;
         this.schemaSupplier = schemaSupplier;
         this.stats = stats;
+        this.onClose = onClose;
         this.vsrManager = new VSRManager(
             file,
             indexSettings,
@@ -137,7 +141,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             indexSettings,
             threadPool,
             checksumStrategy,
-            new ParquetShardStatsTracker()
+            new ParquetShardStatsTracker(),
+            null
         );
     }
 
@@ -255,12 +260,23 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         }
     }
 
+    /**
+     * Returns the native (Rust-side) memory currently reserved by this writer's native Parquet
+     * writer, or 0 if uninitialized/finalized. Summed by the engine for shard native-memory stats.
+     */
+    public long getNativeBytesUsed() {
+        return vsrManager.getNativeBytesUsed();
+    }
+
     @Override
     public void close() throws IOException {
         try {
             vsrManager.close();
         } finally {
             state = WriterState.CLOSED;
+            if (onClose != null) {
+                onClose.accept(this);
+            }
         }
     }
 
