@@ -38,6 +38,7 @@ import software.amazon.awssdk.services.s3.model.StorageClass;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
@@ -93,8 +94,10 @@ public class S3BlobStore implements BlobStore {
     private volatile String serverSideEncryptionEncryptionContext;
     private volatile String expectedBucketOwner;
 
+    @Nullable
     private volatile ObjectCannedACL cannedACL;
 
+    @Nullable
     private volatile StorageClass storageClass;
 
     private volatile int bulkDeletesSize;
@@ -296,10 +299,12 @@ public class S3BlobStore implements BlobStore {
         return true;
     }
 
+    @Nullable
     public ObjectCannedACL getCannedACL() {
         return cannedACL;
     }
 
+    @Nullable
     public StorageClass getStorageClass() {
         return storageClass;
     }
@@ -308,9 +313,10 @@ public class S3BlobStore implements BlobStore {
         return statsMetricPublisher;
     }
 
+    @Nullable
     public static StorageClass initStorageClass(String storageClassStringValue) {
         if ((storageClassStringValue == null) || storageClassStringValue.equals("")) {
-            return StorageClass.STANDARD;
+            return null;
         }
 
         final StorageClass storageClass = StorageClass.fromValue(storageClassStringValue.toUpperCase(Locale.ENGLISH));
@@ -328,9 +334,10 @@ public class S3BlobStore implements BlobStore {
     /**
      * Constructs canned acl from string
      */
+    @Nullable
     public static ObjectCannedACL initCannedACL(String cannedACL) {
         if ((cannedACL == null) || cannedACL.equals("")) {
-            return ObjectCannedACL.PRIVATE;
+            return null;
         }
 
         for (final ObjectCannedACL cur : ObjectCannedACL.values()) {
