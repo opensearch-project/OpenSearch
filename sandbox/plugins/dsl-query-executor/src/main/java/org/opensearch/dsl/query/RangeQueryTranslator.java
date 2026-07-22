@@ -17,6 +17,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.schema.IpType;
 import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilder;
@@ -24,7 +25,6 @@ import org.opensearch.index.query.RangeQueryBuilder;
 
 import java.math.BigDecimal;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -270,9 +270,6 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         if (rangeQuery.from() != null) {
             byte[] fromBytes = encodeIpAsIpv6(String.valueOf(rangeQuery.from()));
-            if (fromBytes == null) {
-                throw new ConversionException("Failed to parse IP address value '" + rangeQuery.from() + "'");
-            }
             RexNode literal = ctx.getRexBuilder().makeLiteral(new ByteString(fromBytes), varbinaryType, false);
             SqlOperator op = rangeQuery.includeLower() ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.GREATER_THAN;
             conditions.add(ctx.getRexBuilder().makeCall(op, fieldRef, literal));
@@ -280,9 +277,6 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         if (rangeQuery.to() != null) {
             byte[] toBytes = encodeIpAsIpv6(String.valueOf(rangeQuery.to()));
-            if (toBytes == null) {
-                throw new ConversionException("Failed to parse IP address value '" + rangeQuery.to() + "'");
-            }
             RexNode literal = ctx.getRexBuilder().makeLiteral(new ByteString(toBytes), varbinaryType, false);
             SqlOperator op = rangeQuery.includeUpper() ? SqlStdOperatorTable.LESS_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN;
             conditions.add(ctx.getRexBuilder().makeCall(op, fieldRef, literal));
@@ -301,21 +295,31 @@ public class RangeQueryTranslator implements QueryTranslator {
      * encoded as 10 zero bytes + 0xff 0xff + 4 IPv4 bytes (RFC 4291 section 2.5.5.2).
      * IPv6 is its raw 16 bytes. Identical to {@code CidrMatchFunctionAdapter.encodeIpAsIpv6}
      * and {@code InetAddressPoint.encode} byte layout.
+     *
+     * <p>Uses {@code InetAddresses.forString} for strict textual IP parsing without DNS
+     * resolution, matching legacy behavior (IpFieldMapper uses InetAddresses.forString;
+     * hostname input is rejected).
+     *
+     * @param value textual IPv4 or IPv6 address (e.g. "192.168.0.1" or "::1")
+     * @return 16-byte IPv6-mapped encoding
+     * @throws ConversionException if the value is not a valid literal IP address
      */
-    static byte[] encodeIpAsIpv6(String value) {
+    static byte[] encodeIpAsIpv6(String value) throws ConversionException {
+        final InetAddress inetAddress;
         try {
-            byte[] addr = InetAddress.getByName(value).getAddress();
-            if (addr.length == 16) {
-                return addr;
-            }
-            byte[] mapped = new byte[16];
-            mapped[10] = (byte) 0xff;
-            mapped[11] = (byte) 0xff;
-            System.arraycopy(addr, 0, mapped, 12, 4);
-            return mapped;
-        } catch (UnknownHostException e) {
-            return null;
+            inetAddress = InetAddresses.forString(value);
+        } catch (IllegalArgumentException e) {
+            throw new ConversionException("Failed to parse IP address value '" + value + "': not a valid IPv4 or IPv6 literal");
         }
+        byte[] addr = inetAddress.getAddress();
+        if (addr.length == 16) {
+            return addr;
+        }
+        byte[] mapped = new byte[16];
+        mapped[10] = (byte) 0xff;
+        mapped[11] = (byte) 0xff;
+        System.arraycopy(addr, 0, mapped, 12, 4);
+        return mapped;
     }
 
     /**
