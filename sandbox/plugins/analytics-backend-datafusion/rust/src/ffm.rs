@@ -156,12 +156,26 @@ pub unsafe extern "C" fn df_create_global_runtime(
     spill_dir_ptr: *const u8,
     spill_dir_len: i64,
     spill_limit: i64,
+    optimizer_handles_ptr: *const i64,
+    optimizer_handles_len: i64,
 ) -> i64 {
     crate::memory_guard::set_pool_limit_for_guard(memory_pool_limit);
     let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len)
         .map_err(|e| format!("df_create_global_runtime: {}", e))?;
-    api::create_global_runtime(memory_pool_limit, cache_manager_ptr, spill_dir, spill_limit)
-        .map_err(|e| e.to_string())
+    let optimizer_handles: &[i64] =
+        if optimizer_handles_ptr.is_null() || optimizer_handles_len <= 0 {
+            &[]
+        } else {
+            std::slice::from_raw_parts(optimizer_handles_ptr, optimizer_handles_len as usize)
+        };
+    api::create_global_runtime(
+        memory_pool_limit,
+        cache_manager_ptr,
+        spill_dir,
+        spill_limit,
+        optimizer_handles,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -1398,8 +1412,8 @@ pub unsafe extern "C" fn df_execute_with_context(
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i64) -> i64 {
     use crate::stats::{
-        layout, pack_adaptive_budget, pack_cache_stats, pack_partition_gate, pack_runtime_metrics,
-        pack_task_monitor, CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
+        layout, pack_adaptive_budget, pack_cache_stats, pack_partition_gate,
+        pack_runtime_metrics, pack_task_monitor, CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
     };
     use crate::task_monitors::{
         coordinator_reduce_monitor, plan_setup_monitor, query_execution_monitor,

@@ -147,6 +147,16 @@ public class FeatureFlags {
     public static final Setting<Boolean> SNAPSHOT_RESILIENCE_SETTING = Setting.boolSetting(SNAPSHOT_RESILIENCE, false, Property.NodeScope);
 
     /**
+     * Gates the functionality of Liquid Cache for byte-level Parquet caching.
+     */
+    public static final String LIQUID_CACHE_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "liquid_cache.enabled";
+    public static final Setting<Boolean> LIQUID_CACHE_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        LIQUID_CACHE_EXPERIMENTAL_FLAG,
+        false,
+        Property.NodeScope
+    );
+
+    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -174,6 +184,7 @@ public class FeatureFlags {
                 put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(SNAPSHOT_STRICT_VERSION_PARSING_SETTING, SNAPSHOT_STRICT_VERSION_PARSING_SETTING.getDefault(Settings.EMPTY));
                 put(SNAPSHOT_RESILIENCE_SETTING, SNAPSHOT_RESILIENCE_SETTING.getDefault(Settings.EMPTY));
+                put(LIQUID_CACHE_EXPERIMENTAL_SETTING, LIQUID_CACHE_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
             }
         };
 

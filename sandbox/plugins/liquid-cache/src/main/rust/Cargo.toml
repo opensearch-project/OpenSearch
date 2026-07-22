@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Liquid Cache plugin native crate.
+#
+# Owns the process-global `LiquidOnlyRuntime` (the decoded-batch Parquet cache)
+# and the `lc_*` FFM entry points the Java `LiquidCacheBridge` binds to. It
+# implements the neutral `opensearch-query-spi::SessionOptimizerProvider` and
+# hands the DataFusion execution crate an opaque provider handle — so the
+# execution crate never names any liquid-cache type.
+#
+# Vendored in-memory subset lives in ./core and ./datafusion (see README.md).
+
+[package]
+name = "opensearch-liquid-cache"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Liquid Cache decoded-batch Parquet cache + SessionOptimizerProvider (rlib member of the dataformat-native workspace)"
+workspace = "../../../../../libs/dataformat-native/rust"
+
+[lib]
+name = "opensearch_liquid_cache"
+crate-type = ["rlib"]
+
+[dependencies]
+opensearch-liquid-cache-core = { workspace = true }
+opensearch-liquid-cache-datafusion = { workspace = true }
+opensearch-query-spi = { workspace = true }
+datafusion = { workspace = true }
+native-bridge-common = { workspace = true }
+log = { workspace = true }

@@ -44,7 +44,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         super.setUp();
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
-        long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
+        long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024, new long[0]);
         runtimeHandle = new NativeRuntimeHandle(ptr);
 
         // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle

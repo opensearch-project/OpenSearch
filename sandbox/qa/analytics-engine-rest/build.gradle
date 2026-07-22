@@ -34,6 +34,7 @@ configurations {
 dependencies {
     testImplementation project(':sandbox:plugins:analytics-engine')
     testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    testImplementation project(':sandbox:plugins:liquid-cache')
     testImplementation project(':sandbox:plugins:analytics-backend-lucene')
     testImplementation project(':sandbox:plugins:dsl-query-executor')
     testImplementation project(':sandbox:plugins:composite-engine')
@@ -62,6 +63,9 @@ def configureAnalyticsCluster = { cluster ->
     cluster.plugin ':plugins:arrow-flight-rpc'
     cluster.plugin ':sandbox:plugins:analytics-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'
+    // Liquid Cache extends analytics-backend-datafusion, so it must be installed
+    // after it (opensearch-plugin install runs in list order; extended plugins first).
+    cluster.plugin ':sandbox:plugins:liquid-cache'
     cluster.plugin ':sandbox:plugins:composite-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-lucene'
     cluster.plugin ':sandbox:plugins:dsl-query-executor'
@@ -104,6 +108,9 @@ def configureAnalyticsCluster = { cluster ->
     // analytics-engine path (bypassing the per-index lookup that doesn't handle aliases,
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
+
+    // Enable liquid cache feature flag (in-memory decoded-batch cache)
+    cluster.systemProperty 'opensearch.experimental.feature.liquid_cache.enabled', 'true'
 
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'

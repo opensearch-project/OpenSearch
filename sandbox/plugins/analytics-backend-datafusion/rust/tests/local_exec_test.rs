@@ -82,6 +82,10 @@ impl RuntimeGuard {
                 spill_bytes.as_ptr(),
                 spill_bytes.len() as i64,
                 64 * 1024 * 1024,
+                0, // liquid_cache_enabled — off for this test
+                0, // liquid_cache_size
+                b"lru".as_ptr(),
+                3, // liquid_cache_eviction_policy
             )
         };
         assert!(rc > 0, "df_create_global_runtime returned {}", rc);

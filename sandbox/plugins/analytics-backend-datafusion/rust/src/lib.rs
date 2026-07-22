@@ -50,6 +50,7 @@ pub mod session_context;
 pub mod shard_table_provider;
 
 pub mod native_node_stats;
+pub mod optimizer_providers;
 pub mod scoped_index_optimizer;
 pub mod scoped_page_index_reader;
 pub mod search_stats;

@@ -77,6 +77,13 @@ task buildRustLibrary(type: Exec) {
 
     def cargoArgs = [cargoExecutable, 'build', '-p', 'opensearch-native-lib']
     if (buildType == 'release') { cargoArgs.add('--release') }
+    // Liquid cache is an opt-in cargo feature. When Gradle builds the native lib,
+    // -PliquidCache links it in. When the lib is prebuilt separately, control it at
+    // that cargo invocation with --features liquid-cache (this task is skipped under
+    // -PnativeLibOverride).
+    def liquidCacheEnabled = project.hasProperty('liquidCache')
+    inputs.property('liquidCacheEnabled', liquidCacheEnabled)
+    if (liquidCacheEnabled) { cargoArgs.addAll(['--features', 'liquid-cache']) }
     commandLine cargoArgs
 
     inputs.files fileTree("${rustWorkspaceDir}/common/src")
@@ -92,6 +99,10 @@ task buildRustLibrary(type: Exec) {
     inputs.files fileTree("${projectDir}/../../plugins/native-repository-fs/src/main/rust/src")
     inputs.files fileTree("${projectDir}/../../libs/tiered-storage/src/main/rust/src")
     inputs.files fileTree("${projectDir}/../../plugins/block-cache-foyer/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/rust/query-spi/src")
+    inputs.files fileTree("${projectDir}/../../plugins/liquid-cache/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/liquid-cache/src/main/rust/core/src")
+    inputs.files fileTree("${projectDir}/../../plugins/liquid-cache/src/main/rust/datafusion/src")
     outputs.file nativeLibFile
 }
 

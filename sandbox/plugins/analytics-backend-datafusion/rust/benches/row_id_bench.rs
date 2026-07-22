@@ -56,6 +56,7 @@ fn setup() -> (RuntimeManager, DataFusionRuntime) {
         runtime_env,
         custom_cache_manager: None,
         dynamic_limit_handle: handle,
+        liquid_cache_optimizer: None,
     };
     (mgr, df_runtime)
 }

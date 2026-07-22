@@ -169,12 +169,14 @@ public final class NativeBridge {
         CREATE_GLOBAL_RUNTIME = linker.downcallHandle(
             lib.find("df_create_global_runtime").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,   // return: runtime ptr
+                ValueLayout.JAVA_LONG,   // memory pool limit
+                ValueLayout.JAVA_LONG,   // cache manager ptr
+                ValueLayout.ADDRESS,     // spill dir ptr
+                ValueLayout.JAVA_LONG,   // spill dir len
+                ValueLayout.JAVA_LONG,   // spill limit
+                ValueLayout.ADDRESS,     // optimizer handles ptr (*const i64)
+                ValueLayout.JAVA_LONG    // optimizer handles len
             )
         );
 
@@ -768,10 +770,27 @@ public final class NativeBridge {
      * This pointer is <b>not</b> a MemorySegment — it's a Rust heap address that lives
      * until {@link #closeGlobalRuntime} is called.
      */
-    public static long createGlobalRuntime(long memoryLimit, long cacheManagerPtr, String spillDir, long spillLimit) {
+    public static long createGlobalRuntime(
+        long memoryLimit,
+        long cacheManagerPtr,
+        String spillDir,
+        long spillLimit,
+        long[] optimizerHandles
+    ) {
+        long[] handles = optimizerHandles != null ? optimizerHandles : new long[0];
         try (var call = new NativeCall()) {
             var dir = call.str(spillDir);
-            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, cacheManagerPtr, dir.segment(), dir.len(), spillLimit);
+            var handlesSeg = call.longs(handles);
+            return call.invoke(
+                CREATE_GLOBAL_RUNTIME,
+                memoryLimit,
+                cacheManagerPtr,
+                dir.segment(),
+                dir.len(),
+                spillLimit,
+                handlesSeg,
+                (long) handles.length
+            );
         }
     }
 

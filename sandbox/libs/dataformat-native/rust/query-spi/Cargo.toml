@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Neutral SPI crate for pluggable DataFusion session optimizers.
+#
+# This crate defines the `SessionOptimizerProvider` trait and the opaque-handle
+# helpers used to pass an optimizer provider across the FFM boundary WITHOUT the
+# datafusion crate ever naming a concrete provider implementation (e.g. liquid
+# cache). It depends only on `datafusion` (for `PhysicalOptimizerRule`), never on
+# any provider crate — this is what keeps the dependency arrow pointing *into*
+# the SPI from both the consumer (opensearch-datafusion) and the implementers
+# (e.g. opensearch-liquid-cache).
+
+[package]
+name = "opensearch-query-spi"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Neutral SPI for pluggable DataFusion session optimizers (rlib member of the dataformat-native workspace)"
+
+[lib]
+name = "opensearch_query_spi"
+crate-type = ["rlib"]
+
+[dependencies]
+datafusion = { workspace = true }

@@ -685,6 +685,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc14f565cf027a105f7a44ccf9e5b424348421a1d8952a8fc9d499d313107789"
 
 [[package]]
+name = "congee"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72819224a9c43e0a5d64bdad35a71fde68bf479992fb8989635c72bc547909be"
+dependencies = [
+ "crossbeam-epoch",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -709,6 +718,12 @@ dependencies = [
  "once_cell",
  "tiny-keccak",
 ]
+
+[[package]]
+name = "const_for"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "988d3bd6bf67b6d7ae2b519c55296fa57411c27c312575e47b2975f8d1d8590b"
 
 [[package]]
 name = "constant_time_eq"
@@ -742,6 +757,12 @@ dependencies = [
  "num_cpus",
  "winapi",
 ]
+
+[[package]]
+name = "core_detect"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
 
 [[package]]
 name = "cpufeatures"
@@ -1664,6 +1685,19 @@ checksum = "2e825441bfb2d831c47c97d05821552db8832479f44c571b97fededbf0099c07"
 dependencies = [
  "small_ctor",
  "web-time",
+]
+
+[[package]]
+name = "fastlanes"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9272a674b446f53253f66582596614e41552d14968a3d1aaa590576a91c1188"
+dependencies = [
+ "const_for",
+ "core_detect",
+ "num-traits",
+ "paste",
+ "seq-macro",
 ]
 
 [[package]]
@@ -2689,6 +2723,7 @@ checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
 name = "native-bridge-common"
 version = "0.1.0"
 dependencies = [
+ "log",
  "native-bridge-macros",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
@@ -2861,6 +2896,7 @@ dependencies = [
  "object_store",
  "once_cell",
  "opensearch-block-cache",
+ "opensearch-query-spi",
  "opensearch-tiered-storage",
  "parking_lot",
  "parquet",
@@ -2882,12 +2918,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "opensearch-liquid-cache"
+version = "0.1.0"
+dependencies = [
+ "datafusion",
+ "log",
+ "native-bridge-common",
+ "opensearch-liquid-cache-core",
+ "opensearch-liquid-cache-datafusion",
+ "opensearch-query-spi",
+]
+
+[[package]]
+name = "opensearch-liquid-cache-core"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "arrow",
+ "arrow-schema",
+ "congee",
+ "datafusion-common",
+ "datafusion-expr-common",
+ "datafusion-physical-expr",
+ "fastlanes",
+ "log",
+ "num-traits",
+ "proptest",
+ "serde",
+]
+
+[[package]]
+name = "opensearch-liquid-cache-datafusion"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "arrow",
+ "arrow-schema",
+ "bytes",
+ "datafusion",
+ "futures",
+ "log",
+ "object_store",
+ "opensearch-liquid-cache-core",
+ "parquet",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "opensearch-native-lib"
 version = "0.1.0"
 dependencies = [
  "native-bridge-common",
  "opensearch-block-cache",
  "opensearch-datafusion",
+ "opensearch-liquid-cache",
  "opensearch-parquet-format",
  "opensearch-repository-azure",
  "opensearch-repository-fs",
@@ -2913,6 +2998,13 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "opensearch-query-spi"
+version = "0.1.0"
+dependencies = [
+ "datafusion",
 ]
 
 [[package]]

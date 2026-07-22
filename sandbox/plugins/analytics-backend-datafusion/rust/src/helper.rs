@@ -178,6 +178,9 @@ pub fn build_query_session_context(
         // combine-partial-final physical optimizer pass.
         builder = builder.with_physical_optimizer_rules(physical_optimizer_rules_without_combine());
     }
+    for rule in crate::optimizer_providers::enabled_optimizer_rules() {
+        builder = builder.with_physical_optimizer_rule(rule);
+    }
     let state = builder.build();
 
     let ctx = SessionContext::new_with_state(state);

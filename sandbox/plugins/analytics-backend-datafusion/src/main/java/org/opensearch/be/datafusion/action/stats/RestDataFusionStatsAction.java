@@ -57,7 +57,8 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
         "plan_setup",
         "fragment_executor_gate",
         "adaptive_budget",
-        "disk_spill"
+        "disk_spill",
+        "liquid_cache"
     );
 
     /**
