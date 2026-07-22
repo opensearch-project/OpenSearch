@@ -24,6 +24,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -34,6 +35,7 @@ import org.opensearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +56,30 @@ import java.util.function.BooleanSupplier;
 final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneFilterDelegationHandle.class);
+
+    /**
+     * Probe-scorer cost gate threshold (percentage, 0-100). When a scorer's
+     * estimated cost exceeds this percentage of the segment's maxDoc, the probe
+     * scan is skipped (all RGs marked as matching). Default 5%.
+     * <p>
+     * Dynamically updatable via cluster setting:
+     * {@code PUT _cluster/settings {"transient":{"analytics.lucene.probe_threshold_percent": 10}}}
+     */
+    public static final Setting<Integer> PROBE_THRESHOLD_PERCENT_SETTING = Setting.intSetting(
+        "analytics.lucene.probe_threshold_percent",
+        1,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static volatile int probeThresholdPercent = 1;
+
+    static void setProbeThresholdPercent(int percent) {
+        probeThresholdPercent = percent;
+        LOGGER.info("[probe-skip] Probe threshold updated to {}%", percent);
+    }
 
     // TODO: lazy query compilation for performance-delegated predicates. Today
     // every delegated expression is compiled (QueryBuilder → Lucene Query) at
@@ -139,6 +165,21 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
     @Override
     public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
+        // Legacy entry point — preserves old behavior where null scorer
+        // returns a valid collectorKey (collectDocs returns empty bitsets).
+        long packed = createCollectorWithCost(providerKey, writerGeneration, minDoc, maxDoc);
+        if (packed == -1L) return -1;
+        if (packed == -2L) {
+            // Segment empty — store null scorer with a valid key (old behavior)
+            int collectorKey = nextCollectorKey.getAndIncrement();
+            scorersByCollectorKey.put(collectorKey, new ScorerHandle(null, minDoc, maxDoc));
+            return collectorKey;
+        }
+        return (int) (packed & 0xFFFFFFFFL);
+    }
+
+    @Override
+    public long createCollectorWithCost(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
         Weight weight = weightsByProviderKey.get(providerKey);
         if (weight == null) {
             return -1;
@@ -186,23 +227,188 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
         try {
             Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                return -2L;
+            }
+            long cost = scorer.iterator().cost();
             int collectorKey = nextCollectorKey.getAndIncrement();
             scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
+            // Pack: upper 32 bits = cost (capped), lower 32 bits = collectorKey
+            int costCapped = (int) Math.min(cost, Integer.MAX_VALUE);
             LOGGER.debug(
-                "[scf] createCollector providerKey={} writerGeneration={} range=[{},{}) → collectorKey={}",
-                providerKey,
-                writerGeneration,
-                minDoc,
-                maxDoc,
+                "[probe-skip] COST: cost={} segMaxDoc={} ({}%) collectorKey={}",
+                cost,
+                leaf.reader().maxDoc(),
+                (cost * 100) / leaf.reader().maxDoc(),
                 collectorKey
             );
-            return collectorKey;
+            return ((long) costCapped << 32) | (collectorKey & 0xFFFFFFFFL);
         } catch (IOException exception) {
             LOGGER.error(
                 "createCollector failed for providerKey=" + providerKey + ", writerGeneration=" + writerGeneration + ", segment=" + segName,
                 exception
             );
             return -1;
+        }
+    }
+
+    @Override
+    public long createCollectorWithProbe(
+        int providerKey,
+        long writerGeneration,
+        int minDoc,
+        int maxDoc,
+        int[] rgMins,
+        int[] rgMaxs,
+        byte[] outMatch
+    ) {
+        Weight weight = weightsByProviderKey.get(providerKey);
+        if (weight == null) {
+            return -1L;
+        }
+        String segName = generationToSegmentName.get(writerGeneration);
+        if (segName == null) {
+            LOGGER.error(
+                "createCollectorWithProbe: no Lucene segment for writer_generation={} (providerKey={}). Known generations: {}",
+                writerGeneration,
+                providerKey,
+                generationToSegmentName.keySet()
+            );
+            return -1L;
+        }
+        LeafReaderContext leaf = null;
+        for (LeafReaderContext lrc : leaves) {
+            if (unwrapSegmentReader(lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+                leaf = lrc;
+                break;
+            }
+        }
+        if (leaf == null) {
+            LOGGER.error(
+                "createCollectorWithProbe: segment name [{}] not found in leaves (writerGeneration={}, providerKey={})",
+                segName,
+                writerGeneration,
+                providerKey
+            );
+            return -1L;
+        }
+
+        try {
+            // Create the collection scorer
+            Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                // No docs match in this segment — signal to Rust
+                Arrays.fill(outMatch, (byte) 0);
+                return -2L;
+            }
+
+            // Read cost before storing scorer — cost() is a pure metadata getter
+            // on the iterator but we read it early to avoid any concern about
+            // state coupling with later collectDocs calls.
+            long cost = scorer.iterator().cost();
+
+            int collectorKey = nextCollectorKey.getAndIncrement();
+            scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
+
+            // Cost-based gate: skip the probe when cost exceeds threshold% of segment.
+            // At that density, docs are spread across nearly all RGs — probing would
+            // return all-1s. Threshold configurable via cluster setting (default 1%).
+            long segMaxDoc = leaf.reader().maxDoc();
+            int threshold = probeThresholdPercent;
+            if (threshold > 0 && cost * 100 > segMaxDoc * threshold) {
+                Arrays.fill(outMatch, (byte) 1);
+                long packed = ((long) 0 << 32) | (collectorKey & 0xFFFFFFFFL);
+                return packed;
+            }
+
+            // Selective query — create a probe scorer for RG-level skip detection
+            int firstDoc = -1;
+            Scorer probeScorer = weight.scorer(leaf);
+            if (probeScorer != null) {
+                DocIdSetIterator probeIter = probeScorer.iterator();
+                int probeDoc = probeIter.nextDoc();
+                firstDoc = probeDoc;
+
+                for (int i = 0; i < rgMins.length; i++) {
+                    if (probeDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        outMatch[i] = 0;
+                        continue;
+                    }
+                    if (probeDoc < rgMins[i]) {
+                        probeDoc = probeIter.advance(rgMins[i]);
+                    }
+                    if (probeDoc < rgMaxs[i]) {
+                        outMatch[i] = (byte) 1;
+                    } else {
+                        outMatch[i] = (byte) 0;
+                    }
+                }
+            } else {
+                Arrays.fill(outMatch, (byte) 1);
+            }
+
+            long packed = ((long) Math.max(firstDoc, 0) << 32) | (collectorKey & 0xFFFFFFFFL);
+            return packed;
+        } catch (IOException exception) {
+            LOGGER.error(
+                "createCollectorWithProbe failed for providerKey=" + providerKey + ", writerGeneration=" + writerGeneration,
+                exception
+            );
+            return -1L;
+        }
+    }
+
+    @Override
+    public long probeCollector(int providerKey, long writerGeneration, int[] rgMins, int[] rgMaxs, byte[] outMatch) {
+        Weight weight = weightsByProviderKey.get(providerKey);
+        if (weight == null) {
+            return -1L;
+        }
+        String segName = generationToSegmentName.get(writerGeneration);
+        if (segName == null) {
+            return -1L;
+        }
+        LeafReaderContext leaf = null;
+        for (LeafReaderContext lrc : leaves) {
+            if (unwrapSegmentReader(lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+                leaf = lrc;
+                break;
+            }
+        }
+        if (leaf == null) {
+            return -1L;
+        }
+
+        try {
+            Scorer probeScorer = weight.scorer(leaf);
+            if (probeScorer == null) {
+                Arrays.fill(outMatch, (byte) 0);
+                return 0L;
+            }
+            DocIdSetIterator probeIter = probeScorer.iterator();
+            int probeDoc = probeIter.nextDoc();
+            int skipped = 0;
+
+            for (int i = 0; i < rgMins.length; i++) {
+                if (probeDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    outMatch[i] = 0;
+                    skipped++;
+                    continue;
+                }
+                if (probeDoc < rgMins[i]) {
+                    probeDoc = probeIter.advance(rgMins[i]);
+                }
+                if (probeDoc < rgMaxs[i]) {
+                    outMatch[i] = (byte) 1;
+                } else {
+                    outMatch[i] = (byte) 0;
+                    skipped++;
+                }
+            }
+            return skipped;
+        } catch (IOException exception) {
+            LOGGER.error("probeCollector failed for providerKey=" + providerKey, exception);
+            return -1L;
         }
     }
 

@@ -322,6 +322,8 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(CollectorLeafBitmaps {
                     ffm_collector_calls: sm.ffm_collector_calls.clone(),
+                    probe_rg_can_match: std::collections::HashMap::new(),
+                    rg_index_to_pos: std::collections::HashMap::new(),
                 }),
                 page_pruner: pruner,
                 cost_predicate: 1,
@@ -334,7 +336,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
                 stats_prune_tree: None,
-                rg_index_to_pos: HashMap::new(),
+                rg_index_to_pos: std::collections::HashMap::new(),
             });
             Ok(eval)
         })
@@ -378,6 +380,7 @@ async fn run_single_collector(
                 None,
                     None,
                     std::collections::HashMap::new(),
+            None,
             ));
             Ok(eval)
         })

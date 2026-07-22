@@ -169,6 +169,7 @@ async fn run_two_segment_query(
                     None,
                     None,
                     std::collections::HashMap::new(),
+            None,
                 ),
             );
             Ok(eval)
@@ -383,6 +384,7 @@ async fn run_two_segment_query_witness(
                     None,
                     None,
                     std::collections::HashMap::new(),
+            None,
                 ),
             );
             Ok(eval)
@@ -597,6 +599,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                     None,
                     None,
                     std::collections::HashMap::new(),
+            None,
                 ),
             );
             Ok(eval)

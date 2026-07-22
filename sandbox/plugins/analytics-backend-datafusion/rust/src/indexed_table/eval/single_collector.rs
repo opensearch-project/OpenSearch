@@ -184,8 +184,13 @@ pub struct SingleCollectorEvaluator {
     bloom_config: Option<BloomConfig>,
     /// Precomputed per-RG/subtree match status from RG-level column stats.
     stats_prune_tree: Option<Arc<StatsPruneTree>>,
-    /// Reverse map: absolute RG index → position in `rg_can_match` vectors.
+    /// Reverse map: absolute RG index → position in per-RG vectors
+    /// (`rg_can_match`, `stats_prune_tree`).
     rg_index_to_pos: HashMap<usize, usize>,
+    /// Per-RG match flags from the probe scorer. `None` = no probe info
+    /// available (legacy path). `Some(v)` where `v[pos]` = false means the
+    /// Lucene posting list has no docs in that RG's range — skip without FFM.
+    probe_rg_can_match: Option<Vec<bool>>,
 }
 
 /// Resources needed for per-RG bloom filter pruning.
@@ -215,6 +220,7 @@ impl SingleCollectorEvaluator {
         bloom_config: Option<BloomConfig>,
         stats_prune_tree: Option<Arc<StatsPruneTree>>,
         rg_index_to_pos: HashMap<usize, usize>,
+        probe_rg_can_match: Option<Vec<bool>>,
     ) -> Self {
         Self {
             collector,
@@ -231,6 +237,7 @@ impl SingleCollectorEvaluator {
             bloom_config,
             stats_prune_tree,
             rg_index_to_pos,
+            probe_rg_can_match,
         }
     }
 }
@@ -270,6 +277,22 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         max_doc: i32,
     ) -> Result<Option<PrefetchedRg>, String> {
         let t = Instant::now();
+
+        // Probe-scorer RG skip: determined at createCollector time via a
+        // forward-pass advance scan over all RG boundaries. No FFM call.
+        if let Some(ref probe) = self.probe_rg_can_match {
+            if let Some(&pos) = self.rg_index_to_pos.get(&rg.index) {
+                if let Some(&false) = probe.get(pos) {
+                    native_bridge_common::log_debug!(
+                        "[probe-skip] RG_SKIPPED: rg_index={} range=[{},{}) — probe confirmed no docs",
+                        rg.index,
+                        min_doc,
+                        max_doc
+                    );
+                    return Ok(None);
+                }
+            }
+        }
 
         // RG-level early-exit: precomputed from column stats at construction.
         if let Some(ref spt) = self.stats_prune_tree {
@@ -737,6 +760,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            None,
         );
 
         let rg = RowGroupInfo {
@@ -768,6 +792,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            None,
         );
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
@@ -811,6 +836,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            None,
         );
         assert!(eval.needs_row_mask());
     }
@@ -834,6 +860,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            None,
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -869,6 +896,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            None,
         );
 
         let rg = RowGroupInfo {
@@ -906,6 +934,7 @@ mod tests {
             None,
             Some(Arc::new(spt)),
             HashMap::from([(0, 0)]),
+            None,
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -940,6 +969,7 @@ mod tests {
             None,
             Some(Arc::new(spt)),
             HashMap::from([(0, 0)]),
+            None,
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -974,6 +1004,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            None,
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -986,6 +1017,152 @@ mod tests {
             .expect("should have matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
         assert_eq!(got, vec![1u32, 5]);
+    }
+
+    // ── Probe-scorer RG-skip tests ──
+
+    #[test]
+    fn probe_rg_can_match_false_skips_rg() {
+        let collector = Arc::new(StubCollector {
+            docs: vec![0, 3, 7],
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::from([(0, 0)]),
+            Some(vec![false]), // probe says: no docs in RG 0
+        );
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
+    }
+
+    #[test]
+    fn probe_rg_can_match_true_does_not_skip() {
+        let collector = Arc::new(StubCollector {
+            docs: vec![0, 3, 7],
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::from([(0, 0)]),
+            Some(vec![true]), // probe says: docs exist in RG 0
+        );
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("should have matches");
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, vec![0u32, 3, 7]);
+    }
+
+    #[test]
+    fn probe_none_does_not_skip() {
+        let collector = Arc::new(StubCollector {
+            docs: vec![0, 3, 7],
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::from([(0, 0)]),
+            None, // no probe info — legacy path
+        );
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        let prefetched = eval
+            .prefetch_rg(&rg, 0, 8)
+            .unwrap()
+            .expect("should have matches");
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, vec![0u32, 3, 7]);
+    }
+
+    #[test]
+    fn probe_skips_second_rg_but_not_first() {
+        let collector = Arc::new(StubCollector {
+            docs: vec![0, 3, 7],
+        }) as Arc<dyn RowGroupDocsCollector>;
+        let pruner = minimal_page_pruner();
+        // 2 RGs: first has matches, second doesn't
+        let eval = SingleCollectorEvaluator::new(
+            Some(collector),
+            pruner,
+            None,
+            None,
+            None,
+            None,
+            CollectorCallStrategy::FullRange,
+            Arc::new(HashMap::new()),
+            0,
+            Arc::new(FfmDelegatedBackendCollectorFactory),
+            0,
+            None,
+            None,
+            HashMap::from([(0, 0), (1, 1)]),
+            Some(vec![true, false]),
+        );
+        // RG 0: should produce results
+        let rg0 = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
+        assert!(eval.prefetch_rg(&rg0, 0, 8).unwrap().is_some());
+
+        // RG 1: should be skipped by probe
+        let rg1 = RowGroupInfo {
+            index: 1,
+            first_row: 8,
+            num_rows: 8,
+        };
+        assert!(eval.prefetch_rg(&rg1, 8, 16).unwrap().is_none());
     }
 
     // Keep the `fmt` import used

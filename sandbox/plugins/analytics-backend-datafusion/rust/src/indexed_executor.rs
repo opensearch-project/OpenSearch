@@ -52,8 +52,13 @@ use crate::helper::{
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
-use crate::indexed_table::eval::{CollectorCallStrategy, RowGroupBitsetSource, TreeBitsetSource};
-use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, ProviderHandle};
+use crate::indexed_table::eval::{
+    CollectorCallStrategy, EmptySegmentEvaluator, RowGroupBitsetSource, TreeBitsetSource,
+};
+use crate::indexed_table::ffm_callbacks::{
+    create_collector_with_probe, create_provider, CreateCollectorOutcome, FfmSegmentCollector,
+    ProviderHandle,
+};
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::segment_info::build_segments;
@@ -1189,37 +1194,70 @@ async unsafe fn execute_indexed_with_context_inner(
                           chunk,
                           stream_metrics: &StreamMetrics,
                           stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
-                        let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> =
-                            match &correctness_provider {
-                                Some(provider) => {
-                                    let collector = FfmSegmentCollector::create(
-                                context_id,
-                                provider.key(),
-                                segment.writer_generation,
-                                chunk.doc_min,
-                                chunk.doc_max,
-                            )
-                            .map_err(|e| {
-                                format!(
-                                    "FfmSegmentCollector::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                        let (collector_opt, probe_rg_can_match): (
+                            Option<Arc<dyn RowGroupDocsCollector>>,
+                            Option<Vec<bool>>,
+                        ) = match &correctness_provider {
+                            Some(provider) => {
+                                let rg_boundaries: Vec<(i32, i32)> = chunk
+                                    .row_group_indices
+                                    .iter()
+                                    .filter_map(|&idx| {
+                                        segment.row_groups.iter().find(|rg| rg.index == idx)
+                                    })
+                                    .map(|rg| {
+                                        (rg.first_row as i32, (rg.first_row + rg.num_rows) as i32)
+                                    })
+                                    .collect();
+                                let outcome = create_collector_with_probe(
                                     context_id,
                                     provider.key(),
                                     segment.writer_generation,
                                     chunk.doc_min,
                                     chunk.doc_max,
-                                    e
+                                    &rg_boundaries,
                                 )
-                            })?;
-                                    Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
+                                .map_err(|e| {
+                                    format!(
+                                        "create_collector_with_probe(context_id={}, provider={}, \
+                                         writer_generation={}, doc_range=[{},{})): {}",
+                                        context_id,
+                                        provider.key(),
+                                        segment.writer_generation,
+                                        chunk.doc_min,
+                                        chunk.doc_max,
+                                        e
+                                    )
+                                })?;
+                                match outcome {
+                                    CreateCollectorOutcome::SegmentEmpty => {
+                                        log_debug!(
+                                            "[probe-skip] SEGMENT_EMPTY: writer_generation={} doc_range=[{},{})",
+                                            segment.writer_generation,
+                                            chunk.doc_min,
+                                            chunk.doc_max
+                                        );
+                                        let eval: Arc<dyn RowGroupBitsetSource> =
+                                            Arc::new(EmptySegmentEvaluator);
+                                        return Ok(eval);
+                                    }
+                                    CreateCollectorOutcome::Active {
+                                        collector,
+                                        first_doc: _,
+                                        rg_can_match,
+                                    } => (
+                                        Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>),
+                                        Some(rg_can_match),
+                                    ),
                                 }
-                                None => None,
-                            };
+                            }
+                            None => (None, None),
+                        };
                         let pruner = Arc::new(PagePruner::new(
                             &schema_for_pruner,
                             Arc::clone(&segment.metadata),
                             segment.arrow_schema.clone(),
                         ));
-                        // Bloom-filter row-group pruning is always enabled on the indexed read path.
                         let bloom_config =
                             Some(crate::indexed_table::eval::single_collector::BloomConfig {
                                 store: Arc::clone(&bloom_store),
@@ -1248,6 +1286,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             bloom_config,
                             stats_prune_tree.cloned(),
                             chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
+                            probe_rg_can_match,
                         ));
                         Ok(eval)
                     },
@@ -1323,23 +1362,76 @@ async unsafe fn execute_indexed_with_context_inner(
                           chunk,
                           stream_metrics: &StreamMetrics,
                           stats_prune_tree: Option<&Arc<StatsPruneTree>>| {
-                        // Build one collector per Collector leaf for this chunk.
+                        // Build one collector per Collector leaf with probe.
                         let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                             Vec::with_capacity(providers.len());
+                        let mut probe_per_leaf: HashMap<usize, Vec<bool>> = HashMap::new();
+                        let mut _all_segment_empty = true;
+
+                        // Only compute RG boundaries when there are Lucene leaves to probe.
+                        let rg_boundaries: Vec<(i32, i32)> = if providers.is_empty() {
+                            Vec::new()
+                        } else {
+                            chunk
+                                .row_group_indices
+                                .iter()
+                                .filter_map(|&idx| {
+                                    segment.row_groups.iter().find(|rg| rg.index == idx)
+                                })
+                                .map(|rg| {
+                                    (rg.first_row as i32, (rg.first_row + rg.num_rows) as i32)
+                                })
+                                .collect()
+                        };
+
                         for (idx, provider) in providers.iter().enumerate() {
-                            let collector = FfmSegmentCollector::create(
+                            let outcome = create_collector_with_probe(
                                 context_id,
                                 provider.key(),
                                 segment.writer_generation,
                                 chunk.doc_min,
                                 chunk.doc_max,
+                                &rg_boundaries,
                             )
                             .map_err(|e| format!("leaf {} collector: {}", idx, e))?;
-                            per_leaf.push((
-                                provider.key(),
-                                Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
-                            ));
+                            match outcome {
+                                CreateCollectorOutcome::SegmentEmpty => {
+                                    // Leaf has zero docs — mark all RGs as non-matching.
+                                    // Use a placeholder FfmSegmentCollector with key=-1
+                                    // (probe flags ensure collectDocs is never called).
+                                    let placeholder = FfmSegmentCollector {
+                                        context_id,
+                                        key: -1,
+                                    };
+                                    let collector_arc =
+                                        Arc::new(placeholder) as Arc<dyn RowGroupDocsCollector>;
+                                    let key = Arc::as_ptr(&collector_arc) as *const () as usize;
+                                    probe_per_leaf.insert(key, vec![false; rg_boundaries.len()]);
+                                    per_leaf.push((provider.key(), collector_arc));
+                                }
+                                CreateCollectorOutcome::Active {
+                                    collector,
+                                    first_doc: _,
+                                    rg_can_match,
+                                } => {
+                                    if rg_can_match.iter().any(|&m| m) {
+                                        _all_segment_empty = false;
+                                    }
+                                    let collector_arc =
+                                        Arc::new(collector) as Arc<dyn RowGroupDocsCollector>;
+                                    let key = Arc::as_ptr(&collector_arc) as *const () as usize;
+                                    probe_per_leaf.insert(key, rg_can_match);
+                                    per_leaf.push((provider.key(), collector_arc));
+                                }
+                            }
                         }
+
+                        // NOTE: Do NOT return EmptySegmentEvaluator here even if all
+                        // Lucene leaves are segment-empty. In INTERLEAVED trees (OR/NOT),
+                        // native Predicate branches can still produce results even when
+                        // Lucene leaves are empty. The per-leaf probe flags (all-false)
+                        // will correctly return empty bitmaps for those leaves during
+                        // tree evaluation.
 
                         let resolved = tree.resolve(&per_leaf).map_err(|e| {
                             format!(
@@ -1355,11 +1447,20 @@ async unsafe fn execute_indexed_with_context_inner(
                             segment.arrow_schema.clone(),
                         ));
 
+                        let rg_index_to_pos: HashMap<usize, usize> = chunk
+                            .row_group_indices
+                            .iter()
+                            .enumerate()
+                            .map(|(pos, &idx)| (idx, pos))
+                            .collect();
+
                         let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                             tree: resolved,
                             evaluator: Arc::new(BitmapTreeEvaluator),
                             leaves: Arc::new(CollectorLeafBitmaps {
                                 ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
+                                probe_rg_can_match: probe_per_leaf,
+                                rg_index_to_pos: rg_index_to_pos.clone(),
                             }),
                             page_pruner: pruner,
                             cost_predicate,
@@ -1371,12 +1472,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             )),
                             collector_strategy,
                             stats_prune_tree: stats_prune_tree.cloned(),
-                            rg_index_to_pos: chunk
-                                .row_group_indices
-                                .iter()
-                                .enumerate()
-                                .map(|(pos, &idx)| (idx, pos))
-                                .collect(),
+                            rg_index_to_pos,
                         });
                         Ok(eval)
                     },
