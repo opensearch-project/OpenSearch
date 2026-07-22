@@ -231,6 +231,148 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * Verifies that warm nodes are excluded when computing the hot (LOCAL_ONLY) shard limit.
+     * In a cluster with 2 hot nodes and 3 warm nodes, with max_shards_per_node=100, the hot
+     * shard ceiling should be 2 * 100 = 200 (not 5 * 100 = 500).
+     */
+    public void testWarmNodesAreExcludedFromHotShardLimit() {
+        int hotNodes = 2;
+        int warmNodes = 3;
+        int maxShardsPerNode = 100;
+        int existingOpenShards = 0;
+        ClusterState state = createClusterForShardLimitTestWithWarmNodes(hotNodes, warmNodes, 1, 0);
+
+        // Adding 201 shards should fail: 2 hot nodes * 100 = 200 ceiling, regardless of warm node count.
+        int newShards = (hotNodes * maxShardsPerNode) + 1;
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            newShards,
+            existingOpenShards,
+            maxShardsPerNode,
+            -1,
+            state.getNodes().getDataNodes().size() - state.getNodes().getWarmNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
+        assertTrue(errorMessage.isPresent());
+        assertEquals(
+            "this action would add ["
+                + newShards
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
+                + existingOpenShards
+                + "]/["
+                + (hotNodes * maxShardsPerNode)
+                + "] maximum LOCAL_ONLY shards open",
+            errorMessage.get()
+        );
+
+        // Adding exactly 200 shards should succeed.
+        int okShards = hotNodes * maxShardsPerNode;
+        Optional<String> noError = ShardLimitValidator.checkShardLimit(
+            okShards,
+            existingOpenShards,
+            maxShardsPerNode,
+            -1,
+            state.getNodes().getDataNodes().size() - state.getNodes().getWarmNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
+        assertFalse(noError.isPresent());
+    }
+
+    /**
+     * End-to-end test through the public validateShardLimit API. A cluster with 1 hot node and 3 warm
+     * nodes with max_shards_per_node=1 should fail index creation that would push hot shard count past
+     * the 1-node ceiling, even though 4 data-capable nodes exist.
+     */
+    public void testValidateShardLimitExcludesWarmNodes() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, false);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        // 1 hot + 3 warm. Hot ceiling = 1 * 1 = 1 shard. Existing open shard count = 1 (from helper).
+        final ClusterState state = createClusterForShardLimitTestWithWarmNodes(1, 3, 1, 0);
+        final ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit("abc", settings, state)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + 2
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
+                + 1
+                + "]/["
+                + 1
+                + "] maximum LOCAL_ONLY shards open;",
+            exception.getMessage()
+        );
+    }
+
+    /**
+     * When the cluster has only warm nodes (no hot data nodes), the effective hot node count is zero.
+     * The shard limit enforcement is skipped in this case (mirrors the existing "don't block during
+     * cluster setup" behavior), so index creation succeeds.
+     */
+    public void testAllWarmNodesClusterSkipsHotShardLimitEnforcement() {
+        int warmNodes = randomIntBetween(1, 5);
+        int hotDataOnlyNodeCount = 0;
+        ClusterState state = createClusterForShardLimitTestWithWarmNodes(hotDataOnlyNodeCount, warmNodes, 1, 0);
+
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            Integer.MAX_VALUE,
+            0L,
+            1,
+            -1,
+            state.getNodes().getDataNodes().size() - state.getNodes().getWarmNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
+        // nodeCount is 0 (dataNodes - warmNodes), so enforcement is skipped.
+        assertFalse(errorMessage.isPresent());
+    }
+
+    /**
+     * Sanity check that the REMOTE_CAPABLE (warm) pool path is unaffected and still counts warm nodes
+     * correctly. The hot fix must not break warm shard limit enforcement.
+     */
+    public void testWarmShardLimitUsesWarmNodeCount() {
+        int hotNodes = 2;
+        int warmNodes = 3;
+        int maxShardsPerWarmNode = 10;
+        ClusterState state = createClusterForShardLimitTestWithWarmNodes(hotNodes, warmNodes, 1, 0);
+
+        int newShards = (warmNodes * maxShardsPerWarmNode) + 1;
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            newShards,
+            0L,
+            maxShardsPerWarmNode,
+            -1,
+            state.getNodes().getWarmNodes().size(),
+            RoutingPool.REMOTE_CAPABLE
+        );
+        assertTrue(errorMessage.isPresent());
+        assertEquals(
+            "this action would add ["
+                + newShards
+                + "] total REMOTE_CAPABLE shards, but this cluster currently has ["
+                + 0
+                + "]/["
+                + (warmNodes * maxShardsPerWarmNode)
+                + "] maximum REMOTE_CAPABLE shards open",
+            errorMessage.get()
+        );
+
+        // Exactly at the warm ceiling should pass.
+        Optional<String> noError = ShardLimitValidator.checkShardLimit(
+            warmNodes * maxShardsPerWarmNode,
+            0L,
+            maxShardsPerWarmNode,
+            -1,
+            state.getNodes().getWarmNodes().size(),
+            RoutingPool.REMOTE_CAPABLE
+        );
+        assertFalse(noError.isPresent());
+    }
+
     public void testComputedMaxShardsOfClusterIntOverFlow() {
         final int maxShardLimitPerNode = 500_000_000;
         ClusterState state = createClusterForShardLimitTest(15, 1, 1);
@@ -555,6 +697,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         }
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getDataNodes()).thenReturn(dataNodes);
+        when(nodes.getWarmNodes()).thenReturn(emptyMap());
 
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -568,6 +711,37 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             metadata.persistentSettings(Settings.EMPTY);
         }
 
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).build();
+    }
+
+    /**
+     * Creates a cluster state with a mix of hot (data-only) and warm data nodes.
+     * Warm nodes are counted in both {@code dataNodes} and {@code warmNodes} maps,
+     * mirroring the production behavior where a node appears in {@link DiscoveryNodes#getDataNodes()}
+     * if it has any data-capable role (including warm).
+     */
+    public static ClusterState createClusterForShardLimitTestWithWarmNodes(int hotNodes, int warmNodes, int shardsInIndex, int replicas) {
+        final Map<String, DiscoveryNode> dataNodesMap = new HashMap<>();
+        final Map<String, DiscoveryNode> warmNodesMap = new HashMap<>();
+        for (int i = 0; i < hotNodes; i++) {
+            dataNodesMap.put("hot-" + randomAlphaOfLengthBetween(5, 15), mock(DiscoveryNode.class));
+        }
+        for (int i = 0; i < warmNodes; i++) {
+            String id = "warm-" + randomAlphaOfLengthBetween(5, 15);
+            DiscoveryNode warmNode = mock(DiscoveryNode.class);
+            dataNodesMap.put(id, warmNode);
+            warmNodesMap.put(id, warmNode);
+        }
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getDataNodes()).thenReturn(dataNodesMap);
+        when(nodes.getWarmNodes()).thenReturn(warmNodesMap);
+
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .creationDate(randomLong())
+            .numberOfShards(shardsInIndex)
+            .numberOfReplicas(replicas);
+        Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).build();
     }
 
@@ -586,6 +760,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         }
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getDataNodes()).thenReturn(dataNodes);
+        when(nodes.getWarmNodes()).thenReturn(emptyMap());
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         state = addOpenedIndex(openIndexName, openIndexShards, openIndexReplicas, state);
