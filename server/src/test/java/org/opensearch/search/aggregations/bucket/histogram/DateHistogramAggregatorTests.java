@@ -64,16 +64,19 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1928,6 +1931,69 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 fieldTypes
             )
         );
+    }
+
+    /**
+     * The intra-segment gate for date_histogram (no sub-agg): partition only when the filter-rewrite O(1) fast
+     * path can NOT apply upfront. Fast path applies for a searchable, UTC, top-level date_histogram → do not
+     * partition (false). It declines for non-UTC / non-searchable / nested → partition (true). With a sub-agg it
+     * always opts in (partition-aware collection).
+     */
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        // searchable UTC top-level, no sub-agg: fast path applies -> NOT intra-eligible
+        assertFalse(
+            supportsIntraSegmentSearch(
+                new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+                true
+            )
+        );
+
+        // non-UTC timezone, no sub-agg: fast path declines -> intra-eligible
+        assertTrue(
+            supportsIntraSegmentSearch(
+                new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                    .calendarInterval(DateHistogramInterval.YEAR)
+                    .timeZone(ZoneId.of("America/New_York")),
+                true
+            )
+        );
+
+        // non-searchable field, no sub-agg: fast path declines (canOptimize requires a searchable index) -> intra-eligible
+        assertTrue(
+            supportsIntraSegmentSearch(
+                new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+                false
+            )
+        );
+
+        // with a sub-aggregation: always intra-eligible (partition-aware collection)
+        assertTrue(
+            supportsIntraSegmentSearch(
+                new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                    .calendarInterval(DateHistogramInterval.YEAR)
+                    .subAggregation(new AvgAggregationBuilder("avg").field("n")),
+                true
+            )
+        );
+    }
+
+    private boolean supportsIntraSegmentSearch(DateHistogramAggregationBuilder builder, boolean searchable) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, searchable);
+            NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberFieldMapper.NumberType.LONG);
+            indexWriter.addDocument(List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z"))));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(builder)
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, dft, nft)
+                            .getQueryShardContext(),
+                        null
+                    );
+                return factories.allFactoriesSupportIntraSegmentSearch();
+            }
+        }
     }
 
     private static long asLong(String dateTime) {
