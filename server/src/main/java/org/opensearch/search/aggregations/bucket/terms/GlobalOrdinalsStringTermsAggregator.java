@@ -41,7 +41,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -274,13 +273,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     }
 
                     @Override
-                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                        super.collect(stream, owningBucketOrd);
-                    }
-
-                    @Override
-                    public void collectRange(int min, int max) throws IOException {
-                        super.collectRange(min, max);
+                    public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                        for (int i = 0; i < count; i++) {
+                            if (singleValues.advanceExact(docs[i])) {
+                                int globalOrd = singleValues.ordValue();
+                                collectionStrategy.collectGlobalOrd(owningBucketOrd, docs[i], globalOrd, sub);
+                            }
+                        }
                     }
                 });
             }
@@ -298,13 +297,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
-                }
-
-                @Override
-                public void collectRange(int min, int max) throws IOException {
-                    super.collectRange(min, max);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        if (singleValues.advanceExact(docs[i])) {
+                            int globalOrd = singleValues.ordValue();
+                            if (acceptedGlobalOrdinals.test(globalOrd)) {
+                                collectionStrategy.collectGlobalOrd(owningBucketOrd, docs[i], globalOrd, sub);
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -328,13 +329,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
-                }
-
-                @Override
-                public void collectRange(int min, int max) throws IOException {
-                    super.collectRange(min, max);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        if (globalOrds.advanceExact(docs[i])) {
+                            int ordCount = globalOrds.docValueCount();
+                            long globalOrd;
+                            while ((ordCount-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                                collectionStrategy.collectGlobalOrd(owningBucketOrd, docs[i], globalOrd, sub);
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -355,13 +359,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+            public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    if (globalOrds.advanceExact(docs[i])) {
+                        int ordCount = globalOrds.docValueCount();
+                        long globalOrd;
+                        while ((ordCount-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                            if (acceptedGlobalOrdinals.test(globalOrd)) {
+                                collectionStrategy.collectGlobalOrd(owningBucketOrd, docs[i], globalOrd, sub);
+                            }
+                        }
+                    }
+                }
             }
         });
     }
@@ -592,14 +601,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     }
 
                     @Override
-                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                        super.collect(stream, owningBucketOrd);
+                    public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                        assert owningBucketOrd == 0;
+                        for (int i = 0; i < count; i++) {
+                            if (singleValues.advanceExact(docs[i])) {
+                                int ord = singleValues.ordValue();
+                                long docCount = docCountProvider.getDocCount(docs[i]);
+                                segmentDocCounts.increment(ord + 1, docCount);
+                            }
+                        }
                     }
 
-                    @Override
-                    public void collectRange(int min, int max) throws IOException {
-                        super.collectRange(min, max);
-                    }
                 });
             }
             segmentsWithMultiValuedOrds++;
@@ -619,13 +631,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
-                }
-
-                @Override
-                public void collectRange(int min, int max) throws IOException {
-                    super.collectRange(min, max);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    assert owningBucketOrd == 0;
+                    for (int i = 0; i < count; i++) {
+                        if (segmentOrds.advanceExact(docs[i])) {
+                            int ordCount = segmentOrds.docValueCount();
+                            long segmentOrd;
+                            while ((ordCount-- > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                                long docCount = docCountProvider.getDocCount(docs[i]);
+                                segmentDocCounts.increment(segmentOrd + 1, docCount);
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -1235,13 +1252,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
-                }
-
-                @Override
-                public void collectRange(int min, int max) throws IOException {
-                    super.collectRange(min, max);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        collect(docs[i], owningBucketOrd);
+                    }
                 }
             };
         }
