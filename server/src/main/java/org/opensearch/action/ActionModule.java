@@ -157,6 +157,7 @@ import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.ModifyDataStreamsAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
@@ -429,6 +430,7 @@ import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
+import org.opensearch.rest.action.admin.indices.RestModifyDataStreamsAction;
 import org.opensearch.rest.action.admin.indices.RestOpenIndexAction;
 import org.opensearch.rest.action.admin.indices.RestPauseIngestionAction;
 import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
@@ -803,6 +805,7 @@ public class ActionModule extends AbstractModule {
         // Data streams:
         actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
         actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
+        actions.register(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsAction.TransportAction.class);
         actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
@@ -1031,6 +1034,7 @@ public class ActionModule extends AbstractModule {
         // Data Stream API
         registerHandler.accept(new RestCreateDataStreamAction());
         registerHandler.accept(new RestDeleteDataStreamAction());
+        registerHandler.accept(new RestModifyDataStreamsAction());
         registerHandler.accept(new RestGetDataStreamsAction());
         registerHandler.accept(new RestResolveIndexAction());
         registerHandler.accept(new RestDataStreamsStatsAction());
