@@ -54,9 +54,13 @@ public class DataStreamRestoreAutoAttachIT extends AbstractSnapshotIntegTestCase
     }
 
     private List<String> backingIndices() throws Exception {
+        return backingIndices(DS);
+    }
+
+    private List<String> backingIndices(String dataStream) throws Exception {
         return client().admin()
             .indices()
-            .getDataStreams(new GetDataStreamAction.Request(new String[] { DS }))
+            .getDataStreams(new GetDataStreamAction.Request(new String[] { dataStream }))
             .get()
             .getDataStreams()
             .get(0)
@@ -125,5 +129,44 @@ public class DataStreamRestoreAutoAttachIT extends AbstractSnapshotIntegTestCase
         );
         // Generation stays at 4 (gen-3 is not the write index); reattaching a lower-counter index does not change it.
         assertThat(generation(), equalTo(4L));
+    }
+
+    public void testRestoreWithRenameAttachesToRenamedStream() throws Exception {
+        createRepository(REPO, "fs");
+        createTemplate();
+
+        // Source stream logs-attach at generation 2.
+        assertAcked(client().admin().indices().createDataStream(new CreateDataStreamAction.Request(DS)).get());
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(DS, null)).get().isRolledOver(), equalTo(true)); // gen 2
+        createSnapshot(REPO, "snap", List.of(DS));
+
+        // A separate target stream logs-renamed also at generation 2, missing its gen-1 backing index.
+        String renamedStream = "logs-renamed";
+        assertAcked(client().admin().indices().createDataStream(new CreateDataStreamAction.Request(renamedStream)).get());
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(renamedStream, null)).get().isRolledOver(), equalTo(true));
+        String renamedGen1 = DataStream.getDefaultBackingIndexName(renamedStream, 1);
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(renamedStream, null)).get().isRolledOver(), equalTo(true));
+        assertAcked(
+            client().execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(renamedStream, renamedGen1)))
+            ).get()
+        );
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(renamedGen1)).get());
+
+        // Restore logs-attach's gen-1 index, renaming it to logs-renamed's gen-1 name. Auto-attach keys off the
+        // post-rename name, so it joins the renamed stream, not the source stream.
+        RestoreSnapshotResponse restore = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, "snap")
+            .setIndices(DataStream.getDefaultBackingIndexName(DS, 1))
+            .setRenamePattern(DS)
+            .setRenameReplacement(renamedStream)
+            .setAttachToDataStream(true)
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restore.getRestoreInfo().successfulShards(), equalTo(restore.getRestoreInfo().totalShards()));
+
+        assertTrue(backingIndices(renamedStream).contains(renamedGen1));
     }
 }
