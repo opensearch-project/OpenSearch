@@ -168,6 +168,22 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertNull(DataStream.parseDataStreamName(".ds-logs-foo"));
     }
 
+    public void testAddBackingIndexWithCounterAboveIntMax() {
+        // A counter beyond Integer.MAX_VALUE must still parse: generation is a long, and parseDataStreamName accepts a
+        // numeric suffix of any length, so backingIndexCounterOrMin must not overflow an int.
+        String dataStreamName = "logs-foo";
+        long bigCounter = ((long) Integer.MAX_VALUE) + 5;
+        List<Index> indices = new ArrayList<>();
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.randomBase64UUID(random())));
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, 1);
+
+        Index big = new Index(getDefaultBackingIndexName(dataStreamName, bigCounter), UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.addBackingIndex(big);
+
+        assertThat(updated.getGeneration(), equalTo(bigCounter));
+        assertThat(updated.getIndices().get(updated.getIndices().size() - 1), equalTo(big));
+    }
+
     public void testDefaultBackingIndexName() {
         // this test does little more than flag that changing the default naming convention for backing indices
         // will also require changing a lot of hard-coded values in REST tests and docs

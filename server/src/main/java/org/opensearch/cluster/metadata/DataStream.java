@@ -168,13 +168,15 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
-     * Returns the trailing generation counter of a backing index that follows the {@code .ds-<dataStream>-NNNNNN}
-     * naming convention, or {@link Long#MIN_VALUE} for any other name (so non-convention indices sort before all
-     * convention-named ones and never become the write index).
+     * Returns the generation counter of a backing index named {@code .ds-<dataStreamName>-NNNNNN}, or
+     * {@link Long#MIN_VALUE} for any other name so that non-convention indices sort before convention-named ones and
+     * never become the write index.
      */
     static long backingIndexCounterOrMin(String dataStreamName, String indexName) {
-        String parsedName = parseDataStreamName(indexName);
-        return dataStreamName.equals(parsedName) ? IndexMetadata.parseIndexNameCounter(indexName) : Long.MIN_VALUE;
+        if (dataStreamName.equals(parseDataStreamName(indexName)) == false) {
+            return Long.MIN_VALUE;
+        }
+        return Long.parseLong(indexName.substring(indexName.lastIndexOf('-') + 1));
     }
 
     /**
