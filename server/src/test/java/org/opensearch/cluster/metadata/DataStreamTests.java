@@ -113,6 +113,61 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         }
     }
 
+    public void testAddBackingIndexAdvancesGenerationForHigherCounter() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        List<Index> indices = new ArrayList<>();
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.randomBase64UUID(random())));
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, 2), UUIDs.randomBase64UUID(random())));
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, 2);
+
+        Index next = new Index(getDefaultBackingIndexName(dataStreamName, 3), UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.addBackingIndex(next);
+
+        assertThat(updated.getGeneration(), equalTo(3L));
+        // The higher-counter index becomes the write (last) index.
+        assertThat(updated.getIndices().get(updated.getIndices().size() - 1), equalTo(next));
+    }
+
+    public void testAddBackingIndexReordersAndKeepsGenerationForLowerCounter() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        List<Index> indices = new ArrayList<>();
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.randomBase64UUID(random())));
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, 3), UUIDs.randomBase64UUID(random())));
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, 3);
+
+        Index gen2 = new Index(getDefaultBackingIndexName(dataStreamName, 2), UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.addBackingIndex(gen2);
+
+        // Generation unchanged; the re-added index lands in counter order, not at the end.
+        assertThat(updated.getGeneration(), equalTo(3L));
+        assertThat(updated.getIndices().get(1), equalTo(gen2));
+        assertThat(updated.getIndices().get(2).getName(), equalTo(getDefaultBackingIndexName(dataStreamName, 3)));
+    }
+
+    public void testAddArbitraryNamedBackingIndexSortsFirstAndKeepsGeneration() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        List<Index> indices = new ArrayList<>();
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.randomBase64UUID(random())));
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, 1);
+
+        Index legacy = new Index("legacy-index", UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.addBackingIndex(legacy);
+
+        assertThat(updated.getGeneration(), equalTo(1L));
+        // Arbitrary-named index sorts first (oldest); the convention write index stays last.
+        assertThat(updated.getIndices().get(0), equalTo(legacy));
+        assertThat(updated.getIndices().get(1).getName(), equalTo(getDefaultBackingIndexName(dataStreamName, 1)));
+    }
+
+    public void testParseDataStreamName() {
+        assertThat(DataStream.parseDataStreamName(".ds-logs-foo-000003"), equalTo("logs-foo"));
+        assertThat(DataStream.parseDataStreamName(".ds-logs-foo-1234567"), equalTo("logs-foo"));
+        assertNull(DataStream.parseDataStreamName("logs-foo-000003"));
+        assertNull(DataStream.parseDataStreamName(".ds-logs-foo-notanumber"));
+        assertNull(DataStream.parseDataStreamName(".ds-000003"));
+        assertNull(DataStream.parseDataStreamName(".ds-logs-foo"));
+    }
+
     public void testDefaultBackingIndexName() {
         // this test does little more than flag that changing the default naming convention for backing indices
         // will also require changing a lot of hard-coded values in REST tests and docs

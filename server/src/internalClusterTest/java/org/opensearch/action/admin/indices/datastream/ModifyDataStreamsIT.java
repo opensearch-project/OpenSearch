@@ -14,6 +14,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -102,37 +103,26 @@ public class ModifyDataStreamsIT extends DataStreamTestCase {
         assertThat(generation(), equalTo(3L));
     }
 
-    public void testReattachMarksIndexHidden() throws Exception {
+    public void testDetachUnhidesAndReattachHidesBackingIndex() throws Exception {
         createDataStreamIndexTemplate("template", List.of("logs-*"));
         createDataStream(DS);
         rolloverDataStream(DS); // gen 2, backing [1, 2]
 
         String detached = DataStream.getDefaultBackingIndexName(DS, 1);
+        // Backing indices are hidden.
+        assertThat(hidden(detached), equalTo(true));
+
+        // Detaching makes it visible again (mirrors hide-on-attach).
         assertAcked(modify(List.of(DataStreamAction.removeBackingIndex(DS, detached))));
+        assertThat(hidden(detached), equalTo(false));
 
-        // Un-hide the detached index to simulate an index that arrived without the backing-index hidden setting.
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(detached)
-                .setSettings(org.opensearch.common.settings.Settings.builder().put("index.hidden", false))
-                .get()
-        );
-        assertThat(
-            org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING.get(
-                client().admin().cluster().prepareState().get().getState().metadata().index(detached).getSettings()
-            ),
-            equalTo(false)
-        );
-
-        // Re-attaching it must restore the hidden setting that all backing indices carry.
+        // Re-attaching hides it again, like every backing index.
         assertAcked(modify(List.of(DataStreamAction.addBackingIndex(DS, detached))));
-        assertThat(
-            org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING.get(
-                client().admin().cluster().prepareState().get().getState().metadata().index(detached).getSettings()
-            ),
-            equalTo(true)
-        );
+        assertThat(hidden(detached), equalTo(true));
+    }
+
+    private boolean hidden(String index) {
+        return INDEX_HIDDEN_SETTING.get(client().admin().cluster().prepareState().get().getState().metadata().index(index).getSettings());
     }
 
     public void testMigrateArbitraryNamedIndexIntoDataStream() throws Exception {
@@ -144,7 +134,10 @@ public class ModifyDataStreamsIT extends DataStreamTestCase {
         long genBefore = generation();
 
         String legacy = "legacy-logs-2023";
-        assertAcked(client().admin().indices().prepareCreate(legacy).get());
+        // The index must map the data stream's @timestamp field as a date for data stream search to work.
+        assertAcked(
+            client().admin().indices().prepareCreate(legacy).setMapping("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}").get()
+        );
 
         assertAcked(modify(List.of(DataStreamAction.addBackingIndex(DS, legacy))));
 
@@ -156,16 +149,29 @@ public class ModifyDataStreamsIT extends DataStreamTestCase {
         // Generation is unchanged (the migrated index is not the write index).
         assertThat(generation(), equalTo(genBefore));
         // The migrated index is now hidden like every backing index.
-        assertThat(
-            org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING.get(
-                client().admin().cluster().prepareState().get().getState().metadata().index(legacy).getSettings()
-            ),
-            equalTo(true)
-        );
+        assertThat(hidden(legacy), equalTo(true));
 
         // Rollover still advances correctly off the convention-following write index.
         rolloverDataStream(DS);
         assertThat(generation(), equalTo(genBefore + 1));
+    }
+
+    public void testCannotAddIndexWithoutTimestampMapping() throws Exception {
+        createDataStreamIndexTemplate("template", List.of("logs-*"));
+        createDataStream(DS);
+        rolloverDataStream(DS);
+
+        // Index has no @timestamp date field, so data stream search would not work; the add must be rejected.
+        String noTimestamp = "no-timestamp-idx";
+        assertAcked(
+            client().admin().indices().prepareCreate(noTimestamp).setMapping("{\"properties\":{\"msg\":{\"type\":\"text\"}}}").get()
+        );
+
+        Exception e = expectThrows(Exception.class, () -> modify(List.of(DataStreamAction.addBackingIndex(DS, noTimestamp))));
+        assertThat(
+            org.opensearch.ExceptionsHelper.unwrapCause(e).getMessage(),
+            containsString("does not have a [@timestamp] field mapped as a date type")
+        );
     }
 
     public void testRemoveAndReattachMultipleIndicesInSingleRequest() throws Exception {

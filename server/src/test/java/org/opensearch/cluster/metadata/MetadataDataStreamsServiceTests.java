@@ -14,12 +14,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,6 +28,29 @@ import static org.hamcrest.Matchers.equalTo;
 public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
 
     private static final String DS = "logs-foo";
+
+    /** A backing index with the @timestamp date mapping every data stream index requires. */
+    private static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
+        try {
+            return org.opensearch.cluster.DataStreamTestHelper.createBackingIndex(dataStreamName, generation)
+                .putMapping(generateMapping("@timestamp"));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** An arbitrary-named index carrying the given @timestamp mapping type ("date", "date_nanos", or "text"). */
+    private static IndexMetadata.Builder arbitraryIndex(String name, String timestampType) {
+        try {
+            return IndexMetadata.builder(name)
+                .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp", timestampType));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     /**
      * Builds a cluster state whose data stream {@code DS} has backing indices for exactly the given generations (the
@@ -101,14 +125,7 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         IndexMetadata writeIndex = createBackingIndex(DS, 1).build();
         metadata.put(writeIndex, false);
         metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(writeIndex.getIndex()), 1));
-        metadata.put(
-            IndexMetadata.builder("legacy-logs-2023")
-                .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build(),
-            false
-        );
+        metadata.put(arbitraryIndex("legacy-logs-2023", "date").build(), false);
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         ClusterState updated = MetadataDataStreamsService.modifyDataStream(
@@ -121,6 +138,58 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         assertThat(updated.metadata().dataStreams().get(DS).getGeneration(), equalTo(1L));
         // The migrated index is marked hidden like every backing index.
         assertThat(IndexMetadata.INDEX_HIDDEN_SETTING.get(updated.metadata().index("legacy-logs-2023").getSettings()), equalTo(true));
+    }
+
+    public void testAddIndexWithoutTimestampMappingFails() {
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata writeIndex = createBackingIndex(DS, 1).build();
+        metadata.put(writeIndex, false);
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(writeIndex.getIndex()), 1));
+        // Candidate index maps @timestamp as text, not a date type.
+        metadata.put(arbitraryIndex("legacy-logs-2023", "text").build(), false);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(state, List.of(DataStreamAction.addBackingIndex(DS, "legacy-logs-2023")))
+        );
+        assertThat(e.getMessage(), containsString("does not have a [@timestamp] field mapped as a date type"));
+    }
+
+    public void testAddConventionNamedIndexWithoutTimestampMappingFails() {
+        // A .ds-<name>-NNNNNN name is not proof the index came from create/rollover; a manually created index with the
+        // convention name but no timestamp mapping must still be rejected.
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata writeIndex = createBackingIndex(DS, 2).build();
+        metadata.put(writeIndex, false);
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(writeIndex.getIndex()), 2));
+        // Convention-named gen-1 index created manually with a non-date @timestamp mapping.
+        metadata.put(arbitraryIndex(DataStream.getDefaultBackingIndexName(DS, 1), "text").build(), false);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                state,
+                List.of(DataStreamAction.addBackingIndex(DS, DataStream.getDefaultBackingIndexName(DS, 1)))
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not have a [@timestamp] field mapped as a date type"));
+    }
+
+    public void testAddDateNanosTimestampMappingSucceeds() {
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata writeIndex = createBackingIndex(DS, 1).build();
+        metadata.put(writeIndex, false);
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(writeIndex.getIndex()), 1));
+        metadata.put(arbitraryIndex("legacy-logs-2023", "date_nanos").build(), false);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.addBackingIndex(DS, "legacy-logs-2023"))
+        );
+        assertThat(backingIndexNames(updated), contains("legacy-logs-2023", DataStream.getDefaultBackingIndexName(DS, 1)));
     }
 
     public void testRemoveBackingIndex() {
@@ -138,6 +207,20 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         );
         // Generation is unaffected by removing a non-write index.
         assertThat(updated.metadata().dataStreams().get(DS).getGeneration(), equalTo(3L));
+    }
+
+    public void testRemoveBackingIndexUnhidesIt() {
+        // Backing indices are hidden; detaching one makes it visible again, mirroring the hide-on-attach behavior.
+        ClusterState state = state(3, List.of(1, 2, 3));
+        String toRemove = DataStream.getDefaultBackingIndexName(DS, 1);
+        assertThat(IndexMetadata.INDEX_HIDDEN_SETTING.get(state.metadata().index(toRemove).getSettings()), equalTo(true));
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.removeBackingIndex(DS, toRemove))
+        );
+
+        assertThat(IndexMetadata.INDEX_HIDDEN_SETTING.get(updated.metadata().index(toRemove).getSettings()), equalTo(false));
     }
 
     public void testRemoveWriteIndexFails() {
@@ -175,7 +258,7 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         assertThat(ds.getGeneration(), equalTo(3L));
     }
 
-    public void testAddMarksBackingIndexHidden() {
+    public void testAddMarksBackingIndexHidden() throws IOException {
         // A standalone, non-hidden backing-index-named index at a counter <= generation.
         String DS_NAME = DS;
         Metadata.Builder metadata = Metadata.builder();
@@ -192,6 +275,7 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
             .build();
         // Stream at gen 2 with backing [2] only; gen-1 index is standalone and visible.
         metadata.put(visible, true);
@@ -232,11 +316,7 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         Metadata.Builder metadata = Metadata.builder();
         IndexMetadata a1 = createBackingIndex("logs-a", 1).build();
         IndexMetadata b1 = createBackingIndex("logs-b", 1).build();
-        IndexMetadata shared = IndexMetadata.builder("shared-idx")
-            .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetadata shared = arbitraryIndex("shared-idx", "date").build();
         metadata.put(a1, false);
         metadata.put(b1, false);
         metadata.put(shared, false);
@@ -258,14 +338,7 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
         metadata.put(b1, false);
         metadata.put(new DataStream("logs-a", createTimestampField("@timestamp"), List.of(a1.getIndex()), 1));
         metadata.put(new DataStream("logs-b", createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
-        metadata.put(
-            IndexMetadata.builder("legacy-idx")
-                .settings(org.opensearch.common.settings.Settings.builder().put("index.version.created", org.opensearch.Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build(),
-            false
-        );
+        metadata.put(arbitraryIndex("legacy-idx", "date").build(), false);
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         IllegalArgumentException e = expectThrows(

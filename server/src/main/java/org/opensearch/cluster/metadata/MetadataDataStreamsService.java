@@ -23,9 +23,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.mapper.DateFieldMapper;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +38,10 @@ import static org.opensearch.cluster.service.ClusterManagerTask.MODIFY_DATA_STRE
  * generation) is preserved: added indices become non-write backing indices, and the write index cannot be removed.
  * Added indices need not follow the {@code .ds-<dataStream>-NNNNNN} naming convention, which allows migrating
  * pre-existing regular indices into a data stream.
+ * <p>
+ * An added index is marked hidden (as all backing indices are) and a removed index is made visible again. If an index
+ * was hidden before it was ever a backing index, detaching it therefore leaves it visible; the caller can hide it
+ * again.
  * <p>
  * This service is injectable, so components such as cross-cluster replication can call {@link #modifyDataStream}
  * directly rather than through {@code ModifyDataStreamsAction}'s transport layer.
@@ -127,7 +130,7 @@ public class MetadataDataStreamsService {
                     dataStream = applyAddBackingIndex(metadataBuilder, dataStream, action.index());
                     break;
                 case REMOVE_BACKING_INDEX:
-                    dataStream = applyRemoveBackingIndex(dataStream, action.index());
+                    dataStream = applyRemoveBackingIndex(metadataBuilder, dataStream, action.index());
                     break;
                 default:
                     throw new IllegalArgumentException("unsupported data stream action type [" + action.type() + "]");
@@ -182,6 +185,11 @@ public class MetadataDataStreamsService {
             return dataStream;
         }
 
+        // Data stream search relies on the timestamp field, so every attached index must map it as a date, regardless
+        // of the index name (a .ds-<name>-NNNNNN name is not proof the index came from create/rollover; any index can
+        // be created with that name and an arbitrary mapping).
+        validateTimestampFieldMapping(indexMetadata, dataStream.getTimeStampField().getName());
+
         // Backing indices are hidden; mark the index hidden if it is not already, matching data stream creation and
         // rollover. put(IndexMetadata.Builder) bumps the index metadata version; the top-level Metadata version is
         // bumped by the cluster-manager service on publish.
@@ -193,31 +201,42 @@ public class MetadataDataStreamsService {
             index = hiddenIndexMetadata.build().getIndex();
         }
 
-        // Metadata validation rejects any convention-named index above the current generation, so the added index is
-        // always a non-write index: keep generation unchanged and re-sort so the write index stays last.
-        List<Index> updatedIndices = new ArrayList<>(dataStream.getIndices());
-        updatedIndices.add(index);
-        updatedIndices.sort(Comparator.comparingLong(i -> backingIndexSortKey(dataStream.getName(), i.getName())));
-
-        return new DataStream(dataStream.getName(), dataStream.getTimeStampField(), updatedIndices, dataStream.getGeneration());
+        // The added index is always a non-write index here, so DataStream#addBackingIndex leaves the generation
+        // unchanged: a convention-named index whose counter exceeds the current generation cannot exist in cluster
+        // state alongside a lower-generation stream (Metadata#validateDataStreams rejects it), and this API does not
+        // create indices. New write indices are introduced by rollover or attached during restore.
+        return dataStream.addBackingIndex(index);
     }
 
     /**
-     * Orders backing indices oldest-to-newest: convention-named indices ({@code .ds-<dataStream>-NNNNNN}) sort by their
-     * counter, while arbitrary-named indices have no counter and sort first, keeping the write index last.
+     * Verifies the index maps the data stream's timestamp field as a date type, which data stream search requires.
+     * Shared by the add-backing-index API and by auto-attach on snapshot restore.
      */
-    private static long backingIndexSortKey(String dataStreamName, String indexName) {
-        String expectedPrefix = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-";
-        if (indexName.startsWith(expectedPrefix)) {
-            String counter = indexName.substring(expectedPrefix.length());
-            if (Metadata.NUMBER_PATTERN.matcher(counter).matches()) {
-                return Long.parseLong(counter);
+    @SuppressWarnings("unchecked")
+    public static void validateTimestampFieldMapping(IndexMetadata indexMetadata, String timestampFieldName) {
+        MappingMetadata mapping = indexMetadata.mapping();
+        Object type = null;
+        if (mapping != null) {
+            Object properties = mapping.sourceAsMap().get("properties");
+            if (properties instanceof Map) {
+                Object field = ((Map<String, Object>) properties).get(timestampFieldName);
+                if (field instanceof Map) {
+                    type = ((Map<String, Object>) field).get("type");
+                }
             }
         }
-        return Long.MIN_VALUE;
+        if (DateFieldMapper.CONTENT_TYPE.equals(type) == false && DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type) == false) {
+            throw new IllegalArgumentException(
+                "index ["
+                    + indexMetadata.getIndex().getName()
+                    + "] cannot be added as a backing index because it does not have a ["
+                    + timestampFieldName
+                    + "] field mapped as a date type"
+            );
+        }
     }
 
-    private static DataStream applyRemoveBackingIndex(DataStream dataStream, String indexName) {
+    private static DataStream applyRemoveBackingIndex(Metadata.Builder metadataBuilder, DataStream dataStream, String indexName) {
         Index toRemove = null;
         for (Index index : dataStream.getIndices()) {
             if (index.getName().equals(indexName)) {
@@ -246,6 +265,16 @@ public class MetadataDataStreamsService {
                     + "] of data stream ["
                     + dataStream.getName()
                     + "] because it is the write index"
+            );
+        }
+        // Mirror the hidden setting applied on attach: a detached index is no longer a backing index, so make it
+        // visible again. If it was hidden before it was ever a backing index, the caller can hide it again.
+        IndexMetadata detached = metadataBuilder.get(indexName);
+        if (detached != null && IndexMetadata.INDEX_HIDDEN_SETTING.get(detached.getSettings())) {
+            metadataBuilder.put(
+                IndexMetadata.builder(detached)
+                    .settings(Settings.builder().put(detached.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, false))
+                    .settingsVersion(detached.getSettingsVersion() + 1)
             );
         }
         return dataStream.removeBackingIndex(toRemove);
