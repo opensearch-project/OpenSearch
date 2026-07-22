@@ -34,15 +34,8 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record IndexingEngineConfig(
-    Committer committer,
-    MapperService mapperService,
-    IndexSettings indexSettings,
-    Store store,
-    DataFormatRegistry registry,
-    Map<String, FormatChecksumStrategy> checksumStrategies,
-    ShardCryptoContext shardCryptoContext
-) {
+public record IndexingEngineConfig(Committer committer, MapperService mapperService, IndexSettings indexSettings, Store store,
+    DataFormatRegistry registry, Map<String, FormatChecksumStrategy> checksumStrategies, ShardCryptoContext shardCryptoContext) {
 
     /**
      * Backward-compatible 6-argument constructor defaulting {@code shardCryptoContext} to {@code null}.

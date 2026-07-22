@@ -212,7 +212,7 @@ public class GatewayMetaState implements Closeable {
                     }
                     // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
                     NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        new NodeMetadata(persistedClusterStateService.getNodeId(), getVersionToWrite(clusterState, settings)),
                         persistedClusterStateService.getDataPaths()
                     );
                     success = true;
@@ -245,7 +245,7 @@ public class GatewayMetaState implements Closeable {
                     metaStateService.deleteAll();
                     // write legacy node metadata to prevent downgrades from spawning empty cluster state
                     NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        new NodeMetadata(persistedClusterStateService.getNodeId(), getVersionToWrite(clusterState, settings)),
                         persistedClusterStateService.getDataPaths()
                     );
                 } catch (IOException e) {
@@ -875,5 +875,19 @@ public class GatewayMetaState implements Closeable {
         private void handleExceptionOnWrite(Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
+    }
+
+    private static Version getVersionToWrite(ClusterState clusterState, Settings settings) {
+        boolean safeRollback = Metadata.SETTING_SAFE_ROLLBACK_ENABLED_SETTING.get(settings);
+        if (clusterState != null && clusterState.metadata() != null) {
+            safeRollback |= Metadata.SETTING_SAFE_ROLLBACK_ENABLED_SETTING.get(clusterState.metadata().settings());
+            if (safeRollback) {
+                Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+                if (minNodeVersion != null && minNodeVersion.before(Version.CURRENT)) {
+                    return minNodeVersion;
+                }
+            }
+        }
+        return Version.CURRENT;
     }
 }

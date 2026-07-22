@@ -328,6 +328,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
                 Metadata.DEFAULT_REPLICA_COUNT_SETTING,
                 Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING,
+                Metadata.SETTING_SAFE_ROLLBACK_ENABLED_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_REMOTE_CAPABLE_SHARDS_PER_NODE,

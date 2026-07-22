@@ -49,6 +49,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -69,6 +70,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.junit.AfterClass;
@@ -243,6 +245,51 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testSyncRequestTimeoutPassedToTransportOptions() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+        final Settings settings = Settings.builder().put("indices.replication.retry_timeout", timeout).build();
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.localNode()).thenReturn(mock(org.opensearch.cluster.node.DiscoveryNode.class));
+
+        final TransportService mockTransportService = mock(TransportService.class);
+        final org.opensearch.transport.Transport.Connection mockConnection = mock(org.opensearch.transport.Transport.Connection.class);
+        when(mockTransportService.getConnection(any(org.opensearch.cluster.node.DiscoveryNode.class))).thenReturn(mockConnection);
+
+        final TransportResyncReplicationAction action = new TransportResyncReplicationAction(
+            settings,
+            mockTransportService,
+            clusterService,
+            mock(IndicesService.class),
+            threadPool,
+            mock(ShardStateAction.class),
+            new ActionFilters(new HashSet<>()),
+            mock(IndexingPressureService.class),
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
+        );
+
+        final ResyncReplicationRequest request = new ResyncReplicationRequest(
+            new ShardId("index", "uuid", 0),
+            1L,
+            1L,
+            new Translog.Operation[0]
+        );
+        final Task parentTask = mock(Task.class);
+        final org.mockito.ArgumentCaptor<TransportRequestOptions> optionsCaptor = org.mockito.ArgumentCaptor.forClass(
+            TransportRequestOptions.class
+        );
+
+        action.sync(request, parentTask, "alloc-id", 1L, mock(ActionListener.class));
+
+        org.mockito.Mockito.verify(mockTransportService)
+            .sendChildRequest(eq(mockConnection), anyString(), any(), eq(parentTask), optionsCaptor.capture(), any());
+
+        assertThat(optionsCaptor.getValue().timeout(), equalTo(timeout));
     }
 
     private TransportResyncReplicationAction createAction() {

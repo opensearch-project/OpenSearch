@@ -93,4 +93,3 @@ public abstract class StoreStrategy {
         return true;
     }
 }
-

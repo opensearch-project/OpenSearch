@@ -33,8 +33,10 @@
 package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
@@ -86,7 +88,15 @@ public class CodecService {
     ) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
-        if (mapperService == null) {
+        final boolean safeRollbackEnabled = Metadata.SETTING_SAFE_ROLLBACK_ENABLED_SETTING.get(indexSettings.getSettings());
+        if (safeRollbackEnabled) {
+            final Codec rollbackCodecSpeed = new Lucene101Codec(Lucene101Codec.Mode.BEST_SPEED);
+            final Codec rollbackCodecComp = new Lucene101Codec(Lucene101Codec.Mode.BEST_COMPRESSION);
+            codecs.put(DEFAULT_CODEC, rollbackCodecSpeed);
+            codecs.put(LZ4, rollbackCodecSpeed);
+            codecs.put(BEST_COMPRESSION_CODEC, rollbackCodecComp);
+            codecs.put(ZLIB, rollbackCodecComp);
+        } else if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene104Codec());
             codecs.put(LZ4, new Lucene104Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene104Codec(Lucene104Codec.Mode.BEST_COMPRESSION));

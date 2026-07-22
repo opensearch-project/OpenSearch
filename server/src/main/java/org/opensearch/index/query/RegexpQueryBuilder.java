@@ -36,10 +36,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
+import org.opensearch.common.regex.RegexpAutomatonCache;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -326,14 +329,20 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             if (method == null) {
                 method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
             }
-            query = new RegexpQuery(
-                new Term(fieldName, BytesRefs.toBytesRef(value)),
-                sanitisedSyntaxFlag,
-                matchFlagsValue,
-                RegexpQuery.DEFAULT_PROVIDER,
-                maxDeterminizedStates,
-                method
-            );
+            RegexpAutomatonCache cache = context != null ? context.getRegexpAutomatonCache() : null;
+            if (cache != null) {
+                CompiledAutomaton compiled = cache.getCompiledAutomaton(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates);
+                query = new PrecompiledAutomatonQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), compiled, method);
+            } else {
+                query = new RegexpQuery(
+                    new Term(fieldName, BytesRefs.toBytesRef(value)),
+                    sanitisedSyntaxFlag,
+                    matchFlagsValue,
+                    RegexpQuery.DEFAULT_PROVIDER,
+                    maxDeterminizedStates,
+                    method
+                );
+            }
         }
         return query;
     }

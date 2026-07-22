@@ -17,6 +17,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchParseException;
@@ -25,6 +26,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.regex.RegexpAutomatonCache;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -204,12 +206,17 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
-            final RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            final Automaton automaton = Operations.determinize(
-                regExp.toAutomaton(RegexpQuery.DEFAULT_PROVIDER),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            );
-            ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automaton);
+            ByteRunAutomaton byteRunAutomaton = null;
+            RegexpAutomatonCache cache = context != null ? context.getRegexpAutomatonCache() : null;
+            if (cache != null) {
+                CompiledAutomaton compiled = cache.getCompiledAutomaton(value, syntaxFlags, matchFlags, maxDeterminizedStates);
+                byteRunAutomaton = compiled.runAutomaton;
+            }
+            if (byteRunAutomaton == null) {
+                final RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
+                final Automaton automaton = Operations.determinize(regExp.toAutomaton(RegexpQuery.DEFAULT_PROVIDER), maxDeterminizedStates);
+                byteRunAutomaton = new ByteRunAutomaton(automaton);
+            }
             BytesRef valueBytes = BytesRefs.toBytesRef(this.value);
             if (byteRunAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length)) {
                 return new MatchAllDocsQuery();

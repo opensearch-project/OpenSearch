@@ -871,10 +871,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * term is incremented.
                      */
                     // to prevent primary relocation handoff while resync is not completed
-                    boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
+                    final boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
                     if (resyncStarted == false) {
                         throw new IllegalStateException("cannot start resync while it's already in progress");
                     }
+                    final AtomicBoolean resyncListenerRegistered = new AtomicBoolean(false);
                     bumpPrimaryTerm(newPrimaryTerm, () -> {
                         shardStateUpdated.await();
                         assert pendingPrimaryTerm == newPrimaryTerm : "shard term changed on primary. expected ["
@@ -963,10 +964,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     }
                                 }
                             });
+                            resyncListenerRegistered.set(true);
                         } catch (final AlreadyClosedException e) {
                             // okay, the index was deleted
                         }
-                    }, null);
+                    }, new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            try {
+                                if (resyncListenerRegistered.get() == false) {
+                                    primaryReplicaResyncInProgress.set(false);
+                                }
+                            } finally {
+                                releasable.close();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            primaryReplicaResyncInProgress.set(false);
+                        }
+                    });
                 }
             }
             // set this last, once we finished updating all internal state.

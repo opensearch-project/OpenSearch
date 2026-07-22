@@ -1407,6 +1407,30 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primaryShard, replicaShard);
     }
 
+    public void testPrimaryReplicaResyncInProgressClearedOnPromotionFailure() throws Exception {
+        final IndexShard indexShard = newStartedShard(false);
+        final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
+
+        // Ensure that if an exception is thrown before/during primaryReplicaSyncer.accept is successfully called,
+        // primaryReplicaResyncInProgress is still cleared to false.
+        // We simulate this by providing a primaryReplicaSyncer that throws an exception, which will trigger the catch block.
+        indexShard.updateShardState(newRouting, indexShard.getPendingPrimaryTerm() + 1, (s, r) -> {
+            throw new AlreadyClosedException("simulated engine close");
+        },
+            1L,
+            Collections.singleton(newRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(newRouting)
+        );
+
+        java.lang.reflect.Field field = IndexShard.class.getDeclaredField("primaryReplicaResyncInProgress");
+        field.setAccessible(true);
+        AtomicBoolean flag = (AtomicBoolean) field.get(indexShard);
+        assertBusy(() -> assertFalse(flag.get()));
+
+        closeShard(indexShard, false);
+    }
+
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);

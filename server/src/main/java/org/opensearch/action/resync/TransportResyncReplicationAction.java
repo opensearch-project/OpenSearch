@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.IndexingPressureService;
@@ -58,6 +59,7 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -83,6 +85,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             return Names.WRITE;
         }
     };
+
+    private volatile TimeValue replicationRetryTimeout;
 
     @Inject
     public TransportResyncReplicationAction(
@@ -114,6 +118,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             systemIndices,
             tracer
         );
+        this.replicationRetryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> replicationRetryTimeout = v);
     }
 
     @Override
@@ -220,7 +226,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             transportPrimaryAction,
             new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
-            transportOptions,
+            TransportRequestOptions.builder().withTimeout(replicationRetryTimeout).build(),
             new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
                 public ResyncReplicationResponse read(StreamInput in) throws IOException {

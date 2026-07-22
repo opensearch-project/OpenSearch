@@ -232,6 +232,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SETTING_SAFE_ROLLBACK_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.upgrade.safe_rollback_enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(
         13,
         "cluster read-only / allow delete (api)",

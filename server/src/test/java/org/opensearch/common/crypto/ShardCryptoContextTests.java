@@ -50,9 +50,7 @@ public class ShardCryptoContextTests extends OpenSearchTestCase {
         assertTrue(indexSettings.isStorageEncryptionEnabled());
         assertEquals("my-key-provider", indexSettings.getCryptoKeyProvider());
 
-        Settings unencryptedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
+        Settings unencryptedSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings unencryptedIndexSettings = IndexSettingsModule.newIndexSettings("test_idx_2", unencryptedSettings);
 
         assertFalse(unencryptedIndexSettings.isStorageEncryptionEnabled());
@@ -60,23 +58,9 @@ public class ShardCryptoContextTests extends OpenSearchTestCase {
     }
 
     public void testIndexingEngineConfigShardCryptoContext() {
-        ShardCryptoContext context = new ShardCryptoContext(
-            "test-provider",
-            "test-type",
-            null,
-            null,
-            Map.of()
-        );
+        ShardCryptoContext context = new ShardCryptoContext("test-provider", "test-type", null, null, Map.of());
 
-        IndexingEngineConfig config = new IndexingEngineConfig(
-            null,
-            null,
-            null,
-            null,
-            null,
-            Map.of(),
-            context
-        );
+        IndexingEngineConfig config = new IndexingEngineConfig(null, null, null, null, null, Map.of(), context);
 
         assertNotNull(config.shardContext());
         assertEquals("test-provider", config.shardContext().getKeyProviderName());

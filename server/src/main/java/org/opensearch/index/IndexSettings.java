@@ -939,7 +939,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -1000,7 +999,6 @@ public final class IndexSettings {
     private final String pluggedDataFormat;
     private final String cryptoKeyProvider;
     private volatile boolean derivedSourceEnabledForTranslog;
-
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -2440,4 +2438,3 @@ public final class IndexSettings {
         return cryptoKeyProvider;
     }
 }
-

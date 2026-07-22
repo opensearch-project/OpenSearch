@@ -307,6 +307,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
                 IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
                 IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING,
+                IndexSettings.INDEX_STORE_CRYPTO_KEY_PROVIDER_SETTING,
 
                 // Writable warm / tiering settings - always registered so nodes can parse
                 // index metadata even when the feature flag is disabled

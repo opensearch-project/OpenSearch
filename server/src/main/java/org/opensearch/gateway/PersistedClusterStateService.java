@@ -569,11 +569,11 @@ public class PersistedClusterStateService {
             this.indexWriter.flush();
         }
 
-        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, Version nodeVersion) throws IOException {
             final Map<String, String> commitData = new HashMap<>(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
-            commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
+            commitData.put(NODE_VERSION_KEY, Integer.toString(nodeVersion.id));
             commitData.put(NODE_ID_KEY, nodeId);
             indexWriter.setLiveCommitData(commitData.entrySet());
             indexWriter.prepareCommit();
@@ -608,6 +608,7 @@ public class PersistedClusterStateService {
         // The size of the document buffer that was used for the last write operation, used as a hint for allocating the buffer for the
         // next one.
         private int documentBufferUsed;
+        private Version lastNodeVersionWritten = Version.CURRENT;
 
         private Writer(
             List<MetadataIndexWriter> metadataIndexWriters,
@@ -621,6 +622,18 @@ public class PersistedClusterStateService {
             this.bigArrays = bigArrays;
             this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
             this.slowWriteLoggingThresholdSupplier = slowWriteLoggingThresholdSupplier;
+        }
+
+        private Version getVersionToWrite(ClusterState clusterState) {
+            if (clusterState != null && clusterState.metadata() != null) {
+                if (Metadata.SETTING_SAFE_ROLLBACK_ENABLED_SETTING.get(clusterState.metadata().settings())) {
+                    Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+                    if (minNodeVersion != null && minNodeVersion.before(Version.CURRENT)) {
+                        return minNodeVersion;
+                    }
+                }
+            }
+            return Version.CURRENT;
         }
 
         private void ensureOpen() {
@@ -653,7 +666,8 @@ public class PersistedClusterStateService {
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
                 final WriterStats stats = overwriteMetadata(clusterState.metadata());
-                commit(currentTerm, clusterState.version());
+                final Version nodeVersion = getVersionToWrite(clusterState);
+                commit(currentTerm, clusterState.version(), nodeVersion);
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -688,7 +702,8 @@ public class PersistedClusterStateService {
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
-                commit(currentTerm, clusterState.version());
+                final Version nodeVersion = getVersionToWrite(clusterState);
+                commit(currentTerm, clusterState.version(), nodeVersion);
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -706,6 +721,7 @@ public class PersistedClusterStateService {
                         "writing cluster state took [{}ms]; "
                             + "wrote global metadata [{}] and metadata for [{}] indices and skipped [{}] unchanged indices",
                         durationMillis,
+                        finalSlowWriteLoggingThreshold,
                         stats.globalMetaUpdated,
                         stats.numIndicesUpdated,
                         stats.numIndicesUnchanged
@@ -749,39 +765,37 @@ public class PersistedClusterStateService {
                         indexMetadata.getIndexUUID(),
                         indexMetadata.getVersion()
                     );
-                    assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
+                    assert previousValue == null : "duplicate index metadata for "
+                        + indexMetadata.getIndex()
+                        + " with UUID "
+                        + indexMetadata.getIndexUUID();
                 }
 
-                int numIndicesUpdated = 0;
-                int numIndicesUnchanged = 0;
+                long numIndicesUpdated = 0;
+                long numIndicesUnchanged = 0;
                 for (final IndexMetadata indexMetadata : metadata.indices().values()) {
-                    final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
-                    if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
-                        logger.trace(
-                            "updating metadata for [{}], changing version from [{}] to [{}]",
-                            indexMetadata.getIndex(),
-                            previousVersion,
-                            indexMetadata.getVersion()
-                        );
-                        numIndicesUpdated++;
+                    final Long previousVersion = indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
+                    if (previousVersion == null || previousVersion != indexMetadata.getVersion()) {
+                        logger.trace("updating metadata for [{}]", indexMetadata.getIndex());
                         final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
                         for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                             metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());
                         }
+                        numIndicesUpdated++;
                     } else {
+                        logger.trace("skipping unchanged metadata for [{}]", indexMetadata.getIndex());
                         numIndicesUnchanged++;
-                        logger.trace("no action required for [{}]", indexMetadata.getIndex());
                     }
-                    indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
                 }
 
-                documentBufferUsed = documentBuffer.getMaxUsed();
-
-                for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
+                for (final String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
+                    logger.trace("removing metadata for index UUID [{}]", removedIndexUUID);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.deleteIndexMetadata(removedIndexUUID);
                     }
                 }
+
+                documentBufferUsed = documentBuffer.getMaxUsed();
 
                 // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
                 // gracefully than one that occurs during the commit process.
@@ -794,7 +808,7 @@ public class PersistedClusterStateService {
         }
 
         /**
-         * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
+         * Replace all existing metadata documents with documents for the metadata of the given cluster state.
          */
         private WriterStats overwriteMetadata(Metadata metadata) throws IOException {
             for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
@@ -844,15 +858,20 @@ public class PersistedClusterStateService {
         public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion) throws IOException {
             ensureOpen();
             ensureFullStateWritten();
-            commit(currentTerm, lastAcceptedVersion);
+            commit(currentTerm, lastAcceptedVersion, lastNodeVersionWritten);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        public void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
+            commit(currentTerm, lastAcceptedVersion, Version.CURRENT);
+        }
+
+        public void commit(long currentTerm, long lastAcceptedVersion, Version nodeVersion) throws IOException {
             ensureOpen();
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
+                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion, nodeVersion);
                 }
+                lastNodeVersionWritten = nodeVersion;
             } catch (Exception e) {
                 try {
                     close();

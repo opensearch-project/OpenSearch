@@ -44,6 +44,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.RegexpAutomatonCache;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
@@ -127,9 +128,11 @@ public class QueryShardContext extends BaseQueryRewriteContext {
     private BitSetProducer parentFilter;
     private DerivedFieldResolver derivedFieldResolver;
     private boolean keywordIndexOrDocValuesEnabled;
+
     private boolean isInnerHitQuery;
 
     private StarTreeQueryContext starTreeQueryContext;
+    private RegexpAutomatonCache regexpAutomatonCache;
 
     public QueryShardContext(
         int shardId,
@@ -214,7 +217,8 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             validate,
-            false
+            false,
+            null
         );
     }
 
@@ -253,6 +257,52 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             client,
             searcher,
             nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            validate,
+            keywordIndexOrDocValuesEnabled,
+            null
+        );
+    }
+
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled,
+        RegexpAutomatonCache regexpAutomatonCache
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
             indexNameMatcher,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
@@ -261,7 +311,8 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             validate,
-            keywordIndexOrDocValuesEnabled
+            keywordIndexOrDocValuesEnabled,
+            regexpAutomatonCache
         );
     }
 
@@ -285,7 +336,8 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
             source.validate(),
-            source.keywordIndexOrDocValuesEnabled
+            source.keywordIndexOrDocValuesEnabled,
+            source.regexpAutomatonCache
         );
     }
 
@@ -308,7 +360,8 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         boolean validate,
-        boolean keywordIndexOrDocValuesEnabled
+        boolean keywordIndexOrDocValuesEnabled,
+        RegexpAutomatonCache regexpAutomatonCache
     ) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
         this.shardId = shardId;
@@ -333,6 +386,15 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             indexSettings.isDerivedFieldAllowed()
         );
         this.keywordIndexOrDocValuesEnabled = keywordIndexOrDocValuesEnabled;
+        this.regexpAutomatonCache = regexpAutomatonCache;
+    }
+
+    public RegexpAutomatonCache getRegexpAutomatonCache() {
+        return regexpAutomatonCache;
+    }
+
+    public void setRegexpAutomatonCache(RegexpAutomatonCache regexpAutomatonCache) {
+        this.regexpAutomatonCache = regexpAutomatonCache;
     }
 
     private void reset() {

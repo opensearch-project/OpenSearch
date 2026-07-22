@@ -43,6 +43,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -68,6 +69,17 @@ import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends OpenSearchTestCase {
+
+    public void testSafeRollbackCodec() throws Exception {
+        Settings nodeSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(Metadata.SETTING_SAFE_ROLLBACK_ENABLED_SETTING.getKey(), true)
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        CodecService codecService = new CodecService(null, indexSettings, LogManager.getLogger("test"), List.of());
+        Codec codec = codecService.codec("default");
+        assertThat(codec, instanceOf(org.apache.lucene.backward_codecs.lucene101.Lucene101Codec.class));
+    }
 
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService(false);

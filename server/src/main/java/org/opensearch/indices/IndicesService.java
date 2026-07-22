@@ -72,6 +72,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCacheHelper;
+import org.opensearch.common.regex.RegexpAutomatonCache;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -431,6 +432,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesFieldDataCache indicesFieldDataCache;
+    private final RegexpAutomatonCache regexpAutomatonCache;
     private final IndicesBitsetFilterCache indicesBitsetFilterCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
@@ -582,6 +584,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
         }, clusterService, threadPool);
+        this.regexpAutomatonCache = new RegexpAutomatonCache(settings, clusterService);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings, threadPool);
@@ -610,7 +613,8 @@ public class IndicesService extends AbstractLifecycleComponent
                         indicesFieldDataCache,
                         cacheCleaner,
                         indicesRequestCache,
-                        indicesQueryCache
+                        indicesQueryCache,
+                        regexpAutomatonCache
                     );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -1485,6 +1489,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {
         return indicesFieldDataCache;
+    }
+
+    public RegexpAutomatonCache getRegexpAutomatonCache() {
+        return regexpAutomatonCache;
     }
 
     public CircuitBreakerService getCircuitBreakerService() {
