@@ -204,3 +204,17 @@ setup:
         index: source
         body:
           index.blocks.read_only: null
+
+---
+"Returns 400 when write block is missing on clone":
+  # Attempt to clone without setting index.blocks.write=true. The server should
+  # reject this with a 400 Bad Request (not a 500 Internal Server Error).
+  - do:
+      catch: bad_request
+      indices.clone:
+        index: "source"
+        target: "target_no_block"
+        body:
+          settings:
+            index.number_of_replicas: 0
+  - match: { status: 400 }
