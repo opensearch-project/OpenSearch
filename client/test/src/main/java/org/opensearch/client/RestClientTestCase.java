@@ -119,10 +119,6 @@ public abstract class RestClientTestCase extends RandomizedTest {
         assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
     }
 
-    protected static boolean inFipsJvm() {
-        return CryptoServicesRegistrar.isInApprovedOnlyMode();
-    }
-
     private static void addValueToListEntry(final Map<String, List<String>> map, final String name, final String value) {
         List<String> values = map.get(name);
         if (values == null) {
