@@ -210,6 +210,82 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
         assertTrue(tieringValidationResult.getAcceptedIndices().isEmpty());
     }
 
+    public void testValidateEligibleNodesCapacitySkipsWhenDiskUsageUnavailable() {
+        String indexUuid = UUID.randomUUID().toString();
+        String indexName = "test_index";
+        Set<Index> indices = Set.of(new Index(indexName, indexUuid));
+        ClusterState clusterState = ClusterState.builder(buildClusterState(indexName, indexUuid, Settings.EMPTY))
+            .nodes(createNodes(1, 0, 0))
+            .build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test_index][0][p]", 10L);
+        ClusterInfo clusterInfo = new ClusterInfo(null, null, shardSizes, null, null, Map.of(), Map.of());
+        TieringValidationResult tieringValidationResult = new TieringValidationResult(indices);
+
+        validateEligibleNodesCapacity(clusterInfo, clusterState, tieringValidationResult);
+
+        assertEquals(indices, tieringValidationResult.getAcceptedIndices());
+        assertTrue(tieringValidationResult.getRejectedIndices().isEmpty());
+    }
+
+    public void testValidateEligibleNodesCapacityWithExactFitAccepted() {
+        String indexUuid = UUID.randomUUID().toString();
+        String indexName = "test_index";
+        Set<Index> indices = Set.of(new Index(indexName, indexUuid));
+        ClusterState clusterState = ClusterState.builder(buildClusterState(indexName, indexUuid, Settings.EMPTY))
+            .nodes(createNodes(1, 0, 0))
+            .build();
+        Map<String, DiskUsage> diskUsages = diskUsages(1, 100, 20);
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test_index][0][p]", 20L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, null, Map.of(), Map.of());
+        TieringValidationResult tieringValidationResult = new TieringValidationResult(indices);
+
+        validateEligibleNodesCapacity(clusterInfo, clusterState, tieringValidationResult);
+
+        assertEquals(indices, tieringValidationResult.getAcceptedIndices());
+        assertTrue(tieringValidationResult.getRejectedIndices().isEmpty());
+    }
+
+    public void testValidateEligibleNodesCapacityRejectsLargestIndicesFirst() {
+        String smallIndexUuid = UUID.randomUUID().toString();
+        String mediumIndexUuid = UUID.randomUUID().toString();
+        String largeIndexUuid = UUID.randomUUID().toString();
+        String smallIndexName = "index-small";
+        String mediumIndexName = "index-medium";
+        String largeIndexName = "index-large";
+
+        Set<Index> indices = Set.of(
+            new Index(smallIndexName, smallIndexUuid),
+            new Index(mediumIndexName, mediumIndexUuid),
+            new Index(largeIndexName, largeIndexUuid)
+        );
+        ClusterState clusterState = ClusterState.builder(
+            buildClusterState(
+                Map.of(smallIndexName, smallIndexUuid, mediumIndexName, mediumIndexUuid, largeIndexName, largeIndexUuid),
+                Map.of(smallIndexName, Settings.EMPTY, mediumIndexName, Settings.EMPTY, largeIndexName, Settings.EMPTY)
+            )
+        ).nodes(createNodes(1, 0, 0)).build();
+        Map<String, DiskUsage> diskUsages = diskUsages(1, 100, 3);
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[index-small][0][p]", 1L);
+        shardSizes.put("[index-medium][0][p]", 2L);
+        shardSizes.put("[index-large][0][p]", 3L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, null, Map.of(), Map.of());
+        TieringValidationResult tieringValidationResult = new TieringValidationResult(indices);
+
+        validateEligibleNodesCapacity(clusterInfo, clusterState, tieringValidationResult);
+
+        assertEquals(
+            Set.of(new Index(smallIndexName, smallIndexUuid), new Index(mediumIndexName, mediumIndexUuid)),
+            tieringValidationResult.getAcceptedIndices()
+        );
+        assertEquals(
+            Map.of(new Index(largeIndexName, largeIndexUuid), "insufficient node capacity"),
+            tieringValidationResult.getRejectedIndices()
+        );
+    }
+
     public void testGetTotalAvailableBytesInWarmTier() {
         Map<String, DiskUsage> diskUsages = diskUsages(2, 500, 100);
         assertEquals(200, getTotalAvailableBytesInWarmTier(diskUsages, Set.of("node-w0", "node-w1")));
@@ -245,12 +321,34 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
             .build();
     }
 
+    private static ClusterState buildClusterState(Map<String, String> indexUuids, Map<String, Settings> settingsByIndex) {
+        Metadata.Builder metadata = Metadata.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        for (Map.Entry<String, Settings> entry : settingsByIndex.entrySet()) {
+            String indexName = entry.getKey();
+            String indexUuid = indexUuids.get(indexName);
+            Settings combinedSettings = Settings.builder().put(entry.getValue()).put(createDefaultIndexSettings(indexUuid, 1, 0)).build();
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(combinedSettings).build();
+            metadata.put(IndexMetadata.builder(indexMetadata));
+            routingTable.addAsNew(indexMetadata);
+        }
+
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable.build())
+            .build();
+    }
+
     private static Settings createDefaultIndexSettings(String indexUuid) {
+        return createDefaultIndexSettings(indexUuid, 2, 1);
+    }
+
+    private static Settings createDefaultIndexSettings(String indexUuid, int numberOfShards, int numberOfReplicas) {
         return Settings.builder()
             .put("index.version.created", Version.CURRENT)
             .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfShards)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numberOfReplicas)
             .build();
     }
 
