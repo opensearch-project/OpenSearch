@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 public class ExampleSearchPhaseResultsProcessorTests extends OpenSearchTestCase {
     private final ExampleSearchPhaseResultsProcessor.Factory factory = new ExampleSearchPhaseResultsProcessor.Factory();
-    private final ProcessorGenerationContext context = new ProcessorGenerationContext(mock(SearchRequest.class));
+    private final ProcessorGenerationContext context = new ProcessorGenerationContext(mock(SearchRequest.class), null);
 
     public void testShouldGenerate_thenAlwaysTrue() {
         assertTrue(factory.shouldGenerate(context));
