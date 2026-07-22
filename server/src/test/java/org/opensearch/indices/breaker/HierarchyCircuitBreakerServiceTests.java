@@ -848,6 +848,105 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Reproduces the race condition from the old QueryPhaseResultConsumer.PendingMerges.resetCircuitBreakerForCurrentRequest().
+     *
+     * That method was not synchronized and read a volatile circuitBreakerBytes field in a compound
+     * read-check-release-zero sequence. When multiple threads entered it concurrently (e.g. two
+     * consumeResult() calls during task cancellation), they could all read the same non-zero value
+     * and each call addWithoutBreaking(-value), double-releasing and driving the breaker negative.
+     *
+     * Fixed by #19396 (synchronized + idempotent onFailure). This test proves the race is real and
+     * that CircuitBreakerStats.toXContent() must handle negative estimated values defensively.
+     */
+    public void testUnsynchronizedResetCausesNegativeBreaker() throws Exception {
+        final int NUM_THREADS = 10;
+        final int ITERATIONS = 1000;
+        final AtomicInteger negativeCount = new AtomicInteger(0);
+
+        final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        ) {
+            @Override
+            public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
+                // never trip
+            }
+        };
+
+        for (int iter = 0; iter < ITERATIONS; iter++) {
+            final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, Long.MAX_VALUE, 1.0);
+            final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
+                settings,
+                logger,
+                (HierarchyCircuitBreakerService) service,
+                CircuitBreaker.REQUEST
+            );
+
+            final long trackedBytes = 1000;
+            breaker.addWithoutBreaking(trackedBytes);
+
+            // Simulate the old volatile field: resetCircuitBreakerForCurrentRequest() read this
+            // without synchronization, so multiple threads could read the same non-zero value.
+            final AtomicLong circuitBreakerBytes = new AtomicLong(trackedBytes);
+            final CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
+            final Thread[] threads = new Thread[NUM_THREADS];
+
+            // Track assertion errors from threads — in production JVMs assertions are disabled,
+            // so the negative value silently propagates to CircuitBreakerStats.toXContent().
+            // In test JVMs assertions ARE enabled, so addWithoutBreaking() throws AssertionError
+            // when used goes negative. Both outcomes prove the race.
+            final AtomicBoolean assertionFired = new AtomicBoolean(false);
+
+            for (int i = 0; i < NUM_THREADS; i++) {
+                threads[i] = new Thread(() -> {
+                    try {
+                        barrier.await(5, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        return;
+                    }
+                    // Reproduces the old unsynchronized resetCircuitBreakerForCurrentRequest():
+                    //   if (circuitBreakerBytes > 0) {
+                    //       circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                    //       circuitBreakerBytes = 0;
+                    //   }
+                    long bytes = circuitBreakerBytes.get();
+                    if (bytes > 0) {
+                        try {
+                            breaker.addWithoutBreaking(-bytes);
+                        } catch (AssertionError e) {
+                            // "Used bytes: [-N] must be >= 0" — proves the race happened.
+                            // This assert is only enabled in test JVMs (-ea). In production
+                            // it doesn't fire and the negative value reaches ByteSizeValue.
+                            assertionFired.set(true);
+                        }
+                        circuitBreakerBytes.set(0);
+                    }
+                });
+                threads[i].start();
+            }
+
+            for (Thread t : threads) {
+                t.join(10000);
+            }
+
+            if (assertionFired.get() || breaker.getUsed() < 0) {
+                negativeCount.incrementAndGet();
+            }
+        }
+
+        assertTrue(
+            "Expected the race condition to produce negative breaker values in at least one of "
+                + ITERATIONS
+                + " iterations, but got "
+                + negativeCount.get()
+                + ". The unsynchronized resetCircuitBreakerForCurrentRequest() allows multiple threads "
+                + "to read the same circuitBreakerBytes value and each release it, double-decrementing the breaker.",
+            negativeCount.get() > 0
+        );
+    }
+
     private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
     }
