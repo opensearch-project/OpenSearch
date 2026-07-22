@@ -155,6 +155,20 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         assertCodecExcludes(null, new String[] { "foo*", "x.y" }, "*bar", true, new String[] { "x.y" });
         assertCodecExcludes(null, new String[] { "secret*" }, "public.field", true, new String[] { "secret*" });
         assertCodecExcludes(null, new String[] { "field1", "field2" }, null, true, Strings.EMPTY_ARRAY);
+
+        // Hierarchical (path-prefix) overlap: source excludes/includes apply to whole subtrees.
+        // null | obj,secret | obj.field | source | -> [secret] exclude "obj" is an ancestor of "obj.field"
+        // null | obj.sub,secret | obj | source | -> [secret] include "obj" is an ancestor of exclude "obj.sub"
+        // null | obj.a,obj.b | obj.b | source | -> [obj.a] sibling leaves stay disjoint
+        // null | x.y,secret | x.y.z.w | source | -> [secret] deep descendant of exclude "x.y"
+        // null | x.y.z.w,secret | x.y | source | -> [secret] deep descendant of include "x.y"
+        // null | x.y.a.z | x.y.b.z | source | -> [x.y.a.z] diverges at a deeper segment, exclude kept
+        assertCodecExcludes(null, new String[] { "obj", "secret" }, "obj.field", true, new String[] { "secret" });
+        assertCodecExcludes(null, new String[] { "obj.sub", "secret" }, "obj", true, new String[] { "secret" });
+        assertCodecExcludes(null, new String[] { "obj.a", "obj.b" }, "obj.b", true, new String[] { "obj.a" });
+        assertCodecExcludes(null, new String[] { "x.y", "secret" }, "x.y.z.w", true, new String[] { "secret" });
+        assertCodecExcludes(null, new String[] { "x.y.z.w", "secret" }, "x.y", true, new String[] { "secret" });
+        assertCodecExcludes(null, new String[] { "x.y.a.z" }, "x.y.b.z", true, new String[] { "x.y.a.z" });
     }
 
     /**

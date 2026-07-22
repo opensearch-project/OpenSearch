@@ -87,6 +87,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -377,10 +378,33 @@ public class FetchPhase {
 
         final Set<String> codecExcludes = new HashSet<>(Arrays.asList(requestExcludes));
         for (String reqInclude : requestIncludes) {
-            codecExcludes.removeIf(userExclude -> Regex.simpleMatchOverlap(userExclude, reqInclude));
+            codecExcludes.removeIf(userExclude -> sourcePathOverlap(userExclude, reqInclude));
         }
 
         return codecExcludes.toArray(new String[0]);
+    }
+
+    /**
+     * Determine whether a source exclude pattern and an inner-hit include pattern can affect a common
+     * field. Source include/exclude semantics are hierarchical: excluding {@code obj} also removes
+     * {@code obj.field}, and including {@code obj} pulls in the whole {@code obj} subtree. Both patterns
+     * are therefore compared segment by segment (splitting on {@code .}); they overlap when every segment
+     * up to the shorter path overlaps, i.e. when one path is an ancestor of (or equal to) the other. When
+     * they overlap the exclude must not be applied at the codec level, otherwise the inner hit would read
+     * empty values for the field it requested. Comparing per segment also keeps {@code *} from spanning a
+     * {@code .} boundary, matching how {@link org.opensearch.common.xcontent.support.XContentMapValues}
+     * applies these patterns.
+     */
+    private static boolean sourcePathOverlap(String exclude, String include) {
+        final String[] excludeSegments = exclude.split("\\.");
+        final String[] includeSegments = include.split("\\.");
+        final int common = Math.min(excludeSegments.length, includeSegments.length);
+        for (int i = 0; i < common; i++) {
+            if (Regex.simpleMatchOverlap(excludeSegments[i], includeSegments[i]) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -403,7 +427,11 @@ public class FetchPhase {
             FetchFieldsContext innerFetchContext = innerHit.fetchFieldsContext();
             if (innerFetchContext != null && innerFetchContext.fields() != null) {
                 requestIncludes.addAll(
-                    innerFetchContext.fields().stream().map(fieldAndFormat -> fieldAndFormat.field).collect(Collectors.toSet())
+                    innerFetchContext.fields()
+                        .stream()
+                        .map(fieldAndFormat -> fieldAndFormat.field)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet())
                 );
             }
             // Nested inner hits read from the same root _source, so descend into their children too.
