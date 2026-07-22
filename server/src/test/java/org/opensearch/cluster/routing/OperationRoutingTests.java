@@ -34,6 +34,9 @@ package org.opensearch.cluster.routing;
 import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.deployment.Deployment;
+import org.opensearch.cluster.deployment.DeploymentMetadata;
+import org.opensearch.cluster.deployment.DeploymentState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -1438,5 +1441,107 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         clusterState.metadata(metadataBuilder);
         clusterState.routingTable(routingTableBuilder.build());
         return clusterState.build();
+    }
+
+    public void testSearchShardsExcludesDrainedNodes() {
+        DiscoveryNode nodeA0 = new DiscoveryNode(
+            "node_a0",
+            buildNewFakeTransportAddress(),
+            singletonMap("zone", "a"),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode nodeA1 = new DiscoveryNode(
+            "node_a1",
+            buildNewFakeTransportAddress(),
+            singletonMap("zone", "a"),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode nodeB0 = new DiscoveryNode(
+            "node_b0",
+            buildNewFakeTransportAddress(),
+            singletonMap("zone", "b"),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode nodeB1 = new DiscoveryNode(
+            "node_b1",
+            buildNewFakeTransportAddress(),
+            singletonMap("zone", "b"),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode clusterManager = new DiscoveryNode(
+            "cluster-manager",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+
+        DiscoveryNode[] allNodes = new DiscoveryNode[] { nodeA0, nodeA1, nodeB0, nodeB1, clusterManager };
+        ClusterState state = ClusterStateCreationUtils.state(nodeA0, clusterManager, allNodes);
+
+        String index = "test_drain";
+        int numberOfShards = 2;
+        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .build();
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+        for (int i = 0; i < numberOfShards; i++) {
+            IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
+            shardBuilder.addShard(TestShardRouting.newShardRouting(index, i, nodeA0.getId(), null, true, ShardRoutingState.STARTED));
+            shardBuilder.addShard(TestShardRouting.newShardRouting(index, i, nodeB0.getId(), null, false, ShardRoutingState.STARTED));
+            indexRoutingTableBuilder.addIndexShard(shardBuilder.build());
+        }
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
+        metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+        state = ClusterState.builder(state).metadata(metadataBuilder).routingTable(routingTableBuilder.build()).build();
+
+        OperationRouting opRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        // Without drain: shards on both zones
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, new String[] { index }, null, null);
+        Set<String> nodeIds = new HashSet<>();
+        for (ShardIterator it : groupIterator) {
+            ShardRouting shard = it.nextOrNull();
+            while (shard != null) {
+                nodeIds.add(shard.currentNodeId());
+                shard = it.nextOrNull();
+            }
+        }
+        assertTrue(nodeIds.contains(nodeA0.getId()));
+        assertTrue(nodeIds.contains(nodeB0.getId()));
+
+        // Drain zone-a
+        Map<String, Deployment> deployments = new HashMap<>();
+        deployments.put("dep-1", new Deployment(DeploymentState.DRAIN, Map.of("zone", "a")));
+        state = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.getMetadata()).putCustom(DeploymentMetadata.TYPE, new DeploymentMetadata(deployments)).build())
+            .build();
+
+        GroupShardsIterator<ShardIterator> drainedIterator = opRouting.searchShards(state, new String[] { index }, null, null);
+        for (ShardIterator it : drainedIterator) {
+            ShardRouting shard = it.nextOrNull();
+            while (shard != null) {
+                assertNotEquals("Shard should not be on drained node", nodeA0.getId(), shard.currentNodeId());
+                assertNotEquals("Shard should not be on drained node", nodeA1.getId(), shard.currentNodeId());
+                shard = it.nextOrNull();
+            }
+        }
     }
 }
