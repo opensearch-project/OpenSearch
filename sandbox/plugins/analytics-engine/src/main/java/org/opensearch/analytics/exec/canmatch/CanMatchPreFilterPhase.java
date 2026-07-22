@@ -156,6 +156,12 @@ public class CanMatchPreFilterPhase {
                     }
                 }
             }
+            // All shards pruned: keep the first target anyway. Downstream stages (e.g. reduce)
+            // still need one shard to execute to produce a valid, well-formed empty result —
+            // schema, empty aggregates, etc.
+            if (ordered.isEmpty() && originalTargets.isEmpty() == false) {
+                ordered.add(originalTargets.get(0));
+            }
             listener.onResponse(ordered);
         }
     }

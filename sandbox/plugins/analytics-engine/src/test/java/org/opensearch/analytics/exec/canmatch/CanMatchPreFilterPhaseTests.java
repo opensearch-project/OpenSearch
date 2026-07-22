@@ -152,16 +152,18 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         assertSame(t4, result.get().get(2));
     }
 
-    public void testAllTargetsPrunedReturnsEmptyList() {
+    public void testAllTargetsPrunedKeepsFirstTarget() {
         mockCanMatchResponse(false);
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
-        List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
+        ExecutionTarget first = target("idx", 0);
+        List<ExecutionTarget> targets = List.of(first, target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
         phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
-        assertTrue(result.get().isEmpty());
+        assertEquals("all pruned → keep exactly one", 1, result.get().size());
+        assertSame("the kept target is the first in original order", first, result.get().get(0));
     }
 
     public void testSingleTargetMatch() {
@@ -176,16 +178,19 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         assertSame(only, result.get().get(0));
     }
 
-    public void testSingleTargetPruned() {
+    public void testSingleTargetPrunedIsStillKept() {
+        // A single target that prunes is force-kept — there must always be at least one shard to
+        // produce a valid empty result.
         mockCanMatchResponse(false);
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
-        List<ExecutionTarget> targets = List.of(target("idx", 0));
+        ExecutionTarget only = target("idx", 0);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        phase.filter(List.of(only), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
-        assertTrue(result.get().isEmpty());
+        assertEquals(1, result.get().size());
+        assertSame(only, result.get().get(0));
     }
 
     public void testBackendIdPassedInRequest() {
