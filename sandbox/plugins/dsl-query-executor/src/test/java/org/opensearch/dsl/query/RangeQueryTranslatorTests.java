@@ -852,5 +852,53 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertLiteralEpoch(result, 1643673599999L);
     }
 
+    // ========== GROUP L - UNSUPPORTED FIELD TYPE GUARDS ==========
+
+    /**
+     * Range query on ip-typed field (VARBINARY) throws ConversionException.
+     * Legacy IpFieldMapper.rangeQuery uses InetAddress-order comparison; lexicographic comparison
+     * would be incorrect. Binary fields have no rangeQuery in BinaryFieldMapper.
+     */
+    public void testRangeOnIpFieldThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("192.168.0.1"), ctx)
+        );
+        assertTrue(
+            "Message should mention ip and binary fields: " + ex.getMessage(),
+            ex.getMessage().contains("ip") && ex.getMessage().contains("binary")
+        );
+    }
+
+    /**
+     * Range query on binary_data field (VARBINARY) throws ConversionException.
+     * Legacy BinaryFieldMapper has no rangeQuery implementation.
+     */
+    public void testRangeOnBinaryFieldThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("binary_data").gte("abc"), ctx)
+        );
+        assertTrue(
+            "Message should mention ip and binary fields: " + ex.getMessage(),
+            ex.getMessage().contains("ip") && ex.getMessage().contains("binary")
+        );
+    }
+
+    /**
+     * Range query on nanosecond-precision date field (TIMESTAMP(9)) throws ConversionException.
+     * Translator builds TIMESTAMP(3) literals which would silently truncate nanosecond precision.
+     */
+    public void testRangeOnDateNanosFieldThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2022-01-01"), ctx)
+        );
+        assertTrue(
+            "Message should mention nanosecond precision: " + ex.getMessage(),
+            ex.getMessage().contains("nanosecond") || ex.getMessage().contains("date_nanos")
+        );
+    }
+
     // ========== END OF TESTS ==========
 }

@@ -24,6 +24,8 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.DateOnlyType;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
@@ -39,7 +41,8 @@ import java.util.Properties;
  *
  * Standard test schema: name (VARCHAR), price (INTEGER), brand (VARCHAR), rating (DOUBLE),
  * created_date (DATE), is_active (BOOLEAN), timestamp (BIGINT), location (GEOMETRY),
- * status (VARCHAR), binary_data (VARBINARY), event_time (TIMESTAMP(3)).
+ * status (VARCHAR), binary_data (VARBINARY), event_time (TIMESTAMP(3)),
+ * ip_address (IpType/VARBINARY), event_nanos (TIMESTAMP(9)).
  */
 public class TestUtils {
 
@@ -84,6 +87,8 @@ public class TestUtils {
                     .add("status", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
                     .add("binary_data", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARBINARY), true))
                     .add("event_time", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.TIMESTAMP, 3), true))
+                    .add("ip_address", tf.createTypeWithNullability(new IpType(true), true))
+                    .add("event_nanos", DateOnlyType.nullable(tf, 9))
                     .build();
             }
         });
