@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
+import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -139,6 +140,31 @@ public class DiscoveryModule {
         ClusterManagerMetrics clusterManagerMetrics,
         RemoteClusterStateService remoteClusterStateService
     ) {
+        this(settings, threadPool, transportService, namedWriteableRegistry, networkService, clusterManagerService, clusterApplier, clusterSettings, plugins, allocationService, configFile,
+            gatewayMetaState, rerouteService, nodeHealthService, persistedStateRegistry, remoteStoreNodeService, clusterManagerMetrics, remoteClusterStateService, null);
+    }
+
+    public DiscoveryModule(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        ClusterManagerService clusterManagerService,
+        ClusterApplier clusterApplier,
+        ClusterSettings clusterSettings,
+        List<DiscoveryPlugin> plugins,
+        AllocationService allocationService,
+        Path configFile,
+        GatewayMetaState gatewayMetaState,
+        RerouteService rerouteService,
+        NodeHealthService nodeHealthService,
+        PersistedStateRegistry persistedStateRegistry,
+        RemoteStoreNodeService remoteStoreNodeService,
+        ClusterManagerMetrics clusterManagerMetrics,
+        RemoteClusterStateService remoteClusterStateService,
+        IndexMetadataCoordinatorService indexMetadataCoordinatorService
+    ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
@@ -217,7 +243,8 @@ public class DiscoveryModule {
                 persistedStateRegistry,
                 remoteStoreNodeService,
                 clusterManagerMetrics,
-                remoteClusterStateService
+                remoteClusterStateService,
+                indexMetadataCoordinatorService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

@@ -40,6 +40,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -70,7 +71,7 @@ import java.util.Optional;
  *
  * @opensearch.internal
  */
-public class TransportPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse>
+public class TransportPutMappingAction extends TransportIndexMetadataCoordinatorAction<PutMappingRequest, AcknowledgedResponse>
     implements
         TransportIndicesResolvingAction<PutMappingRequest> {
 
@@ -117,22 +118,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
-        String[] indices;
-        if (request.getConcreteIndex() == null) {
-            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        } else {
-            indices = new String[] { request.getConcreteIndex().getName() };
-        }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
-    }
-
-    @Override
-    protected void clusterManagerOperation(
-        final PutMappingRequest request,
-        final ClusterState state,
-        final ActionListener<AcknowledgedResponse> listener
-    ) {
+    protected void indexMetadataCoordinatorOperation(PutMappingRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver).concreteIndicesAsArray();
 
@@ -152,6 +138,17 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]", Arrays.asList(request.indices())), ex);
             throw ex;
         }
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
+        String[] indices;
+        if (request.getConcreteIndex() == null) {
+            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        } else {
+            indices = new String[] { request.getConcreteIndex().getName() };
+        }
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override

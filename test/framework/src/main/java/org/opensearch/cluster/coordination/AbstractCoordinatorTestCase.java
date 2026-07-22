@@ -1028,8 +1028,23 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             @Override
+            public void setLastSeenIndexMetadataManifestObjectVersion(String lastSeenIndexMetadataManifestObjectVersion) {
+
+            }
+
+            @Override
+            public String getLastSeenIndexMetadataManifestObjectVersion() {
+                return "";
+            }
+
+            @Override
             public PersistedStateStats getStats() {
                 return null;
+            }
+
+            @Override
+            public int getLastUpdatedIndexMetadataVersion() {
+                return 0;
             }
 
             @Override

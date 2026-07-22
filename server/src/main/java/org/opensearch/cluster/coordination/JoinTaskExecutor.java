@@ -256,6 +256,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
         RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(new ArrayList<>(repositories.values()));
         if (nodesChanged) {
+            // Update Index Metadata Coordinator selection when nodes change
+            String currentIMC = currentState.nodes().getIndexMetadataCoordinatorNodeId();
+            String selectedIMC = DiscoveryNodes.selectIndexMetadataCoordinator(nodesBuilder.build(), currentIMC, newState.nodes().getClusterManagerNodeId());
+            if (!java.util.Objects.equals(currentIMC, selectedIMC)) {
+                nodesBuilder.indexMetadataCoordinatorNodeId(selectedIMC);
+            }
+
             rerouteService.reroute(
                 "post-join reroute",
                 Priority.HIGH,
@@ -323,6 +330,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         nodesBuilder.clusterManagerNodeId(currentState.nodes().getLocalNodeId());
+
+        // Update Index Metadata Coordinator selection when becoming cluster manager
+        String currentIMC = currentState.nodes().getIndexMetadataCoordinatorNodeId();
+        String selectedIMC = DiscoveryNodes.selectIndexMetadataCoordinator(nodesBuilder.build(), currentIMC, currentState.nodes().getClusterManagerNodeId());
+        if (!java.util.Objects.equals(currentIMC, selectedIMC)) {
+            nodesBuilder.indexMetadataCoordinatorNodeId(selectedIMC);
+        }
 
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {

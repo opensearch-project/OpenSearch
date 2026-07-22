@@ -33,6 +33,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Booleans;
@@ -79,6 +80,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private final Map<String, DiscoveryNode> ingestNodes;
 
     private final String clusterManagerNodeId;
+    private final String indexMetadataCoordinatorNodeId;
     private final String localNodeId;
     private final Version minNonClientNodeVersion;
     private final Version maxNonClientNodeVersion;
@@ -92,6 +94,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         final Map<String, DiscoveryNode> clusterManagerNodes,
         final Map<String, DiscoveryNode> ingestNodes,
         String clusterManagerNodeId,
+        String indexMetadataCoordinatorNodeId,
         String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNonClientNodeVersion,
@@ -104,6 +107,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         this.clusterManagerNodes = Collections.unmodifiableMap(clusterManagerNodes);
         this.ingestNodes = Collections.unmodifiableMap(ingestNodes);
         this.clusterManagerNodeId = clusterManagerNodeId;
+        this.indexMetadataCoordinatorNodeId = indexMetadataCoordinatorNodeId;
         this.localNodeId = localNodeId;
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.maxNonClientNodeVersion = maxNonClientNodeVersion;
@@ -125,6 +129,16 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return false;
         }
         return localNodeId.equals(clusterManagerNodeId);
+    }
+
+    /**
+     * Returns {@code true} if the local node is the elected cluster-manager node.
+     */
+    public boolean isLocalNodeIndexMetadataCoordinator() {
+        if (indexMetadataCoordinatorNodeId == null) {
+            throw new IllegalStateException("indexMetadataCoordinator is not selected yet");
+        }
+        return localNodeId.equals(indexMetadataCoordinatorNodeId);
     }
 
     /**
@@ -263,6 +277,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
+     * Get the id of the index metadata coordinator node
+     *
+     * @return id of the index metadata coordinator
+     */
+    public String getIndexMetadataCoordinatorNodeId() {
+        return this.indexMetadataCoordinatorNodeId;
+    }
+
+    /**
      * Get the id of the local node
      *
      * @return id of the local node
@@ -287,6 +310,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public DiscoveryNode getClusterManagerNode() {
         if (clusterManagerNodeId != null) {
             return nodes.get(clusterManagerNodeId);
+        }
+        return null;
+    }
+
+    /**
+     * Returns the index metadata coordinator node, or {@code null} if there is no IMC node
+     */
+    @Nullable
+    public DiscoveryNode getIndexMetadataCoordinatorNode() {
+        if (indexMetadataCoordinatorNodeId != null) {
+            return nodes.get(indexMetadataCoordinatorNodeId);
         }
         return null;
     }
@@ -469,6 +503,32 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
+    /**
+     * Select the best index metadata coordinator node from available nodes
+     */
+    public static String selectIndexMetadataCoordinator(DiscoveryNodes nodes, String currentIMC, String clusterManagerNodeId) {
+        List<DiscoveryNode> imcNodes = new ArrayList<>();
+        for (DiscoveryNode node : nodes) {
+            if (node.getRoles().contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) && !node.getId().equals(clusterManagerNodeId)) {
+                imcNodes.add(node);
+            }
+        }
+
+        if (imcNodes.isEmpty()) {
+            return null;
+        }
+
+        if (currentIMC != null) {
+            for (DiscoveryNode node : imcNodes) {
+                if (node.getId().equals(currentIMC)) {
+                    return currentIMC;
+                }
+            }
+        }
+
+        return imcNodes.get(0).getId();
+    }
+
     public DiscoveryNodes newNode(DiscoveryNode node) {
         return new Builder(this).add(node).build();
     }
@@ -646,6 +706,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             out.writeBoolean(true);
             out.writeString(clusterManagerNodeId);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeOptionalString(indexMetadataCoordinatorNodeId);
+        }
     }
 
     @Override
@@ -685,6 +748,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         Builder builder = new Builder();
         if (in.readBoolean()) {
             builder.clusterManagerNodeId(in.readString());
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            builder.indexMetadataCoordinatorNodeId(in.readOptionalString());
         }
         if (localNode != null) {
             builder.localNodeId(localNode.getId());
@@ -726,6 +792,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         private final Map<String, DiscoveryNode> nodes;
         private String clusterManagerNodeId;
+        private String indexMetadataCoordinatorNodeId;
         private String localNodeId;
 
         public Builder() {
@@ -734,6 +801,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         public Builder(DiscoveryNodes nodes) {
             this.clusterManagerNodeId = nodes.getClusterManagerNodeId();
+            this.indexMetadataCoordinatorNodeId = nodes.getIndexMetadataCoordinatorNodeId();
             this.localNodeId = nodes.getLocalNodeId();
             this.nodes = new HashMap<>(nodes.getNodes());
         }
@@ -780,6 +848,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         public Builder clusterManagerNodeId(String clusterManagerNodeId) {
             this.clusterManagerNodeId = clusterManagerNodeId;
+            return this;
+        }
+
+        public Builder indexMetadataCoordinatorNodeId(String indexMetadataCoordinatorNodeId) {
+            this.indexMetadataCoordinatorNodeId = indexMetadataCoordinatorNodeId;
             return this;
         }
 
@@ -855,6 +928,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 clusterManagerNodesBuilder,
                 ingestNodesBuilder,
                 clusterManagerNodeId,
+                indexMetadataCoordinatorNodeId,
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
                 maxNonClientNodeVersion == null ? Version.CURRENT : maxNonClientNodeVersion,

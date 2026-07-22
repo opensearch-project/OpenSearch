@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -43,6 +45,7 @@ import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.StreamNodeConnectionsService;
+import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
@@ -67,9 +70,13 @@ import java.util.Map;
  */
 @PublicApi(since = "1.0.0")
 public class ClusterService extends AbstractLifecycleComponent {
+    private static final Logger log = LogManager.getLogger(ClusterService.class);
     private final ClusterManagerService clusterManagerService;
 
     private final ClusterApplierService clusterApplierService;
+
+    private final IndexMetadataCoordinatorService indexMetadataCoordinatorService;
+
 
     public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA = Setting.prefixKeySetting(
         "cluster.metadata.",
@@ -107,7 +114,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             settings,
             clusterSettings,
             new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics),
+            new IndexMetadataCoordinatorService(threadPool)
         );
     }
 
@@ -116,6 +124,22 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterSettings clusterSettings,
         ClusterManagerService clusterManagerService,
         ClusterApplierService clusterApplierService
+    ) {
+        this(
+            settings,
+            clusterSettings,
+            clusterManagerService,
+            clusterApplierService,
+            null
+        );
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ClusterManagerService clusterManagerService,
+        ClusterApplierService clusterApplierService,
+        IndexMetadataCoordinatorService indexMetadataCoordinatorService
     ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
@@ -126,6 +150,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_METADATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = clusterApplierService;
+        this.indexMetadataCoordinatorService = indexMetadataCoordinatorService;
+
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
@@ -150,18 +176,21 @@ public class ClusterService extends AbstractLifecycleComponent {
     protected synchronized void doStart() {
         clusterApplierService.start();
         clusterManagerService.start();
+        indexMetadataCoordinatorService.start();
     }
 
     @Override
     protected synchronized void doStop() {
         clusterManagerService.stop();
         clusterApplierService.stop();
+        indexMetadataCoordinatorService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
         clusterManagerService.close();
         clusterApplierService.close();
+        indexMetadataCoordinatorService.close();
     }
 
     /**
@@ -255,6 +284,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterManagerService;
     }
 
+    public IndexMetadataCoordinatorService getIndexMetadataCoordinatorService() {
+        return indexMetadataCoordinatorService;
+    }
+
     /**
      * Getter and Setter for IndexingPressureService, This method exposes IndexingPressureService stats to other plugins for usage.
      * Although Indexing Pressure instances can be accessed via Node and NodeService class but none of them are
@@ -313,15 +346,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
     }
 
-    /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
-     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
-     *
-     * @param source     the source of the cluster state update task
-     * @param updateTask the full context for the cluster state update
-     *                   task
-     *
-     */
     public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener> void submitStateUpdateTask(
         String source,
         T updateTask
@@ -355,7 +379,35 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterStateTaskExecutor<T> executor,
         ClusterStateTaskListener listener
     ) {
-        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
+        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor, Boolean.TRUE.equals(config.indexMetadataUpdate()));
+    }
+
+    /**
+     * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
+     * potentially with more tasks of the same executor.
+     *
+     * @param source   the source of the cluster state update task
+     * @param tasks    a map of update tasks and their corresponding listeners
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param <T>      the type of the cluster state update task state
+     *
+     */
+    public <T> void submitStateUpdateTasks(
+        final String source,
+        final Map<T, ClusterStateTaskListener> tasks,
+        final ClusterStateTaskConfig config,
+        final ClusterStateTaskExecutor<T> executor,
+        boolean indexMetadataUpdate
+    ) {
+        if (indexMetadataUpdate) {
+            log.info("Submitting IndexMetadata Update");
+            indexMetadataCoordinatorService.submitIndexMetadataUpdateTasks(source, tasks, config, executor);
+        } else {
+            clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+        }
     }
 
     /**
@@ -377,6 +429,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
-        clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+        submitStateUpdateTasks(source, tasks, config, executor, false);
     }
 }

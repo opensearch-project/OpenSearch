@@ -35,6 +35,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
+import org.opensearch.cluster.AsyncClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.AliasAction.NewAliasValidator;
@@ -107,7 +108,7 @@ public class MetadataIndexAliasesService {
     ) {
         clusterService.submitStateUpdateTask(
             "index-aliases",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+            new AsyncClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -121,6 +122,12 @@ public class MetadataIndexAliasesService {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return applyAliasActions(currentState, request.actions());
+                }
+
+                // Is an index metadata update -> Hence setting it to True
+                @Override
+                public Boolean indexMetadataUpdate() {
+                    return true;
                 }
             }
         );
