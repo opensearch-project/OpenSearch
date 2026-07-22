@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Verifies that restoring a data stream backing index auto-attaches it to a pre-existing data stream of the same name,
- * advancing the stream's generation in the same cluster-state update. This is the mechanism cross-cluster replication
- * relies on to bring a leader's rolled-over backing index onto a follower whose stream is a generation behind.
+ * Verifies that restoring a data stream backing index attaches it to a pre-existing data stream of the same name in the
+ * same cluster-state update when {@code attach_to_data_stream} is set, advancing the stream generation when the
+ * attached index has a higher counter than the current write index.
  */
 public class DataStreamRestoreAutoAttachIT extends AbstractSnapshotIntegTestCase {
 
@@ -54,13 +54,9 @@ public class DataStreamRestoreAutoAttachIT extends AbstractSnapshotIntegTestCase
     }
 
     private List<String> backingIndices() throws Exception {
-        return backingIndices(DS);
-    }
-
-    private List<String> backingIndices(String dataStream) throws Exception {
         return client().admin()
             .indices()
-            .getDataStreams(new GetDataStreamAction.Request(new String[] { dataStream }))
+            .getDataStreams(new GetDataStreamAction.Request(new String[] { DS }))
             .get()
             .getDataStreams()
             .get(0)
@@ -82,7 +78,7 @@ public class DataStreamRestoreAutoAttachIT extends AbstractSnapshotIntegTestCase
             .getGeneration();
     }
 
-    public void testRestoreReattachesBackingIndexAndAdvancesGeneration() throws Exception {
+    public void testRestoreReattachesDetachedBackingIndex() throws Exception {
         createRepository(REPO, "fs");
         createTemplate();
         assertAcked(client().admin().indices().createDataStream(new CreateDataStreamAction.Request(DS)).get());
@@ -131,42 +127,44 @@ public class DataStreamRestoreAutoAttachIT extends AbstractSnapshotIntegTestCase
         assertThat(generation(), equalTo(4L));
     }
 
-    public void testRestoreWithRenameAttachesToRenamedStream() throws Exception {
+    public void testRestoreWithRenameAdvancesGenerationOfRenamedStream() throws Exception {
+        // Exercises the two things a unit test of attachRestoredBackingIndices cannot: that the restore pipeline feeds
+        // the post-rename index name into attach, and that attaching a higher-generation index passes cluster-state
+        // validation atomically and leaves rollover working. The source is a generation ahead of the target.
         createRepository(REPO, "fs");
         createTemplate();
 
-        // Source stream logs-attach at generation 2.
+        // Source stream rolled to generation 3, snapshotted; its gen-3 index is the write index.
+        String source = "logs-source";
+        assertAcked(client().admin().indices().createDataStream(new CreateDataStreamAction.Request(source)).get());
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(source, null)).get().isRolledOver(), equalTo(true)); // 2
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(source, null)).get().isRolledOver(), equalTo(true)); // 3
+        createSnapshot(REPO, "snap", List.of(source));
+
+        // Target stream logs-attach is a generation behind at 2 (backing [1, 2]).
         assertAcked(client().admin().indices().createDataStream(new CreateDataStreamAction.Request(DS)).get());
-        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(DS, null)).get().isRolledOver(), equalTo(true)); // gen 2
-        createSnapshot(REPO, "snap", List.of(DS));
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(DS, null)).get().isRolledOver(), equalTo(true)); // 2
+        assertThat(generation(), equalTo(2L));
 
-        // A separate target stream logs-renamed also at generation 2, missing its gen-1 backing index.
-        String renamedStream = "logs-renamed";
-        assertAcked(client().admin().indices().createDataStream(new CreateDataStreamAction.Request(renamedStream)).get());
-        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(renamedStream, null)).get().isRolledOver(), equalTo(true));
-        String renamedGen1 = DataStream.getDefaultBackingIndexName(renamedStream, 1);
-        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(renamedStream, null)).get().isRolledOver(), equalTo(true));
-        assertAcked(
-            client().execute(
-                ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(renamedStream, renamedGen1)))
-            ).get()
-        );
-        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(renamedGen1)).get());
-
-        // Restore logs-attach's gen-1 index, renaming it to logs-renamed's gen-1 name. Auto-attach keys off the
-        // post-rename name, so it joins the renamed stream, not the source stream.
+        // Restore the source's gen-3 index, renamed into the target stream. Auto-attach keys off the post-rename name,
+        // and the higher counter advances the target generation to 3, making it the new write index.
+        String targetGen3 = DataStream.getDefaultBackingIndexName(DS, 3);
         RestoreSnapshotResponse restore = client().admin()
             .cluster()
             .prepareRestoreSnapshot(REPO, "snap")
-            .setIndices(DataStream.getDefaultBackingIndexName(DS, 1))
-            .setRenamePattern(DS)
-            .setRenameReplacement(renamedStream)
+            .setIndices(DataStream.getDefaultBackingIndexName(source, 3))
+            .setRenamePattern(source)
+            .setRenameReplacement(DS)
             .setAttachToDataStream(true)
             .setWaitForCompletion(true)
             .get();
         assertThat(restore.getRestoreInfo().successfulShards(), equalTo(restore.getRestoreInfo().totalShards()));
 
-        assertTrue(backingIndices(renamedStream).contains(renamedGen1));
+        assertTrue(backingIndices().contains(targetGen3));
+        assertThat(generation(), equalTo(3L));
+        assertThat(backingIndices().get(backingIndices().size() - 1), equalTo(targetGen3));
+        // A subsequent rollover advances off the new write index, confirming generation stayed in sync.
+        assertThat(client().admin().indices().rolloverIndex(new RolloverRequest(DS, null)).get().isRolledOver(), equalTo(true));
+        assertThat(generation(), equalTo(4L));
     }
 }
