@@ -2746,9 +2746,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         throw new IOException(
-            "Failed to upload to remote segment store within remote upload timeout of "
-                + getRecoverySettings().internalRemoteUploadTimeout().getMinutes()
-                + " minutes"
+            REMOTE_STORE_SYNC_TIMEOUT_MARKER + " of " + getRecoverySettings().internalRemoteUploadTimeout().getMinutes() + " minutes"
         );
     }
 
@@ -3851,6 +3849,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link org.opensearch.storage.action.tiering.MergeDrainTimeoutException#MERGE_DRAIN_TIMEOUT_MARKER}.
      */
     public static final String REPLICA_SYNC_TIMEOUT_MARKER = "[REPLICA_SYNC_TIMEOUT]";
+
+    /**
+     * Stable marker substring embedded in remote store sync timeout messages.
+     * Enables log parsing and coordinator-side detection of upload timeouts during tiering preparation.
+     */
+    public static final String REMOTE_STORE_SYNC_TIMEOUT_MARKER = "Failed to upload to remote segment store within remote upload timeout";
 
     /**
      * Waits for all tracked replicas to be in sync with the primary's latest checkpoint.
