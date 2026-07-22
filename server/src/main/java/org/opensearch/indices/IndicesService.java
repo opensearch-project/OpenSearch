@@ -919,11 +919,18 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
             }
         }
+        // Only include status_counter when it is explicitly requested (or when all flags are set).
+        // Previously it was always included regardless of the requested index metrics, causing it
+        // to appear even for targeted requests like GET _nodes/stats/indices/request_cache.
+        // See https://github.com/opensearch-project/OpenSearch/issues/22383
+        final StatusCounterStats resolvedStatusCounterStats = flags.isSet(CommonStatsFlags.Flag.StatusCounter)
+            ? statusCounterStats
+            : null;
         if (flags.getIncludeIndicesStatsByLevel()) {
             NodeIndicesStats.StatsLevel statsLevel = NodeIndicesStats.getAcceptedLevel(flags.getLevels());
-            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statusCounterStats, statsLevel);
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, resolvedStatusCounterStats, statsLevel);
         } else {
-            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statusCounterStats);
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, resolvedStatusCounterStats);
         }
     }
 
