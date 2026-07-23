@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -118,6 +119,49 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
         e = expectThrows(IllegalArgumentException.class, () -> new RegexpQueryBuilder("field", null));
         assertEquals("value cannot be null", e.getMessage());
+    }
+
+    public void testMaxDeterminizedStatesIsBounded() {
+        // Guards against CVE-2026-63136: an unbounded max_determinized_states disables Lucene's
+        // determinization safeguard and lets a crafted pattern exhaust the heap.
+        RegexpQueryBuilder query = new RegexpQueryBuilder("field", ".*a.{30}");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> query.maxDeterminizedStates(Integer.MAX_VALUE)
+        );
+        assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> query.maxDeterminizedStates(RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT + 1)
+        );
+        assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> query.maxDeterminizedStates(-1));
+        assertThat(e.getMessage(), containsString("cannot be negative"));
+
+        // The ceiling itself and typical values remain accepted.
+        assertEquals(
+            RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT,
+            query.maxDeterminizedStates(RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT).maxDeterminizedStates()
+        );
+        assertEquals(20000, query.maxDeterminizedStates(20000).maxDeterminizedStates());
+    }
+
+    public void testMaxDeterminizedStatesFromJsonIsBounded() {
+        // The bound must also apply when the value arrives via the REST/XContent parse path.
+        String json = String.format(Locale.ROOT, """
+            {
+                "regexp" : {
+                    "field" : {
+                        "value" : ".*a.{30}",
+                        "max_determinized_states" : 2147483647
+                    }
+                }
+            }""");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
     }
 
     public void testFromJson() throws IOException {

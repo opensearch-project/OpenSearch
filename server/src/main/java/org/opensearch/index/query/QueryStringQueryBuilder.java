@@ -377,6 +377,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Protects against too-difficult regular expression queries.
      */
     public QueryStringQueryBuilder maxDeterminizedStates(int maxDeterminizedStates) {
+        if (maxDeterminizedStates < 0) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] max_determinized_states cannot be negative but was [" + maxDeterminizedStates + "]"
+            );
+        }
+        if (maxDeterminizedStates > RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT) {
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] max_determinized_states cannot exceed ["
+                    + RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT
+                    + "] but was ["
+                    + maxDeterminizedStates
+                    + "]"
+            );
+        }
         this.maxDeterminizedStates = maxDeterminizedStates;
         return this;
     }
