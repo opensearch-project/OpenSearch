@@ -47,6 +47,7 @@ import java.util.stream.StreamSupport;
  */
 public class Iterables {
 
+    @SafeVarargs
     public static <T> Iterable<T> concat(Iterable<T>... inputs) {
         Objects.requireNonNull(inputs);
         return new ConcatenatedIterable<>(inputs);
