@@ -14,9 +14,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -227,6 +229,143 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertThat(customData.get("fields.@timestamp.resolution"), equalTo("milliseconds"));
     }
 
+    public void testValidateAndParseCustomDataReadsAllDeclaredDomains() {
+        Map<String, String> customData = new HashMap<>();
+        customData.putAll(METADATA.toCustomData(new DateRangeFieldDomain("event.created", 10L, 20L, true, "test")));
+        customData.putAll(METADATA.toCustomData(new DateRangeFieldDomain("event.ingested", 100L, 200L, true, "test")));
+
+        List<FieldDomain> domains = METADATA.validateAndParseCustomData(customData);
+
+        assertThat(domains.size(), equalTo(2));
+        DateRangeFieldDomain created = dateRangeDomain(domains, "event.created");
+        assertThat(created.min(), equalTo("10"));
+        assertThat(created.max(), equalTo("20"));
+        DateRangeFieldDomain ingested = dateRangeDomain(domains, "event.ingested");
+        assertThat(ingested.min(), equalTo("100"));
+        assertThat(ingested.max(), equalTo("200"));
+    }
+
+    public void testValidateAndParseCustomDataRejectsUnknownDeclaredType() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.validateAndParseCustomData(Map.of("fields.host.name.type", "keyword_set"))
+        );
+
+        assertThat(exception.getMessage(), equalTo("unsupported field domain type [keyword_set] for field [host.name]"));
+    }
+
+    public void testValidateAndParseCustomDataRejectsMalformedDeclaredDomain() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.validateAndParseCustomData(Map.of("fields.@timestamp.type", "date_range", "fields.@timestamp.min", "100"))
+        );
+
+        assertThat(exception.getMessage(), equalTo("invalid field domain metadata for field [@timestamp]"));
+    }
+
+    public void testValidateAndParseCustomDataRejectsInvalidDateRangeValues() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.validateAndParseCustomData(
+                Map.of(
+                    "fields.@timestamp.type",
+                    "date_range",
+                    "fields.@timestamp.min",
+                    "1000000000",
+                    "fields.@timestamp.max",
+                    "2000000000",
+                    "fields.@timestamp.finalized",
+                    "true"
+                )
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("invalid field domain metadata for field [@timestamp]"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.validateAndParseCustomData(
+                Map.of(
+                    "fields.@timestamp.type",
+                    "date_range",
+                    "fields.@timestamp.min",
+                    "bad",
+                    "fields.@timestamp.max",
+                    "200",
+                    "fields.@timestamp.finalized",
+                    "true",
+                    "fields.@timestamp.resolution",
+                    "milliseconds"
+                )
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("invalid field domain metadata for field [@timestamp]"));
+    }
+
+    public void testValidateAndParseCustomDataRejectsMetadataWithoutFieldDeclarations() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.validateAndParseCustomData(Map.of("producer", "test"))
+        );
+
+        assertThat(exception.getMessage(), equalTo("field domain metadata contains no field declarations"));
+    }
+
+    public void testValidateAndParseCustomDataRejectsEmptyFieldDeclaration() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.validateAndParseCustomData(Map.of("fields.type", "date_range"))
+        );
+
+        assertThat(exception.getMessage(), equalTo("field domain metadata field name must not be empty"));
+    }
+
+    public void testToCustomDataWritesMultipleDomains() {
+        Map<String, String> customData = METADATA.toCustomData(
+            List.of(
+                new DateRangeFieldDomain("event.created", 10L, 20L, true, "test"),
+                new DateRangeFieldDomain("event.ingested", 100L, 200L, true, "test")
+            )
+        );
+
+        assertThat(customData.get("fields.event.created.type"), equalTo("date_range"));
+        assertThat(customData.get("fields.event.created.min"), equalTo("10"));
+        assertThat(customData.get("fields.event.ingested.type"), equalTo("date_range"));
+        assertThat(customData.get("fields.event.ingested.max"), equalTo("200"));
+    }
+
+    public void testToCustomDataRejectsDuplicateFields() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.toCustomData(
+                List.of(
+                    new DateRangeFieldDomain("@timestamp", 1L, 2L, true, "test"),
+                    new DateRangeFieldDomain("@timestamp", 3L, 4L, true, "test")
+                )
+            )
+        );
+
+        assertThat(exception.getMessage(), equalTo("duplicate field domain for field [@timestamp]"));
+    }
+
+    public void testToCustomDataRejectsOversizedMetadata() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.toCustomData(
+                new DateRangeFieldDomain(
+                    "@timestamp",
+                    "100",
+                    "200",
+                    true,
+                    randomAlphaOfLength(IndexFieldDomainMetadata.MAX_CUSTOM_DATA_BYTES),
+                    null,
+                    "milliseconds"
+                )
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("index field domain metadata is too large"));
+    }
+
     public void testToCustomDataReturnsImmutableMap() {
         Map<String, String> customData = METADATA.toCustomData(new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test"));
 
@@ -332,6 +471,61 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertThat(customData.get("fields.@timestamp.custom"), equalTo("preserved"));
     }
 
+    public void testPutFieldDomainsMergesMultipleFields() {
+        Map<String, String> existing = new HashMap<>();
+        existing.put("fields.@timestamp.type", "date_range");
+        existing.put("fields.@timestamp.min", "1");
+        existing.put("fields.@timestamp.max", "2");
+        existing.put("fields.@timestamp.finalized", "true");
+        existing.put("fields.host.name.type", "term_set");
+        existing.put("fields.host.name.value", "server-a");
+
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, existing).build();
+
+        IndexMetadata updated = METADATA.putFieldDomains(
+            metadata,
+            List.of(
+                new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test"),
+                new DateRangeFieldDomain("event.ingested", 300L, 400L, true, "test")
+            )
+        );
+
+        Map<String, String> customData = updated.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY);
+        assertThat(customData.get("fields.@timestamp.min"), equalTo("100"));
+        assertThat(customData.get("fields.@timestamp.max"), equalTo("200"));
+        assertThat(customData.get("fields.event.ingested.min"), equalTo("300"));
+        assertThat(customData.get("fields.event.ingested.max"), equalTo("400"));
+        assertThat(customData.get("fields.host.name.type"), equalTo("term_set"));
+        assertThat(customData.get("fields.host.name.value"), equalTo("server-a"));
+    }
+
+    public void testPutFieldDomainsFromEncodedMetadataValidatesAndMerges() {
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").build();
+        Map<String, String> encodedMetadata = METADATA.toCustomData(
+            List.of(
+                new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test"),
+                new DateRangeFieldDomain("event.ingested", 300L, 400L, true, "test")
+            )
+        );
+
+        IndexMetadata updated = METADATA.putFieldDomains(metadata, encodedMetadata);
+
+        Map<String, String> customData = updated.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY);
+        assertThat(customData.get("fields.@timestamp.min"), equalTo("100"));
+        assertThat(customData.get("fields.event.ingested.max"), equalTo("400"));
+    }
+
+    public void testPutFieldDomainsFromEncodedMetadataRejectsEmptyMetadata() {
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> METADATA.putFieldDomains(metadata, Map.of())
+        );
+
+        assertThat(exception.getMessage(), equalTo("field domain metadata is required"));
+    }
+
     public void testPutFieldDomainRejectsNullInputs() {
         IndexMetadata metadata = indexMetadataBuilder("logs-000001").build();
 
@@ -340,6 +534,7 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
             () -> METADATA.putFieldDomain(null, new DateRangeFieldDomain("@timestamp", 1L, 2L, true, "test"))
         );
         expectThrows(NullPointerException.class, () -> METADATA.putFieldDomain(metadata, null));
+        expectThrows(NullPointerException.class, () -> METADATA.putFieldDomains(metadata, (Map<String, String>) null));
     }
 
     private static IndexMetadata.Builder indexMetadataBuilder(String index) {
@@ -352,6 +547,14 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
             )
             .numberOfShards(1)
             .numberOfReplicas(0);
+    }
+
+    private static DateRangeFieldDomain dateRangeDomain(List<FieldDomain> domains, String field) {
+        return domains.stream()
+            .filter(domain -> field.equals(domain.field()))
+            .map(DateRangeFieldDomain.class::cast)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("missing field domain [" + field + "]"));
     }
 
     private static final class UnsupportedFieldDomain implements FieldDomain {
