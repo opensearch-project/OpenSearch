@@ -327,10 +327,16 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     /**
      * Method that incorporates the ShardId for the shard into a string that
-     * includes a 'p' or 'r' depending on whether the shard is a primary.
+     * includes the index UUID and a 'p' or 'r' depending on whether the shard is a primary.
+     * Including the UUID prevents cache collisions when indices are rapidly deleted and recreated.
      */
     static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+        return shardRouting.shardId().toString()
+            + "["
+            + shardRouting.shardId().getIndex().getUUID()
+            + "]["
+            + (shardRouting.primary() ? "p" : "r")
+            + "]";
     }
 
     /**
