@@ -45,9 +45,9 @@ public class FsServiceProviderTests extends OpenSearchTestCase {
     }
 
     /**
-     * On a warm node, the provider must return a {@link WarmFsService}.
+     * On a dedicated warm node, the provider must return a {@link WarmFsService}.
      */
-    public void testCreateFsServiceReturnsWarmFsServiceOnWarmNode() throws Exception {
+    public void testCreateFsServiceReturnsWarmFsServiceOnDedicatedWarmNode() throws Exception {
         Settings settings = Settings.builder()
             .put("node.roles", DiscoveryNodeRole.WARM_ROLE.roleName())
             .put("node.search.cache.size", "1gb")
@@ -72,6 +72,40 @@ public class FsServiceProviderTests extends OpenSearchTestCase {
             assertNotNull(fsService);
             assertTrue(
                 "Warm node must produce a WarmFsService but got: " + fsService.getClass().getSimpleName(),
+                fsService instanceof WarmFsService
+            );
+        }
+    }
+
+    /**
+     * On a mixed data+warm node, the provider must return a standard {@link FsService}
+     * so physical disk stats are reported for hot data shards.
+     */
+    public void testCreateFsServiceReturnsStandardFsServiceOnDataAndWarmNode() throws Exception {
+        Settings settings = Settings.builder()
+            .putList("node.roles", DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.WARM_ROLE.roleName())
+            .put("node.search.cache.size", "1gb")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS);
+        IndicesService indicesService = mock(IndicesService.class);
+
+        FileCache fileCache = mock(FileCache.class);
+        when(fileCache.capacity()).thenReturn(1024L * 1024 * 1024);
+        when(fileCache.usage()).thenReturn(0L);
+
+        NodeCacheService orchestrator = mock(NodeCacheService.class);
+        when(orchestrator.fileCache()).thenReturn(fileCache);
+        when(orchestrator.blockCacheCapacityBytes()).thenReturn(0L);
+        when(orchestrator.virtualBlockCacheBytes()).thenReturn(0L);
+        when(orchestrator.cacheUtilizedBytes()).thenReturn(0L);
+
+        try (var nodeEnv = newNodeEnvironment(settings)) {
+            FsServiceProvider provider = new FsServiceProvider(settings, nodeEnv, orchestrator, clusterSettings, indicesService);
+            FsService fsService = provider.createFsService();
+
+            assertNotNull(fsService);
+            assertFalse(
+                "Mixed data+warm node must NOT produce a WarmFsService but got: " + fsService.getClass().getSimpleName(),
                 fsService instanceof WarmFsService
             );
         }
