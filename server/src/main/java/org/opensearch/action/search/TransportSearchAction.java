@@ -69,6 +69,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -110,6 +111,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.OriginSettingClient;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
@@ -194,6 +196,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final SearchIndexPruningService searchIndexPruningService;
 
+    private final WorkloadGroupService workloadGroupService;
+
     @Inject
     public TransportSearchAction(
         NodeClient client,
@@ -212,7 +216,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        WorkloadGroupService workloadGroupService
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -240,6 +245,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterService.getClusterSettings(),
             new ClusterStateFieldDomainProvider()
         );
+        this.workloadGroupService = workloadGroupService;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -483,13 +489,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalSearchRequest,
                 taskResourceTrackingService::getTaskResourceUsageFromThreadContext
             );
-            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
-
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+                // Coordinator-task admission point; must run before onRequestStart to keep in-flight gauges balanced.
+                try {
+                    workloadGroupService.rejectIfNeeded(((WorkloadGroupTask) task).getWorkloadGroupId());
+                } catch (OpenSearchRejectedExecutionException e) {
+                    updatedListener.onFailure(e);
+                    return;
+                }
             }
+
+            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
