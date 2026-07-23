@@ -20,10 +20,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class PolicyFileTests {
-    @SuppressWarnings("removal")
     @Test
     public void testPolicy() throws IOException, PolicyParser.ParsingException {
-        final java.security.Policy policy = new PolicyFile(getClass().getResource("/test.policy"));
+        final Policy policy = new PolicyFile(getClass().getResource("/test.policy"));
         final PermissionCollection permissions = policy.getPermissions(getClass().getProtectionDomain());
 
         final List<FilePermission> filePermissions = permissions.elementsAsStream()
