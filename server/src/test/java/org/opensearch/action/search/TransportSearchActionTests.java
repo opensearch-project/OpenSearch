@@ -68,6 +68,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -117,6 +118,8 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -140,7 +143,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends OpenSearchTestCase {
@@ -1258,7 +1265,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             NoopTracer.INSTANCE,
             mock(TaskResourceTrackingService.class),
             mock(IndicesService.class),
-            searchExecutionGate
+            searchExecutionGate,
+            mock(WorkloadGroupService.class)
         );
     }
 
@@ -1328,7 +1336,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 mock(Tracer.class),
                 mock(TaskResourceTrackingService.class),
                 mock(IndicesService.class),
-                SearchExecutionGate.NOOP
+                SearchExecutionGate.NOOP,
+                mock(WorkloadGroupService.class)
             );
 
             // Actual test cases start here:
@@ -1368,5 +1377,82 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 mockTransportService.close();
             }
         }
+    }
+
+    public void testCoordinatorSearchTaskRejectedBeforeRequestStart() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        doThrow(new OpenSearchRejectedExecutionException("WorkloadGroup is already contended.")).when(workloadGroupService)
+            .rejectIfNeeded(anyString());
+
+        // onRequestStart must not run on rejection, else the in-flight gauge leaks.
+        AtomicBoolean requestStarted = new AtomicBoolean(false);
+        SearchRequestOperationsListener requestStartTracker = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestStart(SearchRequestContext searchRequestContext) {
+                requestStarted.set(true);
+            }
+        };
+
+        TransportSearchAction action = new TransportSearchAction(
+            mock(NodeClient.class),
+            threadPool,
+            mock(CircuitBreakerService.class),
+            mock(TransportService.class),
+            mock(SearchService.class),
+            mock(SearchTransportService.class),
+            new SearchPhaseController(new NamedWriteableRegistry(Collections.emptyList()), (searchSourceBuilder) -> null),
+            clusterService,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            mock(SearchPipelineService.class),
+            mock(MetricsRegistry.class),
+            new SearchRequestOperationsCompositeListenerFactory(requestStartTracker),
+            NoopTracer.INSTANCE,
+            mock(TaskResourceTrackingService.class),
+            mock(IndicesService.class),
+            SearchExecutionGate.NOOP,
+            workloadGroupService
+        );
+
+        SearchTask task = new SearchTask(0, "transport", SearchAction.NAME, () -> "test", null, Collections.emptyMap());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "test-workload-group");
+            action.executeRequest(
+                task,
+                new SearchRequest(),
+                (TransportSearchAction.SearchAsyncActionProvider) (
+                    searchTask,
+                    searchRequest,
+                    executor,
+                    shardIterators,
+                    timeProvider,
+                    connectionLookup,
+                    clusterState,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    indexRoutings,
+                    listener,
+                    preFilter,
+                    tp,
+                    clusters,
+                    searchRequestContext) -> {
+                    return null;
+                },
+                ActionListener.wrap(r -> fail("expected rejection"), failure::set)
+            );
+        }
+
+        assertThat(failure.get(), instanceOf(OpenSearchRejectedExecutionException.class));
+        assertFalse("onRequestStart must not run for a rejected request", requestStarted.get());
+        // Pin the resolved id (not DEFAULT/null, which rejectIfNeeded would silently skip) since the stub matches anyString().
+        verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
     }
 }
