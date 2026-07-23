@@ -207,8 +207,6 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
-import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
-import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -2125,9 +2123,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     emptyMap(),
-                    IngestionPayloadDecoderRegistry.builder()
-                        .register("xcontent", XContentIngestionPayloadDecoder.Factory.INSTANCE)
-                        .build(),
+                    null,
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
                     DefaultRemoteStoreSettings.INSTANCE

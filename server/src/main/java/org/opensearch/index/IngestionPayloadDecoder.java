@@ -42,8 +42,8 @@ public interface IngestionPayloadDecoder extends Closeable {
     Map<String, Object> decode(Message<?> message);
 
     /**
-     * Releases resources held by this decoder, including when the poller was never started.
-     * May be invoked more than once (e.g. if a reset fails); implementations should be idempotent.
+     * Releases resources held by this decoder.
+     * May be invoked more than once and should be idempotent.
      * The default implementation is a no-op.
      */
     @Override
