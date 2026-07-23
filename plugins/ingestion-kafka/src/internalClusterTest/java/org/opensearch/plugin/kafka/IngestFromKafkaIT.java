@@ -23,19 +23,29 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoder;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
+import org.opensearch.index.Message;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.pollingingest.IngestionUtils;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.IngestionConsumerPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
 import org.junit.Assert;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -51,6 +61,63 @@ import static org.awaitility.Awaitility.await;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
+
+    /**
+     * Test plugin that registers a custom ingestion payload decoder ({@code test_uppercase}) which
+     * uppercases the {@code name} field of the decoded {@code _source}. Used to verify that a
+     * plugin-contributed decoder (as opposed to the built-in {@code xcontent} decoder) is honored
+     * end-to-end when selected via {@code ingestion_source.decoder_type}.
+     */
+    public static class TestCustomDecoderPlugin extends Plugin implements IngestionConsumerPlugin {
+        static final String CUSTOM_DECODER_TYPE = "test_uppercase";
+
+        @SuppressWarnings("rawtypes")
+        @Override
+        public Map<String, IngestionConsumerFactory> getIngestionConsumerFactories() {
+            return Map.of();
+        }
+
+        @Override
+        public String getType() {
+            return "TEST_CUSTOM_DECODER_PLUGIN";
+        }
+
+        @Override
+        public Map<String, IngestionPayloadDecoderFactory> getIngestionPayloadDecoderFactories() {
+            return Map.of(CUSTOM_DECODER_TYPE, new UppercaseNameIngestionPayloadDecoder.Factory());
+        }
+
+        public static class UppercaseNameIngestionPayloadDecoder implements IngestionPayloadDecoder {
+            @Override
+            @SuppressWarnings("unchecked")
+            public Map<String, Object> decode(Message<?> message) {
+                Map<String, Object> payloadMap = IngestionUtils.getParsedPayloadMap((byte[]) message.getPayload());
+                Object source = payloadMap.get("_source");
+                if (source instanceof Map) {
+                    Map<String, Object> sourceMap = (Map<String, Object>) source;
+                    Object name = sourceMap.get("name");
+                    if (name instanceof String) {
+                        sourceMap.put("name", ((String) name).toUpperCase(Locale.ROOT));
+                    }
+                }
+                return payloadMap;
+            }
+
+            public static class Factory implements IngestionPayloadDecoderFactory {
+                @Override
+                public IngestionPayloadDecoder create(IndexMetadata indexMetadata, int shardId, Map<String, Object> settings) {
+                    return new UppercaseNameIngestionPayloadDecoder();
+                }
+            }
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestCustomDecoderPlugin.class);
+        return plugins;
+    }
 
     /**
      * test ingestion-kafka-plugin is installed
@@ -111,6 +178,40 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
+        });
+    }
+
+    public void testKafkaIngestion_WithCustomDecoder() {
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .put("ingestion_source.decoder_type", TestCustomDecoderPlugin.CUSTOM_DECODER_TYPE)
+                .build(),
+            mapping
+        );
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+            assertThat(docs.get("1").get("name"), is("NAME1"));
+            assertThat(docs.get("2").get("name"), is("NAME2"));
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
