@@ -30,7 +30,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.LIKE, call.getKind());
 
-        // Empty prefix should match all: "%"
         RexNode pattern = call.getOperands().get(1);
         assertEquals("%", ((RexLiteral) pattern).getValueAs(String.class));
     }
@@ -41,7 +40,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
-        // % should be escaped to \%
         RexNode pattern = call.getOperands().get(1);
         assertEquals("50\\%%", ((RexLiteral) pattern).getValueAs(String.class));
     }
@@ -52,7 +50,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
-        // _ should be escaped to \_
         RexNode pattern = call.getOperands().get(1);
         assertEquals("test\\_%", ((RexLiteral) pattern).getValueAs(String.class));
     }
@@ -63,7 +60,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
-        // \ should be escaped to \\
         RexNode pattern = call.getOperands().get(1);
         assertEquals("path\\\\to%", ((RexLiteral) pattern).getValueAs(String.class));
     }
@@ -100,7 +96,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
-        // Special chars like - and . should not be escaped
         RexNode pattern = call.getOperands().get(1);
         assertEquals("test-123.abc%", ((RexLiteral) pattern).getValueAs(String.class));
     }
@@ -111,7 +106,6 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
-        // All special chars should be escaped
         RexNode pattern = call.getOperands().get(1);
         assertEquals("a\\%b\\_c\\\\d%", ((RexLiteral) pattern).getValueAs(String.class));
     }

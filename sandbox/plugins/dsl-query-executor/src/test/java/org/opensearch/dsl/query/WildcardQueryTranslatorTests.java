@@ -50,7 +50,7 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \* in OpenSearch wildcard = literal '*' character (not a wildcard)
+        // \* in OpenSearch wildcard = literal '*' (not a wildcard)
         assertEquals("path*", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
@@ -61,86 +61,74 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \d in OpenSearch wildcard = literal backslash + 'd'; LIKE must have \\d for the literal backslash
+        // \d = literal backslash + 'd' → LIKE needs \\d for the literal backslash
         assertEquals("a\\%b\\_c\\\\d%e_", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
-    // --- Backslash-escape semantics: \* and \? are literal characters in OpenSearch wildcard syntax ---
-
     public void testEscapedAsteriskProducesLiteralStar() throws ConversionException {
-        // In OpenSearch wildcard syntax, \* means a literal asterisk character
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\*b"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \* in input → literal '*' in LIKE pattern (not a wildcard)
         assertEquals("a*b", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testEscapedQuestionMarkProducesLiteralQuestionMark() throws ConversionException {
-        // In OpenSearch wildcard syntax, \? means a literal question mark character
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\?b"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \? in input → literal '?' in LIKE pattern (not a wildcard)
         assertEquals("a?b", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testTrailingLoneBackslashIsEscaped() throws ConversionException {
-        // A trailing backslash with nothing after it is a literal backslash
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "path\\"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // Trailing \ → escaped backslash in LIKE: \\
         assertEquals("path\\\\", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testMixedEscapedAndUnescapedWildcards() throws ConversionException {
-        // a\*b*c?d combines: escaped star, unescaped star, unescaped question
+        // \* → literal '*', * → %, ? → _
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\*b*c?d"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \* → literal '*', * → %, ? → _
         assertEquals("a*b%c_d", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testEscapedBackslashFollowedByWildcard() throws ConversionException {
-        // \\\* in Java string = two chars: \\ and *. In OS wildcard: \\ = literal backslash, * = wildcard
+        // In OS wildcard: \\ = literal backslash, then * = wildcard
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\\\*b"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \\ → escaped backslash (\\\\), then * → % wildcard
         assertEquals("a\\\\%b", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testLiteralPercentAndUnderscoreAreEscaped() throws ConversionException {
-        // Verify that literal SQL metacharacters % and _ in the value are properly escaped
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "100%_done"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // % → \%, _ → \_
         assertEquals("100\\%\\_done", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testBackslashBeforeNonSpecialCharEmitsEscapedBackslash() throws ConversionException {
-        // \n in OpenSearch wildcard means literal backslash + n; LIKE must contain \\n
+        // \n in OpenSearch wildcard = literal backslash + n
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\nb"), ctx);
 
         assertTrue(result instanceof RexCall);
@@ -151,7 +139,7 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testBackslashBeforeT() throws ConversionException {
-        // \t in OpenSearch wildcard means literal backslash + t
+        // \t in OpenSearch wildcard = literal backslash + t
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\tb"), ctx);
 
         assertTrue(result instanceof RexCall);
@@ -162,8 +150,7 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testWindowsPathBackslashes() throws ConversionException {
-        // C:\\Users\\test in Java string = C:\Users\test in the pattern
-        // : is literal, each \U and \t is backslash + non-special char → \\U and \\t in LIKE
+        // Each \U and \t = backslash + non-special char → \\U and \\t in LIKE
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "C:\\Users\\test"), ctx);
 
         assertTrue(result instanceof RexCall);
@@ -174,7 +161,6 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testWildcardWithEmptyPattern() throws ConversionException {
-        // Empty pattern should produce an empty LIKE pattern
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", ""), ctx);
 
         assertTrue(result instanceof RexCall);

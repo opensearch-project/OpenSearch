@@ -2,12 +2,6 @@
 
 A front-end sandbox plugin to the analytics engine that intercepts `_search` requests, converts DSL queries into Calcite RelNode logical plans, and executes them through the analytics engine's query pipeline.
 
-## Supported Query Types
-
-- **Term** — equality filter
-- **Terms** — multi-value equality filter (uses query Filter with SEARCH and EQUALS)
-- **Match All** — matches all documents
-
 ## Architecture
 
 ```
@@ -21,87 +15,42 @@ _search request
 
 ## Supported Queries
 
-### Term Query
-Converts to Calcite equality expressions.
-```json
-{"term": {"status": "active"}}
-```
-
-### Match All Query
-Converts to boolean true literal.
-```json
-{"match_all": {}}
-```
+| DSL Query | Calcite Representation |
+|-----------|------------------------|
+| `term` | `=($field, value)` — equality filter |
+| `terms` | `SEARCH($field, Sarg[v1, v2, ...])` — multi-value equality |
+| `match_all` | Skipped (boolean literal `TRUE`) |
+| `exists` | `IS NOT NULL($field)` — field existence check (boost not supported) |
+| `prefix` | `LIKE 'value%' ESCAPE '\'` — prefix match with escaped SQL metacharacters |
+| `wildcard` | `LIKE 'pattern' ESCAPE '\'` — `*`→`%`, `?`→`_`, with escape handling |
 
 ### Prefix Query
-Converts to Calcite LIKE expressions with wildcard suffix.
 
-**Supported parameters:**
-- `value` - The prefix string
-- `case_insensitive` - Case-insensitive matching (default: false)
+Converts to `LIKE 'prefix%' ESCAPE '\'`. Supports `case_insensitive` (wraps in `LOWER()`).
+SQL metacharacters (`%`, `_`, `\`) in the prefix value are escaped.
 
-**Unsupported parameters (throw ConversionException):**
-- `boost` - Query boosting not supported
-- `rewrite` - Rewrite method not supported
-
-**Examples:**
 ```json
-{"prefix": {"name": "lap"}}
-// Converts to: name LIKE 'lap%'
-
-{"prefix": {"name": {"value": "LAP", "case_insensitive": true}}}
-// Converts to: LOWER(name) LIKE 'lap%'
+{"prefix": {"name": "lap"}}           → name LIKE 'lap%'
+{"prefix": {"name": {"value": "LAP", "case_insensitive": true}}} → LOWER(name) LIKE 'lap%'
 ```
-
-**Special character escaping:**
-- `%` → `\%` (SQL wildcard for any characters)
-- `_` → `\_` (SQL wildcard for single character)
-- `\` → `\\` (escape character)
 
 ### Wildcard Query
-Converts to Calcite LIKE expressions with wildcard pattern translation.
 
-**Wildcard characters:**
-- `*` - Matches any character sequence (converts to SQL `%`)
-- `?` - Matches any single character (converts to SQL `_`)
+Converts `*`→`%` and `?`→`_` with backslash-escape semantics matching WildcardQueryBuilder.
+Supports `case_insensitive`.
 
-**Supported parameters:**
-- `value` - The wildcard pattern
-- `case_insensitive` - Case-insensitive matching (default: false)
-
-**Unsupported parameters (throw ConversionException):**
-- `boost` - Query boosting not supported
-- `rewrite` - Rewrite method not supported
-
-**Examples:**
 ```json
-{"wildcard": {"name": "lap*"}}
-// Converts to: name LIKE 'lap%'
-
-{"wildcard": {"name": "l?ptop"}}
-// Converts to: name LIKE 'l_ptop'
-
-{"wildcard": {"name": {"value": "*BOOK*", "case_insensitive": true}}}
-// Converts to: LOWER(name) LIKE '%book%'
+{"wildcard": {"name": "lap*"}}        → name LIKE 'lap%'
+{"wildcard": {"name": "l?ptop"}}      → name LIKE 'l_ptop'
+{"wildcard": {"name": "*book*"}}      → name LIKE '%book%'
 ```
 
-**Special character escaping:**
-- SQL special chars (`%`, `_`, `\`) are escaped before wildcard conversion
-- `*` → `%` (after escaping)
-- `?` → `_` (after escaping)
+Unsupported parameters for both: `boost`, `rewrite` (throw ConversionException).
 
 ## Dependencies
 
 - `analytics-engine` — provides `QueryPlanExecutor` and `EngineContext` via Guice (declared as `extendedPlugins`)
 - `analytics-framework` — provides Calcite and shared SPI interfaces
-
-## Supported Queries
-
-| DSL Query | Calcite Representation |
-|-----------|------------------------|
-| `term` | `=($field, value)` — equality filter |
-| `match_all` | Skipped (boolean literal `TRUE`) |
-| `exists` | `IS NOT NULL($field)` — field existence check (boost not supported) |
 
 ## Running locally
 
