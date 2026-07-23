@@ -34,7 +34,9 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -162,6 +164,27 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             }""");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
+    }
+
+    public void testMaxDeterminizedStatesFromStreamIsBounded() throws IOException {
+        // Guards against CVE-2026-63136 on the transport deserialization path: a patched data node
+        // must reject an out-of-bounds value serialized by an (unpatched) coordinating node instead
+        // of feeding it to Lucene. The setter bound cannot be reached by serializing a real builder
+        // (the setter itself blocks it), so we hand-craft the wire bytes with an oversized value.
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeFloat(AbstractQueryBuilder.DEFAULT_BOOST); // boost
+        out.writeOptionalString(null);                      // queryName
+        out.writeString("field");                           // fieldName
+        out.writeString(".*a.{30}");                        // value
+        out.writeVInt(RegexpQueryBuilder.DEFAULT_FLAGS_VALUE);
+        out.writeVInt(Integer.MAX_VALUE);                   // maxDeterminizedStates (malicious)
+        out.writeOptionalString(null);                      // rewrite
+        out.writeBoolean(false);                            // caseInsensitive
+
+        try (StreamInput in = out.bytes().streamInput()) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RegexpQueryBuilder(in));
+            assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
+        }
     }
 
     public void testFromJson() throws IOException {

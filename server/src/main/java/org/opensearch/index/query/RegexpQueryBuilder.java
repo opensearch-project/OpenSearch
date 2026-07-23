@@ -122,7 +122,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         syntaxFlagsValue = in.readVInt();
-        maxDeterminizedStates = in.readVInt();
+        // Route through the setter so the CVE-2026-63136 bound is enforced on the transport
+        // deserialization path too, not just REST/XContent. Protects a patched data node from an
+        // unbounded value sent by an unpatched coordinating node in a mixed-version cluster.
+        maxDeterminizedStates(in.readVInt());
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
     }
