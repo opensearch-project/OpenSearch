@@ -36,6 +36,10 @@ public class RuleAttributeTests extends OpenSearchTestCase {
         assertTrue(RuleAttribute.INDEX_PATTERN.getWeightedSubfields().isEmpty());
     }
 
+    public void testIndexPatternSupportsWildcard() {
+        assertTrue(RuleAttribute.INDEX_PATTERN.supportsWildcard());
+    }
+
     public void testFromXContentParseAttributeValues_success() throws IOException {
         String json = "{ \"index_pattern\": [\"val1\", \"val2\"] }";
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, json)) {

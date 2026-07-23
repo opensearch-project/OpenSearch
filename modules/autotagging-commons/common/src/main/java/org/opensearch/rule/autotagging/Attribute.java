@@ -49,6 +49,19 @@ public interface Attribute extends Writeable {
     }
 
     /**
+     * Indicates whether this attribute supports the wildcard character ({@code *}) in its rule values.
+     * Attributes that perform prefix (wildcard) matching override their {@link #findAttributeMatches}
+     * implementation to use {@link org.opensearch.rule.storage.AttributeValueStore#getMatches} which
+     * is wildcard-aware. Defaults to {@code true} because the framework's default
+     * {@code findAttributeMatches} uses {@code getMatches}. Attributes that match via
+     * {@link org.opensearch.rule.storage.AttributeValueStore#getExactMatch} should override this
+     * to return {@code false} if they do not intend to honor wildcards.
+     */
+    default boolean supportsWildcard() {
+        return true;
+    }
+
+    /**
      * Ensure that `validateAttribute` is called in the constructor of attribute implementations
      * to prevent potential serialization issues.
      */
