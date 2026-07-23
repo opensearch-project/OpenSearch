@@ -76,7 +76,8 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
 
         // 3. Merge
         String mergedFile = tempDir.resolve("merged.parquet").toString();
-        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2), Path.of(file3)), mergedFile, INDEX_NAME, 0L);
+
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2), Path.of(file3)), null, mergedFile, INDEX_NAME, 0L);
 
         // 4. Verify merged output
         ParquetFileMetadata mergedMeta = RustBridge.getFileMetadata(mergedFile);
@@ -97,7 +98,8 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 200, 400, 600 }, new String[] { "b", "d", "f" });
 
         String mergedFile = tempDir.resolve("merged.parquet").toString();
-        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), mergedFile, INDEX_NAME, 0L);
+
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), null, mergedFile, INDEX_NAME, 0L);
 
         assertEquals(6, RustBridge.getFileMetadata(mergedFile).numRows());
 
@@ -112,9 +114,92 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 10, 20, 30 }, new String[] { "x", "y", "z" });
 
         String mergedFile = tempDir.resolve("merged.parquet").toString();
-        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1)), mergedFile, INDEX_NAME, 0L);
+
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1)), null, mergedFile, INDEX_NAME, 0L);
 
         assertEquals(3, RustBridge.getFileMetadata(mergedFile).numRows());
+
+        RustBridge.removeSettings(INDEX_NAME);
+    }
+
+    // ========== Live-docs delete filtering ==========
+
+    /** Rows flagged dead in the live-docs bitset are dropped from the merged output. */
+    public void testMergeWithLiveDocsDropsDeletedRows() throws Exception {
+        NativeSettings settings = NativeSettings.builder().indexName(INDEX_NAME).compressionType("LZ4_RAW").build();
+        RustBridge.onSettingsUpdate(settings);
+
+        Path tempDir = createTempDir();
+        String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 100, 200, 300 }, new String[] { "a", "b", "c" });
+        String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 400, 500, 600 }, new String[] { "d", "e", "f" });
+
+        // file1: rows 0 and 2 alive, row 1 dead. file2: only row 1 alive.
+        long[][] liveBits = new long[][] { { 0b101L }, { 0b010L } };
+
+        String mergedFile = tempDir.resolve("merged.parquet").toString();
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), liveBits, mergedFile, INDEX_NAME, 0L);
+
+        assertEquals("2 rows from file1 + 1 row from file2 must survive", 3, RustBridge.getFileMetadata(mergedFile).numRows());
+
+        RustBridge.removeSettings(INDEX_NAME);
+    }
+
+    /** A null bitset entry disables filtering for that file only. */
+    public void testMergeWithNullLiveDocsEntryKeepsFileUnfiltered() throws Exception {
+        NativeSettings settings = NativeSettings.builder().indexName(INDEX_NAME).compressionType("LZ4_RAW").build();
+        RustBridge.onSettingsUpdate(settings);
+
+        Path tempDir = createTempDir();
+        String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 100, 200, 300 }, new String[] { "a", "b", "c" });
+        String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 400, 500, 600 }, new String[] { "d", "e", "f" });
+
+        // file1 unfiltered (null entry); file2 keeps only row 0.
+        long[][] liveBits = new long[][] { null, { 0b001L } };
+
+        String mergedFile = tempDir.resolve("merged.parquet").toString();
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), liveBits, mergedFile, INDEX_NAME, 0L);
+
+        assertEquals("3 unfiltered rows + 1 surviving row", 4, RustBridge.getFileMetadata(mergedFile).numRows());
+
+        RustBridge.removeSettings(INDEX_NAME);
+    }
+
+    /** An all-ones bitmap behaves exactly like passing no live-docs at all. */
+    public void testMergeWithAllAliveBitmapKeepsEveryRow() throws Exception {
+        NativeSettings settings = NativeSettings.builder().indexName(INDEX_NAME).compressionType("LZ4_RAW").build();
+        RustBridge.onSettingsUpdate(settings);
+
+        Path tempDir = createTempDir();
+        String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 100, 200, 300 }, new String[] { "a", "b", "c" });
+        String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 400, 500, 600 }, new String[] { "d", "e", "f" });
+
+        long[][] liveBits = new long[][] { { 0b111L }, { 0b111L } };
+
+        String mergedFile = tempDir.resolve("merged.parquet").toString();
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), liveBits, mergedFile, INDEX_NAME, 0L);
+
+        assertEquals(6, RustBridge.getFileMetadata(mergedFile).numRows());
+
+        RustBridge.removeSettings(INDEX_NAME);
+    }
+
+    /** A live-docs array whose length doesn't match the input file count is rejected up front. */
+    public void testMergeWithMismatchedLiveDocsLengthThrows() throws Exception {
+        NativeSettings settings = NativeSettings.builder().indexName(INDEX_NAME).compressionType("LZ4_RAW").build();
+        RustBridge.onSettingsUpdate(settings);
+
+        Path tempDir = createTempDir();
+        String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 100 }, new String[] { "a" });
+        String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 200 }, new String[] { "b" });
+
+        long[][] liveBits = new long[][] { { 0b1L } }; // 1 entry for 2 files
+
+        String mergedFile = tempDir.resolve("merged.parquet").toString();
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), liveBits, mergedFile, INDEX_NAME, 0L)
+        );
+        assertTrue(ex.getMessage().contains("must match"));
 
         RustBridge.removeSettings(INDEX_NAME);
     }
