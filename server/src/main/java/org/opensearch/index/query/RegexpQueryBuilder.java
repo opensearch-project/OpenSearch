@@ -197,13 +197,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         }
         if (value > MAX_DETERMINIZE_WORK_LIMIT) {
             throw new IllegalArgumentException(
-                "["
-                    + NAME
-                    + "] max_determinized_states cannot exceed ["
-                    + MAX_DETERMINIZE_WORK_LIMIT
-                    + "] but was ["
-                    + value
-                    + "]"
+                "[" + NAME + "] max_determinized_states cannot exceed [" + MAX_DETERMINIZE_WORK_LIMIT + "] but was [" + value + "]"
             );
         }
         this.maxDeterminizedStates = value;

@@ -82,9 +82,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
      * (default 1000, aligned with the recursion depth limits in {@code StreamInput} /
      * {@code XContentConstraints}) so operators can tune it for unusual workloads without a code change.
      */
-    static final int MAX_NESTING_DEPTH = Integer.parseInt(
-        System.getProperty("opensearch.query.simple_query_string.max_depth", "1000")
-    );
+    static final int MAX_NESTING_DEPTH = Integer.parseInt(System.getProperty("opensearch.query.simple_query_string.max_depth", "1000"));
 
     private final Settings settings;
     private QueryShardContext context;

@@ -128,10 +128,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         // determinization safeguard and lets a crafted pattern exhaust the heap.
         RegexpQueryBuilder query = new RegexpQueryBuilder("field", ".*a.{30}");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> query.maxDeterminizedStates(Integer.MAX_VALUE)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.maxDeterminizedStates(Integer.MAX_VALUE));
         assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
 
         e = expectThrows(
