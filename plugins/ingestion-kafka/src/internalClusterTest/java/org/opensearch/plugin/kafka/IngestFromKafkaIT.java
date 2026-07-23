@@ -88,6 +88,36 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         });
     }
 
+    public void testKafkaIngestion_WithExplicitDecoderType() {
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.decoder_type", "xcontent")
+                .build(),
+            mapping
+        );
+
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
+        });
+    }
+
     public void testKafkaIngestion_RewindByTimeStamp() {
         produceData("1", "name1", "24", 1739459500000L, "index");
         produceData("2", "name2", "20", 1739459800000L, "index");
