@@ -28,11 +28,9 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
 
@@ -44,8 +42,8 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * to {@link LuceneReader} so each snapshot gets the reader that was current
  * at the time of its refresh. On each {@link #afterRefresh}, the current reader is
  * refreshed via {@link DirectoryReader#openIfChanged} and paired with a
- * {@code writer_generation → leaf index} map built by matching the catalog's
- * {@link WriterFileSet#files()} against each leaf's {@code SegmentCommitInfo.files()}.
+ * {@code writer_generation → segment name} map built from each leaf's writer-generation
+ * stamp (stable across the liveDocs/doc-values updates a drained delete writes onto a segment).
  *
  * @opensearch.experimental
  */
@@ -131,28 +129,35 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
     }
 
     private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
-        // Index leaves by their file set → segment name
-        Map<Set<String>, String> filesToSegName = new HashMap<>(leaves.size());
-        for (int i = 0; i < leaves.size(); i++) {
-            SegmentReader sr = (SegmentReader) leaves.get(i).reader();
-            try {
-                filesToSegName.put(new HashSet<>(sr.getSegmentInfo().files()), sr.getSegmentInfo().info.name);
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to read files for leaf " + i, e);
+        // Index leaves by writer generation → segment name.
+        Map<Long, String> generationToLeafSegment = new HashMap<>(leaves.size());
+        for (LeafReaderContext lrc : leaves) {
+            SegmentReader sr = (SegmentReader) lrc.reader();
+            SegmentCommitInfo sci = sr.getSegmentInfo();
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr == null) {
+                throw new IllegalStateException(
+                    "Lucene leaf segment=" + sci.info.name + " is missing the " + WRITER_GENERATION_ATTRIBUTE + " attribute"
+                );
             }
+            generationToLeafSegment.put(Long.parseLong(genAttr), sci.info.name);
         }
 
-        // Match catalog segments to leaves via file sets
+        // Resolve each catalog segment carrying Lucene data to its leaf's segment name by generation.
         Map<Long, String> out = new HashMap<>();
         for (Segment seg : catalogSnapshot.getSegments()) {
             WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
             if (wfs == null) {
                 continue;
             }
-            String segName = filesToSegName.get(wfs.files());
+            String segName = generationToLeafSegment.get(seg.generation());
             if (segName == null) {
                 throw new IllegalStateException(
-                    "Catalog segment gen=" + seg.generation() + " files=" + wfs.files() + " has no matching Lucene leaf"
+                    "Catalog segment gen="
+                        + seg.generation()
+                        + " has no matching Lucene leaf (leaf generations="
+                        + generationToLeafSegment.keySet()
+                        + ")"
                 );
             }
             out.put(seg.generation(), segName);

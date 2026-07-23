@@ -32,19 +32,28 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.RefreshInput;
+import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
+import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockWriter;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -4090,8 +4099,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
-     * DFAE port of InternalEngineTests.testVersionMapAfterAutoIDDocument (delete step dropped —
-     * engine.delete() is unsupported in this harness). Verifies LiveVersionMap safe-access
+     * DFAE port of InternalEngineTests.testVersionMapAfterAutoIDDocument (delete step covered
+     * separately by the Bucket A delete tests). Verifies LiveVersionMap safe-access
      * transitions: optimized append-only skips the map; an explicit-id index enforces safe access
      * and stores the entry; safe access is carried over across refresh.
      */
@@ -4172,7 +4181,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     /**
      * Covers getById paths: delete check, version conflict, seqNo/primaryTerm conflict.
-     * Uses reflection to inject a DeleteVersionValue into versionMap since engine.delete() is unsupported.
+     * Uses reflection to inject a DeleteVersionValue into versionMap to isolate the getById delete-check path.
      */
     @SuppressForbidden(reason = "test needs reflective access to inject DeleteVersionValue into versionMap")
     public void testGetByIdDeleteAndConflictPaths() throws Exception {
@@ -4490,6 +4499,351 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 committedCheckpoint,
                 lessThanOrEqualTo(persistedMaxSeqNo)
             );
+        }
+    }
+
+    // ============================================================================
+    // Delete coverage (Bucket A): engine.delete() and its private helpers, the
+    // non-primary planning path (opVsEngineDocStatusFunction lambda), the
+    // version-conflict early-result branch, and prepareDelete(...).
+    // ============================================================================
+
+    /** Primary delete op for {@code id} with default INTERNAL/MATCH_ANY semantics (mirrors {@link #indexOp}). */
+    private Engine.Delete deleteOp(String id) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    /** Primary delete op carrying compare-and-set ifSeqNo/ifPrimaryTerm (for version-conflict tests). */
+    private Engine.Delete deleteOpWithIfSeqNo(String id, long ifSeqNo, long ifPrimaryTerm) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
+     * Replayed (from-translog) delete op with a pre-assigned seqNo. Non-primary origins must carry a
+     * {@code null} versionType and unset ifSeqNo/ifPrimaryTerm (see the {@link Engine.Delete} constructor asserts).
+     */
+    private Engine.Delete deleteOpFromTranslog(String id, long seqNo) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            seqNo,
+            primaryTerm.get(),
+            1L,
+            null,
+            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+    }
+
+    /** Happy-path primary delete of an existing doc: SUCCESS, assigned seqNo, translog location, and a version-map tombstone. */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's versionMap field")
+    public void testDeletePrimaryRemovesDocAndRecordsTombstone() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            Engine.DeleteResult result = engine.delete(deleteOp("1"));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("delete of an existing doc must report found", result.isFound());
+            assertThat("primary delete must be assigned a seqNo", result.getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat("a non-translog primary delete must be written to the translog", result.getTranslogLocation(), notNullValue());
+
+            // executeDeletePlan must record a delete tombstone in the live version map.
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+            org.apache.lucene.util.BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1")).bytes();
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                VersionValue vv = versionMap.getUnderLock(uid);
+                assertNotNull("version map must hold an entry after delete", vv);
+                assertTrue("version map entry must be a delete tombstone", vv.isDelete());
+            }
+        }
+    }
+
+    /** Deleting an id that was never indexed still succeeds but reports not-found (currentlyDeleted path). */
+    public void testDeleteNonExistentDocReportsNotFound() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.DeleteResult result = engine.delete(deleteOp("missing"));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertFalse("deleting a never-indexed doc must report not found", result.isFound());
+            assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
+        }
+    }
+
+    /**
+     * Replayed (from-translog) delete: exercises the non-primary planning path
+     * ({@code planOperationAsNonPrimary} → the {@code opVsEngineDocStatusFunction} lambda), seqNo
+     * mark-as-seen, and the from-translog branch of finalize (no translog re-append).
+     */
+    public void testDeleteFromTranslogMarksSeqNoAndSkipsTranslog() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            long seqNo = 0L;
+            Engine.DeleteResult result = engine.delete(deleteOpFromTranslog("1", seqNo));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat("replayed delete keeps its assigned seqNo", result.getSeqNo(), equalTo(seqNo));
+            assertNull("from-translog delete must not be re-appended to the translog", result.getTranslogLocation());
+        }
+    }
+
+    /** A CAS delete whose ifSeqNo does not match the stored seqNo returns the planner's early conflict result. */
+    public void testDeleteWithMismatchedIfSeqNoReturnsVersionConflict() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null))); // seqNo 0
+            Engine.DeleteResult result = engine.delete(deleteOpWithIfSeqNo("1", 99L, primaryTerm.get()));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+        }
+    }
+
+    /** {@link DataFormatAwareEngine#prepareDelete} builds an Engine.Delete carrying the id, uid, and CAS terms. */
+    public void testPrepareDeleteBuildsDeleteOperation() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Delete delete = engine.prepareDelete(
+                "42",
+                5L,
+                primaryTerm.get(),
+                3L,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                7L,
+                primaryTerm.get()
+            );
+            assertThat(delete.id(), equalTo("42"));
+            assertThat(delete.uid(), equalTo(new Term(IdFieldMapper.NAME, Uid.encodeId("42"))));
+            assertThat(delete.seqNo(), equalTo(5L));
+            assertThat(delete.version(), equalTo(3L));
+            assertThat(delete.versionType(), equalTo(VersionType.EXTERNAL));
+            assertThat(delete.origin(), equalTo(Engine.Operation.Origin.PRIMARY));
+            assertThat(delete.getIfSeqNo(), equalTo(7L));
+            assertThat(delete.getIfPrimaryTerm(), equalTo(primaryTerm.get()));
+        }
+    }
+
+    // ============================================================================
+    // Index write-failure coverage (Bucket B): the WriteResult.Failure branch of
+    // indexIntoEngine (currentWriter.addDoc returns a modeled per-doc failure).
+    // ============================================================================
+
+    /**
+     * When {@code addDoc} returns a {@link WriteResult.Failure} while the writer stays ACTIVE (a
+     * self-rolled-back rejection), indexIntoEngine surfaces a FAILURE IndexResult carrying the cause
+     * and neither retires the writer nor fails the engine.
+     */
+    public void testIndexAddDocFailureReturnsFailureResult() throws Exception {
+        MockDataFormat df = mockDataFormat;
+        Path writerDir = createTempDir();
+        MockDataFormatPlugin plugin = new MockDataFormatPlugin(df) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return new FailAddDocIndexingExecutionEngine(df, writerDir);
+            }
+        };
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {}
+        };
+        EngineConfig config = buildFailingEngineConfig(plugin, listener);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(IOException.class));
+            assertThat(result.getFailure().getMessage(), containsString("simulated addDoc failure"));
+            // Writer stayed ACTIVE → engine must remain open for subsequent operations.
+            engine.ensureOpen();
+        }
+    }
+
+    /** Indexing engine whose writers reject every {@code addDoc} with a modeled failure but stay ACTIVE. */
+    private static final class FailAddDocIndexingExecutionEngine extends MockIndexingExecutionEngine {
+        private final MockDataFormat dataFormat;
+        private final Path directory;
+        private final AtomicLong seqNo = new AtomicLong(0);
+
+        FailAddDocIndexingExecutionEngine(MockDataFormat dataFormat, Path directory) {
+            super(dataFormat);
+            this.dataFormat = dataFormat;
+            this.directory = directory;
+        }
+
+        @Override
+        public Writer<MockDocumentInput> createWriter(WriterConfig config) {
+            return new FailAddDocWriter(config.writerGeneration(), dataFormat, directory, seqNo);
+        }
+    }
+
+    /**
+     * A {@link MockWriter} whose {@code addDoc} always returns a {@link WriteResult.Failure} without
+     * transitioning out of ACTIVE, modelling a per-doc rejection the writer has already reconciled
+     * (so the engine retires nothing).
+     */
+    private static final class FailAddDocWriter extends MockWriter {
+        FailAddDocWriter(long writerGeneration, MockDataFormat dataFormat, Path directory, AtomicLong seqNo) {
+            super(writerGeneration, dataFormat, directory, seqNo);
+        }
+
+        @Override
+        public WriteResult addDoc(MockDocumentInput d) {
+            return new WriteResult.Failure(new IOException("simulated addDoc failure"), -1L, -1L, -1L);
+        }
+    }
+
+    // ============================================================================
+    // Pure-delete refresh coverage (Bucket C): the refresh path where a delete-only
+    // writer flushes no files (refreshed == false) but deletes were applied
+    // (onWriterCheckedOut → true), plus the dropped-generation filter.
+    // ============================================================================
+
+    /**
+     * Drives a pure-delete refresh: index+refresh a doc (gen1 committed), delete it (a delete-only
+     * gen2 writer that flushes no files), then refresh again. The second refresh sees
+     * {@code refreshed == false} but {@code deletesApplied == true} (onWriterCheckedOut) and drops
+     * gen1 through the refresh result's droppedGenerations — exercising the deletesApplied branch,
+     * the dropped-generation filter, and the {@code if (refreshed)} false path.
+     */
+    public void testPureDeleteRefreshAppliesDeletesAndDropsGeneration() throws Exception {
+        MockDataFormat df = mockDataFormat;
+        Path writerDir = createTempDir();
+        PureDeleteIndexingExecutionEngine indexingEngine = new PureDeleteIndexingExecutionEngine(df, writerDir);
+        MockDataFormatPlugin plugin = new MockDataFormatPlugin(df) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return indexingEngine;
+            }
+
+            @Override
+            public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+                return new DeletesAppliedDeleteExecutionEngine(df);
+            }
+        };
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {}
+        };
+        EngineConfig config = buildFailingEngineConfig(plugin, listener);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // 1) Index + refresh: gen1 flushes a real file (refreshed=true) and is committed.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("index-refresh");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("gen1 must be committed", ref.get().getSegments().size(), greaterThanOrEqualTo(1));
+            }
+
+            // 2) Delete "1": creates a delete-only gen2 writer (no addDoc).
+            Engine.DeleteResult deleteResult = engine.delete(deleteOp("1"));
+            assertThat(deleteResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            // 3) Pure-delete refresh: gen2 flushes no files (refreshed=false), onWriterCheckedOut→true
+            // (deletesApplied=true), and the refresh drops gen1.
+            engine.refresh("pure-delete-refresh");
+
+            assertThat(
+                "pure-delete refresh must have taken the dropped-generation path",
+                indexingEngine.droppedRefreshCount(),
+                greaterThanOrEqualTo(1)
+            );
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("dropped generation must be filtered out of the committed catalog", ref.get().getSegments().size(), equalTo(0));
+            }
+            engine.ensureOpen();
+        }
+    }
+
+    /**
+     * Indexing engine for the pure-delete refresh scenario: creates {@link EmptyFlushWhenNoDocsWriter}s
+     * and, on a refresh with no new writer files, drops every existing generation via the refresh
+     * result's droppedGenerations.
+     */
+    private static final class PureDeleteIndexingExecutionEngine extends MockIndexingExecutionEngine {
+        private final MockDataFormat dataFormat;
+        private final Path directory;
+        private final AtomicLong seqNo = new AtomicLong(0);
+        private final AtomicInteger droppedRefreshCount = new AtomicInteger(0);
+
+        PureDeleteIndexingExecutionEngine(MockDataFormat dataFormat, Path directory) {
+            super(dataFormat);
+            this.dataFormat = dataFormat;
+            this.directory = directory;
+        }
+
+        @Override
+        public Writer<MockDocumentInput> createWriter(WriterConfig config) {
+            return new EmptyFlushWhenNoDocsWriter(config.writerGeneration(), dataFormat, directory, seqNo);
+        }
+
+        @Override
+        public RefreshResult refresh(RefreshInput refreshInput) {
+            List<Segment> refreshed = new ArrayList<>(refreshInput.existingSegments());
+            refreshed.addAll(refreshInput.writerFiles());
+            // Pure-delete refresh (no new writer files): drop all existing generations.
+            if (refreshInput.writerFiles().isEmpty() && refreshInput.existingSegments().isEmpty() == false) {
+                droppedRefreshCount.incrementAndGet();
+                Set<Long> dropped = new java.util.HashSet<>();
+                for (Segment segment : refreshInput.existingSegments()) {
+                    dropped.add(segment.generation());
+                }
+                return new RefreshResult(refreshed, dropped);
+            }
+            return new RefreshResult(refreshed);
+        }
+
+        int droppedRefreshCount() {
+            return droppedRefreshCount.get();
+        }
+    }
+
+    /**
+     * A {@link MockWriter} that flushes no files when it never received an {@code addDoc} (a
+     * delete-only writer), so a pure-delete refresh sees {@code hasFiles == false}.
+     */
+    private static final class EmptyFlushWhenNoDocsWriter extends MockWriter {
+        EmptyFlushWhenNoDocsWriter(long writerGeneration, MockDataFormat dataFormat, Path directory, AtomicLong seqNo) {
+            super(writerGeneration, dataFormat, directory, seqNo);
+        }
+
+        @Override
+        public FileInfos flush(FlushInput flushInput) {
+            if (getAddDocCallCount() == 0) {
+                return FileInfos.builder().build();
+            }
+            return super.flush(flushInput);
+        }
+    }
+
+    /** Delete engine that reports deletes were applied whenever a writer is checked out of the pool. */
+    private static final class DeletesAppliedDeleteExecutionEngine extends MockDeleteExecutionEngine {
+        DeletesAppliedDeleteExecutionEngine(MockDataFormat dataFormat) {
+            super(dataFormat);
+        }
+
+        @Override
+        public boolean onWriterCheckedOut(long generation) {
+            return true;
         }
     }
 }

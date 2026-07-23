@@ -19,9 +19,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 public sealed interface DeleteResult permits DeleteResult.Success, DeleteResult.Failure {
 
     /**
-     * Successful delete result.
+     * Successful delete result. Storage-layer callers currently pass placeholder values; the fields are
+     * reserved for a future consumer (the engine layer is authoritative for version/seqNo/term today).
      *
-     * @param version the version after to delete
+     * @param version the version after the delete
      * @param primaryTerm the primary term
      * @param seqNo the sequence number
      */
