@@ -21,7 +21,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -39,9 +39,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Applies a batch of {@link DataStreamAction} operations (add/remove backing index) to data-stream metadata atomically.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
-@PublicApi(since = "3.8.0")
+@ExperimentalApi
 public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
     public static final ModifyDataStreamsAction INSTANCE = new ModifyDataStreamsAction();
@@ -54,9 +54,9 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
     /**
      * Request carrying the data-stream actions to apply.
      *
-     * @opensearch.api
+     * @opensearch.experimental
      */
-    @PublicApi(since = "3.8.0")
+    @ExperimentalApi
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final List<DataStreamAction> actions;

@@ -130,6 +130,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
+    private boolean attachToDataStream = false;
+
     public RestoreSnapshotRequest() {}
 
     /**
@@ -178,6 +180,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             renameAliasReplacement = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            attachToDataStream = in.readBoolean();
+        }
     }
 
     @Override
@@ -219,6 +224,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(renameAliasReplacement);
+        }
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeBoolean(attachToDataStream);
         }
     }
 
@@ -656,6 +664,26 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * When {@code true}, a restored index whose name matches the data stream backing-index convention
+     * ({@code .ds-<dataStream>-NNNNNN}) is attached to a pre-existing data stream of the same name as part of the
+     * restore. Defaults to {@code false}, in which case such an index is restored as a standalone index.
+     *
+     * @param attachToDataStream whether to attach matching restored indices to their data stream
+     * @return this request
+     */
+    public RestoreSnapshotRequest attachToDataStream(boolean attachToDataStream) {
+        this.attachToDataStream = attachToDataStream;
+        return this;
+    }
+
+    /**
+     * Returns whether matching restored indices are attached to their data stream.
+     */
+    public boolean attachToDataStream() {
+        return attachToDataStream;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -744,6 +772,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed source_remote_translog_repository");
                 }
+            } else if (name.equals("attach_to_data_stream")) {
+                attachToDataStream(nodeBooleanValue(entry.getValue(), "attach_to_data_stream"));
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -801,6 +831,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (sourceRemoteTranslogRepository != null) {
             builder.field("source_remote_translog_repository", sourceRemoteTranslogRepository);
         }
+        builder.field("attach_to_data_stream", attachToDataStream);
         builder.endObject();
         return builder;
     }
@@ -832,7 +863,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(snapshotUuid, that.snapshotUuid)
             && Objects.equals(storageType, that.storageType)
             && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository)
-            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository);
+            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository)
+            && attachToDataStream == that.attachToDataStream;
         return equals;
     }
 
@@ -855,7 +887,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             snapshotUuid,
             storageType,
             sourceRemoteStoreRepository,
-            sourceRemoteTranslogRepository
+            sourceRemoteTranslogRepository,
+            attachToDataStream
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
