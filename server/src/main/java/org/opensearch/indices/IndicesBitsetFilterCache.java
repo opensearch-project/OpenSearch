@@ -188,7 +188,12 @@ public class IndicesBitsetFilterCache
         }
         Set<IndexReader.CacheKey> staleSnapshot = new HashSet<>(staleCacheKeys);
 
-        for (BitsetCacheKey key : cache.keys()) {
+        // Iterate a point-in-time copy of the keys rather than Cache.keys(): the live iterator walks the
+        // LRU list without holding the LRU lock, so a concurrent cache hit relinking an entry to the head
+        // can silently skip entries. A reader closes only once and its stale mark is consumed below, so an
+        // entry skipped here would be retained until size-based eviction reaches it. The snapshot is
+        // immune to LRU reordering, and invalidating a key that was concurrently removed is a no-op.
+        for (BitsetCacheKey key : cache.keysSnapshot()) {
             if (staleSnapshot.contains(key.readerCacheKey)) {
                 cache.invalidate(key);
             }
