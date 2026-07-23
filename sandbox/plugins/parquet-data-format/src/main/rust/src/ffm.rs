@@ -83,6 +83,7 @@ pub unsafe extern "C" fn parquet_create_writer(
     nulls_first_vals: *const i64,
     nulls_first_count: i64,
     writer_generation: i64,
+    store_handle: i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_create_writer file: {}", e))?
@@ -103,6 +104,7 @@ pub unsafe extern "C" fn parquet_create_writer(
         reverse_sorts,
         nulls_first,
         writer_generation,
+        store_handle,
     )
     .map(|ptr| ptr as i64)
     .map_err(|e| e.to_string())
@@ -656,6 +658,7 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_flush_and_sort_chunk_count: *mut i64,
     out_flush_and_sort_chunk_time_millis: *mut i64,
     out_row_id_mapping_max: *mut i64,
+    store_handle: i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -683,12 +686,21 @@ pub unsafe extern "C" fn parquet_merge_files(
         }
     };
 
+    // Clone the engine-owned store Arc (never consume the box), or None for local segment merges
+    // and native unit tests. When set, `input_files`/`output_path` are object paths (basenames).
+    let store: Option<std::sync::Arc<dyn object_store::ObjectStore>> = if store_handle > 0 {
+        Some((*(store_handle as *const std::sync::Arc<dyn object_store::ObjectStore>)).clone())
+    } else {
+        None
+    };
+
     let result = if sort_cols.is_empty() {
         merge::merge_unsorted(
             &input_files,
             output_path,
             index_name,
             output_writer_generation,
+            store,
         )
     } else {
         merge::merge_sorted(
@@ -699,6 +711,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &reverse_flags,
             &nulls_first_flags,
             output_writer_generation,
+            store,
         )
     }
     .map_err(|e| format!("{}", e))?;

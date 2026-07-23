@@ -47,6 +47,7 @@ pub fn test_create_writer(
         reverse_sorts,
         nulls_first,
         writer_generation,
+        0, // store_handle=0 -> legacy local-file path (no ObjectStore in native unit tests)
     )?;
     TEST_HANDLES.lock().unwrap().insert(filename, handle as i64);
     Ok(())

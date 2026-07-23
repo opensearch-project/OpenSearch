@@ -28,6 +28,7 @@ import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.store.TieredStorageBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
@@ -89,6 +90,12 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
+    /**
+     * Shard-scoped native ObjectStore handle ({@code os_create_local_store} pointer), owned by this
+     * engine and freed in {@link #close()}. For hot indices this is a local FS store rooted at the
+     * shard's parquet directory; the write path publishes finalized files through it. 0 if creation failed.
+     */
+    private final long storePtr;
     private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
 
     /**
@@ -172,13 +179,25 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        // Shard-scoped native ObjectStore (hot: local FS rooted at the shard's parquet dir). The
+        // write path publishes finalized Parquet files through this store; freed in close().
+        long createdStorePtr = 0L;
+        try {
+            Path parquetDir = shardPath.getDataPath().resolve(dataFormat.name());
+            Files.createDirectories(parquetDir);
+            createdStorePtr = TieredStorageBridge.createLocalStore(parquetDir.toString());
+        } catch (Exception e) {
+            logger.warn("Failed to create shard ObjectStore for {}; falling back to local file writes", shardPath, e);
+        }
+        this.storePtr = createdStorePtr;
         this.parquetMerger = new ParquetMergeExecutor(
             new NativeParquetMergeStrategy(
                 dataFormat,
                 indexSettings.getIndex().getName(),
                 shardPath,
                 checksumStrategy::registerChecksum,
-                statsTracker
+                statsTracker,
+                createdStorePtr
             )
         );
         boolean registered = false;
@@ -266,7 +285,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             threadPool,
             checksumStrategy,
             statsTracker,
-            activeWriters::remove
+            activeWriters::remove,
+            storePtr
         );
         activeWriters.add(writer);
         return writer;
@@ -365,6 +385,15 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             );
         }
         bufferPool.close();
+        // Free the shard-scoped native ObjectStore. Writers are drained before engine close, so
+        // their Arc clones are already dropped; this releases the engine's master reference.
+        if (storePtr > 0) {
+            try {
+                TieredStorageBridge.destroyStore(storePtr);
+            } catch (Exception e) {
+                logger.warn("Failed to destroy shard ObjectStore (ptr={})", storePtr, e);
+            }
+        }
     }
 
     /**

@@ -24,9 +24,12 @@ use crate::writer_properties_builder::WriterPropertiesBuilder;
 use crate::{log_debug, log_error, SETTINGS_STORE};
 
 use native_bridge_common::memory_pool::MemoryReservation;
+use object_store::ObjectStore;
 
 use super::error::{MergeError, MergeResult};
-use super::io_task::{get_merge_pool, spawn_io_task, IoCommand, RATE_LIMIT_MB_PER_SEC};
+use super::io_task::{
+    get_merge_pool, spawn_io_task, IoCommand, MergeSink, ShutdownCell, RATE_LIMIT_MB_PER_SEC,
+};
 use super::schema::{append_row_id, build_parquet_root_schema, ROW_ID_COLUMN_NAME};
 
 /// Owns all shared state for a merge operation: schemas, writer factory,
@@ -65,13 +68,18 @@ impl MergeContext {
         io_threads: Option<usize>,
         output_writer_generation: i64,
         reservation: MemoryReservation,
+        store: Option<Arc<dyn ObjectStore>>,
     ) -> MergeResult<Self> {
-        if let Some(parent) = Path::new(output_path).parent() {
-            if !parent.exists() {
-                return Err(MergeError::Logic(format!(
-                    "Output directory '{}' does not exist.",
-                    parent.display()
-                )));
+        // For the local path, validate the parent directory exists. For the store path,
+        // `output_path` is an object key (no local parent), so skip this check.
+        if store.is_none() {
+            if let Some(parent) = Path::new(output_path).parent() {
+                if !parent.exists() {
+                    return Err(MergeError::Logic(format!(
+                        "Output directory '{}' does not exist.",
+                        parent.display()
+                    )));
+                }
             }
         }
 
@@ -97,9 +105,26 @@ impl MergeContext {
 
         let parquet_root = build_parquet_root_schema(parquet_descriptors)?;
 
-        let output_file = File::create(output_path)?;
+        // Build the output sink: store-backed multipart upload, or a local file.
+        let (sink, shutdown_cell): (MergeSink, Option<ShutdownCell>) = match &store {
+            Some(s) => {
+                let cell: ShutdownCell = Arc::new(std::sync::Mutex::new(None));
+                let bridge = crate::store_io::store_sync_writer(
+                    s.clone(),
+                    object_store::path::Path::from(output_path),
+                );
+                (
+                    MergeSink::Store {
+                        bridge: Some(bridge),
+                        result: cell.clone(),
+                    },
+                    Some(cell),
+                )
+            }
+            None => (MergeSink::Local(File::create(output_path)?), None),
+        };
         let throttled_writer =
-            RateLimitedWriter::new(output_file, RATE_LIMIT_MB_PER_SEC).map_err(MergeError::Io)?;
+            RateLimitedWriter::new(sink, RATE_LIMIT_MB_PER_SEC).map_err(MergeError::Io)?;
 
         let (crc_writer, crc_handle) = CrcWriter::new(throttled_writer);
 
@@ -120,7 +145,7 @@ impl MergeContext {
 
         let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;
         let rg_writer_factory = ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());
-        let io_tx = spawn_io_task(writer, crc_handle, io_threads);
+        let io_tx = spawn_io_task(writer, crc_handle, io_threads, shutdown_cell);
 
         let col_writers = rg_writer_factory.create_column_writers(0)?;
 

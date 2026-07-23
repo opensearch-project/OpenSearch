@@ -77,7 +77,8 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,   // nulls_first (vals, count)
-                ValueLayout.JAVA_LONG    // writer_generation
+                ValueLayout.JAVA_LONG,   // writer_generation
+                ValueLayout.JAVA_LONG    // store_handle (0 = legacy local file path)
             )
         );
         WRITE = linker.downcallHandle(
@@ -231,7 +232,8 @@ public class RustBridge {
                 ValueLayout.ADDRESS,    // out_gen_count
                 ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_count
                 ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_time_millis
-                ValueLayout.ADDRESS     // out_row_id_mapping_max
+                ValueLayout.ADDRESS,    // out_row_id_mapping_max
+                ValueLayout.JAVA_LONG   // store_handle (0 = local segment merge)
             )
         );
         FREE_MERGE_RESULT = linker.downcallHandle(
@@ -295,8 +297,14 @@ public class RustBridge {
 
     public static void initLogger() {}
 
-    static long createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
-        throws IOException {
+    static long createWriter(
+        String file,
+        String indexName,
+        long schemaAddress,
+        ParquetSortConfig sortConfig,
+        long writerGeneration,
+        long storeHandle
+    ) throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var idx = call.str(indexName);
@@ -317,7 +325,8 @@ public class RustBridge {
                 (long) sortConfig.reverseSorts().size(),
                 nullsFirstArray,
                 (long) sortConfig.nullsFirst().size(),
-                writerGeneration
+                writerGeneration,
+                storeHandle
             );
         }
     }
@@ -548,7 +557,8 @@ public class RustBridge {
         List<Path> inputFiles,
         String outputFile,
         String indexName,
-        long outputWriterGeneration
+        long outputWriterGeneration,
+        long storePtr
     ) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
         try (var call = new NativeCall()) {
@@ -598,7 +608,8 @@ public class RustBridge {
                 outGenCount,
                 outFlushChunkCount,
                 outFlushChunkTimeMillis,
-                outRowIdMappingMax
+                outRowIdMappingMax,
+                storePtr
             );
 
             int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);

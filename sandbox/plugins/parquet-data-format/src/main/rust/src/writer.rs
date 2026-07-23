@@ -20,13 +20,100 @@ use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use crate::crc_writer::CrcWriter;
+use crate::crc_writer::{CrcHandle, CrcWriter};
 use crate::memory::write_pool;
 use crate::merge::{merge_sorted_with_pool, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 use crate::{log_debug, log_error, log_info};
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
+
+use object_store::ObjectStore;
+use parquet::arrow::async_writer::{AsyncFileWriter, ParquetObjectWriter};
+use parquet::arrow::AsyncArrowWriter;
+use bytes::Bytes;
+use futures::future::BoxFuture;
+use crate::store_io::os_store_runtime;
+
+/// An [`AsyncFileWriter`] that tees the Parquet byte stream into a CRC32 hasher before handing it
+/// to the underlying [`ParquetObjectWriter`] sink. This is the async counterpart to
+/// [`crate::crc_writer::CrcWriter`]: the same whole-file CRC32 that the local path computes, but
+/// over the exact bytes uploaded to the `ObjectStore` (multipart, streamed — never staged to a
+/// local temp file). The CRC is read out-of-band via a [`CrcHandle`] sharing `hasher`.
+struct CrcObjectWriter {
+    inner: ParquetObjectWriter,
+    hasher: Arc<Mutex<crc32fast::Hasher>>,
+}
+
+impl AsyncFileWriter for CrcObjectWriter {
+    fn write(&mut self, bs: Bytes) -> BoxFuture<'_, parquet::errors::Result<()>> {
+        // Hash synchronously (in write order) before delegating the async upload.
+        self.hasher.lock().unwrap().update(&bs);
+        self.inner.write(bs)
+    }
+
+    fn complete(&mut self) -> BoxFuture<'_, parquet::errors::Result<()>> {
+        self.inner.complete()
+    }
+}
+
+/// Build a store-backed streaming Parquet sink (`AsyncArrowWriter` over `ParquetObjectWriter`),
+/// teeing every uploaded byte into a returned CRC32 handle. Shared by the non-sorted writer and
+/// by sorted-chunk writes.
+fn new_store_parquet_sink(
+    store: Arc<dyn ObjectStore>,
+    object_path: &str,
+    schema: Arc<arrow::datatypes::Schema>,
+    props: parquet::file::properties::WriterProperties,
+) -> Result<(AsyncArrowWriter<CrcObjectWriter>, CrcHandle), Box<dyn std::error::Error>> {
+    let object_writer =
+        ParquetObjectWriter::new(store, object_store::path::Path::from(object_path));
+    let (crc_handle, hasher) = CrcHandle::new_shared();
+    let crc_writer = CrcObjectWriter {
+        inner: object_writer,
+        hasher,
+    };
+    let writer = AsyncArrowWriter::try_new(crc_writer, schema, Some(props))?;
+    Ok((writer, crc_handle))
+}
+
+/// Write a single `RecordBatch` as a complete Parquet object into the store (used for sorted
+/// chunks). Streams via `AsyncArrowWriter` — no local temp file — and returns the whole-object
+/// CRC32. Mirrors [`NativeParquetWriter::write_final_file`] for the store path.
+fn write_batch_to_store(
+    store: Arc<dyn ObjectStore>,
+    object_path: &str,
+    index_name: &str,
+    batch: &RecordBatch,
+    schema: Arc<arrow::datatypes::Schema>,
+    writer_generation: Option<i64>,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    let config = SETTINGS_STORE
+        .get(index_name)
+        .map(|r| r.clone())
+        .unwrap_or_default();
+    let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation, &schema)
+        .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
+    let (mut writer, crc_handle) = new_store_parquet_sink(store, object_path, schema, props)?;
+    os_store_runtime().block_on(writer.write(batch))?;
+    os_store_runtime().block_on(writer.close())?;
+    Ok(crc_handle.crc32())
+}
+
+/// Collect all non-empty batches from an Arrow IPC file reader (local `File` or in-memory
+/// `Cursor` over a store object — both are `Read + Seek`).
+fn collect_ipc_batches<R: std::io::Read + std::io::Seek>(
+    reader: IpcFileReader<R>,
+) -> Result<Vec<RecordBatch>, Box<dyn std::error::Error>> {
+    let mut batches: Vec<RecordBatch> = Vec::new();
+    for batch_result in reader {
+        let batch = batch_result?;
+        if batch.num_rows() > 0 {
+            batches.push(batch);
+        }
+    }
+    Ok(batches)
+}
 
 /// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
 #[derive(Debug)]
@@ -53,6 +140,45 @@ enum WriterVariant {
     /// sorted Parquet chunk, then starts a new IPC file. At finalize, only
     /// a k-way merge is needed.
     Ipc(Arc<Mutex<SortingChunkedWriter>>),
+    /// Store-backed Parquet writer — used for the non-sorted path when a shard `ObjectStore`
+    /// handle is present (the production path). The Parquet output is streamed directly into the
+    /// `ObjectStore` (multipart upload) via `AsyncArrowWriter`; there is no local temp file and no
+    /// post-hoc copy. For hot indices the store is a `LocalFileSystem` rooted at the shard dir, so
+    /// the object lands at `filename`.
+    ParquetStore(Arc<Mutex<AsyncArrowWriter<CrcObjectWriter>>>),
+}
+
+/// IPC staging sink — local file or a store-backed multipart upload. Arrow IPC batches are written
+/// incrementally as they arrive; on flush the object/file is read back fully, sorted, and written
+/// out as a sorted Parquet chunk.
+enum IpcStaging {
+    Local(IpcFileWriter<File>),
+    Store(IpcFileWriter<crate::store_io::StoreSyncWriter>),
+}
+
+impl IpcStaging {
+    fn write(&mut self, batch: &RecordBatch) -> Result<(), arrow::error::ArrowError> {
+        match self {
+            IpcStaging::Local(w) => w.write(batch),
+            IpcStaging::Store(w) => w.write(batch),
+        }
+    }
+
+    /// Write the IPC footer and, for the store sink, `shutdown()` the bridge to finalize the
+    /// multipart upload (a plain drop would NOT complete it).
+    fn finish_and_close(self) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            IpcStaging::Local(mut w) => {
+                w.finish()?;
+            }
+            IpcStaging::Store(mut w) => {
+                w.finish()?;
+                let mut bridge = w.into_inner()?;
+                bridge.shutdown()?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Hybrid IPC staging + eager sort writer.
@@ -64,7 +190,7 @@ enum WriterVariant {
 /// - At finalize: flushes remaining IPC data (sort + write), returns sorted
 ///   Parquet chunk paths for k-way merge.
 struct SortingChunkedWriter {
-    /// Base path for staging/chunk files.
+    /// Base path for local staging/chunk files (used when `store` is `None`).
     base_path: String,
     /// Arrow schema shared across all chunks.
     schema: Arc<arrow::datatypes::Schema>,
@@ -79,7 +205,7 @@ struct SortingChunkedWriter {
     reverse_sorts: Vec<bool>,
     nulls_first: Vec<bool>,
     /// Current IPC writer for staging incoming batches.
-    current_ipc_writer: Option<IpcFileWriter<File>>,
+    current_ipc_writer: Option<IpcStaging>,
     /// Tracked byte size of the current IPC staging file (approximated from
     /// the Arrow array memory sizes of batches written so far).
     current_chunk_bytes: u64,
@@ -87,7 +213,7 @@ struct SortingChunkedWriter {
     current_rows: usize,
     /// Index of the next chunk (0-based).
     chunk_idx: usize,
-    /// Paths of all completed sorted Parquet chunk files.
+    /// Paths of all completed sorted Parquet chunk files (local paths or store object paths).
     completed_chunks: Vec<String>,
     /// Row IDs captured from each sorted chunk (for permutation building).
     chunk_row_ids: Vec<Vec<i64>>,
@@ -97,6 +223,11 @@ struct SortingChunkedWriter {
     total_rows: usize,
     /// Writer generation propagated into Parquet file metadata for each chunk.
     writer_generation: i64,
+    /// Shard store, or `None` for the local path. When set, IPC staging and sorted chunks are
+    /// written to / read from / deleted in the store instead of the local filesystem.
+    store: Option<Arc<dyn ObjectStore>>,
+    /// Basename of the final output; IPC + chunk object paths are derived from it.
+    object_base: String,
 }
 
 impl SortingChunkedWriter {
@@ -109,6 +240,8 @@ impl SortingChunkedWriter {
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
         writer_generation: i64,
+        store: Option<Arc<dyn ObjectStore>>,
+        object_base: String,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut writer = Self {
             base_path,
@@ -127,23 +260,45 @@ impl SortingChunkedWriter {
             chunk_crcs: Vec::new(),
             total_rows: 0,
             writer_generation,
+            store,
+            object_base,
         };
         writer.open_new_ipc()?;
         Ok(writer)
     }
 
+    /// IPC staging path (local temp file when `store` is `None`).
     fn ipc_staging_path(&self) -> String {
         self.base_path.clone()
     }
 
+    /// IPC staging object path within the store root.
+    fn ipc_object_path(&self) -> String {
+        format!("{}{}", self.object_base, IPC_STAGING_SUFFIX)
+    }
+
     fn sorted_chunk_path(&self, idx: usize) -> String {
-        format!("{}.sorted_chunk_{}.parquet", self.base_path, idx)
+        if self.store.is_some() {
+            format!("{}.sorted_chunk_{}.parquet", self.object_base, idx)
+        } else {
+            format!("{}.sorted_chunk_{}.parquet", self.base_path, idx)
+        }
     }
 
     fn open_new_ipc(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let path = self.ipc_staging_path();
-        let file = File::create(&path)?;
-        let ipc_writer = IpcFileWriter::try_new(file, &self.schema)?;
+        let ipc_writer = match &self.store {
+            Some(store) => {
+                let sink = crate::store_io::store_sync_writer(
+                    store.clone(),
+                    object_store::path::Path::from(self.ipc_object_path()),
+                );
+                IpcStaging::Store(IpcFileWriter::try_new(sink, &self.schema)?)
+            }
+            None => {
+                let file = File::create(self.ipc_staging_path())?;
+                IpcStaging::Local(IpcFileWriter::try_new(file, &self.schema)?)
+            }
+        };
         self.current_ipc_writer = Some(ipc_writer);
         self.current_chunk_bytes = 0;
         self.current_rows = 0;
@@ -233,28 +388,31 @@ impl SortingChunkedWriter {
         let sort_reserve = self.current_chunk_bytes as usize * 2;
         reservation.request(sort_reserve)?;
 
-        // Close the IPC writer
-        if let Some(mut writer) = self.current_ipc_writer.take() {
-            writer.finish()?;
+        // Close the IPC writer (finalizes the multipart upload for the store sink).
+        if let Some(writer) = self.current_ipc_writer.take() {
+            writer.finish_and_close()?;
         }
 
-        let ipc_path = self.ipc_staging_path();
-
-        // Read back the IPC file (still hot in page cache since we just wrote it)
-        let file = File::open(&ipc_path)?;
-        let reader = IpcFileReader::try_new(file, None)?;
-        let mut batches: Vec<RecordBatch> = Vec::new();
-        for batch_result in reader {
-            let batch = batch_result?;
-            if batch.num_rows() > 0 {
-                batches.push(batch);
+        // Read the staged IPC back fully, then sort. The local path also loads the whole staging
+        // file into memory here, so reading a store object into memory adds no extra peak.
+        let batches: Vec<RecordBatch> = match &self.store {
+            Some(store) => {
+                let data = crate::store_io::read_object(
+                    store,
+                    &object_store::path::Path::from(self.ipc_object_path()),
+                )?;
+                collect_ipc_batches(IpcFileReader::try_new(std::io::Cursor::new(data), None)?)?
             }
-        }
+            None => {
+                let file = File::open(self.ipc_staging_path())?;
+                collect_ipc_batches(IpcFileReader::try_new(file, None)?)?
+            }
+        };
 
         if batches.is_empty() {
             // Nothing to sort, just reopen
             reservation.shrink(sort_reserve);
-            let _ = std::fs::remove_file(&ipc_path);
+            self.delete_ipc_staging();
             self.open_new_ipc()?;
             return Ok(());
         }
@@ -297,15 +455,25 @@ impl SortingChunkedWriter {
             sorted_batch
         };
 
-        // Write sorted chunk as Parquet
+        // Write sorted chunk as Parquet (to the store, or a local file when store is None)
         let chunk_path = self.sorted_chunk_path(self.chunk_idx);
-        let crc32 = NativeParquetWriter::write_final_file(
-            &chunk_path,
-            &self.index_name,
-            &final_batch,
-            self.schema.clone(),
-            Some(self.writer_generation),
-        )?;
+        let crc32 = match &self.store {
+            Some(store) => write_batch_to_store(
+                store.clone(),
+                &chunk_path,
+                &self.index_name,
+                &final_batch,
+                self.schema.clone(),
+                Some(self.writer_generation),
+            )?,
+            None => NativeParquetWriter::write_final_file(
+                &chunk_path,
+                &self.index_name,
+                &final_batch,
+                self.schema.clone(),
+                Some(self.writer_generation),
+            )?,
+        };
 
         self.completed_chunks.push(chunk_path);
         self.chunk_crcs.push(crc32);
@@ -318,10 +486,25 @@ impl SortingChunkedWriter {
         let row_ids_bytes = self.current_rows * std::mem::size_of::<i64>();
         reservation.grow(row_ids_bytes);
 
-        // Delete the IPC staging file and open a fresh one
-        let _ = std::fs::remove_file(&ipc_path);
+        // Delete the IPC staging object/file and open a fresh one
+        self.delete_ipc_staging();
         self.open_new_ipc()?;
         Ok(())
+    }
+
+    /// Delete the current IPC staging artifact (store object or local file); best-effort.
+    fn delete_ipc_staging(&self) {
+        match &self.store {
+            Some(store) => {
+                let _ = crate::store_io::delete_object(
+                    store,
+                    &object_store::path::Path::from(self.ipc_object_path()),
+                );
+            }
+            None => {
+                let _ = std::fs::remove_file(self.ipc_staging_path());
+            }
+        }
     }
 
     /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + CRCs.
@@ -332,11 +515,11 @@ impl SortingChunkedWriter {
         if self.current_rows > 0 {
             self.flush_and_sort_chunk(reservation)?;
         }
-        // Close and remove the trailing IPC staging file
-        if let Some(mut writer) = self.current_ipc_writer.take() {
-            writer.finish()?;
+        // Close and remove the trailing IPC staging artifact
+        if let Some(writer) = self.current_ipc_writer.take() {
+            writer.finish_and_close()?;
         }
-        let _ = std::fs::remove_file(&self.ipc_staging_path());
+        self.delete_ipc_staging();
         Ok((self.completed_chunks, self.chunk_row_ids, self.chunk_crcs))
     }
 
@@ -374,8 +557,15 @@ pub struct WriterState {
     reservation: MemoryReservation,
     /// Final output path (temp file is renamed to this on finalize).
     filename: String,
-    /// Temporary path written to before finalize (`temp-<basename>`); also the IPC staging base.
+    /// Temporary path written to before finalize (`temp-<basename>`); used only by the local
+    /// (`store == None`) non-sorted path. Store-backed variants stream to the `ObjectStore`.
     temp_filename: String,
+    /// Shard-scoped store (cloned from the engine handle), or `None` for the local path (native
+    /// unit tests). Used by the sorted (IPC) variant at finalize to run the k-way merge through
+    /// the store, and carried so the store outlives all in-flight writer ops.
+    store: Option<Arc<dyn ObjectStore>>,
+    /// Object path (basename of `filename`) for the final output within the store root.
+    object_path: String,
 }
 
 /// Path suffix for the intermediate Arrow IPC file used during sort-on-close.
@@ -409,10 +599,11 @@ impl NativeParquetWriter {
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
         writer_generation: i64,
+        store_handle: i64,
     ) -> Result<*mut WriterState, Box<dyn std::error::Error>> {
         log_debug!(
-            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, writer_generation: {}",
-            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation
+            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, writer_generation: {}, store_handle: {}",
+            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation, store_handle
         );
 
         if (schema_address as *mut u8).is_null() {
@@ -424,6 +615,18 @@ impl NativeParquetWriter {
         }
 
         let temp_filename = Self::temp_filename(&filename);
+        let object_path = Path::new(&filename)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&filename)
+            .to_string();
+        // Clone the engine-owned store Arc once (never consume the box), or None for the local
+        // path (native unit tests). Shared by all store-backed sinks and the sorted finalize.
+        let store: Option<Arc<dyn ObjectStore>> = if store_handle > 0 {
+            Some(unsafe { (*(store_handle as *const Arc<dyn ObjectStore>)).clone() })
+        } else {
+            None
+        };
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
         log_debug!("Schema created with {} fields", schema.fields().len());
@@ -454,25 +657,40 @@ impl NativeParquetWriter {
                 settings.reverse_sorts.clone(),
                 settings.nulls_first.clone(),
                 writer_generation,
+                store.clone(),
+                object_path.clone(),
             )?;
             (
                 WriterVariant::Ipc(Arc::new(Mutex::new(chunked_writer))),
                 None,
             )
         } else {
-            let file = File::create(&temp_filename)?;
-            let (crc_file, crc_handle) = CrcWriter::new(file);
             let props = WriterPropertiesBuilder::build_with_generation(
                 &settings,
                 Some(writer_generation),
                 &schema,
             )
             .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
-            let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
-            (
-                WriterVariant::Parquet(Arc::new(Mutex::new(writer))),
-                Some(crc_handle),
-            )
+
+            if let Some(store_ref) = store.clone() {
+                // Production path: stream the Parquet output straight into the shard ObjectStore.
+                let (writer, crc_handle) =
+                    new_store_parquet_sink(store_ref, &object_path, schema, props)?;
+                (
+                    WriterVariant::ParquetStore(Arc::new(Mutex::new(writer))),
+                    Some(crc_handle),
+                )
+            } else {
+                // Legacy local path (native unit tests / no store): synchronous ArrowWriter to a
+                // local temp file, renamed into place at finalize.
+                let file = File::create(&temp_filename)?;
+                let (crc_file, crc_handle) = CrcWriter::new(file);
+                let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
+                (
+                    WriterVariant::Parquet(Arc::new(Mutex::new(writer))),
+                    Some(crc_handle),
+                )
+            }
         };
 
         let state = Box::new(WriterState {
@@ -487,6 +705,8 @@ impl NativeParquetWriter {
             ),
             filename,
             temp_filename,
+            store,
+            object_path,
         });
         let handle = Box::into_raw(state);
         Ok(handle)
@@ -553,6 +773,23 @@ impl NativeParquetWriter {
                         drop(writer);
                         state.reservation.reconcile(estimated, actual);
                     }
+                    WriterVariant::ParquetStore(writer_arc) => {
+                        log_debug!("Writing RecordBatch to Parquet ObjectStore sink");
+                        let batch_bytes = record_batch.get_array_memory_size();
+                        // Same 3× estimate as the local path; AsyncArrowWriter exposes the same
+                        // `memory_size()` for the in-progress buffered encoding.
+                        let estimated = batch_bytes * 3;
+                        let writer_arc = writer_arc.clone();
+                        state.reservation.reserve_estimated(estimated)?;
+                        let mut writer = writer_arc.lock().unwrap();
+                        let before = writer.memory_size();
+                        // Drive the async write to completion. Java serializes handle-touching
+                        // calls per writer, so no other thread contends this lock/runtime slot.
+                        os_store_runtime().block_on(writer.write(&record_batch))?;
+                        let actual = writer.memory_size().saturating_sub(before);
+                        drop(writer);
+                        state.reservation.reconcile(estimated, actual);
+                    }
                 }
                 Ok(())
             } else {
@@ -582,6 +819,8 @@ impl NativeParquetWriter {
             mut reservation,
             filename,
             temp_filename,
+            store,
+            object_path,
         } = unsafe { *Box::from_raw(handle) };
         log_debug!(
             "finalize_writer called for file: {} (temp: {})",
@@ -604,31 +843,52 @@ impl NativeParquetWriter {
                                 temp_filename, total_rows, chunk_paths.len()
                             );
 
-                        let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
-                            &chunk_paths,
-                            &chunk_row_ids,
-                            &chunk_crcs,
-                            &filename,
-                            index_name,
-                            &settings.sort_columns,
-                            &settings.reverse_sorts,
-                            &settings.nulls_first,
-                            writer_generation,
-                            schema.clone(),
-                            &mut reservation,
-                        )?;
+                        let (crc32, row_id_mapping, merged_metadata) =
+                            Self::finalize_sorted_chunks(
+                                &chunk_paths,
+                                &chunk_row_ids,
+                                &chunk_crcs,
+                                &filename,
+                                &object_path,
+                                store.as_ref(),
+                                index_name,
+                                &settings.sort_columns,
+                                &settings.reverse_sorts,
+                                &settings.nulls_first,
+                                writer_generation,
+                                schema.clone(),
+                                &mut reservation,
+                            )?;
 
-                        // Clean up sorted chunk files only after successful finalization.
+                        // Clean up sorted chunk artifacts only after successful finalization.
                         // On failure, chunks are preserved as they may be the only copy of the data.
                         for path in &chunk_paths {
-                            let _ = std::fs::remove_file(path);
+                            match &store {
+                                Some(s) => {
+                                    let _ = crate::store_io::delete_object(
+                                        s,
+                                        &object_store::path::Path::from(path.as_str()),
+                                    );
+                                }
+                                None => {
+                                    let _ = std::fs::remove_file(path);
+                                }
+                            }
                         }
 
                         log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
 
-                        let file = File::open(&filename)?;
-                        let reader = SerializedFileReader::new(file)?;
-                        let parquet_metadata = reader.metadata().clone();
+                        // Prefer the metadata produced by the merge (backend-agnostic). Only the
+                        // single-chunk/empty store cases and the local path fall back to reading
+                        // the final file (for hot indices it is a real local file at `filename`).
+                        let parquet_metadata = match merged_metadata {
+                            Some(md) => md,
+                            None => {
+                                let file = File::open(&filename)?;
+                                let reader = SerializedFileReader::new(file)?;
+                                reader.metadata().clone()
+                            }
+                        };
 
                         // Detach mapping from reservation before handing to FFI/Java.
                         // FFI layer will track it via write_pool().grow/shrink.
@@ -660,7 +920,8 @@ impl NativeParquetWriter {
                                 let crc32 = crc_handle.map(|h| h.crc32()).unwrap_or(0);
                                 log_info!("Successfully closed temp writer for: {}", temp_filename);
 
-                                // Parquet variant is used for non-sorted data; just rename.
+                                // Legacy local path (no ObjectStore): atomically move the finished
+                                // temp file into place.
                                 std::fs::rename(&temp_filename, &filename)?;
 
                                 log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
@@ -693,6 +954,37 @@ impl NativeParquetWriter {
                     }
                 }
             }
+            WriterVariant::ParquetStore(writer_arc) => {
+                match Arc::try_unwrap(writer_arc) {
+                    Ok(mutex) => {
+                        let writer = mutex.into_inner().unwrap();
+                        // `close()` force-flushes the buffered Parquet, completes the ObjectStore
+                        // multipart upload, and returns the full ParquetMetaData — so, unlike the
+                        // local path, there is no file re-open (works for any store backend). The
+                        // CrcObjectWriter has hashed every uploaded byte into `crc_handle`.
+                        let parquet_metadata =
+                            os_store_runtime().block_on(writer.close())?;
+                        let crc32 = crc_handle.map(|h| h.crc32()).unwrap_or(0);
+                        log_info!(
+                            "Successfully closed store-backed writer for: {} (crc32={:#010x})",
+                            filename,
+                            crc32
+                        );
+                        Ok(Some(FinalizeResult {
+                            metadata: parquet_metadata,
+                            crc32,
+                            row_id_mapping: None,
+                        }))
+                    }
+                    Err(_) => {
+                        log_error!(
+                            "ERROR: Store-backed writer still in use for file: {}",
+                            filename
+                        );
+                        Err("Store-backed writer still in use".into())
+                    }
+                }
+            }
         }
     }
 
@@ -704,6 +996,8 @@ impl NativeParquetWriter {
         chunk_row_ids: &[Vec<i64>],
         chunk_crcs: &[u32],
         output_filename: &str,
+        output_object_path: &str,
+        store: Option<&Arc<dyn ObjectStore>>,
         index_name: &str,
         sort_columns: &[String],
         reverse_sorts: &[bool],
@@ -711,7 +1005,8 @@ impl NativeParquetWriter {
         writer_generation: i64,
         schema: Arc<arrow::datatypes::Schema>,
         reservation: &mut MemoryReservation,
-    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
+    ) -> Result<(u32, Option<Vec<i64>>, Option<parquet::file::metadata::ParquetMetaData>), Box<dyn std::error::Error>>
+    {
         if chunk_paths.is_empty() {
             log_info!("finalize_sorted_chunks: no chunks, writing empty Parquet file");
             let config = SETTINGS_STORE
@@ -724,16 +1019,38 @@ impl NativeParquetWriter {
                 &schema,
             )
             .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
-            let file = File::create(output_filename)?;
-            let writer = ArrowWriter::try_new(file, schema, Some(props))?;
-            writer.close()?;
-            return Ok((0, None));
+            match store {
+                Some(s) => {
+                    // Empty Parquet straight to the store.
+                    let (writer, _crc) =
+                        new_store_parquet_sink(s.clone(), output_object_path, schema, props)?;
+                    os_store_runtime().block_on(writer.close())?;
+                }
+                None => {
+                    let file = File::create(output_filename)?;
+                    let writer = ArrowWriter::try_new(file, schema, Some(props))?;
+                    writer.close()?;
+                }
+            }
+            return Ok((0, None, None));
         }
 
         if chunk_paths.len() == 1 {
-            // Single chunk: just rename to final output (already sorted Parquet)
+            // Single chunk is already sorted Parquet — move it to the final output.
+            // Store: metadata-only rename within the store. Local: filesystem rename.
             log_info!("finalize_sorted_chunks: single chunk, renaming to final output");
-            std::fs::rename(&chunk_paths[0], output_filename)?;
+            match store {
+                Some(s) => {
+                    crate::store_io::rename_object(
+                        s,
+                        &object_store::path::Path::from(chunk_paths[0].as_str()),
+                        &object_store::path::Path::from(output_object_path),
+                    )?;
+                }
+                None => {
+                    std::fs::rename(&chunk_paths[0], output_filename)?;
+                }
+            }
 
             // Use the CRC computed when the chunk was written
             let crc32 = chunk_crcs.first().copied().unwrap_or(0);
@@ -757,7 +1074,7 @@ impl NativeParquetWriter {
                 None
             };
 
-            return Ok((crc32, row_id_mapping));
+            return Ok((crc32, row_id_mapping, None));
         }
 
         // Multiple chunks: k-way merge
@@ -775,13 +1092,18 @@ impl NativeParquetWriter {
         );
         let merge_output = merge_sorted_with_pool(
             chunk_paths,
-            output_filename,
+            if store.is_some() {
+                output_object_path
+            } else {
+                output_filename
+            },
             index_name,
             sort_columns,
             reverse_sorts,
             nulls_first,
             writer_generation,
             &mut merge_reservation,
+            store.cloned(),
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()
@@ -793,12 +1115,15 @@ impl NativeParquetWriter {
             merge_duration
         );
 
-        // Build the flat permutation: result[original_row_id] = new_row_id
+        // Take the merged output's metadata (backend-agnostic) and mapping; destructure so we can
+        // free the merge mapping without holding the whole struct.
         let crc32 = merge_output.crc32;
-        let row_id_mapping = if !merge_output.mapping.is_empty() && !chunk_row_ids.is_empty() {
-            let total = merge_output.mapping.len();
+        let merged_metadata = merge_output.metadata;
+        let merge_mapping = merge_output.mapping;
+        let row_id_mapping = if !merge_mapping.is_empty() && !chunk_row_ids.is_empty() {
+            let total = merge_mapping.len();
             let mapping_bytes = total * std::mem::size_of::<i64>();
-            // Reserve 2× mapping: merge_output.mapping (alive) + flat_mapping (about to allocate)
+            // Reserve 2× mapping: merge mapping (alive) + flat_mapping (about to allocate)
             reservation.request(mapping_bytes * 2)?;
             let mut flat_mapping = vec![0i64; total];
             for i in 0..total {
@@ -809,13 +1134,13 @@ impl NativeParquetWriter {
                 for &original_row_id in chunk_ids {
                     let orig_idx = original_row_id as usize;
                     if orig_idx < total && pos < total {
-                        flat_mapping[orig_idx] = merge_output.mapping[pos];
+                        flat_mapping[orig_idx] = merge_mapping[pos];
                     }
                     pos += 1;
                 }
             }
-            drop(merge_output);
-            // merge_output.mapping freed — release its share, flat_mapping remains tracked
+            drop(merge_mapping);
+            // merge mapping freed — release its share, flat_mapping remains tracked
             reservation.shrink(mapping_bytes);
             log_info!(
                 "finalize_sorted_chunks: produced {} permutation entries for {}",
@@ -833,7 +1158,7 @@ impl NativeParquetWriter {
             chunk_paths.len(),
             merge_duration
         );
-        Ok((crc32, row_id_mapping))
+        Ok((crc32, row_id_mapping, Some(merged_metadata)))
     }
 
     /// Sort a batch using RowConverter: converts sort columns into compact

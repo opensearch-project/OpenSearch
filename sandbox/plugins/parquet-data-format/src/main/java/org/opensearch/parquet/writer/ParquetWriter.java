@@ -93,7 +93,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
         ParquetShardStatsTracker stats,
-        Consumer<ParquetWriter> onClose
+        Consumer<ParquetWriter> onClose,
+        long storePtr
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
@@ -111,7 +112,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
             threadPool,
             writerGeneration,
-            stats
+            stats,
+            storePtr
         );
     }
 
@@ -142,7 +144,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             threadPool,
             checksumStrategy,
             new ParquetShardStatsTracker(),
-            null
+            null,
+            0L
         );
     }
 

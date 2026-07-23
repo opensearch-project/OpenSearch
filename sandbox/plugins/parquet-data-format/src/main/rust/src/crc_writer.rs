@@ -19,6 +19,19 @@ impl CrcHandle {
     pub fn crc32(&self) -> u32 {
         self.hasher.lock().unwrap().clone().finalize()
     }
+
+    /// Create a fresh handle together with the shared hasher it reads from, for writers that
+    /// update the CRC out-of-band (e.g. the async `ObjectStore` sink, which cannot wrap a
+    /// synchronous [`Write`]). The caller feeds the returned hasher; the handle reads the CRC.
+    pub fn new_shared() -> (CrcHandle, Arc<Mutex<crc32fast::Hasher>>) {
+        let hasher = Arc::new(Mutex::new(crc32fast::Hasher::new()));
+        (
+            CrcHandle {
+                hasher: hasher.clone(),
+            },
+            hasher,
+        )
+    }
 }
 
 /// A writer wrapper that computes CRC32 incrementally on every write.

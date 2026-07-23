@@ -38,6 +38,12 @@ public class NativeParquetWriter {
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
     private final SetOnce<RowIdMapping> rowIdMapping = new SetOnce<>();
     private final ParquetShardStatsTracker stats;
+    /**
+     * Shard-scoped native ObjectStore handle ({@code Box<Arc<dyn ObjectStore>>} pointer) minted by
+     * {@code os_create_local_store} and owned by the engine, or 0 for the legacy local-file path.
+     * Passed to the native writer at {@link #initialize} time so finalize publishes through the store.
+     */
+    private final long storePtr;
     private volatile boolean initialized = false;
 
     /** Reclaims leaked native writers if this object is GC'd without an explicit close/flush. */
@@ -62,8 +68,21 @@ public class NativeParquetWriter {
      * @param stats shard-level stats tracker
      */
     public NativeParquetWriter(String filePath, ParquetShardStatsTracker stats) {
+        this(filePath, stats, 0L);
+    }
+
+    /**
+     * Creates a new NativeParquetWriter handle bound to a shard-scoped ObjectStore.
+     *
+     * @param filePath the path to the Parquet file to write
+     * @param stats shard-level stats tracker
+     * @param storePtr shard ObjectStore handle ({@code os_create_local_store} pointer), or 0 for
+     *                 the legacy local-file path
+     */
+    public NativeParquetWriter(String filePath, ParquetShardStatsTracker stats, long storePtr) {
         this.filePath = filePath;
         this.stats = stats;
+        this.storePtr = storePtr;
     }
 
     /**
@@ -91,7 +110,7 @@ public class NativeParquetWriter {
         if (initialized) {
             throw new IllegalStateException("Writer already initialized: " + filePath);
         }
-        handle = RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig, writerGeneration);
+        handle = RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig, writerGeneration, storePtr);
         initialized = true;
         // GC backstop: if this writer is dropped without close()/flush(), free the native handle.
         // HandleCleanup holds only the primitive handle + shared released flag (never `this`).
