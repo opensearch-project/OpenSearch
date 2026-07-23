@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -139,6 +140,127 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
+    }
+
+    @Override
+    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        if (awarenessAttributes.isEmpty()) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "allocation awareness is not enabled, set cluster setting [%s] to enable it",
+                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey()
+            );
+        }
+
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).autoExpandToAll()) {
+            return allocation.decision(Decision.YES, NAME, "allocation awareness is ignored, this index is set to auto-expand to all");
+        }
+
+        for (String awarenessAttribute : awarenessAttributes) {
+            String nodeAttributeValue = node.getAttributes().get(awarenessAttribute);
+            if (nodeAttributeValue == null) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
+                    awarenessAttribute,
+                    CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
+                    allocation.debugDecision() ? Strings.collectionToCommaDelimitedString(awarenessAttributes) : null
+                );
+            }
+
+            Map<String, Integer> nodeCountPerAttributeValue = new HashMap<>();
+            for (DiscoveryNode dataNode : allocation.nodes().getDataNodes().values()) {
+                if (dataNode.isSearchNode()) {
+                    continue;
+                }
+                String attrValue = dataNode.getAttributes().get(awarenessAttribute);
+                if (attrValue != null) {
+                    nodeCountPerAttributeValue.merge(attrValue, 1, Integer::sum);
+                }
+            }
+
+            Set<String> allAttributeValues = new HashSet<>(nodeCountPerAttributeValue.keySet());
+            List<String> forcedValues = forcedAwarenessAttributes.get(awarenessAttribute);
+            if (forcedValues != null) {
+                allAttributeValues.addAll(forcedValues);
+            }
+            int numberOfAttributeValues = allAttributeValues.size();
+
+            if (numberOfAttributeValues <= 1) {
+                continue;
+            }
+
+            int totalDataNodes = nodeCountPerAttributeValue.values().stream().mapToInt(Integer::intValue).sum();
+            int autoExpandMaxReplicas = INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).getMaxReplicas();
+            int upperBound = Math.min(totalDataNodes, autoExpandMaxReplicas + 1);
+            int maxCopies = computeMaxAchievableCopies(nodeCountPerAttributeValue, numberOfAttributeValues, upperBound);
+            int maxPerAttributeValue = (maxCopies + numberOfAttributeValues - 1) / numberOfAttributeValues;
+
+            int nodesInSameGroup = nodeCountPerAttributeValue.getOrDefault(nodeAttributeValue, 0);
+            if (nodesInSameGroup > maxPerAttributeValue) {
+                long position = 0;
+                for (DiscoveryNode dataNode : allocation.nodes().getDataNodes().values()) {
+                    if (dataNode.isSearchNode()) {
+                        continue;
+                    }
+                    String attrValue = dataNode.getAttributes().get(awarenessAttribute);
+                    if (nodeAttributeValue.equals(attrValue) && dataNode.getId().compareTo(node.getId()) < 0) {
+                        position++;
+                    }
+                }
+                if (position >= maxPerAttributeValue) {
+                    return allocation.decision(
+                        Decision.NO,
+                        NAME,
+                        "too many nodes in awareness group [%s=%s] for auto-expand replicas; "
+                            + "[%d] nodes in group but only [%d] are needed to satisfy awareness with [%d] attribute values",
+                        awarenessAttribute,
+                        nodeAttributeValue,
+                        nodesInSameGroup,
+                        maxPerAttributeValue,
+                        numberOfAttributeValues
+                    );
+                }
+            }
+        }
+
+        return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements for auto-expand");
+    }
+
+    /**
+     * Computes the maximum number of shard copies that can be placed while respecting
+     * awareness constraints. With K awareness attribute values and varying numbers of
+     * nodes per value, finds the largest S such that sum(min(nodesPerValue_i, ceil(S/K))) &gt;= S.
+     */
+    public static int computeMaxAchievableCopies(Map<String, Integer> nodeCountPerAttributeValue, int numberOfAttributeValues) {
+        int totalNodes = nodeCountPerAttributeValue.values().stream().mapToInt(Integer::intValue).sum();
+        return computeMaxAchievableCopies(nodeCountPerAttributeValue, numberOfAttributeValues, totalNodes);
+    }
+
+    /**
+     * Computes the maximum number of shard copies that can be placed while respecting
+     * awareness constraints, with an upper bound on the number of copies to consider.
+     * The upper bound accounts for auto_expand_replicas max setting so we don't compute
+     * a node count that would be reduced by the max setting to a value awareness can't handle.
+     */
+    public static int computeMaxAchievableCopies(
+        Map<String, Integer> nodeCountPerAttributeValue,
+        int numberOfAttributeValues,
+        int upperBound
+    ) {
+        for (int s = upperBound; s >= 1; s--) {
+            int maxPerValue = (s + numberOfAttributeValues - 1) / numberOfAttributeValues;
+            int capacity = 0;
+            for (int nodeCount : nodeCountPerAttributeValue.values()) {
+                capacity += Math.min(nodeCount, maxPerValue);
+            }
+            if (capacity >= s) {
+                return s;
+            }
+        }
+        return 1;
     }
 
     @Override
