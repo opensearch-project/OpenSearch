@@ -31,6 +31,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -134,7 +135,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public Iterable<ICacheKey<K>> keys() {
-        return cache.keys();
+        // Return a point-in-time copy of the keys rather than the live Cache#keys() view: the live iterator
+        // walks the LRU linked list without holding the LRU lock, so a concurrent cache hit relinking a
+        // not-yet-visited entry to the head can cause iteration to silently skip it. The copy is unmodifiable
+        // so misuse of Iterator#remove (a silent no-op on a copy) fails fast; use invalidate(key) instead.
+        return Collections.unmodifiableList(cache.keysSnapshot());
     }
 
     @Override
