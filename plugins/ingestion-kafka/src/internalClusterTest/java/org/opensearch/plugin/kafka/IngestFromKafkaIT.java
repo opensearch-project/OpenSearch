@@ -100,6 +100,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
                 .put("ingestion_source.decoder_type", "xcontent")
                 .build(),
             mapping
