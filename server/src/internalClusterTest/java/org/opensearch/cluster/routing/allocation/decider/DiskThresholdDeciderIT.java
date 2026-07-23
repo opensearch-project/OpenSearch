@@ -53,6 +53,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.FileCacheThresholdSettings;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
@@ -61,6 +62,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -81,6 +83,7 @@ import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -231,6 +234,122 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
+    }
+
+    public void testSkipWatermarkOnNodeLeftRecoveryRestoresShard() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(DiskThresholdDecider.SKIP_WATERMARK_ON_NODE_LEFT_RECOVERY.getKey(), true).build()
+                )
+                .get()
+        );
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        // 1 primary + 1 replica index
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
+                    // Drop the node-left allocation delay so a leaving/rejoining node triggers an immediate reroute.
+                    .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0ms")
+            )
+        );
+        ensureGreen(indexName);
+        createReasonableSizedShards(indexName);
+        assertAcked(
+            client().admin()
+                .indices()
+                .updateSettings(
+                    new UpdateSettingsRequest(indexName).settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                )
+                .get()
+        );
+        ensureGreen(indexName);
+
+        final String replicaNodeName = getReplicaNodeName(indexName);
+        final Settings replicaNodeSettings = internalCluster().dataPathSettings(replicaNodeName);
+        simulateDiskPressure(getMockInternalClusterInfoService());
+
+        // --- Phase 1: default max_age (10m)
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName));
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            List<ShardRouting> allUnassigned = new ArrayList<>();
+            StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false).forEach(allUnassigned::add);
+            allUnassigned.addAll(state.getRoutingNodes().unassigned().ignored());
+            assertThat(allUnassigned, hasSize(1));
+            assertFalse("only the replica should be unassigned", allUnassigned.get(0).primary());
+            UnassignedInfo unassignedInfo = allUnassigned.get(0).unassignedInfo();
+            assertNotNull(unassignedInfo);
+            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.NODE_LEFT));
+        });
+
+        // Restart the same node with the same dataPath -> the local replica store matches and NODE_LEFT is fresh.
+        internalCluster().startDataOnlyNode(replicaNodeSettings);
+        ensureStableCluster(3);
+        assertBusy(() -> {
+            refreshDiskUsage();
+            assertAcked(client().admin().cluster().prepareReroute());
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            List<ShardRouting> replicas = state.getRoutingTable().index(indexName).shard(0).replicaShards();
+            assertThat(replicas, hasSize(1));
+            assertThat(replicas.get(0).state(), equalTo(ShardRoutingState.STARTED));
+        }, 60L, TimeUnit.SECONDS);
+
+        // --- Phase 2: shrink max_age to 1ms so the next NODE_LEFT event is treated as stale.
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(DiskThresholdDecider.SKIP_WATERMARK_ON_NODE_LEFT_MAX_AGE.getKey(), TimeValue.timeValueMillis(1))
+                        .build()
+                )
+                .get()
+        );
+
+        final String replicaNodeNamePhase2 = getReplicaNodeName(indexName);
+        final Settings replicaNodeSettingsPhase2 = internalCluster().dataPathSettings(replicaNodeNamePhase2);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeNamePhase2));
+        internalCluster().startDataOnlyNode(replicaNodeSettingsPhase2);
+        ensureStableCluster(3);
+
+        assertBusy(() -> {
+            refreshDiskUsage();
+            // Force an allocation attempt; the decider must refuse it, leaving the replica unassigned.
+            assertAcked(client().admin().cluster().prepareReroute());
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            IndexShardRoutingTable shard = state.getRoutingTable().index(indexName).shard(0);
+            assertTrue("primary must remain active", shard.primaryShard().active());
+            assertThat(shard.replicaShards(), hasSize(1));
+            assertThat(shard.replicaShards().get(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
+        }, 30L, TimeUnit.SECONDS);
+
+        releaseDiskPressure(getMockInternalClusterInfoService());
+        assertBusy(() -> {
+            refreshDiskUsage();
+            ensureGreen(indexName);
+        }, 60L, TimeUnit.SECONDS);
+    }
+
+    private String getReplicaNodeName(final String indexName) {
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexShardRoutingTable shard = state.getRoutingTable().index(indexName).shard(0);
+        assertThat(shard.replicaShards(), hasSize(1));
+        final ShardRouting replica = shard.replicaShards().get(0);
+        assertTrue("replica must be started before bouncing its node", replica.started());
+        return state.nodes().get(replica.currentNodeId()).getName();
     }
 
     public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsIndexThreshold() throws Exception {
