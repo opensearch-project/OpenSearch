@@ -153,6 +153,17 @@ public class RecoverySettings {
     );
 
     /**
+     * Controls the maximum number of translog generations that can be downloaded concurrently during failover/primary relocations.
+     */
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_TRANSLOG_DOWNLOAD_STREAMS_SETTING = new Setting<>(
+        "indices.recovery.max_concurrent_translog_download_streams",
+        (s) -> Integer.toString(Math.max(1, OpenSearchExecutors.allocatedProcessors(s) / 2)),
+        (s) -> Setting.parseInt(s, 1, "indices.recovery.max_concurrent_translog_download_streams"),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * how long to wait before retrying after issues cause by cluster state syncing between nodes
      * i.e., local node is not yet known on remote node, remote shard not yet started etc.
      */
@@ -258,6 +269,7 @@ public class RecoverySettings {
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
     private volatile int maxConcurrentRemoteStoreStreams;
+    private volatile int maxConcurrentTranslogDownloadStreams;
     private volatile SimpleRateLimiter recoveryRateLimiter;
     private volatile SimpleRateLimiter replicationRateLimiter;
     private volatile SimpleRateLimiter mergedSegmentReplicationRateLimiter;
@@ -280,6 +292,7 @@ public class RecoverySettings {
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
         this.maxConcurrentRemoteStoreStreams = INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING.get(settings);
+        this.maxConcurrentTranslogDownloadStreams = INDICES_RECOVERY_MAX_CONCURRENT_TRANSLOG_DOWNLOAD_STREAMS_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the cluster-manager time to remove a faulty node
         this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);
@@ -335,6 +348,10 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
             this::setMaxConcurrentRemoteStoreStreams
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_MAX_CONCURRENT_TRANSLOG_DOWNLOAD_STREAMS_SETTING,
+            this::setMaxConcurrentTranslogDownloadStreams
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
@@ -514,6 +531,14 @@ public class RecoverySettings {
 
     private void setMaxConcurrentRemoteStoreStreams(int maxConcurrentRemoteStoreStreams) {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
+    }
+
+    public int getMaxConcurrentTranslogDownloadStreams() {
+        return this.maxConcurrentTranslogDownloadStreams;
+    }
+
+    private void setMaxConcurrentTranslogDownloadStreams(int maxConcurrentTranslogDownloadStreams) {
+        this.maxConcurrentTranslogDownloadStreams = maxConcurrentTranslogDownloadStreams;
     }
 
     public boolean isMergedSegmentReplicationWarmerEnabled() {

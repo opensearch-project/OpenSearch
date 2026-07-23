@@ -19,6 +19,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
@@ -47,8 +48,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -68,6 +71,7 @@ public class TranslogTransferManager {
     private final FileTransferTracker fileTransferTracker;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final ThreadPool threadPool;
     private static final int METADATA_FILES_TO_FETCH = 10;
     // Flag to include checkpoint file data as translog file metadata during upload/download
     private final boolean isTranslogMetadataEnabled;
@@ -92,6 +96,30 @@ public class TranslogTransferManager {
         RemoteStoreSettings remoteStoreSettings,
         boolean isTranslogMetadataEnabled
     ) {
+        this(
+            shardId,
+            transferService,
+            remoteDataTransferPath,
+            remoteMetadataTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            remoteStoreSettings,
+            isTranslogMetadataEnabled,
+            null
+        );
+    }
+
+    public TranslogTransferManager(
+        ShardId shardId,
+        TransferService transferService,
+        BlobPath remoteDataTransferPath,
+        BlobPath remoteMetadataTransferPath,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isTranslogMetadataEnabled,
+        ThreadPool threadPool
+    ) {
         this.shardId = shardId;
         this.transferService = transferService;
         this.remoteDataTransferPath = remoteDataTransferPath;
@@ -101,6 +129,7 @@ public class TranslogTransferManager {
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
         this.isTranslogMetadataEnabled = isTranslogMetadataEnabled;
+        this.threadPool = threadPool;
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -301,6 +330,71 @@ public class TranslogTransferManager {
             }
         }
         return true;
+    }
+
+    /**
+     * Downloads multiple translog generations concurrently using the TRANSLOG_TRANSFER threadpool.
+     * Falls back to sequential download if maxConcurrentStreams is 1 or there is only one generation.
+     *
+     * @param generationPrimaryTermPairs list of (primaryTerm, generation) pairs to download
+     * @param location local directory to download files into
+     * @param maxConcurrentStreams maximum number of concurrent download threads
+     * @throws IOException if any download fails or the operation times out
+     */
+    public void downloadTranslogsParallel(List<Tuple<String, String>> generationPrimaryTermPairs, Path location, int maxConcurrentStreams)
+        throws IOException {
+        if (generationPrimaryTermPairs.isEmpty()) return;
+
+        // Determine number of worker threads to use
+        int threads = Math.min(generationPrimaryTermPairs.size(), maxConcurrentStreams);
+        if (threadPool != null) {
+            threads = Math.min(threads, threadPool.info(ThreadPool.Names.TRANSLOG_TRANSFER).getMax());
+        } else {
+            threads = 1;
+        }
+
+        // Fall back to sequential for single thread (avoids overhead)
+        if (threads <= 1) {
+            for (Tuple<String, String> p : generationPrimaryTermPairs) {
+                downloadTranslog(p.v1(), p.v2(), location);
+            }
+            return;
+        }
+
+        ConcurrentLinkedQueue<Tuple<String, String>> queue = new ConcurrentLinkedQueue<>(generationPrimaryTermPairs);
+        CountDownLatch latch = new CountDownLatch(threads);
+        AtomicReference<IOException> failure = new AtomicReference<>();
+
+        for (int i = 0; i < threads; i++) {
+            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(() -> {
+                try {
+                    Tuple<String, String> pair;
+                    while (failure.get() == null && (pair = queue.poll()) != null) {
+                        downloadTranslog(pair.v1(), pair.v2(), location);
+                    }
+                } catch (IOException e) {
+                    failure.compareAndSet(null, e);
+                    queue.clear();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        try {
+            long timeoutMillis = remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis();
+            if (!latch.await(timeoutMillis, TimeUnit.MILLISECONDS)) {
+                queue.clear(); // signal workers to stop
+                throw new IOException("Timed out waiting for parallel translog downloads");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted during parallel translog download", e);
+        }
+
+        if (failure.get() != null) {
+            throw failure.get();
+        }
     }
 
     /**

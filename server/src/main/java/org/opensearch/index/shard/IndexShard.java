@@ -5940,7 +5940,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shouldSeedRemoteStore(),
             isTranslogMetadataEnabled,
             timestamp,
-            isServerSideEncryptionEnabled
+            isServerSideEncryptionEnabled,
+            recoverySettings.getMaxConcurrentTranslogDownloadStreams()
         );
     }
 
