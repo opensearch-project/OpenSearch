@@ -635,7 +635,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(cachedInstance.getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
-        assertBusy(() -> assertEquals(hasDocValues() ? 0L : 3L, indicesFieldDataCache.getCache().count()));
+        assertEquals(hasDocValues() ? 0L : 3L, indicesFieldDataCache.getCache().count());
 
         refreshReader();
         assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));
