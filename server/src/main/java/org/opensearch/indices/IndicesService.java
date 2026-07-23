@@ -584,7 +584,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
-        this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings, threadPool);
+        this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
