@@ -583,7 +583,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
-        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
+        this.cacheCleaner = new CacheCleaner(
+            indicesFieldDataCache,
+            circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            logger,
+            threadPool,
+            this.cleanInterval
+        );
         this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings, threadPool);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
@@ -2015,13 +2021,21 @@ public class IndicesService extends AbstractLifecycleComponent
     private static final class CacheCleaner implements Runnable, Releasable {
 
         private final IndicesFieldDataCache cache;
+        private final CircuitBreaker fieldDataBreaker;
         private final Logger logger;
         private final ThreadPool threadPool;
         private final TimeValue interval;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        CacheCleaner(IndicesFieldDataCache cache, Logger logger, ThreadPool threadPool, TimeValue interval) {
+        CacheCleaner(
+            IndicesFieldDataCache cache,
+            CircuitBreaker fieldDataBreaker,
+            Logger logger,
+            ThreadPool threadPool,
+            TimeValue interval
+        ) {
             this.cache = cache;
+            this.fieldDataBreaker = fieldDataBreaker;
             this.logger = logger;
             this.threadPool = threadPool;
             this.interval = interval;
@@ -2037,6 +2051,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 this.cache.clear();
             } catch (Exception e) {
                 logger.warn("Exception during periodic field data cache cleanup:", e);
+            }
+            try {
+                this.cache.auditAccounting(fieldDataBreaker);
+            } catch (Exception e) {
+                logger.warn("Exception during periodic field data cache accounting audit:", e);
             }
             if (logger.isTraceEnabled()) {
                 logger.trace(

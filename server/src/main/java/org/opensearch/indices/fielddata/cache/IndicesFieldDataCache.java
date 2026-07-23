@@ -54,6 +54,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -268,6 +269,52 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             iterator.remove();
         } catch (Exception e) {
             logger.warn("Exception occurred while removing key from cache", e);
+        }
+    }
+
+    // Number of consecutive audits that must observe drift before warning: a single observation can
+    // race an in-flight load (breaker charged before the entry is inserted) or removal (entry removed
+    // before the breaker decrement fires), but such transients do not persist across audits.
+    static final int DRIFT_AUDITS_BEFORE_WARN = 2;
+
+    // Only mutated by auditAccounting, which has a single caller (the periodic cache cleaner thread).
+    private int consecutiveDriftAudits = 0;
+
+    /**
+     * Compares this cache's accounted weight against the field data circuit breaker's estimate and warns
+     * when the two have drifted. Every byte accounted to this cache is also charged to the field data
+     * breaker while the entry is live and released only when the entry's removal notification runs, so
+     * the cache's accounted weight should never exceed the breaker's estimate for long. Sustained drift
+     * means accounting has leaked (e.g. a removal decrement that never fired), silently eroding the
+     * breaker's protection of the node.
+     *
+     * @param fieldDataBreaker the {@link CircuitBreaker#FIELDDATA} breaker to compare against
+     */
+    public void auditAccounting(CircuitBreaker fieldDataBreaker) {
+        final long entries = cache.count();
+        final long accountedBytes = cache.weight();
+        final long breakerEstimateBytes = fieldDataBreaker.getUsed();
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "field data cache holds [{}] entries accounting for [{}] bytes; field data breaker estimates [{}] bytes",
+                entries,
+                accountedBytes,
+                breakerEstimateBytes
+            );
+        }
+        if (accountedBytes > breakerEstimateBytes) {
+            consecutiveDriftAudits++;
+            if (consecutiveDriftAudits >= DRIFT_AUDITS_BEFORE_WARN) {
+                logger.warn(
+                    "field data cache accounts for [{}] bytes but the field data circuit breaker estimates [{}] bytes; "
+                        + "accounting has drifted for [{}] consecutive audits",
+                    accountedBytes,
+                    breakerEstimateBytes,
+                    consecutiveDriftAudits
+                );
+            }
+        } else {
+            consecutiveDriftAudits = 0;
         }
     }
 
