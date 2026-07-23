@@ -61,6 +61,7 @@ import java.util.function.Function;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
+import io.substrait.expression.ExpressionCreator;
 import io.substrait.expression.FunctionArg;
 import io.substrait.expression.ImmutableAggregateFunctionInvocation;
 import io.substrait.extension.ExtensionCollector;
@@ -70,6 +71,7 @@ import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
 import io.substrait.isthmus.expression.FunctionMappings;
+import io.substrait.isthmus.expression.LiteralConverter;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
@@ -83,8 +85,10 @@ import io.substrait.relation.Filter;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.Sort;
+import io.substrait.relation.VirtualTableScan;
 import io.substrait.type.NamedStruct;
 import io.substrait.type.Type;
+import io.substrait.type.TypeCreator;
 import io.substrait.type.proto.TypeProtoConverter;
 
 /** Converts Calcite RelNode fragments to Substrait protobuf bytes for the DataFusion Rust runtime. */
@@ -769,13 +773,82 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             windowConverter,
             typeConverter
         );
+        LiteralConverter literalConverter = new LiteralConverter(typeConverter);
         return new SubstraitRelVisitor(converterProvider) {
             @Override
             public Rel visit(org.apache.calcite.rel.core.Aggregate aggregate) {
                 Rel rel = super.visit(aggregate);
                 return rel instanceof Aggregate agg ? addNullArgFilters(aggregate, agg) : rel;
             }
+
+            @Override
+            public Rel visit(org.apache.calcite.rel.core.Values values) {
+                if (values.getTuples().isEmpty()) {
+                    // No row literals means no per-value char length to conflict with the schema;
+                    // isthmus's default zero-row VirtualTable is fine.
+                    return super.visit(values);
+                }
+                return virtualTableWithStrLiterals(values, typeConverter, literalConverter);
+            }
         };
+    }
+
+    /**
+     * Builds a Substrait {@link VirtualTableScan} for an inline-literal {@link org.apache.calcite.rel.core.Values}
+     * leaf, mapping every CHAR/VARCHAR column to a length-independent {@code Str} in BOTH the base
+     * schema and every row literal. isthmus's own {@code visit(Values)} derives a
+     * {@code fixed_char(n)} literal from each string value while typing the schema column from the
+     * RelDataType, so a multi-row literal table (e.g. {@code makeresults data=}) trips
+     * {@link VirtualTableScan}'s row-conforms-to-schema check (FixedChar(3) vs FixedChar(5), or
+     * FixedChar vs Str). Normalising char types to {@code Str} here at the RelNode-to-POJO layer, in
+     * front of that check, makes the VirtualTable self-consistent. Numeric and boolean columns are
+     * left to isthmus's own literal/type converters since they are already length-independent.
+     */
+    private static Rel virtualTableWithStrLiterals(
+        org.apache.calcite.rel.core.Values values,
+        TypeConverter typeConverter,
+        LiteralConverter literalConverter
+    ) {
+        RelDataType rowType = values.getRowType();
+        List<RelDataTypeField> fields = rowType.getFieldList();
+
+        List<String> names = new ArrayList<>(fields.size());
+        List<Type> fieldTypes = new ArrayList<>(fields.size());
+        for (RelDataTypeField f : fields) {
+            names.add(f.getName());
+            if (isCharacter(f.getType())) {
+                fieldTypes.add(TypeCreator.of(f.getType().isNullable()).STRING);
+            } else {
+                fieldTypes.add(typeConverter.toSubstrait(f.getType()));
+            }
+        }
+        NamedStruct schema = NamedStruct.of(names, TypeCreator.REQUIRED.struct(fieldTypes));
+
+        List<Expression.NestedStruct> rows = new ArrayList<>(values.getTuples().size());
+        for (List<RexLiteral> tuple : values.getTuples()) {
+            List<Expression> cells = new ArrayList<>(tuple.size());
+            for (int c = 0; c < tuple.size(); c++) {
+                RexLiteral lit = tuple.get(c);
+                RelDataType cellType = fields.get(c).getType();
+                if (isCharacter(cellType)) {
+                    if (lit.isNull()) {
+                        cells.add(ExpressionCreator.typedNull(TypeCreator.of(true).STRING));
+                    } else {
+                        cells.add(ExpressionCreator.string(cellType.isNullable(), lit.getValueAs(String.class)));
+                    }
+                } else {
+                    cells.add(literalConverter.convert(lit));
+                }
+            }
+            rows.add(ExpressionCreator.nestedStruct(false, cells));
+        }
+
+        return VirtualTableScan.builder().initialSchema(schema).addAllRows(rows).build();
+    }
+
+    private static boolean isCharacter(RelDataType type) {
+        SqlTypeName t = type.getSqlTypeName();
+        return t == SqlTypeName.CHAR || t == SqlTypeName.VARCHAR;
     }
 
     /**
