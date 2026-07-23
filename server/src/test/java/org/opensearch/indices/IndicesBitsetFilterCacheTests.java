@@ -13,15 +13,19 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
@@ -32,6 +36,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -284,6 +289,79 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
             writer2.close();
             cache.purgeStaleEntries();
             assertThat(cache.getCache().count(), equalTo(0));
+        }
+    }
+
+    /**
+     * Reproduces the stale-entry leak in the reader-close purge path: an entry marked stale is
+     * silently skipped when a concurrent cache hit promotes it to the head of the LRU list after
+     * the sweep's cursor has already passed the head. Because {@code purgeStaleEntries()} consumes
+     * the stale marks after each pass and a reader closes only once, the skipped entry is never
+     * revisited: it stays in the cache until size-based eviction reaches it, potentially forever.
+     * The promotion is triggered deterministically from the removal listener of the first swept
+     * entry, mimicking a search touching the cache while the cleaner runs. This test fails if the
+     * sweep iterates the live {@code Cache#keys()} LRU view and passes with the point-in-time
+     * {@code Cache#keysSnapshot()}.
+     */
+    public void testPurgeIsNotDefeatedByLruPromotionMidSweep() throws Exception {
+        try (
+            IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+            IndexWriter writer = new IndexWriter(
+                new ByteBuffersDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < 3; i++) {
+                writer.addDocument(new Document());
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(3));
+                IndexReader.CacheKey closedKey1 = reader.leaves().get(0).reader().getCoreCacheHelper().getKey();
+                IndexReader.CacheKey liveKey = reader.leaves().get(1).reader().getCoreCacheHelper().getKey();
+                IndexReader.CacheKey closedKey2 = reader.leaves().get(2).reader().getCoreCacheHelper().getKey();
+
+                final AtomicReference<Runnable> onFirstRemoval = new AtomicReference<>();
+                BitsetFilterCache.Listener hookListener = new BitsetFilterCache.Listener() {
+                    @Override
+                    public void onCache(ShardId shardId, Accountable accountable) {}
+
+                    @Override
+                    public void onRemoval(ShardId shardId, Accountable accountable) {
+                        Runnable hook = onFirstRemoval.getAndSet(null);
+                        if (hook != null) {
+                            hook.run();
+                        }
+                    }
+                };
+
+                ShardId shardId = new ShardId("test", "_na_", 0);
+                Query query = new TermQuery(new Term("field", "value"));
+                IndicesBitsetFilterCache.BitsetCacheKey tailStaleKey = new IndicesBitsetFilterCache.BitsetCacheKey(closedKey1, query);
+                IndicesBitsetFilterCache.BitsetCacheKey fillerKey = new IndicesBitsetFilterCache.BitsetCacheKey(liveKey, query);
+                IndicesBitsetFilterCache.BitsetCacheKey headStaleKey = new IndicesBitsetFilterCache.BitsetCacheKey(closedKey2, query);
+
+                // LRU order after insertion, head to tail: headStaleKey, fillerKey, tailStaleKey
+                cache.getCache().put(tailStaleKey, new IndicesBitsetFilterCache.Value(new FixedBitSet(1), shardId, hookListener));
+                cache.getCache().put(fillerKey, new IndicesBitsetFilterCache.Value(new FixedBitSet(1), shardId, hookListener));
+                cache.getCache().put(headStaleKey, new IndicesBitsetFilterCache.Value(new FixedBitSet(1), shardId, hookListener));
+
+                // Two segment readers close, marking their entries stale; the third stays live.
+                cache.onClose(closedKey1);
+                cache.onClose(closedKey2);
+
+                // While the purge removes its first stale entry, a concurrent search hits the
+                // not-yet-visited stale entry, relinking it at the head of the LRU list behind
+                // the sweep's cursor.
+                onFirstRemoval.set(() -> cache.getCache().get(tailStaleKey));
+
+                cache.purgeStaleEntries();
+
+                assertThat(cache.getCache().count(), equalTo(1));
+                for (IndicesBitsetFilterCache.BitsetCacheKey key : cache.getCache().keysSnapshot()) {
+                    assertThat(key.readerCacheKey, equalTo(liveKey));
+                }
+            }
         }
     }
 
