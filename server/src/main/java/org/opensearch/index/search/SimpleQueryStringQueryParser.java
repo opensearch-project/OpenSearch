@@ -77,8 +77,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
      * deeply nested unescaped parentheses drives one JVM stack frame per level and overflows the
      * stack ({@code StackOverflowError}) before any query is built. Capping the depth and failing
      * with a catchable exception keeps the recursion bounded. See CVE-2026-63144.
+     * <p>
+     * Configurable via the {@code opensearch.query.simple_query_string.max_depth} system property
+     * (default 1000, aligned with the recursion depth limits in {@code StreamInput} /
+     * {@code XContentConstraints}) so operators can tune it for unusual workloads without a code change.
      */
-    static final int MAX_NESTING_DEPTH = 1000;
+    static final int MAX_NESTING_DEPTH = Integer.parseInt(
+        System.getProperty("opensearch.query.simple_query_string.max_depth", "1000")
+    );
 
     private final Settings settings;
     private QueryShardContext context;
