@@ -457,7 +457,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
-    private final IngestionPayloadDecoderRegistry payloadDecoderRegistry;
+    private final IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry;
     private final Supplier<IngestService> ingestServiceSupplier;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
@@ -526,7 +526,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
-        IngestionPayloadDecoderRegistry payloadDecoderRegistry,
+        IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry,
         Supplier<IngestService> ingestServiceSupplier,
         RecoverySettings recoverySettings,
         CacheService cacheService,
@@ -598,7 +598,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
-        this.payloadDecoderRegistry = payloadDecoderRegistry;
+        this.ingestionPayloadDecoderRegistry = ingestionPayloadDecoderRegistry;
         this.ingestServiceSupplier = ingestServiceSupplier;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -616,7 +616,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         cacheCleaner,
                         indicesRequestCache,
                         indicesQueryCache,
-                        payloadDecoderRegistry
+                        ingestionPayloadDecoderRegistry
                     );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -717,6 +717,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry payloadDecoderRegistry,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings
@@ -750,9 +751,7 @@ public class IndicesService extends AbstractLifecycleComponent
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
             ingestionConsumerFactories,
-            IngestionPayloadDecoderRegistry.builder()
-                .register("xcontent", org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder.Factory.INSTANCE)
-                .build(),
+            payloadDecoderRegistry,
             () -> null,
             recoverySettings,
             cacheService,
@@ -1284,7 +1283,9 @@ public class IndicesService extends AbstractLifecycleComponent
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            IngestionPayloadDecoderFactory decoderFactory = payloadDecoderRegistry.get(indexMetadata.getIngestionSource().getDecoderType());
+            IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
+                indexMetadata.getIngestionSource().getDecoderType()
+            );
             decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
             return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
         }

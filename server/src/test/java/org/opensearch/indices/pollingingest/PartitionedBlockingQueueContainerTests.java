@@ -90,7 +90,7 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
             ShardUpdateMessage shardUpdateMessage = mapper.mapAndProcess(
                 readResult.getPointer(),
                 readResult.getMessage(),
-                XContentIngestionPayloadDecoder.INSTANCE.decode(readResult.getMessage())
+                new XContentIngestionPayloadDecoder().decode(readResult.getMessage())
             );
             blockingQueueContainer.add(shardUpdateMessage);
         }

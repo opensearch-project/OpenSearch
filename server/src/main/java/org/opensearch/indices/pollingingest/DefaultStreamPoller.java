@@ -807,7 +807,7 @@ public class DefaultStreamPoller implements StreamPoller {
         // Warmup configuration - default matches IndexMetadata settings
         private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
         private IndexMetadata indexMetadata;
-        private IngestionPayloadDecoder payloadDecoder = XContentIngestionPayloadDecoder.INSTANCE;
+        private IngestionPayloadDecoder payloadDecoder = new XContentIngestionPayloadDecoder();
 
         /**
          * Initialize the builder with mandatory parameters

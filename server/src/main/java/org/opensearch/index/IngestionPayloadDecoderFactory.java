@@ -23,18 +23,14 @@ import java.util.Map;
  * It must be thread-safe because {@link #create} may be called from multiple threads when
  * multiple shards (or multiple pollers per shard) initialize concurrently.
  *
- * <p>The factory itself is {@link Closeable}; node shutdown will call {@link #close()} once
+ * <p>The factory itself is {@link Closeable}; node shutdown will call {@link #close()}
  * so implementations can release shared resources (connections, caches, etc.).
  */
 @ExperimentalApi
 public interface IngestionPayloadDecoderFactory extends Closeable {
 
     /**
-     * Validates {@code settings} when the engine factory is resolved (on index open or recovery).
-     *
-     * <p>Called by {@code IndicesService.getEngineFactory} before the engine factory is returned.
-     * Throw {@link IllegalArgumentException} for any setting that is unrecognized, malformed,
-     * or required-but-absent.
+     * Validates {@code decoderSettings}
      *
      * @param settings the {@code index.ingestion_source.decoder_settings.*} map
      */
@@ -55,7 +51,7 @@ public interface IngestionPayloadDecoderFactory extends Closeable {
     IngestionPayloadDecoder create(IndexMetadata indexMetadata, int shardId, Map<String, Object> settings);
 
     /**
-     * Releases shared resources held by this factory. Called once at node shutdown.
+     * Releases shared resources held by this factory.
      */
     @Override
     default void close() {}

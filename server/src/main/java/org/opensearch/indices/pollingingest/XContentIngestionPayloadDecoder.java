@@ -9,10 +9,6 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IngestionPayloadDecoder;
 import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.IngestionPayloadDecodingException;
@@ -24,17 +20,14 @@ import java.util.Map;
  * Built-in decoder that parses JSON (or any XContent format) payloads.
  *
  * <p>This is the default decoder used when {@code index.ingestion_source.decoder_type} is
- * {@code xcontent} or is not set. It preserves the existing ingestion behavior.
+ * {@code xcontent} or is not set.
  */
 public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder {
-
-    public static final XContentIngestionPayloadDecoder INSTANCE = new XContentIngestionPayloadDecoder();
 
     @Override
     public Map<String, Object> decode(Message<?> message) {
         try {
-            BytesReference payload = new BytesArray((byte[]) message.getPayload());
-            return XContentHelper.convertToMap(payload, false, MediaTypeRegistry.xContentType(payload)).v2();
+            return IngestionUtils.getParsedPayloadMap((byte[]) message.getPayload());
         } catch (Exception e) {
             throw new IngestionPayloadDecodingException("Failed to decode XContent payload: " + e.getMessage(), e);
         }
@@ -59,7 +52,7 @@ public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder 
 
         @Override
         public IngestionPayloadDecoder create(IndexMetadata indexMetadata, int shardId, Map<String, Object> settings) {
-            return XContentIngestionPayloadDecoder.INSTANCE;
+            return new XContentIngestionPayloadDecoder();
         }
     }
 }

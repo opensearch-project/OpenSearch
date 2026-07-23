@@ -66,7 +66,7 @@ public class IngestionPayloadDecoderRegistry implements Closeable {
 
     /**
      * Builds the registry. Core decoders should be registered before plugin decoders.
-     * Duplicate names cause an {@link IllegalStateException} at build time.
+     * Duplicate names cause an {@link IllegalStateException}.
      */
     public static class Builder {
         private final Map<String, IngestionPayloadDecoderFactory> factories = new HashMap<>();

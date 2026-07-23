@@ -35,9 +35,6 @@ public interface IngestionPayloadDecoder extends Closeable {
     /**
      * Decodes the payload of {@code message} into a field map.
      *
-     * <p>Implementations may cast {@code message.getPayload()} to {@code byte[]} since all
-     * current ingestion consumers (Kafka, Kinesis, etc.) produce byte-array payloads.
-     *
      * @param message the raw ingestion message
      * @return a fresh, mutable, XContent-compatible field map
      * @throws IngestionPayloadDecodingException if the payload cannot be decoded
@@ -45,8 +42,9 @@ public interface IngestionPayloadDecoder extends Closeable {
     Map<String, Object> decode(Message<?> message);
 
     /**
-     * Releases resources held by this decoder. Called once when the shard poller shuts down,
-     * even if the poller was never started. The default implementation is a no-op.
+     * Releases resources held by this decoder, including when the poller was never started.
+     * May be invoked more than once (e.g. if a reset fails); implementations should be idempotent.
+     * The default implementation is a no-op.
      */
     @Override
     default void close() {}
