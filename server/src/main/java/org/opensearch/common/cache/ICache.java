@@ -39,6 +39,12 @@ public interface ICache<K, V> extends Closeable {
 
     void invalidateAll();
 
+    /**
+     * Returns a view of the keys in the cache that is safe to iterate under concurrent mutation. The view is weakly
+     * consistent: concurrent insertions and removals may or may not be reflected. Iteration must never skip a key
+     * that was present in the cache for the entire duration of the iteration. The returned iterator is not required
+     * to support {@link java.util.Iterator#remove()}; use {@link #invalidate(ICacheKey)} to remove entries.
+     */
     Iterable<ICacheKey<K>> keys();
 
     long count();

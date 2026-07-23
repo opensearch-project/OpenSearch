@@ -785,23 +785,26 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             Set<List<String>> dimensionListsToDrop = new HashSet<>();
 
-            for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
-                ICacheKey<Key> key = iterator.next();
+            // The cleanup marks are consumed above before this scan, so a key skipped here would stay in the
+            // cache until size-based eviction reaches it. ICache#keys() is safe to iterate under concurrent
+            // mutation, but its iterator is not required to support removal, so remove matches with exact-key
+            // invalidate() instead; invalidating a key that was concurrently removed is a no-op.
+            for (ICacheKey<Key> key : cache.keys()) {
                 Key delegatingKey = key.key;
                 Tuple<ShardId, Integer> shardIdInfo = new Tuple<>(delegatingKey.shardId, delegatingKey.indexShardHashCode);
                 if (cleanupKeysFromFullClean.contains(shardIdInfo) || cleanupKeysFromClosedShards.contains(shardIdInfo)) {
-                    iterator.remove();
+                    cache.invalidate(key);
                 } else {
                     CacheEntity cacheEntity = cacheEntityLookup.apply(delegatingKey.shardId).orElse(null);
                     if (cacheEntity == null) {
                         // If cache entity is null, it means that index or shard got deleted/closed meanwhile.
                         // So we will delete this key.
                         dimensionListsToDrop.add(key.dimensions);
-                        iterator.remove();
+                        cache.invalidate(key);
                     } else {
                         CleanupKey cleanupKey = new CleanupKey(cacheEntity, delegatingKey.readerCacheKeyId);
                         if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
-                            iterator.remove();
+                            cache.invalidate(key);
                         }
                     }
                 }
