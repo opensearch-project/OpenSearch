@@ -89,7 +89,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<String> viableBackends = computeFilterViableBackends(annotatedCondition, childViableBackends);
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 "No backend can execute filter: no viable backend among "
                     + childViableBackends
                     + " can evaluate all predicates and no delegation path exists"
@@ -160,7 +160,7 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
         if (function == null) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 "Unrecognized filter operator [" + predicate.getOperator().getName() + " / " + predicate.getKind() + "]"
             );
         }
@@ -182,7 +182,7 @@ public class OpenSearchFilterRule extends RelOptRule {
                     DelegatedPredicateSerializer serializer = registry.predicateSerializer(function);
                     FieldReferences refs = serializer == null ? null : serializer.referencedFields(predicate, fieldStorageInfos);
                     if (refs == null) {
-                        throw new IllegalStateException(
+                        throw new IllegalArgumentException(
                             "No field-reference extraction available for full-text function ["
                                 + predicate.getOperator().getName()
                                 + "]. A backend declaring this function's filter capability must provide a"
@@ -283,7 +283,7 @@ public class OpenSearchFilterRule extends RelOptRule {
             }
             ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(scalarFunctionCall.getOperator());
             if (scalarFunc == null) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "Unrecognized scalar function ["
                         + scalarFunctionCall.getOperator().getName()
                         + "] in call ["
@@ -307,7 +307,7 @@ public class OpenSearchFilterRule extends RelOptRule {
                     }
                 }
                 if (returnType == null) {
-                    throw new IllegalStateException(
+                    throw new IllegalArgumentException(
                         "Unmapped return type ["
                             + scalarFunctionCall.getType().getSqlTypeName()
                             + "] for scalar function ["
@@ -335,7 +335,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         }
 
         if (viableSet.isEmpty()) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 "No backend can evaluate filter predicate ["
                     + predicate.getKind()
                     + "] on fields "

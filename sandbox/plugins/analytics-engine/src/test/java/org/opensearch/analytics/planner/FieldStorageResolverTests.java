@@ -66,8 +66,8 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
     }
 
     public void testFieldWithAllStorageDisabledHasNoStorage() {
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
             () -> newResolver("parquet", Map.of("name", Map.of("type", "text", "doc_values", false, "index", false)))
         );
         assertTrue("expected 'no storage' error, got: " + ex.getMessage(), ex.getMessage().contains("has no storage in any format"));

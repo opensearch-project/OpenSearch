@@ -64,11 +64,11 @@ public class FieldStorageResolver {
 
         MappingMetadata mapping = indexMetadata.mapping();
         if (mapping == null) {
-            throw new IllegalStateException("No mapping found for index [" + indexName + "]");
+            throw new IllegalArgumentException("No mapping found for index [" + indexName + "]");
         }
         Map<String, Object> properties = (Map<String, Object>) mapping.sourceAsMap().get("properties");
         if (properties == null) {
-            throw new IllegalStateException("No properties in mapping for index [" + indexName + "]");
+            throw new IllegalArgumentException("No properties in mapping for index [" + indexName + "]");
         }
 
         this.fieldStorage = new HashMap<>();
@@ -89,7 +89,7 @@ public class FieldStorageResolver {
                     populateFromProperties(nested, fieldName, primaryFormat, luceneAvailable);
                     continue;
                 }
-                throw new IllegalStateException("Field [" + fieldName + "] has no type in mapping");
+                throw new IllegalArgumentException("Field [" + fieldName + "] has no type in mapping");
             }
             this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, primaryFormat, luceneAvailable));
         }
@@ -120,7 +120,7 @@ public class FieldStorageResolver {
         for (String fieldName : fieldNames) {
             FieldStorageInfo info = fieldStorage.get(fieldName);
             if (info == null) {
-                throw new IllegalStateException("Field [" + fieldName + "] not found in field storage for index");
+                throw new IllegalArgumentException("Field [" + fieldName + "] not found in field storage for index");
             }
             result.add(info);
         }
@@ -149,7 +149,7 @@ public class FieldStorageResolver {
         List<String> storedFieldFormats = (isStored && luceneAvailable) ? List.of(LUCENE_FORMAT) : List.of();
 
         if (docValueFormats.isEmpty() && indexFormats.isEmpty() && storedFieldFormats.isEmpty()) {
-            throw new IllegalStateException("Field [" + fieldName + "] has no storage in any format");
+            throw new IllegalArgumentException("Field [" + fieldName + "] has no storage in any format");
         }
 
         return new FieldStorageInfo(
