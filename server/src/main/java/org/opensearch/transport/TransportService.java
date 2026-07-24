@@ -1270,6 +1270,47 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
+     * Registers a new streaming request handler that declares a per-action outbound buffer threshold.
+     *
+     * <p>Streaming transports (e.g. Arrow Flight) buffer outbound batches per stream and apply a backpressure
+     * watermark once a stream's buffered bytes cross a threshold. That watermark is otherwise a single
+     * transport-wide default shared by every action. This overload lets one action size its own per-stream
+     * watermark without changing the default for other actions sharing the transport, so a memory-sensitive
+     * streaming action can bound its per-stream footprint independently. Non-streaming transports ignore it.
+     *
+     * @param action                        The action the request handler is associated with
+     * @param executor                      The executor the request handling will be executed on
+     * @param forceExecution                Force execution on the executor queue and never reject it
+     * @param canTripCircuitBreaker         Check the request size and raise an exception in case the limit is breached.
+     * @param outboundBufferThresholdBytes  Per-action outbound buffer threshold in bytes for streaming transports
+     * @param requestReader                 The request class that will be used to construct new instances for streaming
+     * @param handler                       The handler itself that implements the request handling
+     */
+    public <Request extends TransportRequest> void registerRequestHandler(
+        String action,
+        String executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker,
+        int outboundBufferThresholdBytes,
+        Writeable.Reader<Request> requestReader,
+        TransportRequestHandler<Request> handler
+    ) {
+        validateActionName(action);
+        handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            action,
+            requestReader,
+            taskManager,
+            handler,
+            executor,
+            forceExecution,
+            canTripCircuitBreaker,
+            outboundBufferThresholdBytes
+        );
+        transport.registerRequestHandler(reg);
+    }
+
+    /**
      * Registers a new request handler with admission control support
      *
      * @param action                The action the request handler is associated with

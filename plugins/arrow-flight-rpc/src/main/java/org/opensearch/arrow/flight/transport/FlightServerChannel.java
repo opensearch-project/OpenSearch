@@ -12,6 +12,7 @@ import org.apache.arrow.flight.BackpressureStrategy;
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.flight.OSFlightListeners;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
@@ -41,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
@@ -102,6 +104,11 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private final AtomicInteger batchNumber = new AtomicInteger(0);
     private final CompositeBackpressureStrategy bp;
     private final long readyTimeoutMillis;
+    /**
+     * Applies a per-stream outbound buffer threshold (bytes) to the underlying gRPC call. Isolated behind this
+     * seam so the Arrow-observer access lives in one place and tests can inject a capturing consumer.
+     */
+    private final IntConsumer outboundThresholdSetter;
 
     /**
      * The reused stream root (native or byte-serialized). Confined to the flight-executor thread:
@@ -125,10 +132,34 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         ExecutorService executor,
         long readyTimeoutMillis
     ) {
+        // Production wiring: the threshold seam applies to the real Arrow-backed gRPC observer for this listener.
+        this(
+            serverStreamListener,
+            allocator,
+            middleware,
+            callTracker,
+            executor,
+            readyTimeoutMillis,
+            bytes -> OSFlightListeners.setOnReadyThreshold(serverStreamListener, bytes)
+        );
+    }
+
+    // Package-private constructor allowing a test to inject the outbound-threshold seam in place of the real
+    // Arrow-backed applier.
+    FlightServerChannel(
+        ServerStreamListener serverStreamListener,
+        BufferAllocator allocator,
+        ServerHeaderMiddleware middleware,
+        FlightCallTracker callTracker,
+        ExecutorService executor,
+        long readyTimeoutMillis,
+        IntConsumer outboundThresholdSetter
+    ) {
         this.correlationId = Long.parseLong(middleware.getCorrelationId());
         logger.debug("Creating FlightServerChannel for correlation ID: {}", correlationId);
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
+        this.outboundThresholdSetter = outboundThresholdSetter;
         this.allocator = allocator;
         this.middleware = middleware;
         this.callTracker = callTracker;
@@ -141,6 +172,20 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         // notifying parked threads so the cancelled state is visible on wake.
         this.bp = new CompositeBackpressureStrategy(this::onChannelCancelled);
         this.bp.register(serverStreamListener);
+    }
+
+    /**
+     * Sets this stream's outbound buffer threshold: the number of buffered outbound bytes at which gRPC's
+     * {@code isReady()} flips false so the producer parks. Overrides the transport-wide default for this stream
+     * only, letting a memory-sensitive action bound its per-stream footprint without affecting other streams.
+     * A non-positive value is ignored (the transport-wide default remains in effect).
+     *
+     * @param bytes the per-stream watermark in bytes; ignored if {@code <= 0}
+     */
+    public void setOutboundBufferThreshold(int bytes) {
+        if (bytes > 0) {
+            outboundThresholdSetter.accept(bytes);
+        }
     }
 
     /**

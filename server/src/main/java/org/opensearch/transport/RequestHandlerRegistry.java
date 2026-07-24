@@ -53,6 +53,9 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public final class RequestHandlerRegistry<Request extends TransportRequest> {
 
+    /** Sentinel for {@link #getOutboundBufferThresholdBytes()} meaning "no per-action override; use the transport default". */
+    public static final int OUTBOUND_BUFFER_THRESHOLD_UNSET = -1;
+
     private final String action;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
@@ -60,6 +63,7 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
     private final String executor;
     private final TaskManager taskManager;
     private final Writeable.Reader<Request> requestReader;
+    private final int outboundBufferThresholdBytes;
 
     public RequestHandlerRegistry(
         String action,
@@ -70,6 +74,19 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
         boolean forceExecution,
         boolean canTripCircuitBreaker
     ) {
+        this(action, requestReader, taskManager, handler, executor, forceExecution, canTripCircuitBreaker, OUTBOUND_BUFFER_THRESHOLD_UNSET);
+    }
+
+    public RequestHandlerRegistry(
+        String action,
+        Writeable.Reader<Request> requestReader,
+        TaskManager taskManager,
+        TransportRequestHandler<Request> handler,
+        String executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker,
+        int outboundBufferThresholdBytes
+    ) {
         this.action = action;
         this.requestReader = requestReader;
         this.handler = handler;
@@ -77,6 +94,7 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
         this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
+        this.outboundBufferThresholdBytes = outboundBufferThresholdBytes;
     }
 
     public String getAction() {
@@ -129,6 +147,16 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler;
     }
 
+    /**
+     * The per-action outbound buffer threshold in bytes for streaming transports, or
+     * {@link #OUTBOUND_BUFFER_THRESHOLD_UNSET} when the action opts out and the transport-wide default applies.
+     * Streaming transports (e.g. Arrow Flight) may use this to size the per-stream backpressure watermark for
+     * this action's streams without affecting other actions sharing the transport.
+     */
+    public int getOutboundBufferThresholdBytes() {
+        return outboundBufferThresholdBytes;
+    }
+
     @Override
     public String toString() {
         return handler.toString();
@@ -145,7 +173,8 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
             handler,
             registry.executor,
             registry.forceExecution,
-            registry.canTripCircuitBreaker
+            registry.canTripCircuitBreaker,
+            registry.outboundBufferThresholdBytes
         );
     }
 }

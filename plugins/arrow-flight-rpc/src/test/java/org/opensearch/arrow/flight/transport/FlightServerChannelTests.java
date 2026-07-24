@@ -24,6 +24,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.RequestHandlerRegistry;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
@@ -701,6 +702,22 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
             verify(listener, never()).start(any());
             assertEquals("no queued source root may leak after cancel", 0, realAllocator.getAllocatedMemory());
         }
+    }
+
+    public void testSetOutboundBufferThresholdAppliesPositiveValue() {
+        AtomicInteger applied = new AtomicInteger(-1);
+        FlightServerChannel channel = new FlightServerChannel(listener, allocator, middleware, callTracker, executor, 5_000, applied::set);
+        channel.setOutboundBufferThreshold(512 * 1024);
+        assertEquals("the exact per-stream threshold must reach the applier", 512 * 1024, applied.get());
+    }
+
+    public void testSetOutboundBufferThresholdIgnoresNonPositiveValue() {
+        AtomicInteger applied = new AtomicInteger(-1);
+        FlightServerChannel channel = new FlightServerChannel(listener, allocator, middleware, callTracker, executor, 5_000, applied::set);
+        // Non-positive means "no per-action override" — the transport-wide default must be left untouched.
+        channel.setOutboundBufferThreshold(0);
+        channel.setOutboundBufferThreshold(RequestHandlerRegistry.OUTBOUND_BUFFER_THRESHOLD_UNSET);
+        assertEquals("a non-positive threshold must not invoke the applier", -1, applied.get());
     }
 
     private static VectorSchemaRoot newSingleIntRoot(BufferAllocator allocator, int value) {

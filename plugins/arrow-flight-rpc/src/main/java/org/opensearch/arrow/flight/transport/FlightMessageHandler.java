@@ -18,6 +18,7 @@ import org.opensearch.transport.Header;
 import org.opensearch.transport.NativeMessageHandler;
 import org.opensearch.transport.OutboundHandler;
 import org.opensearch.transport.ProtocolOutboundHandler;
+import org.opensearch.transport.RequestHandlerRegistry;
 import org.opensearch.transport.StatsTracker;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TcpTransportChannel;
@@ -26,6 +27,10 @@ import org.opensearch.transport.TransportHandshaker;
 import org.opensearch.transport.TransportKeepAlive;
 
 class FlightMessageHandler extends NativeMessageHandler {
+
+    // The base class keeps its own private copy; retained here so createTcpTransportChannel can look up the
+    // per-action outbound buffer threshold to apply to the freshly created FlightServerChannel.
+    private final Transport.RequestHandlers requestHandlers;
 
     public FlightMessageHandler(
         String nodeName,
@@ -57,6 +62,7 @@ class FlightMessageHandler extends NativeMessageHandler {
             tracer,
             keepAlive
         );
+        this.requestHandlers = requestHandlers;
     }
 
     @Override
@@ -82,6 +88,14 @@ class FlightMessageHandler extends NativeMessageHandler {
         Header header,
         Releasable breakerRelease
     ) {
+        // The action is known here, so apply any per-action outbound buffer threshold the handler declared to
+        // this stream's channel. Actions that declare none keep the transport-wide default (watermark untouched).
+        if (channel instanceof FlightServerChannel flightServerChannel) {
+            final RequestHandlerRegistry<?> reg = requestHandlers.getHandler(action);
+            if (reg != null) {
+                flightServerChannel.setOutboundBufferThreshold(reg.getOutboundBufferThresholdBytes());
+            }
+        }
         return new FlightTransportChannel(
             (FlightOutboundHandler) outboundHandler,
             channel,
