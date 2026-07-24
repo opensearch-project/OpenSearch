@@ -10,6 +10,7 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalSum;
@@ -40,8 +41,9 @@ public class SumMetricTranslator extends AbstractMetricTranslator<SumAggregation
 
     /** Null (no matching docs) becomes 0.0 — legacy sum-of-nothing semantics. */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value, Map<String, Object> metadata) {
+    public InternalAggregation toInternalAggregation(SumAggregationBuilder agg, Map<String, Object> values) {
+        Object value = singleValue(agg, values);
         double sum = value == null ? 0.0 : toDouble(value);
-        return new InternalSum(name, sum, DocValueFormat.RAW, metadata);
+        return new InternalSum(agg.getName(), sum, DocValueFormat.RAW, AggregationTranslator.userMetadata(agg));
     }
 }

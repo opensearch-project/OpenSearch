@@ -10,6 +10,7 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -44,10 +45,12 @@ public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregation
      * count=0, which renders as {@code "value": null} like legacy.
      */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value, Map<String, Object> metadata) {
+    public InternalAggregation toInternalAggregation(AvgAggregationBuilder agg, Map<String, Object> values) {
+        Map<String, Object> metadata = AggregationTranslator.userMetadata(agg);
+        Object value = singleValue(agg, values);
         if (value == null) {
-            return new InternalAvg(name, 0.0, 0, DocValueFormat.RAW, metadata);
+            return new InternalAvg(agg.getName(), 0.0, 0, DocValueFormat.RAW, metadata);
         }
-        return new InternalAvg(name, toDouble(value), 1, DocValueFormat.RAW, metadata);
+        return new InternalAvg(agg.getName(), toDouble(value), 1, DocValueFormat.RAW, metadata);
     }
 }
