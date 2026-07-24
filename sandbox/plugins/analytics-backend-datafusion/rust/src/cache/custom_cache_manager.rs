@@ -7,11 +7,12 @@
  */
 
 use crate::cache::metadata_cache::MutexFileMetadataCache;
+use crate::cache::page_index;
 use crate::cache::statistics_cache::CustomStatisticsCache;
 use crate::cache::statistics_cache::{
     compute_parquet_statistics, compute_parquet_statistics_from_metadata,
 };
-use crate::cache::{metadata_cache, page_index};
+use crate::cache::unified::{CacheKind, CacheStats, ManagedCache};
 use crate::indexed_table::parquet_bridge;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use datafusion::execution::cache::cache_manager::{
@@ -19,7 +20,7 @@ use datafusion::execution::cache::cache_manager::{
 };
 use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
-use log::{debug, error};
+use log::error;
 use native_bridge_common::log_debug;
 use object_store::path::Path;
 use object_store::ObjectMeta;
@@ -127,35 +128,56 @@ fn create_object_meta_from_file(
     Ok(vec![object_meta])
 }
 
-/// Custom CacheManager that holds cache references directly
+/// Custom CacheManager: a [`CacheKind`]-keyed registry of [`ManagedCache`]s
+/// plus the typed references the domain flows (warming, statistics
+/// derivation, DataFusion wiring) need.
+///
+/// Management operations (clear, limits, stats, per-file removal, contains)
+/// dispatch uniformly through the registry — adding a cache type means
+/// registering one more `Arc<dyn ManagedCache>`, not new match arms.
 pub struct CustomCacheManager {
-    /// Direct reference to the file metadata cache
+    /// Uniform management handles, one per registered cache kind.
+    caches: std::collections::HashMap<CacheKind, Arc<dyn ManagedCache>>,
+    /// Typed reference for the metadata warm/wiring flows (also in `caches`).
     file_metadata_cache: Option<Arc<MutexFileMetadataCache>>,
-    /// Direct reference to the statistics cache
+    /// Typed reference for the statistics flows (also in `caches`).
     statistics_cache: Option<Arc<CustomStatisticsCache>>,
-    column_index_registered: bool,
-    offset_index_registered: bool,
 }
 
 impl CustomCacheManager {
     /// Create a new CustomCacheManager
     pub fn new() -> Self {
         Self {
+            caches: std::collections::HashMap::new(),
             file_metadata_cache: None,
             statistics_cache: None,
-            column_index_registered: false,
-            offset_index_registered: false,
         }
+    }
+
+    /// Look up the management handle for a cache kind, if registered.
+    pub fn managed(&self, kind: CacheKind) -> Option<&Arc<dyn ManagedCache>> {
+        self.caches.get(&kind)
+    }
+
+    fn managed_or_err(&self, kind: CacheKind) -> Result<&Arc<dyn ManagedCache>, String> {
+        self.managed(kind)
+            .ok_or_else(|| format!("No {} cache configured", kind))
     }
 
     /// Set the file metadata cache
     pub fn set_file_metadata_cache(&mut self, cache: Arc<MutexFileMetadataCache>) {
+        self.caches
+            .insert(CacheKind::Metadata, cache.clone() as Arc<dyn ManagedCache>);
         self.file_metadata_cache = Some(cache);
         log_debug!("[CACHE INFO] File metadata cache set in CustomCacheManager");
     }
 
     /// Set the statistics cache
     pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>) {
+        self.caches.insert(
+            CacheKind::Statistics,
+            cache.clone() as Arc<dyn ManagedCache>,
+        );
         self.statistics_cache = Some(cache);
         log_debug!("[CACHE INFO] Statistics cache set in CustomCacheManager");
     }
@@ -163,8 +185,9 @@ impl CustomCacheManager {
     /// Register the column index cache with the given size limit.
     /// Sets the limit on the process-global `COLUMN_INDEX_CACHE` singleton.
     pub fn set_column_index_cache(&mut self, size_limit: usize) {
-        crate::cache::page_index::set_column_index_cache_limit(size_limit);
-        self.column_index_registered = true;
+        let handle: Arc<dyn ManagedCache> = Arc::new(page_index::ColumnIndexCacheHandle);
+        handle.set_limit(size_limit);
+        self.caches.insert(CacheKind::ColumnIndex, handle);
         log_debug!(
             "[CACHE INFO] Column index cache registered (limit={} bytes)",
             size_limit
@@ -174,8 +197,9 @@ impl CustomCacheManager {
     /// Register the offset index cache with the given size limit.
     /// Sets the limit on the process-global `OFFSET_INDEX_CACHE` singleton.
     pub fn set_offset_index_cache(&mut self, size_limit: usize) {
-        crate::cache::page_index::set_offset_index_cache_limit(size_limit);
-        self.offset_index_registered = true;
+        let handle: Arc<dyn ManagedCache> = Arc::new(page_index::OffsetIndexCacheHandle);
+        handle.set_limit(size_limit);
+        self.caches.insert(CacheKind::OffsetIndex, handle);
         log_debug!(
             "[CACHE INFO] Offset index cache registered (limit={} bytes)",
             size_limit
@@ -294,225 +318,102 @@ impl CustomCacheManager {
 
         for file_path in file_paths {
             let mut any_removed = false;
-            let mut errors = Vec::new();
 
-            // Remove from metadata cache
-            {
-                let path = Path::from(file_path.clone());
-                if let Some(cache) = &self.file_metadata_cache {
-                    match cache.inner.lock() {
-                        Ok(cache_guard) => {
-                            if cache_guard.remove(&path).is_some() {
-                                any_removed = true;
-                            } else {
-                                log_debug!(
-                                    "[CACHE INFO] File not found in metadata cache: {}",
-                                    file_path
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
-                        }
-                    }
-                } else {
-                    errors.push("No metadata cache configured".to_string());
-                }
-            }
-
-            // Remove from statistics cache
-            if let Some(cache) = &self.statistics_cache {
-                let path = Path::from(file_path.clone());
-                if cache.remove(&path).is_some() {
+            for cache in self.caches.values() {
+                if cache.remove_file(file_path) {
                     any_removed = true;
+                } else {
+                    log_debug!(
+                        "[CACHE INFO] File not found in {} cache: {}",
+                        cache.kind(),
+                        file_path
+                    );
                 }
             }
 
-            // Evict from scoped page-index caches (CI + OI) by file prefix
-            if self.column_index_registered || self.offset_index_registered {
-                page_index::evict_file_from_scoped_cache(file_path);
-                any_removed = true;
-            }
-
-            let removed = if !errors.is_empty() && !any_removed {
-                false
-            } else {
-                any_removed
-            };
-
-            results.push((file_path.clone(), removed));
+            results.push((file_path.clone(), any_removed));
         }
 
         Ok(results)
     }
 
-    /// Check if a file exists in any cache
+    /// Check if a file exists in the file-keyed caches (metadata, statistics).
+    ///
+    /// The cell-keyed page-index caches are intentionally excluded — their
+    /// `contains_file` is an entries>0 approximation, which would make this
+    /// whole-manager probe report false positives.
     pub fn contains_file(&self, file_path: &str) -> bool {
-        let mut found = false;
-
-        // Check metadata cache
-        {
-            let path = Path::from(file_path);
-            if let Some(cache) = &self.file_metadata_cache {
-                if cache.get(&path).is_some() {
-                    found = true;
-                }
-            }
-        }
-
-        // Check statistics cache
-        if let Some(cache) = &self.statistics_cache {
-            let path = Path::from(file_path);
-            if cache.contains_key(&path) {
-                found = true;
-            }
-        }
-
-        found
+        [CacheKind::Metadata, CacheKind::Statistics]
+            .iter()
+            .filter_map(|kind| self.managed(*kind))
+            .any(|cache| cache.contains_file(file_path))
     }
 
     /// Check if a file exists in a specific cache type
     pub fn contains_file_by_type(&self, file_path: &str, cache_type: &str) -> bool {
-        match cache_type {
-            crate::cache::metadata_cache::CACHE_TYPE_METADATA => {
-                let path = Path::from(file_path);
-                self.file_metadata_cache
-                    .as_ref()
-                    .and_then(|cache| cache.get(&path))
-                    .is_some()
-            }
-            crate::cache::metadata_cache::CACHE_TYPE_STATS => self
-                .statistics_cache
-                .as_ref()
-                .map_or(false, |cache| cache.contains_key(&Path::from(file_path))),
-            metadata_cache::CACHE_TYPE_COLUMN_INDEX => {
-                if !self.column_index_registered {
-                    return false;
-                }
-                let stats = page_index::column_index_cache_stats();
-                // CI is keyed by (file, col) — a file is "present" if entries > 0 and
-                // we match by prefix; check via evict-probe is heavy so we approximate
-                // with entries > 0. A per-file lookup requires iterating DashMap — not
-                // worth it for a boolean check; callers use this for diagnostics only.
-                stats.entries > 0
-            }
-            metadata_cache::CACHE_TYPE_OFFSET_INDEX => {
-                if !self.offset_index_registered {
-                    return false;
-                }
-                let stats = page_index::offset_index_cache_stats();
-                stats.entries > 0
-            }
-            _ => false,
-        }
+        let Ok(kind) = CacheKind::parse(cache_type) else {
+            return false;
+        };
+        self.managed(kind)
+            .map_or(false, |cache| cache.contains_file(file_path))
+    }
+
+    /// Update a cache's size limit by kind.
+    pub fn update_cache_limit(&self, kind: CacheKind, new_limit: usize) -> Result<(), String> {
+        self.managed_or_err(kind)?.set_limit(new_limit);
+        Ok(())
     }
 
     /// Update the file metadata cache size limit
     pub fn update_metadata_cache_limit(&self, new_limit: usize) {
-        if let Some(cache) = &self.file_metadata_cache {
-            cache.update_cache_limit(new_limit);
-        }
+        let _ = self.update_cache_limit(CacheKind::Metadata, new_limit);
     }
 
     /// Update the statistics cache size limit
     pub fn update_statistics_cache_limit(&self, new_limit: usize) -> Result<(), String> {
-        if let Some(cache) = &self.statistics_cache {
-            cache
-                .update_size_limit(new_limit)
-                .map_err(|e| format!("Failed to update statistics cache limit: {:?}", e))
-        } else {
-            Err("No statistics cache configured".to_string())
-        }
+        self.update_cache_limit(CacheKind::Statistics, new_limit)
     }
 
-    /// Get total memory consumed by all caches
+    /// Get total memory consumed by the manager-owned caches.
+    ///
+    /// Sums metadata + statistics only — the CI/OI page-index caches are
+    /// process-global singletons budgeted separately, matching the historical
+    /// semantics of this API (surfaced as the manager-level memory number).
     pub fn get_total_memory_consumed(&self) -> usize {
-        let mut total = 0;
-
-        // Add metadata cache memory
-        if let Some(cache) = &self.file_metadata_cache {
-            if let Ok(cache_guard) = cache.inner.lock() {
-                total += cache_guard.memory_used();
-            }
-        }
-
-        // Add statistics cache memory
-        if let Some(cache) = &self.statistics_cache {
-            total += cache.memory_consumed();
-        }
-
-        total
+        [CacheKind::Metadata, CacheKind::Statistics]
+            .iter()
+            .filter_map(|kind| self.managed(*kind))
+            .map(|cache| cache.stats().used_bytes)
+            .sum()
     }
 
     /// Clear all caches
     pub fn clear_all(&self) {
-        if let Some(cache) = &self.file_metadata_cache {
+        for cache in self.caches.values() {
             cache.clear();
-        }
-        if let Some(cache) = &self.statistics_cache {
-            cache.clear();
-        }
-        if self.column_index_registered || self.offset_index_registered {
-            page_index::clear_scoped_cache();
         }
     }
 
     /// Clear specific cache type
     pub fn clear_cache_type(&self, cache_type: &str) -> Result<(), String> {
-        match cache_type {
-            metadata_cache::CACHE_TYPE_METADATA => {
-                if let Some(cache) = &self.file_metadata_cache {
-                    cache.clear();
-                    Ok(())
-                } else {
-                    Err("No metadata cache configured".to_string())
-                }
-            }
-            metadata_cache::CACHE_TYPE_STATS => {
-                if let Some(cache) = &self.statistics_cache {
-                    cache.clear();
-                    Ok(())
-                } else {
-                    Err("No statistics cache configured".to_string())
-                }
-            }
-            metadata_cache::CACHE_TYPE_COLUMN_INDEX | metadata_cache::CACHE_TYPE_OFFSET_INDEX => {
-                page_index::clear_scoped_cache();
-                Ok(())
-            }
-            _ => Err(format!("Unknown cache type: {}", cache_type)),
-        }
+        let kind = CacheKind::parse(cache_type)
+            .map_err(|_| format!("Unknown cache type: {}", cache_type))?;
+        self.managed_or_err(kind)?.clear();
+        Ok(())
+    }
+
+    /// Uniform stats snapshot for a cache kind (zeros when not registered).
+    pub fn cache_stats(&self, kind: CacheKind) -> CacheStats {
+        self.managed(kind)
+            .map(|cache| cache.stats())
+            .unwrap_or_default()
     }
 
     /// Get memory consumed by specific cache type
     pub fn get_memory_consumed_by_type(&self, cache_type: &str) -> Result<usize, String> {
-        match cache_type {
-            metadata_cache::CACHE_TYPE_METADATA => {
-                if let Some(cache) = &self.file_metadata_cache {
-                    if let Ok(cache_guard) = cache.inner.lock() {
-                        Ok(cache_guard.memory_used())
-                    } else {
-                        Err("Failed to lock metadata cache".to_string())
-                    }
-                } else {
-                    Err("No metadata cache configured".to_string())
-                }
-            }
-            metadata_cache::CACHE_TYPE_STATS => {
-                if let Some(cache) = &self.statistics_cache {
-                    Ok(cache.memory_consumed())
-                } else {
-                    Err("No statistics cache configured".to_string())
-                }
-            }
-            metadata_cache::CACHE_TYPE_COLUMN_INDEX => {
-                Ok(page_index::column_index_cache_stats().used_bytes)
-            }
-            metadata_cache::CACHE_TYPE_OFFSET_INDEX => {
-                Ok(page_index::offset_index_cache_stats().used_bytes)
-            }
-            _ => Err(format!("Unknown cache type: {}", cache_type)),
-        }
+        let kind = CacheKind::parse(cache_type)
+            .map_err(|_| format!("Unknown cache type: {}", cache_type))?;
+        Ok(self.managed_or_err(kind)?.stats().used_bytes)
     }
 
     /// Fetch a parquet file's footer, warm the metadata cache, and return the
@@ -901,90 +802,32 @@ impl CustomCacheManager {
         self.statistics_cache_compute_and_put(file_path)
     }
 
-    /// Get statistics cache hit count
-    pub fn statistics_cache_hit_count(&self) -> usize {
-        self.statistics_cache
-            .as_ref()
-            .map(|cache| cache.hit_count())
-            .unwrap_or(0)
-    }
-
-    /// Get statistics cache miss count
-    pub fn statistics_cache_miss_count(&self) -> usize {
-        self.statistics_cache
-            .as_ref()
-            .map(|cache| cache.miss_count())
-            .unwrap_or(0)
-    }
-
     /// Get statistics cache hit rate
     pub fn statistics_cache_hit_rate(&self) -> f64 {
-        self.statistics_cache
-            .as_ref()
-            .map(|cache| cache.hit_rate())
-            .unwrap_or(0.0)
+        let stats = self.cache_stats(CacheKind::Statistics);
+        let total = stats.hits + stats.misses;
+        if total == 0 {
+            0.0
+        } else {
+            stats.hits as f64 / total as f64
+        }
     }
 
-    /// Get statistics cache entry count
-    pub fn statistics_cache_entry_count(&self) -> usize {
-        self.statistics_cache
-            .as_ref()
-            .map(|cache| <CustomStatisticsCache as CacheAccessor<_, _>>::len(cache))
-            .unwrap_or(0)
-    }
-
-    /// Get statistics cache size limit in bytes
-    pub fn statistics_cache_size_limit(&self) -> usize {
-        self.statistics_cache
-            .as_ref()
-            .map(|cache| cache.current_size_limit())
-            .unwrap_or(0)
+    /// Reset a cache's diagnostic counters by kind (no-op when not registered).
+    pub fn reset_cache_stats(&self, kind: CacheKind) {
+        if let Some(cache) = self.managed(kind) {
+            cache.reset_counters();
+        }
     }
 
     /// Reset statistics cache stats
     pub fn statistics_cache_reset_stats(&self) {
-        if let Some(cache) = &self.statistics_cache {
-            cache.reset_stats();
-        }
-    }
-
-    /// Get metadata cache hit count
-    pub fn metadata_cache_hit_count(&self) -> usize {
-        self.file_metadata_cache
-            .as_ref()
-            .map(|cache| cache.hit_count())
-            .unwrap_or(0)
-    }
-
-    /// Get metadata cache miss count
-    pub fn metadata_cache_miss_count(&self) -> usize {
-        self.file_metadata_cache
-            .as_ref()
-            .map(|cache| cache.miss_count())
-            .unwrap_or(0)
-    }
-
-    /// Get metadata cache entry count
-    pub fn metadata_cache_entry_count(&self) -> usize {
-        self.file_metadata_cache
-            .as_ref()
-            .map(|cache| <MutexFileMetadataCache as CacheAccessor<_, _>>::len(cache))
-            .unwrap_or(0)
-    }
-
-    /// Get metadata cache size limit in bytes
-    pub fn metadata_cache_size_limit(&self) -> usize {
-        self.file_metadata_cache
-            .as_ref()
-            .map(|cache| cache.get_cache_limit())
-            .unwrap_or(0)
+        self.reset_cache_stats(CacheKind::Statistics);
     }
 
     /// Reset metadata cache stats
     pub fn metadata_cache_reset_stats(&self) {
-        if let Some(cache) = &self.file_metadata_cache {
-            cache.reset_stats();
-        }
+        self.reset_cache_stats(CacheKind::Metadata);
     }
 }
 
@@ -1004,13 +847,14 @@ mod tests {
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
-        assert!(!mgr.column_index_registered);
+        assert!(mgr.managed(CacheKind::ColumnIndex).is_none());
 
         let limit = 16 * 1024 * 1024; // 16 MB
         mgr.set_column_index_cache(limit);
 
-        assert!(mgr.column_index_registered);
+        assert!(mgr.managed(CacheKind::ColumnIndex).is_some());
         assert_eq!(column_index_cache_stats().limit_bytes, limit);
+        assert_eq!(mgr.cache_stats(CacheKind::ColumnIndex).limit_bytes, limit);
 
         clear_scoped_cache_for_test();
     }
@@ -1021,13 +865,14 @@ mod tests {
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
-        assert!(!mgr.offset_index_registered);
+        assert!(mgr.managed(CacheKind::OffsetIndex).is_none());
 
         let limit = 32 * 1024 * 1024; // 32 MB
         mgr.set_offset_index_cache(limit);
 
-        assert!(mgr.offset_index_registered);
+        assert!(mgr.managed(CacheKind::OffsetIndex).is_some());
         assert_eq!(offset_index_cache_stats().limit_bytes, limit);
+        assert_eq!(mgr.cache_stats(CacheKind::OffsetIndex).limit_bytes, limit);
 
         clear_scoped_cache_for_test();
     }
@@ -1039,11 +884,14 @@ mod tests {
 
         let mut mgr = CustomCacheManager::new();
         mgr.set_column_index_cache(16 * 1024 * 1024);
+        mgr.set_offset_index_cache(16 * 1024 * 1024);
 
         // clear_cache_type must succeed for COLUMN_INDEX
         assert!(mgr.clear_cache_type(CACHE_TYPE_COLUMN_INDEX).is_ok());
-        // and for OFFSET_INDEX too (both route to clear_scoped_cache)
+        // and for OFFSET_INDEX (each kind clears independently now)
         assert!(mgr.clear_cache_type(CACHE_TYPE_OFFSET_INDEX).is_ok());
+        // unregistered / unknown types are errors
+        assert!(mgr.clear_cache_type("BOGUS").is_err());
 
         clear_scoped_cache_for_test();
     }

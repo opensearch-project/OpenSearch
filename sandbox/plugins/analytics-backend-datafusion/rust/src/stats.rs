@@ -274,56 +274,31 @@ pub fn pack_adaptive_budget() -> AdaptiveBudgetRepr {
 }
 
 /// Snapshot the [`CustomCacheManager`] caches and return a populated
-/// [`CacheStatsRepr`]. Disabled caches return all-zeros via the manager's
-/// `unwrap_or(0)` accessor fallbacks.
+/// [`CacheStatsRepr`]. Every group is filled from the unified
+/// [`crate::cache::CacheStats`] snapshot; unregistered caches report
+/// all-zeros via [`CustomCacheManager::cache_stats`]'s default.
 ///
-/// | Field            | Source                                              |
-/// |------------------|-----------------------------------------------------|
-/// | hit_count        | `mgr.{metadata,statistics}_cache_hit_count()`       |
-/// | miss_count       | `mgr.{metadata,statistics}_cache_miss_count()`      |
-/// | entry_count      | `mgr.{metadata,statistics}_cache_entry_count()`     |
-/// | memory_bytes     | `mgr.get_memory_consumed_by_type({METADATA,STATS})` |
-/// | size_limit_bytes | `mgr.{metadata,statistics}_cache_size_limit()`      |
+/// CI/OI stats come from the process-global caches directly so they are
+/// populated even when the manager hasn't registered them (matches the
+/// previous behavior of reading the singletons' stats unconditionally).
 pub fn pack_cache_stats(mgr: &CustomCacheManager) -> CacheStatsRepr {
-    let metadata_memory = mgr
-        .get_memory_consumed_by_type(crate::cache::CACHE_TYPE_METADATA)
-        .unwrap_or(0) as i64;
-    let statistics_memory = mgr
-        .get_memory_consumed_by_type(crate::cache::CACHE_TYPE_STATS)
-        .unwrap_or(0) as i64;
+    use crate::cache::CacheKind;
 
-    let ci = crate::cache::page_index::column_index_cache_stats();
-    let oi = crate::cache::page_index::offset_index_cache_stats();
+    fn group(stats: crate::cache::CacheStats) -> CacheGroupRepr {
+        CacheGroupRepr {
+            hit_count: stats.hits as i64,
+            miss_count: stats.misses as i64,
+            entry_count: stats.entries as i64,
+            memory_bytes: stats.used_bytes as i64,
+            size_limit_bytes: stats.limit_bytes as i64,
+        }
+    }
 
     CacheStatsRepr {
-        metadata_cache: CacheGroupRepr {
-            hit_count: mgr.metadata_cache_hit_count() as i64,
-            miss_count: mgr.metadata_cache_miss_count() as i64,
-            entry_count: mgr.metadata_cache_entry_count() as i64,
-            memory_bytes: metadata_memory,
-            size_limit_bytes: mgr.metadata_cache_size_limit() as i64,
-        },
-        statistics_cache: CacheGroupRepr {
-            hit_count: mgr.statistics_cache_hit_count() as i64,
-            miss_count: mgr.statistics_cache_miss_count() as i64,
-            entry_count: mgr.statistics_cache_entry_count() as i64,
-            memory_bytes: statistics_memory,
-            size_limit_bytes: mgr.statistics_cache_size_limit() as i64,
-        },
-        column_index_cache: CacheGroupRepr {
-            hit_count: ci.hits as i64,
-            miss_count: ci.misses as i64,
-            entry_count: ci.entries as i64,
-            memory_bytes: ci.used_bytes as i64,
-            size_limit_bytes: ci.limit_bytes as i64,
-        },
-        offset_index_cache: CacheGroupRepr {
-            hit_count: oi.hits as i64,
-            miss_count: oi.misses as i64,
-            entry_count: oi.entries as i64,
-            memory_bytes: oi.used_bytes as i64,
-            size_limit_bytes: oi.limit_bytes as i64,
-        },
+        metadata_cache: group(mgr.cache_stats(CacheKind::Metadata)),
+        statistics_cache: group(mgr.cache_stats(CacheKind::Statistics)),
+        column_index_cache: group(crate::cache::page_index::column_index_cache_stats()),
+        offset_index_cache: group(crate::cache::page_index::offset_index_cache_stats()),
     }
 }
 

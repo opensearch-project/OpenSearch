@@ -847,60 +847,36 @@ pub unsafe extern "C" fn df_create_cache(
     let eviction_type = str_from_raw(eviction_type_ptr, eviction_type_len)
         .map_err(|e| format!("df_create_cache: eviction_type: {}", e))?;
 
-    // Parse the eviction type string into the unified CacheEvictionPolicy enum.
-    // All four cache types share one enum — the per-cache match below enforces
-    // which policies are valid for each type.
-    let policy = match eviction_type.to_uppercase().as_str() {
-        "LRU" => CacheEvictionPolicy::Lru,
-        "LFU" => CacheEvictionPolicy::Lfu,
-        "FIFO" => CacheEvictionPolicy::Fifo,
-        _ => {
-            return Err(format!(
-                "df_create_cache: unsupported eviction type: {}",
-                eviction_type
-            ))
-        }
-    };
+    // Parse the type + eviction strings once into the unified enums; which
+    // policies are valid per cache is enforced centrally by validate_policy.
+    let kind =
+        cache::CacheKind::parse(cache_type).map_err(|e| format!("df_create_cache: {}", e))?;
+    let policy =
+        CacheEvictionPolicy::parse(eviction_type).map_err(|e| format!("df_create_cache: {}", e))?;
+    kind.validate_policy(policy)
+        .map_err(|e| format!("df_create_cache: {}", e))?;
 
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
     let manager = &mut *(cache_manager_ptr as *mut CustomCacheManager);
 
-    match cache_type {
-        cache::CACHE_TYPE_METADATA => {
+    match kind {
+        cache::CacheKind::Metadata => {
             // METADATA uses DefaultFilesMetadataCache (has its own LRU); eviction
             // type is accepted but not forwarded.
             let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
             let metadata_cache = Arc::new(cache::MutexFileMetadataCache::new(inner_cache));
             manager.set_file_metadata_cache(metadata_cache);
         }
-        cache::CACHE_TYPE_STATS => {
-            if policy == CacheEvictionPolicy::Fifo {
-                return Err(
-                    "df_create_cache: STATISTICS cache does not support FIFO eviction".to_string(),
-                );
-            }
+        cache::CacheKind::Statistics => {
             let stats_cache =
                 Arc::new(CustomStatisticsCache::new(policy, size_limit as usize, 0.8));
             manager.set_statistics_cache(stats_cache);
         }
-        cache::CACHE_TYPE_COLUMN_INDEX => {
-            // CI/OI use BoundedCache<FIFO>; eviction type must be FIFO.
-            if policy != CacheEvictionPolicy::Fifo {
-                return Err(format!("df_create_cache: COLUMN_INDEX cache only supports FIFO eviction, got {eviction_type}"));
-            }
+        cache::CacheKind::ColumnIndex => {
             manager.set_column_index_cache(size_limit as usize);
         }
-        cache::CACHE_TYPE_OFFSET_INDEX => {
-            if policy != CacheEvictionPolicy::Fifo {
-                return Err(format!("df_create_cache: OFFSET_INDEX cache only supports FIFO eviction, got {eviction_type}"));
-            }
+        cache::CacheKind::OffsetIndex => {
             manager.set_offset_index_cache(size_limit as usize);
-        }
-        _ => {
-            return Err(format!(
-                "df_create_cache: invalid cache type: {}",
-                cache_type
-            ));
         }
     }
     Ok(0)
@@ -1268,22 +1244,15 @@ pub unsafe extern "C" fn df_cache_manager_update_size_limit(
     let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
         "df_cache_manager_update_size_limit: no cache manager configured".to_string()
     })?;
-    match cache_type {
-        cache::CACHE_TYPE_METADATA => {
-            manager.update_metadata_cache_limit(new_limit as usize);
-            Ok(0)
-        }
-        cache::CACHE_TYPE_STATS => {
-            manager
-                .update_statistics_cache_limit(new_limit as usize)
-                .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
-            Ok(0)
-        }
-        _ => Err(format!(
-            "df_cache_manager_update_size_limit: unsupported cache type: {}",
-            cache_type
-        )),
-    }
+    // Uniform routing: any registered cache kind can have its limit updated
+    // through this one entry point (previously METADATA/STATISTICS only; CI/OI
+    // went through the separate df_set_*_cache_limit globals, which remain).
+    let kind = cache::CacheKind::parse(cache_type)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    manager
+        .update_cache_limit(kind, new_limit as usize)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    Ok(0)
 }
 
 #[no_mangle]
