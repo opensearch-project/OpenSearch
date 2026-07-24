@@ -269,4 +269,33 @@ public class RestoreServiceTests extends OpenSearchTestCase {
         // User can filter non-protected settings
         assertFalse(filter.test("index.custom.setting"));
     }
+
+    // Tests for internal ignore settings gating on remote data attributes
+
+    public void testIgnoreSettingsInternalOnClusterWithoutRemoteAttributes() {
+        // A cluster with no remote store attributes must strip remote store index settings on restore
+        String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(Settings.EMPTY);
+        assertArrayEquals(new String[] { "index.remote_store.*" }, ignoreSettings);
+    }
+
+    public void testIgnoreSettingsInternalOnRemotePublicationOnlyCluster() {
+        // A cluster with only remote cluster state/routing table publication enabled does not
+        // store index data remotely, so remote store index settings must still be stripped
+        Settings nodeSettings = Settings.builder()
+            .put("node.attr.remote_publication.state.repository", "cluster-state-repo")
+            .put("node.attr.remote_publication.routing_table.repository", "routing-table-repo")
+            .build();
+        String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(nodeSettings);
+        assertArrayEquals(new String[] { "index.remote_store.*" }, ignoreSettings);
+    }
+
+    public void testIgnoreSettingsInternalOnRemoteDataCluster() {
+        // A cluster that stores index data remotely must preserve remote store index settings
+        Settings nodeSettings = Settings.builder()
+            .put("node.attr.remote_store.segment.repository", "segment-repo")
+            .put("node.attr.remote_store.translog.repository", "translog-repo")
+            .build();
+        String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(nodeSettings);
+        assertEquals(0, ignoreSettings.length);
+    }
 }
