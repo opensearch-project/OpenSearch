@@ -2467,6 +2467,56 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
     }
 
     /**
+     * End-to-end test for the FilterOnlyTopDocsCollectorContext optimization.
+     *
+     * A bool query with only FILTER clauses rewrites to BoostQuery(ConstantScoreQuery(...), 0.0)
+     * at the Lucene level, activating the optimized no-score collector path. This test verifies:
+     *  1. The correct documents are returned.
+     *  2. All returned hit scores are 0.0.
+     *  3. Total hit count is accurate.
+     *  4. Multiple filter clauses work correctly.
+     */
+    public void testFilterOnlyQueryCollectorEndToEnd() throws Exception {
+        createIndex("filter_only_test");
+        indexRandom(
+            true,
+            client().prepareIndex("filter_only_test").setId("1").setSource("status", "active", "type", "a"),
+            client().prepareIndex("filter_only_test").setId("2").setSource("status", "active", "type", "b"),
+            client().prepareIndex("filter_only_test").setId("3").setSource("status", "inactive", "type", "a"),
+            client().prepareIndex("filter_only_test").setId("4").setSource("status", "active", "type", "a"),
+            client().prepareIndex("filter_only_test").setId("5").setSource("status", "inactive", "type", "b")
+        );
+        ensureGreen("filter_only_test");
+        indexRandomForConcurrentSearch("filter_only_test");
+
+        // single filter clause — should activate FilterOnlyTopDocsCollectorContext
+        SearchResponse response = client().prepareSearch("filter_only_test")
+            .setQuery(boolQuery().filter(termQuery("status", "active")))
+            .setSize(10)
+            .get();
+
+        assertNoFailures(response);
+        assertHitCount(response, 3L);
+        assertSearchHits(response, "1", "2", "4");
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertThat("filter-only hit score must be 0.0", hit.getScore(), equalTo(0.0f));
+        }
+
+        // two filter clauses — still filter-only, intersection of active + type=a
+        SearchResponse multiFilter = client().prepareSearch("filter_only_test")
+            .setQuery(boolQuery().filter(termQuery("status", "active")).filter(termQuery("type", "a")))
+            .setSize(10)
+            .get();
+
+        assertNoFailures(multiFilter);
+        assertHitCount(multiFilter, 2L);
+        assertSearchHits(multiFilter, "1", "4");
+        for (SearchHit hit : multiFilter.getHits().getHits()) {
+            assertThat("multi-filter hit score must be 0.0", hit.getScore(), equalTo(0.0f));
+        }
+    }
+
+    /**
      * asserts the search response hits include the expected ids
      */
     private void assertHits(SearchHits hits, String... ids) {
