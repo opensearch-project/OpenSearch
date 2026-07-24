@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
@@ -52,6 +53,7 @@ public interface CardinalityAggregatorSupplier {
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        CardinalityAggregatorFactory.ExecutionMode executionMode
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
+        CardinalityUpperBound bucketCardinality
     ) throws IOException;
 }
