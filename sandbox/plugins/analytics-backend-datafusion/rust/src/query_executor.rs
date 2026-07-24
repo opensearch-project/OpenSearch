@@ -149,6 +149,8 @@ async fn build_dataframe(
     let substrait_plan = Plan::decode(plan_bytes)
         .map_err(|e| DataFusionError::Execution(format!("Failed to decode Substrait: {}", e)))?;
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
+    // Make BIGINT +,-,* overflow error instead of silently wrapping (see checked_arith_rewrite).
+    let logical_plan = crate::checked_arith_rewrite::rewrite_checked_int64_arith(logical_plan)?;
     ctx.execute_logical_plan(logical_plan).await
 }
 
@@ -251,6 +253,8 @@ pub async fn execute_with_context(
 
         // Union schema widening was applied at table registration (session_context::widen_to_union_schema).
         let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+        // Make BIGINT +,-,* overflow error instead of silently wrapping (see checked_arith_rewrite).
+        let logical_plan = crate::checked_arith_rewrite::rewrite_checked_int64_arith(logical_plan)?;
         log_debug!(
             "DataFusion logical plan:\n{}",
             logical_plan.display_indent()
