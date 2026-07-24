@@ -14,7 +14,9 @@ crate-type = ["rlib"]
 
 [dependencies]
 arrow = { workspace = true }
-parquet = { workspace = true }
+# `object_store` feature pulls in parquet's async writer stack (AsyncArrowWriter +
+# ParquetObjectWriter), which streams the Parquet output directly into an ObjectStore.
+parquet = { workspace = true, features = ["object_store"] }
 arrow-ipc = { workspace = true }
 lazy_static = { workspace = true }
 dashmap = { workspace = true }
@@ -24,6 +26,11 @@ rayon = { workspace = true }
 tokio = { workspace = true }
 crc32fast = { workspace = true }
 serde_json = { workspace = true }
+object_store = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+# SyncIoBridge (io-util) bridges the sync merge/IPC writers onto object_store's async BufWriter.
+tokio-util = { workspace = true, features = ["io-util"] }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }

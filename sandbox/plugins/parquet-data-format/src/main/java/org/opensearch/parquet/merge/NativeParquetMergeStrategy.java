@@ -46,19 +46,27 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
     private final ShardPath shardPath;
     private final TriConsumer<FileMetadata, Long, Long> checksumUpdater;
     private final ParquetShardStatsTracker stats;
+    /**
+     * Shard-scoped native ObjectStore handle (owned by the engine), or 0 for local segment merges.
+     * When set, merge inputs/output are passed to native as object paths (basenames relative to the
+     * shard store root) so the k-way merge reads inputs from / streams output to the store.
+     */
+    private final long storePtr;
 
     public NativeParquetMergeStrategy(
         DataFormat dataFormat,
         String indexName,
         ShardPath shardPath,
         TriConsumer<FileMetadata, Long, Long> checksumUpdater,
-        ParquetShardStatsTracker stats
+        ParquetShardStatsTracker stats,
+        long storePtr
     ) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;
         this.shardPath = shardPath;
         this.checksumUpdater = checksumUpdater;
         this.stats = stats;
+        this.storePtr = storePtr;
     }
 
     @Override
@@ -83,10 +91,24 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
 
+        // When a shard ObjectStore is present, pass object paths (basenames relative to the shard
+        // store root) to native; the merge reads inputs from / streams output to the store. Inputs
+        // live at `<store root>/<mono.file()>` (store root == the shard parquet dir). Otherwise pass
+        // absolute local paths.
+        boolean useStore = storePtr > 0;
+        List<Path> nativeInputPaths = useStore ? files.stream().map(mono -> Path.of(mono.file())).toList() : filePaths;
+        String nativeOutputPath = useStore ? mergedFileName : mergedFilePath.toString();
+
         long startNanos = System.nanoTime();
         try {
             // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(
+                nativeInputPaths,
+                nativeOutputPath,
+                indexName,
+                writerGeneration,
+                storePtr
+            );
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 
