@@ -120,4 +120,51 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
         assertEquals(0, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 20));
         assertEquals(1, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 25));
     }
+
+    public void testComputeVirtualShardId() {
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_VIRTUAL_SHARDS, 20)
+            )
+            .numberOfShards(5)
+            .numberOfReplicas(1)
+            .build();
+
+        int vShardId = VirtualShardRoutingHelper.computeVirtualShardId(metadata, "test_doc", null);
+        assertTrue(vShardId >= 0 && vShardId < 20);
+
+        assertEquals(vShardId, VirtualShardRoutingHelper.computeVirtualShardId(metadata, "test_doc", null));
+    }
+
+    public void testComputeVirtualShardIdDisabledThrows() {
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT))
+            .numberOfShards(5)
+            .numberOfReplicas(1)
+            .build();
+
+        expectThrows(IllegalStateException.class, () -> VirtualShardRoutingHelper.computeVirtualShardId(metadata, "doc1", null));
+    }
+
+    public void testComputeVirtualShardIdRoutingParity() {
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_VIRTUAL_SHARDS, 20)
+            )
+            .numberOfShards(5)
+            .numberOfReplicas(1)
+            .build();
+
+        for (int i = 0; i < 100; i++) {
+            String id = "doc_" + i;
+            int vShardId = VirtualShardRoutingHelper.computeVirtualShardId(metadata, id, null);
+            int physicalFromHelper = VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, vShardId);
+            int physicalFromRouting = org.opensearch.cluster.routing.OperationRouting.generateShardId(metadata, id, null);
+            assertEquals("Routing parity broken for id=" + id, physicalFromRouting, physicalFromHelper);
+        }
+    }
 }
