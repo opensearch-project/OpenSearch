@@ -32,6 +32,8 @@
 
 package org.opensearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanQuery;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
@@ -304,6 +306,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -321,6 +324,8 @@ import static org.opensearch.threadpool.ThreadPool.Names.INDEX_SEARCHER;
  */
 public class SearchModule {
 
+    private static final Logger logger = LogManager.getLogger(SearchModule.class);
+
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
         "moving_avg_model"
@@ -337,6 +342,17 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
+    // ========== Dynamic Plugin Management Support ==========
+    
+    // Track dynamically loaded search components
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, QuerySpec<?>>> dynamicQueries;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, AggregationSpec>> dynamicAggregations;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, ScoreFunctionSpec<?>>> dynamicScoreFunctions;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, SuggesterSpec<?>>> dynamicSuggesters;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, RescorerSpec<?>>> dynamicRescorers;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, SortSpec<?>>> dynamicSorts;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, PipelineAggregationSpec>> dynamicPipelineAggregations;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -346,6 +362,14 @@ public class SearchModule {
      * @param plugins List of included {@link SearchPlugin} objects.
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
+        // Initialize dynamic tracking maps
+        this.dynamicQueries = new ConcurrentHashMap<>();
+        this.dynamicAggregations = new ConcurrentHashMap<>();
+        this.dynamicScoreFunctions = new ConcurrentHashMap<>();
+        this.dynamicSuggesters = new ConcurrentHashMap<>();
+        this.dynamicRescorers = new ConcurrentHashMap<>();
+        this.dynamicSorts = new ConcurrentHashMap<>();
+        this.dynamicPipelineAggregations = new ConcurrentHashMap<>();
         this.settings = settings;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
@@ -1343,5 +1367,242 @@ public class SearchModule {
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
+    }
+    
+    // ========== Dynamic Plugin Management Methods ==========
+    
+    /**
+     * Add a query spec from a dynamically loaded plugin
+     */
+    public synchronized void addQuerySpec(String pluginName, QuerySpec<?> spec) {
+        dynamicQueries.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                     .put(spec.getName().getPreferredName(), spec);
+        
+        logger.info("Added dynamic query [{}] for plugin [{}]", spec.getName().getPreferredName(), pluginName);
+    }
+    
+    /**
+     * Add an aggregation spec from a dynamically loaded plugin
+     */
+    public synchronized void addAggregationSpec(String pluginName, AggregationSpec spec) {
+        dynamicAggregations.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                           .put(spec.getName().getPreferredName(), spec);
+    }
+    
+    /**
+     * Add a score function spec from a dynamically loaded plugin
+     */
+    public synchronized void addScoreFunctionSpec(String pluginName, ScoreFunctionSpec<?> spec) {
+        dynamicScoreFunctions.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                             .put(spec.getName().getPreferredName(), spec);
+    }
+    
+    /**
+     * Add a suggester spec from a dynamically loaded plugin
+     */
+    public synchronized void addSuggesterSpec(String pluginName, SuggesterSpec<?> spec) {
+        dynamicSuggesters.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                          .put(spec.getName().getPreferredName(), spec);
+    }
+    
+    /**
+     * Add a rescorer spec from a dynamically loaded plugin
+     */
+    public synchronized void addRescorerSpec(String pluginName, RescorerSpec<?> spec) {
+        dynamicRescorers.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                        .put(spec.getName().getPreferredName(), spec);
+    }
+    
+    /**
+     * Add a sort spec from a dynamically loaded plugin
+     */
+    public synchronized void addSortSpec(String pluginName, SortSpec<?> spec) {
+        dynamicSorts.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                    .put(spec.getName().getPreferredName(), spec);
+    }
+    
+    /**
+     * Add a pipeline aggregation spec from a dynamically loaded plugin
+     */
+    public synchronized void addPipelineAggregationSpec(String pluginName, PipelineAggregationSpec spec) {
+        dynamicPipelineAggregations.computeIfAbsent(pluginName, k -> new ConcurrentHashMap<>())
+                                   .put(spec.getName().getPreferredName(), spec);
+    }
+    
+    /**
+     * Remove all components for a plugin
+     */
+    public synchronized void removeSearchPlugin(String pluginName, SearchPlugin plugin) {
+        dynamicQueries.remove(pluginName);
+        dynamicAggregations.remove(pluginName);
+        dynamicScoreFunctions.remove(pluginName);
+        dynamicSuggesters.remove(pluginName);
+        dynamicRescorers.remove(pluginName);
+        dynamicSorts.remove(pluginName);
+        dynamicPipelineAggregations.remove(pluginName);
+    }
+    
+    /**
+     * Build updated NamedXContentRegistry including dynamic components
+     */
+    public synchronized NamedXContentRegistry buildUpdatedXContentRegistry() {
+        List<NamedXContentRegistry.Entry> allEntries = new ArrayList<>(namedXContents);
+        
+        // Add dynamic query entries
+        for (Map<String, QuerySpec<?>> pluginQueries : dynamicQueries.values()) {
+            for (QuerySpec<?> spec : pluginQueries.values()) {
+                allEntries.add(new NamedXContentRegistry.Entry(
+                    QueryBuilder.class,
+                    spec.getName(),
+                    (p, c) -> spec.getParser().fromXContent(p)
+                ));
+            }
+        }
+        
+        // Add dynamic aggregation entries
+        for (Map<String, AggregationSpec> pluginAggregations : dynamicAggregations.values()) {
+            for (AggregationSpec spec : pluginAggregations.values()) {
+                allEntries.add(new NamedXContentRegistry.Entry(
+                    BaseAggregationBuilder.class,
+                    spec.getName(),
+                    (p, c) -> spec.getParser().parse(p, (String) c)
+                ));
+            }
+        }
+        
+        // Add dynamic score function entries
+        for (Map<String, ScoreFunctionSpec<?>> pluginScoreFunctions : dynamicScoreFunctions.values()) {
+            for (ScoreFunctionSpec<?> spec : pluginScoreFunctions.values()) {
+                allEntries.add(new NamedXContentRegistry.Entry(
+                    ScoreFunctionBuilder.class,
+                    spec.getName(),
+                    (p, c) -> spec.getParser().fromXContent(p)
+                ));
+            }
+        }
+        
+        // Add dynamic suggester entries
+        for (Map<String, SuggesterSpec<?>> pluginSuggesters : dynamicSuggesters.values()) {
+            for (SuggesterSpec<?> spec : pluginSuggesters.values()) {
+                allEntries.add(new NamedXContentRegistry.Entry(
+                    SuggestionBuilder.class,
+                    spec.getName(),
+                    spec.getParser()
+                ));
+            }
+        }
+        
+        // Add dynamic rescorer entries
+        for (Map<String, RescorerSpec<?>> pluginRescorers : dynamicRescorers.values()) {
+            for (RescorerSpec<?> spec : pluginRescorers.values()) {
+                allEntries.add(new NamedXContentRegistry.Entry(
+                    RescorerBuilder.class,
+                    spec.getName(),
+                    (p, c) -> spec.getParser().apply(p)
+                ));
+            }
+        }
+        
+        // Add dynamic sort entries
+        for (Map<String, SortSpec<?>> pluginSorts : dynamicSorts.values()) {
+            for (SortSpec<?> spec : pluginSorts.values()) {
+                allEntries.add(new NamedXContentRegistry.Entry(
+                    SortBuilder.class,
+                    spec.getName(),
+                    (p, c) -> spec.getParser().fromXContent(p, spec.getName().getPreferredName())
+                ));
+            }
+        }
+        
+        return new NamedXContentRegistry(allEntries);
+    }
+    
+    /**
+     * Build updated NamedWriteableRegistry including dynamic components
+     */
+    public synchronized NamedWriteableRegistry buildUpdatedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> allEntries = new ArrayList<>(namedWriteables);
+        
+        // Add dynamic query entries
+        for (Map<String, QuerySpec<?>> pluginQueries : dynamicQueries.values()) {
+            for (QuerySpec<?> spec : pluginQueries.values()) {
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    QueryBuilder.class,
+                    spec.getName().getPreferredName(),
+                    spec.getReader()
+                ));
+            }
+        }
+        
+        // Add dynamic aggregation entries
+        for (Map<String, AggregationSpec> pluginAggregations : dynamicAggregations.values()) {
+            for (AggregationSpec spec : pluginAggregations.values()) {
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    AggregationBuilder.class,
+                    spec.getName().getPreferredName(),
+                    spec.getReader()
+                ));
+                
+                // Add result readers
+                for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.getResultReaders().entrySet()) {
+                    allEntries.add(new NamedWriteableRegistry.Entry(
+                        InternalAggregation.class,
+                        resultReader.getKey(),
+                        resultReader.getValue()
+                    ));
+                }
+            }
+        }
+        
+        // Add dynamic score function entries
+        for (Map<String, ScoreFunctionSpec<?>> pluginScoreFunctions : dynamicScoreFunctions.values()) {
+            for (ScoreFunctionSpec<?> spec : pluginScoreFunctions.values()) {
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    ScoreFunctionBuilder.class,
+                    spec.getName().getPreferredName(),
+                    spec.getReader()
+                ));
+            }
+        }
+        
+        // Add dynamic suggester entries
+        for (Map<String, SuggesterSpec<?>> pluginSuggesters : dynamicSuggesters.values()) {
+            for (SuggesterSpec<?> spec : pluginSuggesters.values()) {
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    SuggestionBuilder.class,
+                    spec.getName().getPreferredName(),
+                    spec.getReader()
+                ));
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    Suggest.Suggestion.class,
+                    spec.getName().getPreferredName(),
+                    spec.getSuggestionReader()
+                ));
+            }
+        }
+        
+        // Add dynamic rescorer entries
+        for (Map<String, RescorerSpec<?>> pluginRescorers : dynamicRescorers.values()) {
+            for (RescorerSpec<?> spec : pluginRescorers.values()) {
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    RescorerBuilder.class,
+                    spec.getName().getPreferredName(),
+                    spec.getReader()
+                ));
+            }
+        }
+        
+        // Add dynamic sort entries
+        for (Map<String, SortSpec<?>> pluginSorts : dynamicSorts.values()) {
+            for (SortSpec<?> spec : pluginSorts.values()) {
+                allEntries.add(new NamedWriteableRegistry.Entry(
+                    SortBuilder.class,
+                    spec.getName().getPreferredName(),
+                    spec.getReader()
+                ));
+            }
+        }
+        
+        return new NamedWriteableRegistry(allEntries);
     }
 }
