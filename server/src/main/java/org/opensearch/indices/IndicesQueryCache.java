@@ -79,7 +79,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = Setting.memorySizeSetting(
         "indices.queries.cache.size",
         "10%",
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
     // mostly a way to prevent queries from being the main source of memory usage
     // of the cache
@@ -123,10 +124,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.Dynamic
     );
 
-    private final LRUQueryCache cache;
+    private final int count;
+    private final boolean cacheAllSegments;
+    // Replaced (not mutated) when the size setting is updated dynamically, see setMaxSizeInBytes.
+    private volatile OpenSearchLRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
-    private volatile long sharedRamBytesUsed;
 
     // This is a hack for the fact that the close listener for the
     // ShardCoreKeyMap will be called before onDocIdSetEviction
@@ -140,24 +143,35 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     public IndicesQueryCache(Settings settings, ClusterSettings clusterSettings) {
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
-        final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
+        this.count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
+        this.cacheAllSegments = INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings);
         float skipCacheFactor = INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}] skipCacheFactor [{}]", size, count, skipCacheFactor);
-        if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new OpenSearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
-        } else {
-            cache = new OpenSearchLRUQueryCache(count, size.getBytes());
-            cache.setSkipCacheFactor(skipCacheFactor);
-            if (clusterSettings != null) {
+        cache = createCache(size.getBytes(), skipCacheFactor);
+        if (clusterSettings != null) {
+            if (cacheAllSegments == false) {
                 clusterSettings.addSettingsUpdateConsumer(INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR, this::setSkipCacheFactor);
-            } else {
-                logger.warn("clusterSettings is null, so {} is not dynamic", INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey());
             }
+            clusterSettings.addSettingsUpdateConsumer(INDICES_CACHE_QUERY_SIZE_SETTING, this::setMaxSizeInBytes);
+        } else {
+            logger.warn(
+                "clusterSettings is null, so {} and {} are not dynamic",
+                INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(),
+                INDICES_CACHE_QUERY_SIZE_SETTING.getKey()
+            );
         }
-        sharedRamBytesUsed = 0;
     }
 
-    public void setSkipCacheFactor(float skipCacheFactor) {
+    private OpenSearchLRUQueryCache createCache(long sizeInBytes, float skipCacheFactor) {
+        if (cacheAllSegments) {
+            return new OpenSearchLRUQueryCache(count, sizeInBytes, context -> true, 1f);
+        }
+        final OpenSearchLRUQueryCache newCache = new OpenSearchLRUQueryCache(count, sizeInBytes);
+        newCache.setSkipCacheFactor(skipCacheFactor);
+        return newCache;
+    }
+
+    public synchronized void setSkipCacheFactor(float skipCacheFactor) {
         logger.debug(
             "set cluster settings {} {} -> {}",
             INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(),
@@ -165,6 +179,32 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             skipCacheFactor
         );
         cache.setSkipCacheFactor(skipCacheFactor);
+    }
+
+    /**
+     * Lucene's {@link LRUQueryCache} does not allow its memory limit to change after construction,
+     * so a size update replaces the cache with a new instance of the new size. The old instance is
+     * drained through {@link LRUQueryCache#clearCoreCacheKey(Object)} so that every entry it held
+     * is accounted out of the per-shard stats through the usual eviction callbacks. In-flight
+     * queries that obtained a cached weight before the swap may still insert entries into the old
+     * instance; those entries are evicted (with the same stats accounting) when their segment
+     * closes, exactly like entries the old instance held at swap time.
+     */
+    private synchronized void setMaxSizeInBytes(ByteSizeValue size) {
+        final OpenSearchLRUQueryCache oldCache = cache;
+        logger.info("set cluster settings {} -> [{}], rebuilding query cache", INDICES_CACHE_QUERY_SIZE_SETTING.getKey(), size);
+        cache = createCache(size.getBytes(), oldCache.getSkipCacheFactor());
+        for (Object coreKey : stats2.keySet().toArray()) {
+            oldCache.clearCoreCacheKey(coreKey);
+        }
+        // Release the queries (not doc id sets) still retained by the old instance. onClear on a
+        // retired instance only resets its own query memory accounting, not the shared shard stats.
+        oldCache.clear();
+    }
+
+    // Visible for testing
+    float getSkipCacheFactor() {
+        return cache.getSkipCacheFactor();
     }
 
     /** Get usage statistics for the given shard. */
@@ -182,6 +222,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         // We also have some shared ram usage that we try to distribute to
         // proportionally to their number of cache entries of each shard
+        final long sharedRamBytesUsed = cache.queryRamBytesUsed;
         if (stats.isEmpty()) {
             shardStats.add(
                 new QueryCacheStats.Builder().ramBytesUsed(sharedRamBytesUsed).hitCount(0).missCount(0).cacheCount(0).cacheSize(0).build()
@@ -356,6 +397,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     private class OpenSearchLRUQueryCache extends LRUQueryCache {
 
+        // Memory used by the queries (not doc id sets) retained by this instance. Kept per
+        // instance rather than on IndicesQueryCache so that draining a replaced instance after a
+        // dynamic size update cannot corrupt the accounting of its replacement.
+        volatile long queryRamBytesUsed;
+
         OpenSearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
         }
@@ -387,25 +433,31 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         @Override
         protected void onClear() {
             super.onClear();
-            for (Stats stats : shardStats.values()) {
-                // don't throw away hit/miss
-                stats.cacheSize = 0;
-                stats.ramBytesUsed = 0;
+            queryRamBytesUsed = 0;
+            // Only a clear of the active instance resets the shared per-shard stats. A replaced
+            // instance being drained after a dynamic size update has already been accounted out
+            // entry by entry through onDocIdSetEviction, and the active instance's entries must
+            // stay counted.
+            if (IndicesQueryCache.this.cache == this) {
+                for (Stats stats : shardStats.values()) {
+                    // don't throw away hit/miss
+                    stats.cacheSize = 0;
+                    stats.ramBytesUsed = 0;
+                }
+                stats2.clear();
             }
-            stats2.clear();
-            sharedRamBytesUsed = 0;
         }
 
         @Override
         protected void onQueryCache(Query filter, long ramBytesUsed) {
             super.onQueryCache(filter, ramBytesUsed);
-            sharedRamBytesUsed += ramBytesUsed;
+            queryRamBytesUsed += ramBytesUsed;
         }
 
         @Override
         protected void onQueryEviction(Query filter, long ramBytesUsed) {
             super.onQueryEviction(filter, ramBytesUsed);
-            sharedRamBytesUsed -= ramBytesUsed;
+            queryRamBytesUsed -= ramBytesUsed;
         }
 
         @Override
@@ -437,6 +489,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                 // we only evict when nothing is cached anymore on the segment
                 // instead of relying on close listeners
                 final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
+                if (statsAndCount == null) {
+                    // A replaced instance can evict entries that were inserted into it after it
+                    // was drained (by queries in flight during a dynamic size update) and whose
+                    // stats were since reset by a clear of the active instance.
+                    assert this != IndicesQueryCache.this.cache;
+                    return;
+                }
                 final Stats shardStats = statsAndCount.stats;
                 shardStats.cacheSize -= numEntries;
                 shardStats.ramBytesUsed -= sumRamBytesUsed;

@@ -582,6 +582,105 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         cache.close(); // this triggers some assertions
     }
 
+    public void testDynamicallyChangeCacheSize() throws IOException {
+        Directory dir1 = newDirectory();
+        IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());
+        w1.addDocument(new Document());
+        DirectoryReader r1 = DirectoryReader.open(w1);
+        w1.close();
+        ShardId shard1 = new ShardId("index", "_na_", 0);
+        r1 = OpenSearchDirectoryReader.wrap(r1, shard1);
+        IndexSearcher s1 = new IndexSearcher(r1);
+        s1.setQueryCachingPolicy(alwaysCachePolicy());
+
+        Directory dir2 = newDirectory();
+        IndexWriter w2 = new IndexWriter(dir2, newIndexWriterConfig());
+        w2.addDocument(new Document());
+        DirectoryReader r2 = DirectoryReader.open(w2);
+        w2.close();
+        ShardId shard2 = new ShardId("index", "_na_", 1);
+        r2 = OpenSearchDirectoryReader.wrap(r2, shard2);
+        IndexSearcher s2 = new IndexSearcher(r2);
+        s2.setQueryCachingPolicy(alwaysCachePolicy());
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING.getKey(), "10mb")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndicesQueryCache cache = new IndicesQueryCache(settings, clusterSettings);
+        s1.setQueryCache(cache);
+        s2.setQueryCache(cache);
+
+        for (int i = 0; i < 5; ++i) {
+            assertEquals(1, s1.count(new DummyQuery(i)));
+            assertEquals(1, s2.count(new DummyQuery(i)));
+        }
+
+        QueryCacheStats stats1 = cache.getStats(shard1);
+        assertEquals(5L, stats1.getCacheSize());
+        assertEquals(5L, stats1.getCacheCount());
+        assertTrue(stats1.getMemorySizeInBytes() > 0L);
+        final long missCount1 = stats1.getMissCount();
+
+        QueryCacheStats stats2 = cache.getStats(shard2);
+        assertEquals(5L, stats2.getCacheSize());
+        assertEquals(5L, stats2.getCacheCount());
+        assertTrue(stats2.getMemorySizeInBytes() > 0L);
+
+        // Shrinking the cache replaces and drains the old instance: per-shard entry and memory
+        // stats must be accounted down to zero while cumulative counters are preserved
+        clusterSettings.applySettings(Settings.builder().put(IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING.getKey(), "1mb").build());
+
+        stats1 = cache.getStats(shard1);
+        assertEquals(0L, stats1.getCacheSize());
+        assertEquals(5L, stats1.getCacheCount());
+        assertEquals(missCount1, stats1.getMissCount());
+        assertEquals(0L, stats1.getMemorySizeInBytes());
+
+        stats2 = cache.getStats(shard2);
+        assertEquals(0L, stats2.getCacheSize());
+        assertEquals(5L, stats2.getCacheCount());
+        assertEquals(0L, stats2.getMemorySizeInBytes());
+
+        // caching keeps working against the new instance
+        for (int i = 0; i < 5; ++i) {
+            assertEquals(1, s1.count(new DummyQuery(i)));
+        }
+
+        stats1 = cache.getStats(shard1);
+        assertEquals(5L, stats1.getCacheSize());
+        assertEquals(10L, stats1.getCacheCount());
+        assertTrue(stats1.getMemorySizeInBytes() > 0L);
+
+        IOUtils.close(r1, dir1, r2, dir2);
+        cache.onClose(shard1);
+        cache.onClose(shard2);
+        cache.close(); // this triggers some assertions
+    }
+
+    public void testSkipCacheFactorSurvivesSizeUpdate() {
+        Settings settings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndicesQueryCache cache = new IndicesQueryCache(settings, clusterSettings);
+
+        clusterSettings.applySettings(
+            Settings.builder().put(IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(), 42f).build()
+        );
+        assertEquals(42f, cache.getSkipCacheFactor(), 0f);
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(), 42f)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING.getKey(), "1mb")
+                .build()
+        );
+        assertEquals(42f, cache.getSkipCacheFactor(), 0f);
+
+        cache.close();
+    }
+
     public void testCostlyMinFrequencyToCache() throws IOException {
         Settings settings = Settings.builder().build();
         OpenseachUsageTrackingQueryCachingPolicy queryCachingPolicy = new OpenseachUsageTrackingQueryCachingPolicy(
