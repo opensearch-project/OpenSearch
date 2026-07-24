@@ -84,7 +84,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        final Tracer tracer
+        final Tracer tracer,
+        final int forceExecutionQueueThreshold
     ) {
         super(
             SearchPhaseName.QUERY.getName(),
@@ -105,7 +106,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             request.getMaxConcurrentShardRequests(),
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            forceExecutionQueueThreshold
         );
         this.topDocsSize = SearchPhaseController.getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
