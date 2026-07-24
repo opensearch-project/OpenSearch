@@ -95,7 +95,7 @@ public class AggregationResponseBuilderTests extends OpenSearchTestCase {
         when(translator.getAggregationType()).thenReturn(aggClass);
         when(translator.toInternalAggregation(any(), any())).thenAnswer(inv -> {
             InternalAggregation agg = mock(InternalAggregation.class);
-            when(agg.getName()).thenReturn(inv.getArgument(0));
+            when(agg.getName()).thenReturn(((AggregationBuilder) inv.getArgument(0)).getName());
             return agg;
         });
         return translator;

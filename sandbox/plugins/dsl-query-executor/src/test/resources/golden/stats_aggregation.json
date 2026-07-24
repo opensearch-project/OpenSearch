@@ -1,0 +1,49 @@
+{
+  "testName": "stats_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "price_stats": {
+        "stats": {
+          "field": "price"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], price_stats_count=[COUNT($1)], price_stats_min=[MIN($1)], price_stats_max=[MAX($1)], price_stats_sum=[SUM($1)])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["price_stats_count", "price_stats_min", "price_stats_max", "price_stats_sum"],
+  "mockResultRows": [
+    [3, 100, 600, 900]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    },
+    "aggregations": {
+      "price_stats": {
+        "count": 3,
+        "min": 100.0,
+        "max": 600.0,
+        "avg": 300.0,
+        "sum": 900.0
+      }
+    }
+  }
+}

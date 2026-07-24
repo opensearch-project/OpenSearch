@@ -89,8 +89,9 @@ public final class AggregationResponseBuilder {
     }
 
     /**
-     * Builds a metric aggregation by extracting the computed value from execution results.
-     * Finds the matching row using granularity key and parent filters.
+     * Builds a metric aggregation from execution results: finds the matching row via granularity
+     * key and parent filters, then assembles the translator's output columns (several for
+     * multi-column metrics like stats) into a values map keyed by {@code getAggregateFieldNames}.
      */
     private InternalAggregation buildMetric(
         MetricTranslator<AggregationBuilder> translator,
@@ -112,22 +113,31 @@ public final class AggregationResponseBuilder {
         }
 
         Map<String, Integer> colIndex = buildColumnIndex(result);
-        Integer colIdx = colIndex.get(agg.getName());
+        Object[] matchingRow = findMatchingRow(rows, colIndex, parentKeyFilter);
 
-        if (colIdx == null) {
+        if (matchingRow == null) {
             return buildEmptyMetric(translator, agg);
         }
 
-        Object[] matchingRow = findMatchingRow(rows, colIndex, parentKeyFilter);
-        Object value = (matchingRow != null) ? matchingRow[colIdx] : null;
-        return translator.toInternalAggregation(agg.getName(), value);
+        Map<String, Object> values = new HashMap<>();
+        for (String fieldName : translator.getAggregateFieldNames(agg)) {
+            Integer colIdx = colIndex.get(fieldName);
+            if (colIdx != null) {
+                values.put(fieldName, matchingRow[colIdx]);
+            }
+        }
+
+        if (values.isEmpty()) {
+            return buildEmptyMetric(translator, agg);
+        }
+        return translator.toInternalAggregation(agg, values);
     }
 
     /**
      * Builds an empty metric aggregation with no computed value.
      */
     private static InternalAggregation buildEmptyMetric(MetricTranslator<AggregationBuilder> translator, AggregationBuilder agg) {
-        return translator.toInternalAggregation(agg.getName(), null);
+        return translator.toInternalAggregation(agg, null);
     }
 
     /**

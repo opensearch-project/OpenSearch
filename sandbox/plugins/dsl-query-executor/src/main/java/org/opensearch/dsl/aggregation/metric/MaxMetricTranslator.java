@@ -15,6 +15,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 
+import java.util.Map;
+
 /** Translates MAX metric aggregation to Calcite. */
 public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregationBuilder> {
 
@@ -38,8 +40,9 @@ public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregation
 
     /** Null (no matching docs) becomes -Infinity — legacy sentinel, rendered as {@code "value": null}. */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value) {
+    public InternalAggregation toInternalAggregation(MaxAggregationBuilder agg, Map<String, Object> values) {
+        Object value = singleValue(agg, values);
         double max = value == null ? Double.NEGATIVE_INFINITY : toDouble(value);
-        return new InternalMax(name, max, DocValueFormat.RAW, null);
+        return new InternalMax(agg.getName(), max, DocValueFormat.RAW, null);
     }
 }

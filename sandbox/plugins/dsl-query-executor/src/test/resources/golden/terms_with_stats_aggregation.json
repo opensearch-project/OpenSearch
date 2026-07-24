@@ -1,0 +1,79 @@
+{
+  "testName": "terms_with_stats_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "by_brand": {
+        "terms": {
+          "field": "brand"
+        },
+        "aggregations": {
+          "price_stats": {
+            "stats": {
+              "field": "price"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$5], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "  LogicalAggregate(group=[{2}], price_stats_count=[COUNT($1)], price_stats_min=[MIN($1)], price_stats_max=[MAX($1)], price_stats_sum=[SUM($1)], _count=[COUNT()])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "price_stats_count", "price_stats_min", "price_stats_max", "price_stats_sum", "_count"],
+  "mockResultRows": [
+    ["BrandA", 3, 100, 600, 900, 3],
+    ["BrandB", 2, 1000, 1200, 2200, 2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    },
+    "aggregations": {
+      "by_brand": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": "BrandA",
+            "doc_count": 3,
+            "price_stats": {
+              "count": 3,
+              "min": 100.0,
+              "max": 600.0,
+              "avg": 300.0,
+              "sum": 900.0
+            }
+          },
+          {
+            "key": "BrandB",
+            "doc_count": 2,
+            "price_stats": {
+              "count": 2,
+              "min": 1000.0,
+              "max": 1200.0,
+              "avg": 1100.0,
+              "sum": 2200.0
+            }
+          }
+        ]
+      }
+    }
+  }
+}

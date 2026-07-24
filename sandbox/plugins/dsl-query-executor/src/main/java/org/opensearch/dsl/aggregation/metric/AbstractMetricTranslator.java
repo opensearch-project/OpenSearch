@@ -17,11 +17,12 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Base class for metric translators. Provides the common {@link #toAggregateCall}
- * logic — subclasses supply the SQL aggregate function, field name, and optionally
- * override the return type.
+ * Base class for simple metric translators (single value: AVG, SUM, MIN, MAX, COUNT).
+ * Provides default implementations for single-value metrics.
  */
 public abstract class AbstractMetricTranslator<T extends AggregationBuilder> implements MetricTranslator<T> {
 
@@ -40,7 +41,7 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
     protected abstract String getFieldName(T agg);
 
     @Override
-    public AggregateCall toAggregateCall(T agg, RelDataType rowType) throws ConversionException {
+    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException {
         String fieldName = getFieldName(agg);
         RelDataTypeField field = rowType.getField(fieldName, false, false);
         if (field == null) {
@@ -48,7 +49,7 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
         }
 
         // Calcite enforces the return type to be same as input type; eg: AVG int→double coercion happens in response layer.
-        return AggregateCall.create(
+        AggregateCall call = AggregateCall.create(
             getAggFunction(),
             false,
             false,
@@ -59,11 +60,17 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
             field.getType(),
             agg.getName()
         );
+        return Collections.singletonList(call);
     }
 
     @Override
-    public String getAggregateFieldName(T agg) {
-        return agg.getName();
+    public List<String> getAggregateFieldNames(T agg) {
+        return Collections.singletonList(agg.getName());
+    }
+
+    /** Extracts this metric's single output cell ({@code null} when the map is null or the cell is SQL NULL). */
+    protected Object singleValue(T agg, Map<String, Object> values) {
+        return values == null ? null : values.get(agg.getName());
     }
 
     /**

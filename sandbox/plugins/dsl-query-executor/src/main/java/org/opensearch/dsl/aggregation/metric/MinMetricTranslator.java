@@ -15,6 +15,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 
+import java.util.Map;
+
 /** Translates MIN metric aggregation to Calcite. */
 public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregationBuilder> {
 
@@ -38,8 +40,9 @@ public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregation
 
     /** Null (no matching docs) becomes +Infinity — legacy sentinel, rendered as {@code "value": null}. */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value) {
+    public InternalAggregation toInternalAggregation(MinAggregationBuilder agg, Map<String, Object> values) {
+        Object value = singleValue(agg, values);
         double min = value == null ? Double.POSITIVE_INFINITY : toDouble(value);
-        return new InternalMin(name, min, DocValueFormat.RAW, null);
+        return new InternalMin(agg.getName(), min, DocValueFormat.RAW, null);
     }
 }

@@ -15,6 +15,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 
+import java.util.Map;
+
 /** Translates AVG metric aggregation to Calcite. */
 public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregationBuilder> {
 
@@ -42,10 +44,11 @@ public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregation
      * count=0, which renders as {@code "value": null} like legacy.
      */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value) {
+    public InternalAggregation toInternalAggregation(AvgAggregationBuilder agg, Map<String, Object> values) {
+        Object value = singleValue(agg, values);
         if (value == null) {
-            return new InternalAvg(name, 0.0, 0, DocValueFormat.RAW, null);
+            return new InternalAvg(agg.getName(), 0.0, 0, DocValueFormat.RAW, null);
         }
-        return new InternalAvg(name, toDouble(value), 1, DocValueFormat.RAW, null);
+        return new InternalAvg(agg.getName(), toDouble(value), 1, DocValueFormat.RAW, null);
     }
 }

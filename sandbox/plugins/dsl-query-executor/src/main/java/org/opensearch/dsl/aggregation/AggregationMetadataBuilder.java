@@ -13,6 +13,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -113,8 +114,21 @@ public class AggregationMetadataBuilder {
         boolean noGroupBy = groupings.isEmpty();
         List<AggregateCall> allCalls = new ArrayList<>();
         for (AggregateCall call : aggregateCalls) {
-            if (noGroupBy) {
-                RelDataType nullableType = typeFactory.createTypeWithNullability(call.getType(), true);
+            boolean isCount = call.getAggregation().getKind() == SqlKind.COUNT;
+            RelDataType targetType;
+            if (isCount) {
+                // COUNT is always BIGINT NOT NULL regardless of the input field's type; normalize here
+                // (translators have no type factory) — LogicalAggregate.create asserts the type matches.
+                targetType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), false);
+            } else if (noGroupBy) {
+                // AVG, MIN, MAX, SUM return null for empty sets when there's no GROUP BY.
+                targetType = typeFactory.createTypeWithNullability(call.getType(), true);
+            } else {
+                targetType = call.getType();
+            }
+            if (targetType.equals(call.getType())) {
+                allCalls.add(call);
+            } else {
                 allCalls.add(
                     AggregateCall.create(
                         call.getAggregation(),
@@ -124,12 +138,10 @@ public class AggregationMetadataBuilder {
                         call.getArgList(),
                         call.filterArg,
                         call.getCollation(),
-                        nullableType,
+                        targetType,
                         call.getName()
                     )
                 );
-            } else {
-                allCalls.add(call);
             }
         }
         List<String> allFieldNames = new ArrayList<>(aggregateFieldNames);
@@ -144,7 +156,7 @@ public class AggregationMetadataBuilder {
                     List.of(),
                     -1,
                     RelCollations.EMPTY,
-                    typeFactory.createSqlType(SqlTypeName.BIGINT),
+                    typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), false),
                     IMPLICIT_COUNT_NAME
                 )
             );
