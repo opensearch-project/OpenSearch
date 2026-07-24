@@ -50,6 +50,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -262,6 +263,20 @@ public class OpenSearchExecutors {
             new OpenSearchAbortPolicy(),
             contextHolder
         );
+    }
+
+    /**
+     * Returns a new executor that creates a new virtual thread for each task. The returned executor preserves the
+     * {@link ThreadContext} for each submitted task and names threads using the provided prefix.
+     *
+     * @param name           the name prefix for virtual threads
+     * @param threadContext  the thread context to preserve across task execution
+     * @return a new virtual-thread-per-task executor
+     */
+    public static ExecutorService newVirtualThreadPerTaskExecutor(String name, ThreadContext threadContext) {
+        ThreadFactory factory = Thread.ofVirtual().name(name + "#", 0).factory();
+        ExecutorService delegate = Executors.newThreadPerTaskExecutor(factory);
+        return new ContextPreservingExecutorService(delegate, threadContext);
     }
 
     /**
