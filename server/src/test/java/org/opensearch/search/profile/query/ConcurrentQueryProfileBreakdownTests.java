@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
@@ -58,6 +59,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         combinedMetrics.addAll(ProfileMetricTests.getNonTimingMetric());
         testQueryProfileBreakdownCombined = new ConcurrentQueryProfileBreakdown(combinedMetrics);
         createWeightTimer = testQueryProfileBreakdown.getTimer(QueryTimingType.CREATE_WEIGHT);
+        buildSampleSlicesInformation(randomIntBetween(2, 5), testQueryProfileBreakdown);
         try {
             createWeightTimer.start();
             Thread.sleep(10);
@@ -105,6 +107,19 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
             assertEquals(0, (long) queryBreakDownMap.get(MIN_PREFIX + timingTypeCountKey));
             assertEquals(0, (long) queryBreakDownMap.get(ConcurrentQueryProfileBreakdown.AVG_PREFIX + timingTypeCountKey));
         }
+    }
+
+    public void testSliceInformationProfilingInfo() {
+        Map<String, Object> debugMap = testQueryProfileBreakdown.toDebugMap();
+        assertTrue(debugMap.containsKey(ConcurrentQueryProfileBreakdown.SLICES_INFO));
+        SlicesInformation slicesInformation = (SlicesInformation) debugMap.get(ConcurrentQueryProfileBreakdown.SLICES_INFO);
+        assertNotNull(slicesInformation);
+        for (SingleSliceInformation sliceInfo : slicesInformation.getSlices()) {
+            assertNotNull(sliceInfo);
+        }
+
+
+        
     }
 
     public void testBuildSliceLevelBreakdownWithSingleSlice() throws Exception {
@@ -420,6 +435,14 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         assertEquals(10, testQueryProfileBreakdownCombined.getAvgSliceNodeTime());
         directoryReader.close();
         directory.close();
+    }
+
+    private void buildSampleSlicesInformation(int sliceCount, ConcurrentQueryProfileBreakdown queryProfileBreakdown) {
+        for (int i = 0; i < sliceCount; i++) {
+            SingleSliceInformation singleSliceInformation = new SingleSliceInformation();
+            singleSliceInformation.addSegment(new SegmentInformation(i, 0, randomIntBetween(1, 100)));
+            queryProfileBreakdown.addSlice(singleSliceInformation);
+        }
     }
 
     private Map<String, Long> getLeafBreakdownMap(long startTime, long timeTaken, long count) {
