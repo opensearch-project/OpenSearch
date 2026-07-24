@@ -13,9 +13,14 @@ import org.opensearch.analytics.exec.OrdinalAppendingSink;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
@@ -121,9 +126,17 @@ public class DAGBuilder {
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         List<RelNode> newInputs = new ArrayList<>();
-        for (RelNode input : node.getInputs()) {
+        List<RelNode> rawInputs = node.getInputs();
+        for (int inputIndex = 0; inputIndex < rawInputs.size(); inputIndex++) {
+            RelNode input = rawInputs.get(inputIndex);
             if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+            } else if (input instanceof OpenSearchShuffleExchange shuffle) {
+                newInputs.add(
+                    cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex, indexNameExpressionResolver)
+                );
+            } else if (input instanceof OpenSearchBroadcastExchange broadcast) {
+                newInputs.add(cutBroadcast(broadcast, counter, childStages, registry, clusterService, indexNameExpressionResolver));
             } else if (input instanceof OpenSearchLateMaterialization lm) {
                 newInputs.add(cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver));
             } else {
@@ -266,22 +279,39 @@ public class DAGBuilder {
         RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
 
         int childStageId = counter[0]++;
-        // A leaf stage (no grandchildren) runs on shards and needs a ShardTargetResolver.
-        // An intermediate stage (some grandchildren were cut out below) runs at the
-        // coordinator and consumes its grandchildren's outputs via an ExchangeSinkProvider.
-        TargetResolver targetResolver = grandchildren.isEmpty()
+        // Stage execution location is decided by the fragment's contents, not the grandchild
+        // count alone. A fragment with a TableScan runs on shards (ShardTargetResolver) — even
+        // when it also has a grandchild stage feeding it, as in the broadcast-probe case where
+        // the probe's join takes a TableScan plus a child BROADCAST_BUILD stage's output. A
+        // fragment without a TableScan runs at the coordinator and consumes grandchildren via
+        // an ExchangeSinkProvider.
+        boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
+        TargetResolver targetResolver = fragmentHasShardScan
             ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
             : null;
         ExchangeSinkProvider childSinkProvider = null;
-        if (!grandchildren.isEmpty()) {
+        if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, reducer.getViableBackends());
             childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }
         // ExchangeInfo comes from the reducer — the reducer is the exchange and carries
         // the distribution intent set by whichever rule introduced it.
-        parentChildStages.add(
-            new Stage(childStageId, childFragment, grandchildren, reducer.getExchangeInfo(), childSinkProvider, targetResolver)
+        Stage childStage = new Stage(
+            childStageId,
+            childFragment,
+            grandchildren,
+            reducer.getExchangeInfo(),
+            childSinkProvider,
+            targetResolver
         );
+        // Tag broadcast-probe role when the fragment runs on shards AND consumes a build stage's
+        // output via an OpenSearchBroadcastScan placeholder. Other shard fragments stay at the
+        // default SHARD_SOURCE; coord-only fragments stay default too (DefaultPlanExecutor's
+        // dispatch tags COORDINATOR_REDUCE explicitly when needed).
+        if (fragmentHasShardScan && containsAnyInput(childFragment, OpenSearchBroadcastScan.class)) {
+            childStage.setRole(Stage.StageRole.BROADCAST_PROBE);
+        }
+        parentChildStages.add(childStage);
 
         // Source both rowType and FSI from the reducer so they stay aligned 1:1 (its input lacks
         // QTF's ___ugsi entry). No-op for non-QTF reducers.
@@ -302,4 +332,171 @@ public class DAGBuilder {
         );
     }
 
+    /**
+     * Cut at a {@link OpenSearchShuffleExchange}. The subtree below the shuffle becomes a child
+     * stage; the parent fragment's view of the shuffle is preserved with its input replaced by
+     * an {@link OpenSearchStageInputScan} placeholder. Exchange metadata on the child stage
+     * carries the shuffle keys and partition count so the dispatcher can size partition buffers
+     * and ship per-partition output to the right consumer node.
+     *
+     * <p>When the parent is an {@link org.opensearch.analytics.planner.rel.OpenSearchJoin} the
+     * cutter tags the child stage {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
+     * {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} based on whether the shuffle feeds input 0 or 1
+     * — {@code ShuffleEnrichment} consumes that tag to assign the {@code "left"} / {@code "right"}
+     * side label on each producer's instruction. For other parents (Aggregate, intermediate Project)
+     * the role stays at the default {@link Stage.StageRole#SHARD_SOURCE} since there is no
+     * join-side semantics to encode.
+     */
+    private static RelNode cutShuffle(
+        OpenSearchShuffleExchange shuffle,
+        int[] counter,
+        List<Stage> parentChildStages,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        RelNode parent,
+        int parentInputIndex,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        // Recurse into the shuffle's input with full sever() so any nested exchanges below the
+        // shuffle (e.g. a partial-aggregate that itself reduces) are also cut into their own
+        // stages. M2 today only composes shuffle over a shard scan, but the recursion makes the
+        // cutter robust to future plan shapes.
+        List<Stage> grandchildren = new ArrayList<>();
+        RelNode childFragment = sever(shuffle.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+
+        int childStageId = counter[0]++;
+        // Decide the producer's locality by whether its fragment has a shard scan — NOT by child-stage
+        // count alone (the same rule cutBroadcast uses). A shuffle producer that scans a shard table runs on
+        // the shards and ships its hash partition, EVEN when it also has a grandchild stage feeding it — the
+        // broadcast-under-shuffle case: the producer fragment is Join(BroadcastScan, shardScan) whose only
+        // grandchild is the BROADCAST_BUILD side-input (injected as an instruction, not a streamed child).
+        // Without this, such a producer fell into the `grandchildren non-empty → reduce` branch and, once the
+        // build child is stripped at dispatch (its output is injected), became a childless COORDINATOR_REDUCE
+        // ("expected at least one child"). A fragment with no shard scan genuinely runs at the coordinator
+        // and consumes its grandchildren via an ExchangeSinkProvider.
+        boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
+        TargetResolver targetResolver = fragmentHasShardScan
+            ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
+            : null;
+        ExchangeSinkProvider childSinkProvider = null;
+        if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, shuffle.getViableBackends());
+            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
+        Stage childStage = new Stage(
+            childStageId,
+            childFragment,
+            grandchildren,
+            ExchangeInfo.hashDistributed(shuffle.getHashKeys(), shuffle.getPartitionCount()),
+            childSinkProvider,
+            targetResolver
+        );
+        // Tag join-side role when the shuffle feeds an OpenSearchJoin's left or right input.
+        // ShuffleEnrichment reads this to assemble the {@code side="left"|"right"} label on
+        // each producer's ShuffleProducerInstructionNode and to compose the worker fragment's
+        // two NamedScans (one per side).
+        if (parent instanceof OpenSearchJoin) {
+            if (parentInputIndex == 0) {
+                childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_LEFT);
+            } else if (parentInputIndex == 1) {
+                childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_RIGHT);
+            }
+        } else if (parent instanceof OpenSearchAggregate) {
+            // M3 hash-shuffle aggregate: single producer feeding a FINAL aggregate worker.
+            // No left/right semantics — just one input stream per partition. The agg dispatcher
+            // reads this role to lift the FINAL into a worker stage and attach a single
+            // ShuffleScan instruction (vs the join's two).
+            childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_AGG);
+        }
+        parentChildStages.add(childStage);
+
+        OpenSearchRelNode shuffleInput = (OpenSearchRelNode) shuffle.getInput();
+        OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
+            shuffle.getCluster(),
+            shuffle.getTraitSet(),
+            childStageId,
+            shuffle.getInput().getRowType(),
+            shuffle.getViableBackends(),
+            shuffleInput.getOutputFieldStorage()
+        );
+        return new OpenSearchShuffleExchange(
+            shuffle.getCluster(),
+            shuffle.getTraitSet(),
+            stageInput,
+            shuffle.getHashKeys(),
+            shuffle.getPartitionCount(),
+            shuffle.getViableBackends()
+        );
+    }
+
+    /**
+     * True iff any node in {@code root}'s tree (including all inputs of multi-input nodes
+     * like {@link org.opensearch.analytics.planner.rel.OpenSearchJoin}) is an instance of
+     * {@code type}. {@link RelNodeUtils#findNode} only walks the first input, which misses
+     * the right side of a join — for example a broadcast-probe fragment is
+     * {@code Join(BroadcastScan, TableScan)}, where the TableScan sits on input 1.
+     */
+    private static boolean containsAnyInput(RelNode root, Class<? extends RelNode> type) {
+        if (type.isInstance(root)) return true;
+        for (RelNode input : root.getInputs()) {
+            if (containsAnyInput(input, type)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Cut at an {@link OpenSearchBroadcastExchange}. The subtree below the exchange becomes a
+     * standalone build stage tagged {@link Stage.StageRole#BROADCAST_BUILD}. The parent fragment's
+     * view of the broadcast is replaced by an {@link OpenSearchBroadcastScan} placeholder that
+     * matches by build-stage id — the same id used in the {@link
+     * org.opensearch.analytics.spi.BroadcastInjectionInstructionNode} attached at dispatch time
+     * and in the data-node-side memtable registration name.
+     *
+     * <p>Build stages run on shards (the input is a TableScan in M1); a future M2+ shape could
+     * produce a coordinator-side build (e.g. broadcast over an aggregate result), at which point
+     * the empty-grandchildren branch would need to gain a sink provider just like the other
+     * cutters. For now the build always reduces to a leaf shard fragment.
+     */
+    private static RelNode cutBroadcast(
+        OpenSearchBroadcastExchange broadcast,
+        int[] counter,
+        List<Stage> parentChildStages,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        List<Stage> grandchildren = new ArrayList<>();
+        RelNode childFragment = sever(broadcast.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+
+        int childStageId = counter[0]++;
+        TargetResolver targetResolver = grandchildren.isEmpty()
+            ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
+            : null;
+        ExchangeSinkProvider childSinkProvider = null;
+        if (!grandchildren.isEmpty()) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, broadcast.getViableBackends());
+            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
+        Stage buildStage = new Stage(
+            childStageId,
+            childFragment,
+            grandchildren,
+            ExchangeInfo.singleton(),
+            childSinkProvider,
+            targetResolver
+        );
+        buildStage.setRole(Stage.StageRole.BROADCAST_BUILD);
+        parentChildStages.add(buildStage);
+
+        // Replace the broadcast exchange in the parent fragment with a BroadcastScan placeholder
+        // keyed by build-stage id. The probe-side handler chain looks up the registered memtable
+        // by namedInputId="broadcast-<buildStageId>" at execution time.
+        return new OpenSearchBroadcastScan(
+            broadcast.getCluster(),
+            broadcast.getTraitSet(),
+            childStageId,
+            broadcast.getInput().getRowType(),
+            broadcast.getViableBackends()
+        );
+    }
 }

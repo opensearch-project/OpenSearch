@@ -153,7 +153,9 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx -> new FieldStorageResolver(fieldStorage);
 
-        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
+        // Default test settings: MPP off (see buildContextPerIndex for rationale).
+        Settings testSettings = Settings.builder().put("analytics.mpp.enabled", false).build();
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState, testSettings);
     }
 
     protected PlannerContext buildContext(String primaryFormat, int shardCount, Map<String, Map<String, Object>> fieldMappings) {
@@ -214,7 +216,12 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         }
 
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
-        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
+        // Default test settings: MPP off. Most planner-rule tests pin the COORDINATOR_CENTRIC
+        // plan shape — that's the M0 contract they were written for, and it's what
+        // OpenSearchJoinSplitRule produces. Tests that exercise MPP (broadcast / hash) build
+        // their own context with mpp.enabled=true.
+        Settings testSettings = Settings.builder().put("analytics.mpp.enabled", false).build();
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState, testSettings);
     }
 
     // ---- Table builders ----

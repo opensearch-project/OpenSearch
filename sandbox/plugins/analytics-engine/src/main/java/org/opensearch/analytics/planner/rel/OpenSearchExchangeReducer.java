@@ -155,13 +155,41 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
      * {@code Union(COORDINATOR) ← 2 ERs below} (two ERs moving 10 rows each, same total
      * transport but double the setup).
      */
-    private static final double SETUP_COST = 10.0;
+    // Per-ER setup cost (TCP, gRPC handshake, schema negotiation, allocator init). Tuned to
+    // 25 so the coord-centric plan's 2×ER setup outweighs the broadcast plan's 1×ER setup
+    // plus build replication, which lets the cost model pick BROADCAST for the canonical
+    // small-dim × large-fact LEFT/RIGHT outer cases that BroadcastJoinIT exercises. Lower
+    // values made the LEFT outer path tie too closely with coord-centric on the per-ER row
+    // arithmetic and Volcano picked the wrong shape; higher values would over-penalize
+    // coord-centric on small queries where it's actually optimal.
+    private static final double SETUP_COST = 25.0;
+
+    /** Per-gathered-column weight, added (not row-multiplied) to the gather cost. Purely a
+     *  TIE-BREAKER for equal-row decisions — chiefly project placement below the ER
+     *  ({@link org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule}),
+     *  where narrow-vs-wide projects carry identical row counts so only column count differs. Kept
+     *  well below 1 row so it can NEVER flip a row-dominated decision (e.g. broadcast-vs-coord-centric,
+     *  which differ by tens of rows) — that race must be decided on rows. */
+    private static final double WIDTH_COST = 0.1;
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         double rows = mq.getRowCount(getInput());
-        double widthFactor = getRowType().getFieldCount();
-        return planner.getCostFactory().makeCost(SETUP_COST + rows * widthFactor, SETUP_COST + rows * widthFactor, 0);
+        // Width term is ADDITIVE (per-column overhead), NOT rows × width. Two competing decisions key
+        // off this ER cost and pull in opposite directions:
+        // 1. Project placement (OpenSearchAggLiteralArgProjectSplitRule): the narrow vs wide project
+        // below the ER carry the SAME row count (a Project is 1:1), so only a width term lets CBO
+        // prefer gathering fewer columns — pushing the narrow project below the ER.
+        // 2. Broadcast vs coordinator-centric (BroadcastJoinIT): coord-centric pays 2× ER, broadcast
+        // pays 1× ER + a width-agnostic broadcast exchange. A rows × width ER term (what an
+        // upstream merge introduced) inflated the 2×ER plan and made CBO stop picking BROADCAST
+        // for modest size asymmetries (dim=5 × fact=30) — the regression.
+        // ADDITIVE width satisfies both: it breaks the equal-row project-placement tie, but stays a
+        // small constant when row counts differ, so it can't flip the row-dominated join-strategy
+        // race. WIDTH_COST weights each gathered column. Keep broadcast/shuffle width-agnostic — the
+        // join-strategy race must be decided on rows, not width.
+        double widthCost = WIDTH_COST * getRowType().getFieldCount();
+        return planner.getCostFactory().makeCost(SETUP_COST + rows + widthCost, SETUP_COST + rows + widthCost, 0);
     }
 
     @Override

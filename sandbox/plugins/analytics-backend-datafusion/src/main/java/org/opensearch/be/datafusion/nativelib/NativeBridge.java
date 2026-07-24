@@ -120,7 +120,12 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_LOCAL_PLAN;
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
+    private static final MethodHandle SENDER_FAIL;
     private static final MethodHandle REGISTER_MEMTABLE;
+    private static final MethodHandle REGISTER_MEMTABLE_ON_SESSION_CONTEXT;
+    private static final MethodHandle REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT;
+    private static final MethodHandle REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT_FROM_PARTIAL_PLAN;
+    private static final MethodHandle PARTITION_BATCH_BY_HASH;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
@@ -135,6 +140,7 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_UPDATE_SIZE_LIMIT;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
+    private static final MethodHandle CREATE_WORKER_SESSION_CONTEXT;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle SET_COLUMN_INDEX_CACHE_LIMIT;
@@ -364,6 +370,12 @@ public final class NativeBridge {
         // void df_sender_close(sender_ptr)
         SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        // i64 df_sender_fail(sender_ptr, reason_ptr, reason_len)
+        SENDER_FAIL = linker.downcallHandle(
+            lib.find("df_sender_fail").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len,
         // partial_plan_ptr, partial_plan_len,
         // array_ptrs, schema_ptrs, n_batches,
@@ -380,6 +392,70 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+
+        // Same signature as df_register_memtable but for SessionContextHandle (shard-scan path).
+        REGISTER_MEMTABLE_ON_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_register_memtable_on_session_context").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // i64 df_register_partition_stream_on_session_context(session_ctx_handle_ptr,
+        // input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len)
+        // Returns the PartitionStreamSender pointer (cast to i64) for the M2 hash-shuffle worker.
+        REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_register_partition_stream_on_session_context").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT_FROM_PARTIAL_PLAN = linker.downcallHandle(
+            lib.find("df_register_partition_stream_on_session_context_from_partial_plan").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // i64 df_partition_batch_by_hash(input_array_ptr, input_schema_ptr,
+        // hash_key_indices_ptr, hash_key_indices_len, partition_count,
+        // out_ptr, out_cap, out_len)
+        // Hash-partitions one Arrow C Data batch into N output batches via DataFusion's
+        // BatchPartitioner (matches RepartitionExec / HashJoinExec). Output buffer holds
+        // 16N bytes: N (array_ptr, schema_ptr) pairs as parallel little-endian i64s.
+        PARTITION_BATCH_BY_HASH = linker.downcallHandle(
+            lib.find("df_partition_batch_by_hash").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS
@@ -456,6 +532,12 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,     // planBytes (multi-index schema widening)
                 ValueLayout.JAVA_LONG    // planLen
             )
+        );
+
+        // i64 df_create_worker_session_context(runtime_ptr, context_id, query_config_ptr)
+        CREATE_WORKER_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_create_worker_session_context").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
@@ -1346,6 +1428,20 @@ public final class NativeBridge {
     }
 
     /**
+     * Fails the sender: pushes an error carrying {@code reason} into the partition stream so the
+     * consumer's {@code RecordBatchStream} yields an ERROR (failing the join/agg) instead of a clean
+     * EOF, then drops the sender (same teardown as {@link #senderClose}). Used when the Java drain
+     * thread hits a mid-stream failure (e.g. a spill-read error) that truncates the partition —
+     * turning a silently-incomplete result into a loud query failure. Tolerates a zero pointer.
+     */
+    public static void senderFail(long senderPtr, String reason) {
+        try (var call = new NativeCall()) {
+            var msg = call.str(reason == null ? "unknown" : reason);
+            call.invoke(SENDER_FAIL, senderPtr, msg.segment(), msg.len());
+        }
+    }
+
+    /**
      * Memtable variant of {@link #registerPartitionStream}: hands across a list of
      * already-exported Arrow C Data batches in two parallel pointer arrays so the native side
      * can build a {@code MemTable} in one shot. Schema is derived by lowering the producer-side
@@ -1386,6 +1482,161 @@ public final class NativeBridge {
                 out.lenOut()
             );
             return new RegisteredInput(ptr, out.toByteArray());
+        }
+    }
+
+    /**
+     * Variant of {@link #registerMemtable} for the shard-scan path. Takes the
+     * {@link SessionContextHandle} pointer instead of a {@code LocalSession} pointer, so the M1
+     * broadcast injection on the probe side can register its memtable on the same session that
+     * already has the listing-table-backed shard scan registered. Returns 0 on success; a
+     * non-zero return is interpreted by {@link NativeCall} as a Rust-side error (the message is
+     * thrown as a runtime exception by the caller).
+     */
+    public static long registerMemtableOnSessionContext(
+        long sessionContextHandlePtr,
+        String inputId,
+        byte[] schemaIpc,
+        long[] arrayPtrs,
+        long[] schemaPtrs
+    ) {
+        NativeHandle.validatePointer(sessionContextHandlePtr, "sessionContextHandle");
+        if (arrayPtrs.length != schemaPtrs.length) {
+            throw new IllegalArgumentException(
+                "arrayPtrs.length (" + arrayPtrs.length + ") != schemaPtrs.length (" + schemaPtrs.length + ")"
+            );
+        }
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_MEMTABLE_ON_SESSION_CONTEXT,
+                sessionContextHandlePtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length,
+                call.longs(arrayPtrs),
+                call.longs(schemaPtrs),
+                (long) arrayPtrs.length
+            );
+        }
+    }
+
+    /**
+     * Streaming sibling of {@link #registerMemtableOnSessionContext}. Registers a partitioned
+     * streaming input on a {@code SessionContextHandle} session under {@code inputId} and
+     * returns the producer-side {@code PartitionStreamSender} pointer the caller drives via
+     * {@link #senderSend} / {@link #senderClose}. Used by M2's hash-shuffle worker to register
+     * the per-side partition input alongside the shard-scan listing table on the same session.
+     *
+     * <p>The schema is taken as IPC bytes (the same shape as
+     * {@link #registerMemtableOnSessionContext}) — the producer side ships record batches whose
+     * schema must match this declaration exactly.
+     *
+     * @return the sender pointer (non-zero); caller must free via {@link #senderClose} when
+     *     done. A Rust-side error throws via {@link NativeCall}.
+     */
+    public static long registerPartitionStreamOnSessionContext(long sessionContextHandlePtr, String inputId, byte[] schemaIpc) {
+        NativeHandle.validatePointer(sessionContextHandlePtr, "sessionContextHandle");
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT,
+                sessionContextHandlePtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length
+            );
+        }
+    }
+
+    /**
+     * M3 hash-shuffle AGGREGATE worker variant of {@link #registerPartitionStreamOnSessionContext}.
+     * Registers the same kind of partitioned streaming input on a {@code SessionContextHandle}, but
+     * derives the table schema from the producer's PARTIAL Substrait plan (the same derivation the
+     * coordinator-reduce {@link #registerPartitionStream} uses) instead of the raw producer IPC
+     * header.
+     *
+     * <p>This registers the streaming table under the worker FINAL fragment's logical column names
+     * (e.g. {@code sum_qty}) rather than the producer's physical aggregate-state names (e.g.
+     * {@code sum_qty[sum]}). DataFusion's Substrait consumer binds the FINAL {@code base_schema} to
+     * the provider by name, so the logical-named registration is what makes the FINAL resolve
+     * (otherwise {@code No field named sum_qty}). The producer still ships physically-named batches;
+     * the streaming channel accepts them positionally.
+     *
+     * @return the sender pointer (non-zero); caller must free via {@link #senderClose} when done.
+     */
+    public static long registerPartitionStreamOnSessionContextFromPartialPlan(
+        long sessionContextHandlePtr,
+        String inputId,
+        byte[] partialPlanBytes
+    ) {
+        NativeHandle.validatePointer(sessionContextHandlePtr, "sessionContextHandle");
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT_FROM_PARTIAL_PLAN,
+                sessionContextHandlePtr,
+                id.segment(),
+                id.len(),
+                call.bytes(partialPlanBytes),
+                (long) partialPlanBytes.length
+            );
+        }
+    }
+
+    /**
+     * Hash-partitions one Arrow C Data input batch into {@code partitionCount} output batches
+     * using DataFusion's {@code BatchPartitioner}. The row-to-partition mapping matches
+     * {@code RepartitionExec} / {@code HashJoinExec} so producers and probe-side consumers
+     * agree on assignments.
+     *
+     * <p>Input ownership: the caller's input FFI structs are read but not consumed; the caller
+     * still owns and must close them via Arrow C Data Interface after this call returns.
+     *
+     * <p>Output ownership: each returned pair is a heap-allocated FFI struct on the Rust side;
+     * ownership transfers to the caller. The caller imports each pair via
+     * {@code Data.importVectorSchemaRoot} and closes the wrappers when done.
+     *
+     * @return a flat array of {@code 2 * partitionCount} longs: {@code [array_ptr_0,
+     *     schema_ptr_0, array_ptr_1, schema_ptr_1, ...]}.
+     */
+    public static long[] partitionBatchByHash(long inputArrayPtr, long inputSchemaPtr, int[] hashKeyIndices, int partitionCount) {
+        if (inputArrayPtr == 0 || inputSchemaPtr == 0) {
+            throw new IllegalArgumentException("input array and schema pointers must be non-zero");
+        }
+        if (partitionCount <= 0) {
+            throw new IllegalArgumentException("partitionCount must be > 0, got " + partitionCount);
+        }
+        try (var call = new NativeCall()) {
+            var keys = call.ints(hashKeyIndices);
+            var out = call.outBuffer(16 * partitionCount);
+            long status = call.invoke(
+                PARTITION_BATCH_BY_HASH,
+                inputArrayPtr,
+                inputSchemaPtr,
+                keys,
+                (long) hashKeyIndices.length,
+                partitionCount,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
+            );
+            assert status == 0 : "df_partition_batch_by_hash returned non-zero on success: " + status;
+            byte[] outBytes = out.toByteArray();
+            int pairBytes = 16;
+            if (outBytes.length != partitionCount * pairBytes) {
+                throw new IllegalStateException(
+                    "df_partition_batch_by_hash returned " + outBytes.length + " bytes, expected " + partitionCount * pairBytes
+                );
+            }
+            long[] result = new long[partitionCount * 2];
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(outBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            for (int i = 0; i < result.length; i++) {
+                result[i] = bb.getLong();
+            }
+            return result;
         }
     }
 
@@ -1437,6 +1688,21 @@ public final class NativeBridge {
                 planSegment,
                 planLen
             );
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Creates a worker-mode SessionContext: no shard view, no listing table, no parquet
+     * metadata. Used for hash-shuffle worker fragments whose plans read only from named-input
+     * streams subsequently registered via {@link #registerPartitionStreamOnSessionContext}.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     */
+    public static SessionContextHandle createWorkerSessionContext(long runtimePtr, long contextId, long queryConfigPtr) {
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (var call = new NativeCall()) {
+            long ptr = call.invoke(CREATE_WORKER_SESSION_CONTEXT, runtimePtr, contextId, queryConfigPtr);
             return new SessionContextHandle(ptr);
         }
     }

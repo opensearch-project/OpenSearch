@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(c=[$4], ClientIP=[$0], ClientIP - 1=[$1], ClientIP - 2=[$2], ClientIP - 3=[$3], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1, 2, 3}], c=[SUM($4)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$4], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
                   OpenSearchAggregate(group=[{0, 1, 2, 3}], c=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(ClientIP=[$6], ClientIP - 1=[ANNOTATED_PROJECT_EXPR(id=1, backends=[datafusion], -(ANNOTATED_PROJECT_EXPR(id=0, backends=[datafusion], CAST($6):BIGINT), 1))], ClientIP - 2=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], -(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($6):BIGINT), 2))], ClientIP - 3=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], -(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($6):BIGINT), 3))], viableBackends=[[datafusion]])
@@ -26,7 +26,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(c=[$4], ClientIP=[$0], ClientIP - 1=[$1], ClientIP - 2=[$2], ClientIP - 3=[$3], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1, 2, 3}], c=[SUM($4)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[ClientIP@0 as ClientIP, <scrubbed>.ClientIP - Int64(1)@1 as ClientIP - 1, <scrubbed>.ClientIP - Int64(2)@2 as ClientIP - 2, <scrubbed>.ClientIP - Int64(3)@3 as ClientIP - 3, count(Int64(1))[count]@4 as c]

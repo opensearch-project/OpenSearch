@@ -54,7 +54,10 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         long contextId = datafusionContext.getContextId();
         AnalyticsShardTask shardTask = datafusionContext.task() instanceof AnalyticsShardTask t ? t : null;
         if (shardTask != null) {
-            shardTask.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
+            // Additive: a worker fragment also registers a shuffle-buffer-cleanup cancel hook on this
+            // same task. setCancellationListener is single-slot and would let one overwrite the other;
+            // addCancellationListener composes so both native-cancel and buffer cleanup fire.
+            shardTask.addCancellationListener(() -> NativeBridge.cancelQuery(contextId));
         }
 
         DatafusionSearcher searcher = datafusionContext.getSearcher();

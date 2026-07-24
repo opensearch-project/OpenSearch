@@ -23,12 +23,15 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotationResolver;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -175,9 +178,20 @@ public class FragmentConversionDriver {
      * have multiple {@code StageInputScan} leaves and this needs a multi-leaf walker.
      */
     private static void populatePostDecorationSchemas(Stage stage, CapabilityRegistry registry) {
+        // A multi-input parent fragment (e.g. a Join or Union) has one OpenSearchStageInputScan
+        // leaf per child stage. findNode walks only the first-input chain, so match each child
+        // against ALL input-scan leaves; otherwise every child but the one on the first chain is
+        // silently skipped, leaving its partition schema underived at the reduce sink.
+        List<OpenSearchStageInputScan> inputScans = RelNodeUtils.findNodes(stage.getFragment(), OpenSearchStageInputScan.class);
         for (Stage child : stage.getChildStages()) {
-            OpenSearchStageInputScan inputScan = RelNodeUtils.findNode(stage.getFragment(), OpenSearchStageInputScan.class);
-            if (inputScan == null || inputScan.getChildStageId() != child.getStageId()) continue;
+            OpenSearchStageInputScan inputScan = null;
+            for (OpenSearchStageInputScan candidate : inputScans) {
+                if (candidate.getChildStageId() == child.getStageId()) {
+                    inputScan = candidate;
+                    break;
+                }
+            }
+            if (inputScan == null) continue;
             RelDataType produced = child.getFragment().getRowType();
             RelDataType expected = inputScan.getRowType();
             boolean schemaMismatch = produced.getFieldCount() != expected.getFieldCount() || produced.equals(expected) == false;
@@ -233,14 +247,20 @@ public class FragmentConversionDriver {
         RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan tableScan) {
+            // The leaf's qualified name is the planner's logical table name (alias / index pattern /
+            // index) — the same single segment isthmus emits as the Substrait NamedTable. Pass it to
+            // the data node so it registers the scanned shard's table under this name, instead of the
+            // backend reverse-engineering it from the plan bytes.
+            String logicalTableName = tableScan.getTable().getQualifiedName().getLast();
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
             // backend so it picks the row-id-aware table provider regardless of delegation.
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, logicalTableName)
+                    .ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanNode(requestsRowIds, logicalTableName).ifPresent(instructions::add);
             }
             if (containsPartialAggregate(resolvedFragment)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
@@ -452,7 +472,7 @@ public class FragmentConversionDriver {
             return convertReduceFragment(resolvedFragment, convertor, delegationBytes);
         }
 
-        if (leaf instanceof org.opensearch.analytics.planner.rel.OpenSearchValues) {
+        if (leaf instanceof OpenSearchValues) {
             // Coord-only literal source — convert the whole fragment via the same isthmus
             // path as reduce fragments. isthmus emits ReadRel.VirtualTable for the Values
             // leaf; DataFusion executes it locally without any input partitions.
@@ -493,6 +513,20 @@ public class FragmentConversionDriver {
         if (node instanceof OpenSearchExchangeReducer) {
             // Strip ExchangeReducer — StageInputScan below it is the schema source.
             return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
+        }
+        if (node instanceof OpenSearchShuffleExchange) {
+            // Strip ShuffleExchange — same shape as ExchangeReducer at this layer. The
+            // partitioning is enforced at runtime by the producer-side sink; the consumer
+            // fragment converts as if the input arrived as plain StageInputScan named-input.
+            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
+        }
+        if (node instanceof OpenSearchStageInputScan) {
+            // Direct StageInputScan boundary — happens after the hash-shuffle rewriter inserts
+            // a worker stage and the consumer fragment becomes Sort/Project/StageInputScan
+            // (no intermediate ExchangeReducer wrapper). Treat the leaf itself as the boundary;
+            // the convertor's StageInputScan→NamedScan rewrite handles binding. Single-input
+            // ancestors above this boundary attach via attachFragmentOnTop on the way back up.
+            return convertor.convertFragment(node);
         }
         if (node instanceof OpenSearchRelNode openSearchNode) {
             List<RelNode> strippedInputs = node.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
@@ -550,12 +584,22 @@ public class FragmentConversionDriver {
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
     }
 
-    /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan as-is. */
+    /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan and
+     * OpenSearchBroadcastScan as-is (backend-side rewriter maps them to NamedScans). */
     private static RelNode strip(RelNode node, IntraOperatorDelegationBytes delegationBytes) {
         if (node instanceof OpenSearchStageInputScan) {
             return node; // kept for schema inference at reduce stage
         }
+        if (node instanceof OpenSearchBroadcastScan) {
+            return node; // kept for schema inference at probe stage; backend rewriter maps to NamedScan
+        }
         if (node instanceof OpenSearchExchangeReducer) {
+            return strip(node.getInputs().getFirst(), delegationBytes);
+        }
+        if (node instanceof OpenSearchShuffleExchange) {
+            // Strip the hash-shuffle wrapper. Partitioning happens at runtime inside the
+            // backend's createPartitionedSink (driven by ShuffleProducerOutputState), not in
+            // Substrait — the convertor never needs to lower the shuffle node itself.
             return strip(node.getInputs().getFirst(), delegationBytes);
         }
         List<RelNode> strippedChildren = new ArrayList<>(node.getInputs().size());
@@ -582,9 +626,31 @@ public class FragmentConversionDriver {
         return childrenChanged ? node.copy(node.getTraitSet(), strippedChildren) : node;
     }
 
+    /**
+     * Walks down the fragment to find the leaf that drives stage classification — the
+     * {@link OpenSearchTableScan} or {@link OpenSearchStageInputScan} that determines whether
+     * this fragment is a shard-scan stage or a coordinator-reduce stage.
+     *
+     * <p>For binary-input nodes, prefers the input subtree that contains a real driving leaf
+     * over one whose first leaf is an {@link OpenSearchBroadcastScan} placeholder. The broadcast
+     * scan is a runtime-injected memtable input — it never drives stage targeting or
+     * instruction assembly, so a probe-side join with shape
+     * {@code Join(OpenSearchBroadcastScan, OpenSearchTableScan)} (build = left) must still
+     * route through the shard-scan path on the right.
+     */
     private static RelNode findLeaf(RelNode node) {
         if (node.getInputs().isEmpty()) {
             return node;
+        }
+        // For binary inputs (Join), prefer the side whose subtree's leaf is NOT an
+        // OpenSearchBroadcastScan placeholder. With one driving leaf and one broadcast-scan
+        // leaf the broadcast side is the runtime-injected one and must not classify the stage.
+        if (node.getInputs().size() == 2) {
+            RelNode leftLeaf = findLeaf(node.getInputs().get(0));
+            if (!(leftLeaf instanceof OpenSearchBroadcastScan)) {
+                return leftLeaf;
+            }
+            return findLeaf(node.getInputs().get(1));
         }
         return findLeaf(node.getInputs().getFirst());
     }

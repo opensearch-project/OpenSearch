@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.common.Nullable;
@@ -40,6 +41,36 @@ import java.util.List;
  */
 public class Stage {
 
+    /**
+     * Semantic role of this stage within a potentially multi-stage join execution. Orthogonal to
+     * {@link StageExecutionType} (which describes *how* the stage runs); {@code StageRole}
+     * describes *why* the stage exists so the coordinator can route MPP-specific dispatch paths.
+     *
+     * <p>Defaults to {@link #SHARD_SOURCE} for every stage constructed by {@code DAGBuilder};
+     * MPP rewrites in {@code DefaultPlanExecutor} / {@code QueryScheduler} may re-tag stages as
+     * {@link #BROADCAST_BUILD} / {@link #BROADCAST_PROBE} / {@link #SHUFFLE_SCAN_LEFT} /
+     * {@link #SHUFFLE_SCAN_RIGHT} / {@link #SHUFFLE_WORKER} before dispatch.
+     */
+    public enum StageRole {
+        /** Data-node scan stage — default for anything built by the DAG cutter. */
+        SHARD_SOURCE,
+        /** Coordinator-side reduce/gather stage. */
+        COORDINATOR_REDUCE,
+        /** Broadcast-join build side — results are collected and re-dispatched as broadcast payload. */
+        BROADCAST_BUILD,
+        /** Broadcast-join probe side — each task carries the join plan plus broadcast data. */
+        BROADCAST_PROBE,
+        /** Hash-shuffle left scan — partitions and ships to workers (M2). */
+        SHUFFLE_SCAN_LEFT,
+        /** Hash-shuffle right scan — partitions and ships to workers (M2). */
+        SHUFFLE_SCAN_RIGHT,
+        /** Hash-shuffle aggregate scan — single producer feeding an aggregate worker (M3). */
+        SHUFFLE_SCAN_AGG,
+        /** Hash-shuffle worker stage — one task per shuffle partition. Consumes two input streams
+         *  for a join (M2) or one for an aggregate FINAL (M3). */
+        SHUFFLE_WORKER
+    }
+
     private final int stageId;
     private final RelNode fragment;
     private final List<Stage> childStages;
@@ -49,6 +80,7 @@ public class Stage {
     private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
+    private StageRole role = StageRole.SHARD_SOURCE;
     /**
      * Optional decorator wrapping this stage's incoming child sink. Set at DAG-build
      * time (today only by {@code DAGBuilder.cutAtLateMaterialization}); applied at
@@ -138,6 +170,16 @@ public class Stage {
         this.instructionHandlerFactory = instructionHandlerFactory;
     }
 
+    /** Returns the semantic role tag. Defaults to {@link StageRole#SHARD_SOURCE}. */
+    public StageRole getRole() {
+        return role;
+    }
+
+    /** Re-tag this stage's role — called by MPP rewrites before dispatch. */
+    public void setRole(StageRole role) {
+        this.role = role;
+    }
+
     @Nullable
     public InputSinkDecorator getInputSinkDecorator() {
         return inputSinkDecorator;
@@ -154,11 +196,14 @@ public class Stage {
     ) {
         // QTF Scatter-Gather marker — orchestrates fetch-by-rowid + stitch internally,
         // no targetResolver / no sinkProvider. Checked first so other categories don't
-        // accidentally claim the wrapper-stage.
-        if (RelNodeUtils.findNode(fragment, OpenSearchLateMaterialization.class) != null) {
+        // accidentally claim the wrapper-stage. Null-fragment tolerant — some stub Stages
+        // in unit tests construct without a fragment.
+        if (fragment != null && RelNodeUtils.findNode(fragment, OpenSearchLateMaterialization.class) != null) {
             return StageExecutionType.LATE_MATERIALIZATION;
         }
-        if (targetResolver != null) {
+        if (targetResolver instanceof WorkerTargetResolver) {
+            return StageExecutionType.WORKER_FRAGMENT;
+        } else if (targetResolver != null) {
             return StageExecutionType.SHARD_FRAGMENT;
         } else if (hasComputeLeaf(fragment)) {
             // Coord-only compute leaf (e.g. OpenSearchValues) — run the plan locally
@@ -176,12 +221,14 @@ public class Stage {
     /**
      * True iff {@code fragment} contains a coord-only compute leaf —
      * an {@link org.opensearch.analytics.planner.rel.OpenSearchValues} today;
-     * future literal-source rels would extend this list.
+     * future literal-source rels would extend this list. A null fragment
+     * (some Stage tests construct stub stages without a fragment) cannot
+     * contain a compute leaf — return false rather than NPE.
      */
     private static boolean hasComputeLeaf(RelNode fragment) {
-        return org.opensearch.analytics.planner.RelNodeUtils.findNode(
-            fragment,
-            org.opensearch.analytics.planner.rel.OpenSearchValues.class
-        ) != null;
+        if (fragment == null) {
+            return false;
+        }
+        return RelNodeUtils.findNode(fragment, OpenSearchValues.class) != null;
     }
 }

@@ -11,7 +11,7 @@ plans:
           OpenSearchProject(c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[$4], WatchID=[$0], ClientIP=[$1], viableBackends=[[datafusion]])
             OpenSearchProject(WatchID=[$0], ClientIP=[$1], c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($4):DOUBLE), $5))], viableBackends=[[datafusion]])
               OpenSearchAggregate(group=[{0, 1}], c=[SUM($2)], sum(IsRefresh)=[SUM($3)], $f4=[SUM($4)], $f5=[SUM($5)], mode=[FINAL], viableBackends=[[datafusion]])
-                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                   OpenSearchSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
                     OpenSearchAggregate(group=[{0, 1}], c=[COUNT()], sum(IsRefresh)=[SUM($2)], agg#2=[SUM($3)], agg#3=[COUNT($3)], mode=[PARTIAL], viableBackends=[[datafusion]])
                       OpenSearchProject(WatchID=[$98], ClientIP=[$6], IsRefresh=[$40], ResolutionWidth=[$69], viableBackends=[[lucene, datafusion]])
@@ -28,7 +28,7 @@ plans:
           OpenSearchProject(c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[$4], WatchID=[$0], ClientIP=[$1], viableBackends=[[datafusion]])
             OpenSearchProject(WatchID=[$0], ClientIP=[$1], c=[$2], sum(IsRefresh)=[$3], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($4):DOUBLE), $5))], viableBackends=[[datafusion]])
               OpenSearchAggregate(group=[{0, 1}], c=[SUM($2)], sum(IsRefresh)=[SUM($3)], $f4=[SUM($4)], $f5=[SUM($5)], mode=[FINAL], viableBackends=[[datafusion]])
-                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                   OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[WatchID@0 as WatchID, ClientIP@1 as ClientIP, count(Int64(1))[count]@2 as c, sum(<scrubbed>.IsRefresh)[sum]@3 as sum(IsRefresh), sum(<scrubbed>.ResolutionWidth)[sum]@4 as $f4, count(<scrubbed>.ResolutionWidth)[count]@5 as $f5]

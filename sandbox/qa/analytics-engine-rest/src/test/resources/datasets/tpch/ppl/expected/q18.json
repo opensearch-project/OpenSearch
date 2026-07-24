@@ -1,0 +1,31 @@
+{
+  "schema" : [
+    {
+      "name" : "c_name",
+      "type" : "string"
+    },
+    {
+      "name" : "c_custkey",
+      "type" : "bigint"
+    },
+    {
+      "name" : "o_orderkey",
+      "type" : "bigint"
+    },
+    {
+      "name" : "o_orderdate",
+      "type" : "timestamp"
+    },
+    {
+      "name" : "o_totalprice",
+      "type" : "double"
+    },
+    {
+      "name" : "sum(l_quantity)",
+      "type" : "double"
+    }
+  ],
+  "total" : 0,
+  "datarows" : [ ],
+  "size" : 0
+}

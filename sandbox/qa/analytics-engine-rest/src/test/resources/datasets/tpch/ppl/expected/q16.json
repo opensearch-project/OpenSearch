@@ -1,0 +1,228 @@
+{
+  "schema" : [
+    {
+      "name" : "p_brand",
+      "type" : "string"
+    },
+    {
+      "name" : "p_type",
+      "type" : "string"
+    },
+    {
+      "name" : "p_size",
+      "type" : "int"
+    },
+    {
+      "name" : "supplier_cnt",
+      "type" : "bigint"
+    }
+  ],
+  "total" : 34,
+  "datarows" : [
+    [
+      "Brand#11",
+      "PROMO ANODIZED TIN",
+      45,
+      4
+    ],
+    [
+      "Brand#11",
+      "SMALL PLATED COPPER",
+      45,
+      4
+    ],
+    [
+      "Brand#11",
+      "STANDARD POLISHED TIN",
+      45,
+      4
+    ],
+    [
+      "Brand#13",
+      "MEDIUM ANODIZED STEEL",
+      36,
+      4
+    ],
+    [
+      "Brand#14",
+      "SMALL ANODIZED NICKEL",
+      45,
+      4
+    ],
+    [
+      "Brand#15",
+      "LARGE ANODIZED BRASS",
+      45,
+      4
+    ],
+    [
+      "Brand#21",
+      "LARGE BURNISHED COPPER",
+      19,
+      4
+    ],
+    [
+      "Brand#23",
+      "ECONOMY BRUSHED COPPER",
+      9,
+      4
+    ],
+    [
+      "Brand#25",
+      "MEDIUM PLATED BRASS",
+      45,
+      4
+    ],
+    [
+      "Brand#31",
+      "ECONOMY PLATED STEEL",
+      23,
+      4
+    ],
+    [
+      "Brand#31",
+      "PROMO POLISHED TIN",
+      23,
+      4
+    ],
+    [
+      "Brand#32",
+      "MEDIUM BURNISHED BRASS",
+      49,
+      4
+    ],
+    [
+      "Brand#33",
+      "LARGE BRUSHED TIN",
+      36,
+      4
+    ],
+    [
+      "Brand#33",
+      "SMALL BURNISHED NICKEL",
+      3,
+      4
+    ],
+    [
+      "Brand#34",
+      "LARGE PLATED BRASS",
+      45,
+      4
+    ],
+    [
+      "Brand#34",
+      "MEDIUM BRUSHED COPPER",
+      9,
+      4
+    ],
+    [
+      "Brand#34",
+      "SMALL PLATED BRASS",
+      14,
+      4
+    ],
+    [
+      "Brand#35",
+      "STANDARD ANODIZED STEEL",
+      23,
+      4
+    ],
+    [
+      "Brand#43",
+      "PROMO POLISHED BRASS",
+      19,
+      4
+    ],
+    [
+      "Brand#43",
+      "SMALL BRUSHED NICKEL",
+      9,
+      4
+    ],
+    [
+      "Brand#44",
+      "SMALL PLATED COPPER",
+      19,
+      4
+    ],
+    [
+      "Brand#52",
+      "MEDIUM BURNISHED TIN",
+      45,
+      4
+    ],
+    [
+      "Brand#52",
+      "SMALL BURNISHED NICKEL",
+      14,
+      4
+    ],
+    [
+      "Brand#53",
+      "MEDIUM BRUSHED COPPER",
+      3,
+      4
+    ],
+    [
+      "Brand#55",
+      "STANDARD ANODIZED BRASS",
+      36,
+      4
+    ],
+    [
+      "Brand#55",
+      "STANDARD BRUSHED COPPER",
+      3,
+      4
+    ],
+    [
+      "Brand#13",
+      "SMALL BRUSHED NICKEL",
+      19,
+      2
+    ],
+    [
+      "Brand#25",
+      "SMALL BURNISHED COPPER",
+      3,
+      2
+    ],
+    [
+      "Brand#43",
+      "MEDIUM ANODIZED BRASS",
+      14,
+      2
+    ],
+    [
+      "Brand#53",
+      "STANDARD PLATED STEEL",
+      45,
+      2
+    ],
+    [
+      "Brand#24",
+      "MEDIUM PLATED STEEL",
+      19,
+      1
+    ],
+    [
+      "Brand#51",
+      "ECONOMY POLISHED STEEL",
+      49,
+      1
+    ],
+    [
+      "Brand#53",
+      "LARGE BURNISHED NICKEL",
+      23,
+      1
+    ],
+    [
+      "Brand#54",
+      "ECONOMY ANODIZED BRASS",
+      9,
+      1
+    ]
+  ],
+  "size" : 34
+}

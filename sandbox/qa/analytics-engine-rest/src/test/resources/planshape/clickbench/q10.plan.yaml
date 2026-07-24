@@ -11,7 +11,7 @@ plans:
           OpenSearchProject(sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[$3], dc(UserID)=[$4], RegionID=[$0], viableBackends=[[datafusion]])
             OpenSearchProject(RegionID=[$0], sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($3):DOUBLE), $4))], dc(UserID)=[$5], viableBackends=[[datafusion]])
               OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[SUM($2)], $f3=[SUM($3)], $f4=[SUM($4)], dc(UserID)=[APPROX_COUNT_DISTINCT($5)], mode=[FINAL], viableBackends=[[datafusion]])
-                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                   OpenSearchSort(sort0=[$2], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
                     OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[COUNT()], agg#2=[SUM($2)], agg#3=[COUNT($2)], dc(UserID)=[APPROX_COUNT_DISTINCT($3)], mode=[PARTIAL], viableBackends=[[datafusion]])
                       OpenSearchProject(RegionID=[$65], AdvEngineID=[$0], ResolutionWidth=[$69], UserID=[$97], viableBackends=[[lucene, datafusion]])
@@ -28,7 +28,7 @@ plans:
           OpenSearchProject(sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[$3], dc(UserID)=[$4], RegionID=[$0], viableBackends=[[datafusion]])
             OpenSearchProject(RegionID=[$0], sum(AdvEngineID)=[$1], c=[$2], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], CAST($3):DOUBLE), $4))], dc(UserID)=[$5], viableBackends=[[datafusion]])
               OpenSearchAggregate(group=[{0}], sum(AdvEngineID)=[SUM($1)], c=[SUM($2)], $f3=[SUM($3)], $f4=[SUM($4)], dc(UserID)=[APPROX_COUNT_DISTINCT($5)], mode=[FINAL], viableBackends=[[datafusion]])
-                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                   OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[RegionID@0 as RegionID, sum(<scrubbed>.AdvEngineID)[sum]@1 as sum(AdvEngineID), count(Int64(1))[count]@2 as c, sum(<scrubbed>.ResolutionWidth)[sum]@3 as $f3, count(<scrubbed>.ResolutionWidth)[count]@4 as $f4, approx_distinct(<scrubbed>.UserID)[hll_registers]@5 as dc(UserID)]

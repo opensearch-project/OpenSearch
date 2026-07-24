@@ -65,7 +65,7 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200))], viableBackends=[[mock-parquet]])
@@ -119,7 +119,7 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
             """
                 OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[100], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[100], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
@@ -172,7 +172,7 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status_code=[$0], viableBackends=[[mock-parquet]])
                         OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200)), ANNOTATED_PREDICATE(id=1, backends=[mock-lucene, mock-parquet], =($1, 1024)), ANNOTATED_PREDICATE(id=2, backends=[mock-lucene, mock-parquet], =($2, 3)), ANNOTATED_PREDICATE(id=3, backends=[mock-lucene, mock-parquet], =($3, 5)))], viableBackends=[[mock-parquet]])
@@ -224,7 +224,7 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
             """
                 OpenSearchProject(status_code=[$0], avg_size=[ANNOTATED_PROJECT_EXPR(id=10, backends=[mock-parquet], CAST(ANNOTATED_PROJECT_EXPR(id=9, backends=[mock-parquet], /($1, $2))):INTEGER NOT NULL)], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], $f1=[SUM($1)], $f2=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchProject(status_code=[$0], size=[$1], viableBackends=[[mock-parquet]])
                           OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200)), ANNOTATED_PREDICATE(id=1, backends=[mock-lucene, mock-parquet], =($1, 1024)), ANNOTATED_PREDICATE(id=2, backends=[mock-lucene, mock-parquet], =($2, 3)), ANNOTATED_PREDICATE(id=3, backends=[mock-lucene, mock-parquet], =($3, 5)), ANNOTATED_PREDICATE(id=4, backends=[mock-lucene, mock-parquet], =($4, 7)), ANNOTATED_PREDICATE(id=5, backends=[mock-lucene, mock-parquet], =($5, 1)), ANNOTATED_PREDICATE(id=6, backends=[mock-lucene, mock-parquet], =($6, 1)))], viableBackends=[[mock-parquet]])
