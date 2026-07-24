@@ -21,6 +21,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -248,5 +249,79 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         );
         searchRequest.source(source);
         assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testQueryMethodRoutesAreRegistered() {
+        RestSearchAction action = new RestSearchAction();
+        boolean hasQuerySearch = false;
+        boolean hasQueryIndexSearch = false;
+        for (BaseRestHandler.Route route : action.routes()) {
+            if (route.getMethod() == RestRequest.Method.QUERY) {
+                if (route.getPath().equals("/_search")) {
+                    hasQuerySearch = true;
+                } else if (route.getPath().equals("/{index}/_search")) {
+                    hasQueryIndexSearch = true;
+                }
+            }
+        }
+        assertTrue("QUERY method not registered for /_search", hasQuerySearch);
+        assertTrue("QUERY method not registered for /{index}/_search", hasQueryIndexSearch);
+    }
+
+    public void testQueryMethodIsAccepted() throws Exception {
+        SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
+        try (NodeClient nodeClient = createMockNodeClient(capturedActionType)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.QUERY)
+                .withPath("/_search")
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            new RestSearchAction().handleRequest(request, channel, nodeClient);
+
+            assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+        }
+    }
+
+    public void testQueryMethodWithIndexSpecificPath() throws Exception {
+        SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
+        try (NodeClient nodeClient = createMockNodeClient(capturedActionType)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.QUERY)
+                .withPath("/test_index/_search")
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            new RestSearchAction().handleRequest(request, channel, nodeClient);
+
+            assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+        }
+    }
+
+    public void testQueryMethodWithStandardParams() throws Exception {
+        SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
+        try (NodeClient nodeClient = createMockNodeClient(capturedActionType)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.QUERY)
+                .withPath("/_search")
+                .withParams(java.util.Map.of("size", "20", "from", "10"))
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            new RestSearchAction().handleRequest(request, channel, nodeClient);
+
+            assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+        }
+    }
+
+    public void testQueryMethodWithoutBody() throws Exception {
+        SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
+        try (NodeClient nodeClient = createMockNodeClient(capturedActionType)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.QUERY)
+                .withPath("/_search")
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            new RestSearchAction().handleRequest(request, channel, nodeClient);
+
+            assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+        }
     }
 }

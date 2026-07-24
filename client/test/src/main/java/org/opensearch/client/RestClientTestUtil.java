@@ -46,7 +46,16 @@ import java.util.Random;
 
 final class RestClientTestUtil {
 
-    private static final String[] HTTP_METHODS = new String[] { "DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT", "TRACE" };
+    private static final String[] HTTP_METHODS = new String[] {
+        "DELETE",
+        "HEAD",
+        "GET",
+        "OPTIONS",
+        "PATCH",
+        "POST",
+        "PUT",
+        "TRACE",
+        "QUERY" };
     private static final List<Integer> ALL_STATUS_CODES;
     private static final List<Integer> OK_STATUS_CODES = Arrays.asList(200, 201);
     private static final List<Integer> ALL_ERROR_STATUS_CODES;
