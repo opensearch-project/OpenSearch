@@ -65,6 +65,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int topDocsSize;
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
+    private final boolean nodeLevelFanoutEnabled;
 
     SearchQueryThenFetchAsyncAction(
         final Logger logger,
@@ -84,7 +85,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        final Tracer tracer
+        final Tracer tracer,
+        final boolean nodeLevelFanoutEnabled
     ) {
         super(
             SearchPhaseName.QUERY.getName(),
@@ -111,6 +113,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
+        this.nodeLevelFanoutEnabled = nodeLevelFanoutEnabled;
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -169,7 +172,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         return new FetchSearchPhase(results, searchPhaseController, null, this);
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    @Override
+    protected ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         if (bottomSortCollector == null) {
             return request;
         }
@@ -184,5 +188,19 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             request.setBottomSortValues(bottomSortCollector.getBottomSortValues());
         }
         return request;
+    }
+
+    @Override
+    protected boolean supportsNodeLevelFanout() {
+        return nodeLevelFanoutEnabled;
+    }
+
+    @Override
+    protected void sendNodeSearchRequest(
+        Transport.Connection connection,
+        NodeSearchRequest nodeRequest,
+        ActionListener<NodeSearchResponse<SearchPhaseResult>> listener
+    ) {
+        getSearchTransport().sendQueryThenFetchByNode(connection, nodeRequest, getTask(), listener);
     }
 }

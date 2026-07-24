@@ -453,6 +453,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 SearchPipelineService.ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING,
+                SearchService.NODE_LEVEL_QUERY_FANOUT_ENABLED,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,

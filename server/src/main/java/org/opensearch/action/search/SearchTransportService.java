@@ -93,11 +93,13 @@ public class SearchTransportService {
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
+    public static final String QUERY_NODE_ACTION_NAME = "indices:data/read/search[phase/query/node]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match/node]";
     public static final String CREATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[create_context]";
     public static final String UPDATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[update_context]";
 
@@ -193,6 +195,22 @@ public class SearchTransportService {
         );
     }
 
+    public void sendCanMatchByNode(
+        Transport.Connection connection,
+        final NodeSearchRequest request,
+        SearchTask task,
+        final ActionListener<NodeSearchResponse<SearchService.CanMatchResponse>> listener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            QUERY_CAN_MATCH_NODE_NAME,
+            request,
+            task,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, NodeSearchResponse::readCanMatch)
+        );
+    }
+
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
         transportService.sendRequest(
             connection,
@@ -265,6 +283,31 @@ public class SearchTransportService {
             request,
             task,
             new ConnectionCountingHandler<>(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId())
+        );
+    }
+
+    /**
+     * Sends a node-level batched query phase request to a single data node, which then fans out to
+     * all shards on that node and returns a single aggregated {@link NodeSearchResponse}.
+     */
+    public void sendQueryThenFetchByNode(
+        Transport.Connection connection,
+        final NodeSearchRequest request,
+        SearchTask task,
+        final ActionListener<NodeSearchResponse<SearchPhaseResult>> listener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            QUERY_NODE_ACTION_NAME,
+            request,
+            task,
+            TransportRequestOptions.EMPTY,
+            new ConnectionCountingHandler<>(
+                listener,
+                NodeSearchResponse.queryThenFetchReader(request),
+                clientConnections,
+                connection.getNode().getId()
+            )
         );
     }
 
@@ -707,6 +750,29 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, UPDATE_READER_CONTEXT_ACTION_NAME, UpdatePitContextResponse::new);
+
+        final TransportNodeSearchAction nodeSearchHandler = new TransportNodeSearchAction(searchService);
+        transportService.registerRequestHandler(
+            QUERY_NODE_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            NodeSearchRequest::new,
+            (request, channel, task) -> nodeSearchHandler.messageReceived(request, channel, task)
+        );
+        TransportActionProxy.registerProxyActionWithDynamicResponseType(
+            transportService,
+            QUERY_NODE_ACTION_NAME,
+            request -> NodeSearchResponse.queryThenFetchReader((NodeSearchRequest) request)
+        );
+        transportService.registerRequestHandler(
+            QUERY_CAN_MATCH_NODE_NAME,
+            ThreadPool.Names.SAME,
+            NodeSearchRequest::new,
+            (request, channel, task) -> nodeSearchHandler.messageReceivedCanMatch(request, channel, task)
+        );
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, NodeSearchResponse::readCanMatch);
     }
 
     /**
