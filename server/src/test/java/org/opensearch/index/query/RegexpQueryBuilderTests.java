@@ -144,15 +144,14 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     public void testMaxDeterminizedStatesFromJsonIsBounded() {
         // The bound must also apply when the value arrives via the REST/XContent parse path.
-        String json = String.format(Locale.ROOT, """
-            {
-                "regexp" : {
-                    "field" : {
-                        "value" : ".*a.{30}",
-                        "max_determinized_states" : 2147483647
-                    }
-                }
-            }""");
+        String json = "{\n"
+            + "    \"regexp\" : {\n"
+            + "        \"field\" : {\n"
+            + "            \"value\" : \".*a.{30}\",\n"
+            + "            \"max_determinized_states\" : 2147483647\n"
+            + "        }\n"
+            + "    }\n"
+            + "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("max_determinized_states cannot exceed"));
     }
