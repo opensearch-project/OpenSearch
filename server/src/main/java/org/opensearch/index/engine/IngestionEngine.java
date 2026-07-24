@@ -22,6 +22,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoder;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -63,13 +65,20 @@ public class IngestionEngine extends InternalEngine {
 
     private volatile StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
+    private final IngestionPayloadDecoderFactory payloadDecoderFactory;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestPipelineExecutor pipelineExecutor;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
-    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory, IngestService ingestService) {
+    public IngestionEngine(
+        EngineConfig engineConfig,
+        IngestionConsumerFactory ingestionConsumerFactory,
+        IngestService ingestService,
+        IngestionPayloadDecoderFactory payloadDecoderFactory
+    ) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
+        this.payloadDecoderFactory = Objects.requireNonNull(payloadDecoderFactory);
         this.pipelineExecutor = new IngestPipelineExecutor(
             Objects.requireNonNull(ingestService),
             engineConfig.getIndexSettings().getIndex().getName(),
@@ -145,21 +154,37 @@ public class IngestionEngine extends InternalEngine {
             engineConfig.getShardId().getId(),
             this
         );
-        streamPoller = streamPollerBuilder.resetState(resetState)
-            .resetValue(resetValue)
-            .errorStrategy(ingestionErrorStrategy)
-            .initialState(initialPollerState)
-            .maxPollSize(ingestionSource.getMaxPollSize())
-            .pollTimeout(ingestionSource.getPollTimeout())
-            .numProcessorThreads(ingestionSource.getNumProcessorThreads())
-            .blockingQueueSize(ingestionSource.getBlockingQueueSize())
-            .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
-            .mapperType(ingestionSource.getMapperType())
-            .mapperSettings(ingestionSource.getMapperSettings())
-            .pipelineExecutor(pipelineExecutor)
-            .warmupConfig(ingestionSource.getWarmupConfig())
-            .indexMetadata(indexMetadata)
-            .build();
+        // Create the decoder before the builder so it can be closed if poller initialization fails.
+        IngestionPayloadDecoder payloadDecoder = payloadDecoderFactory.create(
+            indexMetadata,
+            engineConfig.getShardId().getId(),
+            ingestionSource.getDecoderSettings()
+        );
+        try {
+            streamPoller = streamPollerBuilder.resetState(resetState)
+                .resetValue(resetValue)
+                .errorStrategy(ingestionErrorStrategy)
+                .initialState(initialPollerState)
+                .maxPollSize(ingestionSource.getMaxPollSize())
+                .pollTimeout(ingestionSource.getPollTimeout())
+                .numProcessorThreads(ingestionSource.getNumProcessorThreads())
+                .blockingQueueSize(ingestionSource.getBlockingQueueSize())
+                .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
+                .mapperType(ingestionSource.getMapperType())
+                .mapperSettings(ingestionSource.getMapperSettings())
+                .pipelineExecutor(pipelineExecutor)
+                .warmupConfig(ingestionSource.getWarmupConfig())
+                .indexMetadata(indexMetadata)
+                .payloadDecoder(payloadDecoder)
+                .build();
+        } catch (Exception e) {
+            try {
+                payloadDecoder.close();
+            } catch (Exception closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
+        }
         registerStreamPollerListener();
 
         // start the polling loop
