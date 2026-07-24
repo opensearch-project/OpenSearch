@@ -839,7 +839,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            Weight firstPhaseWeight = firstPhaseQuery.createWeight(searcher, scoreMode, boost);
+            // Delegate to the searcher so the (cheap, stateless) first-phase query remains eligible for the
+            // query cache. Scores from the first phase are never used, since this weight produces constant scores.
+            Weight firstPhaseWeight = searcher.createWeight(firstPhaseQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
             return new ConstantScoreWeight(this, boost) {
                 @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
@@ -892,7 +894,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
                 @Override
                 public boolean isCacheable(LeafReaderContext leafReaderContext) {
-                    return true;
+                    // This weight references the shard-scoped SearchLookup and ValueFetcher through the
+                    // second-phase matching logic. Caching it would pin those (and everything they reference,
+                    // such as the QueryShardContext) in the query cache long after the search completes,
+                    // while equals/hashCode ignores them, so a cache hit could resurrect a stale lookup.
+                    // The rewritten first-phase query is cached independently via searcher.createWeight above.
+                    return searchLookup == null;
                 }
             };
         }
