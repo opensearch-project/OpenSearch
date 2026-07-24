@@ -1,0 +1,41 @@
+{
+  "testName": "range_numeric_inclusive",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "price": {
+          "gte": 100,
+          "lte": 500
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($1, CAST(100):INTEGER), <=($1, CAST(500):INTEGER))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["laptop", 999, "BrandA", 4.5],
+    ["phone", 699, "BrandB", 4.2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

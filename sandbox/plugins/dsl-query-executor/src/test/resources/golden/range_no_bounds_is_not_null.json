@@ -1,0 +1,38 @@
+{
+  "testName": "range_no_bounds_is_not_null",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "price": {}
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[IS NOT NULL($1)])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["laptop", 999, "BrandA", 4.5],
+    ["phone", 699, "BrandB", 4.2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

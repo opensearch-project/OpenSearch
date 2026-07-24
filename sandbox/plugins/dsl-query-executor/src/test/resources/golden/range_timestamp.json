@@ -1,0 +1,42 @@
+{
+  "testName": "range_timestamp",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE",
+    "created_at": "TIMESTAMP"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "created_at": {
+          "gte": "2024-01-01",
+          "lte": "2024-12-31",
+          "format": "strict_date_optional_time"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($4, 2024-01-01 00:00:00:TIMESTAMP(3)), <=($4, 2024-12-31 23:59:59.999:TIMESTAMP(3)))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating", "created_at"],
+  "mockResultRows": [
+    ["laptop", 999, "BrandA", 4.5, "2024-06-15T10:30:00.000Z"]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
