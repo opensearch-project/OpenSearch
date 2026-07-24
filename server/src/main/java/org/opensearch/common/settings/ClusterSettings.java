@@ -125,6 +125,7 @@ import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
@@ -482,6 +483,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                 TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
                 TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
+                IndexShard.PRIMARY_RESYNC_TIMEOUT_SETTING,
                 PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT,
                 TransportSettings.HOST,
                 TransportSettings.PUBLISH_HOST,
