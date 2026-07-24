@@ -1975,9 +1975,22 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 true
             )
         );
+
+        // nested under a parent bucket agg (parent != null): the fast path cannot apply, so the child
+        // date_histogram is intra-eligible. The numeric histogram parent opts into intra unconditionally, so the
+        // whole tree supports intra -> exercises the parent != null branch of the gate.
+        assertTrue(
+            supportsIntraSegmentSearch(
+                new HistogramAggregationBuilder("outer").field("n")
+                    .interval(10)
+                    .subAggregation(new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR)),
+                true
+            )
+        );
     }
 
-    private boolean supportsIntraSegmentSearch(DateHistogramAggregationBuilder builder, boolean searchable) throws IOException {
+    private boolean supportsIntraSegmentSearch(org.opensearch.search.aggregations.AggregationBuilder builder, boolean searchable)
+        throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, searchable);
             NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberFieldMapper.NumberType.LONG);
