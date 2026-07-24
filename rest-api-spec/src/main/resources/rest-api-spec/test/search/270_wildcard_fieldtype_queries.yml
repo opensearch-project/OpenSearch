@@ -227,6 +227,113 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
+"wildcard field short terms query matches":
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: wildcard
+
+  - do:
+      index:
+        index: test2
+        id: 1
+        body:
+          my_field: "ab"
+  - do:
+      index:
+        index: test2
+        id: 2
+        body:
+          my_field: "axxb"
+  - do:
+      index:
+        index: test2
+        id: 3
+        body:
+          my_field: "ba"
+  - do:
+      index:
+        index: test2
+        id: 4
+        body:
+          my_field: "ac"
+  - do:
+      index:
+        index: test2
+        id: 5
+        body:
+          my_field: "a-cde"
+  - do:
+      index:
+        index: test2
+        id: 6
+        body:
+          my_field: "cde-a"
+  - do:
+      index:
+        index: test2
+        id: 7
+        body:
+          my_field: "cde"
+  - do:
+      index:
+        index: test2
+        id: 8
+        body:
+          my_field: "a-cd"
+  - do:
+      indices.refresh:
+        index: test2
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            wildcard:
+              my_field:
+                value: "*a*b*"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            regexp:
+              my_field:
+                value: ".*a.*b.*"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            wildcard:
+              my_field:
+                value: "*a*cde*"
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            regexp:
+              my_field:
+                value: ".*a.*cde.*"
+  - match: { hits.total.value: 1 }
+
+---
 "regexp query matches lowercase-normalized field":
   - do:
       search:
@@ -435,3 +542,10 @@ setup:
           size: 4
   - match: { hits.total.value: 8 }
   - match: { hits.hits.0._id: "8" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test,test1,test2
+        ignore: 404

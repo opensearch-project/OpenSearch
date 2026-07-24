@@ -11,6 +11,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 
@@ -142,6 +143,31 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("abcdzzzefgqqh"));
     }
 
+    // Test wildcard queries uses prefix queries Without three ngram Terms query
+    public void testWildcardQueryUsesPrefixQuery() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(new PrefixQuery(new Term("field", "a")), BooleanClause.Occur.FILTER);
+        builder.add(new PrefixQuery(new Term("field", "b")), BooleanClause.Occur.FILTER);
+
+        String pattern = "*a*b*";
+        Query actual = ft.wildcardQuery(pattern, null, null);
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), pattern), actual);
+        WildcardFieldMapper.WildcardMatchingQuery actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("zzazbzz"));
+        assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("zzbza"));
+
+        pattern = "*ab*cde*";
+        builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "cde")), BooleanClause.Occur.FILTER);
+
+        actual = ft.wildcardQuery(pattern, null, null);
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), pattern), actual);
+        actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("zzabzzcdezz"));
+        assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("zzcdezzabzz"));
+    }
+
     public void testEscapedBackslashFollowedByWildcard() {
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
 
@@ -212,6 +238,39 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcdefmno"));
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcghiqwertyjkl"));
+    }
+
+    // Test regexp queries uses prefix queries Without three ngram Terms query
+    public void testRegexpQueryUsesPrefixQuery() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        String pattern = ".*ab.*a.*";
+
+        Query actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
+        assertEquals(
+            new WildcardFieldMapper.WildcardMatchingQuery("field", new PrefixQuery(new Term("field", "ab")), "/" + pattern + "/"),
+            actual
+        );
+        WildcardFieldMapper.WildcardMatchingQuery actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("foo_ab_a"));
+        assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("foo_a_ab"));
+
+        pattern = ".*(ab|cd).*";
+        actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "/" + pattern + "/"), actual);
+        actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("xxabxx"));
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("xxcdxx"));
+        assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("xxefxx"));
+
+        pattern = ".*a.*cde.*";
+        actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
+        assertEquals(
+            new WildcardFieldMapper.WildcardMatchingQuery("field", new TermQuery(new Term("field", "cde")), "/" + pattern + "/"),
+            actual
+        );
+        actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("foo_a_cde"));
+        assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("foo_cde_a"));
     }
 
     public void testWildcardMatchAll() {

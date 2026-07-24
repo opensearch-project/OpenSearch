@@ -25,6 +25,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -465,6 +466,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             String rawSequence = null;
             String currentSequence = null;
             char[] buffer = new char[NGRAM_SIZE];
+            List<String> possiblePrefixTerms = new ArrayList<>();
             if (!value.startsWith("?") && !value.startsWith("*")) {
                 // Can add prefix term
                 rawSequence = getNonWildcardSequence(value, 0);
@@ -486,8 +488,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 boolean isEndOfValue = pos + rawSequence.length() == value.length();
                 currentSequence = performEscape(rawSequence, regexpMode);
 
-                for (int i = 0; i < currentSequence.length() - NGRAM_SIZE + 1; i++) {
-                    terms.add(currentSequence.substring(i, i + 3));
+                if (currentSequence.length() >= NGRAM_SIZE) {
+                    for (int i = 0; i < currentSequence.length() - NGRAM_SIZE + 1; i++) {
+                        terms.add(currentSequence.substring(i, i + 3));
+                    }
+                } else if (isEndOfValue != true && currentSequence.isEmpty() == false) {
+                    possiblePrefixTerms.add(currentSequence);
                 }
                 if (isEndOfValue) {
                     // This is the end of the input. We can attach a suffix anchor.
@@ -510,6 +516,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 pos = findNonWildcardSequence(value, pos + rawSequence.length());
                 rawSequence = getNonWildcardSequence(value, pos);
             }
+
+            if (terms.isEmpty()) {
+                // If there are 3-gram terms, keep the first phase selective with shorter prefix terms.
+                terms.addAll(possiblePrefixTerms);
+            }
+
             return terms;
         }
 
@@ -616,9 +628,25 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 };
             }
 
-            Query approximation = regexpToQuery(name(), regExp, caseInsensitive);
+            List<String> possiblePrefixTerms = new ArrayList<>();
+            Query approximation = regexpToQuery(name(), regExp, caseInsensitive, possiblePrefixTerms);
             if (approximation instanceof MatchAllDocsQuery) {
-                approximation = existsQuery(context);
+                if (possiblePrefixTerms.isEmpty()) {
+                    approximation = existsQuery(context);
+                } else {
+                    String prefixTerm = possiblePrefixTerms.get(0);
+                    for (int i = 1; i < possiblePrefixTerms.size(); i++) {
+                        String candidate = possiblePrefixTerms.get(i);
+                        if (candidate.length() > prefixTerm.length()) {
+                            prefixTerm = candidate;
+                        }
+                    }
+                    if (caseInsensitive) {
+                        approximation = AutomatonQueries.caseInsensitivePrefixQuery(new Term(name(), prefixTerm));
+                    } else {
+                        approximation = new PrefixQuery(new Term(name(), prefixTerm));
+                    }
+                }
             }
             return new WildcardMatchingQuery(name(), approximation, regexpPredicate, "/" + finalValue + "/", context, this);
         }
@@ -630,16 +658,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
          * @param regExp a parsed node in the {@link RegExp} tree
          * @return a query that matches on the known required parts of the given regular expression
          */
-        private static Query regexpToQuery(String fieldName, RegExp regExp, boolean caseInsensitive) {
+        private static Query regexpToQuery(String fieldName, RegExp regExp, boolean caseInsensitive, List<String> possiblePrefixTerms) {
             BooleanQuery query;
             if (Objects.requireNonNull(regExp.kind) == RegExp.Kind.REGEXP_UNION) {
                 List<Query> clauses = new ArrayList<>();
                 while (regExp.exp1.kind == RegExp.Kind.REGEXP_UNION) {
-                    clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
+                    clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive, null));
                     regExp = regExp.exp1;
                 }
-                clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
-                clauses.add(regexpToQuery(fieldName, regExp.exp1, caseInsensitive));
+                clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive, null));
+                clauses.add(regexpToQuery(fieldName, regExp.exp1, caseInsensitive, null));
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (int i = clauses.size() - 1; i >= 0; i--) {
                     Query clause = clauses.get(i);
@@ -652,23 +680,28 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             } else if (regExp.kind == RegExp.Kind.REGEXP_STRING) {
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (String string : getRequiredNGrams("*" + regExp.s + "*", true)) {
-                    final Query subQuery;
-                    if (caseInsensitive) {
-                        subQuery = AutomatonQueries.caseInsensitiveTermQuery(new Term(fieldName, string));
-                    } else {
-                        subQuery = new TermQuery(new Term(fieldName, string));
+                    if (string.length() == NGRAM_SIZE) {
+                        final Query subQuery;
+                        if (caseInsensitive) {
+                            subQuery = AutomatonQueries.caseInsensitiveTermQuery(new Term(fieldName, string));
+                        } else {
+                            subQuery = new TermQuery(new Term(fieldName, string));
+                        }
+                        builder.add(subQuery, BooleanClause.Occur.FILTER);
+                    } else if (possiblePrefixTerms != null) {
+                        assert string.length() < NGRAM_SIZE;
+                        possiblePrefixTerms.add(string);
                     }
-                    builder.add(subQuery, BooleanClause.Occur.FILTER);
                 }
                 query = builder.build();
             } else if (regExp.kind == RegExp.Kind.REGEXP_CONCATENATION) {
                 List<Query> clauses = new ArrayList<>();
                 while (regExp.exp1.kind == RegExp.Kind.REGEXP_CONCATENATION) {
-                    clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
+                    clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive, possiblePrefixTerms));
                     regExp = regExp.exp1;
                 }
-                clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
-                clauses.add(regexpToQuery(fieldName, regExp.exp1, caseInsensitive));
+                clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive, possiblePrefixTerms));
+                clauses.add(regexpToQuery(fieldName, regExp.exp1, caseInsensitive, possiblePrefixTerms));
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (int i = clauses.size() - 1; i >= 0; i--) {
                     Query clause = clauses.get(i);
@@ -679,14 +712,17 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 query = builder.build();
             } else if ((regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX)
                 && regExp.min > 0) {
-                    return regexpToQuery(fieldName, regExp.exp1, caseInsensitive);
+                    return regexpToQuery(fieldName, regExp.exp1, caseInsensitive, possiblePrefixTerms);
+                } else if (regExp.kind == RegExp.Kind.REGEXP_CHAR && possiblePrefixTerms != null) {
+                    possiblePrefixTerms.add(String.valueOf((char) regExp.c));
+                    return MatchAllDocsQuery.INSTANCE;
                 } else {
-                    return new MatchAllDocsQuery();
+                    return MatchAllDocsQuery.INSTANCE;
                 }
             if (query.clauses().size() == 1) {
                 return query.iterator().next().query();
             } else if (query.clauses().size() == 0) {
-                return new MatchAllDocsQuery();
+                return MatchAllDocsQuery.INSTANCE;
             }
             return query;
         }
@@ -730,10 +766,19 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             BooleanQuery.Builder matchAllTermsBuilder = new BooleanQuery.Builder();
             Query query;
             for (String term : terms) {
-                if (caseInsensitive) {
-                    query = AutomatonQueries.caseInsensitiveTermQuery(new Term(fieldName, term));
+                if (term.length() == NGRAM_SIZE) {
+                    if (caseInsensitive) {
+                        query = AutomatonQueries.caseInsensitiveTermQuery(new Term(fieldName, term));
+                    } else {
+                        query = new TermQuery(new Term(fieldName, term));
+                    }
                 } else {
-                    query = new TermQuery(new Term(fieldName, term));
+                    assert term.length() < NGRAM_SIZE;
+                    if (caseInsensitive) {
+                        query = AutomatonQueries.caseInsensitivePrefixQuery(new Term(fieldName, term));
+                    } else {
+                        query = new PrefixQuery(new Term(fieldName, term));
+                    }
                 }
                 matchAllTermsBuilder.add(query, BooleanClause.Occur.FILTER);
             }
