@@ -104,10 +104,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private final AtomicInteger batchNumber = new AtomicInteger(0);
     private final CompositeBackpressureStrategy bp;
     private final long readyTimeoutMillis;
-    /**
-     * Applies a per-stream outbound buffer threshold (bytes) to the underlying gRPC call. Isolated behind this
-     * seam so the Arrow-observer access lives in one place and tests can inject a capturing consumer.
-     */
+    /** Applies the per-stream outbound buffer threshold (bytes) to the gRPC call. */
     private final IntConsumer outboundThresholdSetter;
 
     /**
@@ -132,7 +129,6 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         ExecutorService executor,
         long readyTimeoutMillis
     ) {
-        // Production wiring: the threshold seam applies to the real Arrow-backed gRPC observer for this listener.
         this(
             serverStreamListener,
             allocator,
@@ -144,8 +140,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         );
     }
 
-    // Package-private constructor allowing a test to inject the outbound-threshold seam in place of the real
-    // Arrow-backed applier.
+    /** Visible for testing: injects the outbound-threshold applier in place of the gRPC-backed one. */
     FlightServerChannel(
         ServerStreamListener serverStreamListener,
         BufferAllocator allocator,
@@ -175,10 +170,9 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     }
 
     /**
-     * Sets this stream's outbound buffer threshold: the number of buffered outbound bytes at which gRPC's
-     * {@code isReady()} flips false so the producer parks. Overrides the transport-wide default for this stream
-     * only, letting a memory-sensitive action bound its per-stream footprint without affecting other streams.
-     * A non-positive value is ignored (the transport-wide default remains in effect).
+     * Sets this stream's outbound buffer watermark: the buffered-bytes count at which gRPC's {@code isReady()}
+     * flips false so the producer parks. Applies to this stream only. A non-positive value is ignored, leaving
+     * the transport-wide default in effect.
      *
      * @param bytes the per-stream watermark in bytes; ignored if {@code <= 0}
      */

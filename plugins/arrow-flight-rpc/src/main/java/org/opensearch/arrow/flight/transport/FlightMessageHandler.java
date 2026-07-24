@@ -28,8 +28,8 @@ import org.opensearch.transport.TransportKeepAlive;
 
 class FlightMessageHandler extends NativeMessageHandler {
 
-    // The base class keeps its own private copy; retained here so createTcpTransportChannel can look up the
-    // per-action outbound buffer threshold to apply to the freshly created FlightServerChannel.
+    // Resolves the handler for an action to read its per-action outbound buffer threshold (the base class copy
+    // is private).
     private final Transport.RequestHandlers requestHandlers;
 
     public FlightMessageHandler(
@@ -88,8 +88,6 @@ class FlightMessageHandler extends NativeMessageHandler {
         Header header,
         Releasable breakerRelease
     ) {
-        // The action is known here, so apply any per-action outbound buffer threshold the handler declared to
-        // this stream's channel. Actions that declare none keep the transport-wide default (watermark untouched).
         if (channel instanceof FlightServerChannel flightServerChannel) {
             final RequestHandlerRegistry<?> reg = requestHandlers.getHandler(action);
             if (reg != null) {

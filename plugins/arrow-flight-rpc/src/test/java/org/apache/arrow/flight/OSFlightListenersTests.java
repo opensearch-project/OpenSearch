@@ -17,25 +17,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * Proves {@link OSFlightListeners#setOnReadyThreshold} actually reaches gRPC's per-stream watermark on a REAL
- * Arrow server listener, not just the injected seam used by the {@code FlightServerChannel} unit tests.
- *
- * <p>Arrow's concrete server-side listener ({@code FlightService.GetListener}) extends
- * {@link OutboundStreamListenerImpl} and holds the call's {@link ServerCallStreamObserver} in the {@code
- * protected} {@code responseObserver} field. {@code GetListener} is not accessible from tests, so this uses a
- * minimal listener with the identical shape — extends {@code OutboundStreamListenerImpl} (so the {@code
- * responseObserver} the bridge reads is the real Arrow field) and implements {@code
- * FlightProducer.ServerStreamListener}. The test asserts the threshold call lands on the observer, exercising
- * the {@code instanceof OutboundStreamListenerImpl} cast and {@code responseObserver} access the production
- * path depends on. If an Arrow upgrade changed the listener hierarchy or hid the observer, this fails instead
- * of the threshold silently becoming a no-op.
+ * Verifies {@link OSFlightListeners#setOnReadyThreshold} sets the watermark on the gRPC observer of a listener
+ * backed by {@link OutboundStreamListenerImpl} (as Arrow's server listener is), and is a no-op otherwise.
  */
 public class OSFlightListenersTests extends OpenSearchTestCase {
 
     /**
-     * Same shape as Arrow's package-private {@code FlightService.GetListener}: a {@code ServerStreamListener}
-     * backed by {@link OutboundStreamListenerImpl}, so {@code responseObserver} is the genuine Arrow field the
-     * bridge reads. Only the members needed to instantiate are implemented.
+     * A {@link OutboundStreamListenerImpl}-backed {@code ServerStreamListener}, matching the shape of Arrow's
+     * package-private server listener so {@code responseObserver} is the real Arrow field the bridge reads.
      */
     private static final class TestServerStreamListener extends OutboundStreamListenerImpl implements FlightProducer.ServerStreamListener {
         TestServerStreamListener(ServerCallStreamObserver<ArrowMessage> observer) {
@@ -65,12 +54,8 @@ public class OSFlightListenersTests extends OpenSearchTestCase {
     }
 
     public void testSetOnReadyThresholdIgnoresListenerWithoutObserver() {
-        // A ServerStreamListener that is not an OutboundStreamListenerImpl (e.g. a test double) must be a
-        // safe no-op rather than throwing, so the stream simply keeps the transport-wide default watermark.
         FlightProducer.ServerStreamListener notObserverBacked = mock(FlightProducer.ServerStreamListener.class);
-
         OSFlightListeners.setOnReadyThreshold(notObserverBacked, 512 * 1024);
-        // No exception; nothing to apply.
     }
 
     @SuppressWarnings("unchecked")

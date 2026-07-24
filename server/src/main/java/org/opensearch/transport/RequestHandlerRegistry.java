@@ -149,9 +149,8 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
 
     /**
      * The per-action outbound buffer threshold in bytes for streaming transports, or
-     * {@link #OUTBOUND_BUFFER_THRESHOLD_UNSET} when the action opts out and the transport-wide default applies.
-     * Streaming transports (e.g. Arrow Flight) may use this to size the per-stream backpressure watermark for
-     * this action's streams without affecting other actions sharing the transport.
+     * {@link #OUTBOUND_BUFFER_THRESHOLD_UNSET} when the transport-wide default applies. A streaming transport
+     * uses it to size this action's per-stream backpressure watermark.
      */
     public int getOutboundBufferThresholdBytes() {
         return outboundBufferThresholdBytes;
