@@ -134,6 +134,7 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
@@ -215,6 +216,7 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
             leastAvailableUsages,
             mostAvailableUsage,
             shardSizes,
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of(),
@@ -341,6 +343,7 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
             mostAvailableUsage,
             shardSizes,
             shardRoutingMap,
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of()

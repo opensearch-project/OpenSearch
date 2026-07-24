@@ -32,6 +32,7 @@
 
 package org.opensearch.monitor.process;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.io.IOException;
 /**
  * Holds stats for the process
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "3.4.0")
 public class ProcessStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;
@@ -140,8 +142,9 @@ public class ProcessStats implements Writeable, ToXContentFragment {
     /**
      * Process memory information.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "3.4.0")
     public static class Mem implements Writeable {
 
         private final long totalVirtual;
@@ -167,8 +170,9 @@ public class ProcessStats implements Writeable, ToXContentFragment {
     /**
      * Process CPU information.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "3.4.0")
     public static class Cpu implements Writeable {
 
         private final short percent;

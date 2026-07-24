@@ -310,4 +310,37 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
         assertThat(diskThresholdSettings.describeFloodStageThreshold(), equalTo("1b"));
     }
 
+    public void testInvalidFileDescriptorConstruction() {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING.getKey(), "90%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING.getKey(), "80%")
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DiskThresholdSettings(settings, clusterSettings)
+        );
+        assertThat(e, hasToString(containsString("low file descriptor [90%] more than high file descriptor [80%]")));
+    }
+
+    public void testInvalidFileDescriptorUpdate() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
+
+        final Settings newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING.getKey(), "90%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING.getKey(), "80%")
+            .build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        assertThat(
+            e,
+            hasToString(containsString("illegal value can't update [cluster.routing.allocation.file_descriptor_high] from [85%] to [80%]"))
+        );
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        assertThat(cause, hasToString(containsString("low file descriptor [90%] more than high file descriptor [80%]")));
+    }
+
 }
