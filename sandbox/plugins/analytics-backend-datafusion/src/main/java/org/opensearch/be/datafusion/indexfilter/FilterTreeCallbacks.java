@@ -223,7 +223,7 @@ public final class FilterTreeCallbacks {
     }
 
     /**
-     * {@code collectDocs(contextId, collectorKey, minDoc, maxDoc, outPtr, outWordCap) -> wordsWritten|-1}.
+     * {@code collectDocs(contextId, collectorKey, minDoc, maxDoc, outPtr, outWordCap) -> packed(nextDoc|wordsWritten)|-1}.
      */
     public static long collectDocs(long contextId, int collectorKey, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
         long tid = trackStart(contextId);
@@ -239,8 +239,8 @@ public final class FilterTreeCallbacks {
             }
             int maxWords = (int) Math.min(outWordCap, (long) Integer.MAX_VALUE);
             MemorySegment view = outPtr.reinterpret((long) maxWords * Long.BYTES);
-            int wordsWritten = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
-            return (wordsWritten < 0) ? -1L : wordsWritten;
+            long result = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
+            return (result < 0) ? -1L : result;
         } catch (AssertionError e) {
             throw e;
         } catch (Throwable throwable) {

@@ -1358,9 +1358,9 @@ async unsafe fn execute_indexed_with_context_inner(
                         let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                             tree: resolved,
                             evaluator: Arc::new(BitmapTreeEvaluator),
-                            leaves: Arc::new(CollectorLeafBitmaps {
-                                ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
-                            }),
+                            leaves: Arc::new(CollectorLeafBitmaps::new(
+                                stream_metrics.ffm_collector_calls.clone(),
+                            )),
                             page_pruner: pruner,
                             cost_predicate,
                             cost_collector,
