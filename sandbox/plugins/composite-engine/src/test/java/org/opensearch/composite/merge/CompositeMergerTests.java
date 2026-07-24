@@ -58,7 +58,7 @@ import static org.mockito.Mockito.when;
 public class CompositeMergerTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
-    private static final RowIdMapping STUB_ROW_ID_MAPPING = new PackedRowIdMapping(new long[] { 0 }, false);
+    private static final Map<Long, RowIdMapping> STUB_ROW_ID_MAPPINGS = Map.of(0L, new PackedRowIdMapping(new long[] { 0 }, false));
 
     private DataFormat primaryFormat;
     private DataFormat secondaryFormat;
@@ -102,7 +102,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         WriterFileSet mergedPrimaryWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 10);
         WriterFileSet mergedSecondaryWfs = wfs(tempDir, 99L, Set.of("ms.dat"), 10);
 
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPINGS);
         MergeResult secondaryResult = new MergeResult(Map.of(secondaryFormat, mergedSecondaryWfs));
 
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
@@ -180,7 +180,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         WriterFileSet mergedPrimaryWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 5);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPINGS);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary disk error"));
 
@@ -218,7 +218,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         WriterFileSet mergedPWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 5);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPWfs), STUB_ROW_ID_MAPPINGS);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("parquet error"));
         when(secondaryMerger2.merge(any())).thenThrow(new IOException("arrow error"));
@@ -273,7 +273,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         WriterFileSet mergedPrimaryWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 5);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPINGS);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary fail"));
 
@@ -294,7 +294,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         WriterFileSet mergedPrimaryWfs = wfs(tempDir, 99L, Set.of("nonexistent.dat"), 5);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPINGS);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("fail"));
 
@@ -334,7 +334,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         WriterFileSet mergedPWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 10);
         WriterFileSet mergedSWfs = wfs(tempDir, 99L, Set.of("ms.dat"), 10);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPWfs), STUB_ROW_ID_MAPPINGS);
         MergeResult secondaryResult = new MergeResult(Map.of(secondaryFormat, mergedSWfs));
 
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
@@ -372,7 +372,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         WriterFileSet mergedWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 5);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs), STUB_ROW_ID_MAPPINGS);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
         MergeHandler handler = new MergeHandler(
@@ -555,7 +555,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         // mergedPrimaryWfs points to "mp.dat" which is a non-empty directory
         WriterFileSet mergedPrimaryWfs = wfs(tempDir, 99L, Set.of("mp.dat"), 5);
-        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPING);
+        MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs), STUB_ROW_ID_MAPPINGS);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary fail"));
 
@@ -660,7 +660,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         RowIdMapping mapping = mock(RowIdMapping.class);
         when(mapping.size()).thenReturn(100);
 
-        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), Map.of(10L, mapping)));
         when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of()));
 
         CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
@@ -687,7 +687,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         RowIdMapping mapping = mock(RowIdMapping.class);
         when(mapping.size()).thenReturn(100);
 
-        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), Map.of(10L, mapping)));
         when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(secondary, secondaryFiles)));
 
         CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));

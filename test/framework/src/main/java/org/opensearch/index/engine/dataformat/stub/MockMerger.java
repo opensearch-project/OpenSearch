@@ -42,9 +42,9 @@ public class MockMerger implements Merger {
             fileMetadataList.addAll(segment.dfGroupedSearchableFiles().values());
         }
         long newWriterGeneration = mergeInput.newWriterGeneration();
-        RowIdMapping existingMapping = mergeInput.rowIdMapping();
+        Map<Long, RowIdMapping> existingMappings = mergeInput.rowIdMappings();
 
-        String prefix = existingMapping != null ? "secondary_merged_gen" : "merged_gen";
+        String prefix = (existingMappings != null && !existingMappings.isEmpty()) ? "secondary_merged_gen" : "merged_gen";
         WriterFileSet merged = WriterFileSet.builder()
             .directory(directory)
             .writerGeneration(newWriterGeneration)
@@ -52,26 +52,23 @@ public class MockMerger implements Merger {
             .addNumRows(fileMetadataList.stream().mapToLong(WriterFileSet::numRows).sum())
             .build();
 
-        if (existingMapping != null) {
-            return new MergeResult(Map.of(dataFormat, merged), existingMapping);
+        if (existingMappings != null && !existingMappings.isEmpty()) {
+            return new MergeResult(Map.of(dataFormat, merged), existingMappings);
         }
 
-        Map<Long, Long> genOffsets = new HashMap<>();
-        Map<Long, Integer> genOffsetsInt = new HashMap<>();
-        Map<Long, Integer> genSizesInt = new HashMap<>();
-        int offset = 0;
+        // Build one PackedRowIdMapping per generation with global row ID assignment
+        Map<Long, RowIdMapping> mappings = new HashMap<>();
+        int globalOffset = 0;
         for (WriterFileSet fs : fileMetadataList) {
-            genOffsets.put(fs.writerGeneration(), (long) offset);
-            genOffsetsInt.put(fs.writerGeneration(), offset);
-            genSizesInt.put(fs.writerGeneration(), (int) fs.numRows());
-            offset += (int) fs.numRows();
+            int size = (int) fs.numRows();
+            long[] mappingArray = new long[size];
+            for (int i = 0; i < size; i++) {
+                mappingArray[i] = globalOffset + i;
+            }
+            mappings.put(fs.writerGeneration(), new PackedRowIdMapping(mappingArray, false));
+            globalOffset += size;
         }
-        long[] mappingArray = new long[offset];
-        for (int i = 0; i < offset; i++) {
-            mappingArray[i] = i;
-        }
-        RowIdMapping mapping = new PackedRowIdMapping(mappingArray, genOffsetsInt, genSizesInt);
 
-        return new MergeResult(Map.of(dataFormat, merged), mapping);
+        return new MergeResult(Map.of(dataFormat, merged), mappings);
     }
 }
