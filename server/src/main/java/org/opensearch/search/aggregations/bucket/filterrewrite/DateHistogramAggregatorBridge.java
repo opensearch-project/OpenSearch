@@ -31,24 +31,30 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     int maxRewriteFilters;
 
     protected boolean canOptimize(ValuesSourceConfig config, Rounding rounding) {
-        /**
-         * The filter rewrite optimized path does not support bucket intervals which are not fixed.
-         * For this reason we exclude non UTC timezones.
-         */
+        if (filterRewriteFastPathApplies(config, rounding)) {
+            this.fieldType = config.fieldType();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Request-level (segment-independent) predicate for whether the date-histogram filter-rewrite fast path
+     * can apply. Pure (no side effects) so it can be consulted upfront by aggregator factories to decide
+     * intra-segment eligibility: when this returns false the fast path is unavailable and the doc-by-doc
+     * fallback — which parallelizes under intra-segment search — will run instead. Kept in sync with the
+     * conditions {@link #canOptimize(ValuesSourceConfig, Rounding)} enforces.
+     */
+    public static boolean filterRewriteFastPathApplies(ValuesSourceConfig config, Rounding rounding) {
+        // The filter rewrite optimized path does not support non-fixed bucket intervals, so exclude non-UTC.
         if (rounding.isUTC() == false) {
             return false;
         }
-
-        if (config.script() == null && config.missing() == null) {
-            MappedFieldType fieldType = config.fieldType();
-            if (fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
-                if (fieldType.isSearchable()) {
-                    this.fieldType = fieldType;
-                    return true;
-                }
-            }
+        if (config.script() != null || config.missing() != null) {
+            return false;
         }
-        return false;
+        MappedFieldType fieldType = config.fieldType();
+        return fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType && fieldType.isSearchable();
     }
 
     protected void buildRanges(SearchContext context) throws IOException {

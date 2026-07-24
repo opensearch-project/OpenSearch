@@ -357,7 +357,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
             collector.setWeight(weight);
-            leafCollector = collector.getLeafCollector(ctx);
+            // Expose the current partition's doc-id range so segment-level aggregation optimizations
+            // (e.g. the filter-rewrite point-tree traversal) can restrict work to this partition under
+            // intra-segment search. getLeafCollector runs the precompute (tryPrecomputeAggregationForLeaf)
+            // synchronously, so the range only needs to be visible for the duration of this call; the
+            // try-with-resources guarantees it is cleared even on exception.
+            try (Releasable ignore = searchContext.withPartitionDocIdRange(minDocId, maxDocId)) {
+                leafCollector = collector.getLeafCollector(ctx);
+            }
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
             // continue with the following leaf

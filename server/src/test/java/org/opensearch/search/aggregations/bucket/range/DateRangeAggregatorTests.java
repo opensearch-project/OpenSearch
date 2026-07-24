@@ -50,8 +50,10 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -317,5 +319,50 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         /*
          * No-op.
          */
+    }
+
+    /**
+     * The intra-segment gate for date_range (inherited from AbstractRangeAggregatorFactory, via
+     * RangeAggregatorBridge#filterRewriteFastPathApplies): partition only when the filter-rewrite O(1) fast path
+     * can NOT apply upfront. Fast path applies for a searchable date field with non-overlapping ranges → do not
+     * partition (false); it declines for overlapping ranges → partition (true). With a sub-agg it always opts in.
+     */
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        // non-overlapping ranges, no sub-agg: fast path applies -> NOT intra-eligible
+        DateRangeAggregationBuilder nonOverlapping = new DateRangeAggregationBuilder("test").field(DATE_FIELD_NAME)
+            .addRange("2015-01-01", "2015-06-01")
+            .addRange("2015-06-01", "2016-01-01");
+        assertFalse(supportsIntraSegmentSearch(nonOverlapping));
+
+        // overlapping ranges, no sub-agg: fast path declines -> intra-eligible
+        DateRangeAggregationBuilder overlapping = new DateRangeAggregationBuilder("test").field(DATE_FIELD_NAME)
+            .addRange("2015-01-01", "2015-09-01")
+            .addRange("2015-06-01", "2016-01-01");
+        assertTrue(supportsIntraSegmentSearch(overlapping));
+
+        // with a sub-aggregation: always intra-eligible (partition-aware collection)
+        DateRangeAggregationBuilder withSub = new DateRangeAggregationBuilder("test").field(DATE_FIELD_NAME)
+            .addRange("2015-01-01", "2015-06-01")
+            .addRange("2015-06-01", "2016-01-01")
+            .subAggregation(new AvgAggregationBuilder("avg").field(DATE_FIELD_NAME));
+        assertTrue(supportsIntraSegmentSearch(withSub));
+    }
+
+    private boolean supportsIntraSegmentSearch(DateRangeAggregationBuilder builder) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, 1500000000000L)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                MappedFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(builder)
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, fieldType)
+                            .getQueryShardContext(),
+                        null
+                    );
+                return factories.allFactoriesSupportIntraSegmentSearch();
+            }
+        }
     }
 }

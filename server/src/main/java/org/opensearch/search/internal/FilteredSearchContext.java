@@ -38,6 +38,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -601,5 +602,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean shouldUseIntraSegmentSearch() {
         return in.shouldUseIntraSegmentSearch();
+    }
+
+    @Override
+    public Releasable withPartitionDocIdRange(int minDocId, int maxDocId) {
+        return in.withPartitionDocIdRange(minDocId, maxDocId);
+    }
+
+    @Override
+    public int[] getPartitionDocIdRange() {
+        return in.getPartitionDocIdRange();
     }
 }
