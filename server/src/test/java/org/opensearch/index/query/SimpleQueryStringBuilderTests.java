@@ -465,6 +465,28 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
+    public void testDeeplyNestedParensAreRejected() throws IOException {
+        // Guards against CVE-2026-63144: deeply nested parentheses drive one recursion frame per
+        // level in Lucene's SimpleQueryParser and overflow the JVM stack. The query must instead
+        // fail with a catchable IllegalArgumentException (surfaced to clients as HTTP 400).
+        int depth = 200_000;
+        String nested = "(".repeat(depth) + "a" + ")".repeat(depth);
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(nested).field(TEXT_FIELD_NAME);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("nests parentheses deeper than the limit"));
+
+        // Escaped parentheses and parentheses inside a quoted phrase do not count toward nesting
+        // depth, mirroring how Lucene tokenizes the input, so they must still parse successfully.
+        String escaped = "\\(".repeat(depth) + "a";
+        Query query = new SimpleQueryStringBuilder(escaped).field(TEXT_FIELD_NAME).toQuery(createShardContext());
+        assertNotNull(query);
+
+        // A modestly nested (well under the limit) query remains valid.
+        String shallow = "(".repeat(50) + "a" + ")".repeat(50);
+        query = new SimpleQueryStringBuilder(shallow).field(TEXT_FIELD_NAME).toQuery(createShardContext());
+        assertNotNull(query);
+    }
+
     public void testAnalyzeWildcard() throws IOException {
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
