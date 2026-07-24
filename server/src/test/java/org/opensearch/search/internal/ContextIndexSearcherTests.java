@@ -264,7 +264,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         };
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
         ThreadPool tp = new TestThreadPool("test");
-        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, tp);
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY);
         BitsetFilterCache cache = new BitsetFilterCache(settings, indicesCache, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));

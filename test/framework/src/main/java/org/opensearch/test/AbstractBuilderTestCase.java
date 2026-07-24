@@ -452,7 +452,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 mapperService,
                 threadPool
             );
-            indicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+            indicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY);
             bitsetFilterCache = new BitsetFilterCache(idxSettings, indicesBitsetFilterCache, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
