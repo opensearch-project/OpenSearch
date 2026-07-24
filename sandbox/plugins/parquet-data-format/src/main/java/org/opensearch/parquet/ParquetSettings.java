@@ -19,7 +19,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.PluginMappingParametersAware;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
@@ -481,23 +483,8 @@ public final class ParquetSettings {
         Setting.Property.Final
     );
 
-    // Parallel-array setting; implies index=false and bloom filter for matched fields.
-    // Only valid for keyword and text field types.
-    public static final Setting<List<String>> LOW_CARDINALITY_ENABLE_FIELD_SETTING = Setting.listSetting(
-        "index.parquet.low_cardinality_enable.field",
-        Collections.emptyList(),
-        Function.identity(),
-        Setting.Property.IndexScope,
-        Setting.Property.Final
-    );
-
-    public static final Setting<List<Boolean>> LOW_CARDINALITY_ENABLE_VALUE_SETTING = Setting.listSetting(
-        "index.parquet.low_cardinality_enable.value",
-        Collections.emptyList(),
-        ParquetSettings::validateBoolean,
-        Setting.Property.IndexScope,
-        Setting.Property.Final
-    );
+    /** Name of the {@code low_cardinality} mapping parameter, which suppresses Lucene indexing and enables a Parquet column bloom filter. */
+    public static final String LOW_CARDINALITY_PARAM = "low_cardinality";
 
     // Field-level bloom filter enabled configuration (parallel arrays)
     public static final Setting<List<String>> BLOOM_FILTER_ENABLED_FIELD_SETTING = Setting.listSetting(
@@ -685,21 +672,18 @@ public final class ParquetSettings {
         );
     }
 
-    /**
-     * Returns the set of field names for which {@code low_cardinality_enable} is {@code true}.
-     * These fields will have Lucene indexing suppressed (index=false) and bloom filters enabled.
-     * Only keyword and text fields are valid; validation is enforced at index creation time.
-     */
-    public static Set<String> getLowCardinalityEnabledFields(Settings settings) {
-        Map<String, Boolean> fieldMap = buildFieldMap(
-            LOW_CARDINALITY_ENABLE_FIELD_SETTING.get(settings),
-            LOW_CARDINALITY_ENABLE_VALUE_SETTING.get(settings),
-            "low_cardinality_enable"
-        );
+    /** Returns the field names whose {@code low_cardinality} mapping parameter resolves to {@code true}, read from the mapping. */
+    public static Set<String> getLowCardinalityEnabledFields(MapperService mapperService) {
+        if (mapperService == null || mapperService.documentMapper() == null) {
+            return Collections.emptySet();
+        }
         Set<String> enabled = new java.util.HashSet<>();
-        for (Map.Entry<String, Boolean> entry : fieldMap.entrySet()) {
-            if (Boolean.TRUE.equals(entry.getValue())) {
-                enabled.add(entry.getKey());
+        for (Mapper mapper : mapperService.documentMapper().mappers()) {
+            if (mapper instanceof PluginMappingParametersAware) {
+                Object value = ((PluginMappingParametersAware) mapper).pluginMappingParameterValues().get(LOW_CARDINALITY_PARAM);
+                if (Boolean.TRUE.equals(value)) {
+                    enabled.add(mapper.name());
+                }
             }
         }
         return Collections.unmodifiableSet(enabled);
@@ -944,8 +928,6 @@ public final class ParquetSettings {
             COMPRESSION_VALUE_SETTING,
             BLOOM_FILTER_ENABLED_FIELD_SETTING,
             BLOOM_FILTER_ENABLED_VALUE_SETTING,
-            LOW_CARDINALITY_ENABLE_FIELD_SETTING,
-            LOW_CARDINALITY_ENABLE_VALUE_SETTING,
             TYPE_ENCODING_SETTINGS,
             TYPE_COMPRESSION_SETTINGS,
             TYPE_BLOOM_FILTER_SETTINGS

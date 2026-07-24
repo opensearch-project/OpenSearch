@@ -13,10 +13,12 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.PluginMappingParameter;
 
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -54,6 +56,11 @@ public interface DataFormatPlugin {
      * instantiated per shard.
      */
     IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
+
+    /** Returns the mapping parameters this plugin contributes to core field mappers ({@code keyword} and {@code text}); empty by default. */
+    default List<PluginMappingParameter> getPluginMappingParameters() {
+        return List.of();
+    }
 
     /**
      * Returns format descriptor suppliers for this plugin, filtered by the

@@ -36,6 +36,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
+import org.opensearch.index.mapper.PluginMappingParameter;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -67,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -197,6 +199,20 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         return PARQUET_DATA_FORMAT;
     }
 
+    /** Contributes the {@code low_cardinality} parameter to {@code keyword} and {@code text} fields, suppressing Lucene indexing and enabling a Parquet column bloom filter. */
+    @Override
+    public List<PluginMappingParameter> getPluginMappingParameters() {
+        return List.of(
+            new PluginMappingParameter(
+                ParquetSettings.LOW_CARDINALITY_PARAM,
+                false,
+                false,
+                Set.of("keyword", "text"),
+                true
+            )
+        );
+    }
+
     @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig) {
         return new ParquetIndexingEngine(
@@ -205,6 +221,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
             engineConfig.store().shardPath(),
             () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
             () -> engineConfig.mapperService().getIndexSettings().getIndexMetadata().getMappingVersion(),
+            () -> ParquetSettings.getLowCardinalityEnabledFields(engineConfig.mapperService()),
             engineConfig.indexSettings(),
             threadPool,
             engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),

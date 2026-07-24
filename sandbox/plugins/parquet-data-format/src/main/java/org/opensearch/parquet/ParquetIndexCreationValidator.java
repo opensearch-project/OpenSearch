@@ -27,7 +27,7 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
         Map<String, String> fieldEncodings = ParquetSettings.getFieldEncodings(indexSettings.getSettings());
         Map<String, String> fieldCompressions = ParquetSettings.getFieldCompressions(indexSettings.getSettings());
         Map<String, Boolean> fieldBloomFilterEnabled = ParquetSettings.getFieldBloomFilterEnabled(indexSettings.getSettings());
-        Set<String> lowCardinalityEnabledFields = ParquetSettings.getLowCardinalityEnabledFields(indexSettings.getSettings());
+        Set<String> lowCardinalityEnabledFields = ParquetSettings.getLowCardinalityEnabledFields(mapperService);
 
         boolean hasParquetSettings = !fieldEncodings.isEmpty()
             || !fieldCompressions.isEmpty()

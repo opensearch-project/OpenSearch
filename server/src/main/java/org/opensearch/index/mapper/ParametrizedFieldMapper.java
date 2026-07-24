@@ -603,6 +603,57 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             super(name);
         }
 
+        /** Plugin-contributed parameters built from the definitions supplied at parse time. */
+        private final List<Parameter<?>> pluginMappingParameters = new ArrayList<>();
+        private List<PluginMappingParameter> pluginMappingParameterSpecs = Collections.emptyList();
+
+        /** Registers the plugin-contributed parameter definitions on this builder; subclasses must append {@link #pluginMappingParameters()} to {@link #getParameters()}. */
+        protected void addPluginMappingParameters(List<PluginMappingParameter> specs) {
+            if (specs == null || specs.isEmpty()) {
+                return;
+            }
+            this.pluginMappingParameterSpecs = List.copyOf(specs);
+            for (PluginMappingParameter spec : this.pluginMappingParameterSpecs) {
+                pluginMappingParameters.add(Parameter.boolParam(spec.name(), spec.updateable(), m -> {
+                    Object v = ((PluginMappingParametersAware) m).pluginMappingParameterValues().get(spec.name());
+                    return v instanceof Boolean ? (Boolean) v : spec.defaultValue();
+                }, spec.defaultValue()));
+            }
+        }
+
+        /** Returns the plugin-contributed parameters to be appended to {@link #getParameters()} by subclasses. */
+        protected List<Parameter<?>> pluginMappingParameters() {
+            return pluginMappingParameters;
+        }
+
+        /** Returns the plugin-contributed parameter definitions this builder was initialized with. */
+        protected List<PluginMappingParameter> pluginMappingParameterSpecs() {
+            return pluginMappingParameterSpecs;
+        }
+
+        /** Returns the resolved values of the plugin-contributed parameters, keyed by parameter name. */
+        protected Map<String, Object> pluginMappingParameterValues() {
+            if (pluginMappingParameters.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, Object> values = new HashMap<>();
+            for (Parameter<?> param : pluginMappingParameters) {
+                values.put(param.name, param.getValue());
+            }
+            return values;
+        }
+
+        /** Returns {@code true} if any indexing-disabling plugin parameter resolved to {@code true}. */
+        protected boolean shouldDisableIndexing() {
+            for (int i = 0; i < pluginMappingParameterSpecs.size(); i++) {
+                PluginMappingParameter spec = pluginMappingParameterSpecs.get(i);
+                if (spec.disablesIndexing() && Boolean.TRUE.equals(pluginMappingParameters.get(i).getValue())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /**
          * Initialises all parameters from an existing mapper
          */
