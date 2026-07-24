@@ -63,6 +63,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.TransportDeleteTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -371,6 +373,7 @@ import org.opensearch.rest.action.admin.cluster.RestDeleteDecommissionStateActio
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteTaskAction;
 import org.opensearch.rest.action.admin.cluster.RestGetDecommissionStateAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
@@ -680,6 +683,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
+        actions.register(DeleteTaskAction.INSTANCE, TransportDeleteTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
@@ -1018,6 +1022,7 @@ public class ActionModule extends AbstractModule {
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
         registerHandler.accept(new RestGetTaskAction());
+        registerHandler.accept(new RestDeleteTaskAction());
         registerHandler.accept(new RestCancelTasksAction(nodesInCluster));
 
         // Ingest API

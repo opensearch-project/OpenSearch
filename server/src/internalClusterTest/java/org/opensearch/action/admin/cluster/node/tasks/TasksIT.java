@@ -865,6 +865,16 @@ public class TasksIT extends AbstractTasksIT {
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
 
+        assertTrue(client().admin().cluster().prepareDeleteTask(taskId).get().isAcknowledged());
+        assertBusy(() -> {
+            assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+            SearchResponse deleteSearchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
+                .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.idsQuery().addIds(taskId.toString())))
+                .get();
+            assertEquals(0L, deleteSearchResponse.getHits().getTotalHits().value());
+        });
+        expectNotFound(() -> client().admin().cluster().prepareDeleteTask(taskId).get());
+
         // run it again to check that the tasks index has been successfully created and can be re-used
         client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
         events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
@@ -904,6 +914,9 @@ public class TasksIT extends AbstractTasksIT {
         GetTaskResponse getResponse = expectFinishedTask(failedTaskId);
         assertNull(getResponse.getTask().getResponse());
         assertEquals(error, getResponse.getTask().getErrorAsMap());
+
+        assertTrue(client().admin().cluster().prepareDeleteTask(failedTaskId).get().isAcknowledged());
+        expectNotFound(() -> client().admin().cluster().prepareDeleteTask(failedTaskId).get());
     }
 
     public void testGetTaskNotFound() throws Exception {
@@ -957,6 +970,9 @@ public class TasksIT extends AbstractTasksIT {
 
         assertNotNull(taskResult.getError());
         assertNull(taskResult.getResponse());
+
+        assertTrue(client().admin().cluster().prepareDeleteTask(task.getTaskId()).get().isAcknowledged());
+        expectNotFound(() -> client().admin().cluster().prepareDeleteTask(task.getTaskId()).get());
     }
 
     public void testStoreTaskResultFailsDueToMissingIndexMappingFields() throws IOException {

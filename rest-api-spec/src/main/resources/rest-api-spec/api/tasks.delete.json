@@ -1,0 +1,26 @@
+{
+  "tasks.delete":{
+    "documentation":{
+      "url":"https://opensearch.org/docs/latest/api-reference/tasks/",
+      "description":"Deletes a stored completed task result."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_tasks/{task_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "task_id":{
+              "type":"string",
+              "description":"Delete the stored completed task result with specified id (node_id:task_number)"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}
