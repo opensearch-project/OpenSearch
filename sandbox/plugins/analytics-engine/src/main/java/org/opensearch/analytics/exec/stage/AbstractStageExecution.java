@@ -16,6 +16,7 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Shared mechanics for every {@link StageExecution} variant: state CAS, listener
  * fire loop, failure capture, metrics, default {@code tasks}/{@code runner} accessors,
  * default {@code onTaskTerminal}/{@code cancel}/{@code failWithCause} impls, and the
- * {@link #start()} template (materialise → publish → transition).
+ * {@link #start} template (materialise → publish → transition).
  *
  * <p>Subclasses implement {@link #materializeTasks()} (what tasks to run) and
  * optionally {@link #onTerminalTransition(State)} (pre-listener cleanup). The base
@@ -105,29 +106,59 @@ public abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
-     * Template: materialise task list, hand to {@link #publishTasksAndStart}. Final —
-     * subclasses customise via {@link #materializeTasks()}. Any exception from
-     * {@code materializeTasks()} marks the stage FAILED rather than leaking back to the
-     * scheduler.
+     * Template: materialise task list (possibly async), publish, transition, then signal
+     * {@code onStarted}. Subclasses customise via {@link #materializeTasks()} for synchronous
+     * work or {@link #materializeTasksAsync} for deferred work (e.g. a can-match round-trip).
+     *
+     * <p>{@code onStarted.onResponse} fires after the post-materialisation transition (RUNNING
+     * when there is work, terminal otherwise); {@code onStarted.onFailure} fires if
+     * materialisation failed (the stage is FAILED by then). For the synchronous path all of this
+     * happens inline before this method returns; for the async path it happens on the completion
+     * thread — so callers must act via {@code onStarted}, not by polling {@link #getState()}
+     * after the call.
      */
     @Override
-    public final void start() {
-        List<StageTask> ts;
+    public final void start(ActionListener<Void> onStarted) {
         try {
-            ts = materializeTasks();
+            materializeTasksAsync(ActionListener.wrap(tasks -> {
+                publishTasksAndStart(tasks);
+                onStarted.onResponse(null);
+            }, cause -> {
+                failWithCause(cause);
+                onStarted.onFailure(cause);
+            }));
         } catch (Exception e) {
             failWithCause(e);
-            return;
+            onStarted.onFailure(e);
         }
-        publishTasksAndStart(ts);
     }
 
     /**
-     * Build this stage's task list. Called once from {@link #start()}. Return empty for
+     * Build this stage's task list. Called once from {@link #start}. Return empty for
      * "nothing to do" — the base will short-circuit straight to SUCCEEDED. Throw to mark
      * the stage FAILED (e.g. target resolution failure).
+     *
+     * <p>Default sync path; override {@link #materializeTasksAsync} instead when work must
+     * be deferred (network call, lock wait, etc.).
      */
     protected abstract List<StageTask> materializeTasks();
+
+    /**
+     * Async variant of {@link #materializeTasks()}. Default runs the sync method and invokes
+     * the listener inline. Override when the work needs to defer publication — e.g.
+     * {@code ShardFragmentStageExecution} dispatches a can-match round-trip before publishing.
+     *
+     * <p>Implementations MUST eventually call exactly one of {@code listener.onResponse}
+     * or {@code listener.onFailure}. Synchronous exceptions thrown before either are caught
+     * by {@link #start} and treated as failures.
+     */
+    protected void materializeTasksAsync(ActionListener<List<StageTask>> listener) {
+        try {
+            listener.onResponse(materializeTasks());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
     /**
      * Pre-listener cleanup hook. Fires inside {@link #transitionTo} on any terminal

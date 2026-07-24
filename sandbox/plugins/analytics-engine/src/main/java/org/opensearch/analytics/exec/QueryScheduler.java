@@ -102,7 +102,7 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then hands the
+     * Materialises {@code stage}'s tasks via {@link StageExecution#start}, then hands the
      * scheduler-owned per-task listener factory to {@link StageExecution#dispatchTasks} —
      * the stage decides whether to dispatch eagerly (default for-loop) or incrementally
      * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
@@ -110,10 +110,20 @@ public class QueryScheduler implements Scheduler {
      * SUCCEEDED; concurrent cancel → CANCELLED).
      */
     void scheduleStage(StageExecution stage) {
-        stage.start();
-        if (stage.getState() != StageExecution.State.RUNNING) return;
-        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
-        stage.dispatchTasks(this::handleFor);
+        // Dispatch after materialisation completes, not by polling state right after start().
+        // start(onStarted) may be asynchronous — ShardFragmentStageExecution defers publication
+        // behind a can-match round-trip, so the stage can still be CREATED when start() returns
+        // and only transitions later, on the response thread. onStarted fires once the stage has
+        // transitioned: dispatch only if it landed in RUNNING (empty-target stages go straight to
+        // SUCCEEDED and have nothing to dispatch). Synchronous stages run this inline inside
+        // start(); deferred stages run it on the async completion. onFailure needs no handling —
+        // the stage is already FAILED and propagates through the normal terminal path.
+        stage.start(ActionListener.wrap(v -> {
+            if (stage.getState() == StageExecution.State.RUNNING) {
+                logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+                stage.dispatchTasks(this::handleFor);
+            }
+        }, e -> {}));
     }
 
     /**

@@ -32,10 +32,21 @@ public interface StageExecution {
 
     StageMetrics getMetrics();
 
-    /** CREATED → RUNNING; initiates stage-specific dispatch logic. Called at most once. */
-    void start();
+    /**
+     * Starts the stage: materialise its task list, publish it, and transition. Called at most once.
+     *
+     * <p>Materialisation may be deferred behind a network round-trip (e.g. the can-match
+     * pre-filter), so the stage can still be CREATED when this method returns and only reach its
+     * post-materialisation state later, on the completion thread. {@code onStarted} signals when
+     * materialisation has completed: {@code onResponse} after the stage has transitioned (RUNNING
+     * when there is work, or a terminal state such as SUCCEEDED for empty targets), {@code
+     * onFailure} if materialisation failed (the stage is already FAILED by then). Callers dispatch
+     * by checking {@code getState() == RUNNING} inside {@code onResponse}. Pass {@link
+     * ActionListener#wrap} no-ops when the caller does not need the signal.
+     */
+    void start(ActionListener<Void> onStarted);
 
-    /** Append-only; register before {@link #start()}. Fired synchronously on every transition. */
+    /** Append-only; register before {@link #start(ActionListener)}. Fired synchronously on every transition. */
     void addStateListener(StageStateListener listener);
 
     /** Non-null only when state is {@link State#FAILED}. */
@@ -52,7 +63,7 @@ public interface StageExecution {
 
     // ── Scheduler-driven dispatch hooks ───────────────────────────────────
 
-    /** Empty until {@link #start()} populates from resolved targets. */
+    /** Empty until {@link #start} populates from resolved targets. */
     default List<StageTask> tasks() {
         return List.of();
     }

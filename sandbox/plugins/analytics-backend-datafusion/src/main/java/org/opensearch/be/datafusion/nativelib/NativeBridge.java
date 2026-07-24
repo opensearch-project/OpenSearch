@@ -151,6 +151,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
     private static final MethodHandle FETCH_BY_ROW_IDS;
     private static final MethodHandle UPDATE_CONCURRENCY_GATE;
+    private static final MethodHandle CAN_MATCH;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -634,6 +635,20 @@ public final class NativeBridge {
         UPDATE_CONCURRENCY_GATE = linker.downcallHandle(
             lib.find("df_update_concurrency_gate").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
+        );
+
+        // i64 df_can_match(runtime_ptr, shard_view_ptr, column_name_ptr, column_name_len, filter_min, filter_max)
+        CAN_MATCH = linker.downcallHandle(
+            lib.find("df_can_match").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: 1=Yes, 0=No, -1=Unknown
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // column_name_ptr
+                ValueLayout.JAVA_LONG,   // column_name_len
+                ValueLayout.JAVA_LONG,   // filter_min
+                ValueLayout.JAVA_LONG    // filter_max
+            )
         );
     }
 
@@ -1766,6 +1781,19 @@ public final class NativeBridge {
     public static void setScopedPageIndexEnabled(boolean enabled) {
         try (var call = new NativeCall()) {
             call.invoke(SET_SCOPED_PAGE_INDEX_ENABLED, enabled ? 1L : 0L);
+        }
+    }
+
+    /**
+     * Evaluates whether any parquet file in the shard has row-group statistics
+     * overlapping the range [filterMin, filterMax] on the named column.
+     * Iterates all files in the shard view internally (Rust side).
+     * Returns 1 (Yes/may match), 0 (No/all disjoint), or -1 (Unknown/fail-open).
+     */
+    public static long canMatch(long runtimePtr, long shardViewPtr, String columnName, long filterMin, long filterMax) {
+        try (var call = new NativeCall()) {
+            var cn = call.str(columnName);
+            return call.invoke(CAN_MATCH, runtimePtr, shardViewPtr, cn.segment(), cn.len(), filterMin, filterMax);
         }
     }
 
