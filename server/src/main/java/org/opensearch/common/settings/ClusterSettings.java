@@ -936,6 +936,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
+                StreamTransportService.STREAM_TRANSPORT_LOCAL_QUEUE_DEPTH_SETTING,
                 StreamSearchTransportService.STREAM_SEARCH_ENABLED,
                 TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
                 TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING,
