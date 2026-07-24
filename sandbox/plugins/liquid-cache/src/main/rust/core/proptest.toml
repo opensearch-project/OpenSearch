@@ -1,0 +1,4 @@
+[proptest]
+# Disable the regression database
+# directories created in the source tree.
+failure_persistence = "off"

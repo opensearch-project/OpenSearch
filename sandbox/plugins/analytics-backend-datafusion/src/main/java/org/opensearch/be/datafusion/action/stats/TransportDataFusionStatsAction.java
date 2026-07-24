@@ -174,6 +174,6 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
             }
         }
 
-        return new DataFusionStats(filteredNativeStats, fragmentExecutorGate, adaptiveBudget, spillStats);
+        return new DataFusionStats(filteredNativeStats, fragmentExecutorGate, adaptiveBudget, spillStats, null, null);
     }
 }

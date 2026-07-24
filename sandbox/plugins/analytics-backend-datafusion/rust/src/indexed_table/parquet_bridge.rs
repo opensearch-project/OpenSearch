@@ -182,11 +182,12 @@ pub fn create_row_selection_stream(
     rg_index: usize,
     selection: RowSelection,
     push_predicate: bool,
+    selectivity: f64,
 ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
     let num_rgs = config.metadata.num_row_groups();
     let mut access_plan = ParquetAccessPlan::new_none(num_rgs);
     access_plan.set(rg_index, RowGroupAccess::Selection(selection));
-    create_stream_with_access_plan(config, access_plan, push_predicate)
+    create_stream_with_access_plan(config, access_plan, push_predicate, selectivity)
 }
 
 /// Create a stream that reads a single row group with full scan.
@@ -218,13 +219,14 @@ pub fn create_full_scan_stream(
     // rows with gaps?) so the caller's post-decode mask alignment stays
     // correct. Documented in `pr-reviews/EVALUATOR_HANDOFF.md`.
     access_plan.set(rg_index, RowGroupAccess::Scan);
-    create_stream_with_access_plan(config, access_plan, false)
+    create_stream_with_access_plan(config, access_plan, false, 1.0)
 }
 
 fn create_stream_with_access_plan(
     config: &RowGroupStreamConfig,
     access_plan: ParquetAccessPlan,
     push_predicate: bool,
+    _selectivity: f64,
 ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
     let partitioned_file = PartitionedFile::new(config.file_path.clone(), config.file_size)
         .with_extensions(Arc::new(access_plan));
@@ -250,9 +252,16 @@ fn create_stream_with_access_plan(
         }
     }
 
+    let file_source = crate::optimizer_providers::wrap_parquet_source(
+        parquet_source,
+        &opensearch_query_spi::ParquetEngagementCtx {
+            full_schema: &config.full_schema,
+            projection: config.projection.as_deref(),
+            predicate: config.predicate.as_ref(),
+        },
+    );
     let mut config_builder =
-        FileScanConfigBuilder::new(config.store_url.clone(), Arc::new(parquet_source))
-            .with_file(partitioned_file);
+        FileScanConfigBuilder::new(config.store_url.clone(), file_source).with_file(partitioned_file);
 
     if let Some(ref proj) = config.projection {
         // Empty projection (e.g. COUNT(*)) is honoured as "read no

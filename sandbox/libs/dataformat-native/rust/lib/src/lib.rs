@@ -44,6 +44,8 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 // Pull in plugin rlibs — forces linker to include all #[no_mangle] symbols.
 extern crate native_bridge_common;
 extern crate opensearch_datafusion;
+#[cfg(feature = "liquid-cache")]
+extern crate opensearch_liquid_cache;
 extern crate opensearch_parquet_format;
 extern crate opensearch_repository_azure;
 extern crate opensearch_repository_fs;

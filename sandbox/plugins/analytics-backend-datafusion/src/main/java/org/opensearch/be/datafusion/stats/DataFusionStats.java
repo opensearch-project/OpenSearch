@@ -177,6 +177,13 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, cacheStats, searchStats);
+        return Objects.hash(
+            nativeExecutorsStats,
+            fragmentExecutorGateStats,
+            adaptiveBudget,
+            spillStats,
+            cacheStats,
+            searchStats
+        );
     }
 }

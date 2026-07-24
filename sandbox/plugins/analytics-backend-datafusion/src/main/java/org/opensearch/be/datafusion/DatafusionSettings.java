@@ -187,6 +187,9 @@ public final class DatafusionSettings {
     }
 
     // ── All settings registered by the plugin ──
+    //
+    // Liquid Cache settings (datafusion.liquid_cache.*) are now owned by the
+    // separate liquid-cache plugin (see org.opensearch.liquidcache.LiquidCacheSettings).
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
 

@@ -22,7 +22,7 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 640 (85 × 8). */
+    /** 7.1: Layout byte size must be 680 (85 × 8). Liquid-cache stats moved to the liquid-cache plugin. */
     public void testLayoutByteSize() {
         assertEquals(680L, StatsLayout.LAYOUT.byteSize());
         assertEquals(85 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());

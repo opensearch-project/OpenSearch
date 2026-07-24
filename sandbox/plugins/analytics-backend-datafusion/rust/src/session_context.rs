@@ -243,7 +243,6 @@ pub async unsafe fn create_session_context(
             .execution
             .split_file_groups_by_statistics = true;
     }
-
     let mut state_builder = SessionStateBuilder::new()
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
@@ -262,6 +261,9 @@ pub async unsafe fn create_session_context(
                 Arc::clone(&shard_view.store),
                 runtime.runtime_env.cache_manager.get_file_metadata_cache(),
             )));
+    }
+    for rule in crate::optimizer_providers::enabled_optimizer_rules() {
+        state_builder = state_builder.with_physical_optimizer_rule(rule);
     }
 
     let state = state_builder.build();
@@ -394,7 +396,7 @@ pub async unsafe fn create_session_context(
         shard_view.sort_fields.len()
     );
 
-    error!(
+    log_debug!(
         "create_session_context: successfully registered table '{}', table_name_len={}",
         table_name,
         table_name.len()

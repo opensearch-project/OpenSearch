@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.NativeQueryOptimizerProvider;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
@@ -60,6 +61,7 @@ import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.DocumentLookupProvider;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -101,9 +103,34 @@ public class DataFusionPlugin extends Plugin
         AnalyticsSearchBackendPlugin,
         ActionPlugin,
         CircuitBreakerPlugin,
+        ExtensiblePlugin,
         DocumentLookupProvider {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
+
+    // Native session-optimizer providers discovered via ExtensiblePlugin; empty when none installed.
+    private final List<NativeQueryOptimizerProvider> optimizerProviders = new java.util.ArrayList<>();
+
+    @Override
+    public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+        optimizerProviders.addAll(loader.loadExtensions(NativeQueryOptimizerProvider.class));
+        logger.info("DataFusionPlugin discovered {} native query-optimizer provider(s)", optimizerProviders.size());
+    }
+
+    /** Collects the non-zero native optimizer handles from all discovered providers. */
+    private long[] collectOptimizerHandles(Settings settings) {
+        return optimizerProviders.stream()
+            .mapToLong(p -> {
+                try {
+                    return p.createNativeOptimizer(settings);
+                } catch (Exception e) {
+                    logger.warn("Optimizer provider [{}] failed to create native optimizer: {}", p.name(), e.getMessage());
+                    return 0L;
+                }
+            })
+            .filter(h -> h != 0L)
+            .toArray();
+    }
 
     /** Fraction of the spill volume's total capacity used as the default cap. */
     static final double SPILL_LIMIT_FRACTION = 0.90;
@@ -560,6 +587,8 @@ public class DataFusionPlugin extends Plugin
             .spillDirectory(spillDir)
             .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
+            // Native session-optimizer handles from discovered providers (e.g. liquid cache).
+            .optimizerHandles(collectOptimizerHandles(settings))
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
@@ -650,6 +679,10 @@ public class DataFusionPlugin extends Plugin
             DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD.get(settings)
         );
+
+        // Liquid Cache settings + dynamic updates are now owned by the liquid-cache
+        // plugin (registered via the NativeQueryOptimizerProvider SPI). Nothing to
+        // wire here.
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 

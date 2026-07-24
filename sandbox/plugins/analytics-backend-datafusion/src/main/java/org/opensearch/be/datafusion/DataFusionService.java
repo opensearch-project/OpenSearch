@@ -49,6 +49,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final double datanodeMultiplier;
     private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
+    // Native optimizer provider handles passed into the runtime at creation; empty when none installed.
+    private final long[] optimizerHandles;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
@@ -64,6 +66,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.datanodeMultiplier = builder.datanodeMultiplier;
         this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
+        this.optimizerHandles = builder.optimizerHandles;
     }
 
     /** Creates a new builder. */
@@ -98,7 +101,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
         }
 
         try {
-            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            long ptr = NativeBridge.createGlobalRuntime(
+                memoryPoolLimit,
+                cacheManagerPtr,
+                spillDirectory,
+                spillMemoryLimit,
+                optimizerHandles
+            );
             if (cacheHandle != null) {
                 cacheHandle.markConsumed();
             }
@@ -316,6 +325,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private double datanodeMultiplier = 1.0;
         private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
+        private long[] optimizerHandles = new long[0];
 
         private Builder() {}
 
@@ -373,6 +383,16 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder clusterSettings(ClusterSettings clusterSettings) {
             this.clusterSettings = clusterSettings;
+            return this;
+        }
+
+        /**
+         * Sets the native session-optimizer provider handles (e.g. liquid cache),
+         * contributed by {@code NativeQueryOptimizerProvider} plugins.
+         * @param handles opaque native handles; may be empty
+         */
+        public Builder optimizerHandles(long[] handles) {
+            this.optimizerHandles = handles != null ? handles : new long[0];
             return this;
         }
 
