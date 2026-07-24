@@ -26,6 +26,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Marc Handalian    | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh      | [msfroh](https://github.com/msfroh)                     | Apple       |
 | Mohit Godwani     | [mgodwan](https://github.com/mgodwan)                   | Amazon      |
+| Navneet Verma     | [navneet1v](https://github.com/navneet1v)               | Amazon      |
 | Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
 | Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |

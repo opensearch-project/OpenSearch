@@ -57,6 +57,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -667,6 +668,9 @@ public class RestoreService implements ClusterStateApplier {
                                 .map(ds -> updateDataStream(ds, mdBuilder, request))
                                 .collect(Collectors.toMap(DataStream::getName, Function.identity()))
                         );
+                        if (request.attachToDataStream()) {
+                            attachRestoredBackingIndices(indices.keySet(), mdBuilder, updatedDataStreams);
+                        }
                         mdBuilder.dataStreams(updatedDataStreams);
 
                         // Restore global state if needed
@@ -1022,6 +1026,36 @@ public class RestoreService implements ClusterStateApplier {
                 e
             );
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Attaches each restored {@code .ds-<streamName>-NNNNNN} index to a pre-existing data stream of the same name, in
+     * the same cluster-state update as the restore. Adding the index and advancing the generation together avoids the
+     * transient state {@link Metadata.Builder} validation rejects (a convention-named index above the generation).
+     * Updates {@code updatedDataStreams} in place. Visible for testing.
+     */
+    static void attachRestoredBackingIndices(
+        Set<String> restoredIndexNames,
+        Metadata.Builder metadata,
+        Map<String, DataStream> updatedDataStreams
+    ) {
+        for (String restoredIndexName : restoredIndexNames) {
+            String streamName = DataStream.parseDataStreamName(restoredIndexName);
+            if (streamName == null) {
+                continue;
+            }
+            DataStream currentDs = updatedDataStreams.get(streamName);
+            IndexMetadata restoredIndexMetadata = metadata.get(restoredIndexName);
+            if (currentDs == null || restoredIndexMetadata == null) {
+                continue;
+            }
+            if (currentDs.getIndices().contains(restoredIndexMetadata.getIndex())) {
+                continue;
+            }
+            // A backing index must map the timestamp field as a date, or data stream search breaks.
+            MetadataDataStreamsService.validateTimestampFieldMapping(restoredIndexMetadata, currentDs.getTimeStampField().getName());
+            updatedDataStreams.put(streamName, currentDs.addBackingIndex(restoredIndexMetadata.getIndex()));
         }
     }
 

@@ -100,7 +100,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final ThreadPool threadPool;
     private Set<Index> indicesToClear;
     private Map<Index, Set<String>> fieldsToClear;
-    private Set<CacheKey> cacheKeysToClear;
 
     /**
      * Deprecated ctor. Use the ctor with the clusterService argument.
@@ -136,7 +135,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
         this.indicesToClear = ConcurrentCollections.newConcurrentSet();
         this.fieldsToClear = new ConcurrentHashMap<>();
-        this.cacheKeysToClear = ConcurrentCollections.newConcurrentSet();
     }
 
     @Override
@@ -223,18 +221,16 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     // The synchronized block is to avoid having multiple simultaneous cache iterators removing keys.
     public void clear() {
-        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty() && cacheKeysToClear.isEmpty())) {
-            // Copy marked indices/fields/keys before iteration, and only remove keys matching the copies
+        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty())) {
+            // Copy marked indices/fields before iteration, and only remove keys matching the copies
             // in case new entries are marked for cleanup mid-iteration
             Set<Index> indicesToClearCopy = Set.copyOf(indicesToClear);
-            Set<CacheKey> cacheKeysToClearCopy = Set.copyOf(cacheKeysToClear);
             Map<Index, Set<String>> fieldsToClearCopy = new HashMap<>();
             for (Map.Entry<Index, Set<String>> entry : fieldsToClear.entrySet()) {
                 fieldsToClearCopy.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
             // remove this way instead of clearing all, in case a new entry has been marked since copying
             indicesToClear.removeAll(indicesToClearCopy);
-            cacheKeysToClear.removeAll(cacheKeysToClearCopy);
             for (Map.Entry<Index, Set<String>> entry : fieldsToClearCopy.entrySet()) {
                 Set<String> fieldsForIndex = fieldsToClear.get(entry.getKey());
                 if (fieldsForIndex != null) {
@@ -251,10 +247,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                     }
                     Set<String> fieldsOfIndexToClear = fieldsToClearCopy.get(key.indexCache.index);
                     if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
-                        removeKey(iterator);
-                        continue;
-                    }
-                    if (cacheKeysToClearCopy.contains(key.readerKey)) {
                         removeKey(iterator);
                     }
                 }
@@ -391,7 +383,12 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         public void onClose(CacheKey key) throws IOException {
-            nodeLevelCache.cacheKeysToClear.add(key);
+            // Invalidate the exact key synchronously rather than deferring to the periodic
+            // cache-scan cleanup: a reader closes only once, and the scan can miss entries under
+            // concurrent cache mutation, permanently retaining stale fielddata. Exact-key
+            // invalidation is O(1) so there is no need to batch it.
+            // Don't call cache.refresh() here as it would have bad performance implications.
+            nodeLevelCache.getCache().invalidate(new Key(this, key, null));
         }
 
         @Override
