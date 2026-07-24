@@ -24,6 +24,11 @@ import java.util.Map;
  */
 public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder {
 
+    /**
+     * The name this decoder is registered under in the {@link IngestionPayloadDecoderRegistry}.
+     */
+    public static final String NAME = "xcontent";
+
     @Override
     public Map<String, Object> decode(Message<?> message) {
         try {
@@ -35,7 +40,7 @@ public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder 
 
     /**
      * Factory for the built-in {@code xcontent} decoder. Registered under the name
-     * {@code xcontent} in the {@link IngestionPayloadDecoderRegistry}.
+     * {@link #NAME} in the {@link IngestionPayloadDecoderRegistry}.
      */
     public static class Factory implements IngestionPayloadDecoderFactory {
 
@@ -45,7 +50,7 @@ public class XContentIngestionPayloadDecoder implements IngestionPayloadDecoder 
         public void validate(Map<String, Object> settings) {
             if (!settings.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "The [xcontent] decoder does not accept decoder_settings, but found: " + settings.keySet()
+                    "The [" + NAME + "] decoder does not accept decoder_settings, but found: " + settings.keySet()
                 );
             }
         }

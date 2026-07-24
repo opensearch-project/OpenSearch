@@ -73,6 +73,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -1054,7 +1055,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_INGESTION_SOURCE_DECODER_TYPE = "index.ingestion_source.decoder_type";
     public static final Setting<String> INGESTION_SOURCE_DECODER_TYPE_SETTING = Setting.simpleString(
         SETTING_INGESTION_SOURCE_DECODER_TYPE,
-        "xcontent",
+        XContentIngestionPayloadDecoder.NAME,
         Property.IndexScope,
         Property.Final
     );

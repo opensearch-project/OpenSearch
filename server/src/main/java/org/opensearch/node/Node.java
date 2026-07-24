@@ -959,7 +959,7 @@ public class Node implements Closeable {
 
             // build ingestion payload decoder registry
             final IngestionPayloadDecoderRegistry.Builder registryBuilder = IngestionPayloadDecoderRegistry.builder()
-                .register("xcontent", XContentIngestionPayloadDecoder.Factory.INSTANCE);
+                .register(XContentIngestionPayloadDecoder.NAME, XContentIngestionPayloadDecoder.Factory.INSTANCE);
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> plugin.getIngestionPayloadDecoderFactories().forEach(registryBuilder::register));
             final IngestionPayloadDecoderRegistry payloadDecoderRegistry = registryBuilder.build();
