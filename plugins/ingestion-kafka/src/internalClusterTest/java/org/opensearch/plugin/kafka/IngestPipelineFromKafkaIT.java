@@ -13,6 +13,7 @@ import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.GetPipelineResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -865,10 +866,11 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
     // --- Helper methods ---
 
     private void createPipeline(String pipelineId, String pipelineJson) {
-        client().admin()
+        AcknowledgedResponse response = client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest(pipelineId, new BytesArray(pipelineJson), MediaTypeRegistry.JSON))
             .actionGet();
+        assertAcked(response);
     }
 
     private void createIndexWithPipeline(String pipelineId, int numShards, int numReplicas) {
