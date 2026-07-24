@@ -196,7 +196,10 @@ public class RestIndicesAction extends AbstractListAction {
                                 @Override
                                 public void onResponse(ClusterStateResponse clusterStateResponse) {
                                     validateRequestLimit(clusterStateResponse, listener);
-                                    IndexPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
+                                    IndexPaginationStrategy paginationStrategy = getPaginationStrategy(
+                                        clusterStateResponse,
+                                        getSettingsResponse
+                                    );
                                     // For non-paginated queries, indicesToBeQueried would be same as indices retrieved from
                                     // rest request and unresolved, while for paginated queries, it would be a list of indices
                                     // already resolved by ClusterStateRequest and to be displayed in a page.
@@ -1239,7 +1242,10 @@ public class RestIndicesAction extends AbstractListAction {
         return false;
     }
 
-    protected IndexPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
+    protected IndexPaginationStrategy getPaginationStrategy(
+        ClusterStateResponse clusterStateResponse,
+        GetSettingsResponse getSettingsResponse
+    ) {
         return null;
     }
 

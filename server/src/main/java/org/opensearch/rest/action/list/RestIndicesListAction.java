@@ -9,8 +9,10 @@
 package org.opensearch.rest.action.list;
 
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.pagination.IndexPaginationStrategy;
 import org.opensearch.action.pagination.PageParams;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -21,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -84,8 +88,13 @@ public class RestIndicesListAction extends RestIndicesAction {
     }
 
     @Override
-    protected IndexPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
-        return new IndexPaginationStrategy(pageParams, clusterStateResponse.getState());
+    protected IndexPaginationStrategy getPaginationStrategy(
+        ClusterStateResponse clusterStateResponse,
+        GetSettingsResponse getSettingsResponse
+    ) {
+        Set<String> authorizedIndices = getSettingsResponse.getIndexToSettings().keySet();
+        Predicate<IndexMetadata> authorizationFilter = metadata -> authorizedIndices.contains(metadata.getIndex().getName());
+        return new IndexPaginationStrategy(pageParams, clusterStateResponse.getState(), authorizationFilter);
     }
 
     // Public for testing
